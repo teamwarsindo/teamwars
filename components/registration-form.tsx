@@ -32,12 +32,13 @@ export function RegistrationForm() {
           markTouched={flow.markTouched} 
         />
 
+        {/* Tombol Konfirmasi */}
         <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
-          <button 
+          <button
             type="button" 
             onClick={flow.handleReviewClick} 
-            disabled={!flow.canSubmit}
-            className="w-full rounded-xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            disabled={!flow.canSubmit} 
+            className="w-full rounded-xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >
             Konfirmasi Pendaftaran
           </button>
