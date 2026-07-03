@@ -1,4 +1,3 @@
-// app/api/submit/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
