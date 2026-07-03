@@ -132,7 +132,7 @@ export default function Page() {
                     Total Pembayaran
                   </p>
                 </div>
-                <p className="text-3xl font-black text-foreground">
+                <p className="text-center text-3xl font-black text-foreground w-full">
                   Rp 250.000
                 </p>
               </div>
