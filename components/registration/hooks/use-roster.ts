@@ -23,26 +23,80 @@ export function useRoster() {
     setPlayers((prev) => prev.length <= MIN_PLAYERS ? prev : prev.filter((p) => p.id !== id))
   }
 
-  // Fungsi Smart Paste yang sama seperti sebelumnya dimasukkan ke sini...
   function handleSmartPaste(markTouchedMultiple: (keys: Record<string, boolean>) => void) {
     if (!bulkText.trim()) return
 
-    // ... (Logika pemecahan baris dan Regex sama persis) ...
-    
-    // Anggap extractedData sudah terisi dari logika sebelumnya
-    const extractedData: any[] = [] 
-    
+    const lines = bulkText.split('\n')
+    const extractedData: Array<{namaLengkap: string, discord: string, ign: string, duelId: string}> = []
+
+    lines.forEach((line) => {
+      if (!line.trim()) return
+      
+      let cleanedLine = line.trim()
+      
+      const duelIdMatch = cleanedLine.match(/[\d\s-]{8,}$/)
+      let duelId = ""
+      
+      if (duelIdMatch) {
+        duelId = duelIdMatch[0].replace(/[\s-]/g, "")
+        cleanedLine = cleanedLine.slice(0, duelIdMatch.index).trim()
+        cleanedLine = cleanedLine.replace(/[,\t\/|-]+$/, "").trim()
+      }
+
+      const parts = cleanedLine
+        .split(/\s*\t\s*|\s*\|\s*|\s*,\s*|\s*\/\s*|\s+-\s+|-/)
+        .map(item => item.trim())
+        .filter(Boolean)
+
+      if (parts.length > 0 || duelId) {
+         extractedData.push({
+           namaLengkap: parts[0] || "",
+           discord: parts[1] || "",
+           ign: parts[2] || "",
+           duelId: duelId ? formatDuelId(duelId) : formatDuelId(parts[3] || ""),
+         })
+      }
+    })
+
     if (extractedData.length === 0) return
+
     const newTouched: Record<string, boolean> = {}
     const newPlayers = [...players]
 
     extractedData.forEach((data, index) => {
-      // ... (Logika penyisipan data pemain sama persis) ...
+      let playerId = ""
+
+      if (index < newPlayers.length) {
+        newPlayers[index] = {
+          ...newPlayers[index],
+          namaLengkap: data.namaLengkap ? toProperCase(data.namaLengkap) : newPlayers[index].namaLengkap,
+          discord: data.discord || newPlayers[index].discord,
+          ign: data.ign || newPlayers[index].ign,
+          duelId: data.duelId || newPlayers[index].duelId,
+        }
+        playerId = newPlayers[index].id
+      } else if (newPlayers.length < MAX_PLAYERS) {
+        const newP = createPlayer("Anggota")
+        newP.namaLengkap = toProperCase(data.namaLengkap)
+        newP.discord = data.discord
+        newP.ign = data.ign
+        newP.duelId = data.duelId
+        newPlayers.push(newP)
+        playerId = newP.id
+      }
+
+      if (playerId) {
+        newTouched[`${playerId}-namaLengkap`] = true
+        newTouched[`${playerId}-discord`] = true
+        newTouched[`${playerId}-ign`] = true
+        newTouched[`${playerId}-duelId`] = true
+      }
     })
 
     setPlayers(newPlayers)
-    markTouchedMultiple(newTouched) // Panggil fungsi dari hook flow untuk menandai error
-    setNotification(`⚡ Berhasil mengekstrak data!`)
+    markTouchedMultiple(newTouched)
+    
+    setNotification(`⚡ Berhasil mengekstrak ${Math.min(extractedData.length, MAX_PLAYERS)} data pemain! Perhatikan kotak berwarna merah jika ada data yang tidak sesuai format.`)
     setTimeout(() => setNotification(null), 5000)
     setBulkText("") 
   }
