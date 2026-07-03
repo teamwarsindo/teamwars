@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react"
 import { STORAGE_KEY, countRole, findDuplicateFields, type FormState } from "@/lib/registration"
 import { isValidEmail, isValidHex, isCompleteDuelId, validateRealName, validateTeamName, validateDiscord } from "@/lib/validators"
 
-// Hook ini menerima hasil return dari dua hook sebelumnya
 export function useRegistrationFlow(team: any, roster: any) {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [submitAttempted, setSubmitAttempted] = useState(false)
@@ -20,7 +19,6 @@ export function useRegistrationFlow(team: any, roster: any) {
     setTouchedFields((prev) => ({ ...prev, ...keys }))
   }
 
-  // --- LOGIKA DRAFT (LOCAL STORAGE) ---
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
@@ -41,39 +39,56 @@ export function useRegistrationFlow(team: any, roster: any) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(draft)) } catch {}
   }, [team.email, team.namaTim, team.hex, roster.players, isDraftLoaded])
 
-  // --- LOGIKA VALIDASI ---
   const rosterRuleOk = countRole(roster.players, "Ketua") === 1 && countRole(roster.players, "Wakil Ketua") === 1
   const duplicateFields = useMemo(() => findDuplicateFields(roster.players), [roster.players])
 
   const fieldErrors = useMemo(() => {
     const errs: Record<string, string> = {}
+    
     if (!team.email.trim()) errs.email = "Email wajib diisi."
     else if (!isValidEmail(team.email)) errs.email = "Format email tidak valid."
     
-    // ... (Validasi namaTim, hex, logo, bukti sama persis) ...
+    const teamErr = validateTeamName(team.namaTim)
+    if (teamErr) errs.namaTim = teamErr
+    else if (!team.namaTim.trim()) errs.namaTim = "Nama Tim wajib diisi."
+    
+    if (!isValidHex(team.hex)) errs.hex = "Format hex tidak valid (#RRGGBB)."
+    if (!team.logo) errs.logo = "Logo tim wajib diunggah."
+    if (!team.bukti) errs.bukti = "Bukti transfer wajib diunggah."
 
     roster.players.forEach((p: any) => {
-      // ... (Validasi masing-masing pemain sama persis) ...
+      const nameErr = validateRealName(p.namaLengkap)
+      if (nameErr) errs[`${p.id}-namaLengkap`] = nameErr
+
+      const discordErr = validateDiscord(p.discord)
+      if (discordErr) errs[`${p.id}-discord`] = discordErr
+
+      if (!p.ign.trim()) errs[`${p.id}-ign`] = "IGN wajib diisi."
+      if (!p.duelId.trim()) errs[`${p.id}-duelId`] = "ID Duel Links wajib diisi."
+      else if (!isCompleteDuelId(p.duelId)) errs[`${p.id}-duelId`] = "ID harus berformat xxx-xxx-xxx."
     })
+
+    duplicateFields.forEach((key) => { errs[key] = "Data ganda dalam tim" })
     return errs
-  }, [team, roster.players, duplicateFields])
+  }, [team.email, team.namaTim, team.hex, team.logo, team.bukti, roster.players, duplicateFields])
 
   const canSubmit = Object.keys(fieldErrors).length === 0 && rosterRuleOk
   
   function err(key: string) {
     const e = fieldErrors[key]
     if (!e) return undefined
-    if (duplicateFields.has(key) || submitAttempted || touchedFields[key]) return e
+    if (duplicateFields.has(key)) return e
+    if (submitAttempted || touchedFields[key]) return e
     return undefined
   }
 
-  // --- LOGIKA SUBMIT ---
   function handleReviewClick() {
     setSubmitAttempted(true)
     if (!canSubmit) {
       document.getElementById("registration-form")?.scrollIntoView({ behavior: "smooth", block: "start" })
       return
     }
+    setServerError(null)
     setModalOpen(true)
   }
 
@@ -81,14 +96,59 @@ export function useRegistrationFlow(team: any, roster: any) {
     setSubmitting(true)
     setServerError(null)
     try {
-      // ... (Logika Fetch API sama persis seperti sebelumnya) ...
+      let logoUrlOriginal = team.logo?.base64 || ""; 
+      let buktiUrlOriginal = team.bukti?.base64 || "";
+
+      const getFileName = (url: string) => url.split('/').pop() || '';
+      const namaFileLogo = getFileName(logoUrlOriginal);
+      const namaFileBukti = getFileName(buktiUrlOriginal);
+      const baseUrl = window.location.origin;
+      
+      const payload = {
+        email: team.email.trim(),
+        namaTim: team.namaTim.trim(),
+        warna: team.hex,
+        logoTim: {
+          cloudinaryUrl: logoUrlOriginal,
+          original: `${baseUrl}/logo/${namaFileLogo}`, 
+          compressed: `${baseUrl}/thumb-logo/${namaFileLogo}` 
+        },
+        buktiTransfer: {
+          cloudinaryUrl: buktiUrlOriginal,
+          original: `${baseUrl}/bukti/${namaFileBukti}`,
+          compressed: `${baseUrl}/thumb-bukti/${namaFileBukti}`
+        },
+        players: roster.players.map((p: any) => ({
+          role: p.role,
+          namaLengkap: p.namaLengkap.trim(),
+          discord: p.discord.trim(),
+          ign: p.ign.trim(),
+          idDuelLinks: p.duelId,
+        })),
+        createdAt: new Date().toISOString()
+      }
+      
+      const res = await fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      
+      const result = await res.json()
+
+      if (!res.ok || result.status === "error") {
+        setSubmitting(false)
+        setServerError(result.message || "Terjadi kesalahan saat menyimpan ke Database KV.")
+        return
+      }
+
+      try { localStorage.removeItem(STORAGE_KEY) } catch {}
       setSubmitting(false)
       setModalOpen(false)
       setSuccess(true)
-      localStorage.removeItem(STORAGE_KEY)
     } catch (error: any) {
       setSubmitting(false)
-      setServerError(error.message)
+      setServerError(error.message || "Gagal memproses pendaftaran. Periksa koneksi internet Anda.")
     }
   }
 
