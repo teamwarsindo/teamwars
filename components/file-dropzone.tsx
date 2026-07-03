@@ -112,7 +112,7 @@ export function FileDropzone({ id, label, hint, value, onChange, error, teamName
               "Seret & lepas atau klik untuk unggah"
             )}
           </p>
-          <p className="text-xs text-muted-foreground">{hint ?? "PNG / JPG / WEBP, Tanpa Batas Ukuran"}</p>
+          <p className="text-xs text-muted-foreground">{hint ?? "PNG / JPG / WEBP"}</p>
         </div>
       )}
       <input ref={inputRef} id={id} type="file" accept=".png, .jpg, .jpeg, .webp" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
