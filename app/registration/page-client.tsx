@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Image from "next/image"
-import { RegistrationForm } from "@/components/registration-form"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { ShieldIcon, TrashIcon } from "@/components/icons"
+import { useState } from "react"; // Kalau lu pakai state untuk modal konfirmasi
+import { RegistrationForm } from "@/components/registration/RegistrationForm";
+import { PaymentInfo } from "@/components/registration/PaymentInfo";
+import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 
 export default function Page() {
   const [isCopied, setIsCopied] = useState(false);
@@ -41,25 +40,7 @@ export default function Page() {
       
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
-      {/* TOP BAR */}
-      <div className="relative z-10 flex w-full items-center justify-between px-6 pt-6 lg:px-12">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          <ShieldIcon className="h-4 w-4 text-primary" />
-          Official Registration
-        </div>
-        
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={handleClearStorage}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
-            title="Hapus data tersimpan & reset form"
-          >
-            <TrashIcon className="h-5 w-5" />
-          </button>
-          <ThemeToggle />
-        </div>
-      </div>
+      <TopBar onClearStorage="{handleClearStorage}" showTrash="{true}" title="Official Registration"/>
 
       {/* MODAL KONFIRMASI */}
       {isConfirmTrashOpen && (
@@ -93,30 +74,7 @@ export default function Page() {
       {/* MAIN CONTENT WRAPPER */}
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6">
         
-        {/* HEADER */}
-        <header className="mt-6 mb-8 flex flex-col items-center text-center lg:mb-10">
-          <div className="glow-border relative mb-6 h-[120px] w-[120px] overflow-hidden rounded-2xl sm:h-28 sm:w-28 lg:mb-8 lg:h-44 lg:w-44">
-            <Image
-              src="/logo.webp"
-              alt="Logo Team Wars Indonesia"
-              fill
-              priority
-              className="scale-[1.01] object-cover" 
-            />
-          </div>
-          <h1 className="glow-text text-balance text-3xl font-extrabold tracking-tight sm:text-5xl lg:text-[clamp(3.5rem,5vw,5.5rem)] lg:leading-[1.1]">
-            TEAM WARS INDONESIA
-          </h1>
-          
-          <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary sm:py-1.5 sm:text-sm lg:mt-6">
-            Season 7 — Duel Links
-          </p>
-
-          {/* Deskripsi Baru yang Dipersingkat */}
-          <p className="mt-4 max-w-xl text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Team Wars Indonesia (TWI) adalah platform kompetisi beregu Yu-Gi-Oh! utama yang mempertemukan berbagai komunitas dan guild terbaik. Memasuki Season 7, TWI memperluas jangkauan kompetisi ke skala regional untuk menghadirkan standar turnamen Duel Links yang lebih kompetitif dan profesional.
-          </p>      
-        </header>
+        <HeroHeader/>
 
         {/* SECTION KONTEN */}
         <section className="flex w-full max-w-4xl flex-col items-center">
@@ -173,10 +131,7 @@ export default function Page() {
           </div>
         </section>
 
-        {/* FOOTER */}
-        <footer className="mt-auto pt-10 text-center text-[10px] text-muted-foreground sm:pt-16 sm:text-xs">
-          © {new Date().getFullYear()} Team Wars Indonesia. All rights reserved.
-        </footer>
+        <Footer/>
         
       </div>
     </main>
