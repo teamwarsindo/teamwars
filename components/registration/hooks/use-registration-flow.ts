@@ -154,6 +154,7 @@ export function useRegistrationFlow(team: any, roster: any) {
 
   return {
     modalOpen, setModalOpen, submitting, serverError, success, rosterRuleOk,
+    canSubmit,
     markTouched, markTouchedMultiple, err, handleReviewClick, handleSubmit
   }
 }
