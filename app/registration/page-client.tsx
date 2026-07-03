@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react"; // Kalau lu pakai state untuk modal konfirmasi
-import { RegistrationForm } from "@/components/registration/RegistrationForm";
-import { PaymentInfo } from "@/components/registration/PaymentInfo";
+import { RegistrationForm } from "@/components/registration-form";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 
 export default function Page() {
