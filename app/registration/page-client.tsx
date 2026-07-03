@@ -149,13 +149,16 @@ export default function Page() {
                   </div>
                 </div>
 
-                <div className="mt-5 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 p-3">
+                {/* Pembungkus utama: ubah ke justify-center dan tambahkan relative */}
+                <div className="mt-5 relative flex items-center justify-center rounded-xl border border-primary/30 bg-primary/10 p-3 h-14">
+                  {/* Span nomor rekening dibiarkan seperti ini */}
                   <span className="font-mono text-lg font-bold tracking-widest text-foreground">
                     {accountNumber}
                   </span>
+                  {/* Tombol salin diberi absolute right-3 agar menempel di kanan */}
                   <button
                     onClick={handleCopy}
-                    className="flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)] active:scale-95"
+                    className="absolute right-3 flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)] active:scale-95"
                     title="Salin nomor rekening"
                   >
                     {isCopied ? "Tersalin! ✓" : "Salin 📋"}
