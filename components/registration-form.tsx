@@ -36,6 +36,7 @@ export function RegistrationForm() {
           <button 
             type="button" 
             onClick={flow.handleReviewClick} 
+            disabled={!flow.canSubmit}
             className="w-full rounded-xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >
             Konfirmasi Pendaftaran
