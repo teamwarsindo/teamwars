@@ -171,7 +171,7 @@ export function useRegistrationFlow(team: any, roster: any) {
 
       if (!res.ok || result.status === "error") {
         setSubmitting(false);
-        setServerError(result.message || "Terjadi kesalahan saat menyimpan ke Database.");
+        setServerError(result.error || result.message || "Terjadi kesalahan sistem yang tidak diketahui.");
         return;
       }
 
