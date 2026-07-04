@@ -95,7 +95,7 @@ export default function RulebookPage() {
             )}
           </div>
 
-          {/* RULES LIST - UI/UX REFINED */}
+          {/* RULES LIST - REAL MOBILE RESPONSIVE UI/UX */}
           <div className="flex w-full flex-col gap-6">
             {filteredRules.length === 0 ? (
               <div className="glass glow-border flex flex-col items-center justify-center rounded-2xl border p-12 text-center text-muted-foreground">
@@ -113,7 +113,7 @@ export default function RulebookPage() {
 
                   <div className="space-y-8">
                     {category.rules.map((rule, idx) => (
-                      <div key={idx} className="space-y-3">
+                      <div key={idx} className="space-y-4">
                         {/* Judul Aturan */}
                         <h3 className="text-base font-bold text-foreground">
                           {rule.title}
@@ -124,16 +124,22 @@ export default function RulebookPage() {
                           {rule.points.map((point, pIdx) => (
                             <div key={pIdx}>
                               {typeof point === "string" ? (
-                                /* Trik CSS: Justify + Hanging Indent untuk list abjad/nomor bawaan teks */
-                                <p className="pl-5 indent-[-1.25rem] text-justify">{point}</p>
+                                /* Menggunakan layout flex untuk memisahkan abjad/nomor bawaan teks */
+                                <div className="flex items-start gap-2 text-left">
+                                  {/* Jika string diawali abjad seperti "a. ", "b. ", atau nomor, deteksi atau biarkan mengalir rata kiri murni */}
+                                  <p className="w-full text-left whitespace-pre-line">{point}</p>
+                                </div>
                               ) : (
-                                <div className="space-y-2">
-                                  <p className="pl-5 indent-[-1.25rem] text-justify">{point.text}</p>
+                                <div className="space-y-3">
+                                  <p className="text-left font-medium text-foreground/90">{point.text}</p>
                                   
-                                  {/* List bullet sungguhan untuk sub-poin */}
-                                  <ul className="ml-5 list-outside list-disc space-y-1.5 pl-4 text-justify marker:text-primary/70">
+                                  {/* List bullet sungguhan untuk sub-poin, rata kiri murni tanpa justify maksa */}
+                                  <ul className="ml-2 space-y-2 text-left">
                                     {point.subPoints.map((sp, spIdx) => (
-                                      <li key={spIdx}>{sp}</li>
+                                      <li key={spIdx} className="flex items-start gap-2">
+                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
+                                        <span className="w-full text-left">{sp}</span>
+                                      </li>
                                     ))}
                                   </ul>
                                 </div>
@@ -148,7 +154,6 @@ export default function RulebookPage() {
               ))
             )}
           </div>
-
         </section>
 
         <Footer />
