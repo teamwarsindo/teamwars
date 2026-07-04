@@ -82,15 +82,55 @@ export function useRegistrationFlow(team: any, roster: any) {
     return undefined
   }
 
-  function handleReviewClick() {
-    setSubmitAttempted(true)
+  async function handleReviewClick() {
+    setSubmitAttempted(true);
     if (!canSubmit) {
-      document.getElementById("registration-form")?.scrollIntoView({ behavior: "smooth", block: "start" })
-      return
+      document.getElementById("registration-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
     }
-    setServerError(null)
-    setModalOpen(true)
+
+    setServerError(null);
+    setSubmitting(true); // Manfaatkan state ini buat bikin tombol loading sesaat
+
+    try {
+      // 1. Siapkan payload ringan khusus untuk Pre-Flight
+      const preFlightPayload = {
+        isPreFlight: true,
+        namaTim: team.namaTim.trim(),
+        players: roster.players.map((p: any) => ({
+          ign: p.ign.trim(),
+          discord: p.discord.trim(),
+          idDuelLinks: p.duelId,
+        }))
+      };
+
+      // 2. Tembak ke API backend lu
+      const res = await fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(preFlightPayload),
+      });
+
+      const result = await res.json();
+
+      // 3. Tangani kalau ada duplikat di Database
+      if (!res.ok || !result.success) {
+        setSubmitting(false);
+        // Tampilkan error (pakai alert aja udah cukup buat UX, biar user langsung ngeh)
+        alert(`❌ Data Ditolak: ${result.message}`);
+        return;
+      }
+
+      // 4. Kalau aman dan nggak ada duplikat, baru buka Review Modal!
+      setSubmitting(false);
+      setModalOpen(true);
+
+    } catch (error) {
+      setSubmitting(false);
+      alert("Gagal melakukan verifikasi data ke server. Periksa koneksi internet Anda.");
+    }
   }
+
 
   // Potongan di dalam useRegistrationFlow
   async function handleSubmit() {
