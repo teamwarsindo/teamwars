@@ -88,7 +88,7 @@ export default function RulebookPage() {
       <TopBar title="Official Rulebook" />
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6">
-        <HeroHeader description="Baca dan pahami seluruh regulasi sebelum bertanding. Ketidaktahuan akan peraturan tidak membebaskan peserta dari sanksi." />
+        <HeroHeader />
 
         <section className="flex w-full max-w-4xl flex-col items-center">
           
