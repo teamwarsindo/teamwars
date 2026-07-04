@@ -98,13 +98,19 @@ export function useRegistrationFlow(team: any, roster: any) {
     setServerError(null);
 
     try {
+      // PENGAMAN: Pastikan URL beneran udah ada sebelum nembak API
+      if (!team.logo?.url || !team.bukti?.url) {
+        setSubmitting(false);
+        setServerError("Gambar belum selesai diunggah. Silakan tunggu sebentar atau upload ulang.");
+        return;
+      }
       // payload sekarang ringan banget, karena logoTim dan buktiTransfer cuma isi string URL
       const payload = {
         email: team.email.trim(),
         namaTim: team.namaTim.trim(),
         warna: team.hex,
-        logoTim: team.logo, // Ini isinya "https://res.cloudinary.com/..."
-        buktiTransfer: team.bukti, // Ini isinya "https://res.cloudinary.com/..."
+        logoTim: team.logo.url, // Ini isinya "https://res.cloudinary.com/..."
+        buktiTransfer: team.bukti.url, // Ini isinya "https://res.cloudinary.com/..."
         players: roster.players.map((p: any) => ({
           role: p.role,
           namaLengkap: p.namaLengkap.trim(),
