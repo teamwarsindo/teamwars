@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from 'next/navigation'
+import { TopBar, HeroHeader, Footer } from "@/components/layout-shared"
 import { cn } from "@/lib/utils"
 import { Countdown } from "@/components/countdown"
 import { buttonVariants } from "@/components/ui/button"
