@@ -39,7 +39,7 @@ export function FileDropzone({ id, label, hint, value, onChange, error, teamName
         onChange({ 
           name: file.name, 
           size: file.size, 
-          base64: reader.result as string, // Preview lokal
+          url: reader.result as string, // Preview lokal
           rawFile: file                    // File mentah untuk Canvas
         })
         setIsReading(false)
@@ -73,7 +73,7 @@ export function FileDropzone({ id, label, hint, value, onChange, error, teamName
 
       {value ? (
         <div className="flex items-center gap-4 rounded-xl border border-border bg-background/50 p-3 shadow-sm transition-all animate-in fade-in zoom-in-95 duration-200">
-          <img src={value.base64} alt={`Pratinjau ${label}`} className="h-16 w-16 shrink-0 rounded-lg border border-border object-cover" />
+          <img src={value.url} alt={`Pratinjau ${label}`} className="h-16 w-16 shrink-0 rounded-lg border border-border object-cover" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-foreground">{value.name}</p>
             <p className="text-xs text-emerald-500 font-semibold flex items-center gap-1">
