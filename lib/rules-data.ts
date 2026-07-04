@@ -187,7 +187,7 @@ export const ruleCategories: RuleCategory[] = [
       {
         title: "3. Pengiriman Deck (Submit Deck)",
         points: [
-          "a. Kesepuluh deck wajib dikirimkan di channel masing-masing tim selambat-lambatnya 60 menit sebelum jadwal pertandingan dimulai. Gambar screenshot deck harus yang paling terbaru.",
+          "a. Kesepuluh deck wajib dikirimkan di channel masing-masing tim selambat-lambatnya 60 menit sebelum jadwal pertandingan dimulai. Gambar screenshot deck harus yang paling terbaru dan terlihat jelas.",
           "b. Keterlambatan pengiriman maksimal adalah hingga waktu kick-off pertandingan. Setiap keterlambatan pengiriman akan dipenalti dengan pemotongan waktu kontrol tim sebanyak 2 menit per deck yang terlambat.",
           "c. Jika hingga pertandingan dimulai ada slot deck yang kosong/tidak dikirim, maka slot deck tersebut otomatis dinyatakan auto-loss dan langsung menjadi poin kemenangan bagi lawan."
         ]
