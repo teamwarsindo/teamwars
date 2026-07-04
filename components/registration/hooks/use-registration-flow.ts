@@ -92,32 +92,19 @@ export function useRegistrationFlow(team: any, roster: any) {
     setModalOpen(true)
   }
 
+  // Potongan di dalam useRegistrationFlow
   async function handleSubmit() {
-    setSubmitting(true)
-    setServerError(null)
-    try {
-      let logoUrlOriginal = team.logo?.base64 || ""; 
-      let buktiUrlOriginal = team.bukti?.base64 || "";
+    setSubmitting(true);
+    setServerError(null);
 
-      const getFileName = (url: string) => url.split('/').pop() || '';
-      const namaFileLogo = getFileName(logoUrlOriginal);
-      const namaFileBukti = getFileName(buktiUrlOriginal);
-      const baseUrl = window.location.origin;
-      
+    try {
+      // payload sekarang ringan banget, karena logoTim dan buktiTransfer cuma isi string URL
       const payload = {
         email: team.email.trim(),
         namaTim: team.namaTim.trim(),
         warna: team.hex,
-        logoTim: {
-          cloudinaryUrl: logoUrlOriginal,
-          original: `${baseUrl}/logo/${namaFileLogo}`, 
-          compressed: `${baseUrl}/thumb-logo/${namaFileLogo}` 
-        },
-        buktiTransfer: {
-          cloudinaryUrl: buktiUrlOriginal,
-          original: `${baseUrl}/bukti/${namaFileBukti}`,
-          compressed: `${baseUrl}/thumb-bukti/${namaFileBukti}`
-        },
+        logoTim: team.logo, // Ini isinya "https://res.cloudinary.com/..."
+        buktiTransfer: team.bukti, // Ini isinya "https://res.cloudinary.com/..."
         players: roster.players.map((p: any) => ({
           role: p.role,
           namaLengkap: p.namaLengkap.trim(),
@@ -126,29 +113,30 @@ export function useRegistrationFlow(team: any, roster: any) {
           idDuelLinks: p.duelId,
         })),
         createdAt: new Date().toISOString()
-      }
-      
+      };
+    
       const res = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      })
-      
-      const result = await res.json()
+      });
+    
+      const result = await res.json();
 
       if (!res.ok || result.status === "error") {
-        setSubmitting(false)
-        setServerError(result.message || "Terjadi kesalahan saat menyimpan ke Database KV.")
-        return
+        setSubmitting(false);
+        setServerError(result.message || "Terjadi kesalahan saat menyimpan ke Database.");
+        return;
       }
 
       try { localStorage.removeItem(STORAGE_KEY) } catch {}
-      setSubmitting(false)
-      setModalOpen(false)
-      setSuccess(true)
+      setSubmitting(false);
+      setModalOpen(false);
+      setSuccess(true);
+    
     } catch (error: any) {
-      setSubmitting(false)
-      setServerError(error.message || "Gagal memproses pendaftaran. Periksa koneksi internet Anda.")
+      setSubmitting(false);
+      setServerError(error.message || "Gagal memproses pendaftaran. Periksa koneksi internet Anda.");
     }
   }
 
