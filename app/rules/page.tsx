@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared"; // Pastikan layout-shared udah ada
 import { ruleCategories } from "@/lib/rules-data";
+import { BackToTop } from "@/components/back-to-top";
 
 export default function RulebookPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,6 +40,8 @@ export default function RulebookPage() {
       .filter((category) => category.rules.length > 0);
   }, [searchQuery, activeCategory]);
 
+  const isFilterActive = searchQuery !== "" || activeCategory !== "ALL";
+  
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       {/* Background Effect */}
@@ -57,7 +60,7 @@ export default function RulebookPage() {
           {/* SEARCH & FILTER BAR */}
           <div className="mb-8 w-full space-y-4">
             {/* Search Input */}
-            <div className="relative w-full">
+            <div className="relative flex-1">
               <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-muted-foreground">
                 🔍
               </span>
@@ -66,36 +69,37 @@ export default function RulebookPage() {
                 placeholder="Cari peraturan, sanksi, waktu kontrol..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-2xl border border-border bg-background/50 py-3 pl-11 pr-4 text-sm outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary"
+                className="w-full rounded-2xl border border-border bg-background/50 py-3 pl-11 pr-4text-sm outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
 
-            {/* Filter Pills (Scrollable Horizontal) */}
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              <button
-                onClick={() => setActiveCategory("ALL")}
-                className={`shrink-0 rounded-full border px-4 py-1.5 text-xs font-semibold transition-all ${
-                  activeCategory === "ALL"
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background/50 text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                Semua Bab
-              </button>
-              {ruleCategories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`shrink-0 rounded-full border px-4 py-1.5 text-xs font-semibold transition-all ${
-                    activeCategory === cat.id
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background/50 text-muted-foreground hover:bg-muted"
-                  }`}
+            {/* Dropdown Filter Kategori */}
+              <div className="relative w-full sm:w-64">
+                <select
+                  value={activeCategory}
+                  onChange={(e) => setActiveCategory(e.target.value)}
+                  className="w-full appearance-none rounded-xl border border-border bg-background/50 py-3 pl-4 pr-10 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary"
                 >
-                  Bab {cat.id}
-                </button>
-              ))}
+                  <option value="ALL">Semua Bab</option>
+                  {ruleCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>Bab {cat.id} - {cat.title}</option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-muted-foreground">▼</div>
+              </div>
             </div>
+
+          {/* Tombol Clear Filter */}
+            {isFilterActive && (
+              <div className="flex justify-end">
+                <button
+                  onClick={handleClearFilters}
+                  className="inline-flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20"
+                >
+                  ✕ Bersihkan Pencarian
+                </button>
+              </div>
+            )}
           </div>
 
           {/* RULES LIST */}
@@ -149,6 +153,7 @@ export default function RulebookPage() {
         </section>
 
         <Footer />
+        <BackToTop />
         
       </div>
     </main>
