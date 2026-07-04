@@ -29,32 +29,13 @@ export function FileDropzone({ id, label, hint, value, onChange, error, teamName
       setLocalError("Format ditolak ngab! Cuma terima JPG, PNG, atau WEBP.")
       return
     }
-
-    try {
-      setIsReading(true)
-      const reader = new FileReader()
-      
-      reader.onloadend = () => {
-        // Output Data Objek Baru
-        onChange({ 
-          name: file.name, 
-          size: file.size, 
-          url: reader.result as string, // Preview lokal
-          rawFile: file                    // File mentah untuk Canvas
-        })
-        setIsReading(false)
-      }
-      
-      reader.onerror = () => {
-        setLocalError("Gagal membaca berkas gambar.")
-        setIsReading(false)
-      }
-      
-      reader.readAsDataURL(file)
-    } catch {
-      setLocalError("Gagal memproses gambar.")
-      setIsReading(false)
-    }
+    // Output Data Objek Baru
+    onChange({ 
+      name: file.name, 
+      size: file.size, 
+      url: reader.result as string, // Preview lokal
+      rawFile: file                    // File mentah untuk Canvas
+    })
   }
 
   function onDrop(e: DragEvent<HTMLDivElement>) {
