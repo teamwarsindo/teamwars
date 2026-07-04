@@ -1,8 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import { FileDropzone } from "@/components/file-dropzone"
 import { isValidHex, sanitizeTeamName, sanitizeHex } from "@/lib/validators"
 import { inputBase, ErrorText } from "./shared"
+import { compressAndUpload } from "@/lib/cloudinary" // <-- Import fungsi uploader
 import type { UploadedFile } from "@/lib/registration"
 
 interface TeamIdentityProps {
@@ -21,6 +23,51 @@ interface TeamIdentityProps {
 }
 
 export function TeamIdentity({ email, namaTim, hex, logo, bukti, setEmail, setNamaTim, setHex, setLogo, setBukti, err, markTouched }: TeamIdentityProps) {
+  // State untuk indikator loading masing-masing gambar
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+  const [isUploadingBukti, setIsUploadingBukti] = useState(false)
+
+  // Fungsi dinamis buat nge-handle kompresi & upload pas file dipilih
+  const handleFileUpload = async (
+    fileData: any, 
+    folderName: "logo" | "bukti_transfer", 
+    setFileState: (val: any) => void,
+    setLoadingState: (val: boolean) => void,
+    fieldKey: string
+  ) => {
+    // Kalau user menghapus file dari dropzone
+    if (!fileData) {
+      setFileState(null)
+      markTouched(fieldKey)
+      return
+    }
+
+    // Ambil objek File asli (Asumsi FileDropzone me-return File atau objek yang punya properti .file)
+    const actualFile = fileData.file || fileData;
+    if (!(actualFile instanceof File)) return;
+
+    try {
+      setLoadingState(true)
+      
+      // Eksekusi kompresi dan upload
+      const cloudinaryUrl = await compressAndUpload(actualFile, folderName)
+      
+      // Simpan URL ke state (Sesuaikan formatnya dengan kebutuhan tipe UploadedFile lu)
+      setFileState({ 
+        url: cloudinaryUrl, // URL ini yang nanti dikirim ke /api/submit
+        name: actualFile.name,
+        size: actualFile.size
+      })
+      
+    } catch (error) {
+      alert(`Gagal mengunggah ${fieldKey}. Pastikan internet stabil dan format gambar didukung.`)
+      setFileState(null)
+    } finally {
+      setLoadingState(false)
+      markTouched(fieldKey)
+    }
+  }
+
   return (
     <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
       <div className="mb-5 flex items-center gap-3">
@@ -28,6 +75,8 @@ export function TeamIdentity({ email, namaTim, hex, logo, bukti, setEmail, setNa
         <div><h2 className="text-base font-semibold text-foreground">Identitas Tim</h2></div>
       </div>
       <div className="flex flex-col gap-4">
+        
+        {/* ... (Bagian Email, Nama Tim, dan Hex biarkan sama seperti aslinya) ... */}
         <div>
           <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-foreground">Email Aktif Perwakilan</label>
           <input id="email" type="email" placeholder="registration@teamwars.web.id" value={email} onChange={(e) => { setEmail(e.target.value); markTouched("email"); }} onBlur={() => markTouched("email")} className={`${inputBase} ${err("email") ? "border-destructive" : "border-border"}`} />
@@ -49,10 +98,34 @@ export function TeamIdentity({ email, namaTim, hex, logo, bukti, setEmail, setNa
           <ErrorText msg={err("hex")} />
           <p className="text-xs text-muted-foreground leading-relaxed mt-1">Warna ini akan digunakan untuk Role di Discord dan identitas tim di profil.</p>
         </div>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FileDropzone id="logo" label="Logo Tim" teamName={namaTim} value={logo} onChange={(f) => { setLogo(f); markTouched("logo") }} error={err("logo")} />
-          <FileDropzone id="bukti" label="Bukti Transfer" teamName={namaTim} value={bukti} onChange={(f) => { setBukti(f); markTouched("bukti") }} error={err("bukti")} />
+          {/* Tambahkan indikator loading di label atau props dropzone (jika FileDropzone dukung prop isLoading) */}
+          <div className="relative">
+            {isUploadingLogo && <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 rounded-xl backdrop-blur-sm"><span className="text-sm font-bold text-primary animate-pulse">Mengompres & Upload...</span></div>}
+            <FileDropzone 
+              id="logo" 
+              label="Logo Tim" 
+              teamName={namaTim} 
+              value={logo} 
+              onChange={(f) => handleFileUpload(f, "logo", setLogo, setIsUploadingLogo, "logo")} 
+              error={err("logo")} 
+            />
+          </div>
+          
+          <div className="relative">
+            {isUploadingBukti && <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 rounded-xl backdrop-blur-sm"><span className="text-sm font-bold text-primary animate-pulse">Mengompres & Upload...</span></div>}
+            <FileDropzone 
+              id="bukti" 
+              label="Bukti Transfer" 
+              teamName={namaTim} 
+              value={bukti} 
+              onChange={(f) => handleFileUpload(f, "bukti_transfer", setBukti, setIsUploadingBukti, "bukti")} 
+              error={err("bukti")} 
+            />
+          </div>
         </div>
+
       </div>
     </section>
   )
