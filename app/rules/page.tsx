@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { TopBar, HeroHeader, Footer } from "@/components/layout-shared"; // Pastikan layout-shared udah ada
+import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { ruleCategories } from "@/lib/rules-data";
 import { BackToTop } from "@/components/back-to-top";
 
@@ -40,6 +40,12 @@ export default function RulebookPage() {
       .filter((category) => category.rules.length > 0);
   }, [searchQuery, activeCategory]);
 
+  // Fungsi untuk membersihkan filter
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setActiveCategory("ALL");
+  };
+
   const isFilterActive = searchQuery !== "" || activeCategory !== "ALL";
   
   return (
@@ -47,38 +53,40 @@ export default function RulebookPage() {
       {/* Background Effect */}
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
-      {/* Reusable TopBar (tanpa tombol tong sampah) */}
+      {/* Reusable TopBar */}
       <TopBar title="Official Rulebook" />
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6">
         
-        {/* HERO SECTION*/}
+        {/* HERO SECTION */}
         <HeroHeader />
 
         <section className="flex w-full max-w-4xl flex-col items-center">
           
           {/* SEARCH & FILTER BAR */}
           <div className="mb-8 w-full space-y-4">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-muted-foreground">
-                🔍
-              </span>
-              <input
-                type="text"
-                placeholder="Cari peraturan, sanksi, waktu kontrol..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-2xl border border-border bg-background/50 py-3 pl-11 pr-4text-sm outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary"
-              />
-            </div>
+            
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-muted-foreground">
+                  🔍
+                </span>
+                <input
+                  type="text"
+                  placeholder="Cari peraturan, sanksi, waktu kontrol..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-2xl border border-border bg-background/50 py-3 pl-11 pr-4 text-sm outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+              </div>
 
-            {/* Dropdown Filter Kategori */}
+              {/* Dropdown Filter Kategori */}
               <div className="relative w-full sm:w-64">
                 <select
                   value={activeCategory}
                   onChange={(e) => setActiveCategory(e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-border bg-background/50 py-3 pl-4 pr-10 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary"
+                  className="w-full appearance-none rounded-2xl border border-border bg-background/50 py-3 pl-4 pr-10 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary"
                 >
                   <option value="ALL">Semua Bab</option>
                   {ruleCategories.map((cat) => (
@@ -89,7 +97,7 @@ export default function RulebookPage() {
               </div>
             </div>
 
-          {/* Tombol Clear Filter */}
+            {/* Tombol Clear Filter */}
             {isFilterActive && (
               <div className="flex justify-end">
                 <button
@@ -158,5 +166,4 @@ export default function RulebookPage() {
       </div>
     </main>
   );
-                                   }
-                        
+}
