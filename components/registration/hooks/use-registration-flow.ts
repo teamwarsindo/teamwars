@@ -117,7 +117,7 @@ export function useRegistrationFlow(team: any, roster: any) {
       if (!res.ok || !result.success) {
         setSubmitting(false);
         // Tampilkan error (pakai alert aja udah cukup buat UX, biar user langsung ngeh)
-        alert(`❌ Data Ditolak: ${result.message}`);
+        setServerError(result.message || "Validasi gagal.");
         return;
       }
 
