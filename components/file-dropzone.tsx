@@ -33,7 +33,7 @@ export function FileDropzone({ id, label, hint, value, onChange, error, teamName
     onChange({ 
       name: file.name, 
       size: file.size, 
-      url: reader.result as string, // Preview lokal
+      url: URL.createObjectURL(file), // Preview lokal
       rawFile: file                    // File mentah untuk Canvas
     })
   }
