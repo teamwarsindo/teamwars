@@ -14,7 +14,6 @@ export default function RulebookPage() {
       .filter((cat) => (activeCategory === "ALL" ? true : cat.id === activeCategory))
       .map((category) => {
         if (!searchQuery.trim()) return category;
-
         const query = searchQuery.toLowerCase();
         
         if (category.title.toLowerCase().includes(query)) return category;
@@ -41,17 +40,56 @@ export default function RulebookPage() {
   };
 
   const isFilterActive = searchQuery !== "" || activeCategory !== "ALL";
+
+  // FUNGSI AJAIB: Mengubah teks "a.", "1.", "i." menjadi UI Badge interaktif
+  const renderPointUI = (rawText: string, isSub: boolean = false) => {
+    // 1. Deteksi list standar (a., 1., i., dll)
+    const listMatch = rawText.match(/^([a-zA-Z0-9]{1,3})\.\s+(.*)/);
+    if (listMatch) {
+      return (
+        <div className="flex items-start gap-3">
+          <span className={`flex shrink-0 items-center justify-center font-bold uppercase rounded-md mt-0.5 ${
+            isSub 
+              ? 'h-5 min-w-[24px] bg-secondary/40 text-[10px] text-secondary-foreground' 
+              : 'h-6 min-w-[28px] bg-primary/10 text-xs text-primary ring-1 ring-primary/20'
+          }`}>
+            {listMatch[1]}
+          </span>
+          <span className="w-full text-sm leading-relaxed text-muted-foreground">{listMatch[2]}</span>
+        </div>
+      );
+    }
+
+    // 2. Deteksi kasus khusus di Bab E (Kasus 1:, Player A:, dll)
+    const caseMatch = rawText.match(/^(Kasus\s\d+|Player\s[A-Z]):\s+(.*)/i);
+    if (caseMatch) {
+      return (
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 shrink-0 rounded-md bg-destructive/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-destructive ring-1 ring-destructive/20">
+            {caseMatch[1]}
+          </span>
+          <span className="w-full text-sm leading-relaxed text-muted-foreground">{caseMatch[2]}</span>
+        </div>
+      );
+    }
+
+    // 3. Teks paragraf biasa
+    return (
+      <div className="flex items-start gap-3">
+        {isSub && <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/40" />}
+        <span className="w-full text-sm leading-relaxed text-muted-foreground">{rawText}</span>
+      </div>
+    );
+  };
   
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
-
       <TopBar title="Official Rulebook" />
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6">
-        
-        <HeroHeader />
-          
+        <HeroHeader description="Baca dan pahami seluruh regulasi sebelum bertanding. Ketidaktahuan akan peraturan tidak membebaskan peserta dari sanksi." />
+
         <section className="flex w-full max-w-4xl flex-col items-center">
           
           {/* SEARCH & FILTER BAR */}
@@ -95,7 +133,7 @@ export default function RulebookPage() {
             )}
           </div>
 
-          {/* RULES LIST - REAL MOBILE RESPONSIVE UI/UX */}
+          {/* RULES LIST - MODERN APP UI */}
           <div className="flex w-full flex-col gap-6">
             {filteredRules.length === 0 ? (
               <div className="glass glow-border flex flex-col items-center justify-center rounded-2xl border p-12 text-center text-muted-foreground">
@@ -104,7 +142,7 @@ export default function RulebookPage() {
               </div>
             ) : (
               filteredRules.map((category) => (
-                <div key={category.id} className="glass glow-border rounded-2xl border p-5 sm:p-7">
+                <div key={category.id} className="glass glow-border rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
                   <div className="mb-6 border-b border-border pb-4">
                     <h2 className="text-xl font-bold tracking-tight text-primary">
                       BAB {category.id} - {category.title}
@@ -114,34 +152,31 @@ export default function RulebookPage() {
                   <div className="space-y-8">
                     {category.rules.map((rule, idx) => (
                       <div key={idx} className="space-y-4">
-                        {/* Judul Aturan */}
-                        <h3 className="text-base font-bold text-foreground">
+                        
+                        {/* Judul Aturan dengan Aksen Garis */}
+                        <h3 className="flex items-center gap-2 text-base font-bold text-foreground">
+                          <span className="h-5 w-1.5 rounded-full bg-primary/80" aria-hidden="true" />
                           {rule.title}
                         </h3>
                         
                         {/* Konten Aturan */}
-                        <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+                        <div className="space-y-4 pt-1">
                           {rule.points.map((point, pIdx) => (
                             <div key={pIdx}>
                               {typeof point === "string" ? (
-                                /* Menggunakan layout flex untuk memisahkan abjad/nomor bawaan teks */
-                                <div className="flex items-start gap-2 text-left">
-                                  {/* Jika string diawali abjad seperti "a. ", "b. ", atau nomor, deteksi atau biarkan mengalir rata kiri murni */}
-                                  <p className="w-full text-left whitespace-pre-line">{point}</p>
-                                </div>
+                                renderPointUI(point, false)
                               ) : (
                                 <div className="space-y-3">
-                                  <p className="text-left font-medium text-foreground/90">{point.text}</p>
+                                  {renderPointUI(point.text, false)}
                                   
-                                  {/* List bullet sungguhan untuk sub-poin, rata kiri murni tanpa justify maksa */}
-                                  <ul className="ml-2 space-y-2 text-left">
+                                  {/* Sub-poin dengan Indentasi & Garis Tepi Kiri yang Elegan */}
+                                  <div className="ml-3.5 space-y-3 border-l-2 border-border/50 pl-5">
                                     {point.subPoints.map((sp, spIdx) => (
-                                      <li key={spIdx} className="flex items-start gap-2">
-                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
-                                        <span className="w-full text-left">{sp}</span>
-                                      </li>
+                                      <div key={spIdx}>
+                                        {renderPointUI(sp, true)}
+                                      </div>
                                     ))}
-                                  </ul>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -154,6 +189,7 @@ export default function RulebookPage() {
               ))
             )}
           </div>
+
         </section>
 
         <Footer />
