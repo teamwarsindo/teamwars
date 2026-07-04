@@ -65,12 +65,12 @@ export async function POST(request: NextRequest, context: any) {
       namaTim: namaTim.trim(),
       warna: warna,
       email: email.trim(),
-      logoTim: JSON.stringify(logoTim),
-      buktiTransfer: JSON.stringify(buktiTransfer),
-      players: JSON.stringify(players),
+      logoTim: logoTim,             // ✅ Langsung pass string URL-nya
+      buktiTransfer: buktiTransfer, // ✅ Langsung pass string URL-nya        players: JSON.stringify(players),
       createdAt: new Date().toISOString(),
       statusVerifikasi: "Pending"
     });
+
     
     // Injeksi Index Sekunder untuk Pre-Flight berikutnya
     await kv.sadd("global:teams", teamSlug);
