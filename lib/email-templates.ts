@@ -1,9 +1,9 @@
-// @/lib/email-templates.ts
-
 export const getPesertaTemplate = ({ namaTim, warna, ketua, wakil, logoTim, buktiTransfer, players }: any) => {
-  const logoSrc = logoTim?.cloudinaryUrl 
-    ? logoTim.cloudinaryUrl.replace('/upload/', '/upload/c_fill,w_160,h_160,f_png,q_auto/') 
-    : logoTim?.compressed;
+  // Karena logoTim dan buktiTransfer sekarang murni string URL dari Cloudinary,
+  // Kita bisa langsung pakai trik replace buat optimasi ukuran gambar di email.
+  const logoSrc = typeof logoTim === 'string' 
+    ? logoTim.replace('/upload/', '/upload/c_fill,w_160,h_160,f_png,q_auto/') 
+    : '/placeholder.svg';
 
   const hexColor = warna || '#3b82f6';
 
@@ -41,7 +41,7 @@ export const getPesertaTemplate = ({ namaTim, warna, ketua, wakil, logoTim, bukt
             <td style="width: 50%; padding-left: 8px;">
               <div style="background-color: #020817; border: 1px solid #1e293b; border-radius: 8px; padding: 15px; text-align: center; height: 140px;">
                 <p style="font-size: 11px; font-weight: bold; margin: 0 0 10px 0; color: #64748b; text-transform: uppercase;">Bukti Transfer</p>
-                <img src="${buktiTransfer?.compressed}" alt="Transfer" style="max-width: 100%; height: 90px; object-fit: contain; border-radius: 4px;" />
+                <img src="${buktiTransfer}" alt="Transfer" style="max-width: 100%; height: 90px; object-fit: contain; border-radius: 4px;" />
               </div>
             </td>
           </tr>
@@ -101,9 +101,9 @@ export const getFinanceTemplate = ({ namaTim, ketua, buktiTransfer, email }: any
 
         <div style="text-align: center;">
           <p style="font-size: 12px; font-weight: bold; color: #64748b; margin-bottom: 10px;">PREVIEW BUKTI TRANSFER</p>
-          <img src="${buktiTransfer?.compressed}" alt="Preview Bukti" style="max-width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px;" />
+          <img src="${buktiTransfer}" alt="Preview Bukti" style="max-width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px;" />
           <br>
-          <a href="${buktiTransfer?.original}" target="_blank" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">Lihat Resolusi Penuh HD</a>
+          <a href="${buktiTransfer}" target="_blank" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">Lihat Resolusi Penuh HD</a>
         </div>
       </div>
     </div>
@@ -128,9 +128,9 @@ export const getCreativeTemplate = ({ namaTim, warna, logoTim }: any) => `
 
         <div style="text-align: center;">
           <p style="font-size: 12px; font-weight: bold; color: #64748b; margin-bottom: 10px;">PREVIEW LOGO TIM</p>
-          <img src="${logoTim?.compressed}" alt="Preview Logo" style="max-width: 150px; height: auto; border: 1px dashed #cbd5e1; border-radius: 8px; margin-bottom: 20px; padding: 10px; background: #f8fafc;" />
+          <img src="${logoTim}" alt="Preview Logo" style="max-width: 150px; height: auto; border: 1px dashed #cbd5e1; border-radius: 8px; margin-bottom: 20px; padding: 10px; background: #f8fafc;" />
           <br>
-          <a href="${logoTim?.original}" target="_blank" style="background-color: #8b5cf6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">Unduh Aset Logo Asli (Master)</a>
+          <a href="${logoTim}" target="_blank" style="background-color: #8b5cf6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">Unduh Aset Logo Asli (Master)</a>
         </div>
       </div>
     </div>
