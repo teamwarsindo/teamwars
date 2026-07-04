@@ -80,44 +80,13 @@ export default function Page() {
       {/* Ambient esports glow */}
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
-      {/* TOP BAR */}
-      <div className="relative z-10 flex w-full items-center justify-between px-6 pt-6 lg:px-12">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          <ShieldIcon className="h-4 w-4 text-primary" />
-          Official Website
-        </div>
-        <ThemeToggle />
-      </div>
+      <TopBar title="Official Website" />
 
       {/* MAIN CONTENT */}
       <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4 pb-4 sm:px-6">
-        
-        {/* HEADER */}
-        <header className="mt-6 mb-4 flex flex-col items-center text-center lg:mb-10">
-          <div className="glow-border relative mb-6 h-[120px] w-[120px] overflow-hidden rounded-2xl sm:h-28 sm:w-28 lg:mb-8 lg:h-44 lg:w-44">
-            <Image
-              src="/logo.webp"
-              alt="Logo Team Wars Indonesia"
-              fill
-              priority
-              className="scale-[1.01] object-cover" 
-            />
-          </div>
-          <h1 className="glow-text text-balance text-3xl font-extrabold tracking-tight sm:text-5xl lg:text-[clamp(3.5rem,5vw,5.5rem)] lg:leading-[1.1]">
-            TEAM WARS INDONESIA
-          </h1>
+      
+       <HeroHeader/>
           
-          <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary sm:py-1.5 sm:text-sm lg:mt-6">
-            Season 7 — Duel Links
-          </p>
-
-          {/* Deskripsi Baru yang Dipersingkat */}
-          <p className="mt-4 max-w-xl text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Team Wars Indonesia (TWI) adalah wadah kompetisi Yu-Gi-Oh! bagi para duelist tanah air. Kami menghadirkan turnamen dengan format Duel Links dan Master Duel dalam ekosistem yang suportif dan kompetitif.
-          </p>
-          
-        </header>
-
         {/* SECTION KONTEN: Countdown & Tombol */}
         <section className="flex w-full flex-col items-center text-center">      
           
@@ -191,10 +160,7 @@ export default function Page() {
           </div>
         </section>
 
-        {/* FOOTER */}
-        <footer className="mt-auto text-center text-[10px] text-muted-foreground sm:mt-16 sm:text-xs">
-          © {new Date().getFullYear()} Team Wars Indonesia. All rights reserved.
-        </footer>
+        <Footer/>
 
       </div>
     </main>
