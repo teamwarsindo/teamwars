@@ -58,7 +58,7 @@ export function FileDropzone({ id, label, hint, value, onChange, error, teamName
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-foreground">{value.name}</p>
             <p className="text-xs text-emerald-500 font-semibold flex items-center gap-1">
-              ✓ Siap dieksekusi ({(value.size / 1024).toFixed(0)} KB)
+              ✓ File Berhasil Diunggah 
             </p>
           </div>
           <button type="button" onClick={() => { onChange(null); setLocalError(null); if (inputRef.current) inputRef.current.value = "" }} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
