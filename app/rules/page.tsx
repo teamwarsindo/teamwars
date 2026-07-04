@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { TopBar, Footer } from "@/components/layout-shared"; // Pastikan layout-shared udah ada
+import { TopBar, HeroHeader, Footer } from "@/components/layout-shared"; // Pastikan layout-shared udah ada
 import { ruleCategories } from "@/lib/rules-data";
 
 export default function RulebookPage() {
@@ -49,18 +49,8 @@ export default function RulebookPage() {
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6">
         
-        {/* HERO SECTION KHUSUS RULES */}
-        <header className="mt-6 mb-8 flex flex-col items-center text-center lg:mb-10">
-          <h1 className="glow-text text-balance text-3xl font-extrabold tracking-tight sm:text-5xl">
-            TWI RULEBOOK
-          </h1>
-          <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary sm:py-1.5 sm:text-sm">
-            Season 7 Guidelines
-          </p>
-          <p className="mt-4 max-w-xl text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Baca dan pahami seluruh regulasi sebelum bertanding. Ketidaktahuan akan peraturan tidak membebaskan peserta dari sanksi.
-          </p>
-        </header>
+        {/* HERO SECTION*/}
+        <HeroHeader />
 
         <section className="flex w-full max-w-4xl flex-col items-center">
           
