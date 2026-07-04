@@ -79,50 +79,27 @@ export default function Page() {
         <section className="flex w-full max-w-4xl flex-col items-center">
           
           {/* INFO PEMBAYARAN */}
-          <div className="mb-8 w-full max-w-2xl">
-            <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
-              <div className="mb-5 border-b border-border pb-5 sm:mb-6 sm:pb-6">
-                <div className="mb-3 flex items-center gap-3">
-                  <div className="h-5 w-1 rounded-full bg-primary"></div>
-                  <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    Total Pembayaran
-                  </p>
-                </div>
-                <p className="text-center text-3xl font-black text-foreground w-full">
-                  Rp 250.000
-                </p>
-              </div>
-
-              <div>
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Bank Tujuan</span>
-                    <span className="font-semibold text-foreground">BCA</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Atas Nama</span>
-                    <span className="font-semibold text-foreground">Victor Widiputra</span>
-                  </div>
-                </div>
-
-                {/* Pembungkus utama: ubah ke justify-center dan tambahkan relative */}
-                <div className="mt-5 relative flex items-center justify-center rounded-xl border border-primary/30 bg-primary/10 p-3 h-14">
-                  {/* Span nomor rekening dibiarkan seperti ini */}
-                  <span className="font-mono text-lg font-bold tracking-widest text-foreground">
-                    {accountNumber}
-                  </span>
-                  {/* Tombol salin diberi absolute right-3 agar menempel di kanan */}
-                  <button
-                    onClick={handleCopy}
-                    className="absolute right-3 flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)] active:scale-95"
-                    title="Salin nomor rekening"
-                  >
-                    {isCopied ? "Tersalin! ✓" : "Salin 📋"}
-                  </button>
-                </div>
-              </div>
-            </section>
+          <div className="flex w-full items-center justify-between rounded-xl bg-background/50 p-4">
+         
+            {/* 1. Spacer Kiri (Sembunyi di HP, Muncul di PC buat penyeimbang) */}
+            <div className="hidden flex-1 sm:block"></div>
+            
+            {/* 2. Nomor Rekening (Di HP otomatis ngikut kiri, di PC ditarik ke tengah) */}
+            <div className="flex sm:flex-1 sm:justify-center">
+              <span className="text-xl font-bold tracking-widest text-foreground">
+                0467897733
+              </span>
+            </div>
+            
+            {/* 3. Tombol Salin (Selalu didorong ke ujung kanan) */}
+            <div className="flex sm:flex-1 justify-end">
+              <button className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90">
+                Salin 📋
+              </button>
+            </div>
           </div>
+        </section>
+      </div>
 
           {/* AREA FORM */}
           <div className="w-full max-w-2xl">
