@@ -1,13 +1,11 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import Image from "next/image"
 import { useSearchParams } from 'next/navigation'
 import { cn } from "@/lib/utils"
 import { Countdown } from "@/components/countdown"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { buttonVariants } from "@/components/ui/button"
-import { ShieldIcon, DiscordIcon, RulesIcon, FormIcon } from "@/components/icons"
+import { DiscordIcon, RulesIcon, FormIcon } from "@/components/icons"
 
 // 👈 TAMBAHKAN IMPORT INI
 import { LAUNCH_TARGET, CLOSE_TARGET } from "@/lib/config" 
