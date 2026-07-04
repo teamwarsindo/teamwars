@@ -67,16 +67,18 @@ export const ruleCategories: RuleCategory[] = [
       {
         title: "3. Ketentuan Tiebreakers (Penentuan Peringkat Klasemen)",
         points: [
+          "Apabila terdapat dua tim atau lebih yang memiliki total poin klasemen yang sama di akhir fase, peringkat final akan ditentukan secara berurutan oleh sistem otomatis platform challonge berdasarkan kriteria berikut:",
+          "a. Match Wins: Jumlah total kemenangan pertandingan (match) yang diraih oleh tim sepanjang musim",
           {
-            text: "Apabila terdapat dua tim atau lebih yang memiliki total poin klasemen yang sama di akhir fase, peringkat final akan ditentukan secara berurutan oleh sistem otomatis platform challonge berdasarkan kriteria berikut:",
+            text: "b. Indikator Efisiensi Fase (Sesuai Format Fase Grup):",
             subPoints: [
-              "a. Match Wins: Jumlah total kemenangan pertandingan (match) yang diraih oleh tim sepanjang musim",
-              "b. Indikator Efisiensi Fase (Sesuai Format Fase Grup): i. Jika menggunakan round robin: Ditentukan berdasarkan points difference. ii. Jika menggunakan swiss system: Ditentukan berdasarkan median-buchholz system.",
-              "c. Points Scored: Total akumulasi poin kemenangan deck/ game yang berhasil dikumpulkan oleh tim sepanjang musim.",
-              "d. Head-to-Head (H2H)",
-              "e. Tiebreaker Match: Jika masih seri setelah 3 kriteria di atas, diadakan laga ekstra. Masing-masing tim mengirim 3 pemain dengan 2 deck (total 6 deck), menggunakan aturan TWI Season 7 yang berlaku."
+              "i. Jika menggunakan round robin: Ditentukan berdasarkan points difference.",
+              "ii. Jika menggunakan swiss system: Ditentukan berdasarkan median-buchholz system."
             ]
-          }
+          },
+          "c. Points Scored: Total akumulasi poin kemenangan deck/ game yang berhasil dikumpulkan oleh tim sepanjang musim.",
+          "d. Head-to-Head (H2H)",
+          "e. Tiebreaker Match: Jika masih seri setelah 3 kriteria di atas, diadakan laga ekstra. Masing-masing tim mengirim 3 pemain dengan 2 deck (total 6 deck), menggunakan aturan TWI Season 7 yang berlaku."
         ]
       }
     ]
@@ -146,12 +148,38 @@ export const ruleCategories: RuleCategory[] = [
           "b. Limit archetype tim: Dalam satu tim, batas maksimal penggunaan untuk 1 (satu) jenis archetype yang sama adalah 5 (lima) kali penggunaan.",
           "c. Definisi archetype: Kelompok yang terdiri dari minimal 3 (tiga) kartu dengan kesamaan kata/nama pada kartu tersebut (Contoh: Branded In Red, Branded Fusion dihitung 1 archetype Branded). Jika tidak memenuhi syarat 3 kartu, deck diklasifikasikan sebagai \"Deck Khusus\" (misal: Dino, Stun).",
           "d. Aturan deck gabungan (Mixed Deck): Apabila terdapat dua atau lebih archetype yang digabungkan dalam permainan (contoh: Stardust-Centurion), maka perhitungan batas maksimal 5 (lima) penggunaan tersebut diberlakukan secara akumulatif untuk seluruh archetype yang saling bersinggungan tersebut. Artinya, total penggunaan seluruh unsur Stardust ditambah total penggunaan seluruh unsur Centurion di dalam satu tim secara kolektif tidak boleh melebihi 5 kali penggunaan.",
+          "CONTOH LINE-UP (LEGAL/ILEGAL)",
           {
-            text: "CONTOH LINE-UP (LEGAL/ILEGAL)",
+            text: "Kasus 1: Maksimal Kuota Legal",
             subPoints: [
-              "Kasus 1 (Maksimal Kuota Legal): Player A (Stardust & Dhero), Player B (Stardust & Vaalmonica), Player C (Stardust & Therion), Player D (Stardust & Branded), Player E (Stardust & Centurion). Keterangan Wasit: LEGAL. Tim mencatatkan tepat 5 kali penggunaan archetype Stardust, sesuai dengan batas maksimal.",
-              "Kasus 2 (Bentrok Archetype Individu): Player A (Stardust-Centurion & Stardust), Player B (Stardust-Centurion & Traptrix), Player C (Stardust & Swordsoul), Player D (Live Twin & Branded), Player E (Dracotail & Kewl Tune). Keterangan Wasit: ILEGAL. Player A melanggar aturan individu karena menggunakan unsur archetype Stardust pada kedua pilihan deck-nya. Setiap pemain wajib membawa pilihan archetype yang benar-benar berbeda satu sama lain.",
-              "Kasus 3 (Melebihi Batas Akumulasi): Player A (Stardust-Centurion & Dhero), Player B (Stardust-Centurion & Traptrix), Player C (Stardust & Swordsoul), Player D (Stardust & Branded), Player E (Stardust & Kewl Tune). Keterangan Wasit: ILEGAL. Karena archetype Stardust dan Centurion digabungkan dalam mixed deck oleh player A dan B, perhitungan batas maksimalnya wajib diakumulasikan. Tim ini mencatatkan 5 kali penggunaan unsur Stardust dan 2 kali penggunaan unsur Centurion. Total akumulasi gabungannya adalah 7 kali penggunaan, melanggar batas maksimal 5. Tim wajib merevisi susunan line-up."
+              "Player A: Stardust & Dhero",
+              "Player B: Stardust & Vaalmonica",
+              "Player C: Stardust & Therion",
+              "Player D: Stardust & Branded",
+              "Player E: Stardust & Centurion",
+              "Keterangan Wasit: LEGAL. Tim mencatatkan tepat 5 kali penggunaan archetype Stardust, sesuai dengan batas maksimal."
+            ]
+          },
+          {
+            text: "Kasus 2: Bentrok Archetype Individu",
+            subPoints: [
+              "Player A: Stardust-Centurion (Mixed) & Stardust",
+              "Player B: Stardust-Centurion (Mixed) & Traptrix",
+              "Player C: Stardust & Swordsoul",
+              "Player D: Live Twin & Branded",
+              "Player E: Dracotail & Kewl Tune",
+              "Keterangan Wasit: ILEGAL. Player A melanggar aturan individu karena menggunakan unsur archetype Stardust pada kedua pilihan deck-nya. Setiap pemain wajib membawa pilihan archetype yang benar-benar berbeda satu sama lain."
+            ]
+          },
+          {
+            text: "Kasus 3: Melebihi Batas Akumulasi Akibat Mixed Deck",
+            subPoints: [
+              "Player A: Stardust-Centurion (Mixed) & Dhero",
+              "Player B: Stardust-Centurion (Mixed) & Traptrix",
+              "Player C: Stardust & Swordsoul",
+              "Player D: Stardust & Branded",
+              "Player E: Stardust & Kewl Tune",
+              "Keterangan Wasit: ILEGAL. Karena archetype Stardust dan Centurion digabungkan dalam mixed deck oleh player A dan B, perhitungan batas maksimalnya wajib diakumulasikan. Tim ini mencatatkan 5 kali penggunaan unsur Stardust dan 2 kali penggunaan unsur Centurion. Total akumulasi gabungannya adalah 7 kali penggunaan, melanggar batas maksimal 5 (lima). Tim wajib merevisi susunan line-up sebelum pertandingan dimulai."
             ]
           }
         ]
@@ -266,7 +294,7 @@ export const ruleCategories: RuleCategory[] = [
       {
         title: "4. W.O, Pengunduran Diri & Kolusi",
         points: [
-          "a. Tim yang gagal menghadirkan minimal 3 pemain & 6 deck saat jam tanding dinyatakan kalah W.O. Tim pemenang mendapat skor (10-0), tim kalah mendapat skor (0-10).",
+          "a. Tim yang gagal menghadirkan minimal 3 pemain & 6 deck saat jam tanding dinyatakan kalah W.O. Tim pemenang mendapat skor (10-0), tim kalah mendapat skor (0-10)..",
           "b. Jika WO dicurigai sengaja dilakukan demi mengatur klasemen (kolusi/match-fixing), investigasi mendalam akan dilakukan. Tim yang terbukti berkolusi akan di-ban permanen dari seluruh kompetisi TWI."
         ]
       }
@@ -315,4 +343,4 @@ export const ruleCategories: RuleCategory[] = [
     ]
   }
 ];
-      
+    
