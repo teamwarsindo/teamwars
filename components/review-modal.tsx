@@ -132,7 +132,7 @@ export function ReviewModal({
               {logo && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={logo.base64 || "/placeholder.svg"}
+                  src={logo.url || "/placeholder.svg"}
                   alt="Logo tim"
                   className="h-14 w-14 rounded-full border-2 border-border object-cover bg-background"
                 />
@@ -164,11 +164,11 @@ export function ReviewModal({
                 <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">
                   Bukti Transfer
                 </span>
-                {bukti?.base64 ? (
+                {bukti?.url ? (
                   <div className="w-full rounded-xl border border-dashed border-border bg-muted/20 p-2 flex flex-col items-center justify-center min-h-[160px]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={bukti.base64}
+                      src={bukti.url}
                       alt="Pratinjau Bukti Transfer"
                       onClick={() => setIsZoomed(true)}
                       className="max-h-64 w-auto rounded-lg object-contain cursor-zoom-in hover:opacity-90 transition-opacity shadow-sm bg-black/10"
@@ -305,7 +305,7 @@ export function ReviewModal({
         </div>
       </div>
 
-      {isZoomed && bukti?.base64 && (
+      {isZoomed && bukti?.url && (
         <div 
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200"
           onClick={() => setIsZoomed(false)}
@@ -315,7 +315,7 @@ export function ReviewModal({
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img 
-            src={bukti.base64} 
+            src={bukti.url} 
             alt="Bukti Transfer Diperbesar"
             className="max-h-[90vh] max-w-full rounded-lg object-contain shadow-2xl"
           />
