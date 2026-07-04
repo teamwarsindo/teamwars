@@ -43,7 +43,7 @@ export function TeamIdentity({ email, namaTim, hex, logo, bukti, setEmail, setNa
     }
 
     // Ambil objek File asli (Asumsi FileDropzone me-return File atau objek yang punya properti .file)
-    const actualFile = fileData.file || fileData;
+    const actualFile = fileData.rawFile || fileData.file || fileData;
     if (!(actualFile instanceof File)) return;
 
     try {
