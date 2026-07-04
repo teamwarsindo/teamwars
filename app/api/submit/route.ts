@@ -65,8 +65,9 @@ export async function POST(request: NextRequest, context: any) {
       namaTim: namaTim.trim(),
       warna: warna,
       email: email.trim(),
-      logoTim: logoTim,             // ✅ Langsung pass string URL-nya
-      buktiTransfer: buktiTransfer, // ✅ Langsung pass string URL-nya        players: JSON.stringify(players),
+      logoTim: logoTim.url || logoTim, 
+      buktiTransfer: buktiTransfer.url || buktiTransfer, 
+      players: JSON.stringify(players), // players boleh di-stringify karena array
       createdAt: new Date().toISOString(),
       statusVerifikasi: "Pending"
     });
