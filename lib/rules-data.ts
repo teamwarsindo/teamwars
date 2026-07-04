@@ -122,10 +122,10 @@ export const ruleCategories: RuleCategory[] = [
       {
         title: "Ketentuan Legalitas",
         points: [
-          "1. Kartu & BOX: Semua kartu dari main box, mini box, selection box, structure decks, event cards, character drops, dan level-up rewards berstatus LEGAL sejak hari rilis resmi di dalam game.",
-          "2. Skill: Semua skill legal sejak dirilis.",
-          "3. Forbidden/Limited List (Banlist): Aturan banlist TWI akan langsung diterapkan setelah daftar resmi diumumkan, meskipun Banlist tersebut belum aktif/diimplementasikan di dalam game.",
-          "4. Bug/Glitches: Legalitas kartu atau skill yang terbukti mengalami bug akan ditangguhkan dan dibahas per kasus oleh pihak penyelenggara."
+          "a. Kartu & BOX: Semua kartu dari main box, mini box, selection box, structure decks, event cards, character drops, dan level-up rewards berstatus LEGAL sejak hari rilis resmi di dalam game.",
+          "b. Skill: Semua skill legal sejak dirilis.",
+          "c. Forbidden/Limited List (Banlist): Aturan banlist TWI akan langsung diterapkan setelah daftar resmi diumumkan, meskipun Banlist tersebut belum aktif/diimplementasikan di dalam game.",
+          "d. Bug/Glitches: Legalitas kartu atau skill yang terbukti mengalami bug akan ditangguhkan dan dibahas per kasus oleh pihak penyelenggara."
         ]
       }
     ]
@@ -187,7 +187,7 @@ export const ruleCategories: RuleCategory[] = [
       {
         title: "3. Pengiriman Deck (Submit Deck)",
         points: [
-          "a. Kesepuluh deck wajib dikirimkan di channel masing-masing tim selambat-lambatnya 60 menit sebelum jadwal pertandingan dimulai. Gambar screenshot deck harus yang paling terbaru dan terlihat jelas.",
+          "a. Kesepuluh deck wajib dikirimkan di channel masing-masing tim selambat-lambatnya 60 menit sebelum jadwal pertandingan dimulai. Gambar screenshot deck harus yang paling terbaru.",
           "b. Keterlambatan pengiriman maksimal adalah hingga waktu kick-off pertandingan. Setiap keterlambatan pengiriman akan dipenalti dengan pemotongan waktu kontrol tim sebanyak 2 menit per deck yang terlambat.",
           "c. Jika hingga pertandingan dimulai ada slot deck yang kosong/tidak dikirim, maka slot deck tersebut otomatis dinyatakan auto-loss dan langsung menjadi poin kemenangan bagi lawan."
         ]
@@ -285,8 +285,8 @@ export const ruleCategories: RuleCategory[] = [
           {
             text: "Diberikan atas tindakan fatal seperti: tidak sportif, berkata kasar/ pelecehan kepada wasit/lawan, kolusi, penggunaan cheat/mod.",
             subPoints: [
-              "a. Sanksi: Pemain yang terbukti bersalah dapat didiskualifikasi (skorsing/banned) dari turnamen secara individu.",
-              "b. Apabila sebuah tim mengumpulkan 2x peringatan berat dalam satu musim, tim tersebut akan didiskualifikasi dari TWI Season 7 secara permanen, poin dicabut, dan seluruh hasil pertandingannya dianulir."
+              "i. Sanksi: Pemain yang terbukti bersalah dapat didiskualifikasi (skorsing/banned) dari turnamen secara individu.",
+              "ii. Apabila sebuah tim mengumpulkan 2x peringatan berat dalam satu musim, tim tersebut akan didiskualifikasi dari TWI Season 7 secara permanen, poin dicabut, dan seluruh hasil pertandingannya dianulir."
             ]
           }
         ]
@@ -294,7 +294,7 @@ export const ruleCategories: RuleCategory[] = [
       {
         title: "4. W.O, Pengunduran Diri & Kolusi",
         points: [
-          "a. Tim yang gagal menghadirkan minimal 3 pemain & 6 deck saat jam tanding dinyatakan kalah W.O. Tim pemenang mendapat skor (10-0), tim kalah mendapat skor (0-10)..",
+          "a. Tim yang gagal menghadirkan minimal 3 pemain & 6 deck saat jam tanding dinyatakan kalah W.O. Tim pemenang mendapat skor (10-0), tim kalah mendapat skor (0-10).",
           "b. Jika WO dicurigai sengaja dilakukan demi mengatur klasemen (kolusi/match-fixing), investigasi mendalam akan dilakukan. Tim yang terbukti berkolusi akan di-ban permanen dari seluruh kompetisi TWI."
         ]
       }
@@ -308,18 +308,18 @@ export const ruleCategories: RuleCategory[] = [
         title: "Ketentuan Jendela Transfer",
         points: [
           "Permintaan keluar/masuk anggota wajib melalui channel #transfer-request di Discord TWI.",
-          "1. Off-Season (akhir musim - minggu ke-1): Transfer bebas tanpa batasan jumlah.",
+          "a. Off-Season (akhir musim - minggu ke-1): Transfer bebas tanpa batasan jumlah.",
           {
-            text: "2. Season Transfer (minggu ke-1 - akhir regular season):",
+            text: "b. Season Transfer (minggu ke-1 - akhir regular season):",
             subPoints: [
-              "a. Tim bebas merekrut \"Free Agent\" (pemain yang belum terdaftar di tim manapun).",
-              "b. Tim maksimal hanya boleh merekrut 2 (dua) pemain perpindahan dari tim lain.",
-              "c. Seorang pemain maksimal hanya boleh membela 2 tim berbeda dalam satu musim yang sama.",
-              "d. Batas waktu pemrosesan transfer adalah 1x24 jam."
+              "i. Tim bebas merekrut \"Free Agent\" (pemain yang belum terdaftar di tim manapun).",
+              "ii. Tim maksimal hanya boleh merekrut 2 (dua) pemain perpindahan dari tim lain.",
+              "iii. Seorang pemain maksimal hanya boleh membela 2 tim berbeda dalam satu musim yang sama.",
+              "iv. Batas waktu pemrosesan transfer adalah 1x24 jam."
             ]
           },
-          "3. Playoffs Transfer (minggu terakhir - akhir playoffs): Roster di-lock. Tim dilarang mengambil pemain dari tim lain, dan hanya diizinkan merekrut Free Agent.",
-          "4. PENTING. Syarat kuota tim (min 5, max 10) tetap berlaku setiap kali transfer terjadi."
+          "c. Playoffs Transfer (minggu terakhir - akhir playoffs): Roster di-lock. Tim dilarang mengambil pemain dari tim lain, dan hanya diizinkan merekrut Free Agent.",
+          "d. PENTING. Syarat kuota tim (min 5, max 10) tetap berlaku setiap kali transfer terjadi."
         ]
       }
     ]
@@ -331,16 +331,15 @@ export const ruleCategories: RuleCategory[] = [
       {
         title: "Jajaran Kepengurusan",
         points: [
-          "1. Presiden: Adriansyah Pratama Putra",
-          "2. Administrator: Achmad Nuruddin",
-          "3. Head of Finance: Victor Widiaputra",
-          "4. Head of Competition: Agung Mahendra",
-          "5. Chief Referee: Xenon Yanu",
-          "6. Lead Data Analyst: Fajar Haikal",
-          "7. Head Of Creative: Nazz Rill"
+          "a. Presiden: Adriansyah Pratama Putra",
+          "b. Administrator: Achmad Nuruddin",
+          "c. Head of Finance: Victor Widiaputra",
+          "d. Head of Competition: Agung Mahendra",
+          "e. Chief Referee: Xenon Yanu",
+          "f. Lead Data Analyst: Fajar Haikal",
+          "g. Head Of Creative: Nazz Rill"
         ]
       }
     ]
   }
 ];
-    
