@@ -51,12 +51,13 @@ export function TeamIdentity({ email, namaTim, hex, logo, bukti, setEmail, setNa
       
       // Eksekusi kompresi dan upload
       const cloudinaryUrl = await compressAndUpload(actualFile, folderName)
+
+      const noCacheUrl = `${cloudinaryUrl}?t=${Date.now()}`;
       
       // Simpan URL ke state (Sesuaikan formatnya dengan kebutuhan tipe UploadedFile lu)
       setFileState({ 
-        url: cloudinaryUrl, // URL ini yang nanti dikirim ke /api/submit
-        name: actualFile.name,
-        size: actualFile.size
+        url: noCacheUrl, // URL ini yang nanti dikirim ke /api/submit
+        name: actualFile.name
       })
       
     } catch (error) {
