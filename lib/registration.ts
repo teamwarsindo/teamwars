@@ -3,8 +3,6 @@ export const ROSTER_ROLES: RosterRole[] = ["Ketua", "Wakil Ketua", "Anggota"]
 
 export const MIN_PLAYERS = 5
 export const MAX_PLAYERS = 10
-// BATAS UPLOAD DINAIKKAN MENJADI 10MB
-export const MAX_FILE_SIZE = 10 * 1024 * 1024 
 export const STORAGE_KEY = "twi-s7-duel-links-draft"
 
 export interface Player {
