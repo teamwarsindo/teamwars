@@ -64,7 +64,7 @@ export function HeroHeader() {
 
       {/* Deskripsi Baru yang Profesional */}
       <p className="mt-4 max-w-xl text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
-        Team Wars Indonesia (TWI) adalah platform kompetisi beregu Yu-Gi-Oh! utama yang mempertemukan berbagai komunitas dan guild terbaik. Memasuki Season 7, TWI memperluas jangkauan kompetisi ke skala regional untuk menghadirkan standar turnamen Duel Links yang lebih kompetitif dan profesional.
+        Team Wars Indonesia (TWI) adalah platform kompetisi beregu Yu-Gi-Oh! utama yang mempertemukan berbagai komunitas dan guild terbaik. TWI menghadirkan standar turnamen Duel Links yang kompetitif dan profesional.
       </p>
     </header>
   );
