@@ -17,9 +17,9 @@ export interface Player {
 }
 
 export interface UploadedFile {
-  name: string
-  size: number
-  base64: string 
+  url: string; // Menyimpan URL Cloudinary
+  name: string;
+  size?: number;
 }
 
 export interface FormState {
