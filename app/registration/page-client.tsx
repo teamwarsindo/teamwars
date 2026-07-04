@@ -39,7 +39,7 @@ export default function Page() {
       
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
-      <TopBar onClearStorage={handleClearStorage} showTrash="{true}" title="Official Registration"/>
+      <TopBar onClearStorage={handleClearStorage} showTrash={true} title="Official Registration"/>
 
       {/* MODAL KONFIRMASI */}
       {isConfirmTrashOpen && (
