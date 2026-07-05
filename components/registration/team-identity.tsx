@@ -136,7 +136,7 @@ export function TeamIdentity({
               label="Logo Tim" 
               teamName={namaTim} 
               value={logo} 
-              onChange={(f) => handleFileUpload(f, "logo", setLogo, setIsUploadingLogo, "logo")} 
+              onChange={(data) => handleFileUpload(data ? data.rawFile : null, "logo", setLogo, setIsUploadingLogo, "logo")} 
               error={err("logo")} 
             />
           </div>
@@ -152,7 +152,7 @@ export function TeamIdentity({
               label="Bukti Transfer" 
               teamName={namaTim} 
               value={bukti} 
-              onChange={(f) => handleFileUpload(f, "bukti_transfer", setBukti, setIsUploadingBukti, "bukti")} 
+              onChange={(data) => handleFileUpload(data ? data.rawFile : null, "bukti_transfer", setBukti, setIsUploadingBukti, "bukti")} 
               error={err("bukti")} 
             />
           </div>
