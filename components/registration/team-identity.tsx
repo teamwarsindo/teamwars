@@ -54,8 +54,6 @@ async function processUpload(actualFile: File, folderName: "logo" | "bukti_trans
 
   // SYARAT 3 & 4: Lolos semua! Lakukan Upload (atau Overwrite kalau file udah ada)
   try {
-    // Kasih efek loading UI di sini
-    setUploadStatus("Uploading...");
 
     // Upload dengan parameter namaTim. Kalau salah file dan upload lagi, ini bakal numpa file sebelumnya di Cloudinary.
     const cloudinaryUrl = await compressAndUpload(actualFile, folderName, namaTim);
