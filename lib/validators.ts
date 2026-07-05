@@ -14,7 +14,6 @@ export function sanitizeHex(value: string): string {
   return "#" + cleanHex.toUpperCase()
 }
 
-
 // --- ID DUEL LINKS ---
 export function formatDuelId(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 9)
@@ -23,6 +22,10 @@ export function formatDuelId(value: string): string {
     parts.push(digits.slice(i, i + 3))
   }
   return parts.join("-")
+}
+
+export function isCompleteDuelId(value: string): boolean {
+  return /^\d{3}-\d{3}-\d{3}$/.test(value)
 }
 
 // --- TEAM NAME ---
