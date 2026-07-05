@@ -3,6 +3,7 @@ export const ROSTER_ROLES: RosterRole[] = ["Ketua", "Wakil Ketua", "Anggota"]
 
 export const MIN_PLAYERS = 5
 export const MAX_PLAYERS = 10
+export const STORAGE_KEY = "twi-s7-duel-links-draft
 
 export interface Player {
   id: string
