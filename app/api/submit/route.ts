@@ -2,11 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
 import { EMAIL_CONFIG } from '@/lib/config';
-import { 
-  getPesertaTemplate, 
-  getFinanceTemplate, 
-  getCreativeTemplate 
-} from '@/lib/email-templates'; 
+import { getPesertaTemplate } from '@/lib/email-templates'; 
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -18,12 +14,8 @@ async function sendEmailSafe(params: any) {
   }
 }
 
-async function sendDiscordNotification(namaTim: string, totalPemain: number) {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+async function sendToDiscord(webhookUrl: string | undefined, message: string) {
   if (!webhookUrl) return;
-
-  const message = `Tim ${namaTim} telah mendaftar ke Twi season 7 dengan ${totalPemain} pemain`;
-
   try {
     await fetch(webhookUrl, {
       method: "POST",
@@ -31,7 +23,7 @@ async function sendDiscordNotification(namaTim: string, totalPemain: number) {
       body: JSON.stringify({ content: message })
     });
   } catch (error) {
-    console.error("Gagal mengirim webhook ke Discord:", error);
+    console.error("Gagal kirim webhook Discord:", error);
   }
 }
 
@@ -107,16 +99,37 @@ export async function POST(request: NextRequest, context: any) {
     const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
     const templateData = { namaTim, email, warna, ketua, wakil, logoTim, buktiTransfer, players, kvKey };
 
-    // Eksekusi Email Background (Tanpa Blocking)
+    // Eksekusi Background: 1 Email untuk Peserta, 3 Webhook untuk Panitia
     context.waitUntil((async () => {
+      
+      // 1. Email Eksklusif Peserta
       if (email) {
-        await sendEmailSafe({ from: EMAIL_CONFIG.sender, to: email, subject: `Status Pendaftaran: Tim ${namaTim} [Teamwars S7]`, html: getPesertaTemplate(templateData) });
+        await sendEmailSafe({ 
+          from: EMAIL_CONFIG.sender, 
+          to: email, 
+          subject: `Status Pendaftaran: Tim ${namaTim} [Teamwars S7]`, 
+          html: getPesertaTemplate(templateData) 
+        });
       }
-      await sendEmailSafe({ from: EMAIL_CONFIG.sender, to: EMAIL_CONFIG.to.finance, subject: `[Verifikasi Finance] Pembayaran Tim ${namaTim}`, html: getFinanceTemplate(templateData) });
-      await sendEmailSafe({ from: EMAIL_CONFIG.sender, to: EMAIL_CONFIG.to.creative, subject: `[Aset Creative] Identitas Tim ${namaTim}`, html: getCreativeTemplate(templateData) });
 
-      // Tembak notifikasi ke Discord
-      await sendDiscordNotification(namaTim, players.length);
+      // 2. Webhook Admin / General (Notifikasi Utama)
+      await sendToDiscord(
+        process.env.WEBHOOK_ADMIN, 
+        `📢 **Tim ${namaTim}** telah mendaftar ke TWI Season 7 dengan **${players.length} pemain**! 🔥`
+      );
+
+      // 3. Webhook Finance (Cek Pembayaran)
+      await sendToDiscord(
+        process.env.WEBHOOK_FINANCE, 
+        `💰 **Verifikasi Finance:** Cek mutasi masuk dari tim **${namaTim}**.\nKontak: ${ketua.namaLengkap} (@${ketua.discord})\nLink Bukti Transfer: ${buktiTransfer}`
+      );
+
+      // 4. Webhook Creative (Aset Desain)
+      await sendToDiscord(
+        process.env.WEBHOOK_CREATIVE, 
+        `🎨 **Aset Baru Masuk:** Logo dari tim **${namaTim}**.\nKode Warna: \`${warna}\`\nLink Master Logo: ${logoTim}`
+      );
+
     })());
 
     return NextResponse.json({ success: true, message: "Pendaftaran berhasil diproses!" });
