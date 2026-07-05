@@ -6,9 +6,6 @@ export const LAUNCH_TARGET = new Date(LAUNCH_TARGET_DATE).getTime()
 export const CLOSE_TARGET_DATE = "2026-07-21T21:07:07+07:00"
 export const CLOSE_TARGET = new Date(CLOSE_TARGET_DATE).getTime()
 
-// Saklar manual untuk halaman Rules
-export const IS_RULES_OPEN = false;
-
 // Cukup ubah di sini saja jika domain berubah
 const DOMAIN = "teamwars.web.id";
 
