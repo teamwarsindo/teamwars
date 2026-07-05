@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { LAUNCH_TARGET, IS_RULES_OPEN } from '@/lib/config'
+import { LAUNCH_TARGET} from '@/lib/config'
 
 export function proxy(request: NextRequest) {
   const now = Date.now();
@@ -23,23 +23,6 @@ export function proxy(request: NextRequest) {
     }
     return false;
   };
-
-  // ---------------------------------------------------------
-  // 1. ATURAN KHUSUS /rules (Akses Divisi Editor Rules)
-  // ---------------------------------------------------------
-  if (pathname.startsWith('/rules') && !IS_RULES_OPEN) {
-    // 🔑 KREDENSIAL KHUSUS RULES
-    const rulesUser = 'panitia';
-    const rulesPwd = 'alwayspras';
-
-    if (checkAuth(rulesUser, rulesPwd)) return NextResponse.next();
-    
-    return new NextResponse('Akses Ditolak: Halaman Rules sedang dalam tahap penyusunan.', {
-      status: 401,
-      // Pesan pop-up disesuaikan agar jelas ini untuk divisi apa
-      headers: { 'WWW-Authenticate': 'Basic realm="Area Terbatas Divisi Rules"' },
-    });
-  }
 
   // ---------------------------------------------------------
   // 2. ATURAN KHUSUS /registration (Akses Master Admin)
