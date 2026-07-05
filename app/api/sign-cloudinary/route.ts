@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       process.env.CLOUDINARY_API_SECRET!
     );
 
-    return NextResponse.json({ timestamp, signature, ...paramsToSign });
+    return NextResponse.json({ signature, ...paramsToSign });
   } catch (error) {
     return NextResponse.json({ error: "Gagal membuat signature" }, { status: 500 });
   }
