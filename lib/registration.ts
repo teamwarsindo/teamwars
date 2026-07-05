@@ -53,3 +53,26 @@ export function assignRole(players: Player[], targetId: string, nextRole: Roster
     return p
   })
 }
+
+// Deteksi Ganda di Roster
+export function findDuplicateFields(players: Player[]): Set<string> {
+  const flagged = new Set<string>()
+  const fields: Array<keyof Pick<Player, "discord" | "ign" | "duelId">> = ["discord", "ign", "duelId"]
+
+  for (const field of fields) {
+    const seen = new Map<string, string[]>()
+    for (const p of players) {
+      const raw = p[field].trim().toLowerCase()
+      if (!raw) continue
+      const ids = seen.get(raw) ?? []
+      ids.push(p.id)
+      seen.set(raw, ids)
+    }
+    for (const ids of seen.values()) {
+      if (ids.length > 1) {
+        for (const id of ids) flagged.add(`${id}-${field}`)
+      }
+    }
+  }
+  return flagged
+}
