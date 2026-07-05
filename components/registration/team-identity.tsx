@@ -27,51 +27,52 @@ export function TeamIdentity({ email, namaTim, hex, logo, bukti, setEmail, setNa
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [isUploadingBukti, setIsUploadingBukti] = useState(false)
 
-  // Fungsi dinamis buat nge-handle kompresi & upload pas file dipilih
-  const handleFileUpload = async (
-    fileData: any, 
-    folderName: "logo" | "bukti_transfer", 
-    setFileState: (val: any) => void,
-    setLoadingState: (val: boolean) => void,
-    fieldKey: string
-  ) => {
-    // Kalau user menghapus file dari dropzone
-    if (!fileData) {
-      setFileState(null)
-      markTouched(fieldKey)
-      return
-    }
+  // Asumsi ini ada di dalam komponen UI lu saat user nge-drop gambar
 
-    // Ambil objek File asli (Asumsi FileDropzone me-return File atau objek yang punya properti .file)
-    const actualFile = fileData.rawFile || fileData.file || fileData;
-    if (!(actualFile instanceof File)) return;
-
-    // Simpan URL ke state (Sesuaikan formatnya dengan kebutuhan tipe UploadedFile lu)
-    setFileState({ 
-      url: fileData.url || URL.createObjectURL(actualFile), // URL ini yang nanti dikirim ke /api/submit
-      name: actualFile.name
-    })
-    
-    try {
-      setLoadingState(true)
-      
-      // Eksekusi kompresi dan upload
-      const cloudinaryUrl = await compressAndUpload(actualFile, folderName)
-
-      // ✅ Setelah beres, diam-diam ganti URL lokal dengan URL Cloudinary + Cache Buster
-      setFileState((prev: any) => ({
-        ...prev,
-        url: `${cloudinaryUrl}?t=${Date.now()}`
-      }))
-      
-    } catch (error) {
-      alert(`Gagal mengunggah ${fieldKey}. Pastikan internet stabil dan format gambar didukung.`)
-      setFileState(null)
-    } finally {
-      setLoadingState(false)
-      markTouched(fieldKey)
-    }
+async function processUpload(actualFile: File, folderName: "logo" | "bukti_transfer") {
+  // SYARAT 1: Cek nama tim kosong gak?
+  if (!namaTim || namaTim.trim() === "") {
+    alert("Isi nama tim terlebih dahulu ngab!");
+    return; // Stop proses di sini
   }
+
+  // SYARAT 2: Cek DB, nama tim udah ada belum?
+  try {
+    // Lu panggil API/Server Action lu yang buat ngecek DB (sesuaikan path API lu)
+    const dbCheckRes = await fetch(`/api/check-team?name=${encodeURIComponent(namaTim)}`);
+    const dbCheckData = await dbCheckRes.json();
+
+    if (dbCheckData.isExist) {
+      alert(`Tim ${namaTim} sudah pernah didaftarkan pada tgl ${dbCheckData.tanggalDaftar}`);
+      return; // Stop proses, jangan di-upload!
+    }
+  } catch (err) {
+    console.error("Gagal ngecek DB:", err);
+    alert("Gagal memvalidasi nama tim ke database.");
+    return;
+  }
+
+  // SYARAT 3 & 4: Lolos semua! Lakukan Upload (atau Overwrite kalau file udah ada)
+  try {
+    // Kasih efek loading UI di sini
+    setUploadStatus("Uploading...");
+
+    // Upload dengan parameter namaTim. Kalau salah file dan upload lagi, ini bakal numpa file sebelumnya di Cloudinary.
+    const cloudinaryUrl = await compressAndUpload(actualFile, folderName, namaTim);
+    
+    // Sukses! Update UI lu
+    setFileState((prev: any) => ({
+      ...prev,
+      // Tambahin ?t=Date.now() murni biar browser PC/HP lu gak nampilin gambar lama pas di-overwrite
+      url: `${cloudinaryUrl}?t=${Date.now()}` 
+    }));
+    setUploadStatus("Sukses");
+
+  } catch (error: any) {
+    alert(`Upload gagal: ${error.message}`);
+    setUploadStatus("Gagal");
+  }
+}
 
   return (
     <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
