@@ -3,7 +3,7 @@ export const LAUNCH_TARGET_DATE = "2026-07-07T07:07:07+07:00"
 export const LAUNCH_TARGET = new Date(LAUNCH_TARGET_DATE).getTime()
 
 // Waktu Tutup: 21 Juli 2026, 21:07 WIB
-export const CLOSE_TARGET_DATE = "2026-07-21T07:21:07+07:00"
+export const CLOSE_TARGET_DATE = "2026-07-21T21:07:07+07:00"
 export const CLOSE_TARGET = new Date(CLOSE_TARGET_DATE).getTime()
 
 // Saklar manual untuk halaman Rules
