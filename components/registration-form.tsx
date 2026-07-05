@@ -8,6 +8,8 @@ import { TeamIdentity } from "@/components/registration/team-identity"
 import { RosterSection } from "@/components/registration/roster-section"
 import { ReviewModal } from "@/components/review-modal"
 import { SuccessModal } from "@/components/success-modal"
+import { AlertIcon } from "@/components/icons" 
+
 
 export function RegistrationForm() {
   const team = useTeamDetails()
@@ -34,6 +36,18 @@ export function RegistrationForm() {
 
         {/* Tombol Konfirmasi */}
         <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
+
+          {/* ✅ BOX ERROR PRE-FLIGHT YANG CANTIK */}
+          {flow.serverError && !flow.modalOpen && (
+            <div className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive animate-in fade-in zoom-in-95">
+              <AlertIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Data Ditolak</p>
+                <p className="text-sm">{flow.serverError}</p>
+              </div>
+            </div>
+          )}
+          
           <button
             type="button" 
             onClick={flow.handleReviewClick} 
