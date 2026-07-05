@@ -18,6 +18,23 @@ async function sendEmailSafe(params: any) {
   }
 }
 
+async function sendDiscordNotification(namaTim: string, totalPemain: number) {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) return;
+
+  const message = `Tim ${namaTim} telah mendaftar ke Twi season 7 dengan ${totalPemain} pemain`;
+
+  try {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: message })
+    });
+  } catch (error) {
+    console.error("Gagal mengirim webhook ke Discord:", error);
+  }
+}
+
 export async function POST(request: NextRequest, context: any) {
   try {
     const data = await request.json();
@@ -97,6 +114,9 @@ export async function POST(request: NextRequest, context: any) {
       }
       await sendEmailSafe({ from: EMAIL_CONFIG.sender, to: EMAIL_CONFIG.to.finance, subject: `[Verifikasi Finance] Pembayaran Tim ${namaTim}`, html: getFinanceTemplate(templateData) });
       await sendEmailSafe({ from: EMAIL_CONFIG.sender, to: EMAIL_CONFIG.to.creative, subject: `[Aset Creative] Identitas Tim ${namaTim}`, html: getCreativeTemplate(templateData) });
+
+      // Tembak notifikasi ke Discord
+      await sendDiscordNotification(namaTim, players.length);
     })());
 
     return NextResponse.json({ success: true, message: "Pendaftaran berhasil diproses!" });
