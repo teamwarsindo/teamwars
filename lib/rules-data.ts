@@ -331,13 +331,13 @@ export const ruleCategories: RuleCategory[] = [
       {
         title: "Jajaran Kepengurusan",
         points: [
-          "a. Presiden: Adriansyah Pratama Putra",
-          "b. Administrator: Achmad Nuruddin",
-          "c. Head of Finance: Victor Widiaputra",
-          "d. Head of Competition: Agung Mahendra",
-          "e. Chief Referee: Xenon Yanu",
+          "a. Presiden: Pradinata",
+          "b. Administrator: Tsaqif",
+          "c. Head of Finance: Elthor",
+          "d. Head of Competition: Rexia",
+          "e. Chief Referee: Xenon",
           "f. Lead Data Analyst: Fajar Haikal",
-          "g. Head Of Creative: Nazz Rill"
+          "g. Head Of Creative: Nazz"
         ]
       }
     ]
