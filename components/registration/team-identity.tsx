@@ -46,19 +46,23 @@ export function TeamIdentity({ email, namaTim, hex, logo, bukti, setEmail, setNa
     const actualFile = fileData.rawFile || fileData.file || fileData;
     if (!(actualFile instanceof File)) return;
 
+    // Simpan URL ke state (Sesuaikan formatnya dengan kebutuhan tipe UploadedFile lu)
+    setFileState({ 
+      url: fileData.url || URL.createObjectURL(actualFile), // URL ini yang nanti dikirim ke /api/submit
+      name: actualFile.name
+    })
+    
     try {
       setLoadingState(true)
       
       // Eksekusi kompresi dan upload
       const cloudinaryUrl = await compressAndUpload(actualFile, folderName)
 
-      const noCacheUrl = `${cloudinaryUrl}?t=${Date.now()}`;
-      
-      // Simpan URL ke state (Sesuaikan formatnya dengan kebutuhan tipe UploadedFile lu)
-      setFileState({ 
-        url: noCacheUrl, // URL ini yang nanti dikirim ke /api/submit
-        name: actualFile.name
-      })
+      // ✅ Setelah beres, diam-diam ganti URL lokal dengan URL Cloudinary + Cache Buster
+      setFileState((prev: any) => ({
+        ...prev,
+        url: `${cloudinaryUrl}?t=${Date.now()}`
+      }))
       
     } catch (error) {
       alert(`Gagal mengunggah ${fieldKey}. Pastikan internet stabil dan format gambar didukung.`)
