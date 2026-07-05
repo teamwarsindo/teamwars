@@ -24,9 +24,6 @@ export function formatDuelId(value: string): string {
   }
   return parts.join("-")
 }
-export function isCompleteDuelId(value: string): boolean {
-  return /^\d{3}-\d{3}-\d{3}$/.test(value)
-}
 
 // --- TEAM NAME ---
 export function sanitizeTeamName(value: string): string {
