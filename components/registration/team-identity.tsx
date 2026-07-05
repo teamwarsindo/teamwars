@@ -4,7 +4,7 @@ import { useState } from "react"
 import { FileDropzone } from "@/components/file-dropzone"
 import { isValidHex, sanitizeTeamName, sanitizeHex } from "@/lib/validators"
 import { inputBase, ErrorText } from "./shared"
-import { compressAndUpload } from "@/lib/cloudinary" // <-- Import fungsi uploader
+import { compressAndUpload } from "@/lib/cloudinary"
 import type { UploadedFile } from "@/lib/registration"
 
 interface TeamIdentityProps {
@@ -22,55 +22,75 @@ interface TeamIdentityProps {
   markTouched: (key: string) => void
 }
 
-export function TeamIdentity({ email, namaTim, hex, logo, bukti, setEmail, setNamaTim, setHex, setLogo, setBukti, err, markTouched }: TeamIdentityProps) {
-  // State untuk indikator loading masing-masing gambar
+export function TeamIdentity({ 
+  email, 
+  namaTim, 
+  hex, 
+  logo, 
+  bukti, 
+  setEmail, 
+  setNamaTim, 
+  setHex, 
+  setLogo, 
+  setBukti, 
+  err, 
+  markTouched 
+}: TeamIdentityProps) {
+  
+  // Indikator loading upload
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [isUploadingBukti, setIsUploadingBukti] = useState(false)
 
-  // Asumsi ini ada di dalam komponen UI lu saat user nge-drop gambar
-
-async function processUpload(actualFile: File, folderName: "logo" | "bukti_transfer") {
-  // SYARAT 1: Cek nama tim kosong gak?
-  if (!namaTim || namaTim.trim() === "") {
-    alert("Isi nama tim terlebih dahulu ngab!");
-    return; // Stop proses di sini
-  }
-
-  // SYARAT 2: Cek DB, nama tim udah ada belum?
-  try {
-    // Lu panggil API/Server Action lu yang buat ngecek DB (sesuaikan path API lu)
-    const dbCheckRes = await fetch(`/api/check-team?name=${encodeURIComponent(namaTim)}`);
-    const dbCheckData = await dbCheckRes.json();
-
-    if (dbCheckData.isExist) {
-      alert(`Tim ${namaTim} sudah pernah didaftarkan pada tgl ${dbCheckData.tanggalDaftar}`);
-      return; // Stop proses, jangan di-upload!
+  // Fungsi tunggal penanganan upload yang sudah disinkronkan dengan JSX
+  async function handleFileUpload(
+    actualFile: File | null, 
+    folderName: "logo" | "bukti_transfer",
+    setFileState: (val: UploadedFile | null) => void,
+    setLoadingState: (val: boolean) => void,
+    errorKey: string
+  ) {
+    // Jika file dihapus dari dropzone
+    if (!actualFile) {
+      setFileState(null);
+      return;
     }
-  } catch (err) {
-    console.error("Gagal ngecek DB:", err);
-    alert("Gagal memvalidasi nama tim ke database.");
-    return;
+
+    // SYARAT 1: Cek nama tim kosong atau tidak
+    if (!namaTim || namaTim.trim() === "") {
+      alert("Isi nama tim terlebih dahulu ngab!");
+      return;
+    }
+
+    setLoadingState(true);
+    markTouched(errorKey);
+
+    try {
+      // SYARAT 2: Cek ketersediaan nama tim ke database API check-team
+      const dbCheckRes = await fetch(`/api/check-team?name=${encodeURIComponent(namaTim)}`);
+      const dbCheckData = await dbCheckRes.json();
+
+      if (dbCheckData && dbCheckData.available === false) {
+        alert(`Nama tim ${namaTim} sudah terdaftar! Gunakan nama lain.`);
+        setLoadingState(false);
+        return;
+      }
+
+      // SYARAT 3: Lolos validasi, eksekusi kompresi dan upload ke Cloudinary
+      const cloudinaryUrl = await compressAndUpload(actualFile, folderName, namaTim);
+      
+      // Sukses! Update UI menggunakan setter props bawaan
+      setFileState({
+        url: `${cloudinaryUrl}?t=${Date.now()}`, // Anti-cache browser
+        name: actualFile.name,
+        size: actualFile.size
+      });
+
+    } catch (error: any) {
+      alert(`Upload gagal: ${error.message}`);
+    } finally {
+      setLoadingState(false);
+    }
   }
-
-  // SYARAT 3 & 4: Lolos semua! Lakukan Upload (atau Overwrite kalau file udah ada)
-  try {
-
-    // Upload dengan parameter namaTim. Kalau salah file dan upload lagi, ini bakal numpa file sebelumnya di Cloudinary.
-    const cloudinaryUrl = await compressAndUpload(actualFile, folderName, namaTim);
-    
-    // Sukses! Update UI lu
-    setFileState((prev: any) => ({
-      ...prev,
-      // Tambahin ?t=Date.now() murni biar browser PC/HP lu gak nampilin gambar lama pas di-overwrite
-      url: `${cloudinaryUrl}?t=${Date.now()}` 
-    }));
-    setUploadStatus("Sukses");
-
-  } catch (error: any) {
-    alert(`Upload gagal: ${error.message}`);
-    setUploadStatus("Gagal");
-  }
-}
 
   return (
     <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
@@ -80,17 +100,18 @@ async function processUpload(actualFile: File, folderName: "logo" | "bukti_trans
       </div>
       <div className="flex flex-col gap-4">
         
-        {/* ... (Bagian Email, Nama Tim, dan Hex biarkan sama seperti aslinya) ... */}
         <div>
           <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-foreground">Email Aktif Perwakilan</label>
           <input id="email" type="email" placeholder="registration@teamwars.web.id" value={email} onChange={(e) => { setEmail(e.target.value); markTouched("email"); }} onBlur={() => markTouched("email")} className={`${inputBase} ${err("email") ? "border-destructive" : "border-border"}`} />
           <ErrorText msg={err("email")} />
         </div>
+        
         <div>
           <label htmlFor="namaTim" className="mb-1.5 block text-sm font-medium text-foreground">Nama Tim</label>
           <input id="namaTim" type="text" placeholder="Team Wars Indonesia" value={namaTim} onChange={(e) => setNamaTim(sanitizeTeamName(e.target.value))} onBlur={() => markTouched("namaTim")} className={`${inputBase} ${err("namaTim") ? "border-destructive" : "border-border"}`} />
           <ErrorText msg={err("namaTim")} />
         </div>
+        
         <div>
           <label htmlFor="hexText" className="mb-1.5 block text-sm font-medium text-foreground">Warna Identitas Tim (Hex)</label>
           <div className="flex items-center gap-3">
@@ -104,9 +125,12 @@ async function processUpload(actualFile: File, folderName: "logo" | "bukti_trans
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Tambahkan indikator loading di label atau props dropzone (jika FileDropzone dukung prop isLoading) */}
           <div className="relative">
-            {isUploadingLogo && <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 rounded-xl backdrop-blur-sm"><span className="text-sm font-bold text-primary animate-pulse">Mengompres & Upload...</span></div>}
+            {isUploadingLogo && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 rounded-xl backdrop-blur-sm">
+                <span className="text-sm font-bold text-primary animate-pulse">Mengompres & Upload...</span>
+              </div>
+            )}
             <FileDropzone 
               id="logo" 
               label="Logo Tim" 
@@ -118,7 +142,11 @@ async function processUpload(actualFile: File, folderName: "logo" | "bukti_trans
           </div>
           
           <div className="relative">
-            {isUploadingBukti && <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 rounded-xl backdrop-blur-sm"><span className="text-sm font-bold text-primary animate-pulse">Mengompres & Upload...</span></div>}
+            {isUploadingBukti && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 rounded-xl backdrop-blur-sm">
+                <span className="text-sm font-bold text-primary animate-pulse">Mengompres & Upload...</span>
+              </div>
+            )}
             <FileDropzone 
               id="bukti" 
               label="Bukti Transfer" 
