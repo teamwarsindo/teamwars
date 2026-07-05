@@ -19,13 +19,6 @@ export interface UploadedFile {
   size?: number;
 }
 
-export interface FormState {
-  email: string
-  namaTim: string
-  hex: string
-  players: Player[]
-}
-
 export function createPlayer(role: RosterRole): Player {
   return { 
     id: crypto.randomUUID(), 
