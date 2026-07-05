@@ -26,9 +26,8 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
     formData.append("file", fileToUpload);
     formData.append("upload_preset", UPLOAD_PRESET);
     
-    // CATATAN PENTING: 
-    // Kita hapus formData.append("folder", folder) di sini karena sering bikin error 400.
-    // Pastikan lu ngatur foldernya langsung dari setting Dashboard Cloudinary aja.
+    // INI KUNCINYA BIAR MASUK KE FOLDER YANG UDAH ADA:
+    formData.append("folder", folder);
 
     // 3. Tembak ke API Cloudinary
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
