@@ -18,7 +18,8 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
     // 2. Susun FormData dengan parameter yang sudah disetujui
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("api_key", signData.api_key); // Ambil dari balasan API    formData.append("timestamp", signData.timestamp.toString());
+    formData.append("api_key", signData.api_key); // Ambil dari balasan API    
+    formData.append("timestamp", signData.timestamp.toString());
     formData.append("signature", signData.signature);
     formData.append("folder", signData.folder);
     formData.append("public_id", signData.public_id);
