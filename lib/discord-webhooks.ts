@@ -1,3 +1,20 @@
+// Helper untuk Proper Case (Contoh: "TEAM WARS" -> "Team Wars")
+function toProperCase(str: string) {
+  return str.replace(
+    /\w\S*/g,
+    (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
+  );
+}
+
+// Helper untuk waktu WIB
+function getWIBTime() {
+  return new Date().toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    dateStyle: "long",
+    timeStyle: "medium"
+  });
+}
+
 export async function sendAllWebhooks(params: { 
   namaTim: string; 
   warna: string; 
@@ -10,15 +27,19 @@ export async function sendAllWebhooks(params: {
 }) {
   const { namaTim, warna, ketua, totalRoster, teamSlug, kvKey, logoTim, buktiTransfer } = params;
   
+  // Format Proper Case
+  const properTeamName = toProperCase(namaTim);
+
   // CLEAN CODE: Langsung ambil teks setelah '/' terakhir
   const namaFileLogo = logoTim.split('/').pop() || 'default.png';
   const namaFileBukti = buktiTransfer.split('/').pop() || 'default.jpg';
 
-  // Gabungkan langsung ke domain masking web resmi TWI lu
+  // Gabungkan langsung ke domain masking web resmi TWI
   const maskedLogoUrl = `https://teamwars.web.id/logo/${namaFileLogo}`;
   const maskedBuktiUrl = `https://teamwars.web.id/bukti/${namaFileBukti}`;
 
   const embedColor = parseInt(warna.replace('#', ''), 16) || 3447003;
+  const webhookAvatar = "https://teamwars.web.id/logo-dc.png";
 
   const WEBHOOKS = [
     {
@@ -26,10 +47,11 @@ export async function sendAllWebhooks(params: {
       url: process.env.DISCORD_WEBHOOK_ADMIN,
       payload: {
         username: "Registration TWI Season 7",
-        avatar_url: "https://link-ke-logo-twi.png",
+        avatar_url: webhookAvatar,
         embeds: [{
-          title: `🚀 PENDAFTARAN BARU: ${namaTim.toUpperCase()}`,
+          title: `🚀 PENDAFTARAN BARU: ${properTeamName}`,
           color: embedColor,
+          thumbnail: { url: logoTim },
           fields: [
             { name: "👑 Ketua Tim", value: ketua.namaLengkap, inline: true },
             { name: "👥 Total Roster", value: `${totalRoster} Pemain`, inline: true },
@@ -43,13 +65,15 @@ export async function sendAllWebhooks(params: {
       url: process.env.DISCORD_WEBHOOK_FINANCE,
       payload: {
         username: "Registration TWI Season 7",
-        avatar_url: "https://link-ke-logo-twi.png",
-        content: "<@&836952890991968266> 💰 Setoran Masuk!",
+        avatar_url: webhookAvatar,
+        // Tag admin untuk testing. ID asli Finance: <@&836952890991968266>
+        content: "<@&1144271761488216134> 💰 Setoran Masuk!", 
         embeds: [{
-          title: `Bukti Transfer: ${namaTim.toUpperCase()}`,
+          title: `Bukti Transfer: ${properTeamName}`,
           color: embedColor,
+          thumbnail: { url: buktiTransfer },
           fields: [
-            { name: "Waktu Submit", value: new Date().toLocaleString('id-ID'), inline: true },
+            { name: "Waktu Submit", value: `${getWIBTime()} WIB`, inline: true },
             { name: "Link Bukti TF", value: `[Klik untuk lihat Bukti Transfer](${maskedBuktiUrl})`, inline: false }
           ]
         }]
@@ -60,11 +84,13 @@ export async function sendAllWebhooks(params: {
       url: process.env.DISCORD_WEBHOOK_CREATIVE,
       payload: {
         username: "Registration TWI Season 7",
-        avatar_url: "https://link-ke-logo-twi.png",
-        content: "<@&1171096454685794324> 🎨 Aset Tim Baru!",
+        avatar_url: webhookAvatar,
+        // Tag admin untuk testing. ID asli Creative: <@&1171096454685794324>
+        content: "<@&1144271761488216134> 🎨 Aset Tim Baru!", 
         embeds: [{
-          title: `Aset Visual: ${namaTim.toUpperCase()}`,
+          title: `Aset Visual: ${properTeamName}`,
           color: embedColor,
+          thumbnail: { url: logoTim },
           fields: [
             { name: "Kode Warna (Hex)", value: `\`${warna}\``, inline: true },
             { name: "Link Logo Asli", value: `[Download Logo Mentah](${maskedLogoUrl})`, inline: false }
@@ -77,8 +103,8 @@ export async function sendAllWebhooks(params: {
       url: process.env.DISCORD_WEBHOOK_PUBLIC,
       payload: {
         username: "Registration TWI Season 7",
-        avatar_url: "https://link-ke-logo-twi.png",
-        content: `🔥 Tim **${namaTim.toUpperCase()}** telah resmi mendaftar ke TWI Season 7 membawa **${totalRoster}** pemain elit!`
+        avatar_url: webhookAvatar,
+        content: `🔥 Tim **${properTeamName}** telah resmi mendaftar ke TWI Season 7 membawa **${totalRoster}** pemain elit!`
       }
     }
   ];
