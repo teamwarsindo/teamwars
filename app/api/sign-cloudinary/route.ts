@@ -11,23 +11,26 @@ export async function POST(request: Request) {
   try {
     const { folder, public_id } = await request.json();
     const timestamp = Math.round(new Date().getTime() / 1000);
-
     const isBukti = folder === "bukti_transfer";
 
-    const paramsToSign = {
+    // 1. Susun parameter dasar
+    const paramsToSign: Record<string, any> = {
       timestamp,
       folder,
       public_id,
       overwrite: true,
-      // JIKA BUKTI: Paksa jadi JPG & limit 1920px. 
-      // JIKA LOGO: Jangan kasih transformasi apa-apa saat disimpan (Biarkan HD).
-      ...(isBukti && { 
-        transformation: "c_limit,w_1920,h_1920,q_auto", 
-        format: "jpg" 
-      })
     };
 
-    const signature = cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET!);
+    // 2. Tambahkan transformasi HANYA untuk bukti transfer
+    if (isBukti) {
+      paramsToSign.transformation = "c_limit,w_1920,h_1920,q_auto";
+    }
+
+    // 3. Buat tanda tangan
+    const signature = cloudinary.utils.api_sign_request(
+      paramsToSign, 
+      process.env.CLOUDINARY_API_SECRET!
+    );
 
     return NextResponse.json({ 
       api_key: process.env.CLOUDINARY_API_KEY, 
