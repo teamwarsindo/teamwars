@@ -23,7 +23,7 @@ const roleIcons: Record<string, string> = {
 
 const roleColors: Record<string, string> = {
   "Ketua": "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  "Wakil Ketua": "bg-slate-300/10 text-slate-300 border-slate-300/20",
+  "Wakil Ketua": "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
   "Anggota": "bg-blue-500/10 text-blue-500 border-blue-500/20"
 }
 
