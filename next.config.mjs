@@ -1,12 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Fungsi untuk mengalihkan URL Sosial Media (Redirects)
+  // ----------------------------------------------------
+  // 1. REDIRECTS (Pengalihan URL Sosial Media)
+  // ----------------------------------------------------
   async redirects() {
     return [
       {
         source: '/fb',
         destination: 'https://www.facebook.com/teamwars.id',
-        permanent: true, // Menggunakan HTTP 308 (Permanent Redirect) agar baik untuk SEO
+        permanent: true, // HTTP 308 (Bagus untuk SEO)
       },
       {
         source: '/ig',
@@ -16,29 +18,34 @@ const nextConfig = {
     ]
   },
 
-  // Fungsi untuk menyembunyikan URL asli Cloudinary (Masking/Rewrites)
+  // ----------------------------------------------------
+  // 2. REWRITES (Masking Link Cloudinary langsung Proxy)
+  // ----------------------------------------------------
   async rewrites() {
     return [
-      // --- MASKING FILE ASLI (Resolusi Penuh untuk diverifikasi panitia) ---
+      // Format URL lu: domain.com/bukti/namafilenya.jpg
       {
         source: '/bukti/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/bukti_transfer/:path*',
       },
+      // Format URL lu: domain.com/logo/namafilenya.png
       {
         source: '/logo/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/logo/:path*',
-      },
-      
-      // --- MASKING FILE KOMPRESI (Resolusi kecil agar Dashboard super cepat) ---
-      {
-        source: '/thumb-bukti/:path*',
-        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/f_auto,q_auto/bukti_transfer/:path*',
-      },
-      {
-        source: '/thumb-logo/:path*',
-        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/f_auto,q_auto/logo/:path*',
       }
     ]
+  },
+
+  // ----------------------------------------------------
+  // 3. IMAGE DOMAINS (Biar <Image /> Next.js ga error)
+  // ----------------------------------------------------
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
+    ],
   },
 };
 
