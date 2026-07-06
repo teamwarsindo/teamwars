@@ -116,9 +116,10 @@ export async function POST(request: NextRequest, context: any) {
         ketua, 
         totalRoster: players.length, 
         teamSlug, 
-        kvKey 
+        kvKey,
+        logoTim,         // <-- TAMBAHIN INI
+        buktiTransfer    // <-- TAMBAHIN INI
       });
-    };
 
     // Eksekusi Non-Blocking (Anti-Timeout)
     if (context?.waitUntil) {
