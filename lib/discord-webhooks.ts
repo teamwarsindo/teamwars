@@ -1,10 +1,16 @@
-export async function sendAllWebhooks(params: { namaTim: string, warna: string, ketua: any, totalRoster: number, teamSlug: string, kvKey: string }) {
-  const { namaTim, warna, ketua, totalRoster, teamSlug, kvKey } = params;
+export async function sendAllWebhooks(params: { namaTim: string, warna: string, ketua: any, totalRoster: number, teamSlug: string, kvKey: string, logoTim: string, buktiTransfer: string }) {
+  const { namaTim, warna, ketua, totalRoster, teamSlug, kvKey, logoTim, buktiTransfer } = params;
   
-  const embedColor = parseInt(warna.replace('#', ''), 16) || 3447003;
-  const maskedBuktiUrl = `https://teamwars.web.id/bukti/${teamSlug}`; 
-  const maskedLogoUrl = `https://teamwars.web.id/logo/${teamSlug}`;
+  // Ambil nama file + ekstensi asli secara dinamis (Anti salah format .png/.jpg)
+  const namaFileLogo = getFilenameOnly(logoTim); 
+  const namaFileBukti = getFilenameOnly(buktiTransfer);
 
+  // Gabungkan langsung ke domain masking web lu tanpa angka versi!
+  const maskedLogoUrl = `https://teamwars.web.id/logo/${namaFileLogo}`;
+  const maskedBuktiUrl = `https://teamwars.web.id/bukti/${namaFileBukti}`;
+
+  const embedColor = parseInt(warna.replace('#', ''), 16) || 3447003;
+  
   const WEBHOOKS = [
     {
       name: "Admin",
