@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useTeamDetails } from "@/components/registration/hooks/use-team-details"
 import { useRoster } from "@/components/registration/hooks/use-roster"
 import { useRegistrationFlow } from "@/components/registration/hooks/use-registration-flow"
@@ -8,13 +9,29 @@ import { TeamIdentity } from "@/components/registration/team-identity"
 import { RosterSection } from "@/components/registration/roster-section"
 import { ReviewModal } from "@/components/review-modal"
 import { SuccessModal } from "@/components/success-modal"
-import { AlertIcon } from "@/components/icons" 
-
+import { GlobalModal } from "@/components/global-modal" // ✅ Pastikan path import ini benar
 
 export function RegistrationForm() {
   const team = useTeamDetails()
   const roster = useRoster()
   const flow = useRegistrationFlow(team, roster)
+
+  // State khusus untuk mengontrol Modal Error Pre-Flight
+  const [showErrorModal, setShowErrorModal] = useState(false)
+  const [errorList, setErrorList] = useState<string[]>([])
+
+  // Pantau perubahan error dari backend / hook
+  useEffect(() => {
+    // Tangkap data 'serverMessages' (array) atau fallback ke 'serverError' (string)
+    // Abaikan error ts jika flow.serverMessages belum ada di interface lu
+    const messages = (flow as any).serverMessages || (flow.serverError ? [flow.serverError] : [])
+    
+    // Munculkan modal HANYA jika ada error dan bukan di dalam ReviewModal (Pre-Flight Check)
+    if (messages.length > 0 && !flow.modalOpen) {
+      setErrorList(messages)
+      setShowErrorModal(true)
+    }
+  }, [flow.serverError, (flow as any).serverMessages, flow.modalOpen])
 
   return (
     <>
@@ -36,17 +53,7 @@ export function RegistrationForm() {
 
         {/* Tombol Konfirmasi */}
         <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
-
-          {/* ✅ BOX ERROR PRE-FLIGHT YANG CANTIK */}
-          {flow.serverError && !flow.modalOpen && (
-            <div className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive animate-in fade-in zoom-in-95">
-              <AlertIcon className="mt-0.5 h-5 w-5 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold">Data Ditolak</p>
-                <p className="text-sm">{flow.serverError}</p>
-              </div>
-            </div>
-          )}
+          {/* BOX ERROR INLINE SUDAH KITA HAPUS DAN DIGANTI KE GLOBAL MODAL */}
           
           <button
             type="button" 
@@ -59,6 +66,8 @@ export function RegistrationForm() {
         </section>
       </form>
 
+      {/* --- KUMPULAN MODAL --- */}
+      
       <ReviewModal 
         open={flow.modalOpen} 
         onClose={() => flow.setModalOpen(false)} 
@@ -79,6 +88,15 @@ export function RegistrationForm() {
         open={flow.success} 
         onClose={() => window.location.reload()} 
         namaTim={team.namaTim} 
+      />
+
+      {/* ✅ GLOBAL MODAL UNTUK ERROR PRE-FLIGHT (Menangkap Semua Error Sekaligus) */}
+      <GlobalModal 
+        open={showErrorModal}
+        title="Pendaftaran Ditolak"
+        messages={errorList}
+        type="error"
+        onClose={() => setShowErrorModal(false)}
       />
     </>
   )
