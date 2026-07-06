@@ -83,11 +83,14 @@ export function ReviewModal({
     [answer, a, b],
   )
 
+  // LOGIKA SORTING KHUSUS PREVIEW MODAL
+  const roleOrder: Record<string, number> = { "Ketua": 1, "Wakil Ketua": 2, "Anggota": 3 }
+  const sortedPlayersForPreview = [...form.players].sort((a, b) => roleOrder[a.role] - roleOrder[b.role])
+
   if (!open) return null
 
   function handleConfirm() {
     if (!captchaOk) {
-      // TASK 28: Refresh Captcha jika salah
       setCaptchaError("Jawaban captcha salah. Silakan coba lagi.")
       setA(Math.floor(Math.random() * 8) + 1)
       setB(Math.floor(Math.random() * 8) + 1)
@@ -127,7 +130,6 @@ export function ReviewModal({
 
           <div className="flex-1 overflow-y-auto px-6 py-4">
             
-            {/* TASK 30: Sebelah Logo adalah Nama Tim (Value) */}
             <div className="mb-4 flex items-center gap-4">
               {logo && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -145,7 +147,6 @@ export function ReviewModal({
             <div className="rounded-xl border border-border bg-card px-4 py-2">
               <Row label="Email" value={form.email} />
               
-              {/* TASK 29: Posisi Warna Tim diletakkan di kotak (menggantikan posisi Nama Tim sebelumnya) */}
               <div className="flex flex-col gap-0.5 border-b border-border py-2 last:border-0 sm:flex-row sm:justify-between sm:gap-4 items-start sm:items-center">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Warna Tim
@@ -187,7 +188,8 @@ export function ReviewModal({
               Roster ({form.players.length} Pemain)
             </h3>
             <div className="flex flex-col gap-3">
-              {form.players.map((p, i) => (
+              {/* RENDER MENGGUNAKAN ARRAY YANG SUDAH DI-SORT */}
+              {sortedPlayersForPreview.map((p, i) => (
                 <div key={p.id} className="rounded-xl border border-border bg-card p-3">
                   <div className="mb-1 flex items-center justify-between">
                     <span className="text-sm font-medium text-foreground">
@@ -228,7 +230,6 @@ export function ReviewModal({
                 />
                 <span className="text-sm text-muted-foreground leading-relaxed">
                   Saya mewakili tim menyetujui seluruh syarat dan ketentuan yang tertulis di dalam{' '}
-                  {/* TASK 31: Link Rulebook bisa dibuka tab baru + stopPropagation agar klik link tidak memicu checkbox secara tidak sengaja */}
                   <a 
                     href="/rules" 
                     target="_blank" 
@@ -323,5 +324,4 @@ export function ReviewModal({
       )}
     </>
   )
-                      }
-                             
+        }
