@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       folder,
       public_id,
       overwrite: true,
-      transformation: "c_limit,w_1920,h_1920,q_auto, f_auto"
+      transformation: "c_limit,w_1920,h_1920,q_auto,f_auto"
     };
 
     const signature = cloudinary.utils.api_sign_request(
