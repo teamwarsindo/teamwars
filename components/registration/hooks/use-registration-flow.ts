@@ -7,7 +7,13 @@ export function useRegistrationFlow(team: any, roster: any) {
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  
+  // State error lama (string tunggal) dipertahankan untuk ReviewModal
   const [serverError, setServerError] = useState<string | null>(null)
+  
+  // ✅ STATE BARU: Array untuk menampung banyak error sekaligus buat GlobalModal
+  const [serverMessages, setServerMessages] = useState<string[]>([])
+  
   const [success, setSuccess] = useState(false)
   const [isDraftLoaded, setIsDraftLoaded] = useState(false)
 
@@ -89,11 +95,12 @@ export function useRegistrationFlow(team: any, roster: any) {
       return;
     }
 
+    // Reset error states sebelum nembak API
     setServerError(null);
-    setSubmitting(true); // Manfaatkan state ini buat bikin tombol loading sesaat
+    setServerMessages([]); 
+    setSubmitting(true);
 
     try {
-      // 1. Siapkan payload ringan khusus untuk Pre-Flight
       const preFlightPayload = {
         isPreFlight: true,
         namaTim: team.namaTim.trim(),
@@ -104,7 +111,6 @@ export function useRegistrationFlow(team: any, roster: any) {
         }))
       };
 
-      // 2. Tembak ke API backend lu
       const res = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -113,44 +119,48 @@ export function useRegistrationFlow(team: any, roster: any) {
 
       const result = await res.json();
 
-      // 3. Tangani kalau ada duplikat di Database
       if (!res.ok || !result.success) {
         setSubmitting(false);
-        // Tampilkan error (pakai alert aja udah cukup buat UX, biar user langsung ngeh)
-        setServerError(result.message || "Validasi gagal.");
+        // ✅ TANGKAP ARRAY ERROR: Jika backend kirim 'messages' (array), pakai itu. 
+        // Jika cuma kirim 'message' tunggal, jadikan array biar GlobalModal gak error.
+        if (result.messages && Array.isArray(result.messages)) {
+          setServerMessages(result.messages);
+        } else {
+          setServerMessages([result.message || "Validasi data gagal."]);
+        }
         return;
       }
 
-      // 4. Kalau aman dan nggak ada duplikat, baru buka Review Modal!
       setSubmitting(false);
       setModalOpen(true);
 
     } catch (error) {
       setSubmitting(false);
-      alert("Gagal melakukan verifikasi data ke server. Periksa koneksi internet Anda.");
+      // ✅ GANTI ALERT BAWAAN WINDOWS dengan setServerMessages
+      setServerMessages(["Gagal melakukan verifikasi data ke server. Periksa koneksi internet Anda."]);
     }
   }
 
-
-  // Potongan di dalam useRegistrationFlow
   async function handleSubmit() {
     setSubmitting(true);
     setServerError(null);
+    setServerMessages([]);
 
     try {
-      // PENGAMAN: Pastikan URL beneran udah ada sebelum nembak API
       if (!team.logo?.url || !team.bukti?.url) {
         setSubmitting(false);
-        setServerError("Gambar belum selesai diunggah. Silakan tunggu sebentar atau upload ulang.");
+        const errMsg = "Gambar belum selesai diunggah. Silakan tunggu sebentar atau upload ulang.";
+        setServerError(errMsg);
+        setServerMessages([errMsg]);
         return;
       }
-      // payload sekarang ringan banget, karena logoTim dan buktiTransfer cuma isi string URL
+      
       const payload = {
         email: team.email.trim(),
         namaTim: team.namaTim.trim(),
         warna: team.hex,
-        logoTim: team.logo.url, // Ini isinya "https://res.cloudinary.com/..."
-        buktiTransfer: team.bukti.url, // Ini isinya "https://res.cloudinary.com/..."
+        logoTim: team.logo.url,
+        buktiTransfer: team.bukti.url,
         players: roster.players.map((p: any) => ({
           role: p.role,
           namaLengkap: p.namaLengkap.trim(),
@@ -171,7 +181,9 @@ export function useRegistrationFlow(team: any, roster: any) {
 
       if (!res.ok || result.status === "error") {
         setSubmitting(false);
-        setServerError(result.error || result.message || "Terjadi kesalahan sistem yang tidak diketahui.");
+        const errMsg = result.error || result.message || "Terjadi kesalahan sistem yang tidak diketahui.";
+        setServerError(errMsg);
+        setServerMessages([errMsg]);
         return;
       }
 
@@ -182,12 +194,16 @@ export function useRegistrationFlow(team: any, roster: any) {
     
     } catch (error: any) {
       setSubmitting(false);
-      setServerError(error.message || "Gagal memproses pendaftaran. Periksa koneksi internet Anda.");
+      const errMsg = error.message || "Gagal memproses pendaftaran. Periksa koneksi internet Anda.";
+      setServerError(errMsg);
+      setServerMessages([errMsg]);
     }
   }
 
   return {
-    modalOpen, setModalOpen, submitting, serverError, success, rosterRuleOk,
+    modalOpen, setModalOpen, submitting, serverError, 
+    serverMessages, // ✅ Export serverMessages biar bisa diakses di RegistrationForm
+    success, rosterRuleOk,
     canSubmit,
     markTouched, markTouchedMultiple, err, handleReviewClick, handleSubmit
   }
