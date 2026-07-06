@@ -8,7 +8,7 @@ import { sendAllWebhooks } from '@/lib/discord-webhooks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Fungsi Helper Email tetap dipertahankan
+// Helper pengirim email tetap aman
 async function sendEmailSafe(params: any) {
   try {
     await resend.emails.send(params);
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, context: any) {
     }
 
     // ==========================================
-    // 2. MAIN SUBMISSION (Simpan ke DB)
+    // 2. MAIN SUBMISSION (Simpan ke DB & Kirim Email)
     // ==========================================
     const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
     const teamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
@@ -59,19 +59,19 @@ export async function POST(request: NextRequest, context: any) {
       return NextResponse.json({ success: false, message: "Nama tim sudah terdaftar!" }, { status: 409 });
     }
 
-    // Simpan Data Utama Tim
+    // Simpan Data Utama Tim ke Redis
     await kv.hset(kvKey, {
       namaTim: namaTim.trim(),
       warna: warna,
       email: email.trim(),
       logoTim: logoTim, 
       buktiTransfer: buktiTransfer, 
-      players: JSON.stringify(players), // WAJIB stringify biar KV gak baca [object Object]
+      players: JSON.stringify(players), 
       createdAt: new Date().toISOString(),
       statusVerifikasi: "Pending"
     });
 
-    // Injeksi Index Sekunder
+    // Injeksi Index Sekunder untuk Pre-Flight berikutnya
     await kv.sadd("global:teams", teamSlug);
     if (players && players.length > 0) {
       const igns = players.map((p: any) => p.ign.toLowerCase());
@@ -83,33 +83,34 @@ export async function POST(request: NextRequest, context: any) {
       if (duelLinks.length) await kv.sadd("global:duellinks", ...duelLinks);
     }
 
-    // Ekstraksi Data buat Email & Notif
+    // Ekstraksi Data panitia & kapten
     const ketua = players.find((p: any) => p.role === "Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
     const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
+    const templateData = { namaTim, warna, ketua, wakil, totalRoster: players.length };
 
     // ==========================================
-    // 3. ASYNC BACKGROUND TASKS (Email, Webhooks & Bot)
+    // 3. ASYNC BACKGROUND TASKS (Email, Bot & Webhooks)
     // ==========================================
-    const backgroundTasks = async () => {
-      // A. Eksekusi Email Eksklusif
+    context.waitUntil((async () => {
+      
+      // A. Email Eksklusif Peserta via Resend
       if (email) {
         await sendEmailSafe({ 
           from: EMAIL_CONFIG.sender, 
           to: email, 
           subject: `Status Pendaftaran: Tim ${namaTim} [Teamwars S7]`, 
-          html: getPesertaTemplate({ namaTim, warna, ketua, wakil, totalRoster: players.length }) 
+          html: getPesertaTemplate(templateData) 
         });
       }
 
-      // B. Otomatisasi Bot Discord (Bikin Role & Channel)
+      // B. Otomatisasi Bot Discord (Bikin Role & HQ Private Channel)
       const roleId = await createDiscordRole(namaTim, warna);
       if (roleId) {
         await createDiscordChannel(namaTim, roleId);
-        // Update Redis dengan ID Role biar panitia gampang manage nantinya
         await kv.hset(kvKey, { discordRoleId: roleId });
       }
 
-      // C. Tembak 4 Webhook Premium Sekaligus
+      // C. Tembak 4 Webhook Premium Sekaligus dengan URL Masking
       await sendAllWebhooks({ 
         namaTim, 
         warna, 
@@ -117,25 +118,16 @@ export async function POST(request: NextRequest, context: any) {
         totalRoster: players.length, 
         teamSlug, 
         kvKey,
-        logoTim,         // <-- TAMBAHIN INI
-        buktiTransfer    // <-- TAMBAHIN INI
+        logoTim,
+        buktiTransfer
       });
 
-    // Eksekusi Non-Blocking (Anti-Timeout)
-    if (context?.waitUntil) {
-      context.waitUntil(backgroundTasks());
-    } else {
-      // Fallback aman untuk runtime Node.js biasa
-      backgroundTasks().catch(console.error);
-    }
+    })()); // <--- Penutup struktur waitUntil yang kemarin sempat geser/hilang
 
     // Respons Kilat ke Frontend User
     return NextResponse.json({ success: true, message: "Pendaftaran berhasil diproses!" });
 
-  } catch (error: unknown) {
-    // Validasi tipe error biar TypeScript nggak ngambek
-    const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan server internal";
-    
-    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
