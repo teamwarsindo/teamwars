@@ -23,7 +23,7 @@ export function RegistrationForm() {
           {...team} 
           err={flow.err} 
           markTouched={flow.markTouched} 
-          isChecking={flow.isChecking} // Kirim status loading jika lu butuh nampilin spiner kecil di kolom nama tim
+//          isChecking={flow.isChecking} // Kirim status loading jika lu butuh nampilin spiner kecil di kolom nama tim
         />
 
         {/* Seksi Susunan Roster Pemain */}
