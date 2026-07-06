@@ -1,16 +1,25 @@
-export async function sendAllWebhooks(params: { namaTim: string, warna: string, ketua: any, totalRoster: number, teamSlug: string, kvKey: string, logoTim: string, buktiTransfer: string }) {
+export async function sendAllWebhooks(params: { 
+  namaTim: string; 
+  warna: string; 
+  ketua: any; 
+  totalRoster: number; 
+  teamSlug: string; 
+  kvKey: string; 
+  logoTim: string; 
+  buktiTransfer: string; 
+}) {
   const { namaTim, warna, ketua, totalRoster, teamSlug, kvKey, logoTim, buktiTransfer } = params;
   
-  // Ambil nama file + ekstensi asli secara dinamis (Anti salah format .png/.jpg)
-  const namaFileLogo = getFilenameOnly(logoTim); 
-  const namaFileBukti = getFilenameOnly(buktiTransfer);
+  // CLEAN CODE: Langsung ambil teks setelah '/' terakhir
+  const namaFileLogo = logoTim.split('/').pop() || 'default.png';
+  const namaFileBukti = buktiTransfer.split('/').pop() || 'default.jpg';
 
-  // Gabungkan langsung ke domain masking web lu tanpa angka versi!
+  // Gabungkan langsung ke domain masking web resmi TWI lu
   const maskedLogoUrl = `https://teamwars.web.id/logo/${namaFileLogo}`;
   const maskedBuktiUrl = `https://teamwars.web.id/bukti/${namaFileBukti}`;
 
   const embedColor = parseInt(warna.replace('#', ''), 16) || 3447003;
-  
+
   const WEBHOOKS = [
     {
       name: "Admin",
@@ -41,7 +50,7 @@ export async function sendAllWebhooks(params: { namaTim: string, warna: string, 
           color: embedColor,
           fields: [
             { name: "Waktu Submit", value: new Date().toLocaleString('id-ID'), inline: true },
-            { name: "Link Bukti TF (Masked)", value: `[Klik untuk lihat Bukti Transfer](${maskedBuktiUrl})`, inline: false }
+            { name: "Link Bukti TF", value: `[Klik untuk lihat Bukti Transfer](${maskedBuktiUrl})`, inline: false }
           ]
         }]
       }
@@ -58,7 +67,7 @@ export async function sendAllWebhooks(params: { namaTim: string, warna: string, 
           color: embedColor,
           fields: [
             { name: "Kode Warna (Hex)", value: `\`${warna}\``, inline: true },
-            { name: "Link Logo Asli (Masked)", value: `[Download Logo Mentah](${maskedLogoUrl})`, inline: false }
+            { name: "Link Logo Asli", value: `[Download Logo Mentah](${maskedLogoUrl})`, inline: false }
           ]
         }]
       }
@@ -84,7 +93,7 @@ export async function sendAllWebhooks(params: { namaTim: string, warna: string, 
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(hook.payload)
         });
-        await sleep(300); // Jeda anti rate-limit
+        await sleep(300); // Jeda anti rate-limit Discord
       } catch (err) {
         console.error(`Gagal kirim webhook ${hook.name}:`, err);
       }
