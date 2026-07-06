@@ -45,10 +45,16 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
     // 4. Susun FormData (Parameter harus SAMA PERSIS dengan backend)
     const formData = new FormData();
     
-    // Ambil ekstensi biar rapi
+    // 1. Ambil ekstensi asli (Aman dari error)
     const fileExt = file.name.split('.').pop() || "png";
-    formData.append("file", fileToUpload, `${public_id}.${fileExt}`); 
     
+    // 2. BUNGKUS ULANG JADI FILE BARU (Ini kunci biar Turbopack mingkem)
+    const renamedFile = new File([fileToUpload], `${public_id}.${fileExt}`, {
+      type: fileToUpload.type,
+    });
+
+    // 3. Masukin ke FormData pake 2 parameter aja. Dijamin lolos build!
+    formData.append("file", renamedFile);    
     formData.append("api_key", signData.api_key);
     formData.append("timestamp", signData.timestamp.toString());
     formData.append("signature", signData.signature);
