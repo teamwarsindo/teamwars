@@ -132,7 +132,7 @@ export async function POST(request: NextRequest, context: any) {
     // Respons Kilat ke Frontend User
     return NextResponse.json({ success: true, message: "Pendaftaran berhasil diproses!" });
 
-  } catch (error) {
+  } catch (error: unknown) {
     // Validasi tipe error biar TypeScript nggak ngambek
     const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan server internal";
     
