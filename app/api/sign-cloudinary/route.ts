@@ -12,16 +12,12 @@ export async function POST(request: Request) {
     const { folder, public_id } = await request.json();
     const timestamp = Math.round(new Date().getTime() / 1000);
 
-    // Parameter ketat untuk Cloudinary
+    // Parameter ketat untuk Cloudinary (VERSI BERSIH)
     const paramsToSign = {
       timestamp,
       folder,
       public_id,
       overwrite: true,
-      use_filename: true,
-      unique_filename: true,
-      use_filename_as_display_name: true,
-      use_asset_folder_as_public_id_prefix: false,
       transformation: "c_limit,w_1920,h_1920,q_auto"
     };
 
