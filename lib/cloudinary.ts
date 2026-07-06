@@ -10,21 +10,22 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
 
     // 2. KOMPRESI KONDISIONAL (Jalur Pintar)
     let fileToUpload = file;
-    const maxSize = 2 * 1024 * 1024; // Limit 2MB dalam hitungan Byte
-
-    if (file.size > maxSize) {
-      console.log(`[Upload] File > 2MB terdeteksi. Mulai kompresi...`);
+    const isLogo = folder === "logo";
+    
+    // Safety Net Jaringan: Kalau file lebih dari 2MB, baru kita kompres
+    if (file.size > 2 * 1024 * 1024) {
       const compressionOptions = {
         maxSizeMB: 2, 
-        maxWidthOrHeight: 1920,
+        maxWidthOrHeight: 2048, // 👈 Resolusi tinggi aman buat poster tim desain!
         useWebWorker: true,
-        initialQuality: 0.85,
-        fileType: "image/webp" // 👈 TAMBAHIN INI
+        // Logo biarkan pakai ekstensi asli (PNG/WebP), Bukti paksa JPEG
+        fileType: isLogo ? file.type : "image/jpeg", 
+        initialQuality: 0.9 // 👈 Pertahankan 90% kualitas aslinya
       };
       try {
         fileToUpload = await imageCompression(file, compressionOptions);
       } catch (error) {
-        console.warn("Kompresi gagal, melanjutkan dengan file asli...", error);
+        console.warn("Kompresi gagal, lanjut pakai file asli...");
       }
     }
 
