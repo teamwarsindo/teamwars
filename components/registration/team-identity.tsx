@@ -44,7 +44,7 @@ export function TeamIdentity({
   // Fungsi tunggal penanganan upload yang sudah disinkronkan dengan JSX
   async function handleFileUpload(
     actualFile: File | null, 
-    folderName: "logo" | "bukti_transfer",
+    folderName: "logo" | "bukti",
     setFileState: (val: UploadedFile | null) => void,
     setLoadingState: (val: boolean) => void,
     errorKey: string
@@ -152,7 +152,7 @@ export function TeamIdentity({
               label="Bukti Transfer" 
               teamName={namaTim} 
               value={bukti} 
-              onChange={(data) => handleFileUpload(data ? data.rawFile : null, "bukti_transfer", setBukti, setIsUploadingBukti, "bukti")} 
+              onChange={(data) => handleFileUpload(data ? data.rawFile : null, "bukti", setBukti, setIsUploadingBukti, "bukti")} 
               error={err("bukti")} 
             />
           </div>
