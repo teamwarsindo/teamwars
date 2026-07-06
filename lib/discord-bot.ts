@@ -1,3 +1,11 @@
+// Helper pembantu untuk format Proper Case (Contoh: "TEAM WARS" -> "Team Wars")
+function toProperCase(str: string) {
+  return str.replace(
+    /\w\S*/g,
+    (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
+  );
+}
+
 export async function createDiscordRole(teamName: string, colorHex: string) {
   const guildId = process.env.DISCORD_GUILD_ID;
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -10,7 +18,7 @@ export async function createDiscordRole(teamName: string, colorHex: string) {
       method: 'POST',
       headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: teamName.toUpperCase(),
+        name: toProperCase(teamName), // Fix: Menggunakan Proper Case
         color: decimalColor,
         hoist: false,
         mentionable: true
@@ -39,7 +47,8 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
       method: 'POST',
       headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: `hq-${teamName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        // Fix: Hapus embel-embel "hq-" dan murni menggunakan nama tim
+        name: teamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
         type: 0, 
         parent_id: parentCategoryId,
         permission_overwrites: [
