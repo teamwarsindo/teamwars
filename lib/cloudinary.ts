@@ -2,34 +2,33 @@ import imageCompression from 'browser-image-compression';
 
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dhplw8rsd";
 
-export async function compressAndUpload(file: File, folder: "logo" | "bukti_transfer", teamName: string) {
+// PERUBAHAN POIN 5: folder sekarang tipe datanya "logo" | "bukti"
+export async function compressAndUpload(file: File, folder: "logo" | "bukti", teamName: string) {
   try {
-    // 1. Bikin nama file (public_id) jadi bersih dari spasi & simbol
     const safeTeamName = teamName.trim().toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_");
     const public_id = `${safeTeamName}_${folder}`;
-
-    // 2. KOMPRESI KONDISIONAL (Jalur Pintar)
-    let fileToUpload = file;
     const isLogo = folder === "logo";
+
+    let fileToUpload = file;
     
-    // Safety Net Jaringan: Kalau file lebih dari 2MB, baru kita kompres
+    // Safety Net: Kompres kalau lebih dari 2MB
     if (file.size > 2 * 1024 * 1024) {
       const compressionOptions = {
-        maxSizeMB: 2, 
-        maxWidthOrHeight: 2048, // 👈 Resolusi tinggi aman buat poster tim desain!
+        maxSizeMB: isLogo ? 1.5 : 1.5, // Target aman di bawah 2MB
+        maxWidthOrHeight: isLogo ? 2048 : 1920,
         useWebWorker: true,
-        // Logo biarkan pakai ekstensi asli (PNG/WebP), Bukti paksa JPEG
-        fileType: isLogo ? file.type : "image/jpeg", 
-        initialQuality: 0.9 // 👈 Pertahankan 90% kualitas aslinya
+        // PERUBAHAN POIN 3 & 4: Paksa format kompresi
+        fileType: isLogo ? "image/png" : "image/jpeg", 
+        initialQuality: 0.9 
       };
       try {
         fileToUpload = await imageCompression(file, compressionOptions);
       } catch (error) {
-        console.warn("Kompresi gagal, lanjut pakai file asli...");
+        console.warn("Kompresi gagal, lanjut pakai file asli...", error);
       }
     }
 
-    // 3. Minta signature ke backend
+    // Minta signature ke backend
     const signRes = await fetch("/api/sign-cloudinary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -38,20 +37,17 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
     
     if (!signRes.ok) throw new Error("Gagal mendapatkan otorisasi upload.");
     const signData = await signRes.json();
-    
-    // 4. Susun FormData (Parameter harus SAMA PERSIS dengan backend)
+
     const formData = new FormData();
     
-    // 1. Ambil ekstensi asli (Aman dari error)
-    const fileExt = file.name.split('.').pop() || "png";
+    // PERUBAHAN POIN 3 & 4: Tetapkan ekstensi final dengan tegas!
+    const finalExt = isLogo ? "png" : "jpg";
     
-    // 2. BUNGKUS ULANG JADI FILE BARU (Ini kunci biar Turbopack mingkem)
-    const renamedFile = new File([fileToUpload], `${public_id}.${fileExt}`, {
-      type: fileToUpload.type,
+    const renamedFile = new File([fileToUpload], `${public_id}.${finalExt}`, {
+      type: isLogo ? "image/png" : "image/jpeg",
     });
 
-    // 3. Masukin ke FormData pake 2 parameter aja. Dijamin lolos build!
-    formData.append("file", renamedFile);    
+    formData.append("file", renamedFile);
     formData.append("api_key", signData.api_key);
     formData.append("timestamp", signData.timestamp.toString());
     formData.append("signature", signData.signature);
@@ -59,12 +55,11 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
     formData.append("public_id", signData.public_id);
     formData.append("overwrite", "true");
 
-    // 🚨 INI KUNCINYA: Cuma kirim transformasi kalau folder-nya bukti_transfer!
-    if (folder === "bukti_transfer") {
+    // Sinkronisasi dengan Backend
+    if (folder === "bukti") {
       formData.append("transformation", "c_limit,w_1920,h_1920,q_auto");
     }
 
-    // Eksekusi tembak ke Cloudinary
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
       method: "POST",
       body: formData,
