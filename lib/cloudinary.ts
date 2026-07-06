@@ -38,9 +38,6 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
     
     if (!signRes.ok) throw new Error("Gagal mendapatkan otorisasi upload.");
     const signData = await signRes.json();
-
-    // Ambil ekstensi asli dari file (misal dapet "jpg" atau "png")
-    const fileExt = file.name.split('.').pop();
     
     // 4. Susun FormData (Parameter harus SAMA PERSIS dengan backend)
     const formData = new FormData();
