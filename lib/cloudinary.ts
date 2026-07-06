@@ -18,7 +18,8 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
         maxSizeMB: 2, 
         maxWidthOrHeight: 1920,
         useWebWorker: true,
-        initialQuality: 0.85 
+        initialQuality: 0.85,
+        fileType: "image/webp" // 👈 TAMBAHIN INI
       };
       try {
         fileToUpload = await imageCompression(file, compressionOptions);
@@ -49,7 +50,7 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
     formData.append("folder", signData.folder);
     formData.append("public_id", signData.public_id);
     formData.append("overwrite", "true");
-    formData.append("transformation", "c_limit,w_1920,h_1920,q_auto");
+    formData.append("transformation", "c_limit,w_1920,h_1920,q_auto,f_auto");
     
     // 🚨 Parameter use_filename dan unique_filename SUDAH DIHAPUS 🚨
 
