@@ -26,7 +26,7 @@ const nextConfig = {
       // Format URL lu: domain.com/bukti/namafilenya.jpg
       {
         source: '/bukti/:path*',
-        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/bukti_transfer/:path*',
+        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/bukti/:path*',
       },
       // Format URL lu: domain.com/logo/namafilenya.png
       {
