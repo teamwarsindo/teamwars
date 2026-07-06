@@ -3,27 +3,17 @@ import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
 import { EMAIL_CONFIG } from '@/lib/config';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
+import { createDiscordRole, createDiscordChannel } from '@/lib/discord-bot';
+import { sendAllWebhooks } from '@/lib/discord-webhooks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Fungsi Helper Email tetap dipertahankan
 async function sendEmailSafe(params: any) {
   try {
     await resend.emails.send(params);
   } catch (error) {
     console.error(`Gagal kirim email ke ${params.to}:`, error);
-  }
-}
-
-async function sendToDiscord(webhookUrl: string | undefined, message: string) {
-  if (!webhookUrl) return;
-  try {
-    await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: message })
-    });
-  } catch (error) {
-    console.error("Gagal kirim webhook Discord:", error);
   }
 }
 
@@ -58,7 +48,7 @@ export async function POST(request: NextRequest, context: any) {
     }
 
     // ==========================================
-    // 2. MAIN SUBMISSION (Simpan ke DB & Kirim Email)
+    // 2. MAIN SUBMISSION (Simpan ke DB)
     // ==========================================
     const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
     const teamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
@@ -76,13 +66,12 @@ export async function POST(request: NextRequest, context: any) {
       email: email.trim(),
       logoTim: logoTim, 
       buktiTransfer: buktiTransfer, 
-      players: players, // players boleh di-stringify karena array
+      players: JSON.stringify(players), // WAJIB stringify biar KV gak baca [object Object]
       createdAt: new Date().toISOString(),
       statusVerifikasi: "Pending"
     });
 
-    
-    // Injeksi Index Sekunder untuk Pre-Flight berikutnya
+    // Injeksi Index Sekunder
     await kv.sadd("global:teams", teamSlug);
     if (players && players.length > 0) {
       const igns = players.map((p: any) => p.ign.toLowerCase());
@@ -94,44 +83,52 @@ export async function POST(request: NextRequest, context: any) {
       if (duelLinks.length) await kv.sadd("global:duellinks", ...duelLinks);
     }
 
-    // Ekstraksi Data Email
+    // Ekstraksi Data buat Email & Notif
     const ketua = players.find((p: any) => p.role === "Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
     const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
-    const templateData = { namaTim, email, warna, ketua, wakil, logoTim, buktiTransfer, players, kvKey };
 
-    // Eksekusi Background: 1 Email untuk Peserta, 3 Webhook untuk Panitia
-    context.waitUntil((async () => {
-      
-      // 1. Email Eksklusif Peserta
+    // ==========================================
+    // 3. ASYNC BACKGROUND TASKS (Email, Webhooks & Bot)
+    // ==========================================
+    const backgroundTasks = async () => {
+      // A. Eksekusi Email Eksklusif
       if (email) {
         await sendEmailSafe({ 
           from: EMAIL_CONFIG.sender, 
           to: email, 
           subject: `Status Pendaftaran: Tim ${namaTim} [Teamwars S7]`, 
-          html: getPesertaTemplate(templateData) 
+          html: getPesertaTemplate({ namaTim, warna, ketua, wakil, totalRoster: players.length }) 
         });
       }
 
-      // 2. Webhook Admin / General (Notifikasi Utama)
-      await sendToDiscord(
-        process.env.WEBHOOK_ADMIN, 
-        `📢 **Tim ${namaTim}** telah mendaftar ke TWI Season 7 dengan **${players.length} pemain**! 🔥`
-      );
+      // B. Otomatisasi Bot Discord (Bikin Role & Channel)
+      const roleId = await createDiscordRole(namaTim, warna);
+      if (roleId) {
+        await createDiscordChannel(namaTim, roleId);
+        // Update Redis dengan ID Role biar panitia gampang manage nantinya
+        await kv.hset(kvKey, { discordRoleId: roleId });
+      }
 
-      // 3. Webhook Finance (Cek Pembayaran)
-      await sendToDiscord(
-        process.env.WEBHOOK_FINANCE, 
-        `💰 **Verifikasi Finance:** Cek mutasi masuk dari tim **${namaTim}**.\nKontak: ${ketua.namaLengkap} (@${ketua.discord})\nLink Bukti Transfer: ${buktiTransfer}`
-      );
+      // C. Tembak 4 Webhook Premium Sekaligus
+      await sendAllWebhooks({ 
+        namaTim, 
+        warna, 
+        ketua, 
+        totalRoster: players.length, 
+        teamSlug, 
+        kvKey 
+      });
+    };
 
-      // 4. Webhook Creative (Aset Desain)
-      await sendToDiscord(
-        process.env.WEBHOOK_CREATIVE, 
-        `🎨 **Aset Baru Masuk:** Logo dari tim **${namaTim}**.\nKode Warna: \`${warna}\`\nLink Master Logo: ${logoTim}`
-      );
+    // Eksekusi Non-Blocking (Anti-Timeout)
+    if (context?.waitUntil) {
+      context.waitUntil(backgroundTasks());
+    } else {
+      // Fallback aman untuk runtime Node.js biasa
+      backgroundTasks().catch(console.error);
+    }
 
-    })());
-
+    // Respons Kilat ke Frontend User
     return NextResponse.json({ success: true, message: "Pendaftaran berhasil diproses!" });
 
   } catch (error: any) {
