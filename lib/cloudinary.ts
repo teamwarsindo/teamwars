@@ -44,18 +44,24 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti_tran
     
     // 4. Susun FormData (Parameter harus SAMA PERSIS dengan backend)
     const formData = new FormData();
-    formData.append("file", fileToUpload, `${public_id}.${fileExt}`);
+    
+    // Ambil ekstensi biar rapi
+    const fileExt = file.name.split('.').pop() || "png";
+    formData.append("file", fileToUpload, `${public_id}.${fileExt}`); 
+    
     formData.append("api_key", signData.api_key);
     formData.append("timestamp", signData.timestamp.toString());
     formData.append("signature", signData.signature);
     formData.append("folder", signData.folder);
     formData.append("public_id", signData.public_id);
     formData.append("overwrite", "true");
-    formData.append("transformation", "c_limit,w_1920,h_1920,q_auto,f_auto");
-    
-    // 🚨 Parameter use_filename dan unique_filename SUDAH DIHAPUS 🚨
 
-    // 5. Eksekusi tembak ke Cloudinary
+    // 🚨 INI KUNCINYA: Cuma kirim transformasi kalau folder-nya bukti_transfer!
+    if (folder === "bukti_transfer") {
+      formData.append("transformation", "c_limit,w_1920,h_1920,q_auto");
+    }
+
+    // Eksekusi tembak ke Cloudinary
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
       method: "POST",
       body: formData,
