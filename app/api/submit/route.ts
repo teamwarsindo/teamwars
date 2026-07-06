@@ -26,6 +26,8 @@ export async function POST(request: NextRequest, context: any) {
     // ==========================================
     if (data.isPreFlight) {
       const { namaTim, players } = data;
+      let errorList: string[] = []; // Array penampung error
+      
       if (!namaTim) return NextResponse.json({ success: false, message: "Nama tim kosong." }, { status: 400 });
 
       const teamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
@@ -37,11 +39,24 @@ export async function POST(request: NextRequest, context: any) {
 
       // Pengecekan Player (IGN, Discord, Duel Links)
       if (players && players.length > 0) {
+        // Cek semua player, masukkan error jika ada yang duplikat
         for (const p of players) {
-          if (await kv.sismember("global:ign", p.ign.toLowerCase())) return NextResponse.json({ success: false, message: `IGN ${p.ign} sudah terdaftar!` }, { status: 409 });
-          if (await kv.sismember("global:discord", p.discord.toLowerCase())) return NextResponse.json({ success: false, message: `Discord ${p.discord} sudah terdaftar!` }, { status: 409 });
-          if (await kv.sismember("global:duellinks", p.idDuelLinks)) return NextResponse.json({ success: false, message: `ID Duel Links ${p.idDuelLinks} sudah terdaftar!` }, { status: 409 });
+          if (await kv.sismember("global:ign", p.ign.toLowerCase())) {
+            errorList.push(`IGN "${p.ign}" sudah terdaftar!`);
+          }
+          if (await kv.sismember("global:discord", p.discord.toLowerCase())) {
+            errorList.push(`Discord "${p.discord}" sudah terdaftar!`);
+          }
+          if (await kv.sismember("global:duellinks", p.idDuelLinks)) {
+            errorList.push(`ID Duel Links "${p.idDuelLinks}" sudah terdaftar!`);
+          }
         }
+      }
+
+      // Jika ada error yang terkumpul, tolak request dan kirim semua list error-nya
+      if (errorList.length > 0) {
+        // Perhatikan: Kita kirim 'messages' dalam bentuk array, bukan string tunggal
+        return NextResponse.json({ success: false, messages: errorList }, { status: 409 });
       }
       
       return NextResponse.json({ success: true, message: "Aman, silakan lanjut upload!" });
