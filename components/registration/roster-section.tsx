@@ -1,7 +1,6 @@
 "use client"
 
-// AlertIcon & CheckIcon dihapus biar gak kena import error lagi
-import { TrashIcon, PlusIcon } from "@/components/icons"
+import { TrashIcon, PlusIcon, AlertIcon, CheckIcon } from "@/components/icons"
 import { ROSTER_ROLES, MIN_PLAYERS, MAX_PLAYERS, type Player, type RosterRole } from "@/lib/registration"
 import { formatDuelId, sanitizeRealName, sanitizeDiscord, toProperCase } from "@/lib/validators"
 import { inputBase, ErrorText } from "./shared"
@@ -22,11 +21,6 @@ interface RosterSectionProps {
 }
 
 export function RosterSection({ players, rosterRuleOk, bulkText, notification, setBulkText, handleSmartPaste, updatePlayer, changeRole, addPlayer, removePlayer, err, markTouched }: RosterSectionProps) {
-  
-  // LOGIKA SORTING: Ketua (1) -> Wakil Ketua (2) -> Anggota (3)
-  const roleOrder: Record<RosterRole, number> = { "Ketua": 1, "Wakil Ketua": 2, "Anggota": 3 }
-  const sortedPlayers = [...players].sort((a, b) => roleOrder[a.role] - roleOrder[b.role])
-
   return (
     <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
       <div className="mb-5 flex items-end justify-between gap-4">
@@ -37,8 +31,8 @@ export function RosterSection({ players, rosterRuleOk, bulkText, notification, s
       </div>
 
       {!rosterRuleOk && (
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive">
-          <span className="mt-0.5 text-lg leading-none">⚠️</span>
+        <div role="alert" className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive">
+          <AlertIcon className="mt-0.5 h-5 w-5 shrink-0" />
           <div className="text-sm">
             <p className="font-semibold">Komposisi roster tidak valid</p>
             <p>Wajib memiliki tepat 1 Ketua dan 1 Wakil Ketua.</p>
@@ -50,7 +44,7 @@ export function RosterSection({ players, rosterRuleOk, bulkText, notification, s
       <div className="mb-6 rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-5">
         {notification && (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-500 animate-in fade-in slide-in-from-top-2">
-            <span className="mt-0.5 text-lg leading-none">✅</span>
+            <CheckIcon className="mt-0.5 h-5 w-5 shrink-0" />
             <p>{notification}</p>
           </div>
         )}
@@ -65,11 +59,11 @@ export function RosterSection({ players, rosterRuleOk, bulkText, notification, s
       </div>
 
       <div className="flex flex-col gap-4">
-        {/* Render menggunakan array yang sudah di-sorting */}
-        {sortedPlayers.map((p, index) => {
+        {/* Render normal tanpa di-sort agar sesuai urutan user ngetik/paste */}
+        {players.map((p, index) => {
           const canDelete = players.length > MIN_PLAYERS
           
-          // Styling khusus Role
+          // Styling khusus Role tetap dipertahankan
           const isLeadership = p.role === "Ketua" || p.role === "Wakil Ketua"
           const roleBg = isLeadership ? "bg-amber-100 text-amber-800 border-amber-300" : "bg-blue-100 text-blue-700 border-blue-300"
           const roleIcon = p.role === "Ketua" ? "👑" : p.role === "Wakil Ketua" ? "🌟" : "👤"
@@ -82,14 +76,12 @@ export function RosterSection({ players, rosterRuleOk, bulkText, notification, s
                     {index + 1}
                   </span>
                   
-                  {/* Select Role yang udah diinjeksi Warna & Icon */}
                   <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${roleBg}`}>
                     <span>{roleIcon}</span>
                     <select value={p.role} onChange={(e) => changeRole(p.id, e.target.value as RosterRole)} className="bg-transparent font-semibold outline-none cursor-pointer">
                       {ROSTER_ROLES.map((r) => <option key={r} value={r} className="text-foreground bg-background">{r}</option>)}
                     </select>
                   </div>
-
                 </div>
                 <button type="button" onClick={() => removePlayer(p.id)} disabled={!canDelete} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30">
                   <TrashIcon className="h-4 w-4" />
@@ -122,4 +114,5 @@ export function RosterSection({ players, rosterRuleOk, bulkText, notification, s
       </button>
     </section>
   )
-}
+            }
+                    
