@@ -55,6 +55,9 @@ export async function compressAndUpload(file: File, folder: "logo" | "bukti", te
     formData.append("public_id", signData.public_id);
     formData.append("overwrite", "true");
 
+    // 🚨 TAMBAHIN SATU BARIS INI BIAR SINKRON SAMA BACKEND:
+    formData.append("format", isLogo ? "png" : "jpg");
+
     // Sinkronisasi dengan Backend
     if (folder === "bukti") {
       formData.append("transformation", "c_limit,w_1920,h_1920,q_auto");
