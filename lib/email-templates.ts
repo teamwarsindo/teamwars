@@ -1,4 +1,4 @@
-// Helper untuk Proper Case (Contoh: "TEAM WARS" -> "Team Wars")
+// Helper untuk Proper Case
 function toProperCase(str: string) {
   return str.replace(
     /\w\S*/g,
@@ -44,6 +44,7 @@ export function getPesertaTemplate(data: {
       </div>
       <div style="padding: 30px 20px;">
         
+        <!-- BANNER STATUS PENDING -->
         <div style="background-color: rgba(255, 193, 7, 0.1); border: 1px solid #ffc107; color: #ffc107; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 25px; font-weight: bold; letter-spacing: 1px; font-size: 14px;">
           ⏳ STATUS: PENDING (Menunggu Konfirmasi Tim Finance)
         </div>
@@ -55,6 +56,15 @@ export function getPesertaTemplate(data: {
         
         <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna};">
           <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Aset Visual & Pembayaran</h3>
+          
+          <!-- Penambahan Label Warna Hex -->
+          <div style="text-align: center; margin-top: 15px; margin-bottom: 15px;">
+            <span style="display: block; color: #aaaaaa; font-size: 12px; margin-bottom: 5px; font-weight: bold;">KODE WARNA TIM</span>
+            <div style="display: inline-block; background-color: ${data.warna}; padding: 5px 15px; border-radius: 4px; color: #fff; text-shadow: 1px 1px 2px #000; font-weight: bold; font-family: monospace;">
+              ${data.warna}
+            </div>
+          </div>
+
           <table style="width: 100%; margin-top: 15px; table-layout: fixed;">
             <tr>
               <td style="text-align: center; width: 50%; padding-right: 5px;">
@@ -72,22 +82,25 @@ export function getPesertaTemplate(data: {
         <div style="background-color: #1e1e1e; padding: 15px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna}; overflow-x: auto;">
           <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Roster Lengkap (${data.totalRoster} Pemain)</h3>
           
-          <table style="width: 100%; color: #cccccc; text-align: left; border-collapse: collapse; margin-top: 10px; min-width: 280px;">
+          <!-- TABEL DENGAN KOLOM NAMA ASLI -->
+          <table style="width: 100%; color: #cccccc; text-align: left; border-collapse: collapse; margin-top: 10px; min-width: 400px;">
             <thead>
-              <tr style="color: #aaaaaa; border-bottom: 1px solid #333; font-size: 12px;">
-                <th style="padding: 8px 2px; width: 25%;">IGN</th>
-                <th style="padding: 8px 2px; width: 30%;">Duel ID</th>
-                <th style="padding: 8px 2px; width: 25%;">Discord</th>
-                <th style="padding: 8px 2px; width: 20%; text-align: right;">Role</th>
+              <tr style="color: #aaaaaa; border-bottom: 1px solid #333; font-size: 11px;">
+                <th style="padding: 8px 4px; width: 22%;">Nama Asli</th>
+                <th style="padding: 8px 4px; width: 20%;">IGN</th>
+                <th style="padding: 8px 4px; width: 22%;">Duel ID</th>
+                <th style="padding: 8px 4px; width: 20%;">Discord</th>
+                <th style="padding: 8px 4px; width: 16%; text-align: right;">Role</th>
               </tr>
             </thead>
             <tbody>
               ${sortedPlayers.map(p => `
-                <tr style="border-bottom: 1px solid #222; font-size: 13px;">
-                  <td style="padding: 10px 2px; color: #fff; font-weight: bold; word-break: break-word;">${p.ign}</td>
-                  <td style="padding: 10px 2px; font-family: monospace; font-size: 11px;">${p.idDuelLinks || p.duelId}</td>
-                  <td style="padding: 10px 2px; font-size: 12px; word-break: break-word;">@${p.discord}</td>
-                  <td style="padding: 10px 2px; text-align: right; font-weight: ${p.role !== 'Anggota' ? 'bold' : 'normal'}; color: ${p.role !== 'Anggota' ? data.warna : '#ccc'}; font-size: 11px;">${p.role}</td>
+                <tr style="border-bottom: 1px solid #222; font-size: 12px;">
+                  <td style="padding: 10px 4px; color: #ddd; word-break: break-word;">${p.namaLengkap}</td>
+                  <td style="padding: 10px 4px; color: #fff; font-weight: bold; word-break: break-word;">${p.ign}</td>
+                  <td style="padding: 10px 4px; font-family: monospace; font-size: 11px;">${p.idDuelLinks || p.duelId}</td>
+                  <td style="padding: 10px 4px; font-size: 11px; word-break: break-word;">@${p.discord}</td>
+                  <td style="padding: 10px 4px; text-align: right; font-weight: ${p.role !== 'Anggota' ? 'bold' : 'normal'}; color: ${p.role !== 'Anggota' ? data.warna : '#ccc'}; font-size: 11px;">${p.role}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -103,4 +116,4 @@ export function getPesertaTemplate(data: {
       </div>
     </div>
   `;
-}
+                                                                                                                                             }
