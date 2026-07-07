@@ -59,9 +59,20 @@ export async function sendAllWebhooks(params: {
   
   const properTeamName = toProperCase(namaTim);
   
-  const directDownloadLogo = logoTim.includes('/upload/') 
-    ? logoTim.replace('/upload/', '/upload/fl_attachment/') 
-    : logoTim;
+  let directDownloadLogo = logoTim;
+
+  // Mengecek apakah URL logo benar dari folder '/upload/logo/' Cloudinary
+  if (logoTim.includes('/upload/logo/')) {
+  // Potong URL untuk mengambil sisa path/nama file di belakangnya
+    const splitUrl = logoTim.split('/upload/logo/');
+  
+    if (splitUrl.length > 1) {
+      const imagePath = splitUrl[1]; // Hasilnya misal: "nama-tim.png"
+    
+    // Rangkai ulang pakai format Masking lu (source: '/logo/:path*/download')
+    directDownloadLogo = `https://teamwars.web.id/logo/${imagePath}/download`;
+  }
+}
 
   let parsedColor = parseInt(warna.replace('#', ''), 16);
   if (isNaN(parsedColor)) parsedColor = 3447003; 
@@ -106,7 +117,6 @@ export async function sendAllWebhooks(params: {
             { name: "Waktu Submit", value: `${getWIBTime()} WIB`, inline: true },
             { name: "Status", value: "🟡 Menunggu Konfirmasi", inline: true }
           ],
-          footer: { text: getFooterText(createdAt, updatedAt) }
         }]
       }
     },
