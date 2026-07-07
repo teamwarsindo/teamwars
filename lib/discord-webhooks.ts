@@ -37,13 +37,20 @@ export async function sendAllWebhooks(params: {
   logoTim: string; 
   buktiTransfer: string; 
 }) {
-  const { namaTim, warna, ketua, wakil, players, totalRoster, teamSlug, kvKey, logoTim, buktiTransfer } = params;
+  const { namaTim, warna, ketua, wakil, players, totalRoster, teamSlug, logoTim, buktiTransfer } = params;
   
   const properTeamName = toProperCase(namaTim);
+  
+  // MASKING URL (Tetap aman sesuai request)
   const namaFileLogo = logoTim.split('/').pop() || 'default.png';
   const namaFileBukti = buktiTransfer.split('/').pop() || 'default.jpg';
   const maskedLogoUrl = `https://teamwars.web.id/logo/${namaFileLogo}`;
   const maskedBuktiUrl = `https://teamwars.web.id/bukti/${namaFileBukti}`;
+
+  // Trik Cloudinary: Memaksa browser download file saat diklik (fl_attachment)
+  const directDownloadLogo = logoTim.includes('/upload/') 
+    ? logoTim.replace('/upload/', '/upload/fl_attachment/') 
+    : logoTim;
 
   const embedColor = parseInt(warna.replace('#', ''), 16) || 3447003;
   const webhookAvatar = "https://teamwars.web.id/logo-dc.png";
@@ -61,6 +68,7 @@ export async function sendAllWebhooks(params: {
         embeds: [{
           title: properTeamName,
           color: embedColor,
+          // Thumbnail dibiarkan untuk admin biar ringkas
           thumbnail: { url: logoTim },
           fields: [
             { name: "Ketua", value: ketua.ign, inline: true },
@@ -77,16 +85,25 @@ export async function sendAllWebhooks(params: {
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        // Tag admin untuk testing. ID asli Finance: <@&836952890991968266>
-        content: "<@&1144271761488216134> 💰 Setoran Masuk!", 
+        // Gambar ditaruh di luar embed agar preview Discord jebol/muncul besar
+        content: `<@&1144271761488216134> 💰 Setoran Masuk dari **${properTeamName}**!\n\n**Preview Bukti Transfer:**\n${maskedBuktiUrl}`, 
         embeds: [{
-          title: `Bukti Transfer: ${properTeamName}`,
+          title: `Detail Registrasi: ${properTeamName}`,
           color: embedColor,
-          thumbnail: { url: buktiTransfer },
           fields: [
             { name: "Waktu Submit", value: `${getWIBTime()} WIB`, inline: true },
-            { name: "Link Bukti TF", value: `[Klik untuk lihat Bukti Transfer](${maskedBuktiUrl})`, inline: false }
+            { name: "Status", value: "🟡 Menunggu Konfirmasi", inline: true }
           ]
+        }],
+        // Tombol Konfirmasi (Tembus ke API lu)
+        components: [{
+          type: 1,
+          components: [{
+            type: 2,
+            style: 5,
+            label: "✅ Konfirmasi Pembayaran",
+            url: `https://teamwars.web.id/api/approve?team=${teamSlug}`
+          }]
         }]
       }
     },
@@ -96,16 +113,24 @@ export async function sendAllWebhooks(params: {
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        // Tag admin untuk testing. ID asli Creative: <@&1171096454685794324>
-        content: "<@&1144271761488216134> 🎨 Aset Tim Baru!", 
+        // Gambar ditaruh di luar embed agar preview Discord jebol/muncul besar
+        content: `<@&1144271761488216134> 🎨 Aset Tim Baru: **${properTeamName}**!\n\n**Preview Logo:**\n${maskedLogoUrl}`, 
         embeds: [{
           title: `Aset Visual: ${properTeamName}`,
           color: embedColor,
-          thumbnail: { url: logoTim },
           fields: [
-            { name: "Kode Warna (Hex)", value: `\`${warna}\``, inline: true },
-            { name: "Link Logo Asli", value: `[Download Logo Mentah](${maskedLogoUrl})`, inline: false }
+            { name: "Kode Warna (Hex)", value: `\`${warna}\``, inline: true }
           ]
+        }],
+        // Tombol Direct Download Cloudinary
+        components: [{
+          type: 1,
+          components: [{
+            type: 2,
+            style: 5,
+            label: "⬇️ Download Logo Mentah",
+            url: directDownloadLogo
+          }]
         }]
       }
     },
@@ -136,4 +161,4 @@ export async function sendAllWebhooks(params: {
       }
     }
   }
-          }
+}
