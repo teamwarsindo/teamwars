@@ -40,7 +40,7 @@ export function getPesertaTemplate(data: {
     <!-- BORDER UTAMA MENGGUNAKAN WARNA HEX TIM -->
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background-color: #121212; color: #ffffff; border-radius: 10px; overflow: hidden; border: 2px solid ${data.warna};">
       
-      <!-- HEADER MENGGUNAKAN WARNA HEX TIM -->
+      <!-- HEADER -->
       <div style="background-color: #000000; padding: 30px 20px; text-align: center; border-bottom: 2px solid ${data.warna};">
         <h1 style="margin: 0; color: #ffffff; font-size: 24px; letter-spacing: 2px;">TEAM WARS INDONESIA</h1>
         <p style="margin: 5px 0 0 0; color: #aaaaaa; font-size: 14px;">SEASON 7 REGISTRATION</p>
@@ -58,10 +58,10 @@ export function getPesertaTemplate(data: {
           Pendaftaran tim <strong>${properTeamName}</strong> telah berhasil kami terima pada <strong>${submitTime}</strong>.
         </p>
         
+        <!-- ASET VISUAL -->
         <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna};">
           <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Aset Visual & Pembayaran</h3>
           
-          <!-- Penambahan Label Warna Hex -->
           <div style="text-align: center; margin-top: 15px; margin-bottom: 15px;">
             <span style="display: block; color: #aaaaaa; font-size: 12px; margin-bottom: 5px; font-weight: bold;">KODE WARNA TIM</span>
             <div style="display: inline-block; background-color: ${data.warna}; padding: 5px 15px; border-radius: 4px; color: #fff; text-shadow: 1px 1px 2px #000; font-weight: bold; font-family: monospace;">
@@ -83,33 +83,52 @@ export function getPesertaTemplate(data: {
           </table>
         </div>
 
-        <!-- WRAPPER TABEL RESPONSIVE (Mencegah teks tergencet di HP) -->
-        <div style="background-color: #1e1e1e; padding: 15px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna}; overflow-x: auto; -webkit-overflow-scrolling: touch;">
-          <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; white-space: nowrap;">Roster Lengkap (${data.totalRoster} Pemain)</h3>
+        <!-- ROSTER LENGKAP (CARD VIEW UNTUK MOBILE) -->
+        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna};">
+          <h3 style="margin-top: 0; margin-bottom: 20px; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Roster Lengkap (${data.totalRoster} Pemain)</h3>
           
-          <!-- TABEL DENGAN MIN-WIDTH (Bisa digeser ke kanan di layar kecil) -->
-          <table style="width: 100%; color: #cccccc; text-align: left; border-collapse: collapse; margin-top: 10px; min-width: 550px;">
-            <thead>
-              <tr style="color: #aaaaaa; border-bottom: 1px solid #333; font-size: 11px;">
-                <th style="padding: 8px 4px; width: 22%;">Nama Asli</th>
-                <th style="padding: 8px 4px; width: 20%;">IGN</th>
-                <th style="padding: 8px 4px; width: 22%;">Duel ID</th>
-                <th style="padding: 8px 4px; width: 20%;">Discord</th>
-                <th style="padding: 8px 4px; width: 16%; text-align: right;">Role</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${sortedPlayers.map(p => `
-                <tr style="border-bottom: 1px solid #222; font-size: 12px;">
-                  <td style="padding: 10px 4px; color: #ddd; word-break: break-word;">${p.namaLengkap}</td>
-                  <td style="padding: 10px 4px; color: #fff; font-weight: bold; word-break: break-word;">${p.ign}</td>
-                  <td style="padding: 10px 4px; font-family: monospace; font-size: 11px;">${p.idDuelLinks || p.duelId}</td>
-                  <td style="padding: 10px 4px; font-size: 11px; word-break: break-word;">@${p.discord}</td>
-                  <td style="padding: 10px 4px; text-align: right; font-weight: ${p.role !== 'Anggota' ? 'bold' : 'normal'}; color: ${p.role !== 'Anggota' ? data.warna : '#ccc'}; font-size: 11px;">${p.role}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+          ${sortedPlayers.map(p => `
+            <div style="background-color: #292929; border-radius: 8px; padding: 15px; margin-bottom: 12px; border-left: 3px solid ${p.role !== 'Anggota' ? data.warna : '#555555'};">
+              <div style="margin-bottom: 10px;">
+                <span style="background-color: ${p.role !== 'Anggota' ? data.warna + '33' : '#444444'}; color: ${p.role !== 'Anggota' ? data.warna : '#cccccc'}; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase;">
+                  ${p.role}
+                </span>
+              </div>
+              <div style="font-size: 14px; line-height: 1.8;">
+                <strong style="color: #ffffff; font-size: 16px;">${p.namaLengkap}</strong><br>
+                <span style="color: #aaaaaa;">IGN:</span> <span style="color: #ffffff; font-weight: bold;">${p.ign}</span><br>
+                <span style="color: #aaaaaa;">Duel ID:</span> <span style="color: #4facfe; font-family: monospace;">${p.idDuelLinks || p.duelId}</span><br>
+                <span style="color: #aaaaaa;">Discord:</span> <span style="color: #cccccc;">@${p.discord}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- INSTRUKSI UPDATE DATA -->
+        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="margin-top: 0; color: #ffffff; font-size: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">⚙️ Prosedur Perubahan Data Roster</h3>
+          <p style="color: #cccccc; font-size: 13px; line-height: 1.6;">
+            Sebagai pengingat, kuota maksimal untuk satu tim adalah <strong>10 pemain</strong> (termasuk Ketua dan Wakil). Anda masih diperbolehkan untuk melakukan penyesuaian susunan roster selama pendaftaran belum ditutup.
+          </p>
+          <p style="color: #cccccc; font-size: 13px; line-height: 1.6;">
+            Jika Anda perlu menambah, menghapus, mengganti, atau memperbaiki data pemain (misal: <em>typo</em>), silakan <strong>balas (reply) email ini</strong> dengan menyalin dan mengisi formulir di bawah ini:
+          </p>
+          
+          <pre style="background-color: #000000; color: #4facfe; padding: 15px; border-radius: 6px; font-size: 12px; overflow-x: auto; border: 1px solid #333;">FORMAT PERUBAHAN DATA ROSTER
+-----------------------------------
+Jenis Perubahan : [Tambah / Hapus / Edit / Ganti Pemain]
+Nama Tim        : [Nama Tim Anda]
+Target Pemain   : [Sebutkan urutan pemain / Nama IGN lama. Kosongkan jika Tambah Pemain]
+
+DATA BARU (Isi pada bagian yang berubah saja):
+- Nama Asli     : 
+- Discord       : 
+- IGN           : 
+- ID Duel Links : </pre>
+          
+          <p style="color: #ff6b6b; font-size: 13px; line-height: 1.6; margin-bottom: 0;">
+            ⚠️ <strong>PERINGATAN KERAS:</strong> Begitu turnamen resmi dilaksanakan (Kick-Off), seluruh akses perubahan data mandiri akan ditutup total.
+          </p>
         </div>
 
         <p style="color: #cccccc; line-height: 1.6; font-size: 14px; text-align: center;">
@@ -117,15 +136,14 @@ export function getPesertaTemplate(data: {
         </p>
       </div>
       
-      <!-- FOOTER MENGGUNAKAN WARNA HEX TIM & COPYRIGHT BARU -->
+      <!-- FOOTER BARU -->
       <div style="background-color: #0a0a0a; padding: 20px; text-align: center; border-top: 2px solid ${data.warna};">
         <p style="margin: 0; color: #666666; font-size: 12px; line-height: 1.8;">
-          Email ini dibuat otomatis oleh Sistem Registrasi TWI S7.<br>
-          Mohon tidak membalas email ini.<br>
+          Sistem Registrasi TWI Season 7<br>
           <strong style="color: #888888;">&copy; 2026 Team Wars Indonesia. All rights reserved.</strong>
         </p>
       </div>
 
     </div>
   `;
-                }
+}
