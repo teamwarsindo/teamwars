@@ -19,9 +19,9 @@ export async function GET() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        content: "Menindaklanjuti pesan <@603379909661818920> kemaren, hari ini tepatnya pukul 17.00 WIB pendaftaran Team Wars Indonesia Season 7 resmi dibuka. Siapkan persyaratan sebelum melakukan pendaftaran.",
+        content: "Salam duelist @everyone, Menindaklanjuti pesan <@&603379909661818920> kemaren, hari ini tepatnya pukul 17.00 WIB pendaftaran Team Wars Indonesia Season 7 resmi dibuka. Siapkan persyaratan sebelum melakukan pendaftaran.",
         message_reference: {
-          message_id: "1523981160072478807"
+          message_id: "1523640776028979230"
         },
         embeds: [
           {
