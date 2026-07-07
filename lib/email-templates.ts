@@ -37,11 +37,15 @@ export function getPesertaTemplate(data: {
   });
 
   return `
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background-color: #121212; color: #ffffff; border-radius: 10px; overflow: hidden; border: 1px solid #333;">
-      <div style="background-color: #000000; padding: 30px 20px; text-align: center; border-bottom: 3px solid ${data.warna};">
+    <!-- BORDER UTAMA MENGGUNAKAN WARNA HEX TIM -->
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background-color: #121212; color: #ffffff; border-radius: 10px; overflow: hidden; border: 2px solid ${data.warna};">
+      
+      <!-- HEADER MENGGUNAKAN WARNA HEX TIM -->
+      <div style="background-color: #000000; padding: 30px 20px; text-align: center; border-bottom: 2px solid ${data.warna};">
         <h1 style="margin: 0; color: #ffffff; font-size: 24px; letter-spacing: 2px;">TEAM WARS INDONESIA</h1>
         <p style="margin: 5px 0 0 0; color: #aaaaaa; font-size: 14px;">SEASON 7 REGISTRATION</p>
       </div>
+      
       <div style="padding: 30px 20px;">
         
         <!-- BANNER STATUS PENDING -->
@@ -79,11 +83,12 @@ export function getPesertaTemplate(data: {
           </table>
         </div>
 
-        <div style="background-color: #1e1e1e; padding: 15px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna}; overflow-x: auto;">
-          <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Roster Lengkap (${data.totalRoster} Pemain)</h3>
+        <!-- WRAPPER TABEL RESPONSIVE (Mencegah teks tergencet di HP) -->
+        <div style="background-color: #1e1e1e; padding: 15px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna}; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+          <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; white-space: nowrap;">Roster Lengkap (${data.totalRoster} Pemain)</h3>
           
-          <!-- TABEL DENGAN KOLOM NAMA ASLI -->
-          <table style="width: 100%; color: #cccccc; text-align: left; border-collapse: collapse; margin-top: 10px; min-width: 400px;">
+          <!-- TABEL DENGAN MIN-WIDTH (Bisa digeser ke kanan di layar kecil) -->
+          <table style="width: 100%; color: #cccccc; text-align: left; border-collapse: collapse; margin-top: 10px; min-width: 550px;">
             <thead>
               <tr style="color: #aaaaaa; border-bottom: 1px solid #333; font-size: 11px;">
                 <th style="padding: 8px 4px; width: 22%;">Nama Asli</th>
@@ -111,9 +116,16 @@ export function getPesertaTemplate(data: {
           Harap tunggu konfirmasi dari tim Finance kami. Jika pembayaran valid, instruksi selanjutnya dan akses ke channel Discord khusus tim kalian akan segera dikirimkan.
         </p>
       </div>
-      <div style="background-color: #0a0a0a; padding: 20px; text-align: center; border-top: 1px solid #333;">
-        <p style="margin: 0; color: #666666; font-size: 12px;">Email ini dibuat otomatis oleh Sistem Registrasi TWI S7.<br>Mohon tidak membalas email ini.</p>
+      
+      <!-- FOOTER MENGGUNAKAN WARNA HEX TIM & COPYRIGHT BARU -->
+      <div style="background-color: #0a0a0a; padding: 20px; text-align: center; border-top: 2px solid ${data.warna};">
+        <p style="margin: 0; color: #666666; font-size: 12px; line-height: 1.8;">
+          Email ini dibuat otomatis oleh Sistem Registrasi TWI S7.<br>
+          Mohon tidak membalas email ini.<br>
+          <strong style="color: #888888;">&copy; 2026 Team Wars Indonesia. All rights reserved.</strong>
+        </p>
       </div>
+
     </div>
   `;
-                                                                                                                                             }
+                }
