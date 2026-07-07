@@ -41,12 +41,6 @@ export async function sendAllWebhooks(params: {
   
   const properTeamName = toProperCase(namaTim);
   
-  // MASKING URL (Tetap aman sesuai request)
-  const namaFileLogo = logoTim.split('/').pop() || 'default.png';
-  const namaFileBukti = buktiTransfer.split('/').pop() || 'default.jpg';
-  const maskedLogoUrl = `https://teamwars.web.id/logo/${namaFileLogo}`;
-  const maskedBuktiUrl = `https://teamwars.web.id/bukti/${namaFileBukti}`;
-
   // Trik Cloudinary: Memaksa browser download file saat diklik (fl_attachment)
   const directDownloadLogo = logoTim.includes('/upload/') 
     ? logoTim.replace('/upload/', '/upload/fl_attachment/') 
@@ -68,7 +62,6 @@ export async function sendAllWebhooks(params: {
         embeds: [{
           title: properTeamName,
           color: embedColor,
-          // Thumbnail dibiarkan untuk admin biar ringkas
           thumbnail: { url: logoTim },
           fields: [
             { name: "Ketua", value: ketua.ign, inline: true },
@@ -85,25 +78,18 @@ export async function sendAllWebhooks(params: {
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        // Gambar ditaruh di luar embed agar preview Discord jebol/muncul besar
-        content: `<@&1144271761488216134> 💰 Setoran Masuk dari **${properTeamName}**!\n\n**Preview Bukti Transfer:**\n${maskedBuktiUrl}`, 
+        content: `<@&1144271761488216134> 💰 Setoran Masuk dari **${properTeamName}**!`, 
         embeds: [{
           title: `Detail Registrasi: ${properTeamName}`,
           color: embedColor,
+          // Menggunakan Markdown Link besar sebagai pengganti Tombol Button yang diblokir webhook
+          description: `**[✅ KLIK DISINI UNTUK KONFIRMASI PEMBAYARAN](https://teamwars.web.id/api/approve?team=${teamSlug})**\n*(Link akan membuka browser & mengirim email sukses ke peserta)*`,
+          // Pakai properti 'image' agar gambar muncul segede gaban di dalam embed!
+          image: { url: buktiTransfer },
           fields: [
             { name: "Waktu Submit", value: `${getWIBTime()} WIB`, inline: true },
             { name: "Status", value: "🟡 Menunggu Konfirmasi", inline: true }
           ]
-        }],
-        // Tombol Konfirmasi (Tembus ke API lu)
-        components: [{
-          type: 1,
-          components: [{
-            type: 2,
-            style: 5,
-            label: "✅ Konfirmasi Pembayaran",
-            url: `https://teamwars.web.id/api/approve?team=${teamSlug}`
-          }]
         }]
       }
     },
@@ -113,24 +99,17 @@ export async function sendAllWebhooks(params: {
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        // Gambar ditaruh di luar embed agar preview Discord jebol/muncul besar
-        content: `<@&1144271761488216134> 🎨 Aset Tim Baru: **${properTeamName}**!\n\n**Preview Logo:**\n${maskedLogoUrl}`, 
+        content: `<@&1144271761488216134> 🎨 Aset Tim Baru: **${properTeamName}**!`, 
         embeds: [{
           title: `Aset Visual: ${properTeamName}`,
           color: embedColor,
+          // Menggunakan Markdown Link sebagai pengganti tombol
+          description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](${directDownloadLogo})**`,
+          // Memaksa preview logo besar di dalam embed
+          image: { url: logoTim },
           fields: [
             { name: "Kode Warna (Hex)", value: `\`${warna}\``, inline: true }
           ]
-        }],
-        // Tombol Direct Download Cloudinary
-        components: [{
-          type: 1,
-          components: [{
-            type: 2,
-            style: 5,
-            label: "⬇️ Download Logo Mentah",
-            url: directDownloadLogo
-          }]
         }]
       }
     },
@@ -161,4 +140,4 @@ export async function sendAllWebhooks(params: {
       }
     }
   }
-}
+    }
