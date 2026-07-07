@@ -1,5 +1,5 @@
 // Waktu Buka: 7 Juli 2026, 07:07 WIB
-export const LAUNCH_TARGET_DATE = "2026-07-07T14:00:00+07:00"
+export const LAUNCH_TARGET_DATE = "2026-07-07T17:00:00+07:00"
 export const LAUNCH_TARGET = new Date(LAUNCH_TARGET_DATE).getTime()
 
 // Waktu Tutup: 21 Juli 2026, 21:07 WIB
