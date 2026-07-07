@@ -102,7 +102,7 @@ export async function sendAllWebhooks(params: {
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        content: `<@&1144271761488216134> 💰 Setoran Masuk dari **${properTeamName}**!`, 
+        content: `<@&836952890991968266> 💰 Setoran Masuk dari **${properTeamName}**!`, 
         embeds: [{
           title: `Detail Registrasi: ${properTeamName}`,
           color: embedColor,
@@ -122,7 +122,7 @@ export async function sendAllWebhooks(params: {
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        content: `<@&1144271761488216134> 🎨 Aset Tim Baru: **${properTeamName}**!`, 
+        content: `<@&1171096454685794324> 🎨 Aset Tim Baru: **${properTeamName}**!`, 
         embeds: [{
           title: `Aset Visual: ${properTeamName}`,
           color: embedColor,
