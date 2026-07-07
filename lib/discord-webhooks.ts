@@ -120,7 +120,7 @@ export async function sendAllWebhooks(params: {
         embeds: [{
           title: `Aset Visual: ${properTeamName}`,
           color: embedColor,
-          description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](${maskedLogoUrl})**`,
+          description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](${directDownloadLogo})**`,
           image: { url: logoTim },
           fields: [
             { name: "Kode Warna (Hex)", value: `\`${warna}\``, inline: true }
