@@ -6,7 +6,7 @@ function toProperCase(str: string) {
   );
 }
 
-// Helper untuk waktu WIB
+// Helper untuk waktu WIB (Untuk body embed)
 function getWIBTime() {
   return new Date().toLocaleString("id-ID", {
     timeZone: "Asia/Jakarta",
@@ -15,14 +15,30 @@ function getWIBTime() {
   });
 }
 
-// Helper untuk Footer bergaya ProBot ("Diperbarui 2 Agustus 2024")
-function getFooterDate() {
-  return new Date().toLocaleString("id-ID", {
-    timeZone: "Asia/Jakarta",
-    day: "numeric",
-    month: "long",
-    year: "numeric"
-  });
+// Helper untuk Footer Dinamis (Tercatat vs Diperbarui)
+function getFooterText(createdAt?: string, updatedAt?: string) {
+  const formatTanggal = (dateRaw: string | Date) => {
+    return new Date(dateRaw).toLocaleString("id-ID", {
+      timeZone: "Asia/Jakarta",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }) + " WIB";
+  };
+
+  // Default ke waktu sekarang jika tidak ada createdAt yang dilempar
+  const waktuBuat = createdAt ? formatTanggal(createdAt) : formatTanggal(new Date());
+  
+  let footerText = `Tercatat di sistem pada ${waktuBuat}`;
+  
+  // Jika ada parameter updatedAt, tambahkan baris baru
+  if (updatedAt) {
+    footerText += `\nDiperbarui pada ${formatTanggal(updatedAt)}`;
+  }
+  
+  return footerText;
 }
 
 export async function sendAllWebhooks(params: { 
@@ -35,21 +51,23 @@ export async function sendAllWebhooks(params: {
   teamSlug: string; 
   kvKey: string; 
   logoTim: string; 
-  buktiTransfer: string; 
+  buktiTransfer: string;
+  createdAt?: string; // Tambahan untuk tracking DB
+  updatedAt?: string; // Tambahan untuk tracking DB
 }) {
-  const { namaTim, warna, ketua, wakil, players, totalRoster, teamSlug, logoTim, buktiTransfer } = params;
+  const { namaTim, warna, ketua, wakil, players, totalRoster, teamSlug, logoTim, buktiTransfer, createdAt, updatedAt } = params;
   
   const properTeamName = toProperCase(namaTim);
   
-  // Trik Cloudinary: Memaksa browser download file saat diklik (fl_attachment)
   const directDownloadLogo = logoTim.includes('/upload/') 
     ? logoTim.replace('/upload/', '/upload/fl_attachment/') 
     : logoTim;
 
-  const embedColor = parseInt(warna.replace('#', ''), 16) || 3447003;
+  let parsedColor = parseInt(warna.replace('#', ''), 16);
+  if (isNaN(parsedColor)) parsedColor = 3447003; 
+  const embedColor = parsedColor === 0 ? 1 : parsedColor; // Fix bug warna hitam (#000000)
+  
   const webhookAvatar = "https://teamwars.web.id/logo-dc.png";
-
-  // Format Array Players menjadi list ke bawah ala ProBot: "IGN (Duel ID)"
   const playerListString = players.map(p => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
 
   const WEBHOOKS = [
@@ -68,7 +86,7 @@ export async function sendAllWebhooks(params: {
             { name: "Wakil", value: wakil.ign, inline: true },
             { name: "Players", value: playerListString, inline: false }
           ],
-          footer: { text: `Tercatat di sistem pada ${getFooterDate()}` }
+          footer: { text: getFooterText(createdAt, updatedAt) }
         }]
       }
     },
@@ -82,14 +100,13 @@ export async function sendAllWebhooks(params: {
         embeds: [{
           title: `Detail Registrasi: ${properTeamName}`,
           color: embedColor,
-          // Menggunakan Markdown Link besar sebagai pengganti Tombol Button yang diblokir webhook
           description: `**[✅ KLIK DISINI UNTUK KONFIRMASI PEMBAYARAN](https://teamwars.web.id/api/approve?team=${teamSlug})**\n*(Link akan membuka browser & mengirim email sukses ke peserta)*`,
-          // Pakai properti 'image' agar gambar muncul segede gaban di dalam embed!
           image: { url: buktiTransfer },
           fields: [
             { name: "Waktu Submit", value: `${getWIBTime()} WIB`, inline: true },
             { name: "Status", value: "🟡 Menunggu Konfirmasi", inline: true }
-          ]
+          ],
+          footer: { text: getFooterText(createdAt, updatedAt) }
         }]
       }
     },
@@ -103,9 +120,7 @@ export async function sendAllWebhooks(params: {
         embeds: [{
           title: `Aset Visual: ${properTeamName}`,
           color: embedColor,
-          // Menggunakan Markdown Link sebagai pengganti tombol
           description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](${directDownloadLogo})**`,
-          // Memaksa preview logo besar di dalam embed
           image: { url: logoTim },
           fields: [
             { name: "Kode Warna (Hex)", value: `\`${warna}\``, inline: true }
@@ -125,19 +140,32 @@ export async function sendAllWebhooks(params: {
   ];
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  let recordedMessageIds: Record<string, string> = {}; // 👈 Koper untuk menampung Message ID
 
   for (const hook of WEBHOOKS) {
     if (hook.url) {
       try {
-        await fetch(hook.url, {
+        // 🚨 KUNCI UTAMA: Tambahkan ?wait=true agar Discord membalas dengan JSON Message ID
+        const urlWithWait = `${hook.url}?wait=true`;
+
+        const res = await fetch(urlWithWait, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(hook.payload)
         });
-        await sleep(300); // Jeda anti rate-limit Discord
+
+        if (res.ok) {
+          const data = await res.json();
+          recordedMessageIds[hook.name] = data.id; // Simpan ID berdasarkan nama webhook (Admin, Finance, dll)
+        }
+        
+        await sleep(300);
       } catch (err) {
         console.error(`Gagal kirim webhook ${hook.name}:`, err);
       }
     }
   }
-    }
+
+  // 👈 Kembalikan ID ini ke route.ts
+  return recordedMessageIds; 
+}
