@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
       <div style="font-family: sans-serif; text-align: center; background-color: #052e16; padding: 40px; border-radius: 12px; max-width: 500px; border: 1px solid #166534; color: #f0fdf4; width: 100%;">
         <h1 style="color: #4ade80; margin-top: 0;">✅ Berhasil Dikonfirmasi!</h1>
         <p style="color: #bbf7d0; font-size: 18px; margin-bottom: 5px;">Status tim <strong>${teamData.namaTim.toUpperCase()}</strong> telah diubah menjadi Approved.</p>
-        <p style="color: #86efac; margin-top: 0;">Email konfirmasi resmi otomatis telah dikirim ke: <strong>${teamData.email}</strong></p>
+        <p style="color: #86efac; margin-top: 0;">Email konfirmasi resmi otomatis telah dikirim.</p>
         <p style="color: #475569; margin-top: 30px; font-size: 14px;">Anda sudah bisa menutup tab browser ini dan kembali ke Discord.</p>
       </div>
     `), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
