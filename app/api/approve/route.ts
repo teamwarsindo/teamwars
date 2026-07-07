@@ -79,7 +79,6 @@ export async function GET(request: NextRequest) {
               },
               { name: "Status", value: "✅ Terkonfirmasi", inline: true }
             ],
-            footer: { text: `Dikonfirmasi pada ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB` }
           }]
         })
       }).catch(err => console.error("Gagal edit webhook Discord:", err));
