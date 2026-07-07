@@ -1,4 +1,4 @@
-// Helper untuk Proper Case (Contoh: "TEAM WARS" -> "Team Wars")
+// Helper untuk Proper Case
 function toProperCase(str: string) {
   return str.replace(
     /\w\S*/g,
@@ -15,31 +15,41 @@ function getWIBTime() {
   });
 }
 
+// Helper untuk Footer bergaya ProBot ("Diperbarui 2 Agustus 2024")
+function getFooterDate() {
+  return new Date().toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  });
+}
+
 export async function sendAllWebhooks(params: { 
   namaTim: string; 
   warna: string; 
   ketua: any; 
+  wakil: any;
+  players: any[];
   totalRoster: number; 
   teamSlug: string; 
   kvKey: string; 
   logoTim: string; 
   buktiTransfer: string; 
 }) {
-  const { namaTim, warna, ketua, totalRoster, teamSlug, kvKey, logoTim, buktiTransfer } = params;
+  const { namaTim, warna, ketua, wakil, players, totalRoster, teamSlug, kvKey, logoTim, buktiTransfer } = params;
   
-  // Format Proper Case
   const properTeamName = toProperCase(namaTim);
-
-  // CLEAN CODE: Langsung ambil teks setelah '/' terakhir
   const namaFileLogo = logoTim.split('/').pop() || 'default.png';
   const namaFileBukti = buktiTransfer.split('/').pop() || 'default.jpg';
-
-  // Gabungkan langsung ke domain masking web resmi TWI
   const maskedLogoUrl = `https://teamwars.web.id/logo/${namaFileLogo}`;
   const maskedBuktiUrl = `https://teamwars.web.id/bukti/${namaFileBukti}`;
 
   const embedColor = parseInt(warna.replace('#', ''), 16) || 3447003;
   const webhookAvatar = "https://teamwars.web.id/logo-dc.png";
+
+  // Format Array Players menjadi list ke bawah ala ProBot: "IGN (Duel ID)"
+  const playerListString = players.map(p => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
 
   const WEBHOOKS = [
     {
@@ -49,14 +59,15 @@ export async function sendAllWebhooks(params: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
         embeds: [{
-          title: `🚀 PENDAFTARAN BARU: ${properTeamName}`,
+          title: properTeamName,
           color: embedColor,
           thumbnail: { url: logoTim },
           fields: [
-            { name: "👑 Ketua Tim", value: ketua.namaLengkap, inline: true },
-            { name: "👥 Total Roster", value: `${totalRoster} Pemain`, inline: true },
-            { name: "🔑 Redis Key", value: `\`${kvKey}\``, inline: false },
-          ]
+            { name: "Ketua", value: ketua.ign, inline: true },
+            { name: "Wakil", value: wakil.ign, inline: true },
+            { name: "Players", value: playerListString, inline: false }
+          ],
+          footer: { text: `Tercatat di sistem pada ${getFooterDate()}` }
         }]
       }
     },
@@ -125,4 +136,4 @@ export async function sendAllWebhooks(params: {
       }
     }
   }
-}
+          }
