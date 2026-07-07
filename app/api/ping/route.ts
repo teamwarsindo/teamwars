@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   const token = process.env.DISCORD_BOT_TOKEN;
-  // Pastikan ID ini adalah ID channel publik (bukan channel admin)
-  const channelId = process.env.DISCORD_ADMIN_CHANNEL_ID; 
+  
+  // GANTI DENGAN ID CHANNEL PUBLIK TEMPAT PESAN YANG MAU DI-REPLY BERADA
+  // Kalau lu udah bikin ENV baru, panggil di sini. Kalau belum, langsung ketik angkanya aja sebagai fallback string "ANGKA_ID"
+  const channelId = process.env.DISCORD_ANNOUNCEMENT_CHANNEL_ID || process.env.DISCORD_ADMIN_CHANNEL_ID; 
 
   if (!token || !channelId) {
-    return NextResponse.json({ error: "Token atau Channel ID Pengumuman belum disetting!" }, { status: 400 });
+    return NextResponse.json({ error: "Token atau Channel ID belum disetting!" }, { status: 400 });
   }
 
   try {
@@ -17,13 +19,14 @@ export async function GET() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        // Format <@&RoleID> ini cara kerja Discord buat nge-ping Role tertentu
-        content: "📢 <@&1144271761488216134> **PERHATIAN SELURUH TIM!**", 
+        content: "Menindaklanjuti pesan <@603379909661818920> kemaren, hari ini tepatnya pukul 17.00 WIB pendaftaran Team Wars Indonesia Season 7 resmi dibuka. Siapkan persyaratan sebelum melakukan pendaftaran.",
+        message_reference: {
+          message_id: "1523981160072478807"
+        },
         embeds: [
           {
             title: "🔥 PENDAFTARAN TWI SEASON 7 RESMI DIBUKA! 🔥",
-            description: "Waktu tunggu telah usai! Gerbang pendaftaran Team Wars Indonesia Season 7 resmi dibuka hari ini pukul **17:00 WIB**. Siapkan roster terbaik kalian dan amankan slot sekarang!",
-            color: 15844367, // Warna Hex #F1C40F (Kuning Keemasan)
+            color: 15844367, // Warna Kuning Keemasan
             fields: [
               {
                 name: "💰 Biaya Pendaftaran",
@@ -31,13 +34,23 @@ export async function GET() {
                 inline: false
               },
               {
-                name: "📋 Persyaratan Pendaftaran",
-                value: "1. Satu tim terdiri dari maksimal **10 Pemain**.\n2. Seluruh pemain wajib memiliki ID Duel Links, IGN, dan akun Discord yang valid.\n3. Perwakilan tim wajib menyiapkan **Logo Tim** (resolusi baik).\n4. Wajib melampirkan **Bukti Transfer** pembayaran yang sah.",
+                name: "📋 Syarat Tim",
+                value: "• Nama Tim\n• Warna Identitas (Hex Color)\n• Logo Tim\n• Bukti Transfer",
+                inline: true
+              },
+              {
+                name: "👤 Syarat Pemain",
+                value: "• Nama Lengkap\n• Username Discord\n• IGN\n• ID Duel Links",
+                inline: true
+              },
+              {
+                name: "👥 Ketentuan Roster",
+                value: "Satu tim berisi **5 - 10 Pemain** (Sudah termasuk kewajiban memiliki 1 Ketua dan 1 Wakil Ketua).",
                 inline: false
               },
               {
                 name: "🔗 Link Registrasi",
-                value: "Langsung meluncur ke website resmi: **[teamwars.web.id](https://teamwars.web.id)**",
+                value: "Langsung meluncur ke: **[teamwars.web.id](https://teamwars.web.id)**",
                 inline: false
               }
             ],
@@ -59,7 +72,7 @@ export async function GET() {
       return NextResponse.json({ success: false, error: data }, { status: response.status });
     }
 
-    return NextResponse.json({ success: true, message: "Pengumuman hype berhasil disebar!" });
+    return NextResponse.json({ success: true, message: "Pengumuman berhasil disebar dari API Ping!" });
   } catch (error) {
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
