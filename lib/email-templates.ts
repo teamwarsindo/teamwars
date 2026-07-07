@@ -37,10 +37,8 @@ export function getPesertaTemplate(data: {
   });
 
   return `
-    <!-- BORDER UTAMA MENGGUNAKAN WARNA HEX TIM -->
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background-color: #121212; color: #ffffff; border-radius: 10px; overflow: hidden; border: 2px solid ${data.warna};">
       
-      <!-- HEADER -->
       <div style="background-color: #000000; padding: 30px 20px; text-align: center; border-bottom: 2px solid ${data.warna};">
         <h1 style="margin: 0; color: #ffffff; font-size: 24px; letter-spacing: 2px;">TEAM WARS INDONESIA</h1>
         <p style="margin: 5px 0 0 0; color: #aaaaaa; font-size: 14px;">SEASON 7 REGISTRATION</p>
@@ -48,7 +46,6 @@ export function getPesertaTemplate(data: {
       
       <div style="padding: 30px 20px;">
         
-        <!-- BANNER STATUS PENDING -->
         <div style="background-color: rgba(255, 193, 7, 0.1); border: 1px solid #ffc107; color: #ffc107; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 25px; font-weight: bold; letter-spacing: 1px; font-size: 14px;">
           ⏳ STATUS: PENDING (Menunggu Konfirmasi Tim Finance)
         </div>
@@ -58,7 +55,6 @@ export function getPesertaTemplate(data: {
           Pendaftaran tim <strong>${properTeamName}</strong> telah berhasil kami terima pada <strong>${submitTime}</strong>.
         </p>
         
-        <!-- ASET VISUAL -->
         <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna};">
           <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Aset Visual & Pembayaran</h3>
           
@@ -83,7 +79,6 @@ export function getPesertaTemplate(data: {
           </table>
         </div>
 
-        <!-- ROSTER LENGKAP (CARD VIEW UNTUK MOBILE) -->
         <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna};">
           <h3 style="margin-top: 0; margin-bottom: 20px; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Roster Lengkap (${data.totalRoster} Pemain)</h3>
           
@@ -104,39 +99,11 @@ export function getPesertaTemplate(data: {
           `).join('')}
         </div>
 
-        <!-- INSTRUKSI UPDATE DATA -->
-        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 8px; margin: 25px 0;">
-          <h3 style="margin-top: 0; color: #ffffff; font-size: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">⚙️ Prosedur Perubahan Data Roster</h3>
-          <p style="color: #cccccc; font-size: 13px; line-height: 1.6;">
-            Sebagai pengingat, kuota maksimal untuk satu tim adalah <strong>10 pemain</strong> (termasuk Ketua dan Wakil). Anda masih diperbolehkan untuk melakukan penyesuaian susunan roster selama pendaftaran belum ditutup.
-          </p>
-          <p style="color: #cccccc; font-size: 13px; line-height: 1.6;">
-            Jika Anda perlu menambah, menghapus, mengganti, atau memperbaiki data pemain (misal: <em>typo</em>), silakan <strong>balas (reply) email ini</strong> dengan menyalin dan mengisi formulir di bawah ini:
-          </p>
-          
-          <pre style="background-color: #000000; color: #4facfe; padding: 15px; border-radius: 6px; font-size: 12px; overflow-x: auto; border: 1px solid #333;">FORMAT PERUBAHAN DATA ROSTER
------------------------------------
-Jenis Perubahan : [Tambah / Hapus / Edit / Ganti Pemain]
-Nama Tim        : [Nama Tim Anda]
-Target Pemain   : [Sebutkan urutan pemain / Nama IGN lama. Kosongkan jika Tambah Pemain]
-
-DATA BARU (Isi pada bagian yang berubah saja):
-- Nama Asli     : 
-- Discord       : 
-- IGN           : 
-- ID Duel Links : </pre>
-          
-          <p style="color: #ff6b6b; font-size: 13px; line-height: 1.6; margin-bottom: 0;">
-            ⚠️ <strong>PERINGATAN KERAS:</strong> Begitu turnamen resmi dilaksanakan (Kick-Off), seluruh akses perubahan data mandiri akan ditutup total.
-          </p>
-        </div>
-
-        <p style="color: #cccccc; line-height: 1.6; font-size: 14px; text-align: center;">
+        <p style="color: #cccccc; line-height: 1.6; font-size: 14px; text-align: center; margin-top: 30px;">
           Harap tunggu konfirmasi dari tim Finance kami. Jika pembayaran valid, instruksi selanjutnya dan akses ke channel Discord khusus tim kalian akan segera dikirimkan.
         </p>
       </div>
       
-      <!-- FOOTER BARU -->
       <div style="background-color: #0a0a0a; padding: 20px; text-align: center; border-top: 2px solid ${data.warna};">
         <p style="margin: 0; color: #666666; font-size: 12px; line-height: 1.8;">
           Sistem Registrasi TWI Season 7<br>
