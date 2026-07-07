@@ -28,6 +28,11 @@ const nextConfig = {
         source: '/bukti/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/bukti/:path*',
       },
+      // Masking Download
+      {
+        source: '/logo/:path*/download',
+        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/fl_attachment/logo/:path*',
+      },
       // Format URL lu: domain.com/logo/namafilenya.png
       {
         source: '/logo/:path*',
