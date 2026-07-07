@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { CheckIcon, CloseIcon } from "@/components/icons"
 
 interface SuccessModalProps {
@@ -9,6 +10,20 @@ interface SuccessModalProps {
 }
 
 export function SuccessModal({ open, onClose, namaTim }: SuccessModalProps) {
+  // Tambahkan useEffect untuk mengunci scroll body ketika modal aktif
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = "unset"
+    }
+    
+    // Pastikan untuk mengembalikan state awal (unset) ketika komponen hilang dari DOM
+    return () => {
+      document.body.style.overflow = "unset"
+    }
+  }, [open])
+
   if (!open) return null
 
   return (
