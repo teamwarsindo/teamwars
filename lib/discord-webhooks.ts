@@ -59,15 +59,9 @@ export async function sendAllWebhooks(params: {
   
   const properTeamName = toProperCase(namaTim);
   
-  // Masking URL Logo ke format teamwars.web.id/logo/.../download
-  let maskedLogoUrl = logoTim;
-  if (logoTim.includes('/upload/')) {
-    const splitUrl = logoTim.split('/upload/');
-    if (splitUrl.length > 1) {
-      const imagePath = splitUrl[1]; // Mengambil path file setelah '/upload/'
-      maskedLogoUrl = `https://teamwars.web.id/logo/${imagePath}/download`;
-    }
-  }
+  const directDownloadLogo = logoTim.includes('/upload/') 
+    ? logoTim.replace('/upload/', '/upload/fl_attachment/') 
+    : logoTim;
 
   let parsedColor = parseInt(warna.replace('#', ''), 16);
   if (isNaN(parsedColor)) parsedColor = 3447003; 
