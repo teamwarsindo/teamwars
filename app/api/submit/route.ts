@@ -75,6 +75,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, errors: [{ field: 'namaTim', message: "Nama tim sudah terdaftar!" }] }, { status: 409 });
     }
 
+    const timestampNow = new Date().toISOString(); // Waktu pendaftaran seragam
+
+    // Simpan ke brankas utama Redis
     await kv.hset(kvKey, {
       namaTim: namaTim.trim(),
       warna: warna,
@@ -82,24 +85,32 @@ export async function POST(request: NextRequest) {
       logoTim: logoTim, 
       buktiTransfer: buktiTransfer, 
       players: JSON.stringify(players), 
-      createdAt: new Date().toISOString(),
+      createdAt: timestampNow,
       statusVerifikasi: "Pending"
     });
 
+    // Injeksi Index Sekunder
     await kv.sadd("global:teams", teamSlug);
-    // ... (rest of KV setters)
+    if (players && players.length > 0) {
+      const igns = players.map((p: any) => p.ign.toLowerCase());
+      const discords = players.map((p: any) => p.discord.toLowerCase());
+      const duelLinks = players.map((p: any) => p.idDuelLinks || p.duelId);
+      
+      if (igns.length) await kv.sadd("global:ign", ...igns);
+      if (discords.length) await kv.sadd("global:discord", ...discords);
+      if (duelLinks.length) await kv.sadd("global:duellinks", ...duelLinks);
+    }
 
     const ketua = players.find((p: any) => p.role === "Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
     const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
     
-    // UPDATED: Template data untuk email (menyertakan logo, bukti, dan players)
     const templateData = { 
       namaTim, warna, ketua, wakil, totalRoster: players.length, 
       logoTim, buktiTransfer, players 
     };
 
     // ==========================================
-    // 3. ORKESTRASI
+    // 3. ORKESTRASI BACKGROUND TASKS
     // ==========================================
     const emailPromise = email 
       ? sendEmailSafe({ 
@@ -113,17 +124,26 @@ export async function POST(request: NextRequest) {
     const discordTasks = async () => {
       try {
         const roleId = await createDiscordRole(namaTim, warna);
+        
         if (roleId) {
           await createDiscordChannel(namaTim, roleId);
-          await kv.hset(kvKey, { discordRoleId: roleId });
         }
         
-        // UPDATED: Kirim data lengkap ke webhook (menyertakan wakil dan players)
-        await sendAllWebhooks({ 
+        // TEMBAK WEBHOOK & TANGKAP MESSAGE ID-NYA
+        const webhookMsgIds = await sendAllWebhooks({ 
           namaTim, warna, ketua, wakil, players, 
           totalRoster: players.length, teamSlug, kvKey,
-          logoTim, buktiTransfer
+          logoTim, buktiTransfer,
+          createdAt: timestampNow // 👈 Wajib agar footer 'Tercatat di sistem' jalan!
         });
+
+        // 🚨 SIMPAN ID PENTING KE REDIS UNTUK FITUR EDIT ROSTER NANTI
+        await kv.hset(kvKey, { 
+          discordRoleId: roleId || "",
+          adminMsgId: webhookMsgIds["Admin"] || "",
+          financeMsgId: webhookMsgIds["Finance"] || ""
+        });
+
       } catch (err) {
         console.error("Gagal tugas Discord:", err);
       }
@@ -135,4 +155,4 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     return NextResponse.json({ success: false, error: "Terjadi kesalahan server" }, { status: 500 });
   }
-                                                  }
+      }
