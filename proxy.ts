@@ -33,7 +33,7 @@ export function proxy(request: NextRequest) {
   ) {
     // 🔑 KREDENSIAL MASTER ADMIN (Tetap pakai yang lama)
     const adminUser = 'admin';
-    const adminPwd = 'xR7vM2kP9zQ4wL5T';
+    const adminPwd = 'adminonly';
 
     if (checkAuth(adminUser, adminPwd)) return NextResponse.next();
     
