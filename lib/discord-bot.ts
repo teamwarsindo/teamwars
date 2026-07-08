@@ -20,7 +20,7 @@ export async function createDiscordRole(teamName: string, colorHex: string) {
       body: JSON.stringify({
         name: teamName, // Sesuai input peserta
         color: decimalColor,
-        hoist: false,
+        hoist: true,
         mentionable: true
       })
     });
