@@ -3,11 +3,10 @@ import { kv } from '@vercel/kv';
 
 export async function GET(
   request: NextRequest,
-  // 1. UPDATE DI SINI: params sekarang adalah sebuah Promise
   context: { params: Promise<{ id: string }> } 
 ) {
   try {
-    // 2. UPDATE DI SINI: Kita harus 'await' params sebelum mengambil id-nya
+    // 1. TANGKAP ID DARI URL 
     const { id } = await context.params;
     const messageId = id;
 
@@ -15,33 +14,29 @@ export async function GET(
       return new NextResponse('ID Pesan tidak boleh kosong.', { status: 400 });
     }
 
-    // Cek apakah pesan ini sudah pernah di-update?
+    // 2. CEK DATABASE: Biar nggak ke-eksekusi 2x kalau ke-refresh
     const isUpdated = await kv.get(`patched_discord_msg:${messageId}`);
     if (isUpdated) {
       return new NextResponse(`⚠️ Pesan dengan ID ${messageId} sudah pernah di-update. Eksekusi dibatalkan untuk mencegah spam.`, { status: 200 });
     }
 
-    // Tangkap Parameter dari URL
-    const searchParams = request.nextUrl.searchParams;
-    const teamName = searchParams.get('team');
-    const colorHex = searchParams.get('color');
-    const logoFile = searchParams.get('logo');
+    // ==========================================
+    // 3. ISI PESAN (GANTI MANUAL DI SINI KALAU MAU UPDATE TIM LAIN)
+    // ==========================================
+    const teamName = "Asashin Og";
+    const colorHex = "7300FF";
+    const logoFile = "asashin_og_logo.png"; // Nama file yang ada di folder upload/logo/
 
-    // Validasi parameter wajib
-    if (!teamName || !colorHex || !logoFile) {
-      return new NextResponse('❌ Parameter tidak lengkap! Pastikan URL mengandung ?team=...&color=...&logo=...', { status: 400 });
-    }
-
-    // Eksekusi Update ke Discord
+    // ==========================================
+    // 4. EKSEKUSI UPDATE KE DISCORD
+    // ==========================================
     const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_CREATIVE;
     if (!WEBHOOK_URL) {
       return new NextResponse('Webhook URL tidak ditemukan di environment.', { status: 500 });
     }
 
     const webhookEditUrl = `${WEBHOOK_URL}/messages/${messageId}`;
-    
-    // Parsing warna HEX ke integer agar terbaca oleh Discord
-    const parsedColor = parseInt(colorHex.replace('#', ''), 16);
+    const parsedColor = parseInt(colorHex, 16);
 
     const response = await fetch(webhookEditUrl, {
       method: 'PATCH',
@@ -53,6 +48,7 @@ export async function GET(
           color: isNaN(parsedColor) ? 3447003 : parsedColor,
           description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](https://teamwars.web.id/logo/${logoFile}/download)**`,
           image: { 
+            // Tetap panggil dari Cloudinary untuk render gambar di Discord
             url: `https://res.cloudinary.com/dhplw8rsd/image/upload/v1783422734/logo/${logoFile}`
           },
           fields: [
@@ -63,7 +59,7 @@ export async function GET(
     });
 
     if (response.ok) {
-      // Simpan status ke KV database
+      // Kunci ID pesannya di database biar nggak spam
       await kv.set(`patched_discord_msg:${messageId}`, true);
       return new NextResponse(`✅ SUKSES! Pesan ID ${messageId} untuk tim ${teamName} berhasil diperbarui.`, { status: 200 });
     } else {
@@ -75,4 +71,4 @@ export async function GET(
     console.error("Error patching message:", error);
     return new NextResponse('Terjadi kesalahan internal server.', { status: 500 });
   }
-}
+          }
