@@ -79,4 +79,4 @@ export default async function EditTeamPage({ params }: { params: { token: string
       </div>
     </main>
   );
-              }
+}
