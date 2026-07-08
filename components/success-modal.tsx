@@ -7,6 +7,7 @@ interface SuccessModalProps {
   open: boolean
   onClose: () => void
   namaTim: string
+  isEditMode?: boolean
 }
 
 export function SuccessModal({ open, onClose, namaTim }: SuccessModalProps) {
