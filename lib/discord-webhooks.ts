@@ -57,7 +57,7 @@ export async function sendAllWebhooks(params: {
 }) {
   const { namaTim, warna, ketua, wakil, players, totalRoster, teamSlug, logoTim, buktiTransfer, createdAt, updatedAt } = params;
   
-  const properTeamName = toProperCase(namaTim);
+  const namaTim = toProperCase(namaTim);
   
   let directDownloadLogo = logoTim;
 
@@ -89,7 +89,7 @@ export async function sendAllWebhooks(params: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
         embeds: [{
-          title: properTeamName,
+          title: namaTim,
           color: embedColor,
           thumbnail: { url: logoTim },
           fields: [
@@ -107,9 +107,9 @@ export async function sendAllWebhooks(params: {
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        content: `<@&836952890991968266> 💰 Setoran Masuk dari **${properTeamName}**!`, 
+        content: `<@&836952890991968266> 💰 Setoran Masuk dari **${namaTim}**!`, 
         embeds: [{
-          title: `Detail Registrasi: ${properTeamName}`,
+          title: `Detail Registrasi: ${namaTim}`,
           color: embedColor,
           description: `**[✅ KLIK DISINI UNTUK KONFIRMASI PEMBAYARAN](https://teamwars.web.id/api/approve?team=${teamSlug})**\n*(Link akan membuka browser & mengirim email sukses ke peserta)*`,
           image: { url: buktiTransfer },
@@ -126,9 +126,9 @@ export async function sendAllWebhooks(params: {
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        content: `<@&1171096454685794324> 🎨 Aset Tim Baru: **${properTeamName}**!`, 
+        content: `<@&1171096454685794324> 🎨 Aset Tim Baru: **${namaTim}**!`, 
         embeds: [{
-          title: `Aset Visual: ${properTeamName}`,
+          title: `Aset Visual: ${namaTim}`,
           color: embedColor,
           description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](${directDownloadLogo})**`,
           image: { url: logoTim },
@@ -144,7 +144,7 @@ export async function sendAllWebhooks(params: {
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        content: `🔥 Tim **${properTeamName}** telah resmi mendaftar ke TWI Season 7 membawa **${totalRoster}** pemain elit!`
+        content: `🔥 Tim **${namaTim}** telah resmi mendaftar ke TWI Season 7 membawa **${totalRoster}** pemain elit!`
       }
     }
   ];
