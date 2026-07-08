@@ -57,8 +57,6 @@ export async function sendAllWebhooks(params: {
 }) {
   const { namaTim, warna, ketua, wakil, players, totalRoster, teamSlug, logoTim, buktiTransfer, createdAt, updatedAt } = params;
   
-  const namaTim = toProperCase(namaTim);
-  
   let directDownloadLogo = logoTim;
 
   // Mengecek apakah URL logo benar dari folder '/upload/logo/' Cloudinary
