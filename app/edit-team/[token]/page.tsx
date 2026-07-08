@@ -1,44 +1,47 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation"; // 👈 Kita pakai hook navigasi bawaan Next.js
+import { kv } from "@vercel/kv";
+import { notFound } from "next/navigation";
+import { CLOSE_TARGET } from "@/lib/config";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { RegistrationForm } from "@/components/registration-form";
 
-export default function EditTeamPage() {
-  const params = useParams();
-  // Tarik token dengan aman dari parameter URL
-  const token = params?.token as string;
+// Hapus "use client", biarkan file ini berjalan murni di Server
+export default async function EditTeamPage({ params }: { params: { token: string } }) {
+  const token = params.token;
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [initialData, setInitialData] = useState<any>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  if (!token) {
+    notFound();
+  }
 
-  useEffect(() => {
-    // 🛑 Jangan nembak API kalau token di URL belum kebaca sama browser
-    if (!token) return;
+  // 1. Cari slug tim berdasarkan token di brankas Redis
+  const teamSlug = await kv.get<string>(`token:map:${token}`);
+  if (!teamSlug) {
+    // Jika token asal/salah, langsung arahkan ke halaman 404
+    notFound(); 
+  }
 
-    async function fetchTeamData() {
-      try {
-        console.log("Mencari data untuk token:", token); // 👈 Buat alat bantu debug di F12
-        
-        const res = await fetch(`/api/edit-team?token=${token}`);
-        const data = await res.json();
-        
-        if (!res.ok) {
-          throw new Error(data.error || "Token kadaluarsa atau tidak valid.");
-        }
-        
-        setInitialData(data.team);
-      } catch (err: any) {
-        setErrorMsg(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    
-    fetchTeamData();
-  }, [token]); // 👈 Effect akan jalan ulang kalau token udah siap
+  // 2. Tarik data lengkap tim
+  const teamData: any = await kv.hgetall(`teams:${teamSlug}`);
+  if (!teamData) {
+    notFound();
+  }
+
+  // 3. Cek batas waktu pendaftaran
+  const isClosed = Date.now() > CLOSE_TARGET;
+
+  // 4. Pastikan data 'players' di-parse menjadi array
+  let parsedPlayers = [];
+  try {
+    parsedPlayers = typeof teamData.players === 'string' 
+      ? JSON.parse(teamData.players) 
+      : (teamData.players || []);
+  } catch (e) {
+    parsedPlayers = [];
+  }
+
+  const cleanTeamData = {
+    ...teamData,
+    players: parsedPlayers
+  };
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
@@ -47,25 +50,33 @@ export default function EditTeamPage() {
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6">
         <HeroHeader />
+        
         <section className="flex w-full max-w-4xl flex-col items-center">
-          {isLoading ? (
-             <div className="py-20 text-center text-primary animate-pulse font-bold">
-               Memverifikasi Akses Token...
-             </div>
-          ) : errorMsg ? (
-             <div className="w-full max-w-2xl rounded-xl border border-destructive/40 bg-destructive/10 p-6 text-center text-destructive">
-               <h3 className="text-lg font-bold mb-2">Akses Ditolak</h3>
-               <p className="font-semibold">{errorMsg}</p>
+          {isClosed ? (
+             <div className="w-full max-w-2xl rounded-xl border border-destructive/40 bg-destructive/10 p-8 text-center shadow-xl backdrop-blur-md">
+               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/20 text-destructive text-3xl">
+                 🔒
+               </div>
+               <h3 className="text-xl font-bold mb-2 text-foreground">Pendaftaran Ditutup</h3>
+               <p className="font-semibold text-muted-foreground text-sm">
+                 Batas waktu pendaftaran dan modifikasi roster untuk TWI Season 7 telah berakhir. 
+                 Silakan hubungi admin di Discord jika terdapat kendala darurat.
+               </p>
              </div>
           ) : (
             <div className="w-full max-w-2xl">
-              {/* Form registrasi mode edit */}
-              <RegistrationForm isEditMode={true} initialData={initialData} />
+              {/* Form registrasi mode edit langsung di-render! */}
+              <RegistrationForm 
+                isEditMode={true} 
+                initialData={cleanTeamData} 
+                editToken={token} 
+              />
             </div>
           )}
         </section>
+        
         <Footer />
       </div>
     </main>
   );
-            }
+              }
