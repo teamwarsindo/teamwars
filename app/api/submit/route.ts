@@ -8,11 +8,6 @@ import { sendAllWebhooks } from '@/lib/discord-webhooks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-interface ErrorDetail {
-  field: string;
-  message: string;
-}
-
 async function sendEmailSafe(params: any) {
   try {
     await resend.emails.send(params);
@@ -26,63 +21,7 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
 
     // ==========================================
-    // 1. PRE-FLIGHT CHECK (SMART SELF-EXCLUSION)
-    // ==========================================
-    if (data.isPreFlight) {
-      const { namaTim, players, excludeSlug } = data;
-      const errorList: ErrorDetail[] = [];
-
-      if (!namaTim) {
-        return NextResponse.json({ success: false, message: "Nama tim kosong." }, { status: 400 });
-      }
-
-      const teamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
-      
-      // Cek duplikat nama tim (Abaikan jika slug sama dengan tim yang sedang diedit)
-      if ((!excludeSlug || excludeSlug !== teamSlug) && await kv.exists(`teams:${teamSlug}`)) {
-        errorList.push({ 
-          field: 'namaTim', 
-          message: `Nama tim "${namaTim}" sudah terdaftar! Gunakan nama lain.` 
-        });
-      }
-
-      if (players && players.length > 0) {
-        // Ambil data lama jika ini mode Edit (excludeSlug ada) untuk diabaikan
-        let oldIgns: string[] = [];
-        let oldDiscords: string[] = [];
-        let oldDuelLinks: string[] = [];
-
-        if (excludeSlug) {
-          const oldData: any = await kv.hgetall(`teams:${excludeSlug}`);
-          if (oldData && oldData.players) {
-            const parsedOldPlayers = JSON.parse(oldData.players);
-            oldIgns = parsedOldPlayers.map((p: any) => p.ign.toLowerCase());
-            oldDiscords = parsedOldPlayers.map((p: any) => p.discord.toLowerCase());
-            oldDuelLinks = parsedOldPlayers.map((p: any) => p.idDuelLinks || p.duelId);
-          }
-        }
-
-        for (let i = 0; i < players.length; i++) {
-          const p = players[i];
-          
-          if (p.ign && !oldIgns.includes(p.ign.toLowerCase()) && await kv.sismember("global:ign", p.ign.toLowerCase())) {
-            errorList.push({ field: `players.${i}.ign`, message: `IGN "${p.ign}" sudah terdaftar!` });
-          }
-          if (p.discord && !oldDiscords.includes(p.discord.toLowerCase()) && await kv.sismember("global:discord", p.discord.toLowerCase())) {
-            errorList.push({ field: `players.${i}.discord`, message: `Discord @${p.discord} sudah terdaftar!` });
-          }
-          if (p.idDuelLinks && !oldDuelLinks.includes(p.idDuelLinks) && await kv.sismember("global:duellinks", p.idDuelLinks)) {
-            errorList.push({ field: `players.${i}.idDuelLinks`, message: `ID Duel Links ${p.idDuelLinks} sudah terdaftar!` });
-          }
-        }
-      }
-
-      if (errorList.length > 0) return NextResponse.json({ success: false, errors: errorList }, { status: 409 });
-      return NextResponse.json({ success: true, message: "Aman, silakan lanjut upload!" });
-    }
-
-    // ==========================================
-    // 2. MAIN SUBMISSION (NEW TEAM)
+    // 1. MAIN SUBMISSION (NEW TEAM)
     // ==========================================
     const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
     const teamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
@@ -144,7 +83,7 @@ export async function POST(request: NextRequest) {
     };
 
     // ==========================================
-    // 3. ORKESTRASI BACKGROUND TASKS
+    // 2. ORKESTRASI BACKGROUND TASKS
     // ==========================================
     const emailPromise = email 
       ? sendEmailSafe({ 
@@ -158,7 +97,6 @@ export async function POST(request: NextRequest) {
     const discordTasks = async () => {
       try {
         const roleId = await createDiscordRole(namaTim, warna);
-        
         if (roleId) {
           await createDiscordChannel(namaTim, roleId);
         }
@@ -172,14 +110,15 @@ export async function POST(request: NextRequest) {
         });
 
         // 🚨 SIMPAN SEMUA ID PENTING KE REDIS
-        await kv.hset(kvKey, { 
-          discordRoleId: roleId || "",
-          adminMsgId: webhookMsgIds["Admin"] || "",
-          financeMsgId: webhookMsgIds["Finance"] || "",
-          creativeMsgId: webhookMsgIds["Creative"] || "",
-          publicMsgId: webhookMsgIds["Public"] || ""
-        });
-
+        if (webhookMsgIds) {
+          await kv.hset(kvKey, { 
+            discordRoleId: roleId || "",
+            adminMsgId: webhookMsgIds["Admin"] || "",
+            financeMsgId: webhookMsgIds["Finance"] || "",
+            creativeMsgId: webhookMsgIds["Creative"] || "",
+            publicMsgId: webhookMsgIds["Public"] || ""
+          });
+        }
       } catch (err) {
         console.error("Gagal tugas Discord:", err);
       }
@@ -189,8 +128,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, message: "Pendaftaran berhasil!" });
 
   } catch (error: unknown) {
+    console.error("API Submit Error:", error);
     return NextResponse.json({ success: false, error: "Terjadi kesalahan server" }, { status: 500 });
   }
 }
-                            
-  
