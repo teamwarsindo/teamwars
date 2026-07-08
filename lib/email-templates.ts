@@ -25,7 +25,7 @@ export function getPesertaTemplate(data: {
   buktiTransfer: string;
   players: any[];
 }) {
-  const properTeamName = toProperCase(data.namaTim);
+
   const submitTime = getWIBTime();
 
   // Logika Sorting Roster: Ketua (1) -> Wakil Ketua (2) -> Anggota (3)
@@ -52,7 +52,7 @@ export function getPesertaTemplate(data: {
 
         <h2 style="margin-top: 0; color: #ffffff; font-size: 20px;">Halo, ${data.ketua.namaLengkap}!</h2>
         <p style="color: #cccccc; line-height: 1.6; font-size: 15px;">
-          Pendaftaran tim <strong>${properTeamName}</strong> telah berhasil kami terima pada <strong>${submitTime}</strong>.
+          Pendaftaran tim <strong>${data.namaTim}</strong> telah berhasil kami terima pada <strong>${submitTime}</strong>.
         </p>
         
         <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna};">
