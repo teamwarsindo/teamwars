@@ -113,7 +113,7 @@ export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean 
           }))
         }
 
-        const res = await fetch("/api/submit", {
+        const res = await fetch("/api/pre-flight", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(preFlightPayload),
