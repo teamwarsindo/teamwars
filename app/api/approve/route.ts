@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     // 4. Update status di Redis jadi Approved
     await kv.hset(kvKey, { statusVerifikasi: 'Approved' });
 
-    const properTeamName = teamData.namaTim.toUpperCase();
+    const TeamName = teamData.namaTim;
 
     // ==========================================
     // 5. UPDATE WEBHOOK DISCORD (PATCH MESSAGE)
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           embeds: [{
-            title: `Detail Registrasi: ${properTeamName}`,
+            title: `Detail Registrasi: ${TeamName}`,
             color: 3066993, // Warna Hijau (Success)
             description: `**✅ PEMBAYARAN TELAH DIKONFIRMASI!**\nTim verifikator telah menyetujui setoran ini dan email konfirmasi otomatis telah meluncur ke peserta.`,
             image: { url: teamData.buktiTransfer },
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       await resend.emails.send({
         from: EMAIL_CONFIG.sender,
         to: teamData.email,
-        subject: `✅ Pendaftaran Berhasil: Tim ${properTeamName} [Teamwars S7]`,
+        subject: `✅ Pendaftaran Berhasil: Tim ${TeamName} [Teamwars S7]`,
         html: `
           <!-- BORDER UTAMA MENGGUNAKAN WARNA HEX TIM -->
           <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background-color: #121212; color: #ffffff; border-radius: 10px; overflow: hidden; border: 2px solid ${warnaTim};">
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
               <!-- GREETING & BODY PESAN -->
               <h2 style="margin-top: 0; color: #ffffff; font-size: 20px;">Halo, ${ketuaTim.namaLengkap}!</h2>
               <p style="color: #cccccc; line-height: 1.6; font-size: 15px;">
-                Pembayaran atas pendaftaran tim <strong>${properTeamName}</strong> telah berhasil kami verifikasi pada <strong>${waktuKonfirmasi}</strong>.
+                Pembayaran atas pendaftaran tim <strong>${TeamName}</strong> telah berhasil kami verifikasi pada <strong>${waktuKonfirmasi}</strong>.
               </p>
 
               <!-- INSTRUKSI WAJIB DISCORD -->
@@ -188,7 +188,7 @@ DATA BARU (Isi pada bagian yang berubah saja):
     return new NextResponse(renderHTML(`
       <div style="font-family: sans-serif; text-align: center; background-color: #052e16; padding: 40px; border-radius: 12px; max-width: 500px; border: 1px solid #166534; color: #f0fdf4; width: 100%;">
         <h1 style="color: #4ade80; margin-top: 0;">✅ Berhasil Dikonfirmasi!</h1>
-        <p style="color: #bbf7d0; font-size: 18px; margin-bottom: 5px;">Status tim <strong>${properTeamName}</strong> telah diubah menjadi Approved.</p>
+        <p style="color: #bbf7d0; font-size: 18px; margin-bottom: 5px;">Status tim <strong>${TeamName}</strong> telah diubah menjadi Approved.</p>
         <p style="color: #86efac; margin-top: 0;">Email konfirmasi resmi otomatis telah dikirim.</p>
         <p style="color: #475569; margin-top: 30px; font-size: 14px;">Anda sudah bisa menutup tab browser ini dan kembali ke Discord.</p>
       </div>
