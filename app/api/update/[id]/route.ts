@@ -3,22 +3,25 @@ import { kv } from '@vercel/kv';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  // 1. UPDATE DI SINI: params sekarang adalah sebuah Promise
+  context: { params: Promise<{ id: string }> } 
 ) {
   try {
-    const messageId = params.id;
+    // 2. UPDATE DI SINI: Kita harus 'await' params sebelum mengambil id-nya
+    const { id } = await context.params;
+    const messageId = id;
 
     if (!messageId) {
       return new NextResponse('ID Pesan tidak boleh kosong.', { status: 400 });
     }
 
-    // 1. CEK DATABASE: Apakah pesan ini sudah pernah di-update?
+    // Cek apakah pesan ini sudah pernah di-update?
     const isUpdated = await kv.get(`patched_discord_msg:${messageId}`);
     if (isUpdated) {
       return new NextResponse(`⚠️ Pesan dengan ID ${messageId} sudah pernah di-update. Eksekusi dibatalkan untuk mencegah spam.`, { status: 200 });
     }
 
-    // 2. TANGKAP PARAMETER DARI URL (Untuk kebutuhan Reusable)
+    // Tangkap Parameter dari URL
     const searchParams = request.nextUrl.searchParams;
     const teamName = searchParams.get('team');
     const colorHex = searchParams.get('color');
@@ -29,7 +32,7 @@ export async function GET(
       return new NextResponse('❌ Parameter tidak lengkap! Pastikan URL mengandung ?team=...&color=...&logo=...', { status: 400 });
     }
 
-    // 3. EKSEKUSI UPDATE KE DISCORD
+    // Eksekusi Update ke Discord
     const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_CREATIVE;
     if (!WEBHOOK_URL) {
       return new NextResponse('Webhook URL tidak ditemukan di environment.', { status: 500 });
@@ -50,7 +53,6 @@ export async function GET(
           color: isNaN(parsedColor) ? 3447003 : parsedColor,
           description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](https://teamwars.web.id/logo/${logoFile}/download)**`,
           image: { 
-            // Tetap panggil dari Cloudinary untuk render gambar
             url: `https://res.cloudinary.com/dhplw8rsd/image/upload/v1783422734/logo/${logoFile}`
           },
           fields: [
@@ -61,9 +63,8 @@ export async function GET(
     });
 
     if (response.ok) {
-      // 4. SIMPAN STATUS KE DATABASE (Biar ke-lock dan gak bisa di-update 2x)
+      // Simpan status ke KV database
       await kv.set(`patched_discord_msg:${messageId}`, true);
-      
       return new NextResponse(`✅ SUKSES! Pesan ID ${messageId} untuk tim ${teamName} berhasil diperbarui.`, { status: 200 });
     } else {
       const err = await response.json();
