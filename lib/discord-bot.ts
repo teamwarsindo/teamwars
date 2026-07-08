@@ -6,7 +6,7 @@ function toProperCase(str: string) {
   );
 }
 
-export async function createDiscordRole(teamName: string, colorHex: string) {
+export async function createDiscorfdRole(teamName: string, colorHex: string) {
   const guildId = process.env.DISCORD_GUILD_ID;
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!guildId || !token) return null;
@@ -18,7 +18,7 @@ export async function createDiscordRole(teamName: string, colorHex: string) {
       method: 'POST',
       headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: toProperCase(teamName), // Fix: Menggunakan Proper Case
+        name: teamName, // Sesuai input peserta
         color: decimalColor,
         hoist: false,
         mentionable: true
