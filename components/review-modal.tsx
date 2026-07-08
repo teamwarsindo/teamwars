@@ -13,6 +13,7 @@ interface ReviewModalProps {
   submitting: boolean
   serverError: string | null
   onConfirm: () => void
+  isEditMode?: boolean
 }
 
 const roleIcons: Record<string, string> = { 
