@@ -79,11 +79,11 @@ export function RosterSection({
       <div className="flex flex-col gap-4">
         {players.map((p, index) => {
           
-          // 🛑 LOGIKA PENGUNCIAN KETUA & WAKIL DI EDIT MODE
           const isLeadership = p.role === "Ketua" || p.role === "Wakil Ketua";
-          const isLockedLeader = isEditMode && isLeadership;
           
-          const canDelete = players.length > MIN_PLAYERS && !isLockedLeader;
+          // Tombol delete (TrashIcon) hanya muncul jika jumlah pemain masih di atas batas minimal
+          // dan (jika dalam mode edit) HANYA untuk pemain dengan role 'Anggota'
+          const canDelete = players.length > MIN_PLAYERS && !(isEditMode && isLeadership);
           
           const roleBg = isLeadership ? "bg-amber-100 text-amber-800 border-amber-300" : "bg-blue-100 text-blue-700 border-blue-300"
           const roleIcon = p.role === "Ketua" ? "👑" : p.role === "Wakil Ketua" ? "🌟" : "👤"
@@ -96,27 +96,35 @@ export function RosterSection({
                     {index + 1}
                   </span>
                   
-                  <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${roleBg} ${isLockedLeader ? 'opacity-70' : ''}`}>
+                  {/* 🔥 PERBAIKAN DI SINI: Dropdown Role dikunci mati untuk SEMUA role jika isEditMode */}
+                  <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${roleBg} ${isEditMode ? 'opacity-70' : ''}`}>
                     <span>{roleIcon}</span>
-                    <select disabled={isLockedLeader} value={p.role} onChange={(e) => changeRole(p.id, e.target.value as RosterRole)} className={`bg-transparent font-semibold outline-none ${isLockedLeader ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                    <select disabled={isEditMode} value={p.role} onChange={(e) => changeRole(p.id, e.target.value as RosterRole)} className={`bg-transparent font-semibold outline-none ${isEditMode ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                       {ROSTER_ROLES.map((r) => <option key={r} value={r} className="text-foreground bg-background">{r}</option>)}
                     </select>
                   </div>
-                  {isLockedLeader && <span className="text-xs font-bold text-destructive ml-2">(Terkunci)</span>}
+                  {/* Hapus label (Terkunci) yang merah karena sudah diwakili oleh opacity dropdown */}
                 </div>
-                <button type="button" onClick={() => removePlayer(p.id)} disabled={!canDelete} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30">
+                
+                {/* Tombol Hapus Pemain (Hanya disabled untuk Ketua/Wakil saat Edit Mode, atau jika limit minimal tercapai) */}
+                <button type="button" onClick={() => removePlayer(p.id)} disabled={!canDelete} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30 disabled:cursor-not-allowed" title={!canDelete ? "Tidak dapat dihapus" : "Hapus Pemain"}>
                   <TrashIcon className="h-4 w-4" />
                 </button>
               </div>
+              
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* 🔥 PERBAIKAN DI SINI: Nama Lengkap & Discord dikunci HANYA untuk Ketua & Wakil saat Edit Mode.
+                    Anggota biasa (baik lama maupun baru) TETAP BISA diedit identitasnya. */}
                 <div>
-                  <input disabled={isLockedLeader} type="text" value={p.namaLengkap} onChange={(e) => updatePlayer(p.id, { namaLengkap: sanitizeRealName(e.target.value) })} onBlur={(e) => { updatePlayer(p.id, { namaLengkap: toProperCase(e.target.value) }); markTouched(`${p.id}-namaLengkap`) }} placeholder="Nama Lengkap" className={`${inputBase} ${isLockedLeader ? 'opacity-60 cursor-not-allowed bg-muted' : ''} ${err(`${p.id}-namaLengkap`) ? "border-destructive" : "border-border"}`} />
+                  <input disabled={isEditMode && isLeadership} type="text" value={p.namaLengkap} onChange={(e) => updatePlayer(p.id, { namaLengkap: sanitizeRealName(e.target.value) })} onBlur={(e) => { updatePlayer(p.id, { namaLengkap: toProperCase(e.target.value) }); markTouched(`${p.id}-namaLengkap`) }} placeholder="Nama Lengkap" className={`${inputBase} ${isEditMode && isLeadership ? 'opacity-60 cursor-not-allowed bg-muted' : ''} ${err(`${p.id}-namaLengkap`) ? "border-destructive" : "border-border"}`} />
                   <ErrorText msg={err(`${p.id}-namaLengkap`)} />
                 </div>
                 <div>
-                  <input disabled={isLockedLeader} type="text" value={p.discord} onChange={(e) => updatePlayer(p.id, { discord: sanitizeDiscord(e.target.value) })} onBlur={() => markTouched(`${p.id}-discord`)} placeholder="Discord Username" className={`${inputBase} ${isLockedLeader ? 'opacity-60 cursor-not-allowed bg-muted' : ''} ${err(`${p.id}-discord`) ? "border-destructive" : "border-border"}`} />
+                  <input disabled={isEditMode && isLeadership} type="text" value={p.discord} onChange={(e) => updatePlayer(p.id, { discord: sanitizeDiscord(e.target.value) })} onBlur={() => markTouched(`${p.id}-discord`)} placeholder="Discord Username" className={`${inputBase} ${isEditMode && isLeadership ? 'opacity-60 cursor-not-allowed bg-muted' : ''} ${err(`${p.id}-discord`) ? "border-destructive" : "border-border"}`} />
                   <ErrorText msg={err(`${p.id}-discord`)} />
                 </div>
+                
+                {/* IGN & DuelID bebas diedit oleh siapa pun */}
                 <div>
                   <input type="text" value={p.ign} onChange={(e) => updatePlayer(p.id, { ign: e.target.value })} onBlur={() => markTouched(`${p.id}-ign`)} placeholder="In-Game Name (IGN)" className={`${inputBase} ${err(`${p.id}-ign`) ? "border-destructive" : "border-border"}`} />
                   <ErrorText msg={err(`${p.id}-ign`)} />
