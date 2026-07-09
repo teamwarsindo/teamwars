@@ -50,9 +50,13 @@ export function SuccessModal({ open, onClose, namaTim }: SuccessModalProps) {
             <CheckIcon className="h-10 w-10 text-primary-foreground" />
           </div>
           
-          <h2 className="text-xl font-bold text-foreground">Pendaftaran Berhasil!</h2>
+          <h2 className="text-xl font-bold text-foreground">
+            {isEditMode ? "Perubahan Tersimpan!" : "Pendaftaran Berhasil!"}
+          </h2>
           <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-            Tim <span className="font-semibold text-primary">{namaTim}</span> telah berhasil didaftarkan ke Team Wars Indonesia Season 7.
+            {isEditMode ? (
+              <> Data tim <span className="font-semibold text-primary">{namaTim}</span> telah berhasil diperbarui di sistem. </> ) : (
+              <> Tim <span className="font-semibold text-primary">{namaTim}</span> telah berhasil didaftarkan ke Team Wars Indonesia Season 7. </> )}
           </p>
         </div>
 
