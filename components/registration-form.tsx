@@ -51,6 +51,39 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
     }
   }, [isEditMode, initialData]); 
 
+  // ⚡ SMART DETECTOR: Mengecek apakah ada perubahan nyata dari data awal
+  import { useMemo } from 'react'; // Pastikan di-import di atas
+
+  const hasChanges = useMemo(() => {
+    // Kalau bukan mode edit atau data belum ada, anggap selalu ada perubahan
+    if (!isEditMode || !initialData) return true; 
+
+    // 1. Cek perubahan nama tim & warna (mengabaikan spasi di awal/akhir)
+    const nameChanged = team.namaTim.trim() !== (initialData.namaTim || "").trim();
+    const colorChanged = team.hex.toLowerCase() !== (initialData.warna || "").toLowerCase();
+
+    // 2. Cek perubahan roster (hanya fokus ke data yang bisa diinput)
+    const currentRoster = roster.players.map((p: any) => ({
+      ign: p.ign.trim(),
+      discord: p.discord.trim(),
+      duelId: p.duelId.trim(),
+      role: p.role
+    }));
+
+    const originalRoster = (initialData.players || []).map((p: any) => ({
+      ign: (p.ign || "").trim(),
+      discord: (p.discord || "").trim(),
+      duelId: (p.idDuelLinks || p.duelId || "").trim(),
+      role: p.role
+    }));
+
+    // Bandingkan array roster menggunakan JSON.stringify
+    const rosterChanged = JSON.stringify(currentRoster) !== JSON.stringify(originalRoster);
+
+    // Kalau ada salah satu aja yang berubah, return true!
+    return nameChanged || colorChanged || rosterChanged;
+  }, [team.namaTim, team.hex, roster.players, isEditMode, initialData]);
+  
   return (
     <>
       <form id="registration-form" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-6">
@@ -81,7 +114,7 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
           <button
             type="button" 
             onClick={flow.handleReviewClick} 
-            disabled={!flow.canSubmit} 
+            disabled={!flow.canSubmit || (isEditMode && !hasChanges)}
             className="w-full rounded-xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >
             {flow.isChecking 
