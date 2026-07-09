@@ -53,17 +53,17 @@ export function getPesertaTemplate(data: {
           ⏳ STATUS: PENDING (Menunggu Konfirmasi Tim Finance)
         </div>
 
-        <h2 style="margin-top: 0; color: #ffffff; font-size: 20px;">Halo, ${data.ketua.namaLengkap}!</h2>
+        <h2 style="margin-top: 0; color: #ffffff; font-size: 20px;">Halo, ${toProperCase(data.ketua.namaLengkap)}!</h2>
         <p style="color: #cccccc; line-height: 1.6; font-size: 15px;">
           Pendaftaran tim <strong>${data.namaTim}</strong> telah berhasil kami terima pada <strong>${submitTime}</strong>.
         </p>
         
-        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna};">
+        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #333; border-left: 4px solid ${data.warna};">
           <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Aset Visual & Pembayaran</h3>
           
           <div style="text-align: center; margin-top: 15px; margin-bottom: 15px;">
             <span style="display: block; color: #aaaaaa; font-size: 12px; margin-bottom: 5px; font-weight: bold;">KODE WARNA TIM</span>
-            <div style="display: inline-block; background-color: ${data.warna}; padding: 5px 15px; border-radius: 4px; color: #fff; text-shadow: 1px 1px 2px #000; font-weight: bold; font-family: monospace;">
+            <div style="display: inline-block; background-color: ${data.warna}; padding: 5px 15px; border-radius: 4px; color: #fff; text-shadow: 1px 1px 2px #000; font-weight: bold; font-family: monospace; border: 1px solid rgba(255,255,255,0.2);">
               ${data.warna}
             </div>
           </div>
@@ -72,23 +72,23 @@ export function getPesertaTemplate(data: {
             <tr>
               <td style="text-align: center; width: 50%; padding-right: 5px;">
                 <span style="display: block; color: #aaaaaa; font-size: 12px; margin-bottom: 8px; font-weight: bold;">LOGO TIM</span>
-                <img src="${data.logoTim}" alt="Logo Tim" style="max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; background-color: #000;" />
+                <img src="${data.logoTim}" alt="Logo Tim" style="max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; background-color: #000; border: 1px solid #444;" />
               </td>
               <td style="text-align: center; width: 50%; padding-left: 5px;">
                 <span style="display: block; color: #aaaaaa; font-size: 12px; margin-bottom: 8px; font-weight: bold;">BUKTI TRANSFER</span>
-                <img src="${data.buktiTransfer}" alt="Bukti Transfer" style="max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain;" />
+                <img src="${data.buktiTransfer}" alt="Bukti Transfer" style="max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; border: 1px solid #444;" />
               </td>
             </tr>
           </table>
         </div>
 
-        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${data.warna};">
+        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #333; border-left: 4px solid ${data.warna};">
           <h3 style="margin-top: 0; margin-bottom: 20px; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Roster Lengkap (${data.totalRoster} Pemain)</h3>
           
           ${sortedPlayers.map(p => `
-            <div style="background-color: #292929; border-radius: 8px; padding: 15px; margin-bottom: 12px; border-left: 3px solid ${p.role !== 'Anggota' ? data.warna : '#555555'};">
+            <div style="background-color: #292929; border-radius: 8px; padding: 15px; margin-bottom: 12px; border-left: 3px solid #555555;">
               <div style="margin-bottom: 10px;">
-                <span style="background-color: ${p.role !== 'Anggota' ? data.warna + '33' : '#444444'}; color: ${p.role !== 'Anggota' ? data.warna : '#cccccc'}; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase;">
+                <span style="background-color: ${p.role !== 'Anggota' ? data.warna + '33' : '#444444'}; color: ${p.role !== 'Anggota' ? data.warna : '#cccccc'}; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; border: 1px solid ${p.role !== 'Anggota' ? data.warna + '4D' : '#555555'};">
                   ${p.role}
                 </span>
               </div>
@@ -145,20 +145,20 @@ export function getApprovalTemplate(data: {
         </div>
 
         <!-- GREETING & BODY PESAN -->
-        <h2 style="margin-top: 0; color: #ffffff; font-size: 20px;">Halo, ${data.namaKetua}!</h2>
+        <h2 style="margin-top: 0; color: #ffffff; font-size: 20px;">Halo, ${toProperCase(data.namaKetua)}!</h2>
         <p style="color: #cccccc; line-height: 1.6; font-size: 15px;">
           Pembayaran atas pendaftaran tim <strong>${data.namaTim}</strong> telah berhasil kami verifikasi pada <strong>${data.waktuKonfirmasi}</strong>.
         </p>
 
         <!-- INSTRUKSI WAJIB DISCORD -->
-        <div style="background-color: #1e1e1e; padding: 20px; border-left: 4px solid ${data.warna}; margin: 25px 0; border-radius: 6px;">
+        <div style="background-color: #1e1e1e; padding: 20px; border: 1px solid #333; border-left: 4px solid ${data.warna}; margin: 25px 0; border-radius: 6px;">
           <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; margin-bottom: 10px;">Langkah Selanjutnya: Wajib Join Discord!</h3>
           <p style="margin: 0 0 15px 0; color: #cccccc; line-height: 1.6; font-size: 14px;">
             Harap segera bergabung ke server Discord Team Wars Indonesia untuk mendapatkan <strong>Role Tim</strong> dan akses penuh ke <em>channel</em> khusus tim Anda.
           </p>
           
           <div style="margin-bottom: 15px; text-align: center; background-color: #000; padding: 15px; border-radius: 6px; border: 1px solid #333;">
-            <a href="https://teamwars.web.id/invite" style="background-color: #5865F2; color: #ffffff; padding: 10px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-size: 14px; letter-spacing: 1px;">JOIN DISCORD TWI SEKARANG</a>
+            <a href="https://teamwars.web.id/invite" style="background-color: #5865F2; color: #ffffff; padding: 10px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-size: 14px; letter-spacing: 1px; border: 1px solid #4752C4;">JOIN DISCORD TWI SEKARANG</a>
             <p style="margin: 10px 0 0 0; color: #888888; font-size: 12px;">Atau gunakan link: <a href="https://teamwars.web.id/invite" style="color: #4facfe;">https://teamwars.web.id/invite</a></p>
           </div>
           
@@ -168,14 +168,14 @@ export function getApprovalTemplate(data: {
         </div>
 
         <!-- LINK EDIT TOKEN -->
-        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 8px; margin: 25px 0;">
+        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #333; border-left: 4px solid ${data.warna};">
           <h3 style="margin-top: 0; color: #ffffff; font-size: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">⚙️ Manajemen Roster Tim</h3>
           <p style="color: #cccccc; font-size: 13px; line-height: 1.6;">
             Sebagai pengingat, kuota maksimal untuk satu tim adalah <strong>10 pemain</strong> (termasuk Ketua dan Wakil). Anda diberikan akses khusus untuk mengubah data pemain, menambah roster, atau memperbaiki kesalahan penulisan (<em>typo</em>) secara mandiri.
           </p>
           
           <div style="text-align: center; margin: 25px 0;">
-            <a href="https://teamwars.web.id/edit-team/${data.editToken}" style="background-color: ${data.warna}; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px; letter-spacing: 1px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
+            <a href="https://teamwars.web.id/edit-team/${data.editToken}" style="background-color: #5865F2; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px; letter-spacing: 1px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); border: 1px solid #4752C4;">
               ✏️ KLIK DISINI UNTUK MENGEDIT ROSTER TIM
             </a>
             <p style="margin: 12px 0 0 0; color: #888888; font-size: 11px;">Link ini bersifat rahasia. Jangan bagikan kepada pihak selain manajemen tim Anda.</p>
@@ -198,5 +198,4 @@ export function getApprovalTemplate(data: {
 
     </div>
   `;
-          }
-              
+}
