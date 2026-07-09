@@ -121,8 +121,7 @@ export async function POST(req: NextRequest) {
               { name: "Players", value: playerListString, inline: false }
             ],
             footer: {
-              text: `Tercatat di sistem pada ${formatDate(oldTeamData.createdAt)}`
-              //text: `Tercatat di sistem pada ${formatDate(oldTeamData.createdAt)}\nDiperbarui pada ${formatDate(new Date().toISOString())}`
+              text: `Tercatat di sistem pada ${formatDate(oldTeamData.createdAt)}\nDiperbarui pada ${formatDate(new Date().toISOString())}`
             }
           }] // 👈 INI YANG KURANG TADI
         })   // 👈 DAN INI JUGA
