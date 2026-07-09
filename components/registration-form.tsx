@@ -25,7 +25,6 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
   const hasInitialized = useRef(false);
 
   useEffect(() => {
-    // ⚡ 2. Cek gembok: Kalau sudah pernah diisi (!hasInitialized.current), jangan jalan lagi!
     if (isEditMode && initialData && !hasInitialized.current) {
       team.setEmail(initialData.email || "");
       team.setNamaTim(initialData.namaTim || "");
@@ -34,12 +33,22 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
       team.setLogo({ url: initialData.logoTim, name: "logo-terkunci.png", size: 0 });
       team.setBukti({ url: initialData.buktiTransfer, name: "bukti-terkunci.jpg", size: 0 });
       
-      roster.setPlayers(initialData.players || []);
+      // 🔥 PENYELAMATNYA DI SINI: Selaraskan data DB ke format yang dikenal form
+      const mappedPlayers = (initialData.players || []).map((p: any, index: number) => ({
+        ...p,
+        id: p.id || `player-${index}`, // Wajib ada ID unik
+        namaLengkap: p.namaLengkap || "",
+        ign: p.ign || "",
+        discord: p.discord || "",
+        // Sinkronisasi idDuelLinks dari DB menjadi duelId untuk form
+        duelId: p.duelId || p.idDuelLinks || "", 
+      }));
+
+      roster.setPlayers(mappedPlayers);
       
-      // Kunci gemboknya setelah sukses mengisi data
       hasInitialized.current = true;
     }
-  }, [isEditMode, initialData]); // Dependencies ini sekarang aman karena dilindungi useRef
+  }, [isEditMode, initialData]); 
 
   return (
     <>
