@@ -10,7 +10,7 @@ interface SuccessModalProps {
   isEditMode?: boolean
 }
 
-export function SuccessModal({ open, onClose, namaTim }: SuccessModalProps) {
+export function SuccessModal({ open, onClose, namaTim, isEditMode = false }: SuccessModalProps) {
   // Tambahkan useEffect untuk mengunci scroll body ketika modal aktif
   useEffect(() => {
     if (open) {
