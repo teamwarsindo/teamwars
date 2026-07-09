@@ -19,7 +19,8 @@ interface RegistrationFormProps {
 export function RegistrationForm({ isEditMode = false, initialData }: RegistrationFormProps) {
   const team = useTeamDetails()
   const roster = useRoster()
-  const flow = useRegistrationFlow(team, roster, isEditMode)
+  // Tambahkan initialData?.namaTim sebagai parameter ke-4
+  const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "")
 
   // ⚡ 1. Buat gembok penanda apakah data sudah diisi atau belum
   const hasInitialized = useRef(false);
