@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
 import { revalidatePath } from "next/cache";
 
+const webhookAvatar = "https://teamwars.web.id/logo-dc.png";
+
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
@@ -171,7 +173,11 @@ export async function POST(req: NextRequest) {
       await fetch(process.env.DISCORD_WEBHOOK_PUBLIC, {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: publicMsg })
+        body: JSON.stringify({ 
+          content: publicMsg,
+          username: "Registration TWI Season 7", // 👈 Nama bot lu
+          avatar_url: webhookAvatar // 👈 Masukin link URL gambar logo bot lu di sini
+        })
       }).catch(err => console.error("Gagal kirim pengumuman Public:", err));
     }
     // ==========================================================
