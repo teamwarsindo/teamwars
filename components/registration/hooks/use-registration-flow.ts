@@ -8,7 +8,7 @@ interface BackendError {
   message: string;
 }
 
-export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean = false) {
+export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean = false, originalTeamName: string = "") {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -95,10 +95,9 @@ export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean 
   // 1. KUNCI PENGAMAN: Ubah array jadi string agar tidak memicu infinite loop
   const rosterPlayersString = JSON.stringify(roster.players)
 
+  // 2. Cari bagian useEffect debounce, lalu update bagian payload ini:
   useEffect(() => {
     if (!team.namaTim.trim()) {
-      // 2. KUNCI PENGAMAN: Jangan paksa set array baru `[]` jika aslinya sudah kosong!
-      // Kita pakai callback (prev) agar React tidak melakukan render ulang secara buta.
       setRawBackendErrors((prev) => (prev.length === 0 ? prev : []))
       return
     }
@@ -106,19 +105,22 @@ export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean 
     const runPreFlightCheck = async () => {
       setIsChecking(true)
       try {
+        // 🔥 FIX LOGIKA: Bikin slug yang statis dari nama asli, bukan dari input yang lagi diketik
+        const safeExcludeSlug = isEditMode
+          ? (originalTeamName || team.namaTim).trim().toLowerCase().replace(/[^a-z0-9]/g, '-')
+          : undefined;
+
         const preFlightPayload = {
           isPreFlight: true,
           namaTim: team.namaTim.trim(),
-          excludeSlug: isEditMode ? team.namaTim.trim() : undefined,
-
-          // Cari baris ini di dalam runPreFlightCheck
+          excludeSlug: safeExcludeSlug, // 👈 Sekarang backend tahu persis tim mana yang harus diabaikan
           players: roster.players.map((p: any) => ({
             ign: p.ign ? p.ign.trim() : "",
             discord: p.discord ? p.discord.trim() : "",
             idDuelLinks: p.duelId,
           }))
         }
-
+        
         const res = await fetch("/api/pre-flight", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
