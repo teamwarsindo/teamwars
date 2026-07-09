@@ -1,28 +1,42 @@
 import { kv } from "@vercel/kv";
-import { notFound } from "next/navigation";
 import { CLOSE_TARGET } from "@/lib/config";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { RegistrationForm } from "@/components/registration-form";
 
-// Hapus "use client", biarkan file ini berjalan murni di Server
+// Komponen Helper buat nampilin Error kalau data ga ketemu (Pengganti 404)
+function ErrorScreen({ message }: { message: string }) {
+  return (
+    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
+      <TopBar title="Manajemen Tim" showTrash={false} />
+      <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4 pb-4 sm:px-6">
+        <div className="w-full max-w-lg rounded-xl border border-destructive/40 bg-destructive/10 p-8 text-center shadow-xl backdrop-blur-md">
+           <h3 className="text-xl font-bold mb-2 text-foreground">Akses Ditolak</h3>
+           <p className="font-semibold text-muted-foreground text-sm">{message}</p>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export default async function EditTeamPage({ params }: { params: { token: string } }) {
   const token = params.token;
 
   if (!token) {
-    notFound();
+    return <ErrorScreen message="Parameter token tidak ditemukan di URL." />;
   }
 
   // 1. Cari slug tim berdasarkan token di brankas Redis
   const teamSlug = await kv.get<string>(`token:map:${token}`);
   if (!teamSlug) {
-    // Jika token asal/salah, langsung arahkan ke halaman 404
-    notFound(); 
+    // Kalau ini muncul, berarti Token ga ada di DB (mungkin token lama/asal)
+    return <ErrorScreen message={`Token "${token}" tidak terdaftar di sistem kami. Pastikan Anda menggunakan pendaftaran baru.`} />;
   }
 
   // 2. Tarik data lengkap tim
   const teamData: any = await kv.hgetall(`teams:${teamSlug}`);
   if (!teamData) {
-    notFound();
+    // Kalau ini muncul, tokennya ada, tapi data tim-nya udah kehapus di DB
+    return <ErrorScreen message={`Data untuk tim ${teamSlug} tidak ditemukan di database.`} />;
   }
 
   // 3. Cek batas waktu pendaftaran
@@ -60,12 +74,10 @@ export default async function EditTeamPage({ params }: { params: { token: string
                <h3 className="text-xl font-bold mb-2 text-foreground">Pendaftaran Ditutup</h3>
                <p className="font-semibold text-muted-foreground text-sm">
                  Batas waktu pendaftaran dan modifikasi roster untuk TWI Season 7 telah berakhir. 
-                 Silakan hubungi admin di Discord jika terdapat kendala darurat.
                </p>
              </div>
           ) : (
             <div className="w-full max-w-2xl">
-              {/* Form registrasi mode edit langsung di-render! */}
               <RegistrationForm 
                 isEditMode={true} 
                 initialData={cleanTeamData} 
@@ -80,3 +92,4 @@ export default async function EditTeamPage({ params }: { params: { token: string
     </main>
   );
 }
+  
