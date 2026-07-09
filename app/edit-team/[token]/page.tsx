@@ -3,7 +3,6 @@ import { CLOSE_TARGET } from "@/lib/config";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { RegistrationForm } from "@/components/registration-form";
 
-// Komponen Helper buat nampilin Error kalau data ga ketemu (Pengganti 404)
 function ErrorScreen({ message }: { message: string }) {
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
@@ -18,8 +17,12 @@ function ErrorScreen({ message }: { message: string }) {
   );
 }
 
-export default async function EditTeamPage({ params }: { params: { token: string } }) {
-  const token = params.token;
+// ⚡ 1. Tipe datanya kita ubah jadi Promise
+export default async function EditTeamPage({ params }: { params: Promise<{ token: string }> }) {
+  
+  // ⚡ 2. KUNCI UTAMA: Wajib di-AWAIT sebelum diambil tokennya!
+  const resolvedParams = await params;
+  const token = resolvedParams.token;
 
   if (!token) {
     return <ErrorScreen message="Parameter token tidak ditemukan di URL." />;
@@ -28,14 +31,12 @@ export default async function EditTeamPage({ params }: { params: { token: string
   // 1. Cari slug tim berdasarkan token di brankas Redis
   const teamSlug = await kv.get<string>(`token:map:${token}`);
   if (!teamSlug) {
-    // Kalau ini muncul, berarti Token ga ada di DB (mungkin token lama/asal)
-    return <ErrorScreen message={`Token "${token}" tidak terdaftar di sistem kami. Pastikan Anda menggunakan pendaftaran baru.`} />;
+    return <ErrorScreen message={`Token "${token}" tidak terdaftar di sistem kami. Pastikan Anda menggunakan link dari email terbaru.`} />;
   }
 
   // 2. Tarik data lengkap tim
   const teamData: any = await kv.hgetall(`teams:${teamSlug}`);
   if (!teamData) {
-    // Kalau ini muncul, tokennya ada, tapi data tim-nya udah kehapus di DB
     return <ErrorScreen message={`Data untuk tim ${teamSlug} tidak ditemukan di database.`} />;
   }
 
