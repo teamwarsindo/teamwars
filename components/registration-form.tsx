@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react" // 👈 Tambahkan useRef
 import { useTeamDetails } from "@/components/registration/hooks/use-team-details"
 import { useRoster } from "@/components/registration/hooks/use-roster"
 import { useRegistrationFlow } from "@/components/registration/hooks/use-registration-flow"
@@ -19,21 +19,27 @@ interface RegistrationFormProps {
 export function RegistrationForm({ isEditMode = false, initialData }: RegistrationFormProps) {
   const team = useTeamDetails()
   const roster = useRoster()
-  // Lempar isEditMode ke flow agar hook tahu harus bypass local storage & ubah target API
   const flow = useRegistrationFlow(team, roster, isEditMode)
 
-  // Isi data form secara otomatis jika dalam mode edit dan initialData dari DB tersedia
+  // ⚡ 1. Buat gembok penanda apakah data sudah diisi atau belum
+  const hasInitialized = useRef(false);
+
   useEffect(() => {
-    if (isEditMode && initialData) {
+    // ⚡ 2. Cek gembok: Kalau sudah pernah diisi (!hasInitialized.current), jangan jalan lagi!
+    if (isEditMode && initialData && !hasInitialized.current) {
       team.setEmail(initialData.email || "");
       team.setNamaTim(initialData.namaTim || "");
       team.setHex(initialData.warna || "");
-      // Mockup file untuk bypass validasi frontend karena gambar tidak bisa diedit
+      
       team.setLogo({ url: initialData.logoTim, name: "logo-terkunci.png", size: 0 });
       team.setBukti({ url: initialData.buktiTransfer, name: "bukti-terkunci.jpg", size: 0 });
+      
       roster.setPlayers(initialData.players || []);
+      
+      // Kunci gemboknya setelah sukses mengisi data
+      hasInitialized.current = true;
     }
-  }, [isEditMode, initialData]);
+  }, [isEditMode, initialData]); // Dependencies ini sekarang aman karena dilindungi useRef
 
   return (
     <>
@@ -78,7 +84,6 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
 
       {/* --- KUMPULAN MODAL INTERAKTIF --- */}
       
-      {/* Review Modal hanya akan dipanggil oleh hook jika BUKAN mode edit */}
       <ReviewModal 
         open={flow.modalOpen} 
         onClose={() => flow.setModalOpen(false)} 
@@ -104,4 +109,4 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
       />
     </>
   )
-}
+              }
