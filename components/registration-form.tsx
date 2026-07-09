@@ -13,6 +13,7 @@ import { SuccessModal } from "@/components/success-modal"
 interface RegistrationFormProps {
   isEditMode?: boolean;
   initialData?: any;
+  editToken?: string;
 }
 
 export function RegistrationForm({ isEditMode = false, initialData }: RegistrationFormProps) {
