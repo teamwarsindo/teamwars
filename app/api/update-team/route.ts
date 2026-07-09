@@ -98,6 +98,14 @@ export async function POST(req: NextRequest) {
     const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { ign: "-" };
     const playerListString = players.map((p: any) => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
 
+    // Pastikan fungsi helper format tanggal ini ada di atas sebelum fetch Discord
+    const formatDate = (dateString: string) => {
+      const d = new Date(dateString);
+      const tgl = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
+      const waktu = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(':', '.');
+      return `${tgl} pukul ${waktu} WIB`;
+    };
+
     if (oldTeamData.adminMsgId && process.env.DISCORD_WEBHOOK_ADMIN) {
       await fetch(`${process.env.DISCORD_WEBHOOK_ADMIN}/messages/${oldTeamData.adminMsgId}`, {
         method: 'PATCH',
@@ -112,8 +120,9 @@ export async function POST(req: NextRequest) {
               { name: "Wakil", value: wakil?.ign || "-", inline: true },
               { name: "Players", value: playerListString, inline: false }
             ],
-            footer: { text: `Diperbarui pada ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB` }
-          }]
+            footer: {
+              text: `Tercatat di sistem pada ${formatDate(oldTeamData.createdAt)}\nDiperbarui pada ${formatDate(new Date().toISOString())}`
+            }
         })
       }).catch(err => console.error("Gagal patch Admin:", err));
     }
