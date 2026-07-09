@@ -92,9 +92,14 @@ export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean 
   // =========================================================================
   // ⚡ RADAR DEBOUNCE UNIVERSAL & BYPASS CONTEXT
   // =========================================================================
+  // 1. KUNCI PENGAMAN: Ubah array jadi string agar tidak memicu infinite loop
+  const rosterPlayersString = JSON.stringify(roster.players)
+
   useEffect(() => {
     if (!team.namaTim.trim()) {
-      setRawBackendErrors([])
+      // 2. KUNCI PENGAMAN: Jangan paksa set array baru `[]` jika aslinya sudah kosong!
+      // Kita pakai callback (prev) agar React tidak melakukan render ulang secara buta.
+      setRawBackendErrors((prev) => (prev.length === 0 ? prev : []))
       return
     }
 
@@ -104,7 +109,6 @@ export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean 
         const preFlightPayload = {
           isPreFlight: true,
           namaTim: team.namaTim.trim(),
-          // Jika edit mode, beri tahu backend untuk mengabaikan data lama tim ini (Self-Exclusion)
           excludeSlug: isEditMode ? team.namaTim.trim() : undefined,
           players: roster.players.map((p: any) => ({
             ign: p.ign.trim(),
@@ -124,7 +128,8 @@ export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean 
         if (!res.ok || !result.success) {
           setRawBackendErrors(result.errors || [])
         } else {
-          setRawBackendErrors([])
+          // KUNCI PENGAMAN (sama seperti di atas)
+          setRawBackendErrors((prev) => (prev.length === 0 ? prev : []))
         }
       } catch (error) {
         console.error("Gagal melakukan background check:", error)
@@ -143,8 +148,9 @@ export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean 
 
       return () => clearTimeout(timer)
     }
-  }, [team.namaTim, roster.players, isSmartPaste, isEditMode])
-
+  }, [team.namaTim, rosterPlayersString, isSmartPaste, isEditMode]) // 👈 Dependency pakai String
+  
+  
   // =========================================================================
   // 🛡️ COMPREHENSIVE VALIDATION MERGER
   // =========================================================================
