@@ -110,9 +110,11 @@ export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean 
           isPreFlight: true,
           namaTim: team.namaTim.trim(),
           excludeSlug: isEditMode ? team.namaTim.trim() : undefined,
+
+          // Cari baris ini di dalam runPreFlightCheck
           players: roster.players.map((p: any) => ({
-            ign: p.ign.trim(),
-            discord: p.discord.trim(),
+            ign: p.ign ? p.ign.trim() : "",
+            discord: p.discord ? p.discord.trim() : "",
             idDuelLinks: p.duelId,
           }))
         }
@@ -175,9 +177,9 @@ export function useRegistrationFlow(team: any, roster: any, isEditMode: boolean 
       const discordErr = validateDiscord(p.discord)
       if (discordErr) errs[`${p.id}-discord`] = discordErr
 
-      if (!p.ign.trim()) errs[`${p.id}-ign`] = "IGN wajib diisi."
-      if (!p.duelId.trim()) errs[`${p.id}-duelId`] = "ID Duel Links wajib diisi."
-      else if (!isCompleteDuelId(p.duelId)) errs[`${p.id}-duelId`] = "ID harus berformat xxx-xxx-xxx."
+      if (!p.ign || !p.ign.trim()) errs[`${p.id}-ign`] = "IGN wajib diisi."
+      if (!p.duelId || !p.duelId.trim()) errs[`${p.id}-duelId`] = "ID Duel Links wajib diisi."
+      else if (!isCompleteDuelId(p.duelId)) errs[`${p.id}-duelId`] = "ID harus berformat xxx-xxx-xxx."  
     })
 
     duplicateFields.forEach((key) => { errs[key] = "Data ganda dalam tim" })
