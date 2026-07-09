@@ -145,7 +145,7 @@ export function TeamIdentity({
           <label htmlFor="hexText" className="mb-1.5 block text-sm font-medium text-foreground">Warna Identitas Tim (Hex)</label>
           <div className="flex items-center gap-3">
             <div className={`relative h-11 w-12 shrink-0 overflow-hidden rounded-lg border border-border shadow-sm transition-colors ${isEditMode ? 'opacity-60 cursor-not-allowed' : 'focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary'}`} style={{ backgroundColor: isValidHex(hex) ? hex : "#00BFFF" }}>
-              <input disabled={isEditMode} type="color" value={isValidHex(hex) ? hex : "#00BFFF"} onChange={(e) => setHex(e.target.value.toUpperCase())} className={`absolute inset-0 h-full w-full opacity-0 ${isEditMode ? 'cursor-not-allowed' : 'cursor-pointer'}`} />
+              <input type="color" value={isValidHex(hex) ? hex : "#00BFFF"} onChange={(e) => setHex(e.target.value.toUpperCase())} className={`absolute inset-0 h-full w-full opacity-0 ${isEditMode ? 'cursor-not-allowed' : 'cursor-pointer'}`} />
             </div>
             <input disabled={isEditMode} id="hexText" type="text" placeholder="#00BFFF" value={hex || ""} onChange={(e) => setHex(sanitizeHex(e.target.value))} onBlur={() => markTouched("hex")} className={`${inputBase} font-mono ${isEditMode ? 'opacity-60 cursor-not-allowed bg-muted' : ''} ${err("hex") ? "border-destructive" : "border-border"}`} />
           </div>
