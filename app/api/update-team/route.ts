@@ -124,7 +124,6 @@ export async function POST(req: NextRequest) {
               text: `Tercatat di sistem pada ${formatDate(oldTeamData.createdAt)}\n
               Diperbarui pada ${formatDate(new Date().toISOString())}`
             }
-        }
       }).catch(err => console.error("Gagal patch Admin:", err));
     }
 
