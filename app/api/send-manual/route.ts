@@ -4,7 +4,6 @@ import { EMAIL_CONFIG } from '@/lib/config';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// 🎨 Helper untuk generate HTML (Sesuai gaya template TWI lu)
 const getManualTokenTemplate = (namaTim: string, token: string, warna: string) => `
   <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background-color: #121212; color: #ffffff; border-radius: 10px; overflow: hidden; border: 2px solid ${warna};">
     
@@ -47,34 +46,30 @@ const getManualTokenTemplate = (namaTim: string, token: string, warna: string) =
   </div>
 `;
 
-// 🚀 Endpoint GET untuk eksekusi via Browser
 export async function GET() {
   try {
-    // Data Tim 1
     const emailAsashin = resend.emails.send({
-      from: EMAIL_CONFIG.sender, // Pastikan ini ngambil dari config lu
-      to: "syaiful.nuruddin@gmail.com", // 👈 ISI DENGAN EMAIL ASLI
+      from: EMAIL_CONFIG.sender, 
+      to: "izzatnajmie@gmail.com", 
       subject: "Akses Edit Roster: Tim Asashin OG [Team Wars S7]",
       html: getManualTokenTemplate(
         "Asashin OG", 
         "dc3a39a4-fd7c-4a83-8e04-726d5f367aa1", 
-        "#E63946" // Warna aksen Asashin (bisa lu sesuaikan)
+        "#7300FF" 
       )
     });
 
-    // Data Tim 2
     const emailDino = resend.emails.send({
       from: EMAIL_CONFIG.sender,
-      to: "achmad.nuruddin.id@gmail.com", // 👈 ISI DENGAN EMAIL ASLI
+      to: "kevinliman07@gmail.com", 
       subject: "Akses Edit Roster: Tim UX DINO RAMPAGE [Team Wars S7]",
       html: getManualTokenTemplate(
         "UX DINO RAMPAGE", 
         "69272935-084e-4348-95b8-daacd906a345", 
-        "#2A9D8F" // Warna aksen UX Dino (bisa lu sesuaikan)
+        "#FF0000" 
       )
     });
 
-    // Eksekusi pengiriman berbarengan
     await Promise.all([emailAsashin, emailDino]);
 
     return NextResponse.json({ 
