@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from 'react'; // Pastikan di-import di atas
 import { useEffect, useRef } from "react" // 👈 Tambahkan useRef
 import { useTeamDetails } from "@/components/registration/hooks/use-team-details"
 import { useRoster } from "@/components/registration/hooks/use-roster"
@@ -52,8 +53,6 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
   }, [isEditMode, initialData]); 
 
   // ⚡ SMART DETECTOR: Mengecek apakah ada perubahan nyata dari data awal
-  import { useMemo } from 'react'; // Pastikan di-import di atas
-
   const hasChanges = useMemo(() => {
     // Kalau bukan mode edit atau data belum ada, anggap selalu ada perubahan
     if (!isEditMode || !initialData) return true; 
