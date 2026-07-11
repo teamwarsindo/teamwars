@@ -1,28 +1,17 @@
-export interface PlayerState { 
-  id: string; 
-  role: string; // (Atau RosterRole jika kamu pakai Opsi 1 sebelumnya)
-  namaLengkap: string; 
-  discord: string; 
-  ign: string; 
-  duelId: string; 
-}
+import { useTeamDetails } from "@/components/registration/hooks/use-team-details"
+import { useRoster } from "@/components/registration/hooks/use-roster"
 
-export interface TeamState { 
-  email: string; 
-  namaTim: string; 
-  hex: string; 
-  logo: { url?: string } | null; 
-  bukti: { url?: string } | null; 
-  setEmail: (val: string) => void; 
-  setNamaTim: (val: string) => void; 
-  setHex: (val: string) => void; 
-}
+// 🚀 JURUS PAMUNGKAS:
+// Menyalin tipe data persis 100% dari apa yang di-return oleh hook aslimu.
+// Tidak perlu lagi membuat interface TeamState & RosterState secara manual!
 
-export interface RosterState { 
-  players: PlayerState[]; 
-  setPlayers: (players: PlayerState[]) => void; 
-}
+export type TeamState = ReturnType<typeof useTeamDetails>;
+export type RosterState = ReturnType<typeof useRoster>;
 
+// Mengekstrak tipe 1 pemain dari dalam array roster.players
+export type PlayerState = RosterState["players"][0];
+
+// Ini tetap manual karena dipakai khusus untuk penangkap error backend
 export interface BackendError { 
   field: string; 
   message: string; 
