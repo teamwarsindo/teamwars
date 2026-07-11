@@ -3,18 +3,20 @@
 import { useMemo, useEffect, useRef } from 'react';
 import { useTeamDetails } from "@/components/registration/hooks/use-team-details"
 import { useRoster } from "@/components/registration/hooks/use-roster"
-
-// Import disesuaikan dengan format kebab-case
 import { useRegistrationFlow } from "@/components/registration/hooks/use-registration-flow"
+
+// 🚀 PERBAIKAN: Import tipe data dari file sentral yang baru kita buat
+import type { PlayerState } from "@/components/registration/hooks/types"
 
 import { TeamIdentity } from "@/components/registration/team-identity"
 import { RosterSection } from "@/components/registration/roster-section"
 import { ReviewModal } from "@/components/review-modal"
 import { SuccessModal } from "@/components/success-modal"
 
+// Kita biarkan initialData menggunakan any atau tipe khusus DB jika kamu punya
 interface RegistrationFormProps {
   isEditMode?: boolean;
-  initialData?: any;
+  initialData?: any; 
   editToken?: string;
 }
 
@@ -23,7 +25,6 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
   const roster = useRoster()
   
   const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "", editToken)
-
   const hasInitialized = useRef(false);
 
   useEffect(() => {
@@ -35,7 +36,8 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
       team.setLogo({ url: initialData.logoTim, name: "logo-terkunci.png", size: 0 });
       team.setBukti({ url: initialData.buktiTransfer, name: "bukti-terkunci.jpg", size: 0 });
       
-      const mappedPlayers = (initialData.players || []).map((p: any, index: number) => ({
+      // 🚀 PERBAIKAN: Kita beri tahu TypeScript bahwa hasil map ini adalah PlayerState[]
+      const mappedPlayers: PlayerState[] = (initialData.players || []).map((p: any, index: number) => ({
         ...p,
         id: p.id || `player-${index}`, 
         namaLengkap: p.namaLengkap || "",
@@ -50,20 +52,22 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, initialData]); 
 
-  // SMART DETECTOR: Mengecek apakah ada perubahan nyata dari data awal
   const hasChanges = useMemo(() => {
     if (!isEditMode || !initialData) return true; 
 
     const nameChanged = team.namaTim.trim() !== (initialData.namaTim || "").trim();
     const colorChanged = team.hex.toLowerCase() !== (initialData.warna || "").toLowerCase();
 
-    const currentRoster = roster.players.map((p: any) => ({
+    // 🚀 PERBAIKAN: Hapus penggunaan (p: any). Karena roster.players sudah punya tipe PlayerState[], 
+    // TypeScript sekarang otomatis tahu p itu apa. (Fitur auto-complete (Ctrl+Space) di VSCode mu akan nyala di sini!)
+    const currentRoster = roster.players.map((p) => ({
       ign: p.ign.trim(),
       discord: p.discord.trim(),
       duelId: p.duelId.trim(),
       role: p.role
     }));
 
+    // Di sini tetap any karena initialData murni JSON mentah dari Backend
     const originalRoster = (initialData.players || []).map((p: any) => ({
       ign: (p.ign || "").trim(),
       discord: (p.discord || "").trim(),
@@ -78,7 +82,6 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
   
   return (
     <>
-      {/* 🚀 PERBAIKAN: Semantic Form Submit (Bisa tekan Enter di keyboard) */}
       <form 
         id="registration-form" 
         onSubmit={(e) => {
@@ -87,7 +90,6 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
         }} 
         className="flex flex-col gap-6"
       >
-        
         <TeamIdentity 
           {...team} 
           err={flow.err} 
@@ -108,7 +110,6 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
         />
 
         <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
-          {/* 🚀 PERBAIKAN: Ubah type="button" menjadi type="submit" dan hapus onClick */}
           <button
             type="submit" 
             disabled={!flow.canSubmit || (isEditMode && !hasChanges)}
@@ -147,4 +148,4 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
       />
     </>
   )
-      }
+        }
