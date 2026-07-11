@@ -90,7 +90,7 @@ export function validateDiscord(value: string): string | undefined {
   if (v.length > 32) return "Maksimal 32 karakter."
   if (v.includes("..")) return "Tidak boleh ada titik berurutan (..)."
   if (v.startsWith(".") || v.endsWith(".")) return "Tidak boleh diawali/diakhiri titik."
-  if (!/^[a-z0-9_.]+$/.test(v)) return "Hanya huruf kecil, angka, _, dan ."
+  if (!/^[a-zA-Z0-9_.]+$/.test(v)) return "Hanya boleh huruf, angka, _, dan ."
   return undefined
 }
 
