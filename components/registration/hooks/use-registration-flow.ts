@@ -22,7 +22,7 @@ export function useRegistrationFlow(
   const [isSmartPaste, setIsSmartPaste] = useState(false)
 
   // 1. Panggil fungsionalitas Draft Storage
-  useDraftStorage(team, roster, isEditMode)
+  const { isDraftLoaded } = useDraftStorage(team, roster, isEditMode)
 
   // 🚀 PERBAIKAN: Auto-Trigger Error Warning setelah data draft masuk
   useEffect(() => {
