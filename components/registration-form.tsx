@@ -4,7 +4,7 @@ import { useMemo, useEffect, useRef } from 'react';
 import { useTeamDetails } from "@/components/registration/hooks/use-team-details"
 import { useRoster } from "@/components/registration/hooks/use-roster"
 
-// PERBAIKAN 1: Import disesuaikan dengan format kebab-case yang baru
+// Import disesuaikan dengan format kebab-case
 import { useRegistrationFlow } from "@/components/registration/hooks/use-registration-flow"
 
 import { TeamIdentity } from "@/components/registration/team-identity"
@@ -22,7 +22,6 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
   const team = useTeamDetails()
   const roster = useRoster()
   
-  // PERBAIKAN 2: editToken dimasukkan sebagai parameter ke-5 agar fungsi Update ke Database berjalan
   const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "", editToken)
 
   const hasInitialized = useRef(false);
@@ -79,7 +78,15 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
   
   return (
     <>
-      <form id="registration-form" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-6">
+      {/* 🚀 PERBAIKAN: Semantic Form Submit (Bisa tekan Enter di keyboard) */}
+      <form 
+        id="registration-form" 
+        onSubmit={(e) => {
+          e.preventDefault();
+          flow.handleReviewClick();
+        }} 
+        className="flex flex-col gap-6"
+      >
         
         <TeamIdentity 
           {...team} 
@@ -101,9 +108,9 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
         />
 
         <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
+          {/* 🚀 PERBAIKAN: Ubah type="button" menjadi type="submit" dan hapus onClick */}
           <button
-            type="button" 
-            onClick={flow.handleReviewClick} 
+            type="submit" 
             disabled={!flow.canSubmit || (isEditMode && !hasChanges)}
             className="w-full rounded-xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >
@@ -140,4 +147,4 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
       />
     </>
   )
-    }
+      }
