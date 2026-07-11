@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react" // 👈 Tambahkan useEffect
 import { STORAGE_KEY, countRole, findDuplicateFields } from "@/lib/registration"
 import { isValidEmail, isValidHex, validateDuelId, validateRealName, validateTeamName, validateDiscord, validateIGN, sanitizeTeamName, sanitizeDiscord, sanitizeIGN, toProperCase, formatDuelId } from "@/lib/validators"
 import Swal from "sweetalert2"
@@ -23,6 +23,32 @@ export function useRegistrationFlow(
 
   // 1. Panggil fungsionalitas Draft Storage
   useDraftStorage(team, roster, isEditMode)
+
+  // 🚀 PERBAIKAN: Auto-Trigger Error Warning setelah data draft masuk
+  useEffect(() => {
+    if (isDraftLoaded && !isEditMode) {
+      const autoTouched: Record<string, boolean> = {}
+
+      // Cek identitas tim, kalau ada isinya langsung tandai "tersentuh"
+      if (team.email) autoTouched.email = true
+      if (team.namaTim) autoTouched.namaTim = true
+      if (team.hex) autoTouched.hex = true
+
+      // Cek roster pemain, kalau ada isinya langsung tandai "tersentuh"
+      roster.players.forEach((p) => {
+        if (p.namaLengkap) autoTouched[`${p.id}-namaLengkap`] = true
+        if (p.discord) autoTouched[`${p.id}-discord`] = true
+        if (p.ign) autoTouched[`${p.id}-ign`] = true
+        if (p.duelId) autoTouched[`${p.id}-duelId`] = true
+      })
+
+      // Update state gembok error-nya
+      if (Object.keys(autoTouched).length > 0) {
+        markTouchedMultiple(autoTouched)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDraftLoaded]) 
 
   // 2. Panggil fungsionalitas Pre-Flight (API Check)
   const { isChecking, rawBackendErrors } = usePreFlightCheck(
