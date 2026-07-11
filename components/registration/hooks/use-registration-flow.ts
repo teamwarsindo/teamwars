@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react"
 import { STORAGE_KEY, countRole, findDuplicateFields } from "@/lib/registration"
-import { isValidEmail, isValidHex, isCompleteDuelId, validateRealName, validateTeamName, validateDiscord, validateIGN, sanitizeTeamName, sanitizeDiscord, sanitizeIGN, toProperCase, formatDuelId } from "@/lib/validators"
+import { isValidEmail, isValidHex, validateDuelId, validateRealName, validateTeamName, validateDiscord, validateIGN, sanitizeTeamName, sanitizeDiscord, sanitizeIGN, toProperCase, formatDuelId } from "@/lib/validators"
 import Swal from "sweetalert2"
 import { useDraftStorage } from "./use-draft-storage"     
 import { usePreFlightCheck } from "./use-pre-flight-check" 
@@ -51,27 +51,33 @@ export function useRegistrationFlow(
   }, [rawBackendErrors, roster.players])
 
   // 3. Gabungkan Semua Validasi
-  const fieldErrors = useMemo(() => {
+    const fieldErrors = useMemo(() => {
     const errs: Record<string, string> = {}
     
+    // Email belum dipisah ke fungsi validateEmail khusus yang mereturn string error, 
+    // jadi tetap pakai logika manual ini.
     if (!team.email.trim()) errs.email = "Email wajib diisi."
     else if (!isValidEmail(team.email)) errs.email = "Format email tidak valid."
     
-    const teamErr = validateTeamName(team.namaTim); if (teamErr) errs.namaTim = teamErr
-    else if (!team.namaTim.trim()) errs.namaTim = "Nama Tim wajib diisi."
+    const teamErr = validateTeamName(team.namaTim); 
+    if (teamErr) errs.namaTim = teamErr;
     
     if (!isValidHex(team.hex)) errs.hex = "Format hex tidak valid (#RRGGBB)."
     if (!team.logo?.url) errs.logo = "Logo tim wajib diunggah hingga selesai."
     if (!team.bukti?.url) errs.bukti = "Bukti transfer wajib diunggah hingga selesai."
 
     roster.players.forEach((p) => {
-      const nameErr = validateRealName(p.namaLengkap); if (nameErr) errs[`${p.id}-namaLengkap`] = nameErr
-      const discordErr = validateDiscord(p.discord); if (discordErr) errs[`${p.id}-discord`] = discordErr
-      const ignErr = validateIGN(p.ign); if (ignErr) errs[`${p.id}-ign`] = ignErr
-      else if (!p.ign.trim()) errs[`${p.id}-ign`] = "IGN wajib diisi."
+      const nameErr = validateRealName(p.namaLengkap); 
+      if (nameErr) errs[`${p.id}-namaLengkap`] = nameErr;
 
-      if (!p.duelId.trim()) errs[`${p.id}-duelId`] = "ID Duel Links wajib diisi."
-      else if (!isCompleteDuelId(p.duelId)) errs[`${p.id}-duelId`] = "ID harus berformat xxx-xxx-xxx."  
+      const discordErr = validateDiscord(p.discord); 
+      if (discordErr) errs[`${p.id}-discord`] = discordErr;
+
+      const ignErr = validateIGN(p.ign); 
+      if (ignErr) errs[`${p.id}-ign`] = ignErr;
+
+      const duelIdErr = validateDuelId(p.duelId);
+      if (duelIdErr) errs[`${p.id}-duelId`] = duelIdErr;
     })
 
     duplicateFields.forEach((key) => { errs[key] = "Data ganda dalam tim" })
