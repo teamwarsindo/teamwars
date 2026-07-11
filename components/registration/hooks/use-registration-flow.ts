@@ -4,12 +4,7 @@ import { isValidEmail, isValidHex, validateDuelId, validateRealName, validateTea
 import Swal from "sweetalert2"
 import { useDraftStorage } from "./use-draft-storage"     
 import { usePreFlightCheck } from "./use-pre-flight-check" 
-import { TeamState, RosterState } from "./types"
-
-export interface PlayerState { id: string; role: string; namaLengkap: string; discord: string; ign: string; duelId: string; }
-export interface TeamState { email: string; namaTim: string; hex: string; logo: { url?: string } | null; bukti: { url?: string } | null; setEmail: (val: string) => void; setNamaTim: (val: string) => void; setHex: (val: string) => void; }
-export interface RosterState { players: PlayerState[]; setPlayers: (players: PlayerState[]) => void; }
-export interface BackendError { field: string; message: string; }
+import { TeamState, RosterState, PlayerState, BackendError } from "./types"
 
 export function useRegistrationFlow(
   team: TeamState, 
