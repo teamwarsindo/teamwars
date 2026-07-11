@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { PlayerState, BackendError } from "./use-registration-flow" 
+import { PlayerState, BackendError } from "./types" 
 
 export function usePreFlightCheck(
   namaTim: string, 
