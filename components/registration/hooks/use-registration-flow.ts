@@ -1,55 +1,15 @@
-import { useState, useEffect, useMemo } from "react"
-import { STORAGE_KEY, countRole, findDuplicateFields, type FormState } from "@/lib/registration"
-import { 
-  isValidEmail, 
-  isValidHex, 
-  isCompleteDuelId, 
-  validateRealName, 
-  validateTeamName, 
-  validateDiscord,
-  validateIGN, // Pastikan ini di-import
-  sanitizeTeamName,
-  sanitizeDiscord,
-  sanitizeIGN,
-  toProperCase,
-  formatDuelId
-} from "@/lib/validators"
+import { useState, useMemo } from "react"
+import { STORAGE_KEY, countRole, findDuplicateFields } from "@/lib/registration"
+import { isValidEmail, isValidHex, isCompleteDuelId, validateRealName, validateTeamName, validateDiscord, validateIGN, sanitizeTeamName, sanitizeDiscord, sanitizeIGN, toProperCase, formatDuelId } from "@/lib/validators"
 import Swal from "sweetalert2"
+import { useDraftStorage } from "./use-draft-storage"     
+import { usePreFlightCheck } from "./use-pre-flight-check" 
 
-// =========================================================================
-// 1. DEFINISI TYPE (Menghilangkan utang teknis 'any')
-// =========================================================================
-export interface PlayerState {
-  id: string;
-  role: string;
-  namaLengkap: string;
-  discord: string;
-  ign: string;
-  duelId: string;
-}
+export interface PlayerState { id: string; role: string; namaLengkap: string; discord: string; ign: string; duelId: string; }
+export interface TeamState { email: string; namaTim: string; hex: string; logo: { url?: string } | null; bukti: { url?: string } | null; setEmail: (val: string) => void; setNamaTim: (val: string) => void; setHex: (val: string) => void; }
+export interface RosterState { players: PlayerState[]; setPlayers: (players: PlayerState[]) => void; }
+export interface BackendError { field: string; message: string; }
 
-export interface TeamState {
-  email: string;
-  namaTim: string;
-  hex: string;
-  logo: { url?: string } | null;
-  bukti: { url?: string } | null;
-  setEmail: (val: string) => void;
-  setNamaTim: (val: string) => void;
-  setHex: (val: string) => void;
-}
-
-export interface RosterState {
-  players: PlayerState[];
-  setPlayers: (players: PlayerState[]) => void;
-}
-
-export interface BackendError {
-  field: string;
-  message: string;
-}
-
-// Tambahan parameter `editToken` untuk menggantikan window.location
 export function useRegistrationFlow(
   team: TeamState, 
   roster: RosterState, 
@@ -61,56 +21,17 @@ export function useRegistrationFlow(
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  
   const [serverError, setServerError] = useState<string | null>(null)
-  const [rawBackendErrors, setRawBackendErrors] = useState<BackendError[]>([])
-  
-  const [isSmartPaste, setIsSmartPaste] = useState(false)
-  const [isChecking, setIsChecking] = useState(false)
-
   const [success, setSuccess] = useState(false)
-  const [isDraftLoaded, setIsDraftLoaded] = useState(false)
+  const [isSmartPaste, setIsSmartPaste] = useState(false)
 
-  function markTouched(key: string) {
-    setTouchedFields((prev) => (prev[key] ? prev : { ...prev, [key]: true }))
-  }
+  // 1. Panggil fungsionalitas Draft Storage
+  useDraftStorage(team, roster, isEditMode)
 
-  function markTouchedMultiple(keys: Record<string, boolean>) {
-    setTouchedFields((prev) => ({ ...prev, ...keys }))
-  }
-
-  function triggerSmartPasteBypass() {
-    setIsSmartPaste(true)
-  }
-
-  // =========================================================================
-  // LOCAL STORAGE DRAFT FUNCTIONS
-  // =========================================================================
-  useEffect(() => {
-    if (isEditMode) {
-      setIsDraftLoaded(true)
-      return
-    }
-
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const data = JSON.parse(raw) as Partial<FormState>
-        if (data.email) team.setEmail(data.email)
-        if (data.namaTim) team.setNamaTim(data.namaTim)
-        if (data.hex) team.setHex(data.hex)
-        if (data.players) roster.setPlayers(data.players)
-      }
-    } catch {}
-    setIsDraftLoaded(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode]) // Mengabaikan warning linter untuk setter demi kemudahan, asumsi setter stabil
-
-  useEffect(() => {
-    if (!isDraftLoaded || isEditMode) return 
-    const draft: FormState = { email: team.email, namaTim: team.namaTim, hex: team.hex, players: roster.players }
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(draft)) } catch {}
-  }, [team.email, team.namaTim, team.hex, roster.players, isDraftLoaded, isEditMode])
+  // 2. Panggil fungsionalitas Pre-Flight (API Check)
+  const { isChecking, rawBackendErrors } = usePreFlightCheck(
+    team.namaTim, roster.players, isEditMode, originalTeamName, isSmartPaste, setIsSmartPaste
+  )
 
   const rosterRuleOk = countRole(roster.players, "Ketua") === 1 && countRole(roster.players, "Wakil Ketua") === 1
   const duplicateFields = useMemo(() => findDuplicateFields(roster.players), [roster.players])
@@ -118,134 +39,103 @@ export function useRegistrationFlow(
   const mappedBackendErrors = useMemo(() => {
     const mapped: Record<string, string> = {}
     rawBackendErrors.forEach((err) => {
-      if (err.field === "namaTim") {
-        mapped["namaTim"] = err.message
-      } else if (err.field.startsWith("players.")) {
+      if (err.field === "namaTim") mapped["namaTim"] = err.message
+      else if (err.field.startsWith("players.")) {
         const parts = err.field.split(".")
-        const index = parseInt(parts[1], 10)
-        const type = parts[2]
-        
-        const frontendType = type === "idDuelLinks" ? "duelId" : type
-        const player = roster.players[index]
-        
-        if (player) {
-          mapped[`${player.id}-${frontendType}`] = err.message
-        }
+        const player = roster.players[parseInt(parts[1], 10)]
+        const type = parts[2] === "idDuelLinks" ? "duelId" : parts[2]
+        if (player) mapped[`${player.id}-${type}`] = err.message
       }
     })
     return mapped
   }, [rawBackendErrors, roster.players])
 
-  // =========================================================================
-  // ⚡ RADAR DEBOUNCE UNIVERSAL (Dengan AbortController untuk Race Condition)
-  // =========================================================================
-  // Stringify hanya data krusial untuk mencegah infinite loop render
-  const playersCheckPayload = JSON.stringify(roster.players.map(p => ({
-    ign: p.ign, discord: p.discord, idDuelLinks: p.duelId
-  })))
-
-  useEffect(() => {
-    if (!team.namaTim.trim()) {
-      setRawBackendErrors((prev) => (prev.length === 0 ? prev : []))
-      return
-    }
-
-    const controller = new AbortController()
-    const signal = controller.signal
-
-    const runPreFlightCheck = async () => {
-      setIsChecking(true)
-      try {
-        // PERBAIKAN: originalTeamName harus ada jika di Edit Mode
-        const safeExcludeSlug = isEditMode && originalTeamName
-          ? originalTeamName.trim().toLowerCase().replace(/[^a-z0-9]/g, '-')
-          : undefined;
-
-        const payload = {
-          isPreFlight: true,
-          namaTim: team.namaTim.trim(),
-          excludeSlug: safeExcludeSlug, 
-          players: JSON.parse(playersCheckPayload)
-        }
-        
-        const res = await fetch("/api/pre-flight", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal // Menyematkan sinyal pembatalan
-        })
-
-        // PERBAIKAN: Cek tipe konten sebelum parse JSON untuk menghindari crash HTML Error Page
-        const contentType = res.headers.get("content-type")
-        if (!contentType || !contentType.includes("application/json")) {
-           throw new Error("Server tidak mengembalikan format JSON yang valid.")
-        }
-
-        const result = await res.json()
-
-        // Pastikan tidak melakukan set state jika request sudah dibatalkan
-        if (!signal.aborted) {
-          if (!res.ok || !result.success) {
-            setRawBackendErrors(result.errors || [])
-          } else {
-            setRawBackendErrors([])
-          }
-        }
-      } catch (error: any) {
-        if (error.name !== "AbortError") {
-          console.error("Gagal melakukan background check:", error)
-        }
-      } finally {
-        if (!signal.aborted) {
-          setIsChecking(false)
-        }
-      }
-    }
-
-    if (isSmartPaste) {
-      runPreFlightCheck()
-      setIsSmartPaste(false) 
-    } else {
-      const timer = setTimeout(() => {
-        runPreFlightCheck()
-      }, 500)
-
-      return () => {
-        clearTimeout(timer)
-        controller.abort() // Membatalkan API request yang sedang berjalan jika user mengetik lagi
-      }
-    }
-  }, [team.namaTim, playersCheckPayload, isSmartPaste, isEditMode, originalTeamName]) 
-  
-  
-  // =========================================================================
-  // 🛡️ COMPREHENSIVE VALIDATION MERGER
-  // =========================================================================
+  // 3. Gabungkan Semua Validasi
   const fieldErrors = useMemo(() => {
     const errs: Record<string, string> = {}
     
     if (!team.email.trim()) errs.email = "Email wajib diisi."
     else if (!isValidEmail(team.email)) errs.email = "Format email tidak valid."
     
-    const teamErr = validateTeamName(team.namaTim)
-    if (teamErr) errs.namaTim = teamErr
+    const teamErr = validateTeamName(team.namaTim); if (teamErr) errs.namaTim = teamErr
     else if (!team.namaTim.trim()) errs.namaTim = "Nama Tim wajib diisi."
     
     if (!isValidHex(team.hex)) errs.hex = "Format hex tidak valid (#RRGGBB)."
-    
-    // PERBAIKAN: Sinkronisasi status upload dengan saat eksekusi submit (.url)
     if (!team.logo?.url) errs.logo = "Logo tim wajib diunggah hingga selesai."
     if (!team.bukti?.url) errs.bukti = "Bukti transfer wajib diunggah hingga selesai."
 
     roster.players.forEach((p) => {
-      const nameErr = validateRealName(p.namaLengkap)
-      if (nameErr) errs[`${p.id}-namaLengkap`] = nameErr
+      const nameErr = validateRealName(p.namaLengkap); if (nameErr) errs[`${p.id}-namaLengkap`] = nameErr
+      const discordErr = validateDiscord(p.discord); if (discordErr) errs[`${p.id}-discord`] = discordErr
+      const ignErr = validateIGN(p.ign); if (ignErr) errs[`${p.id}-ign`] = ignErr
+      else if (!p.ign.trim()) errs[`${p.id}-ign`] = "IGN wajib diisi."
 
-      const discordErr = validateDiscord(p.discord)
-      if (discordErr) errs[`${p.id}-discord`] = discordErr
+      if (!p.duelId.trim()) errs[`${p.id}-duelId`] = "ID Duel Links wajib diisi."
+      else if (!isCompleteDuelId(p.duelId)) errs[`${p.id}-duelId`] = "ID harus berformat xxx-xxx-xxx."  
+    })
 
-      // PERBAIKAN: Menambahkan validateIGN
-      const ignErr = validateIGN(p.ign)
-      if (ignErr) errs[`${p.id}-ign`] = ignErr
-      else if (!p.ign.trim
+    duplicateFields.forEach((key) => { errs[key] = "Data ganda dalam tim" })
+    Object.entries(mappedBackendErrors).forEach(([key, value]) => { errs[key] = value })
+
+    return errs
+  }, [team.email, team.namaTim, team.hex, team.logo, team.bukti, roster.players, duplicateFields, mappedBackendErrors])
+
+  const canSubmit = Object.keys(fieldErrors).length === 0 && rosterRuleOk && !isChecking
+
+  // Helpers
+  const triggerSmartPasteBypass = () => setIsSmartPaste(true)
+  const markTouched = (key: string) => setTouchedFields(prev => ({ ...prev, [key]: true }))
+  const markTouchedMultiple = (keys: Record<string, boolean>) => setTouchedFields(prev => ({ ...prev, ...keys }))
+  const err = (key: string) => fieldErrors[key] && (duplicateFields.has(key) || mappedBackendErrors[key] || submitAttempted || touchedFields[key]) ? fieldErrors[key] : undefined
+
+  // 4. Tombol Submit & Fetch
+  async function handleReviewClick() {
+    setSubmitAttempted(true)
+    if (!canSubmit) {
+      Swal.fire({ title: "Ditahan!", text: "Periksa kolom merah.", icon: "error", background: "#121212", color: "#fff" })
+      document.getElementById("registration-form")?.scrollIntoView({ behavior: "smooth", block: "start" })
+      return
+    }
+    if (isEditMode) handleSubmit()
+    else { setServerError(null); setModalOpen(true) }
+  }
+
+  async function handleSubmit() {
+    setSubmitting(true); setServerError(null)
+    try {
+      if (!team.logo?.url || !team.bukti?.url) {
+        setSubmitting(false); setServerError("Gambar belum selesai diunggah.")
+        return
+      }
+      
+      const payload: any = {
+        email: team.email.trim(), namaTim: sanitizeTeamName(team.namaTim), warna: team.hex.toUpperCase(),
+        logoTim: team.logo.url, buktiTransfer: team.bukti.url,
+        players: roster.players.map(p => ({ role: p.role, namaLengkap: toProperCase(p.namaLengkap), discord: sanitizeDiscord(p.discord), ign: sanitizeIGN(p.ign), idDuelLinks: formatDuelId(p.duelId) })),
+        createdAt: new Date().toISOString()
+      }
+      if (isEditMode && editToken) payload.token = editToken
+
+      const res = await fetch(isEditMode ? "/api/update-team" : "/api/submit", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      })
     
+      if (!res.headers.get("content-type")?.includes("application/json")) throw new Error(`Server Error (${res.status}).`)
+
+      const result = await res.json()
+      if (!res.ok || result.status === "error") {
+        setSubmitting(false); setServerError(result.error || result.message || "Kesalahan sistem.")
+        if (isEditMode) Swal.fire("Gagal Disimpan!", result.error, "error"); return
+      }
+
+      try { localStorage.removeItem(STORAGE_KEY) } catch {}
+      setSubmitting(false); setModalOpen(false); setSuccess(true)
+    } catch (error: any) {
+      setSubmitting(false); setServerError(error.message)
+      if (isEditMode) Swal.fire("Kesalahan Sistem", error.message, "error")
+    }
+  }
+
+  return { modalOpen, setModalOpen, submitting, serverError, success, rosterRuleOk, canSubmit, isChecking, rawBackendErrors, triggerSmartPasteBypass, markTouched, markTouchedMultiple, err, handleReviewClick, handleSubmit }
+          }
+      
