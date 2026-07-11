@@ -1,9 +1,10 @@
 "use client"
 
-import { useMemo } from 'react'; // Pastikan di-import di atas
-import { useEffect, useRef } from "react" // 👈 Tambahkan useRef
+import { useMemo, useEffect, useRef } from 'react';
 import { useTeamDetails } from "@/components/registration/hooks/use-team-details"
 import { useRoster } from "@/components/registration/hooks/use-roster"
+
+// PERBAIKAN 1: Import disesuaikan dengan format kebab-case yang baru
 import { useRegistrationFlow } from "@/components/registration/hooks/use-registration-flow"
 
 import { TeamIdentity } from "@/components/registration/team-identity"
@@ -17,13 +18,13 @@ interface RegistrationFormProps {
   editToken?: string;
 }
 
-export function RegistrationForm({ isEditMode = false, initialData }: RegistrationFormProps) {
+export function RegistrationForm({ isEditMode = false, initialData, editToken = "" }: RegistrationFormProps) {
   const team = useTeamDetails()
   const roster = useRoster()
-  // Tambahkan initialData?.namaTim sebagai parameter ke-4
-  const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "")
+  
+  // PERBAIKAN 2: editToken dimasukkan sebagai parameter ke-5 agar fungsi Update ke Database berjalan
+  const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "", editToken)
 
-  // ⚡ 1. Buat gembok penanda apakah data sudah diisi atau belum
   const hasInitialized = useRef(false);
 
   useEffect(() => {
@@ -35,33 +36,28 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
       team.setLogo({ url: initialData.logoTim, name: "logo-terkunci.png", size: 0 });
       team.setBukti({ url: initialData.buktiTransfer, name: "bukti-terkunci.jpg", size: 0 });
       
-      // 🔥 PENYELAMATNYA DI SINI: Selaraskan data DB ke format yang dikenal form
       const mappedPlayers = (initialData.players || []).map((p: any, index: number) => ({
         ...p,
-        id: p.id || `player-${index}`, // Wajib ada ID unik
+        id: p.id || `player-${index}`, 
         namaLengkap: p.namaLengkap || "",
         ign: p.ign || "",
         discord: p.discord || "",
-        // Sinkronisasi idDuelLinks dari DB menjadi duelId untuk form
         duelId: p.duelId || p.idDuelLinks || "", 
       }));
 
       roster.setPlayers(mappedPlayers);
-      
       hasInitialized.current = true;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, initialData]); 
 
-  // ⚡ SMART DETECTOR: Mengecek apakah ada perubahan nyata dari data awal
+  // SMART DETECTOR: Mengecek apakah ada perubahan nyata dari data awal
   const hasChanges = useMemo(() => {
-    // Kalau bukan mode edit atau data belum ada, anggap selalu ada perubahan
     if (!isEditMode || !initialData) return true; 
 
-    // 1. Cek perubahan nama tim & warna (mengabaikan spasi di awal/akhir)
     const nameChanged = team.namaTim.trim() !== (initialData.namaTim || "").trim();
     const colorChanged = team.hex.toLowerCase() !== (initialData.warna || "").toLowerCase();
 
-    // 2. Cek perubahan roster (hanya fokus ke data yang bisa diinput)
     const currentRoster = roster.players.map((p: any) => ({
       ign: p.ign.trim(),
       discord: p.discord.trim(),
@@ -76,10 +72,8 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
       role: p.role
     }));
 
-    // Bandingkan array roster menggunakan JSON.stringify
     const rosterChanged = JSON.stringify(currentRoster) !== JSON.stringify(originalRoster);
 
-    // Kalau ada salah satu aja yang berubah, return true!
     return nameChanged || colorChanged || rosterChanged;
   }, [team.namaTim, team.hex, roster.players, isEditMode, initialData]);
   
@@ -87,7 +81,6 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
     <>
       <form id="registration-form" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-6">
         
-        {/* Input Identitas Tim & Kontak Kapten */}
         <TeamIdentity 
           {...team} 
           err={flow.err} 
@@ -95,7 +88,6 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
           isEditMode={isEditMode}
         />
 
-        {/* Seksi Susunan Roster Pemain */}
         <RosterSection 
           {...roster} 
           rosterRuleOk={flow.rosterRuleOk}
@@ -108,7 +100,6 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
           isEditMode={isEditMode}
         />
 
-        {/* Tombol Eksekusi Akhir */}
         <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
           <button
             type="button" 
@@ -124,8 +115,6 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
         </section>
       </form>
 
-      {/* --- KUMPULAN MODAL INTERAKTIF --- */}
-      
       <ReviewModal 
         open={flow.modalOpen} 
         onClose={() => flow.setModalOpen(false)} 
@@ -151,4 +140,4 @@ export function RegistrationForm({ isEditMode = false, initialData }: Registrati
       />
     </>
   )
-              }
+    }
