@@ -16,11 +16,15 @@ export function usePreFlightCheck(
     ign: p.ign, discord: p.discord, idDuelLinks: p.duelId
   })))
 
-  useEffect(() => {
-    if (!namaTim.trim()) {
-      setRawBackendErrors(prev => (prev.length === 0 ? prev : []))
+    useEffect(() => {
+      // 1. Cek apakah ada satupun data pemain yang sudah diisi
+      const hasPlayerData = players.some(p => p.duelId.trim() || p.discord.trim() || p.ign.trim())
+
+      // 2. Kalau Nama Tim KOSONG dan Pemain juga KOSONG, baru hentikan proses (return)
+      if (!namaTim.trim() && !hasPlayerData) {
+        setRawBackendErrors(prev => (prev.length === 0 ? prev : []))
       return
-    }
+      }
 
     const controller = new AbortController()
     const signal = controller.signal
