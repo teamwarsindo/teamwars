@@ -32,7 +32,19 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
 
     if (!signature || !timestamp || !process.env.DISCORD_PUBLIC_KEY) {
+      console.error("ALARM 1: Signature/Timestamp kosong, atau PUBLIC_KEY di Vercel belum ada!");
       return new NextResponse('Akses Ditolak', { status: 401 });
+    }
+
+    const isVerified = nacl.sign.detached.verify(
+      Buffer.from(timestamp + rawBody),
+      Buffer.from(signature, 'hex'),
+      Buffer.from(process.env.DISCORD_PUBLIC_KEY, 'hex')
+    );
+
+    if (!isVerified) {
+      console.error("ALARM 2: Kriptografi gagal! DISCORD_PUBLIC_KEY salah atau typo.");
+      return new NextResponse('Signature tidak valid', { status: 401 });
     }
 
     const isVerified = nacl.sign.detached.verify(
