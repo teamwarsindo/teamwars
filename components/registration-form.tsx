@@ -5,7 +5,6 @@ import { useTeamDetails } from "@/components/registration/hooks/use-team-details
 import { useRoster } from "@/components/registration/hooks/use-roster"
 import { useRegistrationFlow } from "@/components/registration/hooks/use-registration-flow"
 
-// 🚀 PERBAIKAN: Import tipe data dari file sentral yang baru kita buat
 import type { PlayerState } from "@/components/registration/hooks/types"
 
 import { TeamIdentity } from "@/components/registration/team-identity"
@@ -13,7 +12,6 @@ import { RosterSection } from "@/components/registration/roster-section"
 import { ReviewModal } from "@/components/review-modal"
 import { SuccessModal } from "@/components/success-modal"
 
-// Kita biarkan initialData menggunakan any atau tipe khusus DB jika kamu punya
 interface RegistrationFormProps {
   isEditMode?: boolean;
   initialData?: any; 
@@ -36,7 +34,6 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
       team.setLogo({ url: initialData.logoTim, name: "logo-terkunci.png", size: 0 });
       team.setBukti({ url: initialData.buktiTransfer, name: "bukti-terkunci.jpg", size: 0 });
       
-      // 🚀 PERBAIKAN: Kita beri tahu TypeScript bahwa hasil map ini adalah PlayerState[]
       const mappedPlayers: PlayerState[] = (initialData.players || []).map((p: any, index: number) => ({
         ...p,
         id: p.id || `player-${index}`, 
@@ -58,8 +55,6 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
     const nameChanged = team.namaTim.trim() !== (initialData.namaTim || "").trim();
     const colorChanged = team.hex.toLowerCase() !== (initialData.warna || "").toLowerCase();
 
-    // 🚀 PERBAIKAN: Hapus penggunaan (p: any). Karena roster.players sudah punya tipe PlayerState[], 
-    // TypeScript sekarang otomatis tahu p itu apa. (Fitur auto-complete (Ctrl+Space) di VSCode mu akan nyala di sini!)
     const currentRoster = roster.players.map((p) => ({
       ign: p.ign.trim(),
       discord: p.discord.trim(),
@@ -67,7 +62,6 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
       role: p.role
     }));
 
-    // Di sini tetap any karena initialData murni JSON mentah dari Backend
     const originalRoster = (initialData.players || []).map((p: any) => ({
       ign: (p.ign || "").trim(),
       discord: (p.discord || "").trim(),
@@ -148,4 +142,4 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
       />
     </>
   )
-        }
+}
