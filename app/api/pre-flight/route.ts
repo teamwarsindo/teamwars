@@ -13,16 +13,17 @@ export async function POST(request: NextRequest) {
     const errorList: ErrorDetail[] = [];
 
     // Bersihkan excludeSlug di awal agar bisa dipakai di seluruh pengecekan
-    const cleanExcludeSlug = excludeSlug ? excludeSlug.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-") : undefined;
+    const cleanExcludeSlug = excludeSlug ? excludeSlug.trim().toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-") : undefined;
 
     // 1. PENGECEKAN NAMA TIM (Hanya jalan kalau namaTim diisi)
-    if (namaTim) {
-      const teamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
+    if (namaTim && namaTim.trim()) {
+      const cleanNamaTim = namaTim.trim();
+      const teamSlug = cleanNamaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
       
       if ((!cleanExcludeSlug || cleanExcludeSlug !== teamSlug) && await kv.exists(`teams:${teamSlug}`)) {
         errorList.push({ 
           field: 'namaTim', 
-          message: `Nama tim "${namaTim}" sudah terdaftar! Gunakan nama lain.` 
+          message: `Nama tim "${cleanNamaTim}" sudah terdaftar! Gunakan nama lain.` 
         });
       }
     }
@@ -38,33 +39,37 @@ export async function POST(request: NextRequest) {
         if (oldData && oldData.players) {
           const parsedOldPlayers = typeof oldData.players === "string" ? JSON.parse(oldData.players) : oldData.players;
           
-          oldIgns = parsedOldPlayers.map((p: any) => p.ign?.toLowerCase() || "");
-          oldDiscords = parsedOldPlayers.map((p: any) => p.discord?.toLowerCase() || "");
-          oldDuelLinks = parsedOldPlayers.map((p: any) => p.idDuelLinks || p.duelId || "");
+          // Tambahkan trim() juga saat narik data lama untuk memastikan komparasi bersih 100%
+          oldIgns = parsedOldPlayers.map((p: any) => p.ign?.trim().toLowerCase() || "");
+          oldDiscords = parsedOldPlayers.map((p: any) => p.discord?.trim().toLowerCase() || "");
+          oldDuelLinks = parsedOldPlayers.map((p: any) => (p.idDuelLinks || p.duelId || "").trim());
         }
       }
 
       for (let i = 0; i < players.length; i++) {
         const p = players[i];
         
-        if (p.ign && !oldIgns.includes(p.ign.toLowerCase()) && await kv.sismember("global:ign", p.ign.toLowerCase())) {
-          errorList.push({ field: `players.${i}.ign`, message: `IGN "${p.ign}" sudah terdaftar!` });
+        // 🎯 Terapkan trim pada setiap input sebelum dicek
+        const cleanIgn = p.ign ? p.ign.trim() : "";
+        const cleanDiscord = p.discord ? p.discord.trim() : "";
+        const cleanDuelId = p.idDuelLinks ? p.idDuelLinks.trim() : "";
+        
+        if (cleanIgn && !oldIgns.includes(cleanIgn.toLowerCase()) && await kv.sismember("global:ign", cleanIgn.toLowerCase())) {
+          errorList.push({ field: `players.${i}.ign`, message: `IGN "${cleanIgn}" sudah terdaftar!` });
         }
         
-        if (p.discord && !oldDiscords.includes(p.discord.toLowerCase()) && await kv.sismember("global:discord", p.discord.toLowerCase())) {
-          errorList.push({ field: `players.${i}.discord`, message: `Discord @${p.discord} sudah terdaftar!` });
+        if (cleanDiscord && !oldDiscords.includes(cleanDiscord.toLowerCase()) && await kv.sismember("global:discord", cleanDiscord.toLowerCase())) {
+          errorList.push({ field: `players.${i}.discord`, message: `Discord @${cleanDiscord} sudah terdaftar!` });
         }
         
-        if (p.idDuelLinks && !oldDuelLinks.includes(p.idDuelLinks) && await kv.sismember("global:duellinks", p.idDuelLinks)) {
-          errorList.push({ field: `players.${i}.idDuelLinks`, message: `ID Duel Links ${p.idDuelLinks} sudah terdaftar!` });
+        if (cleanDuelId && !oldDuelLinks.includes(cleanDuelId) && await kv.sismember("global:duellinks", cleanDuelId)) {
+          errorList.push({ field: `players.${i}.idDuelLinks`, message: `ID Duel Links ${cleanDuelId} sudah terdaftar!` });
         }
       }
     }
 
     // 3. PENGEMBALIAN HASIL
-    // Cek apakah ada error (entah dari Nama Tim ATAU dari Data Pemain)
     if (errorList.length > 0) {
-      // Return 200 dengan JSON format errors sesuai ekspektasi frontend lu (TIDAK BOLEH 400/409 karena akan gagal di tangkap catch)
       return NextResponse.json({ success: false, errors: errorList });
     }
     
