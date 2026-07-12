@@ -244,7 +244,7 @@ export async function GET() {
           try {
             await resend.emails.send({
               from: 'Team Wars Indonesia <registration@teamwars.web.id>',
-              to: teamData.email
+              to: teamData.email,
               subject: `[PERLU TINDAKAN] Verifikasi Data Tim ${teamData.namaTim} - TWI S7`,
               html: getCorrectionTemplate({
                 namaTim: teamData.namaTim,
