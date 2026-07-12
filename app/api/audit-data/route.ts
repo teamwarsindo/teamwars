@@ -243,8 +243,8 @@ export async function GET() {
         if (teamData.editToken && teamData.email) {
           try {
             await resend.emails.send({
-              from: 'Admin TWI <admin@teamwars.web.id>',
-              to: 'teamwars.indo@gmail.com', // 👈 Masih pakai email testing lu
+              from: 'Team Wars Indonesia <registration@teamwars.web.id>',
+              to: teamData.email
               subject: `[PERLU TINDAKAN] Verifikasi Data Tim ${teamData.namaTim} - TWI S7`,
               html: getCorrectionTemplate({
                 namaTim: teamData.namaTim,
@@ -265,9 +265,9 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: "Proses Audit (TESTING) Selesai!",
+      message: "Proses Audit dan Broadcast Email Selesai!",
       totalTimDitemukanSalah: auditResults.length,
-      emailBerhasilTerkirimKeTestEmail: emailsSent,
+      emailBerhasilTerkirim: emailsSent,
       detailPelanggaran: auditResults
     });
 
