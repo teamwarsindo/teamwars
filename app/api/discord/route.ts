@@ -47,16 +47,6 @@ export async function POST(req: NextRequest) {
       return new NextResponse('Signature tidak valid', { status: 401 });
     }
 
-    const isVerified = nacl.sign.detached.verify(
-      Buffer.from(timestamp + rawBody),
-      Buffer.from(signature, 'hex'),
-      Buffer.from(process.env.DISCORD_PUBLIC_KEY, 'hex')
-    );
-
-    if (!isVerified) {
-      return new NextResponse('Signature tidak valid', { status: 401 });
-    }
-
     const body = JSON.parse(rawBody);
 
     // ==========================================
