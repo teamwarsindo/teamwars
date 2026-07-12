@@ -216,7 +216,7 @@ export async function GET() {
             await resend.emails.send({
               from: 'Admin TWI <admin@teamwars.web.id>', // Ganti sender dengan yang lu pakai (EMAIL_CONFIG.sender)
        //       to: teamData.email,
-              to: 'teamwars.indo@gmail.com'
+              to: 'teamwars.indo@gmail.com',
               subject: `[ACTION REQUIRED] Perbaikan Data Pendaftaran Tim ${teamData.namaTim} - TWI S7`,
               html: getCorrectionTemplate({
                 namaTim: teamData.namaTim,
