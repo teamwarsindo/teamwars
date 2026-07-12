@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { RegistrationForm } from "@/components/registration-form";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
+import { STORAGE_KEY } from "@/lib/registration";
 
 export default function Page() {
   const [isCopied, setIsCopied] = useState(false);
@@ -58,7 +59,7 @@ export default function Page() {
               </button>
               <button 
                 onClick={() => {
-                  localStorage.clear();
+                  localStorage.removeItem(STORAGE_KEY);
                   window.location.reload();
                 }}
                 className="flex-1 rounded-xl bg-destructive py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-destructive/90 active:scale-[0.98]"
