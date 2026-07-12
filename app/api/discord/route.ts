@@ -79,24 +79,26 @@ export async function POST(req: NextRequest) {
 
       // CARI DATA TIM DI REDIS
       // Logika ini mencari semua slug tim, lalu mencocokkan username Discord.
-      // (Sesuaikan jika lu punya index khusus di Redis yang lebih cepat)
+      // (Sesuaikan jika lu punya index khusus di Redis yang lebih cepat
       let foundTeam: any = null;
       let foundPlayer: any = null;
       
-      // Asumsi lu punya daftar semua slug tim di key 'global:summary_list'
-      const allTeamSlugs = await kv.smembers('global:summary_list');
+      // 🎯 PERBAIKAN 1: Ganti 'global:summary_list' menjadi 'global:teams'
+      const allTeamSlugs = await kv.smembers('global:teams');
       
       for (const slug of allTeamSlugs) {
         const teamData: any = await kv.hgetall(`teams:${slug}`);
         if (!teamData || !teamData.players) continue;
         
         const players = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
-        const playerMatch = players.find((p: any) => p.discord.toLowerCase() === username);
+        
+        // Pastikan nyarinya bersih dari spasi dan huruf besar
+        const playerMatch = players.find((p: any) => p.discord.trim().toLowerCase() === username);
         
         if (playerMatch) {
           foundTeam = teamData;
           foundPlayer = playerMatch;
-          break; // Berhenti mencari jika sudah ketemu
+          break; 
         }
       }
 
@@ -114,9 +116,12 @@ export async function POST(req: NextRequest) {
       const rolesToAssign = [ROLE_DUELIST];
       if (foundPlayer.role === 'Ketua') rolesToAssign.push(ROLE_KETUA);
       if (foundPlayer.role === 'Wakil Ketua') rolesToAssign.push(ROLE_WAKIL);
-      if (foundTeam.discordRoleId) rolesToAssign.push(foundTeam.discordRoleId);
+      
+      // 🎯 PERBAIKAN 2: Sesuaikan nama properti dengan data di Redis (roleId)
+      if (foundTeam.roleId) rolesToAssign.push(foundTeam.roleId);
+      if (foundTeam.discordRoleId) rolesToAssign.push(foundTeam.discordRoleId); // Buat jaga-jaga kalau nama field-nya beda
 
-      // EKSEKUSI API DISCORD (Jalan paralel biar cepat, karena batas maksimal Vercel cuma 3 detik)
+      // EKSEKUSI API DISCORD 
       const apiPromises = [];
 
       // A. Tambahkan Role
@@ -125,8 +130,9 @@ export async function POST(req: NextRequest) {
       }
 
       // B. Ubah Nickname
+      // Ambil inisial tim (contoh: "Tim Tester" -> "TT")
       const teamTag = foundTeam.namaTim.split(' ').map((w: string) => w[0]).join('').toUpperCase();
-      const newNickname = `${teamTag} - ${foundPlayer.ign}`.substring(0, 32);
+      const newNickname = `${teamTag} - ${foundPlayer.ign}`.substring(0, 32); // Max 32 karakter sesuai aturan Discord
       apiPromises.push(discordAPI(`/guilds/${guildId}/members/${userId}`, 'PATCH', { nick: newNickname }));
 
       // C. Kirim Log ke Channel Admin
@@ -144,7 +150,7 @@ export async function POST(req: NextRequest) {
           content: `✅ **Verifikasi Berhasil!**\n\nSelamat datang, **${foundPlayer.ign}**.\nPeran untuk Tim **${foundTeam.namaTim}**, Jabatan **${foundPlayer.role}**, dan **Season 7 Duelist** telah berhasil diterapkan.`,
           flags: 64
         }
-      });
+      });    
     }
 
     return new NextResponse('Bad Request', { status: 400 });
