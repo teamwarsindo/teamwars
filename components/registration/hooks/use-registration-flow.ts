@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react" // 👈 Tambahkan useEffect
+import { useState, useMemo, useEffect } from "react"
 import { STORAGE_KEY, countRole, findDuplicateFields } from "@/lib/registration"
 import { isValidEmail, isValidHex, validateDuelId, validateRealName, validateTeamName, validateDiscord, validateIGN, sanitizeTeamName, sanitizeDiscord, sanitizeIGN, toProperCase, formatDuelId } from "@/lib/validators"
 import Swal from "sweetalert2"
@@ -24,31 +24,26 @@ export function useRegistrationFlow(
   // 1. Panggil fungsionalitas Draft Storage
   const { isDraftLoaded } = useDraftStorage(team, roster, isEditMode)
 
-  // 🚀 PERBAIKAN: Auto-Trigger Error Warning setelah data draft masuk
+  // 🚀 PERBAIKAN: AGGRESSIVE VALIDATION UNIVERSAL (Real-time di setiap ketikan)
+  // Begitu input memiliki setidaknya 1 huruf, gembok error langsung dibuka.
   useEffect(() => {
-    if (isDraftLoaded && !isEditMode) {
-      const autoTouched: Record<string, boolean> = {}
+    const activeFields: Record<string, boolean> = {}
 
-      // Cek identitas tim, kalau ada isinya langsung tandai "tersentuh"
-      if (team.email) autoTouched.email = true
-      if (team.namaTim) autoTouched.namaTim = true
-      if (team.hex) autoTouched.hex = true
+    if (team.email) activeFields.email = true
+    if (team.namaTim) activeFields.namaTim = true
+    if (team.hex) activeFields.hex = true
 
-      // Cek roster pemain, kalau ada isinya langsung tandai "tersentuh"
-      roster.players.forEach((p) => {
-        if (p.namaLengkap) autoTouched[`${p.id}-namaLengkap`] = true
-        if (p.discord) autoTouched[`${p.id}-discord`] = true
-        if (p.ign) autoTouched[`${p.id}-ign`] = true
-        if (p.duelId) autoTouched[`${p.id}-duelId`] = true
-      })
+    roster.players.forEach((p) => {
+      if (p.namaLengkap) activeFields[`${p.id}-namaLengkap`] = true
+      if (p.discord) activeFields[`${p.id}-discord`] = true
+      if (p.ign) activeFields[`${p.id}-ign`] = true
+      if (p.duelId) activeFields[`${p.id}-duelId`] = true
+    })
 
-      // Update state gembok error-nya
-      if (Object.keys(autoTouched).length > 0) {
-        markTouchedMultiple(autoTouched)
-      }
+    if (Object.keys(activeFields).length > 0) {
+      setTouchedFields((prev) => ({ ...prev, ...activeFields }))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDraftLoaded]) 
+  }, [team.email, team.namaTim, team.hex, roster.players])
 
   // 2. Panggil fungsionalitas Pre-Flight (API Check)
   const { isChecking, rawBackendErrors } = usePreFlightCheck(
@@ -73,11 +68,9 @@ export function useRegistrationFlow(
   }, [rawBackendErrors, roster.players])
 
   // 3. Gabungkan Semua Validasi
-    const fieldErrors = useMemo(() => {
+  const fieldErrors = useMemo(() => {
     const errs: Record<string, string> = {}
     
-    // Email belum dipisah ke fungsi validateEmail khusus yang mereturn string error, 
-    // jadi tetap pakai logika manual ini.
     if (!team.email.trim()) errs.email = "Email wajib diisi."
     else if (!isValidEmail(team.email)) errs.email = "Format email tidak valid."
     
@@ -165,5 +158,5 @@ export function useRegistrationFlow(
   }
 
   return { modalOpen, setModalOpen, submitting, serverError, success, rosterRuleOk, canSubmit, isChecking, rawBackendErrors, triggerSmartPasteBypass, markTouched, markTouchedMultiple, err, handleReviewClick, handleSubmit }
-          }
+                                   }
       
