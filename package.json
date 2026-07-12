@@ -26,7 +26,8 @@
     "browser-image-compression": "^2.0.2",
     "resend": "latest",
     "cloudinary": "^2.2.0",
-    "sweetalert2": "^11.x.x"
+    "sweetalert2": "^11.x.x",
+    "tweetnacl": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",
