@@ -107,6 +107,13 @@ export function validateRealName(value: string): string | undefined {
   if (!v) return "Nama wajib diisi."
   if (v.length < 3) return "Minimal 3 karakter."
   if (v.length > 60) return "Maksimal 60 karakter."
-  if (/[^a-zA-Z\s'-]/.test(v)) return "Hanya boleh menggunakan abjad, spasi, tanda kutip, dan strip."
+  
+  // 🎯 UPDATE: Tambahkan titik (.) ke dalam regex agar "M." atau "Tb." bisa lolos
+  if (/[^a-zA-Z\s'.-]/.test(v)) return "Hanya boleh huruf, spasi, titik, tanda kutip, dan strip."
+  
+  // 🎯 PENGAMAN TAMBAHAN: Biar gak aneh-aneh nulisnya
+  if (v.includes("..")) return "Tidak boleh ada titik berurutan."
+  if (v.startsWith(".")) return "Nama tidak boleh diawali dengan titik."
+  
   return undefined
 }
