@@ -69,14 +69,14 @@ export async function POST(req: NextRequest) {
       // PROTEKSI SPAM: Cek apakah user sudah punya role Duelist
       if (currentRoles.includes(ROLE_DUELIST)) {
         return NextResponse.json({
-          type: 4, // Balas dengan pesan
+          type: 4, 
           data: {
-            content: '❌ **Akses Ditolak**: Anda telah terverifikasi dan mengklaim peran sebelumnya. Jika terdapat perubahan data, silakan hubungi Admin.',
-            flags: 64 // Ephemeral (Hanya bisa dilihat yang ngeklik)
+            content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah menyelesaikan proses verifikasi sebelumnya.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke kategori tim Anda.`,
+            flags: 64 // Ephemeral
           }
         });
       }
-
+      
       // CARI DATA TIM DI REDIS
       // Logika ini mencari semua slug tim, lalu mencocokkan username Discord.
       // (Sesuaikan jika lu punya index khusus di Redis yang lebih cepat
@@ -130,10 +130,7 @@ export async function POST(req: NextRequest) {
       }
 
       // B. Ubah Nickname
-      // Ambil inisial tim (contoh: "Tim Tester" -> "TT")
-      const teamTag = foundTeam.namaTim.split(' ').map((w: string) => w[0]).join('').toUpperCase();
-      const newNickname = `${teamTag} - ${foundPlayer.ign}`.substring(0, 32); // Max 32 karakter sesuai aturan Discord
-      apiPromises.push(discordAPI(`/guilds/${guildId}/members/${userId}`, 'PATCH', { nick: newNickname }));
+      apiPromises.push(discordAPI(`/guilds/${guildId}/members/${userId}`, 'PATCH', { nick: `${foundPlayer.ign}` }));
 
       // C. Kirim Log ke Channel Admin
       apiPromises.push(discordAPI(`/channels/${CHANNEL_LOG}/messages`, 'POST', {
@@ -143,11 +140,28 @@ export async function POST(req: NextRequest) {
       // Tunggu semua eksekusi Discord API selesai
       await Promise.allSettled(apiPromises);
 
-      // BERIKAN RESPON SUKSES
+      // BERIKAN RESPON SUKSES (Beda teks antara Ketua/Wakil dan Anggota)
+      const roleTimStr = foundTeam.roleId ? `<@&${foundTeam.roleId}>` : `Role Tim`;
+      const isPengurus = foundPlayer.role === 'Ketua' || foundPlayer.role === 'Wakil Ketua';
+      
+      // Ambil ID Channel kalau udah lu simpan di Redis, kalau belum ada kasih teks biasa
+      const channelLink = foundTeam.channelId ? `<#${foundTeam.channelId}>` : `channel private tim Anda`;
+
+      let pesanSukses = "";
+
+      if (isPengurus) {
+        // Skenario 1: Ketua & Wakil (Dapat 2 Role Spesifik)
+        const roleJabatanStr = foundPlayer.role === 'Ketua' ? `<@&${ROLE_KETUA}>` : `<@&${ROLE_WAKIL}>`;
+        pesanSukses = `✅ **AUTENTIKASI BERHASIL**\nProses verifikasi selesai. Anda telah resmi terdaftar sebagai **${foundPlayer.role}** untuk tim **${foundTeam.namaTim}**.\n\n**Role yang diperoleh:**\n🛡️ ${roleTimStr}\n👑 ${roleJabatanStr}\n⚔️ <@&${ROLE_DUELIST}>\n\nAkses Anda telah dibuka. Silakan berkoordinasi dan persiapkan strategi tim Anda di sini: ${channelLink}`;
+      } else {
+        // Skenario 2: Anggota Biasa (Dapat 1 Role Tim)
+        pesanSukses = `✅ **AUTENTIKASI BERHASIL**\nProses verifikasi selesai. Anda telah secara resmi masuk ke dalam roster **${foundTeam.namaTim}**.\n\n**Role yang diperoleh:**\n🛡️ ${roleTimStr}\n⚔️ <@&${ROLE_DUELIST}>\n\nAkses Anda telah dibuka. Silakan bergabung dengan rekan setim Anda di sini: ${channelLink}`;
+      }
+
       return NextResponse.json({
         type: 4,
         data: {
-          content: `✅ **Verifikasi Berhasil!**\n\nSelamat datang, **${foundPlayer.ign}**.\nPeran untuk Tim **${foundTeam.namaTim}**, Jabatan **${foundPlayer.role}**, dan **Season 7 Duelist** telah berhasil diterapkan.`,
+          content: pesanSukses,
           flags: 64
         }
       });    
