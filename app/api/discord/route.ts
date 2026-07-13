@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           type: 4, 
           data: {
-            content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah menyelesaikan proses verifikasi sebelumnya.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke kategori tim Anda.`,
+            content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah menyelesaikan proses verifikasi sebelumnya.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke channel ${channelLink}`.`,
             flags: 64 // Ephemeral
           }
         });
@@ -134,7 +134,20 @@ export async function POST(req: NextRequest) {
 
       // C. Kirim Log ke Channel Admin
       apiPromises.push(discordAPI(`/channels/${CHANNEL_LOG}/messages`, 'POST', {
-        content: `📝 **Audit Log Verifikasi**\n👤 **User:** <@${userId}> (@${username})\n🎮 **IGN:** ${foundPlayer.ign}\n🛡️ **Jabatan:** ${foundPlayer.role}\n🏆 **Tim:** ${foundTeam.namaTim}\n⏰ **Waktu:** <t:${Math.floor(Date.now() / 1000)}:R>`
+        embeds: [
+          {
+            title: "✅ Log Verifikasi Role",
+            color: 3066993, // Kode warna hijau sukses (Success Green)
+            fields: [
+              { name: "👤 User Discord", value: `<@${userId}>\n(\`@${username}\`)`, inline: true },
+              { name: "🎮 IGN", value: `**${foundPlayer.ign}**`, inline: true },
+              { name: "🏆 Tim", value: `**${foundTeam.namaTim}**`, inline: true },
+              { name: "🛡️ Jabatan", value: `**${foundPlayer.role}**`, inline: true }
+            ],
+            footer: {  text: "Sistem Verifikasi Otomatis TWI" },
+            timestamp: new Date().toISOString() // Bikin waktu otomatis rapi di footer
+          }
+        ]
       }));
 
       // Tunggu semua eksekusi Discord API selesai
