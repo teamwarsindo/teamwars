@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           type: 4, 
           data: {
-            content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah menyelesaikan proses verifikasi sebelumnya.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke channel ${channelLink}`.`,
+            content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah menyelesaikan proses verifikasi sebelumnya.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke channel ${channelLink}.`,
             flags: 64 // Ephemeral
           }
         });
