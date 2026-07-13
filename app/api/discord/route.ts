@@ -25,14 +25,13 @@ async function discordAPI(endpoint: string, method: string, body?: any) {
 export async function POST(req: NextRequest) {
   try {
     // ==========================================
-    // 1. GEMBOK KEAMANAN DISCORD (SIGNATURE VERIFICATION)
+    // 1. GEMBOK KEAMANAN DISCORD
     // ==========================================
     const signature = req.headers.get('x-signature-ed25519');
     const timestamp = req.headers.get('x-signature-timestamp');
     const rawBody = await req.text();
 
     if (!signature || !timestamp || !process.env.DISCORD_PUBLIC_KEY) {
-      console.error("ALARM 1: Signature/Timestamp kosong, atau PUBLIC_KEY di Vercel belum ada!");
       return new NextResponse('Akses Ditolak', { status: 401 });
     }
 
@@ -43,7 +42,6 @@ export async function POST(req: NextRequest) {
     );
 
     if (!isVerified) {
-      console.error("ALARM 2: Kriptografi gagal! DISCORD_PUBLIC_KEY salah atau typo.");
       return new NextResponse('Signature tidak valid', { status: 401 });
     }
 
@@ -63,9 +61,10 @@ export async function POST(req: NextRequest) {
       const guildId = body.guild_id;
       const userId = body.member.user.id;
       const username = body.member.user.username.toLowerCase();
-      const currentRoles = body.member.roles;
+      // currentRoles berisi array ID role yang sedang dimiliki user saat ini
+      const currentRoles = body.member.roles || [];
 
-      // CARI DATA TIM DI REDIS TERLEBIH DAHULU
+      // CARI DATA TIM DI REDIS
       let foundTeam: any = null;
       let foundPlayer: any = null;
       
@@ -85,7 +84,6 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // JIKA DATA TIDAK DITEMUKAN DI REDIS
       if (!foundTeam) {
         return NextResponse.json({
           type: 4,
@@ -96,40 +94,40 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // AMBIL LINK CHANNEL DARI DATABASE (Teks biasa jika belum diset)
+      // 🎯 UPDATE LOGIKA: SIAPKAN DAFTAR ROLE YANG "SEHARUSNYA" DIA DAPATKAN
+      const rolesToAssign: string[] = [ROLE_DUELIST];
+      if (foundPlayer.role === 'Ketua') rolesToAssign.push(ROLE_KETUA);
+      if (foundPlayer.role === 'Wakil Ketua') rolesToAssign.push(ROLE_WAKIL);
+      if (foundTeam.roleId) rolesToAssign.push(foundTeam.roleId);
+      if (foundTeam.discordRoleId) rolesToAssign.push(foundTeam.discordRoleId);
+
+      // 🎯 UPDATE LOGIKA: CEK APAKAH DIA SUDAH PUNYA *SEMUA* ROLE TERSEBUT
+      // Array.every() akan bernilai true HANYA JIKA semua role di rolesToAssign ada di currentRoles
+      const hasAllRequiredRoles = rolesToAssign.every(roleId => currentRoles.includes(roleId));
+
       const channelLink = foundTeam.channelId ? `<#${foundTeam.channelId}>` : `channel private tim Anda`;
 
-      // 🎯 PROTEKSI SPAM DIPINDAH KE SINI (Jadi channelLink udah terbaca)
-      if (currentRoles.includes(ROLE_DUELIST)) {
+      // Jika sudah punya semuanya, tolak (Proteksi Spam)
+      if (hasAllRequiredRoles) {
         return NextResponse.json({
           type: 4, 
           data: {
-            content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah menyelesaikan proses verifikasi sebelumnya.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke ${channelLink}.`,
-            flags: 64 // Ephemeral
+            content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah melengkapi seluruh *role* verifikasi.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke ${channelLink}.`,
+            flags: 64
           }
         });
       }
 
-      // SIAPKAN DAFTAR ROLE BARU
-      const rolesToAssign = [ROLE_DUELIST];
-      if (foundPlayer.role === 'Ketua') rolesToAssign.push(ROLE_KETUA);
-      if (foundPlayer.role === 'Wakil Ketua') rolesToAssign.push(ROLE_WAKIL);
-      
-      if (foundTeam.roleId) rolesToAssign.push(foundTeam.roleId);
-      if (foundTeam.discordRoleId) rolesToAssign.push(foundTeam.discordRoleId);
-
-      // EKSEKUSI API DISCORD 
+      // Jika masih ada role yang kurang, EKSEKUSI API DISCORD 
+      // (Discord API tipe PUT itu aman ditimpa berkali-kali walau user udah punya rolenya)
       const apiPromises = [];
 
-      // A. Tambahkan Role
       for (const roleId of rolesToAssign) {
         apiPromises.push(discordAPI(`/guilds/${guildId}/members/${userId}/roles/${roleId}`, 'PUT'));
       }
 
-      // B. Ubah Nickname
       apiPromises.push(discordAPI(`/guilds/${guildId}/members/${userId}`, 'PATCH', { nick: `${foundPlayer.ign}` }));
 
-      // C. Kirim Log ke Channel Admin
       apiPromises.push(discordAPI(`/channels/${CHANNEL_LOG}/messages`, 'POST', {
         embeds: [
           {
@@ -147,7 +145,6 @@ export async function POST(req: NextRequest) {
         ]
       }));
 
-      // Tunggu semua eksekusi Discord API selesai
       await Promise.allSettled(apiPromises);
 
       // BERIKAN RESPON SUKSES
