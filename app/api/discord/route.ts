@@ -52,7 +52,6 @@ export async function POST(req: NextRequest) {
     // ==========================================
     // 2. RESPON PING DARI DISCORD
     // ==========================================
-    // Saat lu masukin URL di portal Discord, Discord bakal nge-PING (Type 1)
     if (body.type === 1) {
       return NextResponse.json({ type: 1 });
     }
@@ -66,24 +65,10 @@ export async function POST(req: NextRequest) {
       const username = body.member.user.username.toLowerCase();
       const currentRoles = body.member.roles;
 
-      // PROTEKSI SPAM: Cek apakah user sudah punya role Duelist
-      if (currentRoles.includes(ROLE_DUELIST)) {
-        return NextResponse.json({
-          type: 4, 
-          data: {
-            content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah menyelesaikan proses verifikasi sebelumnya.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke channel ${channelLink}.`,
-            flags: 64 // Ephemeral
-          }
-        });
-      }
-      
-      // CARI DATA TIM DI REDIS
-      // Logika ini mencari semua slug tim, lalu mencocokkan username Discord.
-      // (Sesuaikan jika lu punya index khusus di Redis yang lebih cepat
+      // CARI DATA TIM DI REDIS TERLEBIH DAHULU
       let foundTeam: any = null;
       let foundPlayer: any = null;
       
-      // 🎯 PERBAIKAN 1: Ganti 'global:summary_list' menjadi 'global:teams'
       const allTeamSlugs = await kv.smembers('global:teams');
       
       for (const slug of allTeamSlugs) {
@@ -91,8 +76,6 @@ export async function POST(req: NextRequest) {
         if (!teamData || !teamData.players) continue;
         
         const players = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
-        
-        // Pastikan nyarinya bersih dari spasi dan huruf besar
         const playerMatch = players.find((p: any) => p.discord.trim().toLowerCase() === username);
         
         if (playerMatch) {
@@ -102,6 +85,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // JIKA DATA TIDAK DITEMUKAN DI REDIS
       if (!foundTeam) {
         return NextResponse.json({
           type: 4,
@@ -112,14 +96,27 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // AMBIL LINK CHANNEL DARI DATABASE (Teks biasa jika belum diset)
+      const channelLink = foundTeam.channelId ? `<#${foundTeam.channelId}>` : `channel private tim Anda`;
+
+      // 🎯 PROTEKSI SPAM DIPINDAH KE SINI (Jadi channelLink udah terbaca)
+      if (currentRoles.includes(ROLE_DUELIST)) {
+        return NextResponse.json({
+          type: 4, 
+          data: {
+            content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah menyelesaikan proses verifikasi sebelumnya.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke ${channelLink}.`,
+            flags: 64 // Ephemeral
+          }
+        });
+      }
+
       // SIAPKAN DAFTAR ROLE BARU
       const rolesToAssign = [ROLE_DUELIST];
       if (foundPlayer.role === 'Ketua') rolesToAssign.push(ROLE_KETUA);
       if (foundPlayer.role === 'Wakil Ketua') rolesToAssign.push(ROLE_WAKIL);
       
-      // 🎯 PERBAIKAN 2: Sesuaikan nama properti dengan data di Redis (roleId)
       if (foundTeam.roleId) rolesToAssign.push(foundTeam.roleId);
-      if (foundTeam.discordRoleId) rolesToAssign.push(foundTeam.discordRoleId); // Buat jaga-jaga kalau nama field-nya beda
+      if (foundTeam.discordRoleId) rolesToAssign.push(foundTeam.discordRoleId);
 
       // EKSEKUSI API DISCORD 
       const apiPromises = [];
@@ -137,7 +134,7 @@ export async function POST(req: NextRequest) {
         embeds: [
           {
             title: "✅ Log Verifikasi Role",
-            color: 3066993, // Kode warna hijau sukses (Success Green)
+            color: 3066993, 
             fields: [
               { name: "👤 User Discord", value: `<@${userId}>\n(\`@${username}\`)`, inline: true },
               { name: "🎮 IGN", value: `**${foundPlayer.ign}**`, inline: true },
@@ -145,7 +142,7 @@ export async function POST(req: NextRequest) {
               { name: "🛡️ Jabatan", value: `**${foundPlayer.role}**`, inline: true }
             ],
             footer: {  text: "Sistem Verifikasi Otomatis TWI" },
-            timestamp: new Date().toISOString() // Bikin waktu otomatis rapi di footer
+            timestamp: new Date().toISOString()
           }
         ]
       }));
@@ -153,21 +150,16 @@ export async function POST(req: NextRequest) {
       // Tunggu semua eksekusi Discord API selesai
       await Promise.allSettled(apiPromises);
 
-      // BERIKAN RESPON SUKSES (Beda teks antara Ketua/Wakil dan Anggota)
+      // BERIKAN RESPON SUKSES
       const roleTimStr = foundTeam.roleId ? `<@&${foundTeam.roleId}>` : `Role Tim`;
       const isPengurus = foundPlayer.role === 'Ketua' || foundPlayer.role === 'Wakil Ketua';
       
-      // Ambil ID Channel kalau udah lu simpan di Redis, kalau belum ada kasih teks biasa
-      const channelLink = foundTeam.channelId ? `<#${foundTeam.channelId}>` : `channel private tim Anda`;
-
       let pesanSukses = "";
 
       if (isPengurus) {
-        // Skenario 1: Ketua & Wakil (Dapat 2 Role Spesifik)
         const roleJabatanStr = foundPlayer.role === 'Ketua' ? `<@&${ROLE_KETUA}>` : `<@&${ROLE_WAKIL}>`;
         pesanSukses = `✅ **AUTENTIKASI BERHASIL**\nProses verifikasi selesai. Anda telah resmi terdaftar sebagai **${foundPlayer.role}** untuk tim **${foundTeam.namaTim}**.\n\n**Role yang diperoleh:**\n🛡️ ${roleTimStr}\n👑 ${roleJabatanStr}\n⚔️ <@&${ROLE_DUELIST}>\n\nAkses Anda telah dibuka. Silakan berkoordinasi dan persiapkan strategi tim Anda di sini: ${channelLink}`;
       } else {
-        // Skenario 2: Anggota Biasa (Dapat 1 Role Tim)
         pesanSukses = `✅ **AUTENTIKASI BERHASIL**\nProses verifikasi selesai. Anda telah secara resmi masuk ke dalam roster **${foundTeam.namaTim}**.\n\n**Role yang diperoleh:**\n🛡️ ${roleTimStr}\n⚔️ <@&${ROLE_DUELIST}>\n\nAkses Anda telah dibuka. Silakan bergabung dengan rekan setim Anda di sini: ${channelLink}`;
       }
 
@@ -185,5 +177,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Discord Interaction:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
-        }
-    
+}
