@@ -17,7 +17,19 @@ export default function TesterPage() {
   // =====================================
   // BAGIAN 1: FORM SIMPAN KE DB
   // =====================================
-  const handleAddPlayer = () => setPlayers([...players, { discord: "", ign: "Testing", role: "Anggota" }]);
+  const handleAddPlayer = () => {
+    setPlayers([...players, { discord: "", ign: "Testing", role: "Anggota" }]);
+  };
+
+  // 🔥 FITUR BARU: Hapus Pemain
+  const handleRemovePlayer = (index: number) => {
+    if (players.length > 1) {
+      const newPlayers = players.filter((_, i) => i !== index);
+      setPlayers(newPlayers);
+    } else {
+      alert("Minimal harus ada 1 pemain, Bos!");
+    }
+  };
   
   const handlePlayerChange = (index: number, field: string, value: string) => {
     const newPlayers = [...players];
@@ -28,15 +40,22 @@ export default function TesterPage() {
   const handleSimpanDB = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setMessage("Sedang menyimpan ke DB...");
     try {
-      const res = await fetch("/api/tester/teams", {
+      const res = await fetch("/api/tester/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...formData, players }),
       });
-      const data = await res.json();
-      setMessage(data.message || data.error);
-      fetchTeams();
+      const data = await res.json().catch(() => null); // Pengaman kalau error HTML
+      if (data) {
+        setMessage(data.message || data.error);
+        fetchTeams();
+      } else {
+        setMessage("❌ Terjadi kesalahan. Cek terminal Vercel/Local.");
+      }
+    } catch (error) {
+      setMessage("❌ Gagal menghubungi server.");
     } finally {
       setLoading(false);
     }
@@ -46,12 +65,15 @@ export default function TesterPage() {
   // BAGIAN 2: AMBIL DATA
   // =====================================
   const fetchTeams = async () => {
-    const res = await fetch("/api/tester/teams");
-    const data = await res.json();
-    if (data.success) {
-      setDbTeams(data.teams);
-      // Bersihkan pilihan yang mungkin timnya udah kehapus
-      setSelectedSlugs([]); 
+    try {
+      const res = await fetch("/api/tester/save");
+      const data = await res.json();
+      if (data.success) {
+        setDbTeams(data.teams);
+        setSelectedSlugs([]); 
+      }
+    } catch (error) {
+      console.error("Gagal load data tim");
     }
   };
 
@@ -74,9 +96,15 @@ export default function TesterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slugs: selectedSlugs }),
       });
-      const data = await res.json();
-      setMessage(data.results.join("\n")); 
-      fetchTeams(); 
+      const data = await res.json().catch(() => null);
+      if (data && data.results) {
+        setMessage(data.results.join("\n")); 
+        fetchTeams(); 
+      } else {
+        setMessage("❌ Gagal memproses generate.");
+      }
+    } catch (error) {
+      setMessage("❌ Error jaringan saat generate.");
     } finally {
       setLoading(false);
     }
@@ -95,9 +123,15 @@ export default function TesterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slugs: selectedSlugs }),
       });
-      const data = await res.json();
-      setMessage(data.results.join("\n"));
-      fetchTeams();
+      const data = await res.json().catch(() => null);
+      if (data && data.results) {
+        setMessage(data.results.join("\n"));
+        fetchTeams();
+      } else {
+        setMessage("❌ Gagal menghapus data.");
+      }
+    } catch (error) {
+      setMessage("❌ Error jaringan saat menghapus.");
     } finally {
       setLoading(false);
     }
@@ -116,16 +150,25 @@ export default function TesterPage() {
           <div className="border-t border-gray-600 pt-4 mt-4">
             <h3 className="font-bold mb-2">Pemain (Minimal 1)</h3>
             {players.map((p, i) => (
-              <div key={i} className="flex gap-2 mb-2">
-                <input type="text" placeholder="Username Discord" className="w-1/2 p-2 bg-gray-700 rounded text-sm focus:outline-none focus:border-blue-500 border border-gray-600" value={p.discord} required onChange={e => handlePlayerChange(i, "discord", e.target.value)} />
+              <div key={i} className="flex gap-2 mb-2 items-center">
+                <input type="text" placeholder="Username Discord" className="flex-1 p-2 bg-gray-700 rounded text-sm focus:outline-none focus:border-blue-500 border border-gray-600" value={p.discord} required onChange={e => handlePlayerChange(i, "discord", e.target.value)} />
                 <input type="text" placeholder="IGN" className="w-1/4 p-2 bg-gray-700 rounded text-sm focus:outline-none focus:border-blue-500 border border-gray-600" value={p.ign} onChange={e => handlePlayerChange(i, "ign", e.target.value)} />
                 <input type="text" placeholder="Jabatan" className="w-1/4 p-2 bg-gray-700 rounded text-sm focus:outline-none focus:border-blue-500 border border-gray-600" value={p.role} onChange={e => handlePlayerChange(i, "role", e.target.value)} />
+                
+                {/* TOMBOL HAPUS PEMAIN */}
+                {players.length > 1 && (
+                  <button type="button" onClick={() => handleRemovePlayer(i)} className="text-red-500 hover:text-red-400 font-bold px-2 py-1 bg-gray-700 rounded border border-red-900" title="Hapus Pemain">
+                    ✕
+                  </button>
+                )}
               </div>
             ))}
-            <button type="button" onClick={handleAddPlayer} className="text-sm text-blue-400 hover:underline">+ Tambah Pemain</button>
+            <button type="button" onClick={handleAddPlayer} className="text-sm text-blue-400 hover:underline mt-2 inline-block">+ Tambah Pemain</button>
           </div>
           
-          <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded font-bold transition-colors">Simpan ke Database</button>
+          <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded font-bold transition-colors disabled:opacity-50">
+            {loading ? "Menyimpan..." : "Simpan ke Database"}
+          </button>
         </form>
       </div>
 
@@ -133,7 +176,7 @@ export default function TesterPage() {
       <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-green-400">⚙️ 2. Panel Eksekusi</h2>
-          <button onClick={fetchTeams} className="bg-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-600">🔄 Refresh</button>
+          <button type="button" onClick={fetchTeams} className="bg-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-600">🔄 Refresh</button>
         </div>
 
         <div className="space-y-2 max-h-64 overflow-y-auto mb-4 border border-gray-700 p-2 rounded">
@@ -154,13 +197,11 @@ export default function TesterPage() {
         </div>
 
         <div className="flex gap-2">
-          {/* Tombol Generate */}
-          <button onClick={handleGenerateDiscord} disabled={loading || selectedSlugs.length === 0} className="flex-1 bg-green-600 hover:bg-green-700 p-2 rounded font-bold disabled:opacity-50 transition-colors">
+          <button type="button" onClick={handleGenerateDiscord} disabled={loading || selectedSlugs.length === 0} className="flex-1 bg-green-600 hover:bg-green-700 p-2 rounded font-bold disabled:opacity-50 transition-colors">
             🚀 Generate Aset
           </button>
           
-          {/* Tombol Hapus */}
-          <button onClick={handleDelete} disabled={loading || selectedSlugs.length === 0} className="flex-1 bg-red-600 hover:bg-red-700 p-2 rounded font-bold disabled:opacity-50 transition-colors">
+          <button type="button" onClick={handleDelete} disabled={loading || selectedSlugs.length === 0} className="flex-1 bg-red-600 hover:bg-red-700 p-2 rounded font-bold disabled:opacity-50 transition-colors">
             🗑️ Hapus Tim
           </button>
         </div>
