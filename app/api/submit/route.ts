@@ -3,7 +3,7 @@ import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
 import { EMAIL_CONFIG } from '@/lib/config';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
-import { createDiscordRole, createDiscordChannel } from '@/lib/discord-bot';
+import { createDiscordRole, createDiscordChannel, createDiscordVoiceChannel } from '@/lib/discord-bot';
 import { sendAllWebhooks } from '@/lib/discord-webhooks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -97,8 +97,15 @@ export async function POST(request: NextRequest) {
     const discordTasks = async () => {
       try {
         const roleId = await createDiscordRole(namaTim, warna);
+        
+        // ⚡ DEKLARASIKAN VARIABEL DI LUAR BLOK 'IF'
+        let channelId = "";
+        let voiceChannelId = ""; // Variabel baru untuk Voice Channel
+
         if (roleId) {
-          const channelId = await createDiscordChannel(namaTim, roleId);
+          // Isi nilainya di dalam sini
+          channelId = await createDiscordChannel(namaTim, roleId);
+          voiceChannelId = await createDiscordVoiceChannel(namaTim, roleId); 
         }
         
         // TEMBAK WEBHOOK & TANGKAP MESSAGE ID-NYA
@@ -113,7 +120,8 @@ export async function POST(request: NextRequest) {
         if (webhookMsgIds) {
           await kv.hset(kvKey, { 
             discordRoleId: roleId || "",
-            discordChannelId: channelId || "",
+            discordChannelId: channelId, // 👈 Sekarang sudah tidak error
+            discordVoiceChannelId: voiceChannelId, // 👈 Voice channel ikut tersimpan
             adminMsgId: webhookMsgIds["Admin"] || "",
             financeMsgId: webhookMsgIds["Finance"] || "",
             creativeMsgId: webhookMsgIds["Creative"] || "",
