@@ -18,41 +18,74 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // ==========================================
-      // 1. HAPUS ASET DI DISCORD (Jika sudah generate)
-      // ==========================================
       if (token) {
+        // ==========================================
+        // FITUR BARU: BACKUP TEXT CHANNEL
+        // ==========================================
+        if (teamData.discordChannelId) {
+          try {
+            const msgRes = await fetch(`https://discord.com/api/v10/channels/${teamData.discordChannelId}/messages?limit=100`, {
+              method: 'GET',
+              headers: { 'Authorization': `Bot ${token}` }
+            });
+
+            if (msgRes.ok) {
+              const messages = await msgRes.json();
+              // Format ulang pesan biar lebih rapi saat disimpan
+              const backupData = messages.map((m: any) => ({
+                author: m.author.username,
+                content: m.content,
+                timestamp: m.timestamp
+              })).reverse(); // Balik urutan biar dari yang terlama ke terbaru
+              
+              const backupKey = `backup:channels:${slug}:${Date.now()}`;
+              await kv.set(backupKey, JSON.stringify(backupData));
+              console.log(`[BACKUP] Sukses backup ${messages.length} pesan ke ${backupKey}`);
+            } else {
+              console.error(`[BACKUP ERROR] Gagal akses pesan:`, await msgRes.text());
+            }
+          } catch (e) {
+            console.error(`[BACKUP EXCEPTION]:`, e);
+          }
+        }
+
+        // ==========================================
+        // HAPUS ASET DI DISCORD (Dengan Log Error Ekstra)
+        // ==========================================
+        
         // Hapus Role
         if (teamData.discordRoleId && guildId) {
-          await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles/${teamData.discordRoleId}`, {
+          const resRole = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles/${teamData.discordRoleId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bot ${token}` }
-          }).catch(console.error);
+          });
+          if (!resRole.ok) console.error(`[API ROLE ERR] ${slug}:`, await resRole.text());
         }
+
         // Hapus Text Channel
         if (teamData.discordChannelId) {
-          await fetch(`https://discord.com/api/v10/channels/${teamData.discordChannelId}`, {
+          const resText = await fetch(`https://discord.com/api/v10/channels/${teamData.discordChannelId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bot ${token}` }
-          }).catch(console.error);
+          });
+          if (!resText.ok) console.error(`[API TEXT ERR] ${slug}:`, await resText.text());
         }
+
         // Hapus Voice Channel
         if (teamData.discordVoiceChannelId) {
-          await fetch(`https://discord.com/api/v10/channels/${teamData.discordVoiceChannelId}`, {
+          const resVoice = await fetch(`https://discord.com/api/v10/channels/${teamData.discordVoiceChannelId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bot ${token}` }
-          }).catch(console.error);
+          });
+          if (!resVoice.ok) console.error(`[API VOICE ERR] ${slug}:`, await resVoice.text());
         }
       }
 
       // ==========================================
-      // 2. BERSIHKAN DATA DI VERCEL KV (REDIS)
+      // BERSIHKAN DATA DI VERCEL KV (REDIS)
       // ==========================================
-      
-      // Hapus dari daftar tim global
       await kv.srem("global:teams", slug);
       
-      // Hapus index username (discord & ign)
       if (teamData.players) {
         try {
           const players = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
@@ -60,25 +93,19 @@ export async function POST(req: NextRequest) {
           const discords = players.map((p: any) => p.discord?.toLowerCase()).filter(Boolean);
           if (igns.length) await kv.srem("global:ign", ...igns);
           if (discords.length) await kv.srem("global:discord", ...discords);
-        } catch(e) { console.error("Gagal parse pemain:", e) }
+        } catch(e) {}
       }
 
-      // Hapus mapping edit token
-      if (teamData.editToken) {
-        await kv.del(`token:map:${teamData.editToken}`);
-      }
+      if (teamData.editToken) await kv.del(`token:map:${teamData.editToken}`);
 
-      // Hapus dari global summary list
       const rawSummary: any = await kv.get("global:summary_list");
       if (Array.isArray(rawSummary)) {
         const newSummary = rawSummary.filter((s: any) => s.teamSlug !== slug);
         await kv.set("global:summary_list", JSON.stringify(newSummary));
       }
 
-      // Hapus brankas utama tim
       await kv.del(kvKey);
-
-      results.push(`🗑️ ${teamData.namaTim}: Berhasil dihapus total (DB & Discord)!`);
+      results.push(`🗑️ ${teamData.namaTim}: Berhasil di-backup & dihapus total!`);
     }
 
     return NextResponse.json({ success: true, results });
