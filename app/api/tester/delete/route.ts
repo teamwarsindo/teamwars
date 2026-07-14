@@ -50,36 +50,42 @@ export async function POST(req: NextRequest) {
         }
 
         // ==========================================
-        // HAPUS ASET DI DISCORD (Dengan Log Error Ekstra)
+        // HAPUS ASET DI DISCORD (MODE NGEBUT / PARALLEL)
         // ==========================================
-        
-        // Hapus Role
+        const deletePromises = [];
+
+        // Siapkan antrean hapus Role
         if (teamData.discordRoleId && guildId) {
-          const resRole = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles/${teamData.discordRoleId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bot ${token}` }
-          });
-          if (!resRole.ok) console.error(`[API ROLE ERR] ${slug}:`, await resRole.text());
+          deletePromises.push(
+            fetch(`https://discord.com/api/v10/guilds/${guildId}/roles/${teamData.discordRoleId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bot ${token}` }
+            }).then(async res => { if (!res.ok) console.error(`[ROLE ERR]`, await res.text()) })
+          );
         }
 
-        // Hapus Text Channel
+        // Siapkan antrean hapus Text Channel
         if (teamData.discordChannelId) {
-          const resText = await fetch(`https://discord.com/api/v10/channels/${teamData.discordChannelId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bot ${token}` }
-          });
-          if (!resText.ok) console.error(`[API TEXT ERR] ${slug}:`, await resText.text());
+          deletePromises.push(
+            fetch(`https://discord.com/api/v10/channels/${teamData.discordChannelId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bot ${token}` }
+            }).then(async res => { if (!res.ok) console.error(`[TEXT ERR]`, await res.text()) })
+          );
         }
 
-        // Hapus Voice Channel
+        // Siapkan antrean hapus Voice Channel
         if (teamData.discordVoiceChannelId) {
-          const resVoice = await fetch(`https://discord.com/api/v10/channels/${teamData.discordVoiceChannelId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bot ${token}` }
-          });
-          if (!resVoice.ok) console.error(`[API VOICE ERR] ${slug}:`, await resVoice.text());
+          deletePromises.push(
+            fetch(`https://discord.com/api/v10/channels/${teamData.discordVoiceChannelId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bot ${token}` }
+            }).then(async res => { if (!res.ok) console.error(`[VOICE ERR]`, await res.text()) })
+          );
         }
-      }
+
+        // Eksekusi semuanya secara serentak dalam 1 detik!
+        await Promise.allSettled(deletePromises);
 
       // ==========================================
       // BERSIHKAN DATA DI VERCEL KV (REDIS)
