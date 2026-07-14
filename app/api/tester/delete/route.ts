@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
 
         // Eksekusi semuanya secara serentak dalam 1 detik!
         await Promise.allSettled(deletePromises);
+      }
 
       // ==========================================
       // BERSIHKAN DATA DI VERCEL KV (REDIS)
