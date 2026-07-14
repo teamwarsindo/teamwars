@@ -40,14 +40,14 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
   const parentCategoryId = process.env.DISCORD_CATEGORY_HQ_ID || "MASUKIN_ID_KATEGORI_DISINI"; 
   const everyoneRoleId = guildId; 
 
-  if (!guildId || !token || !roleId) return;
+  // FIX 1: Ubah return kosong menjadi return null
+  if (!guildId || !token || !roleId) return null;
 
   try {
-    await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+    const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
       method: 'POST',
       headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        // Fix: Hapus embel-embel "hq-" dan murni menggunakan nama tim
         name: teamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
         type: 0, 
         parent_id: parentCategoryId,
@@ -57,8 +57,16 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
         ]
       })
     });
+
+    // FIX 2: Tangkap response dari Discord dan kembalikan (return) ID-nya
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.id; 
+
   } catch (err) {
     console.error("Gagal membuat channel Discord:", err);
+    // FIX 3: Kembalikan null jika terjadi error
+    return null;
   }
 }
 
