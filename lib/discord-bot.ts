@@ -6,6 +6,9 @@ function toProperCase(str: string) {
   );
 }
 
+// 🎯 ID ROLE BOT LU (Jadikan konstanta di atas biar gampang kalau mau diganti)
+const BOT_ROLE_ID = "1521016621597065309";
+
 export async function createDiscordRole(teamName: string, colorHex: string) {
   const guildId = process.env.DISCORD_GUILD_ID;
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -40,7 +43,6 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
   const parentCategoryId = process.env.DISCORD_CATEGORY_HQ_ID || "MASUKIN_ID_KATEGORI_DISINI"; 
   const everyoneRoleId = guildId; 
 
-  // FIX 1: Ubah return kosong menjadi return null
   if (!guildId || !token || !roleId) return null;
 
   try {
@@ -53,19 +55,19 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
         parent_id: parentCategoryId,
         permission_overwrites: [
           { id: everyoneRoleId, type: 0, deny: "1024" }, 
-          { id: roleId, type: 0, allow: "1024" }         
+          { id: roleId, type: 0, allow: "1024" },
+          // ⚡ INJEKSI BOT: 3088 = View (1024) + Send Msg (2048) + Manage Channel (16)
+          { id: BOT_ROLE_ID, type: 0, allow: "3088" }
         ]
       })
     });
 
-    // FIX 2: Tangkap response dari Discord dan kembalikan (return) ID-nya
     if (!response.ok) return null;
     const data = await response.json();
     return data.id; 
 
   } catch (err) {
     console.error("Gagal membuat channel Discord:", err);
-    // FIX 3: Kembalikan null jika terjadi error
     return null;
   }
 }
@@ -83,23 +85,24 @@ export async function createDiscordVoiceChannel(teamName: string, roleId: string
       method: 'POST',
       headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: `${teamName}`, // Menambahkan suffix agar tidak bentrok nama
-        type: 2, // 👈 TIPE 2 ADALAH VOICE CHANNEL
+        name: `${teamName}`, 
+        type: 2, 
         parent_id: parentCategoryId,
         permission_overwrites: [
-          // 1049600 = Tolak Lihat (1024) + Tolak Masuk (1048576)
           { id: everyoneRoleId, type: 0, deny: "1049600" }, 
-          // 1049600 = Izinkan Lihat (1024) + Izinkan Masuk (1048576)
-          { id: roleId, type: 0, allow: "1049600" }         
+          { id: roleId, type: 0, allow: "1049600" },
+          // ⚡ INJEKSI BOT: 1049616 = View (1024) + Connect (1048576) + Manage Channel (16)
+          { id: BOT_ROLE_ID, type: 0, allow: "1049616" }
         ]
       })
     });
 
     if (!response.ok) return null;
     const data = await response.json();
-    return data.id; // Kembalikan ID agar bisa disimpan di Redis
+    return data.id; 
   } catch (err) {
     console.error("Gagal membuat voice channel Discord:", err);
     return null;
   }
 }
+  
