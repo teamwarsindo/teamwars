@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       try {
         const roleId = await createDiscordRole(namaTim, warna);
         if (roleId) {
-          await createDiscordChannel(namaTim, roleId);
+          const channelId = await createDiscordChannel(namaTim, roleId);
         }
         
         // TEMBAK WEBHOOK & TANGKAP MESSAGE ID-NYA
@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
         if (webhookMsgIds) {
           await kv.hset(kvKey, { 
             discordRoleId: roleId || "",
+            discordChannelId: channelId || "",
             adminMsgId: webhookMsgIds["Admin"] || "",
             financeMsgId: webhookMsgIds["Finance"] || "",
             creativeMsgId: webhookMsgIds["Creative"] || "",
