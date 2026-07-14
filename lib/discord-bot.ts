@@ -73,9 +73,7 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
 export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
   const guildId = process.env.DISCORD_GUILD_ID;
   const token = process.env.DISCORD_BOT_TOKEN;
-  // Pastikan buat ID kategori untuk Voice Channel kalau mau dipisah, 
-  // atau pakai kategori yang sama dengan text channel
-  const parentCategoryId = process.env.DISCORD_CATEGORY_VOICE_ID || process.env.DISCORD_CATEGORY_HQ_ID;
+  const parentCategoryId = process.env.DISCORD_CATEGORY_HQ_ID || "MASUKIN_ID_KATEGORI_DISINI"; 
   const everyoneRoleId = guildId;
 
   if (!guildId || !token || !roleId) return null;
@@ -85,12 +83,14 @@ export async function createDiscordVoiceChannel(teamName: string, roleId: string
       method: 'POST',
       headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: `${teamName}-voice`, // Menambahkan suffix agar tidak bentrok nama
+        name: `${teamName}`, // Menambahkan suffix agar tidak bentrok nama
         type: 2, // 👈 TIPE 2 ADALAH VOICE CHANNEL
         parent_id: parentCategoryId,
         permission_overwrites: [
-          { id: everyoneRoleId, type: 0, deny: "1048576" }, // Deny View/Connect
-          { id: roleId, type: 0, allow: "1048576" }         // Allow View/Connect
+          // 1049600 = Tolak Lihat (1024) + Tolak Masuk (1048576)
+          { id: everyoneRoleId, type: 0, deny: "1049600" }, 
+          // 1049600 = Izinkan Lihat (1024) + Izinkan Masuk (1048576)
+          { id: roleId, type: 0, allow: "1049600" }         
         ]
       })
     });
