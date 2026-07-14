@@ -61,3 +61,37 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
     console.error("Gagal membuat channel Discord:", err);
   }
 }
+
+export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const token = process.env.DISCORD_BOT_TOKEN;
+  // Pastikan buat ID kategori untuk Voice Channel kalau mau dipisah, 
+  // atau pakai kategori yang sama dengan text channel
+  const parentCategoryId = process.env.DISCORD_CATEGORY_VOICE_ID || process.env.DISCORD_CATEGORY_HQ_ID;
+  const everyoneRoleId = guildId;
+
+  if (!guildId || !token || !roleId) return null;
+
+  try {
+    const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: `${teamName}-voice`, // Menambahkan suffix agar tidak bentrok nama
+        type: 2, // 👈 TIPE 2 ADALAH VOICE CHANNEL
+        parent_id: parentCategoryId,
+        permission_overwrites: [
+          { id: everyoneRoleId, type: 0, deny: "1048576" }, // Deny View/Connect
+          { id: roleId, type: 0, allow: "1048576" }         // Allow View/Connect
+        ]
+      })
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.id; // Kembalikan ID agar bisa disimpan di Redis
+  } catch (err) {
+    console.error("Gagal membuat voice channel Discord:", err);
+    return null;
+  }
+}
