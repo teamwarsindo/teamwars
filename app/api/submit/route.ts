@@ -120,9 +120,9 @@ export async function POST(request: NextRequest) {
 
           try {
             await autoSortTeamRoles();
-            results.push(`✨ Urutan Role di Discord berhasil dirapikan!`);
+            console.push(`✨ Urutan Role di Discord berhasil dirapikan!`);
           } catch (e) {
-            results.push(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`);
+            console.push(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`);
           }
         }
       } catch (err) {
