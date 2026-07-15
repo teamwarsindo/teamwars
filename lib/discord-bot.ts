@@ -1,11 +1,3 @@
-// Helper pembantu untuk format Proper Case (Contoh: "TEAM WARS" -> "Team Wars")
-function toProperCase(str: string) {
-  return str.replace(
-    /\w\S*/g,
-    (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
-  );
-}
-
 // 🎯 ID ROLE BOT LU (Jadikan konstanta di atas biar gampang kalau mau diganti)
 const BOT_ROLE_ID = "1521016621597065309";
 
