@@ -3,7 +3,7 @@ import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
 import { EMAIL_CONFIG } from '@/lib/config';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
-import { createDiscordRole, createDiscordChannel, createDiscordVoiceChannel } from '@/lib/discord-bot';
+import { createDiscordRole, createDiscordChannel, createDiscordVoiceChannel, autoSortTeamRoles } from '@/lib/discord-bot';
 import { sendAllWebhooks } from '@/lib/discord-webhooks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -117,6 +117,13 @@ export async function POST(request: NextRequest) {
             creativeMsgId: webhookMsgIds["Creative"] || "",
             publicMsgId: webhookMsgIds["Public"] || ""
           });
+
+          try {
+            await autoSortTeamRoles();
+            results.push(`✨ Urutan Role di Discord berhasil dirapikan!`);
+          } catch (e) {
+            results.push(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`);
+          }
         }
       } catch (err) {
         console.error("Gagal tugas Discord:", err);
