@@ -173,6 +173,18 @@ export async function POST(req: NextRequest) {
         await Promise.allSettled(apiPromises);
 
         // ==========================================
+        // 🎯 FITUR BARU: SAMBUTAN DI CHANNEL TIM
+        // ==========================================
+        const targetChannelId = foundTeam.discordChannelId || foundTeam.channelId;
+        
+        if (targetChannelId) {
+           // Jalankan di background (tanpa await) agar tidak memperlambat balasan tombol ke user
+           discordAPI(`/channels/${targetChannelId}/messages`, 'POST', {
+             content: `Selamat datang kaka, selamat datang kaka, selamat datang kami ucapkan <@${userId}>.`
+           }).catch(err => console.error("Gagal mengirim sambutan:", err));
+        }
+
+        // ==========================================
         // 🎯 FITUR BARU: SIMPAN ID DISCORD KE DB
         // ==========================================
         if (foundTeamSlug && currentPlayersArray.length > 0) {
