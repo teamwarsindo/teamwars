@@ -137,6 +137,25 @@ export default function TesterPage() {
     }
   };
 
+  const handleSyncData = async () => {
+    setLoading(true);
+    setMessage("Sedang menyedot data dari Discord... Mohon tunggu.");
+    try {
+      const res = await fetch("/api/tester/sync", { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (data && data.success) {
+        const logMsg = data.log.length > 0 ? `\n\nRincian:\n${data.log.join('\n')}` : "\n\n(Semua user sudah tersinkron sebelumnya)";
+        setMessage(`✨ ${data.message}${logMsg}`);
+      } else {
+        setMessage(`❌ Gagal Sync: ${data?.error || 'Kesalahan sistem'}`);
+      }
+    } catch (error) {
+      setMessage("❌ Error jaringan saat Sync.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
       
@@ -196,6 +215,7 @@ export default function TesterPage() {
           ))}
         </div>
 
+        {/* PANEL TOMBOL AKSI */}
         <div className="flex gap-2">
           <button type="button" onClick={handleGenerateDiscord} disabled={loading || selectedSlugs.length === 0} className="flex-1 bg-green-600 hover:bg-green-700 p-2 rounded font-bold disabled:opacity-50 transition-colors">
             🚀 Generate Aset
@@ -205,6 +225,11 @@ export default function TesterPage() {
             🗑️ Hapus Tim
           </button>
         </div>
+
+        {/* 🎯 TOMBOL BARU UNTUK SYNC MUNDUR */}
+        <button type="button" onClick={handleSyncData} disabled={loading} className="w-full mt-2 bg-purple-600 hover:bg-purple-700 p-2 rounded font-bold disabled:opacity-50 transition-colors">
+          🔄 Sync ID Peserta Lama (Auto-Heal)
+        </button>
 
         {/* Console Log UI */}
         {message && (
