@@ -8,7 +8,7 @@ import { kv } from '@vercel/kv';
 const ROLE_KETUA = '610109155465756692';
 const ROLE_WAKIL = '1173455029814952006';
 const ROLE_DUELIST = '1525761725901570158';
-const ROLE_VERIFIED = '1166693043756343397'; // 🎯 ROLE BARU
+const ROLE_VERIFIED = '1166693043756343397'; 
 const CHANNEL_LOG = '1525775643168735344';
 
 // Helper: Tembak REST API Discord
@@ -63,7 +63,6 @@ export async function POST(req: NextRequest) {
       // A. JIKA KLIK TOMBOL "VERIFIED" (Akses Publik Umum)
       // ----------------------------------------------------
       if (customId === 'btn_claim_verified') {
-        // Cek kalau udah punya role-nya biar nggak spam API
         if (currentRoles.includes(ROLE_VERIFIED)) {
           return NextResponse.json({
             type: 4, 
@@ -74,7 +73,6 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        // Langsung tembak API Discord buat ngasih role (Tanpa cek Redis)
         await discordAPI(`/guilds/${guildId}/members/${userId}/roles/${ROLE_VERIFIED}`, 'PUT');
 
         return NextResponse.json({
@@ -93,6 +91,10 @@ export async function POST(req: NextRequest) {
         let foundTeam: any = null;
         let foundPlayer: any = null;
         
+        // 🎯 VARIABEL BARU UNTUK MENANGKAP DATA KE DB
+        let foundTeamSlug: string | null = null;
+        let currentPlayersArray: any[] = [];
+        
         const allTeamSlugs = await kv.smembers('global:teams');
         
         for (const slug of allTeamSlugs) {
@@ -105,6 +107,10 @@ export async function POST(req: NextRequest) {
           if (playerMatch) {
             foundTeam = teamData;
             foundPlayer = playerMatch;
+            
+            // 🎯 SIMPAN SLUG & ARRAY PEMAIN UNTUK DI-UPDATE NANTI
+            foundTeamSlug = slug;
+            currentPlayersArray = players;
             break; 
           }
         }
@@ -163,9 +169,31 @@ export async function POST(req: NextRequest) {
           ]
         }));
 
+        // Eksekusi API Discord
         await Promise.allSettled(apiPromises);
 
-        const roleTimStr = foundTeam.roleId ? `<@&${foundTeam.roleId}>` : `Role Tim`;
+        // ==========================================
+        // 🎯 FITUR BARU: SIMPAN ID DISCORD KE DB
+        // ==========================================
+        if (foundTeamSlug && currentPlayersArray.length > 0) {
+          try {
+            // 1. Sisipkan discordId ke dalam array data pemain di tim tersebut
+            const pIndex = currentPlayersArray.findIndex((p: any) => p.discord.trim().toLowerCase() === username);
+            if (pIndex > -1) {
+              currentPlayersArray[pIndex].discordId = userId;
+              await kv.hset(`teams:${foundTeamSlug}`, { players: JSON.stringify(currentPlayersArray) });
+            }
+
+            // 2. Simpan ke Global Index & Map (Biar bisa dicari O(1) ke depannya)
+            await kv.sadd('global:discord_ids', userId); 
+            await kv.set(`global:map:discord_id:${userId}`, foundTeamSlug);
+          } catch (dbErr) {
+            console.error("Gagal menyimpan ID Discord ke DB:", dbErr);
+            // Tidak me-return error ke user, karena secara fungsionalitas discord sudah sukses
+          }
+        }
+
+        const roleTimStr = foundTeam.roleId ? `<@&${foundTeam.roleId}>` : (foundTeam.discordRoleId ? `<@&${foundTeam.discordRoleId}>` : `Role Tim`);
         const isPengurus = foundPlayer.role === 'Ketua' || foundPlayer.role === 'Wakil Ketua';
         
         let pesanSukses = "";
