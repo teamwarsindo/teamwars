@@ -1,316 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nacl from 'tweetnacl';
-import { kv } from '@vercel/kv';
+import { verifySignature } from '@/lib/discord/utils';
 
-// ==========================================
-// KONFIGURASI ID DISCORD
-// ==========================================
-const ROLE_KETUA = '610109155465756692';
-const ROLE_WAKIL = '1173455029814952006';
-const ROLE_DUELIST = '1525761725901570158';
-const ROLE_VERIFIED = '1166693043756343397'; 
-const CHANNEL_LOG = '1525775643168735344';
+// Import Commands
+import { handleCheck } from '@/lib/discord/commands/check';
+import { handleReminder } from '@/lib/discord/commands/reminder';
+import { handlePrepare } from '@/lib/discord/commands/prepare';
 
-// Helper: Tembak REST API Discord
-async function discordAPI(endpoint: string, method: string, body?: any) {
-  return fetch(`https://discord.com/api/v10${endpoint}`, {
-    method,
-    headers: {
-      'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-}
+// Import Buttons
+import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
+import { handleBtRole } from '@/lib/discord/buttons/btRole';
 
 export async function POST(req: NextRequest) {
   try {
+    const rawBody = await req.text();
     const signature = req.headers.get('x-signature-ed25519');
     const timestamp = req.headers.get('x-signature-timestamp');
-    const rawBody = await req.text();
 
-    if (!signature || !timestamp || !process.env.DISCORD_PUBLIC_KEY) {
+    // 1. Verifikasi Keamanan
+    if (!verifySignature(rawBody, signature, timestamp)) {
       return new NextResponse('Akses Ditolak', { status: 401 });
-    }
-
-    const isVerified = nacl.sign.detached.verify(
-      Buffer.from(timestamp + rawBody),
-      Buffer.from(signature, 'hex'),
-      Buffer.from(process.env.DISCORD_PUBLIC_KEY, 'hex')
-    );
-
-    if (!isVerified) {
-      return new NextResponse('Signature tidak valid', { status: 401 });
     }
 
     const body = JSON.parse(rawBody);
 
-    if (body.type === 1) {
-      return NextResponse.json({ type: 1 });
+    // 2. Ping dari Discord (Setup)
+    if (body.type === 1) return NextResponse.json({ type: 1 });
+
+    // 3. Routing Slash Commands (Type 2)
+    if (body.type === 2) {
+      const commandName = body.data.name;
+      if (commandName === 'check') return await handleCheck(body);
+      if (commandName === 'reminder') return await handleReminder(body);
+      if (commandName === 'prepare') return await handlePrepare(body);
     }
 
-    // ==========================================
-    // 🎯 FITUR BARU: SLASH COMMAND (/check)
-    // ==========================================
-    if (body.type === 2 && body.data.name === 'check') {
-      const channelId = body.channel_id;
-
-      // 1. CARI TIM BERDASARKAN CHANNEL ID
-      let foundTeam: any = null;
-      let foundTeamSlug: string = "";
-      
-      const allTeamSlugs = await kv.smembers('global:teams');
-      for (const slug of allTeamSlugs) {
-        const teamData: any = await kv.hgetall(`teams:${slug}`);
-        if (teamData && (teamData.discordChannelId === channelId || teamData.channelId === channelId)) {
-          foundTeam = teamData;
-          foundTeamSlug = slug;
-          break;
-        }
-      }
-
-      // Jika command diketik bukan di channel tim
-      if (!foundTeam) {
-        return NextResponse.json({
-          type: 4,
-          data: {
-            content: `❌ **Akses Ditolak:** Perintah \`/check\` hanya dapat digunakan di dalam *Private Channel* masing-masing tim.`,
-            flags: 64 // Ephemeral
-          }
-        });
-      }
-
-      // 2. FORMAT DAFTAR ROSTER
-      const players = typeof foundTeam.players === 'string' ? JSON.parse(foundTeam.players) : foundTeam.players;
-      
-      let rosterText = "";
-      let verifiedCount = 0;
-
-      players.forEach((p: any) => {
-        // Karena sekarang kita udah nyimpen discordId di dalam p.discordId, kita bisa cek dari situ
-        const isVerified = !!p.discordId; 
-        const statusIcon = isVerified ? "✅" : "❌";
-        if (isVerified) verifiedCount++;
-        
-        // Format: ✅ IGN (@username) - Jabatan
-        rosterText += `${statusIcon} **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
-      });
-
-      // 3. SUSUN EMBED ESTETIK
-      const teamColor = foundTeam.warna ? parseInt(foundTeam.warna.replace('#', ''), 16) : 11146056;
-      const roleTimStr = foundTeam.discordRoleId || foundTeam.roleId ? `<@&${foundTeam.discordRoleId || foundTeam.roleId}>` : `*(Belum Ada)*`;
-      const isRosterLengkap = verifiedCount === players.length ? "🟢 SIAP BERTANDING" : "🟡 PENDING VERIFIKASI";
-
-      return NextResponse.json({
-        type: 4, 
-        data: {
-          embeds: [
-            {
-              title: `🛡️ DATABASE TIM: ${foundTeam.namaTim.toUpperCase()}`,
-              description: `Berikut adalah rincian informasi dan status verifikasi roster untuk tim Anda.\n\n**DAFTAR ROSTER:**\n${rosterText}`,
-              color: teamColor,
-              fields: [
-                {
-                  name: "📌 Role Resmi Tim",
-                  value: roleTimStr,
-                  inline: true
-                },
-                {
-                  name: "📊 Status Kesiapan",
-                  value: `**${verifiedCount} / ${players.length}** Terverifikasi\nStatus: **${isRosterLengkap}**`,
-                  inline: true
-                }
-              ],
-              footer: {
-                text: "Sistem Verifikasi Otomatis TWI Season 7"
-              },
-              timestamp: new Date().toISOString()
-            }
-          ]
-        }
-      });
-    }
-
-    // ==========================================
-    // 3. LOGIKA KLIK TOMBOL (Type 3)
-    // ==========================================
+    // 4. Routing Button Clicks (Type 3)
     if (body.type === 3) {
       const customId = body.data.custom_id;
-      const guildId = body.guild_id;
-      const userId = body.member.user.id;
-      const username = body.member.user.username.toLowerCase();
-      const currentRoles = body.member.roles || [];
-
-      // ----------------------------------------------------
-      // A. JIKA KLIK TOMBOL "VERIFIED" (Akses Publik Umum)
-      // ----------------------------------------------------
-      if (customId === 'btn_claim_verified') {
-        if (currentRoles.includes(ROLE_VERIFIED)) {
-          return NextResponse.json({
-            type: 4, 
-            data: {
-              content: `⚠️ Anda sudah memiliki akses **Verified**. Silakan cek channel publik kami!`,
-              flags: 64
-            }
-          });
-        }
-
-        await discordAPI(`/guilds/${guildId}/members/${userId}/roles/${ROLE_VERIFIED}`, 'PUT');
-
-        return NextResponse.json({
-          type: 4, 
-          data: {
-            content: `✅ **Akses Publik Dibuka!**\nAnda telah mendapatkan role <@&${ROLE_VERIFIED}>. Selamat bergabung di server Team Wars Indonesia!\n\n*(Jika Anda adalah peserta turnamen, jangan lupa klik tombol **Role Tim** juga)*.`,
-            flags: 64
-          }
-        });
-      }
-
-      // ----------------------------------------------------
-      // B. JIKA KLIK TOMBOL "ROLE TIM" (Akses Khusus Peserta)
-      // ----------------------------------------------------
-      if (customId === 'btn_claim_role') {
-        let foundTeam: any = null;
-        let foundPlayer: any = null;
-        
-        // 🎯 VARIABEL BARU UNTUK MENANGKAP DATA KE DB
-        let foundTeamSlug: string | null = null;
-        let currentPlayersArray: any[] = [];
-        
-        const allTeamSlugs = await kv.smembers('global:teams');
-        
-        for (const slug of allTeamSlugs) {
-          const teamData: any = await kv.hgetall(`teams:${slug}`);
-          if (!teamData || !teamData.players) continue;
-          
-          const players = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
-          const playerMatch = players.find((p: any) => p.discord.trim().toLowerCase() === username);
-          
-          if (playerMatch) {
-            foundTeam = teamData;
-            foundPlayer = playerMatch;
-            
-            // 🎯 SIMPAN SLUG & ARRAY PEMAIN UNTUK DI-UPDATE NANTI
-            foundTeamSlug = slug;
-            currentPlayersArray = players;
-            break; 
-          }
-        }
-
-        if (!foundTeam) {
-          return NextResponse.json({
-            type: 4,
-            data: {
-              content: `🔍 **Data Tidak Ditemukan**: Username Discord **@${username}** tidak terdaftar. Mohon pastikan Kapten Tim mendaftarkan username yang tepat.`,
-              flags: 64
-            }
-          });
-        }
-
-        const rolesToAssign: string[] = [ROLE_DUELIST];
-        if (foundPlayer.role === 'Ketua') rolesToAssign.push(ROLE_KETUA);
-        if (foundPlayer.role === 'Wakil Ketua') rolesToAssign.push(ROLE_WAKIL);
-        if (foundTeam.roleId) rolesToAssign.push(foundTeam.roleId);
-        if (foundTeam.discordRoleId) rolesToAssign.push(foundTeam.discordRoleId);
-
-        const hasAllRequiredRoles = rolesToAssign.every(roleId => currentRoles.includes(roleId));
-        const channelLink = foundTeam.channelId ? `<#${foundTeam.channelId}>` : `channel private tim Anda`;
-
-        if (hasAllRequiredRoles) {
-          return NextResponse.json({
-            type: 4, 
-            data: {
-              content: `⚠️ **STATUS: SUDAH TERVERIFIKASI**\nSistem mendeteksi bahwa akun Anda telah melengkapi seluruh *role* verifikasi.\n\nTidak perlu melakukan klaim ulang. Silakan langsung menuju ke ${channelLink}.`,
-              flags: 64
-            }
-          });
-        }
-
-        const apiPromises = [];
-
-        for (const roleId of rolesToAssign) {
-          apiPromises.push(discordAPI(`/guilds/${guildId}/members/${userId}/roles/${roleId}`, 'PUT'));
-        }
-
-        apiPromises.push(discordAPI(`/guilds/${guildId}/members/${userId}`, 'PATCH', { nick: `${foundPlayer.ign}` }));
-
-        apiPromises.push(discordAPI(`/channels/${CHANNEL_LOG}/messages`, 'POST', {
-          embeds: [
-            {
-              title: "✅ Log Verifikasi Role Tim",
-              color: 3066993, 
-              fields: [
-                { name: "👤 User Discord", value: `<@${userId}>\n(\`@${username}\`)`, inline: true },
-                { name: "🎮 IGN", value: `**${foundPlayer.ign}**`, inline: true },
-                { name: "🏆 Tim", value: `**${foundTeam.namaTim}**`, inline: true },
-                { name: "🛡️ Jabatan", value: `**${foundPlayer.role}**`, inline: true }
-              ],
-              footer: {  text: "Sistem Verifikasi Otomatis TWI" },
-              timestamp: new Date().toISOString()
-            }
-          ]
-        }));
-
-        // Eksekusi API Discord
-        await Promise.allSettled(apiPromises);
-
-        // ==========================================
-        // 🎯 FITUR BARU: SAMBUTAN DI CHANNEL TIM
-        // ==========================================
-        const targetChannelId = foundTeam.discordChannelId || foundTeam.channelId;
-        
-        if (targetChannelId) {
-           // Jalankan di background (tanpa await) agar tidak memperlambat balasan tombol ke user
-           discordAPI(`/channels/${targetChannelId}/messages`, 'POST', {
-             content: `Selamat datang kaka, selamat datang kaka, selamat datang kami ucapkan <@${userId}>.`
-           }).catch(err => console.error("Gagal mengirim sambutan:", err));
-        }
-
-        // ==========================================
-        // 🎯 FITUR BARU: SIMPAN ID DISCORD KE DB
-        // ==========================================
-        if (foundTeamSlug && currentPlayersArray.length > 0) {
-          try {
-            // 1. Sisipkan discordId ke dalam array data pemain di tim tersebut
-            const pIndex = currentPlayersArray.findIndex((p: any) => p.discord.trim().toLowerCase() === username);
-            if (pIndex > -1) {
-              currentPlayersArray[pIndex].discordId = userId;
-              await kv.hset(`teams:${foundTeamSlug}`, { players: JSON.stringify(currentPlayersArray) });
-            }
-
-            // 2. Simpan ke Global Index & Map
-            await kv.sadd('global:discord_ids', userId); 
-            await kv.set(`global:map:discord_id:${userId}`, foundTeamSlug);
-          } catch (dbErr) {
-            console.error("Gagal menyimpan ID Discord ke DB:", dbErr);
-          }
-        }
-
-        const roleTimStr = foundTeam.roleId ? `<@&${foundTeam.roleId}>` : (foundTeam.discordRoleId ? `<@&${foundTeam.discordRoleId}>` : `Role Tim`);
-        const isPengurus = foundPlayer.role === 'Ketua' || foundPlayer.role === 'Wakil Ketua';
-        
-        let pesanSukses = "";
-
-        if (isPengurus) {
-          const roleJabatanStr = foundPlayer.role === 'Ketua' ? `<@&${ROLE_KETUA}>` : `<@&${ROLE_WAKIL}>`;
-          pesanSukses = `✅ **AUTENTIKASI BERHASIL**\nProses verifikasi selesai. Anda telah resmi terdaftar sebagai **${foundPlayer.role}** untuk tim **${foundTeam.namaTim}**.\n\n**Role yang diperoleh:**\n🛡️ ${roleTimStr}\n👑 ${roleJabatanStr}\n⚔️ <@&${ROLE_DUELIST}>\n\nAkses Anda telah dibuka. Silakan berkoordinasi dan persiapkan strategi tim Anda di sini: ${channelLink}`;
-        } else {
-          pesanSukses = `✅ **AUTENTIKASI BERHASIL**\nProses verifikasi selesai. Anda telah secara resmi masuk ke dalam roster **${foundTeam.namaTim}**.\n\n**Role yang diperoleh:**\n🛡️ ${roleTimStr}\n⚔️ <@&${ROLE_DUELIST}>\n\nAkses Anda telah dibuka. Silakan bergabung dengan rekan setim Anda di sini: ${channelLink}`;
-        }
-
-        return NextResponse.json({
-          type: 4,
-          data: {
-            content: pesanSukses,
-            flags: 64
-          }
-        });    
-      }
+      if (customId === 'bt_verified') return await handleBtVerified(body);
+      if (customId === 'bt_role') return await handleBtRole(body);
     }
 
-    return new NextResponse('Bad Request', { status: 400 });
+    return new NextResponse('Unknown Interaction', { status: 400 });
   } catch (error) {
-    console.error('Error Discord Interaction:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error('Error Webhook DC:', error);
+    return new NextResponse('Internal Error', { status: 500 });
   }
-    }
+}
