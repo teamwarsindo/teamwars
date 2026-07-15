@@ -51,16 +51,6 @@ export async function POST(request: NextRequest) {
     // ⚡ INJEKSI ANTI-BENGKAK: Mapping Token & Summary List
     await kv.set(`token:map:${editToken}`, teamSlug);
 
-    const rawSummary: any = await kv.get("global:summary_list");
-    const summaryList = Array.isArray(rawSummary) ? rawSummary : [];
-    summaryList.push({
-      namaTim: namaTim.trim(),
-      teamSlug: teamSlug,
-      statusVerifikasi: "Pending",
-      createdAt: timestampNow
-    });
-    await kv.set("global:summary_list", JSON.stringify(summaryList));
-
     // Injeksi Index Sekunder
     await kv.sadd("global:teams", teamSlug);
     if (players && players.length > 0) {
