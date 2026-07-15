@@ -50,6 +50,88 @@ export async function POST(req: NextRequest) {
     }
 
     // ==========================================
+    // 🎯 FITUR BARU: SLASH COMMAND (/check)
+    // ==========================================
+    if (body.type === 2 && body.data.name === 'check') {
+      const channelId = body.channel_id;
+
+      // 1. CARI TIM BERDASARKAN CHANNEL ID
+      let foundTeam: any = null;
+      let foundTeamSlug: string = "";
+      
+      const allTeamSlugs = await kv.smembers('global:teams');
+      for (const slug of allTeamSlugs) {
+        const teamData: any = await kv.hgetall(`teams:${slug}`);
+        if (teamData && (teamData.discordChannelId === channelId || teamData.channelId === channelId)) {
+          foundTeam = teamData;
+          foundTeamSlug = slug;
+          break;
+        }
+      }
+
+      // Jika command diketik bukan di channel tim
+      if (!foundTeam) {
+        return NextResponse.json({
+          type: 4,
+          data: {
+            content: `❌ **Akses Ditolak:** Perintah \`/check\` hanya dapat digunakan di dalam *Private Channel* masing-masing tim.`,
+            flags: 64 // Ephemeral
+          }
+        });
+      }
+
+      // 2. FORMAT DAFTAR ROSTER
+      const players = typeof foundTeam.players === 'string' ? JSON.parse(foundTeam.players) : foundTeam.players;
+      
+      let rosterText = "";
+      let verifiedCount = 0;
+
+      players.forEach((p: any) => {
+        // Karena sekarang kita udah nyimpen discordId di dalam p.discordId, kita bisa cek dari situ
+        const isVerified = !!p.discordId; 
+        const statusIcon = isVerified ? "✅" : "❌";
+        if (isVerified) verifiedCount++;
+        
+        // Format: ✅ IGN (@username) - Jabatan
+        rosterText += `${statusIcon} **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
+      });
+
+      // 3. SUSUN EMBED ESTETIK
+      const teamColor = foundTeam.warna ? parseInt(foundTeam.warna.replace('#', ''), 16) : 11146056;
+      const roleTimStr = foundTeam.discordRoleId || foundTeam.roleId ? `<@&${foundTeam.discordRoleId || foundTeam.roleId}>` : `*(Belum Ada)*`;
+      const isRosterLengkap = verifiedCount === players.length ? "🟢 SIAP BERTANDING" : "🟡 PENDING VERIFIKASI";
+
+      return NextResponse.json({
+        type: 4, 
+        data: {
+          embeds: [
+            {
+              title: `🛡️ DATABASE TIM: ${foundTeam.namaTim.toUpperCase()}`,
+              description: `Berikut adalah rincian informasi dan status verifikasi roster untuk tim Anda.\n\n**DAFTAR ROSTER:**\n${rosterText}`,
+              color: teamColor,
+              fields: [
+                {
+                  name: "📌 Role Resmi Tim",
+                  value: roleTimStr,
+                  inline: true
+                },
+                {
+                  name: "📊 Status Kesiapan",
+                  value: `**${verifiedCount} / ${players.length}** Terverifikasi\nStatus: **${isRosterLengkap}**`,
+                  inline: true
+                }
+              ],
+              footer: {
+                text: "Sistem Verifikasi Otomatis TWI Season 7"
+              },
+              timestamp: new Date().toISOString()
+            }
+          ]
+        }
+      });
+    }
+
+    // ==========================================
     // 3. LOGIKA KLIK TOMBOL (Type 3)
     // ==========================================
     if (body.type === 3) {
@@ -196,12 +278,11 @@ export async function POST(req: NextRequest) {
               await kv.hset(`teams:${foundTeamSlug}`, { players: JSON.stringify(currentPlayersArray) });
             }
 
-            // 2. Simpan ke Global Index & Map (Biar bisa dicari O(1) ke depannya)
+            // 2. Simpan ke Global Index & Map
             await kv.sadd('global:discord_ids', userId); 
             await kv.set(`global:map:discord_id:${userId}`, foundTeamSlug);
           } catch (dbErr) {
             console.error("Gagal menyimpan ID Discord ke DB:", dbErr);
-            // Tidak me-return error ke user, karena secara fungsionalitas discord sudah sukses
           }
         }
 
@@ -232,4 +313,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Discord Interaction:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
-}
+    }
