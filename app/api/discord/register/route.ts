@@ -64,13 +64,23 @@ export async function GET(req: Request) {
   }
 
   // ==========================================
-  // 3. KEMBALIKAN RESPON
+  // 3. KIRIM PESAN BARU (TERPISAH)
+  // ==========================================
+    const tipPayload = {
+      content: "💡 **Tip:** Gunakan perintah `/check` di *Private Channel* tim untuk memantau rekan setim yang belum verifikasi."
+    };
+    tipResult = await discordAPI(`/channels/${channelId}/messages`, 'POST', tipPayload);
+  }
+
+  // ==========================================
+  // 4. KEMBALIKAN RESPON
   // ==========================================
   if (slashResult) {
     return NextResponse.json({ 
       message: '✅ Setup Berhasil Dijalankan!', 
       commands: slashResult,
-      buttons_deployed: buttonResult ? 'Pesan berhasil diedit dengan ID tombol baru' : 'Gagal mengedit tombol'
+      buttons_updated: buttonResult ? 'Sukses' : 'Gagal edit pesan',
+      tip_sent: tipResult ? 'Sukses kirim pesan terpisah' : 'Gagal kirim pesan'
     });
   } else {
     return NextResponse.json({ error: '❌ Gagal mendaftarkan commands' }, { status: 500 });
