@@ -22,16 +22,15 @@ export async function GET() {
       const players = typeof team.players === 'string' ? JSON.parse(team.players) : (team.players || []);
       const totalRoster = players.length;
 
-      // 🎯 UPDATE: Menggunakan variabel statusVerifikasi yang benar
       const statusDB = (team.statusVerifikasi || '').toLowerCase();
       const isApproved = statusDB === 'approved';
       
       if (isApproved) totalApproved++;
       else totalPending++;
 
+      // Icon status disesuaikan
       const statusIcon = isApproved ? "✅ Approved" : "🟡 Pending";
       
-      // 🎯 UPDATE: Menambahkan jam pendaftaran
       let tglDaftar = "-";
       if (team.createdAt) {
          const dateObj = new Date(team.createdAt);
@@ -40,11 +39,14 @@ export async function GET() {
            month: 'short',
            hour: '2-digit',
            minute: '2-digit'
-         }).replace(/\./g, ':'); // Mengubah format 14.30 menjadi 14:30 biar lebih umum
+         }).replace(/\./g, ':'); 
       }
 
+      // 🎯 UPDATE: Dibuat list menurun ke bawah tanpa pemisah |
       rekapText += `**${index + 1}. ${team.namaTim?.toUpperCase()}**\n`;
-      rekapText += `└ 👥 ${totalRoster} Pemain  |  ${statusIcon}  |  🗓️ ${tglDaftar}\n\n`;
+      rekapText += `👥 ${totalRoster} Pemain\n`;
+      rekapText += `💰 ${statusIcon}\n`;
+      rekapText += `🗓️ ${tglDaftar}\n\n`;
     });
 
     if (!rekapText) rekapText = "Belum ada tim yang terdaftar di database.";
@@ -82,4 +84,4 @@ export async function GET() {
     console.error("Error rekap data:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-                         }
+}
