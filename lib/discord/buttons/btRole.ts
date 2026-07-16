@@ -49,16 +49,22 @@ export async function handleBtRole(body: any) {
 
   await Promise.allSettled(apiPromises);
 
+  // PROSES PENYIMPANAN KE DATABASE (Vercel KV)
   if (foundTeamSlug) {
     try {
       const pIdx = currentPlayersArray.findIndex((p: any) => p.discord.trim().toLowerCase() === username);
       if (pIdx > -1) {
+        // 1. Update id discord di dalam list players pada hash tim
         currentPlayersArray[pIdx].discordId = userId;
         await kv.hset(`teams:${foundTeamSlug}`, { players: JSON.stringify(currentPlayersArray) });
+        
+        // 2. Simpan mapping user ID ke tim slug di global:discord_map (Berdasarkan skema di Upstash)
+        await kv.hset('global:discord_map', { [userId]: foundTeamSlug });
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("Gagal memperbarui data KV:", e);
+    }
   }
 
   return NextResponse.json({ type: 4, data: { content: `✅ **AUTENTIKASI BERHASIL** Anda resmi masuk ke roster **${foundTeam.namaTim}**.`, flags: 64 } });
 }
-  
