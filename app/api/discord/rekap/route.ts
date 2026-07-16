@@ -4,7 +4,6 @@ import { discordAPI } from '@/lib/discord/utils';
 
 export async function GET() {
   try {
-    // 1. Ambil data semua tim secara paralel
     const allTeamSlugs = await kv.smembers('global:teams');
     const allTeamsData = await Promise.all(
       allTeamSlugs.map(async (slug) => {
@@ -13,57 +12,61 @@ export async function GET() {
       })
     );
 
-    // Urutkan dari yang paling awal daftar (Oldest to Newest)
     allTeamsData.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-    // 2. Susun teks rekapan
     let rekapText = "";
     let totalApproved = 0;
     let totalPending = 0;
 
     allTeamsData.forEach((team: any, index: number) => {
-      // Hitung jumlah roster
       const players = typeof team.players === 'string' ? JSON.parse(team.players) : (team.players || []);
       const totalRoster = players.length;
 
-      // 🎯 UPDATE: Menggunakan field StatusVerifikasi dari database
-      const isApproved = team.StatusVerifikasi === 'Approved';
+      // 🎯 UPDATE: Menggunakan variabel statusVerifikasi yang benar
+      const statusDB = (team.statusVerifikasi || '').toLowerCase();
+      const isApproved = statusDB === 'approved';
       
       if (isApproved) totalApproved++;
       else totalPending++;
 
-      const statusIcon = isApproved ? "✅ APPROVED" : "🟡 PENDING";
+      const statusIcon = isApproved ? "✅ Approved" : "🟡 Pending";
       
-      // Format Waktu Daftar
-      const tglDaftar = team.createdAt 
-        ? new Date(team.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) 
-        : "-";
+      // 🎯 UPDATE: Menambahkan jam pendaftaran
+      let tglDaftar = "-";
+      if (team.createdAt) {
+         const dateObj = new Date(team.createdAt);
+         tglDaftar = dateObj.toLocaleString('id-ID', { 
+           day: '2-digit', 
+           month: 'short',
+           hour: '2-digit',
+           minute: '2-digit'
+         }).replace(/\./g, ':'); // Mengubah format 14.30 menjadi 14:30 biar lebih umum
+      }
 
-      // Susun ke dalam list
       rekapText += `**${index + 1}. ${team.namaTim?.toUpperCase()}**\n`;
-      rekapText += `👥 ${totalRoster} Pemain | 💰 ${statusIcon} | 📅 ${tglDaftar}\n\n`;
+      rekapText += `└ 👥 ${totalRoster} Pemain  |  ${statusIcon}  |  🗓️ ${tglDaftar}\n\n`;
     });
 
     if (!rekapText) rekapText = "Belum ada tim yang terdaftar di database.";
 
-    // 3. Bungkus dalam Embed yang Rapi
     const channelTarget = "1170909631049121872";
     const payload = {
       embeds: [{
         title: "📊 REKAPITULASI PENDAFTARAN TIM",
         description: rekapText,
-        color: 3447003, // Warna Biru
+        color: 3447003, 
         fields: [
-          { name: "Total Tim", value: `**${allTeamsData.length}** Tim`, inline: true },
-          { name: "✅ Approved", value: `**${totalApproved}** Tim`, inline: true },
-          { name: "🟡 Pending", value: `**${totalPending}** Tim`, inline: true }
+          { 
+            name: "📈 Ringkasan Status Pendaftaran", 
+            value: `**${allTeamsData.length}** Total Tim  |  ✅ **${totalApproved}** Approved  |  🟡 **${totalPending}** Pending`, 
+            inline: false 
+          }
         ],
-        footer: { text: "Data ditarik secara real-time dari Database" },
+        footer: { text: "Data ditarik secara real-time dari Database TWI" },
         timestamp: new Date().toISOString()
       }]
     };
 
-    // 4. Kirim menggunakan helper API discord
     const result = await discordAPI(`/channels/${channelTarget}/messages`, 'POST', payload);
 
     if (result) {
@@ -79,4 +82,4 @@ export async function GET() {
     console.error("Error rekap data:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-}
+                         }
