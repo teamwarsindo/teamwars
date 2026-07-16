@@ -12,6 +12,7 @@ export async function GET() {
       })
     );
 
+    // Pastikan key untuk sorting sesuai (createdAt atau timestamp)
     allTeamsData.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     let rekapText = "";
@@ -28,21 +29,21 @@ export async function GET() {
       if (isApproved) totalApproved++;
       else totalPending++;
 
-      // Icon status disesuaikan
       const statusIcon = isApproved ? "✅ Approved" : "🟡 Pending";
       
       let tglDaftar = "-";
+      // Cek apakah key-nya createdAt. Kalau di database kamu beda (misal 'timestamp'), ganti tulisan createdAt di bawah ini
       if (team.createdAt) {
          const dateObj = new Date(team.createdAt);
          tglDaftar = dateObj.toLocaleString('id-ID', { 
+           timeZone: 'Asia/Jakarta', // 🎯 KUNCI: Paksa jam ke Waktu Indonesia Barat (WIB)
            day: '2-digit', 
            month: 'short',
            hour: '2-digit',
            minute: '2-digit'
-         }).replace(/\./g, ':'); 
+         }).replace(/\./g, ':') + ' WIB'; // Tambahan teks WIB biar lebih jelas
       }
 
-      // 🎯 UPDATE: Dibuat list menurun ke bawah tanpa pemisah |
       rekapText += `**${index + 1}. ${team.namaTim?.toUpperCase()}**\n`;
       rekapText += `👥 ${totalRoster} Pemain\n`;
       rekapText += `💰 ${statusIcon}\n`;
