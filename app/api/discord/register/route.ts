@@ -26,61 +26,12 @@ export async function GET(req: Request) {
   const slashResult = await discordAPI(`/applications/${appId}/commands`, 'PUT', commands);
 
   // ==========================================
-  // 2. EDIT PESAN LAMA UNTUK UPDATE TOMBOL
-  // ==========================================
-  const channelId = "1525775391854428241"; // Pastikan config-nya mengarah ke channel #get-team-role
-  const messageId = "1525885817149722835"; 
-  
-  let buttonResult = null;
-  let tipResult = null;
-  
-  if (channelId) {
-    // A. UPDATE TOMBOL DI PESAN LAMA
-    if (messageId) {
-      const buttonPayload = {
-        components: [
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                label: "Verified",
-                style: 1, 
-                custom_id: "bt_verified", 
-                emoji: { name: "🔒" } 
-              },
-              {
-                type: 2,
-                label: "Role Tim",
-                style: 3, 
-                custom_id: "bt_role", 
-                emoji: { name: "🛡️" } 
-              }
-            ]
-          }
-        ]
-      };
-      buttonResult = await discordAPI(`/channels/${channelId}/messages/${messageId}`, 'PATCH', buttonPayload);
-    }
-    
-  // ==========================================
-  // 3. KIRIM PESAN BARU (TERPISAH)
-  // ==========================================
-    const tipPayload = {
-      content: "💡 **Tip:** Gunakan perintah `/check` di *Private Channel* tim untuk memantau rekan setim yang belum verifikasi."
-    };
-    tipResult = await discordAPI(`/channels/${channelId}/messages`, 'POST', tipPayload);
-  }
-
-  // ==========================================
   // 4. KEMBALIKAN RESPON
   // ==========================================
   if (slashResult) {
     return NextResponse.json({ 
       message: '✅ Setup Berhasil Dijalankan!', 
-      commands: slashResult,
-      buttons_updated: buttonResult ? 'Sukses' : 'Gagal edit pesan',
-      tip_sent: tipResult ? 'Sukses kirim pesan terpisah' : 'Gagal kirim pesan'
+      commands: slashResult
     });
   } else {
     return NextResponse.json({ error: '❌ Gagal mendaftarkan commands' }, { status: 500 });
