@@ -34,35 +34,35 @@ export async function GET(req: Request) {
   
   let buttonResult = null;
   
-  if (channelId && messageId) {
-    // Kita HANYA mengirim komponen tombol. Teks dan Embed lama akan 100% aman!
-    const buttonPayload = {
-      components: [
-        {
-          type: 1,
-          components: [
-            {
-              type: 2,
-              label: "Verified",
-              style: 1, // Warna Biru (Blurple)
-              custom_id: "bt_verified", // ID Baru!
-              emoji: { name: "🔒" } // Sesuai gambar
-            },
-            {
-              type: 2,
-              label: "Role Tim",
-              style: 3, // Warna Hijau (Success)
-              custom_id: "bt_role", // ID Baru!
-              emoji: { name: "🛡️" } // Sesuai gambar
-            }
-          ]
-        }
-      ]
-    };
-
-    buttonResult = await discordAPI(`/channels/${channelId}/messages/${messageId}`, 'PATCH', buttonPayload);
-  }
-
+  if (channelId) {
+    // A. UPDATE TOMBOL DI PESAN LAMA
+    if (messageId) {
+      const buttonPayload = {
+        components: [
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                label: "Verified",
+                style: 1, 
+                custom_id: "bt_verified", 
+                emoji: { name: "🔒" } 
+              },
+              {
+                type: 2,
+                label: "Role Tim",
+                style: 3, 
+                custom_id: "bt_role", 
+                emoji: { name: "🛡️" } 
+              }
+            ]
+          }
+        ]
+      };
+      buttonResult = await discordAPI(`/channels/${channelId}/messages/${messageId}`, 'PATCH', buttonPayload);
+    }
+    
   // ==========================================
   // 3. KIRIM PESAN BARU (TERPISAH)
   // ==========================================
