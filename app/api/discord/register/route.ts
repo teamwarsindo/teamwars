@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { discordAPI } from '@/lib/discord/utils';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 export async function GET(req: Request) {
   const appId = process.env.DISCORD_CLIENT_ID; 
@@ -33,6 +32,7 @@ export async function GET(req: Request) {
   const messageId = "1525885817149722835"; 
   
   let buttonResult = null;
+  let tipResult = null;
   
   if (channelId) {
     // A. UPDATE TOMBOL DI PESAN LAMA
