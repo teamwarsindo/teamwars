@@ -50,12 +50,19 @@ export async function sendTeamTracker({
     const messageId = msgData.id;
 
     if (messageId) {
-      await fetch(`https://discord.com/api/v10/channels/${channelId}/pins/${messageId}`, {
+      const pinRes = await fetch(`https://discord.com/api/v10/channels/${channelId}/pins/${messageId}`, {
         method: 'PUT',
-        headers: { 'Authorization': `Bot ${token}` }
+        headers: {
+          'Authorization': `Bot ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({}) // 👈 Tambahkan body kosong agar API Discord tidak menolak
       });
+      
+      if (!pinRes.ok) {
+         console.error("Gagal Pin pesan:", await pinRes.text());
+      }
     }
-
     return messageId;
   } catch (error) {
     console.error("Error di sendTeamTracker:", error);
