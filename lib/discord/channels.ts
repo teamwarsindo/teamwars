@@ -19,7 +19,7 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
         permission_overwrites: [
           { id: everyoneRoleId, type: 0, deny: "1024" }, 
           { id: roleId, type: 0, allow: "1024" },
-          { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "3088" }
+          { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "11280" }
         ]
       })
     });
