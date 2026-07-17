@@ -78,6 +78,20 @@ export async function handleBtRole(body: any) {
 
           const decimalColor = foundTeam.warna ? parseInt(foundTeam.warna.replace('#', ''), 16) : 11146056;
 
+          // Konfigurasi format Waktu dan Tanggal (Contoh: 17 Juli 2026 pukul 20.20 WIB)
+      const now = new Date();
+      const dateFormatter = new Intl.DateTimeFormat('id-ID', { 
+        day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' 
+      });
+      const timeFormatter = new Intl.DateTimeFormat('id-ID', { 
+        hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' 
+      });
+
+      const dateStr = dateFormatter.format(now);
+      const timeStr = timeFormatter.format(now).replace(':', '.'); // Ubah 20:20 jadi 20.20
+      
+      const footerText = `Diperbarui pada ${dateStr} pukul ${timeStr} WIB`;
+        
           // Susun embed baru (Komponen Button tidak perlu dikirim ulang, Discord API akan membiarkan Button lama tetap ada saat PATCH)
           const trackerEmbed = {
             title: `🛡️ DATABASE TIM: ${foundTeam.namaTim.toUpperCase()}`,
@@ -87,8 +101,8 @@ export async function handleBtRole(body: any) {
               { name: "📌 Role Tim", value: foundTeam.discordRoleId ? `<@&${foundTeam.discordRoleId}>` : `*(Belum Ada)*`, inline: true },
               { name: "📊 Status", value: `**${verifiedCount} / ${currentPlayersArray.length}** Terverifikasi`, inline: true }
             ],
-            timestamp: new Date().toISOString()
-          };
+            footer: { text: footerText }
+      };
 
           // Tembak API Patch Message
           await discordAPI(`/channels/${foundTeam.discordChannelId}/messages/${foundTeam.trackerMsgId}`, 'PATCH', {
