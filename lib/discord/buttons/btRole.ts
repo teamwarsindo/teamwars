@@ -49,7 +49,7 @@ export async function handleBtRole(body: any) {
 
   await Promise.allSettled(apiPromises);
 
-  // PROSES PENYIMPANAN KE DATABASE (Vercel KV)
+  // PROSES PENYIMPANAN KE DATABASE (Vercel KV) DAN UPDATE TRACKER
   if (foundTeamSlug) {
     try {
       const pIdx = currentPlayersArray.findIndex((p: any) => p.discord.trim().toLowerCase() === username);
@@ -58,13 +58,48 @@ export async function handleBtRole(body: any) {
         currentPlayersArray[pIdx].discordId = userId;
         await kv.hset(`teams:${foundTeamSlug}`, { players: JSON.stringify(currentPlayersArray) });
         
-        // 2. Simpan mapping user ID ke tim slug di global:discord_map (Berdasarkan skema di Upstash)
+        // 2. Simpan mapping user ID ke tim slug di global:discord_map
         await kv.hset('global:discord_map', { [userId]: foundTeamSlug });
+
+        // 3. AUTO-UPDATE TRACKER MESSAGE
+        if (foundTeam.trackerMsgId && foundTeam.discordChannelId) {
+          let verifiedCount = 0;
+          let rosterText = "";
+          
+          // Rakit ulang daftar roster dengan centang jika sudah punya discordId
+          currentPlayersArray.forEach((p: any) => {
+            if (p.discordId) {
+              verifiedCount++;
+              rosterText += `✅ **${p.ign}** (<@${p.discordId}>) - *${p.role}*\n`;
+            } else {
+              rosterText += `❌ **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
+            }
+          });
+
+          const decimalColor = foundTeam.warna ? parseInt(foundTeam.warna.replace('#', ''), 16) : 11146056;
+
+          // Susun embed baru (Komponen Button tidak perlu dikirim ulang, Discord API akan membiarkan Button lama tetap ada saat PATCH)
+          const trackerEmbed = {
+            title: `🛡️ DATABASE TIM: ${foundTeam.namaTim.toUpperCase()}`,
+            description: `**DAFTAR ROSTER:**\n${rosterText}`,
+            color: decimalColor,
+            fields: [
+              { name: "📌 Role Tim", value: foundTeam.discordRoleId ? `<@&${foundTeam.discordRoleId}>` : `*(Belum Ada)*`, inline: true },
+              { name: "📊 Status", value: `**${verifiedCount} / ${currentPlayersArray.length}** Terverifikasi`, inline: true }
+            ],
+            timestamp: new Date().toISOString()
+          };
+
+          // Tembak API Patch Message
+          await discordAPI(`/channels/${foundTeam.discordChannelId}/messages/${foundTeam.trackerMsgId}`, 'PATCH', {
+            embeds: [trackerEmbed]
+          });
+        }
       }
     } catch (e) {
-      console.error("Gagal memperbarui data KV:", e);
+      console.error("Gagal memperbarui data KV atau Tracker Message:", e);
     }
   }
 
   return NextResponse.json({ type: 4, data: { content: `✅ **AUTENTIKASI BERHASIL** Anda resmi masuk ke roster **${foundTeam.namaTim}**.`, flags: 64 } });
-}
+        }
