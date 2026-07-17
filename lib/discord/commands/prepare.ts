@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 // Pastikan import DISCORD_CONFIG dari tempat lu menyimpannya
-import { DISCORD_CONFIG } from '@/lib/config';
+import { DISCORD_CONFIG } from '../config';
 
 // ==========================================
 // HANDLER: /prepare
