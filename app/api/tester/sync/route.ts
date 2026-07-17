@@ -1,149 +1,118 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { createDiscordRole, createDiscordChannel, createDiscordVoiceChannel } from '@/lib/discord-bot';
+import { NextResponse } from 'next/server';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 
-const ROLE_DUELIST = '1525761725901570158'; 
+export async function GET(request: Request) {
+  const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+  const GUILD_ID = process.env.DISCORD_GUILD_ID;
 
-export async function POST(req: NextRequest) {
+  if (!BOT_TOKEN || !GUILD_ID) {
+    return NextResponse.json({ error: 'Missing BOT_TOKEN or GUILD_ID' }, { status: 500 });
+  }
+
   try {
-    const guildId = process.env.DISCORD_GUILD_ID;
-    const token = process.env.DISCORD_BOT_TOKEN;
-
-    if (!guildId || !token) {
-      return NextResponse.json({ success: false, error: "Bot Token atau Guild ID belum di-setting!" });
-    }
-
-    const headers = { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' };
-
-    // ==========================================
-    // 1. TARIK SEMUA DATA DARI DISCORD
-    // ==========================================
+    // 1. Fetch members dari Discord API (Paginasi)
     let allMembers: any[] = [];
-    let after = "0";
-    let hasMore = true;
-    
-    while (hasMore) {
-      const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members?limit=1000&after=${after}`, { method: 'GET', headers });
-      if (!res.ok) return NextResponse.json({ success: false, error: `Gagal fetch Members: ${res.statusText}` });
+    let lastId = '0';
+    let keepFetching = true;
+
+    while (keepFetching) {
+      const res = await fetch(
+        `https://discord.com/api/v10/guilds/${GUILD_ID}/members?limit=1000&after=${lastId}`,
+        { headers: { Authorization: `Bot ${BOT_TOKEN}` } }
+      );
+
+      if (!res.ok) throw new Error(`Discord API Error: ${res.statusText}`);
+
       const members = await res.json();
-      
-      if (members.length === 0) { 
-        hasMore = false; 
-      } else {
-        allMembers.push(...members);
-        after = members[members.length - 1].user.id;
-        if (members.length < 1000) hasMore = false;
+      if (members.length === 0) {
+        keepFetching = false;
+        break;
       }
+      allMembers.push(...members);
+      lastId = members[members.length - 1].user.id;
     }
+
+    // 2. Filter hanya yang punya role Duelist
+    const duelistMembers = allMembers.filter((m: any) =>
+      m.roles.includes(DISCORD_CONFIG.ROLE_DUELIST)
+    );
+
+    // 3. Ambil semua key tim dari Vercel KV
+    const teamKeys = await kv.keys('teams:*');
     
-    // Filter user dengan Role Season 7
-    const verifiedMembers = allMembers.filter((m: any) => m.roles.includes(ROLE_DUELIST));
+    let successCount = 0;
+    let errorCount = 0;
 
-    const rolesRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, { method: 'GET', headers });
-    const serverRoles = await rolesRes.json();
+    // 4. Proses Overwrite (Cocokkan Discord Username dengan DB Tim)
+    for (const duelist of duelistMembers) {
+      const userId = duelist.user.id;
+      // Normalisasi username untuk pencarian
+      const username = duelist.user.username.trim().toLowerCase(); 
 
-    const channelsRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { method: 'GET', headers });
-    const serverChannels = await channelsRes.json();
+      let foundTeamSlug = null;
+      let matchedTeamKey = null;
+      let currentPlayersArray: any[] = [];
 
-    // ==========================================
-    // 2. PROSES FORCE-SYNC & PENYEMBUHAN DATABASE
-    // ==========================================
-    const allTeamSlugs = await kv.smembers('global:teams');
-    let syncLog: string[] = [];
-    let mapToSave: Record<string, string> = {}; 
-    let idsToSave: string[] = []; 
+      // Cari user ini ada di tim mana
+      for (const key of teamKeys) {
+        const teamData: any = await kv.hgetall(key);
+        if (teamData && teamData.players) {
+          // Handle parse jika players disimpan sebagai string JSON
+          const players = typeof teamData.players === 'string' 
+            ? JSON.parse(teamData.players) 
+            : teamData.players;
 
-    for (const slug of allTeamSlugs) {
-      const kvKey = `teams:${slug}`;
-      const teamData: any = await kv.hgetall(kvKey);
-      if (!teamData) continue;
+          const pIdx = players.findIndex((p: any) => 
+            p.discord && p.discord.trim().toLowerCase() === username
+          );
 
-      let isDbUpdated = false;
-      const namaTim = teamData.namaTim;
-      const expectedTextChannelName = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
-
-      // --- Cek & Heal Aset ---
-      if (!teamData.discordRoleId) {
-        const existingRole = serverRoles.find((r: any) => r.name.toLowerCase() === namaTim.toLowerCase());
-        if (existingRole) { teamData.discordRoleId = existingRole.id; syncLog.push(`🔍 Role Disinkron: ${namaTim}`); } 
-        else { teamData.discordRoleId = await createDiscordRole(namaTim, teamData.warna || '#FFFFFF'); syncLog.push(`✨ Role Dibuat: ${namaTim}`); }
-        isDbUpdated = true;
-      }
-
-      if (!teamData.discordChannelId && teamData.discordRoleId) {
-        const existingText = serverChannels.find((c: any) => c.type === 0 && c.name === expectedTextChannelName);
-        if (existingText) { teamData.discordChannelId = existingText.id; syncLog.push(`🔍 Text Ch Disinkron: ${namaTim}`); } 
-        else { teamData.discordChannelId = await createDiscordChannel(namaTim, teamData.discordRoleId); syncLog.push(`✨ Text Ch Dibuat: ${namaTim}`); }
-        isDbUpdated = true;
-      }
-
-      if (!teamData.discordVoiceChannelId && teamData.discordRoleId) {
-        const existingVoice = serverChannels.find((c: any) => c.type === 2 && c.name.toLowerCase() === namaTim.toLowerCase());
-        if (existingVoice) { teamData.discordVoiceChannelId = existingVoice.id; syncLog.push(`🔍 Voice Ch Disinkron: ${namaTim}`); } 
-        else { teamData.discordVoiceChannelId = await createDiscordVoiceChannel(namaTim, teamData.discordRoleId); syncLog.push(`✨ Voice Ch Dibuat: ${namaTim}`); }
-        isDbUpdated = true;
-      }
-
-      // --- AUTO-HEAL & OVERWRITE PEMAIN ---
-      if (teamData.players) {
-        const playersArray = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
-        let isPlayerUpdated = false;
-
-        for (const member of verifiedMembers) {
-          // Bersihkan username dari spasi dan tanda "@" untuk amannya
-          const discordUsername = member.user.username.replace(/^@/, '').trim().toLowerCase();
-          const discordId = member.user.id;
-
-          const pIndex = playersArray.findIndex((p: any) => p.discord.replace(/^@/, '').trim().toLowerCase() === discordUsername);
-          
-          if (pIndex > -1) {
-            // Overwrite jika beda ATAU jika sama tapi tetap ingin memastikan logic jalan
-            if (playersArray[pIndex].discordId !== discordId) {
-                playersArray[pIndex].discordId = discordId;
-                mapToSave[discordId] = slug;
-                idsToSave.push(discordId);
-                isPlayerUpdated = true;
-                syncLog.push(`🔄 User ID Diperbarui: ${discordUsername} -> ${namaTim}`);
-            }
+          if (pIdx > -1) {
+            foundTeamSlug = key.replace('teams:', '');
+            matchedTeamKey = key;
+            currentPlayersArray = players;
+            break; // Berhenti mencari tim, lanjut ke eksekusi overwrite
           }
         }
+      }
 
-        if (isPlayerUpdated) {
-          teamData.players = JSON.stringify(playersArray);
-          isDbUpdated = true;
+      // 5. Eksekusi Overwrite menggunakan logika yang Anda berikan
+      if (foundTeamSlug && matchedTeamKey) {
+        try {
+          const pIdx = currentPlayersArray.findIndex((p: any) => 
+            p.discord && p.discord.trim().toLowerCase() === username
+          );
+          
+          if (pIdx > -1) {
+            // 1. Update id discord di dalam list players pada hash tim
+            currentPlayersArray[pIdx].discordId = userId;
+            await kv.hset(matchedTeamKey, { players: JSON.stringify(currentPlayersArray) });
+            
+            // 2. Simpan/Overwrite mapping user ID ke tim slug di global:discord_map
+            await kv.hset('global:discord_map', { [userId]: foundTeamSlug });
+            
+            successCount++;
+          }
+        } catch (e) {
+          console.error(`Gagal memperbarui data KV untuk user ${username}:`, e);
+          errorCount++;
         }
       }
+    }
 
-      if (isDbUpdated) {
-        await kv.hset(kvKey, teamData);
+    return NextResponse.json({
+      success: true,
+      message: 'Sinkronisasi Overwrite Selesai',
+      stats: {
+        total_duelist_di_discord: duelistMembers.length,
+        total_tim_diperiksa: teamKeys.length,
+        data_berhasil_dioverwrite: successCount,
+        data_gagal_dioverwrite: errorCount,
       }
-    }
-
-    // ==========================================
-    // 3. UPDATE INDEX GLOBAL SECARA AMAN
-    // ==========================================
-    if (idsToSave.length > 0) {
-      await kv.hset('global:discord_map', mapToSave);
-      await kv.sadd('global:discord_ids', ...idsToSave);
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      message: `Penyembuhan & Sinkronisasi Selesai!`,
-      debug: {
-          totalMembersFetched: allMembers.length,
-          verifiedMembersFound: verifiedMembers.length,
-          totalTeamsChecked: allTeamSlugs.length
-      },
-      log: syncLog 
     });
 
   } catch (error: any) {
+    console.error('Sync Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
-
-// Tambahkan ini agar tidak error 405 saat API dibuka paksa di Browser
-export async function GET(req: NextRequest) {
-    return POST(req);
-      }
