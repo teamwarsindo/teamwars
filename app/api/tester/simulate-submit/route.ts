@@ -53,10 +53,28 @@ export async function GET() { // Menggunakan GET agar gampang di-test di browser
       logoTim: "https://dummyimage.com/400x400/000/fff&text=Logo+Test",
       buktiTransfer: "https://dummyimage.com/400x600/000/fff&text=Bukti+TF",
       players: [
-        { ign: "TestKetua", discord: "testketua123", role: "Ketua", idDuelLinks: "12345" },
-        { ign: "TestWakil", discord: "testwakil123", role: "Wakil Ketua", idDuelLinks: "67890" },
+        // 👇 Username Anda dimasukkan di sini
+        { 
+          ign: "Tsaqif", 
+          discord: "tsaqif.mtz", 
+          role: "Ketua", 
+          idDuelLinks: "123456789" 
+        },
+        { 
+          ign: "TestWakil", 
+          discord: "testwakil123", 
+          role: "Wakil Ketua", 
+          idDuelLinks: "987654321" 
+        },
+        { 
+          ign: "TestAnggota", 
+          discord: "testanggota123", 
+          role: "Anggota", 
+          idDuelLinks: "111222333" 
+        }
       ]
     };
+
 
     // ==========================================
     // 1. MAIN SUBMISSION (LOGIKA IDENTIK DENGAN PRODUCTION)
