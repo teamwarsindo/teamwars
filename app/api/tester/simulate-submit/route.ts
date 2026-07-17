@@ -8,35 +8,87 @@ import {
   sendTeamTracker 
 } from '@/lib/discord'; // 👈 Menggunakan index.ts yang baru kita pecah
 
-// ⚡ FUNGSI MOCK WEBHOOK: Mengalihkan pengiriman ke Channel Testing (1170909631049121872)
+// ⚡ FUNGSI MOCK WEBHOOK: Mengirim 4 Pesan (Admin, Finance, Creative, Public) ke 1 Channel Testing
 async function sendTestWebhooksToChannel(payload: any) {
   const token = process.env.DISCORD_BOT_TOKEN;
-  const testChannelId = '1170909631049121872'; // 👈 Sesuai instruksi
+  const testChannelId = '1170909631049121872'; // Channel Temp Admin
+  const ROLE_ADMIN = '1144271761488216134'; 
   
   if (!token) return null;
 
   try {
-    const msgRes = await fetch(`https://discord.com/api/v10/channels/${testChannelId}/messages`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: `🚨 **[TESTING SIMULASI]** Webhook ditangkap di channel test! Tim: **${payload.namaTim}**`,
-        embeds: [{
-          title: `Data Webhook Tim ${payload.namaTim}`,
-          description: `Logo: ${payload.logoTim}\nBukti TF: ${payload.buktiTransfer}`,
-          color: 11146056
-        }]
-      })
+    let rosterText = "";
+    payload.players.forEach((p: any) => {
+      rosterText += `- **${p.ign}** (\`@${p.discord}\`) [${p.role}]\n`;
     });
     
-    if (msgRes.ok) {
-      const data = await msgRes.json();
-      // Mengembalikan mock ID agar struktur return sama dengan sendAllWebhooks asli
-      return { Admin: data.id, Finance: data.id, Creative: data.id, Public: data.id };
-    }
-    return null;
+    const decimalColor = payload.warna ? parseInt(payload.warna.replace('#', ''), 16) : 11146056;
+
+    // 💡 Fungsi Helper: Kirim Pesan ke Channel Test
+    const sendToTestChannel = async (content: string, embedData: any) => {
+      const res = await fetch(`https://discord.com/api/v10/channels/${testChannelId}/messages`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, embeds: [embedData] })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.id; // Kembalikan ID pesan
+      }
+      return "";
+    };
+
+    // 1️⃣ SIMULASI WEBHOOK ADMIN (Tag Role Admin & Data Lengkap)
+    const pAdmin = sendToTestChannel(
+      `🚨 **[TEST ADMIN]** Pendaftaran Baru!\n<@&${ROLE_ADMIN}> Mohon review tim **${payload.namaTim}**`,
+      { 
+        title: `📝 DATA REGISTRASI: ${payload.namaTim.toUpperCase()}`, 
+        color: decimalColor, 
+        fields: [
+          { name: "👑 Ketua", value: `**${payload.ketua.ign}** (\`@${payload.ketua.discord}\`)`, inline: true },
+          { name: "👥 Roster", value: rosterText, inline: false }
+        ],
+        thumbnail: { url: payload.logoTim }, 
+        image: { url: payload.buktiTransfer } 
+      }
+    );
+
+    // 2️⃣ SIMULASI WEBHOOK FINANCE (Cek Bukti Transfer)
+    const pFinance = sendToTestChannel(
+      `💰 **[TEST FINANCE]** Menunggu Validasi Pembayaran: **${payload.namaTim}**`,
+      { title: `🧾 BUKTI TRANSFER`, color: decimalColor, image: { url: payload.buktiTransfer } }
+    );
+
+    // 3️⃣ SIMULASI WEBHOOK CREATIVE (Cek Logo)
+    const pCreative = sendToTestChannel(
+      `🎨 **[TEST CREATIVE]** Aset Logo Tim: **${payload.namaTim}**`,
+      { title: `🖼️ LOGO TIM`, color: decimalColor, image: { url: payload.logoTim } }
+    );
+
+    // 4️⃣ SIMULASI WEBHOOK PUBLIC (Pengumuman Roster)
+    const pPublic = sendToTestChannel(
+      `📢 **[TEST PUBLIC]** Sambut kedatangan tim baru!`,
+      { 
+        title: `🛡️ ${payload.namaTim.toUpperCase()} JOINED THE BATTLE!`, 
+        color: decimalColor, 
+        fields: [{ name: "👥 Daftar Roster", value: rosterText, inline: false }],
+        thumbnail: { url: payload.logoTim }
+      }
+    );
+
+    // 🚀 Eksekusi keempat pesan secara bersamaan (Parallel)
+    const [adminId, financeId, creativeId, publicId] = await Promise.all([pAdmin, pFinance, pCreative, pPublic]);
+
+    // Kembalikan objek yang strukturnya 100% sama dengan sendAllWebhooks asli
+    return { 
+      Admin: adminId || "", 
+      Finance: financeId || "", 
+      Creative: creativeId || "", 
+      Public: publicId || "" 
+    };
+
   } catch (error) {
-    console.error("Gagal kirim test webhook:", error);
+    console.error("Gagal kirim test webhooks:", error);
     return null;
   }
 }
