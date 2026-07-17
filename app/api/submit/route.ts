@@ -3,7 +3,14 @@ import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
 import { EMAIL_CONFIG } from '@/lib/config';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
-import { createDiscordRole, createDiscordChannel, createDiscordVoiceChannel, autoSortTeamRoles } from '@/lib/discord-bot';
+// 👇 Tambahkan sendTeamTracker di import
+import { 
+  createDiscordRole, 
+  createDiscordChannel, 
+  createDiscordVoiceChannel, 
+  autoSortTeamRoles,
+  sendTeamTracker 
+} from '@/lib/discord';
 import { sendAllWebhooks } from '@/lib/discord-webhooks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -32,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     const timestampNow = new Date().toISOString(); 
-    const editToken = crypto.randomUUID(); // 👈 Generate Token Rahasia
+    const editToken = crypto.randomUUID(); 
 
     // Simpan ke brankas utama Redis
     await kv.hset(kvKey, {
@@ -45,10 +52,9 @@ export async function POST(request: NextRequest) {
       createdAt: timestampNow,
       updatedAt: timestampNow,
       statusVerifikasi: "Pending",
-      editToken: editToken // 👈 Token diamankan di dalam brankas tim
+      editToken: editToken
     });
 
-    // ⚡ INJEKSI ANTI-BENGKAK: Mapping Token & Summary List
     await kv.set(`token:map:${editToken}`, teamSlug);
 
     // Injeksi Index Sekunder
@@ -66,7 +72,6 @@ export async function POST(request: NextRequest) {
     const ketua = players.find((p: any) => p.role === "Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
     const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
     
-    // 👈 Lempar editToken ke template agar disisipkan sebagai Link Edit
     const templateData = { 
       namaTim, warna, ketua, wakil, totalRoster: players.length, 
       logoTim, buktiTransfer, players, editToken 
@@ -88,14 +93,24 @@ export async function POST(request: NextRequest) {
       try {
         const roleId = await createDiscordRole(namaTim, warna);
         
-        // ⚡ DEKLARASIKAN VARIABEL DI LUAR BLOK 'IF'
         let channelId = "";
-        let voiceChannelId = ""; // Variabel baru untuk Voice Channel
+        let voiceChannelId = ""; 
+        let trackerMsgId = ""; // 👇 Tambahkan variabel untuk menangkap Tracker ID
 
         if (roleId) {
-          // Isi nilainya di dalam sini
           channelId = await createDiscordChannel(namaTim, roleId);
           voiceChannelId = await createDiscordVoiceChannel(namaTim, roleId); 
+          
+          // 👇 Eksekusi pengiriman Tracker Message
+          if (channelId) {
+            trackerMsgId = await sendTeamTracker({
+              channelId,
+              namaTim,
+              warna,
+              roleId,
+              players
+            });
+          }
         }
         
         // TEMBAK WEBHOOK & TANGKAP MESSAGE ID-NYA
@@ -110,8 +125,9 @@ export async function POST(request: NextRequest) {
         if (webhookMsgIds) {
           await kv.hset(kvKey, { 
             discordRoleId: roleId || "",
-            discordChannelId: channelId, // 👈 Sekarang sudah tidak error
-            discordVoiceChannelId: voiceChannelId, // 👈 Voice channel ikut tersimpan
+            discordChannelId: channelId, 
+            discordVoiceChannelId: voiceChannelId, 
+            trackerMsgId: trackerMsgId, // 👇 Simpan Message ID Tracker ke KV
             adminMsgId: webhookMsgIds["Admin"] || "",
             financeMsgId: webhookMsgIds["Finance"] || "",
             creativeMsgId: webhookMsgIds["Creative"] || "",
@@ -120,9 +136,9 @@ export async function POST(request: NextRequest) {
 
           try {
             await autoSortTeamRoles();
-            console.log(`✨ Urutan Role di Discord berhasil dirapikan!`); // 👈 Ganti push jadi log
+            console.log(`✨ Urutan Role di Discord berhasil dirapikan!`);
           } catch (e) {
-            console.warn(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`); // 👈 Ganti push jadi warn atau error
+            console.warn(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`); 
           }
         }
       } catch (err) {
@@ -137,4 +153,4 @@ export async function POST(request: NextRequest) {
     console.error("API Submit Error:", error);
     return NextResponse.json({ success: false, error: "Terjadi kesalahan server" }, { status: 500 });
   }
-}
+  }
