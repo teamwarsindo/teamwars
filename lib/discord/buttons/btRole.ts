@@ -68,12 +68,9 @@ export async function handleBtRole(body: any) {
           
           // Rakit ulang daftar roster dengan centang jika sudah punya discordId
           currentPlayersArray.forEach((p: any) => {
-            if (p.discordId) {
-              verifiedCount++;
-              rosterText += `✅ **${p.ign}** (<@${p.discordId}>) - *${p.role}*\n`;
-            } else {
-              rosterText += `❌ **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
-            }
+            const statusIcon = p.discordId ? '✅' : '❌';
+            if (p.discordId) verifiedCount++;
+              rosterText += `${statusIcon} **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
           });
 
           const decimalColor = foundTeam.warna ? parseInt(foundTeam.warna.replace('#', ''), 16) : 11146056;
