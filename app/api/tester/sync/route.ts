@@ -26,12 +26,11 @@ export async function GET(request: NextRequest) {
       
       // Rekap ulang roster dan status verifikasi
       players.forEach((p: any) => {
-        if (p.discordId) {
-          verifiedCount++;
-          rosterText += `✅ **${p.ign}** (<@${p.discordId}>) - *${p.role}*\n`;
-        } else {
-          rosterText += `❌ **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
-        }
+        const statusIcon = p.discordId ? '✅' : '❌';
+        if (p.discordId) verifiedCount++;
+        
+        // Memakai text biasa dengan backtick agar rapi, tanpa tag mention <@ID>
+        rosterText += `${statusIcon} **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
       });
 
       const decimalColor = teamData.warna ? parseInt(teamData.warna.replace('#', ''), 16) : 11146056;
