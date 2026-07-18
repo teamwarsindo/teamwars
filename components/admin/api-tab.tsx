@@ -2,18 +2,17 @@
 
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
 
 export function ApiTab() {
   const [routes, setRoutes] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
   
-  // State untuk hasil test API
+  // State untuk hasil test API & Fitur Copy
   const [testResult, setTestResult] = useState<string>("")
   const [isTesting, setIsTesting] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
 
-  // Scan API saat tab dibuka
   useEffect(() => {
     const scanApis = async () => {
       try {
@@ -31,16 +30,28 @@ export function ApiTab() {
     scanApis()
   }, [])
 
-  // Fungsi untuk memanggil (test) API yang dipilih
-  const handleTestApi = async (route: string) => {
+  // Fungsi untuk sekadar memilih API (tanpa menjalankan)
+  const handleSelectRoute = (route: string) => {
     setSelectedRoute(route)
+    setTestResult("") // Bersihkan layar terminal saat pindah API
+    setIsCopied(false)
+  }
+
+  // Fungsi untuk mengeksekusi API (dipanggil dari tombol Run di terminal)
+  const handleTestApi = async () => {
+    if (!selectedRoute) return
+    
+    // Konfirmasi native browser sebagai pengamanan ganda (opsional, tapi bagus untuk admin)
+    if (!window.confirm(`Yakin ingin mengeksekusi request ke:\n${selectedRoute} ?`)) {
+      return
+    }
+
     setIsTesting(true)
     setTestResult("Mengeksekusi request...")
+    setIsCopied(false)
     
     try {
-      const res = await fetch(route)
-      
-      // Ambil tipe konten untuk mengecek apakah balasan berupa JSON atau Text
+      const res = await fetch(selectedRoute)
       const contentType = res.headers.get("content-type")
       let data;
       
@@ -57,6 +68,15 @@ export function ApiTab() {
       setIsTesting(false)
     }
   }
+
+  // Fungsi untuk menyalin isi terminal
+  const handleCopy = () => {
+    if (!testResult) return
+    navigator.clipboard.writeText(testResult)
+    setIsCopied(true)
+    setTimeout(() => setIsCopied(false), 2000) // Reset teks tombol setelah 2 detik
+  }
+
   return (
     <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
@@ -88,7 +108,7 @@ export function ApiTab() {
             routes.map((route, idx) => (
               <button
                 key={idx}
-                onClick={() => handleTestApi(route)}
+                onClick={() => handleSelectRoute(route)}
                 className={cn(
                   "text-left flex items-center justify-between p-2.5 sm:p-3 rounded-lg border transition-all text-[11px] sm:text-sm shrink-0",
                   selectedRoute === route 
@@ -107,15 +127,40 @@ export function ApiTab() {
 
         {/* Kolom Kanan: Terminal Output (Max height & Scrollable) */}
         <div className="lg:col-span-2 rounded-xl border border-primary/20 bg-black/80 flex flex-col shadow-[inset_0_0_30px_-10px_rgba(0,0,0,1)] h-[40vh] lg:h-[60vh]">
-          <div className="flex items-center gap-2 bg-zinc-900 px-3 py-2 border-b border-zinc-800 shrink-0">
-            <div className="flex gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
-              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></div>
-              <div className="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
+          
+          {/* Header Terminal & Aksi */}
+          <div className="flex items-center justify-between bg-zinc-900 px-3 py-2 border-b border-zinc-800 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1.5 shrink-0">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
+              </div>
+              <span className="text-[10px] font-mono text-zinc-400 ml-2 truncate max-w-[120px] sm:max-w-xs">
+                {selectedRoute ? selectedRoute : "Terminal Idle"}
+              </span>
             </div>
-            <span className="text-[10px] font-mono text-zinc-400 ml-2 truncate">
-              {selectedRoute ? `Testing: ${selectedRoute}` : "Terminal Idle"}
-            </span>
+
+            {/* Tombol Aksi di Kanan Terminal */}
+            <div className="flex items-center gap-2">
+              {selectedRoute && (
+                <button
+                  onClick={handleTestApi}
+                  disabled={isTesting}
+                  className="flex items-center gap-1 bg-green-500/20 text-green-500 hover:bg-green-500/30 px-2 py-1 rounded text-[10px] font-semibold transition-colors disabled:opacity-50"
+                >
+                  {isTesting ? "⏳ Running..." : "▶ Run API"}
+                </button>
+              )}
+              {testResult && !isTesting && (
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1 bg-zinc-700 text-zinc-200 hover:bg-zinc-600 px-2 py-1 rounded text-[10px] font-semibold transition-colors"
+                >
+                  {isCopied ? "✅ Copied" : "📋 Copy"}
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="p-3 sm:p-4 overflow-y-auto custom-scrollbar flex-1">
@@ -129,7 +174,7 @@ export function ApiTab() {
               </pre>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-zinc-600 font-mono text-[10px] sm:text-sm text-center">
-                <p>/* Pilih API di sebelah kiri untuk melihat response */</p>
+                <p>/* Pilih API, lalu klik Run API */</p>
               </div>
             )}
           </div>
@@ -138,4 +183,5 @@ export function ApiTab() {
       </div>
     </div>
   )
-}      
+        }
+    
