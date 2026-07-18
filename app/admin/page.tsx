@@ -50,9 +50,6 @@ export default function AdminPage() {
             <h2 className="mb-2 text-xl font-bold tracking-tight sm:text-2xl">
               Admin Login
             </h2>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Masukkan kredensial untuk mengakses dashboard.
-            </p>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left">
               {/* Pesan Error */}
