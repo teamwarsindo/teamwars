@@ -42,7 +42,14 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
 // ==========================================
 // 2. HERO HEADER (Logo & Deskripsi Rebranding)
 // ==========================================
-export function HeroHeader() {
+
+// 1. Buat interface untuk menerima props boolean
+interface HeroHeaderProps {
+  showDetails?: boolean;
+}
+
+// 2. Set default value-nya menjadi true
+export function HeroHeader({ showDetails = true }: HeroHeaderProps) {
   return (
     <header className="mt-6 mb-8 flex flex-col items-center text-center lg:mb-10">
       <div className="glow-border relative mb-6 h-[120px] w-[120px] overflow-hidden rounded-2xl sm:h-28 sm:w-28 lg:mb-8 lg:h-44 lg:w-44">
@@ -58,14 +65,18 @@ export function HeroHeader() {
         TEAM WARS INDONESIA
       </h1>
       
-      <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary sm:py-1.5 sm:text-sm lg:mt-6">
-        Season 7 — Duel Links
-      </p>
+      {/* 3. Bungkus bagian detail dengan kondisi showDetails */}
+      {showDetails && (
+        <>
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary sm:py-1.5 sm:text-sm lg:mt-6">
+            Season 7 — Duel Links
+          </p>
 
-      {/* Deskripsi Baru yang Profesional */}
-      <p className="mt-4 max-w-xl text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
-        Team Wars Indonesia (TWI) adalah platform kompetisi beregu Yu-Gi-Oh! utama yang mempertemukan berbagai komunitas dan guild terbaik. TWI menghadirkan standar turnamen Duel Links yang kompetitif dan profesional.
-      </p>
+          <p className="mt-4 max-w-xl text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
+            Team Wars Indonesia (TWI) adalah platform kompetisi beregu Yu-Gi-Oh! utama yang mempertemukan berbagai komunitas dan guild terbaik. TWI menghadirkan standar turnamen Duel Links yang kompetitif dan profesional.
+          </p>
+        </>
+      )}
     </header>
   );
 }
