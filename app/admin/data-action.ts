@@ -38,7 +38,7 @@ export async function getTeamsData() {
         warna: data.warna || "#ffffff",
         logoTim: data.logoTim || null,
         buktiTransfer: data.buktiTransfer || null,
-        playersCount: players.length
+        playersCount: players.length,
         players: players // 👈 Pastikan ini ditambahkan agar bisa dibaca oleh Modal
       }
     })
