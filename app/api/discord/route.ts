@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifySignature } from '@/lib/discord/utils';
 
 // Import Commands
-import { handleCheck } from '@/lib/discord/commands/check';
 import { handleReminder } from '@/lib/discord/commands/reminder';
 import { handlePrepare } from '@/lib/discord/commands/prepare';
 
@@ -33,7 +32,6 @@ export async function POST(req: NextRequest) {
     // 3. Routing Slash Commands (Type 2)
     if (body.type === 2) {
       const commandName = body.data.name;
-      if (commandName === 'check') return await handleCheck(body);
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
     }
