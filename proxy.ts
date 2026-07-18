@@ -12,7 +12,19 @@ export function proxy(request: NextRequest) {
   }
 
   // ---------------------------------------------------------
-  // 1. ATURAN KHUSUS /admin/dashboard (Cegah Bypass Link)
+  // 1. ATURAN KHUSUS /admin (Halaman Login)
+  // ---------------------------------------------------------
+  if (pathname === '/admin') {
+    const session = request.cookies.get('admin_session');
+    
+    // Jika sudah punya sesi, langsung lempar ke dashboard
+    if (session) {
+      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 2. ATURAN KHUSUS /admin/dashboard (Cegah Bypass Link)
   // ---------------------------------------------------------
   if (pathname.startsWith('/admin/dashboard')) {
     const session = request.cookies.get('admin_session');
@@ -24,7 +36,7 @@ export function proxy(request: NextRequest) {
   }
 
   // ---------------------------------------------------------
-  // 2. ATURAN KHUSUS /registration (Akses Master Admin)
+  // 3. ATURAN KHUSUS /registration (Akses Master Admin)
   // ---------------------------------------------------------
   const checkAuth = (allowedUser: string, allowedPwd: string) => {
     const basicAuth = request.headers.get('authorization');
@@ -59,12 +71,12 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/admin', // 👈 Pastikan rute form login didaftarkan di sini
+    '/admin/dashboard/:path*',
     '/registration', 
     '/registration/:path*', 
     '/api/submit/:path*',
     '/rules',
-    '/rules/:path*',
-    '/admin/dashboard/:path*' // 👈 Akses admin dashboard ditambahkan ke matcher
+    '/rules/:path*'
   ],
-}
-  
+                                                                 }
