@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { LAUNCH_TARGET} from '@/lib/config'
+import { LAUNCH_TARGET } from '@/lib/config'
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const now = Date.now();
   const { pathname } = request.nextUrl;
 
@@ -11,7 +11,24 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Fungsi pembantu sekarang dimodifikasi untuk mengecek kredensial secara dinamis
+  // ---------------------------------------------------------
+  // 1. ATURAN KHUSUS /admin/dashboard (Cookie Session)
+  // ---------------------------------------------------------
+  if (pathname.startsWith('/admin/dashboard')) {
+    const session = request.cookies.get('admin_session');
+    
+    // Jika tidak ada sesi login admin, paksa lempar ke halaman form login
+    if (!session) {
+      return NextResponse.redirect(new URL('/admin', request.url));
+    }
+    
+    // Lolos pengecekan, boleh akses dashboard
+    return NextResponse.next();
+  }
+
+  // ---------------------------------------------------------
+  // 2. ATURAN KHUSUS /registration (Basic Auth - Master Admin)
+  // ---------------------------------------------------------
   const checkAuth = (allowedUser: string, allowedPwd: string) => {
     const basicAuth = request.headers.get('authorization');
     if (basicAuth) {
@@ -24,14 +41,11 @@ export function proxy(request: NextRequest) {
     return false;
   };
 
-  // ---------------------------------------------------------
-  // 2. ATURAN KHUSUS /registration (Akses Master Admin)
-  // ---------------------------------------------------------
   if (
     (pathname.startsWith('/registration') || pathname.startsWith('/api/submit')) 
     && now < LAUNCH_TARGET
   ) {
-    // 🔑 KREDENSIAL MASTER ADMIN (Tetap pakai yang lama)
+    // 🔑 KREDENSIAL MASTER ADMIN
     const adminUser = 'admin';
     const adminPwd = 'adminonly';
 
@@ -52,6 +66,7 @@ export const config = {
     '/registration/:path*', 
     '/api/submit/:path*',
     '/rules',
-    '/rules/:path*'
+    '/rules/:path*',
+    '/admin/dashboard/:path*' // 👈 Pastikan rute admin dimasukkan ke matcher
   ],
 }
