@@ -3,7 +3,6 @@ import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
 import { EMAIL_CONFIG } from '@/lib/config';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
-// 👇 Tambahkan sendTeamTracker di import
 import { 
   createDiscordRole, 
   createDiscordChannel, 
@@ -11,7 +10,7 @@ import {
   autoSortTeamRoles,
   sendTeamTracker 
 } from '@/lib/discord';
-import { sendAllWebhooks } from '@/lib/discord-webhooks';
+import { sendAllWebhooks } from '@/lib/discord-webhooks-test';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -23,9 +22,40 @@ async function sendEmailSafe(params: any) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// 💡 UBAH JADI GET AGAR BISA DI-RUN LANGSUNG VIA BROWSER
+export async function GET(request: NextRequest) {
   try {
-    const data = await request.json();
+    // 💡 INJEKSI DUMMY DATA LANGSUNG DI SINI (HARDCODE)
+    const data = {
+      email: "teamwars.indo@gmail.com",
+      namaTim: "TEST-OCTAGRAM",
+      warna: "#5865F2",
+      logoTim: "https://dummyimage.com/400x400/2f3136/ffffff.png&text=Logo+Octagram",
+      buktiTransfer: "https://dummyimage.com/600x800/2f3136/ffffff.png&text=Bukti+Transfer+Dummy",
+      players: [
+        {
+          namaLengkap: "Tsaqif",
+          ign: "OctaTsaqif",
+          discord: "tsaqif.mtz",
+          idDuelLinks: "111222333",
+          role: "Ketua"
+        },
+        {
+          namaLengkap: "Wakil Tester",
+          ign: "OctaVice",
+          discord: "wakil.tester123",
+          idDuelLinks: "444555666",
+          role: "Wakil Ketua"
+        },
+        {
+          namaLengkap: "Member Tester",
+          ign: "OctaMember",
+          discord: "member.tester123",
+          idDuelLinks: "777888999",
+          role: "Anggota"
+        }
+      ]
+    };
 
     // ==========================================
     // 1. MAIN SUBMISSION (NEW TEAM)
@@ -35,7 +65,7 @@ export async function POST(request: NextRequest) {
     const kvKey = `teams:${teamSlug}`;
 
     if (await kv.exists(kvKey)) {
-      return NextResponse.json({ success: false, errors: [{ field: 'namaTim', message: "Nama tim sudah terdaftar!" }] }, { status: 409 });
+      return NextResponse.json({ success: false, errors: [{ field: 'namaTim', message: "Nama tim sudah terdaftar! Hapus dulu di KV jika ingin tes ulang." }] }, { status: 409 });
     }
 
     const timestampNow = new Date().toISOString(); 
@@ -95,13 +125,12 @@ export async function POST(request: NextRequest) {
         
         let channelId = "";
         let voiceChannelId = ""; 
-        let trackerMsgId = ""; // 👇 Tambahkan variabel untuk menangkap Tracker ID
+        let trackerMsgId = ""; 
 
         if (roleId) {
           channelId = await createDiscordChannel(namaTim, roleId);
           voiceChannelId = await createDiscordVoiceChannel(namaTim, roleId); 
           
-          // 👇 Eksekusi pengiriman Tracker Message
           if (channelId) {
             trackerMsgId = await sendTeamTracker({
               channelId,
@@ -113,7 +142,6 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // TEMBAK WEBHOOK & TANGKAP MESSAGE ID-NYA
         const webhookMsgIds = await sendAllWebhooks({ 
           namaTim, warna, ketua, wakil, players, 
           totalRoster: players.length, teamSlug, kvKey,
@@ -121,13 +149,12 @@ export async function POST(request: NextRequest) {
           createdAt: timestampNow 
         });
 
-        // 🚨 SIMPAN SEMUA ID PENTING KE REDIS
         if (webhookMsgIds) {
           await kv.hset(kvKey, { 
             discordRoleId: roleId || "",
             discordChannelId: channelId, 
             discordVoiceChannelId: voiceChannelId, 
-            trackerMsgId: trackerMsgId, // 👇 Simpan Message ID Tracker ke KV
+            trackerMsgId: trackerMsgId, 
             adminMsgId: webhookMsgIds["Admin"] || "",
             financeMsgId: webhookMsgIds["Finance"] || "",
             creativeMsgId: webhookMsgIds["Creative"] || "",
@@ -147,10 +174,10 @@ export async function POST(request: NextRequest) {
     };
 
     await Promise.allSettled([emailPromise, discordTasks()]);
-    return NextResponse.json({ success: true, message: "Pendaftaran berhasil!" });
+    return NextResponse.json({ success: true, message: "Simulasi Pendaftaran Berhasil Dieksekusi!" });
 
   } catch (error: unknown) {
     console.error("API Submit Error:", error);
     return NextResponse.json({ success: false, error: "Terjadi kesalahan server" }, { status: 500 });
   }
-}
+           }
