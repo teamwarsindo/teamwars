@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    await Promise.allSettled([emailPromise, discordTasks()]);
+    await Promise.allSettled([discordTasks()]);
     return NextResponse.json({ success: true, message: "Simulasi Pendaftaran Berhasil Dieksekusi! Cek Terminal Server." });
 
   } catch (error: unknown) {
