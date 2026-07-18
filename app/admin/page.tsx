@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { TopBar, Footer } from "@/components/layout-shared"
+import { TopBar, HeroHeader, Footer } from "@/components/layout-shared"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 import { ShieldIcon } from "@/components/icons"
