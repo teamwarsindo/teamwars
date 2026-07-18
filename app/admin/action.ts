@@ -1,7 +1,6 @@
 "use server"
 
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 
 export async function loginAdmin(formData: FormData) {
   const email = formData.get("email")
@@ -13,8 +12,10 @@ export async function loginAdmin(formData: FormData) {
 
   // Validasi kredensial
   if (email === adminEmail && password === adminPassword) {
-    // Set cookie sesi (contoh sederhana)
-    cookies().set("admin_session", "true", { 
+    // 👈 Tambahkan await di sini untuk Next.js 15+
+    const cookieStore = await cookies()
+    
+    cookieStore.set("admin_session", "true", { 
       httpOnly: true, 
       secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 // 1 hari
@@ -24,4 +25,4 @@ export async function loginAdmin(formData: FormData) {
   }
 
   return { success: false, error: "Email atau password salah!" }
-}
+        }
