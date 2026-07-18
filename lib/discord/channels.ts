@@ -3,7 +3,7 @@ import { DISCORD_CONFIG } from './config';
 export async function createDiscordChannel(teamName: string, roleId: string) {
   const guildId = process.env.DISCORD_GUILD_ID;
   const token = process.env.DISCORD_BOT_TOKEN;
-  const parentCategoryId = process.env.DISCORD_CATEGORY_HQ_ID || DISCORD_CONFIG.CT_TEAM_ID; 
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
   const everyoneRoleId = guildId; 
 
   if (!guildId || !token || !roleId) return null;
@@ -17,9 +17,9 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
         type: 0, 
         parent_id: parentCategoryId,
         permission_overwrites: [
-          { id: everyoneRoleId, type: 0, deny: "1024" }, 
-          { id: roleId, type: 0, allow: "1024" },
-          { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "11280" }
+          { id: everyoneRoleId, type: 0, deny: "1024" },
+          { id: roleId, type: 0, allow: "3072", deny: "139280" },
+          { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }
         ]
       })
     });
@@ -37,7 +37,7 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
 export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
   const guildId = process.env.DISCORD_GUILD_ID;
   const token = process.env.DISCORD_BOT_TOKEN;
-  const parentCategoryId = process.env.DISCORD_CATEGORY_HQ_ID || DISCORD_CONFIG.CT_TEAM_ID; 
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
   const everyoneRoleId = guildId;
 
   if (!guildId || !token || !roleId) return null;
