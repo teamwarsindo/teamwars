@@ -1,49 +1,51 @@
 import { NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
 
-// ⚠️ PERINGATAN: HAPUS FILE INI SETELAH KAMU MENDAPATKAN DATANYA!
 export async function GET() {
   try {
-    // 1. Ambil semua kunci (keys) yang ada di database
     const keys = await kv.keys("*");
 
     if (!keys || keys.length === 0) {
       return NextResponse.json({ message: "Database masih kosong", keys: [] });
     }
 
-    const allData: Record<string, any> = {};
+    const schemaInfo: Record<string, any> = {};
 
-    // 2. Looping setiap key dan ambil datanya berdasarkan tipe (String, Hash, List, dll)
     for (const key of keys) {
       const type = await kv.type(key);
 
       switch (type) {
         case "string":
-          allData[key] = await kv.get(key);
+          schemaInfo[key] = { type: "string" };
           break;
         case "hash":
-          allData[key] = await kv.hgetall(key);
+          // Hanya ambil nama field (kolom), bukan valuenya
+          const fields = await kv.hkeys(key);
+          schemaInfo[key] = { type: "hash", columns: fields };
           break;
         case "list":
-          allData[key] = await kv.lrange(key, 0, -1);
+          // Hanya hitung ada berapa item di dalam list
+          const listLen = await kv.llen(key);
+          schemaInfo[key] = { type: "list", length: listLen };
           break;
         case "set":
-          allData[key] = await kv.smembers(key);
+          // Ambil datanya lalu hitung length-nya
+          const setMembers = await kv.smembers(key);
+          schemaInfo[key] = { type: "set", length: setMembers.length };
           break;
         default:
-          allData[key] = `[Tipe data tidak didukung oleh script ini: ${type}]`;
+          schemaInfo[key] = { type };
       }
     }
 
-    // 3. Tampilkan hasilnya dalam format JSON
     return NextResponse.json({
       total_keys: keys.length,
-      data: allData,
+      schema: schemaInfo,
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: "Gagal mengambil data dari KV", details: error.message },
+      { error: "Gagal mengambil skema database", details: error.message },
       { status: 500 }
     );
   }
-      }
+            }
