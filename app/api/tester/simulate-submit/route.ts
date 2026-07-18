@@ -13,6 +13,9 @@ import {
 
 import { sendRegistrationMessages } from '@/lib/discord/messages/registration-tes';
 
+// 👇 TAMBAHKAN BARIS INI UNTUK MEMATIKAN CACHE
+export const dynamic = 'force-dynamic';
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendEmailSafe(params: any) {
