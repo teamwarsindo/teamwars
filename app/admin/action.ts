@@ -1,6 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 
 export async function loginAdmin(formData: FormData) {
   const email = formData.get("email")
@@ -26,3 +27,10 @@ export async function loginAdmin(formData: FormData) {
 
   return { success: false, error: "Email atau password salah!" }
         }
+
+export async function logoutAdmin() {
+  const cookieStore = await cookies()
+  // Hapus session
+  cookieStore.delete("admin_session")
+  redirect("/admin")
+}
