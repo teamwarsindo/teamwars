@@ -11,7 +11,7 @@ export async function sendRegistrationMessages(params: any) {
   const MESSAGES = [
     {
       channelId: DISCORD_CONFIG.CH_ROSTER,
-      payload: { embeds: [{ title: `[ROSTER DB] ${namaTim}`, color: embedColor, thumbnail: { url: logoTim }, fields: [{ name: "Ketua", value: ketua.ign, inline: true }, { name: "Wakil", value: wakil.ign, inline: true }, { name: "Players", value: plList, inline: false }], footer: { text: getFooterText(createdAt, updatedAt) } }] }
+      payload: { embeds: [{ title: `${namaTim}`, color: embedColor, thumbnail: { url: logoTim }, fields: [{ name: "Ketua", value: ketua.ign, inline: true }, { name: "Wakil", value: wakil.ign, inline: true }, { name: "Players", value: plList, inline: false }], footer: { text: getFooterText(createdAt, updatedAt) } }] }
     },
     {
       // 👇 Diubah dari CH_FINANCE menjadi CH_BUKTI
