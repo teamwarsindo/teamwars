@@ -2,6 +2,10 @@ import { NextResponse, NextRequest } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils'; // Sesuaikan path jika perlu
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   // Opsional: Tambahkan proteksi agar tidak diakses sembarang orang
   const secret = request.nextUrl.searchParams.get('key');
