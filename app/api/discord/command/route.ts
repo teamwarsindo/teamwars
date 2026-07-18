@@ -10,10 +10,6 @@ export async function GET(req: Request) {
   // ==========================================
   const commands = [
     {
-      name: 'check',
-      description: 'Menampilkan daftar roster, status verifikasi, dan kesiapan tim',
-    },
-    {
       name: 'reminder',
       description: 'Kirim pengingat aturan submit deck di channel tim.',
     },
