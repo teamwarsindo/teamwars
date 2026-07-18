@@ -11,7 +11,7 @@ import {
   sendTeamTracker
   } from '@/lib/discord';
 
-import { sendRegistrationMessages } from '@lib/discord/messages/registration-tes';
+import { sendRegistrationMessages } from '@/lib/discord/messages/registration-tes';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
