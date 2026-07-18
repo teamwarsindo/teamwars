@@ -1,147 +1,47 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
+import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
+import { EMAIL_CONFIG } from '@/lib/config';
+import { getPesertaTemplate } from '@/lib/email-templates'; 
+// 👇 Tambahkan sendTeamTracker di import
 import { 
   createDiscordRole, 
   createDiscordChannel, 
   createDiscordVoiceChannel, 
   autoSortTeamRoles,
   sendTeamTracker 
-} from '@/lib/discord'; // 👈 Menggunakan index.ts yang baru kita pecah
+} from '@/lib/discord';
+import { sendAllWebhooks } from '@/lib/discord-webhooks';
 
-// ⚡ FUNGSI MOCK WEBHOOK: Mengirim 4 Pesan (Admin, Finance, Creative, Public) ke 1 Channel Testing
-async function sendTestWebhooksToChannel(payload: any) {
-  const token = process.env.DISCORD_BOT_TOKEN;
-  const testChannelId = '1170909631049121872'; // Channel Temp Admin
-  const ROLE_ADMIN = '1144271761488216134'; 
-  
-  if (!token) return null;
+const resend = new Resend(process.env.RESEND_API_KEY);
 
+async function sendEmailSafe(params: any) {
   try {
-    let rosterText = "";
-    payload.players.forEach((p: any) => {
-      rosterText += `- **${p.ign}** (\`@${p.discord}\`) [${p.role}]\n`;
-    });
-    
-    const decimalColor = payload.warna ? parseInt(payload.warna.replace('#', ''), 16) : 11146056;
-
-    // 💡 Fungsi Helper: Kirim Pesan ke Channel Test
-    const sendToTestChannel = async (content: string, embedData: any) => {
-      const res = await fetch(`https://discord.com/api/v10/channels/${testChannelId}/messages`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, embeds: [embedData] })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        return data.id; // Kembalikan ID pesan
-      }
-      return "";
-    };
-
-    // 1️⃣ SIMULASI WEBHOOK ADMIN (Tag Role Admin & Data Lengkap)
-    const pAdmin = sendToTestChannel(
-      `🚨 **[TEST ADMIN]** Pendaftaran Baru!\n<@&${ROLE_ADMIN}> Mohon review tim **${payload.namaTim}**`,
-      { 
-        title: `📝 DATA REGISTRASI: ${payload.namaTim.toUpperCase()}`, 
-        color: decimalColor, 
-        fields: [
-          { name: "👑 Ketua", value: `**${payload.ketua.ign}** (\`@${payload.ketua.discord}\`)`, inline: true },
-          { name: "👥 Roster", value: rosterText, inline: false }
-        ],
-        thumbnail: { url: payload.logoTim }, 
-        image: { url: payload.buktiTransfer } 
-      }
-    );
-
-    // 2️⃣ SIMULASI WEBHOOK FINANCE (Cek Bukti Transfer)
-    const pFinance = sendToTestChannel(
-      `💰 **[TEST FINANCE]** Menunggu Validasi Pembayaran: **${payload.namaTim}**`,
-      { title: `🧾 BUKTI TRANSFER`, color: decimalColor, image: { url: payload.buktiTransfer } }
-    );
-
-    // 3️⃣ SIMULASI WEBHOOK CREATIVE (Cek Logo)
-    const pCreative = sendToTestChannel(
-      `🎨 **[TEST CREATIVE]** Aset Logo Tim: **${payload.namaTim}**`,
-      { title: `🖼️ LOGO TIM`, color: decimalColor, image: { url: payload.logoTim } }
-    );
-
-    // 4️⃣ SIMULASI WEBHOOK PUBLIC (Pengumuman Roster)
-    const pPublic = sendToTestChannel(
-      `📢 **[TEST PUBLIC]** Sambut kedatangan tim baru!`,
-      { 
-        title: `🛡️ ${payload.namaTim.toUpperCase()} JOINED THE BATTLE!`, 
-        color: decimalColor, 
-        fields: [{ name: "👥 Daftar Roster", value: rosterText, inline: false }],
-        thumbnail: { url: payload.logoTim }
-      }
-    );
-
-    // 🚀 Eksekusi keempat pesan secara bersamaan (Parallel)
-    const [adminId, financeId, creativeId, publicId] = await Promise.all([pAdmin, pFinance, pCreative, pPublic]);
-
-    // Kembalikan objek yang strukturnya 100% sama dengan sendAllWebhooks asli
-    return { 
-      Admin: adminId || "", 
-      Finance: financeId || "", 
-      Creative: creativeId || "", 
-      Public: publicId || "" 
-    };
-
+    await resend.emails.send(params);
   } catch (error) {
-    console.error("Gagal kirim test webhooks:", error);
-    return null;
+    console.error(`Gagal kirim email ke ${params.to}:`, error);
   }
 }
 
-export async function GET() { // Menggunakan GET agar gampang di-test di browser
+export async function POST(request: NextRequest) {
   try {
-    // ==========================================
-    // 0. INJEKSI DATA DUMMY (Bypass Upload UI)
-    // ==========================================
-    const data = {
-      email: "test@octagram.com",
-      namaTim: "TEST-OCTAGRAM", // 👈 KUNCI MATI TESTING
-      warna: "#FF0000",
-      logoTim: "https://dummyimage.com/400x400/000/fff&text=Logo+Test",
-      buktiTransfer: "https://dummyimage.com/400x600/000/fff&text=Bukti+TF",
-      players: [
-        // 👇 Username Anda dimasukkan di sini
-        { 
-          ign: "Tsaqif", 
-          discord: "tsaqif.mtz", 
-          role: "Ketua", 
-          idDuelLinks: "123456789" 
-        },
-        { 
-          ign: "TestWakil", 
-          discord: "testwakil123", 
-          role: "Wakil Ketua", 
-          idDuelLinks: "987654321" 
-        },
-        { 
-          ign: "TestAnggota", 
-          discord: "testanggota123", 
-          role: "Anggota", 
-          idDuelLinks: "111222333" 
-        }
-      ]
-    };
-
+    const data = await request.json();
 
     // ==========================================
-    // 1. MAIN SUBMISSION (LOGIKA IDENTIK DENGAN PRODUCTION)
+    // 1. MAIN SUBMISSION (NEW TEAM)
     // ==========================================
     const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
     const teamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
     const kvKey = `teams:${teamSlug}`;
 
     if (await kv.exists(kvKey)) {
-      return NextResponse.json({ success: false, errors: [{ field: 'namaTim', message: "Nama tim sudah terdaftar! (Hapus dulu via endpoint cleanup)" }] }, { status: 409 });
+      return NextResponse.json({ success: false, errors: [{ field: 'namaTim', message: "Nama tim sudah terdaftar!" }] }, { status: 409 });
     }
 
     const timestampNow = new Date().toISOString(); 
     const editToken = crypto.randomUUID(); 
 
+    // Simpan ke brankas utama Redis
     await kv.hset(kvKey, {
       namaTim: namaTim.trim(),
       warna: warna,
@@ -152,50 +52,82 @@ export async function GET() { // Menggunakan GET agar gampang di-test di browser
       createdAt: timestampNow,
       updatedAt: timestampNow,
       statusVerifikasi: "Pending",
-      editToken: editToken 
+      editToken: editToken
     });
 
     await kv.set(`token:map:${editToken}`, teamSlug);
+
+    // Injeksi Index Sekunder
     await kv.sadd("global:teams", teamSlug);
+    if (players && players.length > 0) {
+      const igns = players.map((p: any) => p.ign.toLowerCase());
+      const discords = players.map((p: any) => p.discord.toLowerCase());
+      const duelLinks = players.map((p: any) => p.idDuelLinks || p.duelId);
+      
+      if (igns.length) await kv.sadd("global:ign", ...igns);
+      if (discords.length) await kv.sadd("global:discord", ...discords);
+      if (duelLinks.length) await kv.sadd("global:duellinks", ...duelLinks);
+    }
 
     const ketua = players.find((p: any) => p.role === "Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
     const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
+    
+    const templateData = { 
+      namaTim, warna, ketua, wakil, totalRoster: players.length, 
+      logoTim, buktiTransfer, players, editToken 
+    };
 
     // ==========================================
     // 2. ORKESTRASI BACKGROUND TASKS
     // ==========================================
+    const emailPromise = email 
+      ? sendEmailSafe({ 
+          from: EMAIL_CONFIG.sender, 
+          to: email, 
+          subject: `Status Pendaftaran: Tim ${namaTim} [Teamwars S7]`, 
+          html: getPesertaTemplate(templateData) 
+        })
+      : Promise.resolve();
+
     const discordTasks = async () => {
       try {
         const roleId = await createDiscordRole(namaTim, warna);
         
         let channelId = "";
         let voiceChannelId = ""; 
-        let trackerMsgId = ""; 
+        let trackerMsgId = ""; // 👇 Tambahkan variabel untuk menangkap Tracker ID
 
         if (roleId) {
           channelId = await createDiscordChannel(namaTim, roleId);
           voiceChannelId = await createDiscordVoiceChannel(namaTim, roleId); 
           
+          // 👇 Eksekusi pengiriman Tracker Message
           if (channelId) {
             trackerMsgId = await sendTeamTracker({
-              channelId, namaTim, warna, roleId, players
+              channelId,
+              namaTim,
+              warna,
+              roleId,
+              players
             });
           }
         }
         
-        // ⚡ MENGGUNAKAN MOCK WEBHOOK
-        const webhookMsgIds = await sendTestWebhooksToChannel({ 
+        // TEMBAK WEBHOOK & TANGKAP MESSAGE ID-NYA
+        const webhookMsgIds = await sendAllWebhooks({ 
           namaTim, warna, ketua, wakil, players, 
           totalRoster: players.length, teamSlug, kvKey,
-          logoTim, buktiTransfer, createdAt: timestampNow 
+          logoTim, buktiTransfer,
+          createdAt: timestampNow 
         });
 
+        // 🚨 SIMPAN SEMUA ID PENTING KE REDIS
         if (webhookMsgIds) {
           await kv.hset(kvKey, { 
             discordRoleId: roleId || "",
             discordChannelId: channelId, 
             discordVoiceChannelId: voiceChannelId, 
-            trackerMsgId: trackerMsgId, 
+            trackerMsgId: trackerMsgId, // 👇 Simpan Message ID Tracker ke KV
             adminMsgId: webhookMsgIds["Admin"] || "",
             financeMsgId: webhookMsgIds["Finance"] || "",
             creativeMsgId: webhookMsgIds["Creative"] || "",
@@ -204,9 +136,9 @@ export async function GET() { // Menggunakan GET agar gampang di-test di browser
 
           try {
             await autoSortTeamRoles();
-            console.log(`✨ [TEST] Urutan Role berhasil dirapikan!`);
+            console.log(`✨ Urutan Role di Discord berhasil dirapikan!`);
           } catch (e) {
-            console.warn(`⚠️ [TEST] Gagal mengurutkan otomatis.`); 
+            console.warn(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`); 
           }
         }
       } catch (err) {
@@ -214,12 +146,11 @@ export async function GET() { // Menggunakan GET agar gampang di-test di browser
       }
     };
 
-    // Eksekusi task (tanpa kirim email asli)
-    await discordTasks();
-    return NextResponse.json({ success: true, message: "Simulasi Pendaftaran Berhasil Dieksekusi!" });
+    await Promise.allSettled([emailPromise, discordTasks()]);
+    return NextResponse.json({ success: true, message: "Pendaftaran berhasil!" });
 
   } catch (error: unknown) {
     console.error("API Submit Error:", error);
     return NextResponse.json({ success: false, error: "Terjadi kesalahan server" }, { status: 500 });
   }
-    }
+}
