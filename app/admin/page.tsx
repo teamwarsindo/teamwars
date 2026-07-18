@@ -41,7 +41,7 @@ export default function AdminPage() {
       {/* MAIN CONTENT */}
       <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4 pb-4 sm:px-6">
       
-        <HeroHeader />
+        
           
         {/* SECTION KONTEN: Form Login Admin */}
         <section className="flex w-full flex-col items-center text-center mt-2 lg:mt-6">      
