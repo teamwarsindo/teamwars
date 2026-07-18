@@ -8,9 +8,9 @@ import {
   createDiscordChannel, 
   createDiscordVoiceChannel, 
   autoSortTeamRoles,
-  sendTeamTracker 
+  sendTeamTracker,
+  sendRegistrationMessages // 👈 Ganti webhook menggunakan module baru kita
 } from '@/lib/discord';
-import { sendAllWebhooks } from '@/lib/discord-webhooks-test';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -25,7 +25,6 @@ async function sendEmailSafe(params: any) {
 // 💡 UBAH JADI GET AGAR BISA DI-RUN LANGSUNG VIA BROWSER
 export async function GET(request: NextRequest) {
   try {
-    // 💡 INJEKSI DUMMY DATA LANGSUNG DI SINI (HARDCODE)
     const data = {
       email: "teamwars.indo@gmail.com",
       namaTim: "TEST-OCTAGRAM",
@@ -33,33 +32,12 @@ export async function GET(request: NextRequest) {
       logoTim: "https://dummyimage.com/400x400/2f3136/ffffff.png&text=Logo+Octagram",
       buktiTransfer: "https://dummyimage.com/600x800/2f3136/ffffff.png&text=Bukti+Transfer+Dummy",
       players: [
-        {
-          namaLengkap: "Tsaqif",
-          ign: "OctaTsaqif",
-          discord: "tsaqif.mtz",
-          idDuelLinks: "111222333",
-          role: "Ketua"
-        },
-        {
-          namaLengkap: "Wakil Tester",
-          ign: "OctaVice",
-          discord: "wakil.tester123",
-          idDuelLinks: "444555666",
-          role: "Wakil Ketua"
-        },
-        {
-          namaLengkap: "Member Tester",
-          ign: "OctaMember",
-          discord: "member.tester123",
-          idDuelLinks: "777888999",
-          role: "Anggota"
-        }
+        { namaLengkap: "Tsaqif", ign: "OctaTsaqif", discord: "tsaqif.mtz", idDuelLinks: "111222333", role: "Ketua" },
+        { namaLengkap: "Wakil Tester", ign: "OctaVice", discord: "wakil.tester123", idDuelLinks: "444555666", role: "Wakil Ketua" },
+        { namaLengkap: "Member Tester", ign: "OctaMember", discord: "member.tester123", idDuelLinks: "777888999", role: "Anggota" }
       ]
     };
 
-    // ==========================================
-    // 1. MAIN SUBMISSION (NEW TEAM)
-    // ==========================================
     const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
     const teamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
     const kvKey = `teams:${teamSlug}`;
@@ -86,9 +64,8 @@ export async function GET(request: NextRequest) {
     });
 
     await kv.set(`token:map:${editToken}`, teamSlug);
-
-    // Injeksi Index Sekunder
     await kv.sadd("global:teams", teamSlug);
+
     if (players && players.length > 0) {
       const igns = players.map((p: any) => p.ign.toLowerCase());
       const discords = players.map((p: any) => p.discord.toLowerCase());
@@ -99,17 +76,14 @@ export async function GET(request: NextRequest) {
       if (duelLinks.length) await kv.sadd("global:duellinks", ...duelLinks);
     }
 
-    const ketua = players.find((p: any) => p.role === "Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
-    const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
+    const ketua = players.find((p: any) => p.role === "Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-", ign: "-" };
+    const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-", ign: "-" };
     
     const templateData = { 
       namaTim, warna, ketua, wakil, totalRoster: players.length, 
-      logoTim, buktiTransfer, players, editToken 
+      logoTim, buktiTransfer, players, editToken, teamSlug, createdAt: timestampNow, updatedAt: timestampNow 
     };
 
-    // ==========================================
-    // 2. ORKESTRASI BACKGROUND TASKS
-    // ==========================================
     const emailPromise = email 
       ? sendEmailSafe({ 
           from: EMAIL_CONFIG.sender, 
@@ -121,63 +95,64 @@ export async function GET(request: NextRequest) {
 
     const discordTasks = async () => {
       try {
+        console.log("🛠️ [DISCORD TASK] Memulai pembuatan Role...");
         const roleId = await createDiscordRole(namaTim, warna);
+        console.log("✅ [DISCORD TASK] Role ID:", roleId);
         
         let channelId = "";
         let voiceChannelId = ""; 
         let trackerMsgId = ""; 
 
         if (roleId) {
+          console.log("🛠️ [DISCORD TASK] Memulai pembuatan Text Channel...");
           channelId = await createDiscordChannel(namaTim, roleId);
+          console.log("✅ [DISCORD TASK] Text Channel ID:", channelId);
+
+          console.log("🛠️ [DISCORD TASK] Memulai pembuatan Voice Channel...");
           voiceChannelId = await createDiscordVoiceChannel(namaTim, roleId); 
+          console.log("✅ [DISCORD TASK] Voice Channel ID:", voiceChannelId);
           
           if (channelId) {
-            trackerMsgId = await sendTeamTracker({
-              channelId,
-              namaTim,
-              warna,
-              roleId,
-              players
-            });
+            console.log("🛠️ [DISCORD TASK] Memulai pengiriman Tracker Message...");
+            trackerMsgId = await sendTeamTracker({ channelId, namaTim, warna, roleId, players });
+            console.log("✅ [DISCORD TASK] Tracker Msg ID:", trackerMsgId);
           }
+        } else {
+          console.log("❌ [DISCORD TASK] Proses channel dibatalkan karena Role ID null.");
         }
         
-        const webhookMsgIds = await sendAllWebhooks({ 
-          namaTim, warna, ketua, wakil, players, 
-          totalRoster: players.length, teamSlug, kvKey,
-          logoTim, buktiTransfer,
-          createdAt: timestampNow 
+        // 👈 Fungsi webhook diganti dengan pengiriman pesan terpusat
+        console.log("🛠️ [DISCORD TASK] Memulai pengiriman Notifikasi Registrasi...");
+        await sendRegistrationMessages(templateData);
+        console.log("✅ [DISCORD TASK] Notifikasi Registrasi Selesai.");
+
+        await kv.hset(kvKey, { 
+          discordRoleId: roleId || "",
+          discordChannelId: channelId || "", 
+          discordVoiceChannelId: voiceChannelId || "", 
+          trackerMsgId: trackerMsgId || "", 
         });
 
-        if (webhookMsgIds) {
-          await kv.hset(kvKey, { 
-            discordRoleId: roleId || "",
-            discordChannelId: channelId, 
-            discordVoiceChannelId: voiceChannelId, 
-            trackerMsgId: trackerMsgId, 
-            adminMsgId: webhookMsgIds["Admin"] || "",
-            financeMsgId: webhookMsgIds["Finance"] || "",
-            creativeMsgId: webhookMsgIds["Creative"] || "",
-            publicMsgId: webhookMsgIds["Public"] || ""
-          });
-
+        if (roleId) {
           try {
+            console.log("🛠️ [DISCORD TASK] Memulai auto-sort Role...");
             await autoSortTeamRoles();
-            console.log(`✨ Urutan Role di Discord berhasil dirapikan!`);
+            console.log(`✅ [DISCORD TASK] Urutan Role di Discord berhasil dirapikan!`);
           } catch (e) {
-            console.warn(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`); 
+            console.warn(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`, e); 
           }
         }
+
       } catch (err) {
-        console.error("Gagal tugas Discord:", err);
+        console.error("❌ Gagal tugas Discord Utama:", err);
       }
     };
 
     await Promise.allSettled([emailPromise, discordTasks()]);
-    return NextResponse.json({ success: true, message: "Simulasi Pendaftaran Berhasil Dieksekusi!" });
+    return NextResponse.json({ success: true, message: "Simulasi Pendaftaran Berhasil Dieksekusi! Cek Terminal Server." });
 
   } catch (error: unknown) {
     console.error("API Submit Error:", error);
     return NextResponse.json({ success: false, error: "Terjadi kesalahan server" }, { status: 500 });
   }
-           }
+}
