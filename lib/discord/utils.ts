@@ -18,7 +18,10 @@ export async function discordAPI(endpoint: string, method: string, body?: any) {
     });
 
     if (!res.ok) throw new Error(`[${res.status}] ${await res.text()}`);
-    return (method === 'PATCH' || method === 'DELETE' || method === 'PUT') ? true : await res.json();
+    
+    // Perbaikan: jika bodynya kosong (204 No Content), jangan di-parse json
+    if (res.status === 204) return true; 
+    return await res.json();
   } catch (err) {
     console.error(`❌ Error API Discord [${method} ${endpoint}]:`, err);
     return null;
@@ -45,6 +48,13 @@ export function getFooterText(createdAt?: string, updatedAt?: string) {
   const formatTanggal = (dateRaw: string | Date) => new Date(dateRaw).toLocaleString("id-ID", {
     timeZone: "Asia/Jakarta", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
   }) + " WIB";
+  
   const waktuBuat = createdAt ? formatTanggal(createdAt) : formatTanggal(new Date());
   return updatedAt ? `Tercatat di sistem pada ${waktuBuat}\nDiperbarui pada ${formatTanggal(updatedAt)}` : `Tercatat di sistem pada ${waktuBuat}`;
+}
+
+// ✨ Helper Baru untuk warna
+export function hexToDecimal(hexString: string, fallbackColor = 11146056): number {
+  if (!hexString) return fallbackColor;
+  return parseInt(hexString.replace('#', ''), 16) || fallbackColor;
 }
