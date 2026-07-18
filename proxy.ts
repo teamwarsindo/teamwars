@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { LAUNCH_TARGET } from '@/lib/config'
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const now = Date.now();
   const { pathname } = request.nextUrl;
 
@@ -12,22 +12,19 @@ export function middleware(request: NextRequest) {
   }
 
   // ---------------------------------------------------------
-  // 1. ATURAN KHUSUS /admin/dashboard (Cookie Session)
+  // 1. ATURAN KHUSUS /admin/dashboard (Cegah Bypass Link)
   // ---------------------------------------------------------
   if (pathname.startsWith('/admin/dashboard')) {
     const session = request.cookies.get('admin_session');
     
-    // Jika tidak ada sesi login admin, paksa lempar ke halaman form login
+    // Jika tidak ada sesi login, lempar kembali ke form login
     if (!session) {
       return NextResponse.redirect(new URL('/admin', request.url));
     }
-    
-    // Lolos pengecekan, boleh akses dashboard
-    return NextResponse.next();
   }
 
   // ---------------------------------------------------------
-  // 2. ATURAN KHUSUS /registration (Basic Auth - Master Admin)
+  // 2. ATURAN KHUSUS /registration (Akses Master Admin)
   // ---------------------------------------------------------
   const checkAuth = (allowedUser: string, allowedPwd: string) => {
     const basicAuth = request.headers.get('authorization');
@@ -67,6 +64,7 @@ export const config = {
     '/api/submit/:path*',
     '/rules',
     '/rules/:path*',
-    '/admin/dashboard/:path*' // 👈 Pastikan rute admin dimasukkan ke matcher
+    '/admin/dashboard/:path*' // 👈 Akses admin dashboard ditambahkan ke matcher
   ],
 }
+  
