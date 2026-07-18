@@ -96,8 +96,30 @@ export function TeamIdentity({
 
       const cloudinaryUrl = await compressAndUpload(actualFile, folderName, namaTim);
       
+      // -----------------------------------------------------------
+      // PROSES MASKING URL SEBELUM MASUK STATE & DB
+      // -----------------------------------------------------------
+      let maskedUrl = cloudinaryUrl;
+      try {
+        // Ekstrak nama file dari ujung URL (misal: "nama-tim.png")
+        const fileName = new URL(cloudinaryUrl).pathname.split('/').pop();
+        
+        // Gunakan Base URL website kamu
+        const baseUrl = "https://teamwars.web.id"; 
+        
+        // Terapkan pola sesuai next.config.js kamu
+        if (folderName === "logo") {
+          maskedUrl = `${baseUrl}/logo/${fileName}`;
+        } else if (folderName === "bukti") {
+          maskedUrl = `${baseUrl}/bukti/${fileName}`;
+        }
+      } catch (error) {
+        console.warn("Gagal masking URL, menggunakan fallback Cloudinary asli", error);
+      }
+      
+      // Masukkan maskedUrl ke state (beserta query param untuk bypass cache browser)
       setFileState({
-        url: `${cloudinaryUrl}?t=${Date.now()}`,
+        url: `${maskedUrl}?t=${Date.now()}`,
         name: actualFile.name,
         size: actualFile.size
       });
