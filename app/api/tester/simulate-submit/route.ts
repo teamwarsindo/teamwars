@@ -8,9 +8,10 @@ import {
   createDiscordChannel, 
   createDiscordVoiceChannel, 
   autoSortTeamRoles,
-  sendTeamTracker,
-  sendRegistrationMessages // 👈 Ganti webhook menggunakan module baru kita
-} from '@/lib/discord';
+  sendTeamTracker
+  } from '@/lib/discord';
+
+import { sendRegistrationMessages } from '@lib/discord/messages/registration-tes';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -83,15 +84,6 @@ export async function GET(request: NextRequest) {
       namaTim, warna, ketua, wakil, totalRoster: players.length, 
       logoTim, buktiTransfer, players, editToken, teamSlug, createdAt: timestampNow, updatedAt: timestampNow 
     };
-
-    const emailPromise = email 
-      ? sendEmailSafe({ 
-          from: EMAIL_CONFIG.sender, 
-          to: email, 
-          subject: `Status Pendaftaran: Tim ${namaTim} [Teamwars S7]`, 
-          html: getPesertaTemplate(templateData) 
-        })
-      : Promise.resolve();
 
     const discordTasks = async () => {
       try {
