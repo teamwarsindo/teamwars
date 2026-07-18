@@ -28,12 +28,9 @@ function getFooterText(createdAt?: string, updatedAt?: string) {
     }) + " WIB";
   };
 
-  // Default ke waktu sekarang jika tidak ada createdAt yang dilempar
   const waktuBuat = createdAt ? formatTanggal(createdAt) : formatTanggal(new Date());
-  
   let footerText = `Tercatat di sistem pada ${waktuBuat}`;
   
-  // Jika ada parameter updatedAt, tambahkan baris baru
   if (updatedAt) {
     footerText += `\nDiperbarui pada ${formatTanggal(updatedAt)}`;
   }
@@ -52,40 +49,41 @@ export async function sendAllWebhooks(params: {
   kvKey: string; 
   logoTim: string; 
   buktiTransfer: string;
-  createdAt?: string; // Tambahan untuk tracking DB
-  updatedAt?: string; // Tambahan untuk tracking DB
+  createdAt?: string; 
+  updatedAt?: string; 
 }) {
   const { namaTim, warna, ketua, wakil, players, totalRoster, teamSlug, logoTim, buktiTransfer, createdAt, updatedAt } = params;
   
   let directDownloadLogo = logoTim;
 
-  // Mengecek apakah URL logo benar dari folder '/upload/logo/' Cloudinary
+  // Aman: Jika bukan link Cloudinary, blok kode ini akan dilewati otomatis
   if (logoTim.includes('/upload/logo/')) {
-  // Potong URL untuk mengambil sisa path/nama file di belakangnya
     const splitUrl = logoTim.split('/upload/logo/');
-  
     if (splitUrl.length > 1) {
-      const imagePath = splitUrl[1]; // Hasilnya misal: "nama-tim.png"
-    
-    // Rangkai ulang pakai format Masking lu (source: '/logo/:path*/download')
-    directDownloadLogo = `https://teamwars.web.id/logo/${imagePath}/download`;
+      const imagePath = splitUrl[1]; 
+      directDownloadLogo = `https://teamwars.web.id/logo/${imagePath}/download`;
+    }
   }
-}
 
   let parsedColor = parseInt(warna.replace('#', ''), 16);
   if (isNaN(parsedColor)) parsedColor = 3447003; 
-  const embedColor = parsedColor === 0 ? 1 : parsedColor; // Fix bug warna hitam (#000000)
+  const embedColor = parsedColor === 0 ? 1 : parsedColor; 
   
   const webhookAvatar = "https://teamwars.web.id/logo-dc.png";
   const playerListString = players.map(p => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
 
+  // URL & Tag seragam untuk testing
+  const TESTING_WEBHOOK_URL = "https://discord.com/api/webhooks/1527694407934017536/wOwLUwtpKiJqAC_l5XPawF8uNdpGCD8Ix6wbei5x6ivsTb8k0gjWn-AyhUAF73RCBkhu";
+  const ADMIN_TAG = "<@&1144271761488216134>";
+
   const WEBHOOKS = [
     {
       name: "Admin",
-      url: process.env.DISCORD_WEBHOOK_ADMIN,
+      url: TESTING_WEBHOOK_URL,
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
+        content: `${ADMIN_TAG} 🛡️ Data pendaftaran baru dari **${namaTim}** telah masuk!`,
         embeds: [{
           title: namaTim,
           color: embedColor,
@@ -101,11 +99,11 @@ export async function sendAllWebhooks(params: {
     },
     {
       name: "Finance",
-      url: process.env.DISCORD_WEBHOOK_FINANCE,
+      url: TESTING_WEBHOOK_URL,
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        content: `<@&836952890991968266> 💰 Setoran Masuk dari **${namaTim}**!`, 
+        content: `${ADMIN_TAG} 💰 Setoran Masuk dari **${namaTim}**!`, 
         embeds: [{
           title: `Detail Registrasi: ${namaTim}`,
           color: embedColor,
@@ -120,11 +118,11 @@ export async function sendAllWebhooks(params: {
     },
     {
       name: "Creative",
-      url: process.env.DISCORD_WEBHOOK_CREATIVE,
+      url: TESTING_WEBHOOK_URL,
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
-        content: `<@&1171096454685794324> 🎨 Aset Tim Baru: **${namaTim}**!`, 
+        content: `${ADMIN_TAG} 🎨 Aset Tim Baru: **${namaTim}**!`, 
         embeds: [{
           title: `Aset Visual: ${namaTim}`,
           color: embedColor,
@@ -138,7 +136,7 @@ export async function sendAllWebhooks(params: {
     },
     {
       name: "Public",
-      url: process.env.DISCORD_WEBHOOK_PUBLIC,
+      url: TESTING_WEBHOOK_URL,
       payload: {
         username: "Registration TWI Season 7",
         avatar_url: webhookAvatar,
@@ -148,12 +146,11 @@ export async function sendAllWebhooks(params: {
   ];
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  let recordedMessageIds: Record<string, string> = {}; // 👈 Koper untuk menampung Message ID
+  let recordedMessageIds: Record<string, string> = {}; 
 
   for (const hook of WEBHOOKS) {
     if (hook.url) {
       try {
-        // 🚨 KUNCI UTAMA: Tambahkan ?wait=true agar Discord membalas dengan JSON Message ID
         const urlWithWait = `${hook.url}?wait=true`;
 
         const res = await fetch(urlWithWait, {
@@ -164,7 +161,7 @@ export async function sendAllWebhooks(params: {
 
         if (res.ok) {
           const data = await res.json();
-          recordedMessageIds[hook.name] = data.id; // Simpan ID berdasarkan nama webhook (Admin, Finance, dll)
+          recordedMessageIds[hook.name] = data.id; 
         }
         
         await sleep(300);
@@ -174,6 +171,6 @@ export async function sendAllWebhooks(params: {
     }
   }
 
-  // 👈 Kembalikan ID ini ke route.ts
   return recordedMessageIds; 
-          }
+    }
+        
