@@ -115,4 +115,7 @@ export async function handleBtRole(body: any) {
       console.error("Gagal memperbarui data KV atau Tracker Message:", e);
     }
   }
-  
+
+  // 👇 DUA BARIS INI YANG SEBELUMNYA HILANG
+  return NextResponse.json({ type: 4, data: { content: `✅ **AUTENTIKASI BERHASIL** Anda resmi masuk ke roster **${foundTeam.namaTim}**.`, flags: 64 } });
+         }
