@@ -8,8 +8,10 @@ import { SettingsTab } from "@/components/admin/settings-tab"
 import { logoutAdmin } from "../action"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+import { ApiTab } from "@/components/admin/api-tab"
 
-type TabType = "OVERVIEW" | "TEAMS" | "SETTINGS"
+// 2. Tambahkan "API_EXPLORER" ke TabType
+type TabType = "OVERVIEW" | "TEAMS" | "SETTINGS" | "API_EXPLORER"
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>("OVERVIEW")
@@ -33,6 +35,8 @@ export default function AdminDashboard() {
             <TabButton name="Overview" isActive={activeTab === "OVERVIEW"} onClick={() => setActiveTab("OVERVIEW")} />
             <TabButton name="Teams" isActive={activeTab === "TEAMS"} onClick={() => setActiveTab("TEAMS")} />
             <TabButton name="Settings" isActive={activeTab === "SETTINGS"} onClick={() => setActiveTab("SETTINGS")} />
+            {/* 3. Tambahkan Tombol Tab API Explorer di sini */}
+            <TabButton name="API Scanner" isActive={activeTab === "API_EXPLORER"} onClick={() => setActiveTab("API_EXPLORER")} />
           </div>
 
           {/* Tombol Logout */}
@@ -52,6 +56,8 @@ export default function AdminDashboard() {
           {activeTab === "OVERVIEW" && <OverviewTab />}
           {activeTab === "TEAMS" && <TeamsTab />}
           {activeTab === "SETTINGS" && <SettingsTab />}
+          {/* Render Komponen Baru */}
+          {activeTab === "API_EXPLORER" && <ApiTab />}
         </div>
 
         {/* Memanggil Footer dari layout-shared */}
