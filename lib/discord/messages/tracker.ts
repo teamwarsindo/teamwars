@@ -1,4 +1,4 @@
-import { discordAPI, hexToDecimal } from './utils';
+import { discordAPI, hexToDecimal } from '../utils';
 
 export async function sendTeamTracker({
   channelId,
