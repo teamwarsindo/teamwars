@@ -10,6 +10,10 @@ import { handlePrepare } from '@/lib/discord/commands/prepare';
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
 import { handleBtRole } from '@/lib/discord/buttons/btRole';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
+
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
