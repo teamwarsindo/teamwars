@@ -1,42 +1,28 @@
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from './config';
+import { discordAPI, hexToDecimal } from './utils';
 
 export async function createDiscordRole(teamName: string, colorHex: string) {
   const guildId = process.env.DISCORD_GUILD_ID;
-  const token = process.env.DISCORD_BOT_TOKEN;
-  if (!guildId || !token) return null;
+  if (!guildId) return null;
 
-  const decimalColor = parseInt(colorHex.replace('#', ''), 16) || 3447003;
-  
-  try {
-    const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: teamName, 
-        color: decimalColor,
-        hoist: true,
-        mentionable: true
-      })
-    });
+  const data = await discordAPI(`/guilds/${guildId}/roles`, 'POST', {
+    name: teamName, 
+    color: hexToDecimal(colorHex, 3447003),
+    hoist: true,
+    mentionable: true
+  });
     
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data.id;
-  } catch (err) {
-    console.error("Gagal membuat role Discord:", err);
-    return null;
-  }
+  return data?.id || null;
 }
 
 export async function autoSortTeamRoles() {
   const guildId = process.env.DISCORD_GUILD_ID;
-  const token = process.env.DISCORD_BOT_TOKEN;
-  if (!guildId || !token) return false;
+  if (!guildId) return false;
 
   try {
     const allTeamSlugs = await kv.smembers('global:teams');
-    let teams = [];
+    const teams = [];
     
     for (const slug of allTeamSlugs) {
       const t: any = await kv.hgetall(`teams:${slug}`);
@@ -47,10 +33,9 @@ export async function autoSortTeamRoles() {
     const teamRoleIds = teams.map(t => t.discordRoleId);
     const targetRoleIds = [DISCORD_CONFIG.ROLE_KETUA, DISCORD_CONFIG.ROLE_WAKIL, ...teamRoleIds];
 
-    const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
-      headers: { 'Authorization': `Bot ${token}` }
-    });
-    let serverRoles = await res.json();
+    const serverRoles = await discordAPI(`/guilds/${guildId}/roles`, 'GET');
+    if (!serverRoles) return false;
+
     serverRoles.sort((a: any, b: any) => a.position - b.position);
 
     const ketuaRole = serverRoles.find((r: any) => r.id === DISCORD_CONFIG.ROLE_KETUA);
@@ -84,12 +69,7 @@ export async function autoSortTeamRoles() {
     });
 
     if (payload.length > 0) {
-      const updateRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!updateRes.ok) console.error("Gagal menyusun role:", await updateRes.text());
+      await discordAPI(`/guilds/${guildId}/roles`, 'PATCH', payload);
     }
 
     return true;
@@ -98,4 +78,3 @@ export async function autoSortTeamRoles() {
     return false;
   }
 }
-  
