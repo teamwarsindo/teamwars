@@ -1,85 +1,24 @@
-"use client"
-
-import { useState } from "react"
+import { getTeamsCore } from "./actions"
+import { DashboardClient } from "@/components/admin/dashboard-client"
 import { TopBar, Footer } from "@/components/layout-shared"
-import { OverviewTab } from "@/components/admin/overview-tab"
-import { TeamsTab } from "@/components/admin/teams-tab"
-import { SettingsTab } from "@/components/admin/settings-tab"
-import { logoutAdmin } from "../action"
-import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
-import { ApiTab } from "@/components/admin/api-tab"
 
-// 2. Tambahkan "API_EXPLORER" ke TabType
-type TabType = "OVERVIEW" | "TEAMS" | "SETTINGS" | "API_EXPLORER"
-
-export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<TabType>("OVERVIEW")
+// Halaman ini berjalan di server (Tanpa "use client")
+export default async function AdminDashboard() {
+  // Ambil data langsung dari server saat halaman dimuat
+  const teams = await getTeamsCore()
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
-      
-      {/* Ambient esports glow agar senada dengan halaman utama */}
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
-      {/* Memanggil TopBar dari layout-shared */}
-      <TopBar title="Admin Dashboard" />
+      <TopBar title="Admin Command Center" />
 
-      {/* KONTEN UTAMA */}
-      <div className="relative z-10 flex flex-1 flex-col w-full px-4 pb-4 sm:px-6 mx-auto max-w-5xl mt-6 lg:mt-10">
-        
-        {/* Kontrol Navigasi & Logout */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary/20 bg-background/50 p-2 backdrop-blur-md">
-          {/* Tabs */}
-          <div className="flex space-x-1">
-            <TabButton name="Overview" isActive={activeTab === "OVERVIEW"} onClick={() => setActiveTab("OVERVIEW")} />
-            <TabButton name="Teams" isActive={activeTab === "TEAMS"} onClick={() => setActiveTab("TEAMS")} />
-            <TabButton name="Settings" isActive={activeTab === "SETTINGS"} onClick={() => setActiveTab("SETTINGS")} />
-            {/* 3. Tambahkan Tombol Tab API Explorer di sini */}
-            <TabButton name="API Scanner" isActive={activeTab === "API_EXPLORER"} onClick={() => setActiveTab("API_EXPLORER")} />
-          </div>
-
-          {/* Tombol Logout */}
-          <button 
-            onClick={() => logoutAdmin()} 
-            className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white"
-            )}
-          >
-            Logout
-          </button>
-        </div>
-
-        {/* Render Area berdasarkan Tab */}
-        <div className="min-h-[50vh]">
-          {activeTab === "OVERVIEW" && <OverviewTab />}
-          {activeTab === "TEAMS" && <TeamsTab />}
-          {activeTab === "SETTINGS" && <SettingsTab />}
-          {/* Render Komponen Baru */}
-          {activeTab === "API_EXPLORER" && <ApiTab />}
-        </div>
-
-        {/* Memanggil Footer dari layout-shared */}
-        <Footer />
+      <div className="relative z-10 flex flex-1 flex-col w-full pb-10">
+        {/* Oper data ke Client Component */}
+        <DashboardClient initialTeams={teams} />
       </div>
+
+      <Footer />
     </main>
   )
 }
-
-// Komponen Pembantu untuk Tombol Tab
-function TabButton({ name, isActive, onClick }: { name: string, isActive: boolean, onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200",
-        isActive 
-          ? "bg-primary/20 text-primary shadow-sm" 
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-      )}
-    >
-      {name}
-    </button>
-  )
-          }
