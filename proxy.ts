@@ -1,131 +1,71 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { LAUNCH_TARGET } from '@/lib/config'
 
+// --- HELPER 1: Handle Akses Halaman Admin ---
+function handleAdminRoutes(req: NextRequest, session: string | undefined) {
+  const { pathname } = req.nextUrl;
+  if (pathname === '/admin' && session) return NextResponse.redirect(new URL('/admin/dashboard', req.url));
+  if (pathname.startsWith('/admin/dashboard') && !session) return NextResponse.redirect(new URL('/admin', req.url));
+  return null;
+}
+
+// --- HELPER 2: Handle Keamanan API ---
+function handleApiSecurity(req: NextRequest, session: string | undefined) {
+  const { pathname } = req.nextUrl;
+  if (!pathname.startsWith('/api/')) return null;
+
+  if (pathname === '/api/submit') {
+    if (req.method !== 'POST') return new NextResponse('Method Not Allowed', { status: 405 });
+    const origin = req.headers.get('origin') || req.headers.get('referer') || '';
+    if (!origin.includes('teamwars.web.id') && !origin.includes('localhost')) return new NextResponse('Invalid Origin', { status: 403 });
+    if (!req.cookies.get('twi_csrf_token')) return new NextResponse('Sesi Tidak Valid', { status: 403 });
+    return null; // Lolos
+  }
+
+  if (!session) return NextResponse.redirect(new URL('/admin', req.url));
+  return null;
+}
+
+// --- HELPER 3: Handle Registrasi (Auth & CSRF) ---
+function handleRegistration(req: NextRequest) {
+  if (!req.nextUrl.pathname.startsWith('/registration')) return null;
+
+  if (Date.now() < LAUNCH_TARGET) {
+    const auth = req.headers.get('authorization')?.split(' ')[1];
+    const [user, pwd] = auth ? atob(auth).split(':') : [];
+    if (user !== 'admin' || pwd !== 'adminonly') {
+      return new NextResponse('Akses Ditolak', { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="Area Master Admin"' } });
+    }
+  }
+
+  const res = NextResponse.next();
+  if (!req.cookies.get('twi_csrf_token')) {
+    res.cookies.set('twi_csrf_token', crypto.randomUUID(), { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 7200 });
+  }
+  return res;
+}
+
+// ==========================================
+// FUNGSI UTAMA MIDDLEWARE
+// ==========================================
 export function proxy(request: NextRequest) {
-  const now = Date.now();
-  const { pathname } = request.nextUrl;
+  if (process.env.NODE_ENV === 'development') return NextResponse.next();
 
-  // Buka otomatis jika berjalan di Localhost (agar gampang dites saat ngoding)
-  if (process.env.NODE_ENV === 'development') {
-    return NextResponse.next();
-  }
+  const session = request.cookies.get('admin_session')?.value;
 
-  // ---------------------------------------------------------
-  // 1. ATURAN KHUSUS /admin (Halaman Login)
-  // ---------------------------------------------------------
-  if (pathname === '/admin') {
-    const session = request.cookies.get('admin_session');
-    if (session) {
-      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-    }
-  }
+  // Eksekusi Helper secara berurutan
+  const adminRedirect = handleAdminRoutes(request, session);
+  if (adminRedirect) return adminRedirect;
 
-  // ---------------------------------------------------------
-  // 2. ATURAN KHUSUS /admin/dashboard (Cegah Bypass Link)
-  // ---------------------------------------------------------
-  if (pathname.startsWith('/admin/dashboard')) {
-    const session = request.cookies.get('admin_session');
-    if (!session) {
-      return NextResponse.redirect(new URL('/admin', request.url));
-    }
-  }
+  const apiSecurity = handleApiSecurity(request, session);
+  if (apiSecurity) return apiSecurity;
 
-  // ---------------------------------------------------------
-  // 3. KEAMANAN SELURUH RUTE API
-  // ---------------------------------------------------------
-  if (pathname.startsWith('/api/')) {
-    
-    // A. API Publik: Form Submit Registrasi
-    if (pathname === '/api/submit') {
-      
-      // Lapis 1: Cegah akses via URL Browser (Hanya izinkan method POST)
-      if (request.method !== 'POST') {
-        return new NextResponse('Method Not Allowed: Hanya menerima POST', { status: 405 });
-      }
-
-      // Lapis 2: Validasi Origin (Pastikan dikirim dari website kita sendiri)
-      const origin = request.headers.get('origin') || request.headers.get('referer') || '';
-      const isFromOurSite = origin.includes('teamwars.web.id') || origin.includes('localhost');
-      
-      if (!isFromOurSite) {
-        return new NextResponse('Akses Ditolak: Invalid Origin', { status: 403 });
-      }
-
-      // Lapis 3: Validasi CSRF Token (Pastikan user benar-benar membuka halaman form)
-      const formTicket = request.cookies.get('twi_csrf_token');
-      if (!formTicket) {
-        return new NextResponse('Akses Ditolak: Sesi Tidak Valid (Harap isi melalui halaman form resmi)', { status: 403 });
-      }
-
-      // Jika lulus semua lapisan, izinkan API tereksekusi
-      return NextResponse.next();
-    }
-
-    // B. API Internal: (db-dump, scan-endpoints, dll)
-    // Semua API selain /api/submit WAJIB memiliki sesi admin
-    const session = request.cookies.get('admin_session');
-    if (!session) {
-      // Jika ditembak langsung, pantulkan ke halaman login
-      return NextResponse.redirect(new URL('/admin', request.url));
-    }
-  }
-
-  // ---------------------------------------------------------
-  // 4. ATURAN KHUSUS /registration (Beri Ticket & Cek Master Admin)
-  // ---------------------------------------------------------
-  if (pathname.startsWith('/registration')) {
-    let isAllowed = true;
-
-    // A. Cek Kredensial jika belum waktunya Launching
-    if (now < LAUNCH_TARGET) {
-      const adminUser = 'admin';
-      const adminPwd = 'adminonly';
-      const basicAuth = request.headers.get('authorization');
-      
-      if (basicAuth) {
-        const authValue = basicAuth.split(' ')[1];
-        const [user, pwd] = atob(authValue).split(':');
-        if (user !== adminUser || pwd !== adminPwd) {
-          isAllowed = false;
-        }
-      } else {
-        isAllowed = false;
-      }
-
-      if (!isAllowed) {
-        return new NextResponse('Akses Ditolak: Registrasi belum dibuka.', {
-          status: 401,
-          headers: { 'WWW-Authenticate': 'Basic realm="Area Terbatas Master Admin"' },
-        });
-      }
-    }
-
-    // B. Jika diizinkan masuk ke halaman form, berikan "Ticket" Rahasia
-    const response = NextResponse.next();
-    
-    // Set cookie tiket yang hanya berlaku 2 jam, tidak bisa dibaca hacker (HttpOnly)
-    if (!request.cookies.get('twi_csrf_token')) {
-      response.cookies.set('twi_csrf_token', crypto.randomUUID(), {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 60 * 60 * 2 // Expired dalam 2 jam
-      });
-    }
-
-    return response;
-  }
+  const registrationLogic = handleRegistration(request);
+  if (registrationLogic) return registrationLogic;
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    '/admin', 
-    '/admin/dashboard/:path*',
-    '/api/:path*', // Mengawasi seluruh isi folder API
-    '/registration', 
-    '/registration/:path*'
-  ],
+  matcher: ['/admin', '/admin/dashboard/:path*', '/api/:path*', '/registration', '/registration/:path*'],
 }
