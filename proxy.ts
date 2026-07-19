@@ -14,6 +14,9 @@ function handleApiSecurity(req: NextRequest, session: string | undefined) {
   const { pathname } = req.nextUrl;
   if (!pathname.startsWith('/api/')) return null;
 
+  // 🟢 TAMBAHKAN INI: Biarkan semua request ke /api/discord lewat tanpa perlu login admin
+  if (pathname.startsWith('/api/discord')) return null; 
+  
   if (pathname === '/api/submit') {
     if (req.method !== 'POST') return new NextResponse('Method Not Allowed', { status: 405 });
     const origin = req.headers.get('origin') || req.headers.get('referer') || '';
