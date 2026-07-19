@@ -2,50 +2,80 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
+// 🔥 WAJIB: Matikan semua sistem cache Next.js untuk rute ini
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 export async function GET() {
+  const processLogs: string[] = []; // Menampung semua riwayat proses
+  
   try {
+    processLogs.push("🚀 Mulai proses migrasi dan sinkronisasi...");
     const guildId = process.env.DISCORD_GUILD_ID;
     const botToken = process.env.DISCORD_BOT_TOKEN;
 
     if (!guildId || !botToken) {
-      return NextResponse.json({ error: "Missing Discord Credentials di .env" }, { status: 500 });
+      processLogs.push("❌ GAGAL: Kredensial Discord (GUILD_ID / BOT_TOKEN) tidak ditemukan di .env");
+      return NextResponse.json({ error: "Missing Discord Credentials", detail_log: processLogs }, { status: 500 });
     }
 
     // ==========================================================
-    // 1. REVERSE-SYNC DARI DISCORD KE DATABASE
+    // 1. REVERSE-SYNC (AMBIL SEMUA MEMBER TANPA TERPOTONG)
     // ==========================================================
-    // Catatan: Pastikan 'Server Members Intent' di Discord Developer Portal bot kamu menyala.
-    const resMembers = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members?limit=1000`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bot ${botToken}` }
-    });
+    processLogs.push("📥 Mengambil data member dari Discord (Paginasi aktif)...");
+    let allMembers: any[] = [];
+    let lastId = "0";
+    let isFetching = true;
 
-    if (!resMembers.ok) {
-      return NextResponse.json({ error: `Gagal fetch member Discord: ${await resMembers.text()}` }, { status: 500 });
+    while (isFetching) {
+      const resMembers = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members?limit=1000&after=${lastId}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bot ${botToken}` },
+        cache: 'no-store'
+      });
+
+      if (!resMembers.ok) {
+        const errText = await resMembers.text();
+        processLogs.push(`❌ GAGAL: Error API Discord saat ambil member. Status: ${resMembers.status} - ${errText}`);
+        return NextResponse.json({ error: "Discord API Error", detail_log: processLogs }, { status: 500 });
+      }
+
+      const data = await resMembers.json();
+      if (data.length === 0) {
+        isFetching = false;
+        break;
+      }
+
+      allMembers = allMembers.concat(data);
+      lastId = data[data.length - 1].user.id;
+      
+      if (data.length < 1000) {
+        isFetching = false;
+      }
     }
-
-    const members = await resMembers.json();
     
-    // Filter member yang memiliki role Duelist
+    processLogs.push(`✅ Berhasil menarik total ${allMembers.length} member dari server Discord.`);
+    
     const duelistRoleId = DISCORD_CONFIG.ROLE_DUELIST;
-    const verifiedMembers = members.filter((m: any) => m.roles.includes(duelistRoleId));
+    const verifiedMembers = allMembers.filter((m: any) => m.roles?.includes(duelistRoleId));
+    processLogs.push(`✅ Ditemukan ${verifiedMembers.length} member yang memiliki Role Duelist.`);
 
-    // Siapkan object untuk dimasukkan ke Redis
     const updatedVerifiedUsers: Record<string, string> = {};
     verifiedMembers.forEach((m: any) => {
-      // API Discord menempatkan username di dalam objek `user`
-      const username = m.user.username.toLowerCase();
-      updatedVerifiedUsers[username] = m.user.id;
+      const rawUsername = m.user.username || "";
+      const cleanUsername = rawUsername.toLowerCase().trim().replace(/^@/, '');
+      updatedVerifiedUsers[cleanUsername] = m.user.id;
     });
 
-    // Timpa atau perbarui database global:verified_users
     if (Object.keys(updatedVerifiedUsers).length > 0) {
       await kv.hset('global:verified_users', updatedVerifiedUsers);
+      processLogs.push("✅ Database 'global:verified_users' berhasil diperbarui dengan data terbaru.");
     }
 
     // ==========================================================
-    // 2. SINKRONISASI TRACKER TIM BERDASARKAN DATA TERBARU
+    // 2. SINKRONISASI TRACKER TIM
     // ==========================================================
+    processLogs.push("🔍 Memulai inspeksi tracker ke setiap tim...");
     const allTeamSlugs = await kv.smembers('global:teams');
     const verifiedMap = (await kv.hgetall('global:verified_users')) || {};
     
@@ -56,17 +86,19 @@ export async function GET() {
     for (const slug of allTeamSlugs) {
       const teamData: any = await kv.hgetall(`teams:${slug}`);
       
-      // Lewati jika tim belum punya Tracker atau Channel
-      if (!teamData || !teamData.players || !teamData.trackerMsgId || !teamData.discordChannelId) continue;
+      if (!teamData || !teamData.players || !teamData.trackerMsgId || !teamData.discordChannelId) {
+        processLogs.push(`⚠️ [SKIP] Tim slug '${slug}': Data tim tidak lengkap atau belum ada channel/tracker.`);
+        continue;
+      }
       
       let players = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
-
       let verifiedCount = 0;
       let rosterText = "";
       
-      // Susun ulang bentuk teks roster seharusnya
       players.forEach((p: any) => {
-        const isVerified = !!verifiedMap[p.discord.toLowerCase()];
+        const dbUsername = p.discord?.toLowerCase().trim().replace(/^@/, '') || "";
+        const isVerified = !!verifiedMap[dbUsername];
+        
         if (isVerified) verifiedCount++;
         const statusIcon = isVerified ? '✅' : '❌';
         rosterText += `${statusIcon} **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
@@ -75,34 +107,33 @@ export async function GET() {
       const expectedDescription = `**DAFTAR ROSTER:**\n${rosterText}`;
 
       try {
-        // Intip isi pesan Tracker saat ini di Discord
         const resTracker = await fetch(`https://discord.com/api/v10/channels/${teamData.discordChannelId}/messages/${teamData.trackerMsgId}`, {
           method: 'GET',
-          headers: { 'Authorization': `Bot ${botToken}` }
+          headers: { 'Authorization': `Bot ${botToken}` },
+          cache: 'no-store'
         });
 
         if (!resTracker.ok) {
+          processLogs.push(`❌ [ERROR] Tim '${teamData.namaTim}': Gagal membaca pesan dari Discord. HTTP ${resTracker.status}`);
           failedCount++;
           continue;
         }
 
         const messageData = await resTracker.json();
-        const currentEmbed = messageData.embeds?.[0];
-        const currentDescription = currentEmbed?.description || "";
+        const currentDescription = messageData.embeds?.[0]?.description || "";
 
-        // Pengecekan Cerdas: Jika teks roster di Discord sudah SAMA, SKIP!
         if (currentDescription === expectedDescription) {
+          processLogs.push(`✅ [AMAN] Tim '${teamData.namaTim}': Data sudah sinkron (${verifiedCount}/${players.length} terverifikasi).`);
           skippedCount++;
           continue;
         }
 
-        // Jika BEDA (ada member yg terverifikasi tapi tracker-nya belum ✅), tembak PATCH
         const now = new Date();
         const dateFormatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
         const timeFormatter = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' });
         const parsedColor = parseInt(teamData.warna?.replace('#', ''), 16) || 3447003;
 
-        await fetch(`https://discord.com/api/v10/channels/${teamData.discordChannelId}/messages/${teamData.trackerMsgId}`, {
+        const patchRes = await fetch(`https://discord.com/api/v10/channels/${teamData.discordChannelId}/messages/${teamData.trackerMsgId}`, {
           method: 'PATCH',
           headers: { 
             'Authorization': `Bot ${botToken}`,
@@ -119,29 +150,39 @@ export async function GET() {
               ],
               footer: { text: `Diperbarui pada ${dateFormatter.format(now)} pukul ${timeFormatter.format(now).replace(':', '.')} WIB` }
             }]
-          })
+          }),
+          cache: 'no-store'
         });
         
-        syncedCount++;
-      } catch (err) {
-        console.error(`❌ Error saat sync tracker tim ${teamData.namaTim}:`, err);
+        if (patchRes.ok) {
+          processLogs.push(`🔄 [UPDATE] Tim '${teamData.namaTim}': Tracker berhasil diperbarui ke Discord.`);
+          syncedCount++;
+        } else {
+          processLogs.push(`❌ [ERROR] Tim '${teamData.namaTim}': Gagal melakukan PATCH ke Discord. HTTP ${patchRes.status}`);
+          failedCount++;
+        }
+      } catch (err: any) {
+        processLogs.push(`❌ [EXCEPTION] Tim '${teamData.namaTim}': Sistem error - ${err.message}`);
         failedCount++;
       }
     }
 
+    processLogs.push("🏁 Semua proses selesai dieksekusi.");
+
     return NextResponse.json({ 
       success: true, 
-      message: "Proses Sinkronisasi Selesai!",
+      message: "Proses Sinkronisasi dan Evaluasi Tracker Selesai!",
       statistik: {
-        total_member_terdeteksi_di_discord: verifiedMembers.length,
-        total_tim_diperbarui_trackernya: syncedCount,
-        dilewati_karena_sudah_sinkron: skippedCount,
-        gagal_diproses: failedCount
-      }
+        total_member_server: allMembers.length,
+        total_duelist_terdeteksi: verifiedMembers.length,
+        tracker_diperbarui: syncedCount,
+        tracker_sudah_sinkron: skippedCount,
+        tracker_gagal_diproses: failedCount
+      },
+      detail_log: processLogs // 👈 Hasil log terperinci akan muncul di sini
     });
   } catch (error: any) {
-    console.error("Critical Sync Error:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    processLogs.push(`🔥 FATAL ERROR: ${error.message}`);
+    return NextResponse.json({ error: String(error), detail_log: processLogs }, { status: 500 });
   }
-      }
-          
+          }
