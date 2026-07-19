@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
 import { revalidatePath } from "next/cache";
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 const webhookAvatar = "https://teamwars.web.id/logo-dc.png";
 
@@ -50,6 +51,34 @@ export async function POST(req: NextRequest) {
     if (discordsToAdd.length > 0) await kv.sadd("global:discord", ...discordsToAdd);
     if (duelIdsToAdd.length > 0) await kv.sadd("global:duelId", ...duelIdsToAdd);
 
+    // ==========================================================
+    // 4.5 CABUT ROLE & HAPUS DARI VERIFIED (AUTO KICK)
+    // ==========================================================
+    if (discordsToRemove.length > 0) {
+      for (const username of discordsToRemove) {
+        const discordId = await kv.hget('global:verified_users', username);
+        
+        if (discordId) {
+          const rolesToRemove = [
+            DISCORD_CONFIG.ROLE_DUELIST, 
+            DISCORD_CONFIG.ROLE_KETUA, 
+            DISCORD_CONFIG.ROLE_WAKIL
+          ];
+          if (oldTeamData.discordRoleId) rolesToRemove.push(oldTeamData.discordRoleId);
+
+          const removePromises = rolesToRemove.map(rId => 
+            fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${discordId}/roles/${rId}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}` }
+            })
+          );
+          
+          await Promise.allSettled(removePromises);
+          await kv.hdel('global:verified_users', username); // Hapus permanen
+        }
+      }
+    }
+    
     // ==========================================================
     // 5. SIMPAN HASIL AKHIR KE DATABASE UTAMA
     // ==========================================================
@@ -190,6 +219,45 @@ export async function POST(req: NextRequest) {
         })
       }).catch(err => console.error("Gagal kirim pengumuman Public:", err));
     }
+
+    // E. PATCH TRACKER (Otomatis update list roster di Discord channel)
+    if (oldTeamData.trackerMsgId && oldTeamData.discordChannelId) {
+      const verifiedMap = (await kv.hgetall('global:verified_users')) || {};
+      let verifiedCount = 0;
+      let rosterText = "";
+      
+      players.forEach((p: any) => {
+        const isVerified = !!verifiedMap[p.discord.toLowerCase()];
+        if (isVerified) verifiedCount++;
+        const statusIcon = isVerified ? '✅' : '❌';
+        rosterText += `${statusIcon} **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
+      });
+
+      const now = new Date();
+      const dateFormatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
+      const timeFormatter = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' });
+
+      await fetch(`https://discord.com/api/v10/channels/${oldTeamData.discordChannelId}/messages/${oldTeamData.trackerMsgId}`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          embeds: [{
+            title: `🛡️ DATABASE TIM: ${updatedName.toUpperCase()}`,
+            description: `**DAFTAR ROSTER:**\n${rosterText}`,
+            color: parsedColor,
+            fields: [
+              { name: "📌 Role Tim", value: oldTeamData.discordRoleId ? `<@&${oldTeamData.discordRoleId}>` : `*(Belum Ada)*`, inline: true },
+              { name: "📊 Status", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true }
+            ],
+            footer: { text: `Diperbarui pada ${dateFormatter.format(now)} pukul ${timeFormatter.format(now).replace(':', '.')} WIB` }
+          }]
+        })
+      }).catch(err => console.error("Gagal patch Tracker Edit Tim:", err));
+    }
+    
     // ==========================================================
     // 7. CACHE BUSTER
     // ==========================================================
