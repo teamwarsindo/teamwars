@@ -39,8 +39,10 @@ export async function getTeamsData() {
         logoTim: data.logoTim || null,
         buktiTransfer: data.buktiTransfer || null,
         playersCount: players.length,
-        players: players // 👈 Pastikan ini ditambahkan agar bisa dibaca oleh Modal
-      }
+        players: players, // 👈 Pastikan ini ditambahkan agar bisa dibaca oleh Modal
+        editToken: data.editToken || null,
+        discordRoleId: data.discordRoleId || null,
+       }
     })
 
     // Urutkan dari yang terbaru daftar (berdasarkan createdAt)
