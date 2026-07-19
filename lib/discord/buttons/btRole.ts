@@ -57,54 +57,55 @@ export async function handleBtRole(body: any) {
 
   if (foundTeamSlug) {
     try {
-      const freshTeamData: any = await kv.hgetall(`teams:${foundTeamSlug}`);
-      if (!freshTeamData || !freshTeamData.players) throw new Error("Data tim tidak ditemukan saat save");
-      
-      let freshPlayers = typeof freshTeamData.players === 'string' 
-        ? JSON.parse(freshTeamData.players) 
-        : freshTeamData.players;
+      // 1. Simpan ke Global Map yang baru
+      await kv.hset('global:verified_users', { [username]: userId });
 
-      const pIdx = freshPlayers.findIndex((p: any) => p.discord.trim().toLowerCase() === username);
-      
-      if (pIdx > -1) {
-        freshPlayers[pIdx].discordId = userId;
-        await kv.hset(`teams:${foundTeamSlug}`, { players: JSON.stringify(freshPlayers) });
-        await kv.hset('global:discord_map', { [userId]: foundTeamSlug });
+      // 2. Patch Tracker Message
+      if (foundTeam.trackerMsgId && foundTeam.discordChannelId) {
+        // Ambil data players terbaru langsung dari KV
+        const freshTeamData: any = await kv.hgetall(`teams:${foundTeamSlug}`);
+        if (!freshTeamData || !freshTeamData.players) throw new Error("Data tim tidak ditemukan saat update tracker");
+        
+        const freshPlayers = typeof freshTeamData.players === 'string' 
+          ? JSON.parse(freshTeamData.players) 
+          : freshTeamData.players;
 
-        if (foundTeam.trackerMsgId && foundTeam.discordChannelId) {
-          let verifiedCount = 0;
-          let rosterText = "";
-          
-          freshPlayers.forEach((p: any) => {
-            const statusIcon = p.discordId ? '✅' : '❌';
-            if (p.discordId) verifiedCount++;
-            rosterText += `${statusIcon} **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
-          });
+        // Ambil ulang map verified untuk tim ini (karena baru ditambahkan di atas)
+        const verifiedMap = (await kv.hgetall('global:verified_users')) || {};
+        
+        let verifiedCount = 0;
+        let rosterText = "";
+        
+        freshPlayers.forEach((p: any) => {
+          const isVerified = !!verifiedMap[p.discord.toLowerCase()];
+          if (isVerified) verifiedCount++;
+          const statusIcon = isVerified ? '✅' : '❌';
+          rosterText += `${statusIcon} **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
+        });
 
-          const now = new Date();
-          const dateFormatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
-          const timeFormatter = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' });
+        const now = new Date();
+        const dateFormatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
+        const timeFormatter = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' });
 
-          const trackerEmbed = {
-            title: `🛡️ DATABASE TIM: ${foundTeam.namaTim.toUpperCase()}`,
-            description: `**DAFTAR ROSTER:**\n${rosterText}`,
-            color: hexToDecimal(foundTeam.warna),
-            fields: [
-              { name: "📌 Role Tim", value: foundTeam.discordRoleId ? `<@&${foundTeam.discordRoleId}>` : `*(Belum Ada)*`, inline: true },
-              { name: "📊 Status", value: `**${verifiedCount} / ${freshPlayers.length}** Terverifikasi`, inline: true }
-            ],
-            footer: { text: `Diperbarui pada ${dateFormatter.format(now)} pukul ${timeFormatter.format(now).replace(':', '.')} WIB` }
-          };
+        const trackerEmbed = {
+          title: `🛡️ DATABASE TIM: ${foundTeam.namaTim.toUpperCase()}`,
+          description: `**DAFTAR ROSTER:**\n${rosterText}`,
+          color: hexToDecimal(foundTeam.warna),
+          fields: [
+            { name: "📌 Role Tim", value: foundTeam.discordRoleId ? `<@&${foundTeam.discordRoleId}>` : `*(Belum Ada)*`, inline: true },
+            { name: "📊 Status", value: `**${verifiedCount} / ${freshPlayers.length}** Terverifikasi`, inline: true }
+          ],
+          footer: { text: `Diperbarui pada ${dateFormatter.format(now)} pukul ${timeFormatter.format(now).replace(':', '.')} WIB` }
+        };
 
-          await discordAPI(`/channels/${foundTeam.discordChannelId}/messages/${foundTeam.trackerMsgId}`, 'PATCH', {
-            embeds: [trackerEmbed]
-          });
-        }
+        await discordAPI(`/channels/${foundTeam.discordChannelId}/messages/${foundTeam.trackerMsgId}`, 'PATCH', {
+          embeds: [trackerEmbed]
+        });
       }
     } catch (e) {
-      console.error("Gagal memperbarui data KV atau Tracker Message:", e);
+      console.error("Gagal memperbarui KV Global atau Tracker Message:", e);
     }
   }
 
   return NextResponse.json({ type: 4, data: { content: `✅ **AUTENTIKASI BERHASIL** Anda resmi masuk ke roster **${foundTeam.namaTim}**.`, flags: 64 } });
-                                               }
+}
