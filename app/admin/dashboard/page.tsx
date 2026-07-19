@@ -12,6 +12,7 @@ export default async function AdminDashboard() {
       <TopBar title="Admin Command Center" showTrash={false} />
 
       <div className="relative z-10 flex flex-1 flex-col w-full pb-10">
+        {/* Memanggil layout yang memiliki fitur Tab, Logout, dan Grid Table */}
         <DashboardLayout teams={teams} />
       </div>
 
