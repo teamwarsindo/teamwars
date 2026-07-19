@@ -83,49 +83,73 @@ export async function GET() {
       const cleanUsername = rawUsername.toLowerCase().trim().replace(/^@/, '');
       
       const dbMatch = dbPlayersMap.get(cleanUsername);
-      if (!dbMatch) continue; // Bukan member yang terdaftar di turnamen
+      if (!dbMatch) continue; 
 
       const { teamSlug, player, teamData } = dbMatch;
       const currentRoles = member.roles || [];
       const userId = member.user.id;
       const currentNick = member.nick || member.user.username;
 
-      // Kumpulkan role wajib
+      // Kumpulkan role wajib (Tambahkan fallback properti roleId jika ada)
       const rolesToAssign = [DISCORD_CONFIG.ROLE_DUELIST];
       if (player.role === 'Ketua') rolesToAssign.push(DISCORD_CONFIG.ROLE_KETUA);
       if (player.role === 'Wakil Ketua') rolesToAssign.push(DISCORD_CONFIG.ROLE_WAKIL);
+      if (teamData.roleId) rolesToAssign.push(teamData.roleId);
       if (teamData.discordRoleId) rolesToAssign.push(teamData.discordRoleId);
 
-      // Cari yang belum dimiliki
-      const missingRoles = rolesToAssign.filter(r => !currentRoles.includes(r));
+      // 🔥 FIX: Filter untuk memastikan ID Role tidak kosong/undefined
+      const missingRoles = rolesToAssign.filter(r => r && !currentRoles.includes(r));
       const needsNickUpdate = currentNick !== player.ign;
 
       if (missingRoles.length > 0 || needsNickUpdate) {
         try {
+          let roleErrorMsg = "";
           // Tembak API Role (Satu per satu dengan jeda)
           for (const rId of missingRoles) {
-            await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${userId}/roles/${rId}`, {
+            const resRole = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${userId}/roles/${rId}`, {
               method: 'PUT',
-              headers: { 'Authorization': `Bot ${botToken}` }
+              headers: { 
+                'Authorization': `Bot ${botToken}`,
+                'Content-Length': '0' // Mencegah error HTTP 411 Length Required
+              }
             });
-            await new Promise(r => setTimeout(r, 100)); // 👈 Jeda 100ms agar aman dari Limit Discord
-            stats.rolesAssigned++;
+            
+            if (!resRole.ok) {
+              const errTxt = await resRole.text();
+              roleErrorMsg += `[ID ${rId}: ${resRole.status} - ${errTxt}] `;
+            } else {
+              stats.rolesAssigned++;
+            }
+            await new Promise(r => setTimeout(r, 100)); // Jeda 100ms
           }
 
+          let nickErrorMsg = "";
           // Tembak API Nickname
           if (needsNickUpdate) {
-            await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${userId}`, {
+            const resNick = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${userId}`, {
               method: 'PATCH',
               headers: { 'Authorization': `Bot ${botToken}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({ nick: player.ign })
             });
-            await new Promise(r => setTimeout(r, 100)); // 👈 Jeda 100ms
-            stats.nicksUpdated++;
+            
+            if (!resNick.ok) {
+              const errTxt = await resNick.text();
+              nickErrorMsg = `[Nick: ${resNick.status} - ${errTxt}]`;
+            } else {
+              stats.nicksUpdated++;
+            }
+            await new Promise(r => setTimeout(r, 100)); // Jeda 100ms
           }
 
-          processLogs.push(`✅ [ACTION] @${cleanUsername} -> Role/Nick berhasil disuntikkan.`);
+          // Pencatatan Log Super Detail
+          if (roleErrorMsg || nickErrorMsg) {
+             processLogs.push(`⚠️ [PARTIAL] @${cleanUsername} -> Ada yg gagal. Error: ${roleErrorMsg} ${nickErrorMsg}`);
+          } else {
+             processLogs.push(`✅ [ACTION] @${cleanUsername} -> Role/Nick berhasil disuntikkan.`);
+          }
+          
         } catch (e: any) {
-          processLogs.push(`❌ [ERROR] @${cleanUsername} -> Gagal update: ${e.message}`);
+          processLogs.push(`❌ [ERROR] @${cleanUsername} -> Sistem fetch error: ${e.message}`);
         }
       } else {
         stats.alreadySynced++;
@@ -133,7 +157,7 @@ export async function GET() {
 
       // Pastikan masuk ke daftar terverifikasi
       updatedVerifiedUsers[cleanUsername] = userId;
-      teamsToUpdateTracker.add(teamSlug); // Tandai tim ini untuk diupdate trackernya
+      teamsToUpdateTracker.add(teamSlug); 
     }
 
     // ==========================================================
