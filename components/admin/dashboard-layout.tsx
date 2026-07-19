@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { TeamData } from "@/types/admin"
-import { TeamsTab } from "./teams-tab"
+import { TeamsTableGrid } from "./teams-table-grid" // 👈 Sudah diganti ke file baru
 import { ApiTab } from "./api-tab"
 import { logoutAdmin } from "@/app/admin/action"
 
@@ -10,10 +10,10 @@ export function DashboardLayout({ teams }: { teams: TeamData[] }) {
   const [activeTab, setActiveTab] = useState<"TEAMS" | "API">("TEAMS")
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 mt-6 lg:mt-8">
+    <div className="w-full max-w-5xl mx-auto px-4 mt-6 lg:mt-8 animate-in fade-in duration-500">
       
       {/* Kotak Navigasi Tab & Logout */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary/20 bg-background/50 p-2 backdrop-blur-md">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary/20 bg-background/50 p-2 backdrop-blur-md mb-6">
         <div className="flex space-x-1">
           <button 
             onClick={() => setActiveTab("TEAMS")}
@@ -39,10 +39,11 @@ export function DashboardLayout({ teams }: { teams: TeamData[] }) {
 
       {/* Render Area Sesuai Tab Aktif */}
       <div className="min-h-[50vh]">
-        {activeTab === "TEAMS" && <TeamsTab teams={teams} />}
+        {/* 👇 Pemanggilan komponen disesuaikan dengan prop file baru */}
+        {activeTab === "TEAMS" && <TeamsTableGrid initialTeams={teams} />}
         {activeTab === "API" && <ApiTab />}
       </div>
 
     </div>
   )
-}
+        }
