@@ -2,6 +2,8 @@ export type Player = {
   ign: string;
   discord: string;
   discordId?: string;
+  duelId?: string;
+  isVerified?: boolean; // 👈 Kolom validasi per individu
 };
 
 export type TeamData = {
