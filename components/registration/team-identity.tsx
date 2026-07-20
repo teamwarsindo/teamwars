@@ -22,6 +22,7 @@ interface TeamIdentityProps {
   err: (key: string) => string | undefined
   markTouched: (key: string) => void
   isEditMode?: boolean 
+  isAdminMode?: boolean // 👈 1. Tambahkan prop isAdminMode
 }
 
 export function TeamIdentity({ 
@@ -37,12 +38,12 @@ export function TeamIdentity({
   setBukti, 
   err, 
   markTouched,
-  isEditMode = false 
+  isEditMode = false,
+  isAdminMode = false // 👈 2. Beri nilai default false
 }: TeamIdentityProps) {
   
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [isUploadingBukti, setIsUploadingBukti] = useState(false)
-  // State baru untuk menampung URL gambar yang sedang di-preview
   const [previewBukti, setPreviewBukti] = useState<string | null>(null)
 
   async function handleFileUpload(
@@ -96,18 +97,11 @@ export function TeamIdentity({
 
       const cloudinaryUrl = await compressAndUpload(actualFile, folderName, namaTim);
       
-      // -----------------------------------------------------------
-      // PROSES MASKING URL SEBELUM MASUK STATE & DB
-      // -----------------------------------------------------------
       let maskedUrl = cloudinaryUrl;
       try {
-        // Ekstrak nama file dari ujung URL (misal: "nama-tim.png")
         const fileName = new URL(cloudinaryUrl).pathname.split('/').pop();
-        
-        // Gunakan Base URL website kamu
         const baseUrl = "https://teamwars.web.id"; 
         
-        // Terapkan pola sesuai next.config.js kamu
         if (folderName === "logo") {
           maskedUrl = `${baseUrl}/logo/${fileName}`;
         } else if (folderName === "bukti") {
@@ -117,7 +111,6 @@ export function TeamIdentity({
         console.warn("Gagal masking URL, menggunakan fallback Cloudinary asli", error);
       }
       
-      // Masukkan maskedUrl ke state (beserta query param untuk bypass cache browser)
       setFileState({
         url: `${maskedUrl}?t=${Date.now()}`,
         name: actualFile.name,
@@ -148,20 +141,42 @@ export function TeamIdentity({
           <span className="h-8 w-1 rounded-full bg-primary" aria-hidden="true" />
           <div>
             <h2 className="text-base font-semibold text-foreground">Identitas Tim</h2>
-            {isEditMode && <p className="text-xs text-muted-foreground mt-1">Identitas utama tim dikunci dan tidak dapat diubah lagi.</p>}
+            {/* 👈 3. Keterangan berubah dinamis sesuai status Admin */}
+            {isEditMode && !isAdminMode && <p className="text-xs text-muted-foreground mt-1">Identitas utama tim dikunci dan tidak dapat diubah lagi.</p>}
+            {isEditMode && isAdminMode && <p className="text-xs text-emerald-500 mt-1">Mode Admin aktif: Identitas tim dapat diedit secara bebas.</p>}
           </div>
         </div>
         <div className="flex flex-col gap-4">
           
           <div>
             <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-foreground">Email Aktif Perwakilan</label>
-            <input disabled={isEditMode} id="email" type="email" placeholder="registration@teamwars.web.id" value={email} onChange={(e) => { setEmail(e.target.value); markTouched("email"); }} onBlur={() => markTouched("email")} className={`${inputBase} ${isEditMode ? 'opacity-60 cursor-not-allowed bg-muted' : ''} ${err("email") ? "border-destructive" : "border-border"}`} />
+            {/* 👈 4. Hanya dikunci jika bukan admin */}
+            <input 
+              disabled={isEditMode && !isAdminMode} 
+              id="email" 
+              type="email" 
+              placeholder="registration@teamwars.web.id" 
+              value={email} 
+              onChange={(e) => { setEmail(e.target.value); markTouched("email"); }} 
+              onBlur={() => markTouched("email")} 
+              className={`${inputBase} ${isEditMode && !isAdminMode ? 'opacity-60 cursor-not-allowed bg-muted' : ''} ${err("email") ? "border-destructive" : "border-border"}`} 
+            />
             <ErrorText msg={err("email")} />
           </div>
           
           <div>
             <label htmlFor="namaTim" className="mb-1.5 block text-sm font-medium text-foreground">Nama Tim</label>
-            <input disabled={isEditMode} id="namaTim" type="text" placeholder="Team Wars Indonesia" value={namaTim} onChange={(e) => setNamaTim(sanitizeTeamName(e.target.value))} onBlur={() => markTouched("namaTim")} className={`${inputBase} ${isEditMode ? 'opacity-60 cursor-not-allowed bg-muted' : ''} ${err("namaTim") ? "border-destructive" : "border-border"}`} />
+            {/* 👈 5. Hanya dikunci jika bukan admin */}
+            <input 
+              disabled={isEditMode && !isAdminMode} 
+              id="namaTim" 
+              type="text" 
+              placeholder="Team Wars Indonesia" 
+              value={namaTim} 
+              onChange={(e) => setNamaTim(sanitizeTeamName(e.target.value))} 
+              onBlur={() => markTouched("namaTim")} 
+              className={`${inputBase} ${isEditMode && !isAdminMode ? 'opacity-60 cursor-not-allowed bg-muted' : ''} ${err("namaTim") ? "border-destructive" : "border-border"}`} 
+            />
             <ErrorText msg={err("namaTim")} />
           </div>
           
@@ -171,12 +186,13 @@ export function TeamIdentity({
               <div className="relative h-11 w-12 shrink-0 overflow-hidden rounded-lg border border-border shadow-sm transition-colors focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary" style={{ backgroundColor: isValidHex(hex) ? hex : "#00BFFF" }}>
                 <input type="color" value={isValidHex(hex) ? hex : "#00BFFF"} onChange={(e) => setHex(e.target.value.toUpperCase())} className="absolute inset-0 h-full w-full opacity-0 cursor-pointer" />
               </div>
-              <input id="hexText" type="text" placeholder="#00BFFF" value={hex || ""} onChange={(e) => setHex(sanitizeHex(e.target.value))} onBlur={() => markTouched("hex")} className={`${inputBase} font-mono ${err("hex") ? "border-destructive" : "border-border"}`} />      
+              <input id="hexText" type="text" placeholder="#00BFFF" value={hex || ""} onChange={(e) => setHex(sanitizeHex(e.target.value))} onBlur={() => markTouched("hex")} className={`${inputBase} font-mono ${err("hex") ? "border-destructive" : "border-border"}`} />    
             </div>
             <ErrorText msg={err("hex")} />
           </div>
 
-          {isEditMode ? (
+          {/* 👈 6. Tampilkan gambar terkunci HANYA jika isEditMode dan BUKAN admin. Kalau admin, mereka bisa pakai Dropzone. */}
+          {isEditMode && !isAdminMode ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-2">
                <div className="rounded-xl border border-border bg-background/50 p-4 opacity-70 flex flex-col items-center justify-center text-center">
                  <p className="text-xs font-bold text-muted-foreground mb-3">LOGO TIM (TERKUNCI)</p>
