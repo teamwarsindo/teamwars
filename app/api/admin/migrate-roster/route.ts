@@ -124,6 +124,3 @@ export async function GET() {
     processLogs.push(`🔥 FATAL ERROR: ${error.message}`);
     return NextResponse.json({ error: String(error), detail_log: processLogs }, { status: 500 });
   }
-}
-
-// pancing
