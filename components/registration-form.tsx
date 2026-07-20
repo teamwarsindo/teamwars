@@ -16,9 +16,15 @@ interface RegistrationFormProps {
   isEditMode?: boolean;
   initialData?: any; 
   editToken?: string;
+  isAdminMode?: boolean; // 👈 1. Tambahkan interface untuk Admin Mode
 }
 
-export function RegistrationForm({ isEditMode = false, initialData, editToken = "" }: RegistrationFormProps) {
+export function RegistrationForm({ 
+  isEditMode = false, 
+  initialData, 
+  editToken = "", 
+  isAdminMode = false // 👈 2. Beri nilai default false
+}: RegistrationFormProps) {
   const team = useTeamDetails()
   const roster = useRoster()
   
@@ -52,6 +58,8 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
   const hasChanges = useMemo(() => {
     if (!isEditMode || !initialData) return true; 
 
+    // 👈 3. Tambahkan deteksi perubahan Email untuk Admin
+    const emailChanged = team.email.trim() !== (initialData.email || "").trim();
     const nameChanged = team.namaTim.trim() !== (initialData.namaTim || "").trim();
     const colorChanged = team.hex.toLowerCase() !== (initialData.warna || "").toLowerCase();
 
@@ -71,8 +79,9 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
 
     const rosterChanged = JSON.stringify(currentRoster) !== JSON.stringify(originalRoster);
 
-    return nameChanged || colorChanged || rosterChanged;
-  }, [team.namaTim, team.hex, roster.players, isEditMode, initialData]);
+    // Jangan lupa masukkan emailChanged ke dalam return
+    return nameChanged || colorChanged || rosterChanged || emailChanged;
+  }, [team.email, team.namaTim, team.hex, roster.players, isEditMode, initialData]);
   
   return (
     <>
@@ -89,6 +98,7 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
           err={flow.err} 
           markTouched={flow.markTouched} 
           isEditMode={isEditMode}
+          isAdminMode={isAdminMode} // 👈 4. Lempar sinyal Admin ke komponen form (input)
         />
 
         <RosterSection 
@@ -111,7 +121,7 @@ export function RegistrationForm({ isEditMode = false, initialData, editToken = 
           >
             {flow.isChecking 
               ? "Memindai Duplikat Data..." 
-              : (isEditMode ? "Simpan Perubahan Roster" : "Konfirmasi Pendaftaran")
+              : (isEditMode ? "Simpan Perubahan" : "Konfirmasi Pendaftaran")
             }
           </button>
         </section>
