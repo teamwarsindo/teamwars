@@ -9,24 +9,6 @@ function handleAdminRoutes(req: NextRequest, session: string | undefined) {
   return null;
 }
 
-// --- HELPER 2: Handle Keamanan API ---
-function handleApiSecurity(req: NextRequest, session: string | undefined) {
-  const { pathname } = req.nextUrl;
-  if (!pathname.startsWith('/api/')) return null;
-
-  // 1. BYPASS DISCORD: Biarkan semua request ke /api/discord lewat
-  if (pathname.startsWith('/api/discord')) return null; 
-  
-  // 2. BYPASS SEMENTARA: Keamanan (CORS/CSRF) dimatikan agar peserta bisa lancar edit/submit
-  if (pathname === '/api/submit' || pathname === '/api/update-team') {
-    return null; // Lolos langsung tanpa syarat
-  }
-
-  // 3. API LAINNYA WAJIB LOGIN ADMIN
-  if (!session) return NextResponse.redirect(new URL('/admin', req.url));
-  return null;
-}
-
 // --- HELPER 3: Handle Registrasi (Auth & CSRF) ---
 function handleRegistration(req: NextRequest) {
   if (!req.nextUrl.pathname.startsWith('/registration')) return null;
@@ -57,9 +39,6 @@ export function proxy(request: NextRequest) {
   // Eksekusi Helper secara berurutan
   const adminRedirect = handleAdminRoutes(request, session);
   if (adminRedirect) return adminRedirect;
-
-  const apiSecurity = handleApiSecurity(request, session);
-  if (apiSecurity) return apiSecurity;
 
   const registrationLogic = handleRegistration(request);
   if (registrationLogic) return registrationLogic;
