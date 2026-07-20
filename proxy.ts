@@ -18,7 +18,7 @@ function handleApiSecurity(req: NextRequest, session: string | undefined) {
   if (pathname.startsWith('/api/discord')) return null; 
   
   // 2. BYPASS PENDAFTARAN & EDIT TIM: Boleh diakses publik, tapi dengan penjagaan ketat
-  if (pathname === '/api/submit' || pathname === '/api/update-team') {
+  if (pathname === '/api/submit' || pathname === '/api/update-team' || pathname === '/api/edit-team') {
     // Pastikan hanya menerima POST request
     if (req.method !== 'POST') return new NextResponse('Method Not Allowed', { status: 405 });
     
