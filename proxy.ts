@@ -14,26 +14,12 @@ function handleApiSecurity(req: NextRequest, session: string | undefined) {
   const { pathname } = req.nextUrl;
   if (!pathname.startsWith('/api/')) return null;
 
-  // 1. BYPASS DISCORD: Biarkan semua request ke /api/discord lewat tanpa halangan
+  // 1. BYPASS DISCORD: Biarkan semua request ke /api/discord lewat
   if (pathname.startsWith('/api/discord')) return null; 
   
-  // 2. BYPASS PENDAFTARAN & EDIT TIM: Boleh diakses publik, tapi dengan penjagaan ketat
-  if (pathname === '/api/submit' || pathname === '/api/update-team' || pathname === '/api/edit-team') {
-    // Pastikan hanya menerima POST request
-    if (req.method !== 'POST') return new NextResponse('Method Not Allowed', { status: 405 });
-    
-    // Validasi Origin (Anti-CORS / Pembajakan)
-    const origin = req.headers.get('origin') || req.headers.get('referer') || '';
-    if (!origin.includes('teamwars.web.id') && !origin.includes('localhost')) {
-      return new NextResponse('Invalid Origin', { status: 403 });
-    }
-    
-    // Validasi CSRF Token
-    if (!req.cookies.get('twi_csrf_token')) {
-      return new NextResponse('Sesi Tidak Valid', { status: 403 });
-    }
-    
-    return null; // Lolos! Silakan akses API.
+  // 2. BYPASS SEMENTARA: Keamanan (CORS/CSRF) dimatikan agar peserta bisa lancar edit/submit
+  if (pathname === '/api/submit' || pathname === '/api/update-team') {
+    return null; // Lolos langsung tanpa syarat
   }
 
   // 3. API LAINNYA WAJIB LOGIN ADMIN
