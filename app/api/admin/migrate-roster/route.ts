@@ -6,7 +6,7 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 export const dynamic = 'force-dynamic';
 
 // 🚨 GANTI DENGAN ID DISCORD PRIBADIMU
-const ADMIN_DISCORD_ID = "MASUKKAN_ID_DISCORD_KAMU_DI_SINI"; 
+const ADMIN_DISCORD_ID = "470212070957252618"; 
 
 export async function GET() {
   const processLogs: string[] = [];
