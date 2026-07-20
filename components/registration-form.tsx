@@ -111,6 +111,7 @@ export function RegistrationForm({
           err={flow.err} 
           markTouched={flow.markTouched} 
           isEditMode={isEditMode}
+          isAdminMode={isAdminMode} // 👈 5. PERBAIKAN: Lempar sinyal Admin ke RosterSection juga
         />
 
         <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
