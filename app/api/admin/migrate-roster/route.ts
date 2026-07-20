@@ -4,74 +4,86 @@ import { discordAPI, getFooterText, hexToDecimal } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Izinkan waktu eksekusi Vercel lebih lama
 
 export async function GET() {
   const processLogs: string[] = [];
 
   try {
-    processLogs.push("🚀 [MULAI] Migrasi Pesan Roster: Webhook -> Bot API");
+    // 1. Cek dari database, sudah sampai urutan ke berapa cron job ini berjalan
+    // Jika belum pernah jalan sama sekali, mulai dari 0
+    const currentStep = (await kv.get<number>('migration_step')) || 0;
 
-    // 1. Tarik semua tim dari database
+    processLogs.push(`🚀 [MULAI] Auto-Migrasi Cron Job - Mengeksekusi Urutan Ke-${currentStep}`);
+
     const allTeamSlugs = await kv.smembers('global:teams');
-    let migratedCount = 0;
+    const allTeamsData: any[] = [];
 
     for (const slug of allTeamSlugs) {
       const teamData: any = await kv.hgetall(`teams:${slug}`);
-      if (!teamData) continue;
-
-      // 2. Parsing Data (Mirip dengan logika pendaftaran awal)
-      const players = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
-      
-      // Ambil spesifik ketua dan wakil untuk fields
-      const ketua = players.find((p: any) => p.role === 'Ketua') || players[0];
-      const wakil = players.find((p: any) => p.role === 'Wakil Ketua') || players[1] || { ign: '-' };
-      
-      const playerListString = players.map((p: any) => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
-      const embedColor = hexToDecimal(teamData.warna);
-      const logoTim = teamData.logoTim || "";
-
-      // 3. Siapkan payload embed sesuai dengan format Admin/Roster Webhook lama
-      const payload = {
-        embeds: [{
-          title: teamData.namaTim,
-          color: embedColor,
-          thumbnail: { url: logoTim },
-          fields: [
-            { name: "Ketua", value: ketua.ign, inline: true },
-            { name: "Wakil", value: wakil.ign, inline: true },
-            { name: "Players", value: playerListString, inline: false }
-          ],
-          // Fungsi getFooterText akan otomatis mencetak 'Diperbarui pada...' jika nilai updatedAt tersedia
-          footer: { text: getFooterText(teamData.createdAt, teamData.updatedAt) }
-        }]
-      };
-
-      // 4. Tembak Bot API (Create Message Baru) ke CH_ROSTER
-      const msgData = await discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages`, 'POST', payload);
-
-      if (msgData && msgData.id) {
-        // 5. Timpa adminMsgId lama (Webhook) dengan Message ID baru (Bot)
-        // Catatan: Tetap menggunakan key 'adminMsgId' agar tidak merusak fungsi/logika pemanggilan di kode yang sudah ada
-        await kv.hset(`teams:${slug}`, {
-          adminMsgId: msgData.id 
-        });
-        
-        processLogs.push(`✅ [SUKSES] Tim ${teamData.namaTim} -> Migrasi Msg ID: ${msgData.id}`);
-        migratedCount++;
-      } else {
-        processLogs.push(`❌ [GAGAL] Tim ${teamData.namaTim} -> Gagal memposting embed via Bot`);
+      if (teamData) {
+        teamData.slug = slug;
+        allTeamsData.push(teamData);
       }
-
-      // Jeda 300ms antar pengiriman agar aman dari Rate Limit Discord
-      await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    processLogs.push(`🏁 MIGRASI SELESAI. Total diproses: ${migratedCount} Tim.`);
+    // PENGURUTAN WAKTU
+    allTeamsData.sort((a, b) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      return timeA - timeB; 
+    });
+
+    // Validasi jika semua tim sudah selesai dimigrasi
+    if (currentStep >= allTeamsData.length) {
+      return NextResponse.json({ 
+        message: `✅ Seluruh ${allTeamsData.length} tim sudah berhasil dimigrasi! Cron job bisa dimatikan.` 
+      });
+    }
+
+    // 2. Ambil HANYA 1 TIM sesuai langkah saat ini
+    const teamData = allTeamsData[currentStep];
+    const players = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
+    
+    // Logika dinamis: Mencari siapa yang memegang role Ketua/Wakil di manapun posisi mereka
+    const ketua = players.find((p: any) => p.role === 'Ketua') || players[0];
+    const wakil = players.find((p: any) => p.role === 'Wakil Ketua') || players[1] || { ign: '-' };
+    const playerListString = players.map((p: any) => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
+    
+    const embedColor = hexToDecimal(teamData.warna);
+    const logoTim = teamData.logoTim || "";
+
+    const payload = {
+      embeds: [{
+        title: teamData.namaTim,
+        color: embedColor,
+        thumbnail: { url: logoTim },
+        fields: [
+          { name: "Ketua", value: ketua.ign, inline: true },
+          { name: "Wakil", value: wakil.ign, inline: true },
+          { name: "Players", value: playerListString, inline: false }
+        ],
+        footer: { text: getFooterText(teamData.createdAt, teamData.updatedAt) }
+      }]
+    };
+
+    // 3. Tembak Bot API ke CH_ROSTER
+    const msgData = await discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages`, 'POST', payload);
+
+    if (msgData && msgData.id) {
+      // Simpan Message ID
+      await kv.hset(`teams:${teamData.slug}`, { adminMsgId: msgData.id });
+      
+      // 4. Update "Langkah" ke database agar 7 menit lagi memproses tim selanjutnya
+      await kv.set('migration_step', currentStep + 1);
+      
+      processLogs.push(`✅ [SUKSES] Tim ${teamData.namaTim} berhasil dimigrasi! Msg ID: ${msgData.id}`);
+    } else {
+      processLogs.push(`❌ [GAGAL] Tim ${teamData.namaTim} gagal memposting embed`);
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Migrasi Roster Webhook ke Bot API berhasil",
+      message: `Eksekusi Step ${currentStep} Selesai. Menunggu jadwal Cron Job berikutnya.`,
       detail_log: processLogs
     });
 
