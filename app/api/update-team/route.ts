@@ -122,12 +122,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // B. PATCH ADMIN WEBHOOK (Selalu update untuk roster)
+    // B. PATCH ROSTER UTAMA DI DISCORD (Menggunakan Bot API)
+    // Logika pencarian posisi dinamis untuk Ketua & Wakil
     const ketua = players.find((p: any) => p.role === "Ketua") || players[0];
     const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { ign: "-" };
     const playerListString = players.map((p: any) => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
 
-    // Pastikan fungsi helper format tanggal ini ada di atas sebelum fetch Discord
     const formatDate = (dateString: string) => {
       const d = new Date(dateString);
       const tgl = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
@@ -135,10 +135,13 @@ export async function POST(req: NextRequest) {
       return `${tgl} pukul ${waktu} WIB`;
     };
 
-    if (oldTeamData.adminMsgId && process.env.DISCORD_WEBHOOK_ADMIN) {
-      await fetch(`${process.env.DISCORD_WEBHOOK_ADMIN}/messages/${oldTeamData.adminMsgId}`, {
+    if (oldTeamData.adminMsgId && DISCORD_CONFIG.CH_ROSTER) {
+      await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${oldTeamData.adminMsgId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify({
           embeds: [{
             title: updatedName,
@@ -152,9 +155,9 @@ export async function POST(req: NextRequest) {
             footer: {
               text: `Tercatat di sistem pada ${formatDate(oldTeamData.createdAt)}\nDiperbarui pada ${formatDate(new Date().toISOString())}`
             }
-          }] // 👈 INI YANG KURANG TADI
-        })   // 👈 DAN INI JUGA
-      }).catch(err => console.error("Gagal patch Admin:", err));
+          }]
+        })
+      }).catch(err => console.error("Gagal patch Roster Utama:", err));
     }
 
     // C. PATCH CREATIVE WEBHOOK (Hanya jalan kalau Nama atau Warna berubah!)
