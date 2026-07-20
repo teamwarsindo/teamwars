@@ -61,9 +61,9 @@ function handleRegistration(req: NextRequest) {
 }
 
 // ==========================================
-// FUNGSI UTAMA MIDDLEWARE (WAJIB bernama 'middleware')
+// FUNGSI UTAMA MIDDLEWARE
 // ==========================================
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   if (process.env.NODE_ENV === 'development') return NextResponse.next();
 
   const session = request.cookies.get('admin_session')?.value;
