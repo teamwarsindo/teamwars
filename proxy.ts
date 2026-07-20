@@ -45,7 +45,3 @@ export function proxy(request: NextRequest) {
 
   return NextResponse.next();
 }
-
-export const config = {
-  matcher: ['/admin', '/admin/dashboard/:path*', '/api/:path*', '/registration', '/registration/:path*'],
-}
