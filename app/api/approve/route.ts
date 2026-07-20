@@ -56,6 +56,12 @@ export async function GET(request: NextRequest) {
     // ==========================================
     // Meskipun sudah di-approve sebelumnya, embed Discord TETAP diubah jadi Hijau
     if (teamData.financeMsgId) {
+      // 1. Format tanggal agar rapi (Contoh: 20 Juli 2026 pukul 21.08)
+      const d = new Date();
+      const tgl = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' });
+      const waktu = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(':', '.');
+      const waktuKonfirmasiDiscord = `${tgl} pukul ${waktu}`;
+
       try {
         await discordAPI(`/channels/${DISCORD_CONFIG.CH_BUKTI}/messages/${teamData.financeMsgId}`, 'PATCH', {
           embeds: [{
@@ -66,7 +72,7 @@ export async function GET(request: NextRequest) {
             fields: [
               { 
                 name: "Waktu Konfirmasi", 
-                value: `${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB`,
+                value: `${waktuKonfirmasiDiscord} WIB`, // 👈 Menggunakan format yang sudah dirapikan
                 inline: true
               },
               { name: "Status", value: "✅ Terkonfirmasi", inline: true }
@@ -77,7 +83,7 @@ export async function GET(request: NextRequest) {
         console.error("Gagal edit pesan Discord (Bot API):", err);
       }
     }
-
+  
     // ==========================================
     // 5. PENCEGAH SPAM EMAIL (BERHENTI DI SINI JIKA SUDAH PERNAH APPROVED)
     // ==========================================
