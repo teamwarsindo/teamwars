@@ -14,17 +14,29 @@ function handleApiSecurity(req: NextRequest, session: string | undefined) {
   const { pathname } = req.nextUrl;
   if (!pathname.startsWith('/api/')) return null;
 
-  // 🟢 TAMBAHKAN INI: Biarkan semua request ke /api/discord lewat tanpa perlu login admin
+  // 1. BYPASS DISCORD: Biarkan semua request ke /api/discord lewat tanpa halangan
   if (pathname.startsWith('/api/discord')) return null; 
   
-  if (pathname === '/api/submit') {
+  // 2. BYPASS PENDAFTARAN & EDIT TIM: Boleh diakses publik, tapi dengan penjagaan ketat
+  if (pathname === '/api/submit' || pathname === '/api/update-team') {
+    // Pastikan hanya menerima POST request
     if (req.method !== 'POST') return new NextResponse('Method Not Allowed', { status: 405 });
+    
+    // Validasi Origin (Anti-CORS / Pembajakan)
     const origin = req.headers.get('origin') || req.headers.get('referer') || '';
-    if (!origin.includes('teamwars.web.id') && !origin.includes('localhost')) return new NextResponse('Invalid Origin', { status: 403 });
-    if (!req.cookies.get('twi_csrf_token')) return new NextResponse('Sesi Tidak Valid', { status: 403 });
-    return null; // Lolos
+    if (!origin.includes('teamwars.web.id') && !origin.includes('localhost')) {
+      return new NextResponse('Invalid Origin', { status: 403 });
+    }
+    
+    // Validasi CSRF Token
+    if (!req.cookies.get('twi_csrf_token')) {
+      return new NextResponse('Sesi Tidak Valid', { status: 403 });
+    }
+    
+    return null; // Lolos! Silakan akses API.
   }
 
+  // 3. API LAINNYA WAJIB LOGIN ADMIN
   if (!session) return NextResponse.redirect(new URL('/admin', req.url));
   return null;
 }
@@ -49,9 +61,9 @@ function handleRegistration(req: NextRequest) {
 }
 
 // ==========================================
-// FUNGSI UTAMA MIDDLEWARE
+// FUNGSI UTAMA MIDDLEWARE (WAJIB bernama 'middleware')
 // ==========================================
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   if (process.env.NODE_ENV === 'development') return NextResponse.next();
 
   const session = request.cookies.get('admin_session')?.value;
