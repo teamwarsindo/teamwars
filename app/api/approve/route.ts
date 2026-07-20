@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { Resend } from 'resend';
 import { EMAIL_CONFIG } from '@/lib/config';
-import { getApprovalTemplate } from '@/lib/email-templates'; // 👈 Import Template Baru
+import { getApprovalTemplate } from '@/lib/email-templates'; 
+import { discordAPI } from '@/lib/discord/utils'; 
+import { DISCORD_CONFIG } from '@/lib/discord/config'; 
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -24,6 +26,9 @@ export async function GET(request: NextRequest) {
       return new NextResponse('Tim tidak ditemukan di database.', { status: 404 });
     }
 
+    const TeamName = teamData.namaTim;
+    const isAlreadyApproved = teamData.statusVerifikasi === 'Approved';
+
     // ==========================================
     // HELPER: Rangka HTML Standar untuk Layar Admin Browser
     // ==========================================
@@ -41,32 +46,18 @@ export async function GET(request: NextRequest) {
       </html>
     `;
 
-    // 3. Cek apakah sudah pernah di-approve sebelumnya
-    if (teamData.statusVerifikasi === 'Approved') {
-      return new NextResponse(renderHTML(`
-        <div style="font-family: sans-serif; text-align: center; background-color: #0f172a; padding: 40px; border-radius: 12px; max-width: 500px; border: 1px solid #1e293b; color: #f8fafc; width: 100%;">
-          <h2 style="color: #eab308; margin-top: 0;">⚠️ Tim ${teamData.namaTim.toUpperCase()} Sudah Dikonfirmasi!</h2>
-          <p style="color: #94a3b8; line-height: 1.6;">Email konfirmasi resmi sudah terkirim ke peserta sebelumnya. Aksi ini tidak perlu diulang.</p>
-          <p style="color: #475569; margin-top: 30px; font-size: 14px;">Anda sudah bisa menutup tab browser ini.</p>
-        </div>
-      `), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    // 3. Update status di Redis jadi Approved (Jika belum)
+    if (!isAlreadyApproved) {
+      await kv.hset(kvKey, { statusVerifikasi: 'Approved' });
     }
 
-    // 4. Update status di Redis jadi Approved
-    await kv.hset(kvKey, { statusVerifikasi: 'Approved' });
-
-    const TeamName = teamData.namaTim;
-
     // ==========================================
-    // 5. UPDATE WEBHOOK DISCORD (PATCH MESSAGE)
+    // 4. UPDATE PESAN DISCORD (SELALU DIJALANKAN)
     // ==========================================
-    if (teamData.financeMsgId && process.env.DISCORD_WEBHOOK_FINANCE) {
-      const webhookEditUrl = `${process.env.DISCORD_WEBHOOK_FINANCE}/messages/${teamData.financeMsgId}`;
-      
-      await fetch(webhookEditUrl, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    // Meskipun sudah di-approve sebelumnya, embed Discord TETAP diubah jadi Hijau
+    if (teamData.financeMsgId) {
+      try {
+        await discordAPI(`/channels/${DISCORD_CONFIG.CH_BUKTI}/messages/${teamData.financeMsgId}`, 'PATCH', {
           embeds: [{
             title: `Detail Registrasi: ${TeamName}`,
             color: 3066993, // Warna Hijau (Success)
@@ -81,12 +72,27 @@ export async function GET(request: NextRequest) {
               { name: "Status", value: "✅ Terkonfirmasi", inline: true }
             ],
           }]
-        })
-      }).catch(err => console.error("Gagal edit webhook Discord:", err));
+        });
+      } catch (err) {
+        console.error("Gagal edit pesan Discord (Bot API):", err);
+      }
     }
 
     // ==========================================
-    // 6. KIRIM EMAIL KONFIRMASI (MENGGUNAKAN TEMPLATE)
+    // 5. PENCEGAH SPAM EMAIL (BERHENTI DI SINI JIKA SUDAH PERNAH APPROVED)
+    // ==========================================
+    if (isAlreadyApproved) {
+      return new NextResponse(renderHTML(`
+        <div style="font-family: sans-serif; text-align: center; background-color: #0f172a; padding: 40px; border-radius: 12px; max-width: 500px; border: 1px solid #1e293b; color: #f8fafc; width: 100%;">
+          <h2 style="color: #eab308; margin-top: 0;">⚠️ Tim ${TeamName.toUpperCase()} Sudah Pernah Dikonfirmasi!</h2>
+          <p style="color: #94a3b8; line-height: 1.6;">Status pesan di Discord <b>telah berhasil diperbarui</b> menjadi hijau, namun email konfirmasi resmi <b>tidak dikirim ulang</b> untuk mencegah spam ke peserta.</p>
+          <p style="color: #475569; margin-top: 30px; font-size: 14px;">Anda sudah bisa menutup tab browser ini.</p>
+        </div>
+      `), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    }
+
+    // ==========================================
+    // 6. KIRIM EMAIL KONFIRMASI (HANYA JIKA BARU PERTAMA KALI APPROVED)
     // ==========================================
     if (teamData.email) {
       const waktuKonfirmasi = new Date().toLocaleString("id-ID", {
@@ -95,12 +101,17 @@ export async function GET(request: NextRequest) {
         timeStyle: "medium"
       }) + " WIB";
 
-      let parsedPlayers = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
+      let parsedPlayers = [];
+      try {
+        parsedPlayers = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : (teamData.players || []);
+      } catch (e) {
+        parsedPlayers = [];
+      }
+      
       const ketuaTim = parsedPlayers.find((p: any) => p.role === 'Ketua') || teamData.ketua || { namaLengkap: 'Kapten' };
       const warnaTim = teamData.warna || '#4CAF50';
-      const editToken = teamData.editToken || ''; // 👈 Mengambil token dari database
+      const editToken = teamData.editToken || '';
 
-      // Eksekusi fungsi template
       const emailHtml = getApprovalTemplate({
         namaTim: TeamName,
         warna: warnaTim,
@@ -113,11 +124,11 @@ export async function GET(request: NextRequest) {
         from: EMAIL_CONFIG.sender,
         to: teamData.email,
         subject: `✅ Pendaftaran Berhasil: Tim ${TeamName} [Teamwars S7]`,
-        html: emailHtml // 👈 Menggunakan hasil template yang bersih
+        html: emailHtml
       });
     }
 
-    // 7. Tampilkan Pesan Sukses ke Layar Admin Finance
+    // 7. Tampilkan Pesan Sukses ke Layar Admin Finance (Untuk approve pertama kali)
     return new NextResponse(renderHTML(`
       <div style="font-family: sans-serif; text-align: center; background-color: #052e16; padding: 40px; border-radius: 12px; max-width: 500px; border: 1px solid #166534; color: #f0fdf4; width: 100%;">
         <h1 style="color: #4ade80; margin-top: 0;">✅ Berhasil Dikonfirmasi!</h1>
@@ -131,5 +142,4 @@ export async function GET(request: NextRequest) {
     console.error("Error approve tim:", error);
     return new NextResponse('Terjadi kesalahan internal server.', { status: 500 });
   }
-      }
-        
+  }
