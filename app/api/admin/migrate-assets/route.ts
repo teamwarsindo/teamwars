@@ -5,20 +5,12 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 export async function GET(request: NextRequest) {
   try {
-    const url = new URL(request.url);
-    const key = url.searchParams.get('key');
-
-    // 1. Validasi CRON_JOB_API_KEY
-    if (key !== process.env.CRON_JOB_API_KEY) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const allTeamSlugs = await kv.smembers('global:teams');
     if (!allTeamSlugs || allTeamSlugs.length === 0) {
       return NextResponse.json({ message: "Tidak ada tim." });
     }
 
-    // 2. Ambil urutan step saat ini (menggunakan key global yang baru)
+    // 1. Ambil urutan step saat ini
     const currentStep = (await kv.get<number>('global:migration_assets_step')) || 0;
 
     if (currentStep >= allTeamSlugs.length) {
@@ -26,14 +18,14 @@ export async function GET(request: NextRequest) {
     }
 
     const slug = allTeamSlugs[currentStep];
-    const teamData: any = await kv.hgetall(`teams:${slug}`);
     
-    // Objek untuk menampung ID pesan yang berhasil terkirim
+    // 2. Tarik data URL logo dan bukti langsung dari Database
+    const teamData: any = await kv.hgetall(`teams:${slug}`);
     const msgIdsToSave: any = {};
 
     if (teamData) {
       // ==========================================
-      // A. MIGRASI ASET CREATIVE (LOGO)
+      // A. MIGRASI CREATIVE (LOGO)
       // ==========================================
       if (teamData.logoTim) {
         let directDownloadLogo = teamData.logoTim;
@@ -50,7 +42,7 @@ export async function GET(request: NextRequest) {
             title: `Aset Visual: ${teamData.namaTim}`,
             color: hexToDecimal(teamData.warna),
             description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](${directDownloadLogo})**`,
-            image: { url: teamData.logoTim },
+            image: { url: teamData.logoTim }, // URL ASLI DARI DB
             fields: [
               { name: "Kode Warna (Hex)", value: `\`${teamData.warna}\``, inline: true }
             ]
@@ -79,9 +71,9 @@ export async function GET(request: NextRequest) {
           content: `<@&${DISCORD_CONFIG.ROLE_FINANCE}> 💰 Setoran Masuk dari **${teamData.namaTim}**!`,
           embeds: [{
             title: `Detail Registrasi: ${teamData.namaTim}`,
-            color: 3066993, // Warna Hijau (Success)
+            color: 3066993, // Hijau Success
             description: `**✅ PEMBAYARAN TELAH DIKONFIRMASI!**\nTim verifikator telah menyetujui setoran ini dan email konfirmasi otomatis telah meluncur ke peserta.`,
-            image: { url: teamData.buktiTransfer },
+            image: { url: teamData.buktiTransfer }, // URL ASLI DARI DB
             fields: [
               { name: "Waktu Konfirmasi", value: `${waktuKonfirmasi} WIB`, inline: true },
               { name: "Status", value: "✅ Terkonfirmasi", inline: true }
@@ -98,7 +90,7 @@ export async function GET(request: NextRequest) {
       }
 
       // ==========================================
-      // C. SIMPAN ID PESAN KE VERCEL KV
+      // C. SIMPAN ID PESAN KE DB
       // ==========================================
       if (Object.keys(msgIdsToSave).length > 0) {
         await kv.hset(`teams:${slug}`, msgIdsToSave);
@@ -117,4 +109,4 @@ export async function GET(request: NextRequest) {
     console.error("Migration Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-  }
+}
