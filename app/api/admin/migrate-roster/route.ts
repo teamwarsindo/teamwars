@@ -12,12 +12,14 @@ export async function GET() {
   const processLogs: string[] = [];
 
   try {
-    const currentStep = (await kv.get<number>('migration_step')) || 0;
-    processLogs.push(`🚀 [MULAI] Auto-Migrasi Cron Job - Mengeksekusi Urutan Ke-${currentStep}`);
+    processLogs.push(`🚀 [MULAI] Eksekusi Migrasi Tim Terakhir Saja`);
 
     const allTeamSlugs = await kv.smembers('global:teams');
-    const allTeamsData: any[] = [];
+    if (!allTeamSlugs || allTeamSlugs.length === 0) {
+      return NextResponse.json({ message: "Tidak ada data tim." });
+    }
 
+    const allTeamsData: any[] = [];
     for (const slug of allTeamSlugs) {
       const teamData: any = await kv.hgetall(`teams:${slug}`);
       if (teamData) {
@@ -26,35 +28,24 @@ export async function GET() {
       }
     }
 
-    // PENGURUTAN WAKTU
+    // 1. PENGURUTAN WAKTU (Dari paling lama ke paling baru)
     allTeamsData.sort((a, b) => {
       const timeA = new Date(a.createdAt || 0).getTime();
       const timeB = new Date(b.createdAt || 0).getTime();
       return timeA - timeB; 
     });
 
-    // Validasi jika semua tim sudah selesai dimigrasi
-    if (currentStep >= allTeamsData.length) {
-      // Usaha kirim notif final ke DM Admin
-      try {
-        const dmFinal = await discordAPI('/users/@me/channels', 'POST', { recipient_id: ADMIN_DISCORD_ID });
-        if (dmFinal && dmFinal.id) {
-          await discordAPI(`/channels/${dmFinal.id}/messages`, 'POST', { 
-            content: `🏁 **SINKRONISASI SELESAI**\nSeluruh ${allTeamsData.length} tim sudah berhasil dimigrasi! Kamu sudah bisa mematikan Cron Job sekarang.` 
-          });
-        }
-      } catch(e) {}
-
-      return NextResponse.json({ 
-        message: `✅ Seluruh ${allTeamsData.length} tim sudah berhasil dimigrasi! Cron job bisa dimatikan.` 
-      });
+    // 2. AMBIL TIM TERAKHIR (Index paling ujung dari array)
+    const teamData = allTeamsData[allTeamsData.length - 1];
+    
+    // (Opsional) Cek jika tim terakhir ini sebenarnya sudah punya adminMsgId (sudah pernah dimigrasi)
+    if (teamData.adminMsgId) {
+      processLogs.push(`ℹ️ Tim terakhir (${teamData.namaTim}) sudah pernah dimigrasi. Akan di-override / dilewati tergantung kebutuhan.`);
     }
 
-    // Ambil 1 tim sesuai urutan
-    const teamData = allTeamsData[currentStep];
     const players = typeof teamData.players === 'string' ? JSON.parse(teamData.players) : teamData.players;
     
-    // Logika dinamis: Mencari siapa yang memegang role Ketua/Wakil di manapun posisinya
+    // Logika dinamis mencari posisi role
     const ketua = players.find((p: any) => p.role === 'Ketua') || players[0];
     const wakil = players.find((p: any) => p.role === 'Wakil Ketua') || players[1] || { ign: '-' };
     const playerListString = players.map((p: any) => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
@@ -76,23 +67,22 @@ export async function GET() {
       }]
     };
 
-    // Tembak Bot API ke CH_ROSTER
+    // 3. Tembak Bot API ke CH_ROSTER
     const msgData = await discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages`, 'POST', payload);
 
     if (msgData && msgData.id) {
-      // Simpan Message ID
+      // 4. Simpan Message ID
       await kv.hset(`teams:${teamData.slug}`, { adminMsgId: msgData.id });
-      await kv.set('migration_step', currentStep + 1);
       
-      const logPesan = `✅ [SUKSES] Tim ${teamData.namaTim} berhasil dimigrasi! Msg ID: ${msgData.id}`;
+      const logPesan = `✅ [SUKSES] Tim Terakhir (${teamData.namaTim}) berhasil dimigrasi! Msg ID: ${msgData.id}`;
       processLogs.push(logPesan);
 
-      // KIRM DM KE ADMIN
+      // 5. KIRIM DM KE ADMIN
       try {
         const dmChannel = await discordAPI('/users/@me/channels', 'POST', { recipient_id: ADMIN_DISCORD_ID });
         if (dmChannel && dmChannel.id) {
           await discordAPI(`/channels/${dmChannel.id}/messages`, 'POST', { 
-            content: `📢 **Log Migrasi [Step ${currentStep + 1}/${allTeamsData.length}]**\n✅ Tim **${teamData.namaTim}** berhasil dikirim ke server.\nID Pesan: \`${msgData.id}\`\n*Sistem akan mengirim tim selanjutnya dalam 7 menit.*` 
+            content: `📢 **Log Migrasi [Tim Terakhir Saja]**\n✅ Tim **${teamData.namaTim}** berhasil dikirim ke server.\nID Pesan: \`${msgData.id}\`` 
           });
         }
       } catch (dmErr) {
@@ -108,15 +98,16 @@ export async function GET() {
         const dmChannel = await discordAPI('/users/@me/channels', 'POST', { recipient_id: ADMIN_DISCORD_ID });
         if (dmChannel && dmChannel.id) {
           await discordAPI(`/channels/${dmChannel.id}/messages`, 'POST', { 
-            content: `🚨 **ERROR MIGRASI [Step ${currentStep + 1}/${allTeamsData.length}]**\n❌ Tim **${teamData.namaTim}** gagal diposting oleh Bot. Mohon cek log Vercel.` 
+            content: `🚨 **ERROR MIGRASI [Tim Terakhir Saja]**\n❌ Tim **${teamData.namaTim}** gagal diposting oleh Bot. Mohon cek log Vercel.` 
           });
         }
       } catch(e) {}
     }
 
+    // Return JSON Final
     return NextResponse.json({
       success: true,
-      message: `Eksekusi Step ${currentStep} Selesai. Menunggu jadwal Cron Job berikutnya.`,
+      message: `Eksekusi Tim Terakhir (${teamData.namaTim}) Selesai.`,
       detail_log: processLogs
     });
 
@@ -124,4 +115,4 @@ export async function GET() {
     processLogs.push(`🔥 FATAL ERROR: ${error.message}`);
     return NextResponse.json({ error: String(error), detail_log: processLogs }, { status: 500 });
   }
-}
+                         }
