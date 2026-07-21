@@ -9,8 +9,8 @@ import type { PlayerState } from "@/components/registration/hooks/types"
 
 import { TeamIdentity } from "@/components/registration/team-identity"
 import { RosterSection } from "@/components/registration/roster-section"
-import { ReviewModal } from "@/components/review-modal"
-import { SuccessModal } from "@/components/success-modal"
+import { ReviewModal } from "./review-modal"
+import { SuccessModal } from "./success-modal"
 
 interface RegistrationFormProps {
   isEditMode?: boolean;
