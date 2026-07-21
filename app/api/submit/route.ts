@@ -31,7 +31,8 @@ export async function POST(request: NextRequest) {
     // 1. MAIN SUBMISSION (NEW TEAM)
     // ==========================================
     const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
-    const teamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
+    // 👇 Sisipkan .trim() di sini dan .replace(/-+$/, "") di ujungnya
+    const teamSlug = namaTim.trim().toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/-+$/, "");
     const kvKey = `teams:${teamSlug}`;
 
     if (await kv.exists(kvKey)) {
