@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { RegistrationForm } from "@/components/registration-form";
+import { RegistrationForm } from "@/components/tester/registration-form";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { STORAGE_KEY } from "@/lib/registration";
 
