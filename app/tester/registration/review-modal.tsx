@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { CloseIcon, AlertIcon } from "@/components/icons"
-import type { FormState, UploadedFile } from "@/lib/registration"
+import type { FormState, UploadedFile } from "./lib-registration"
 
 interface ReviewModalProps {
   open: boolean
