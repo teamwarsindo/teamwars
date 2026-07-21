@@ -3,7 +3,6 @@ import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
 import { EMAIL_CONFIG } from '@/lib/config';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
-// 👇 Tambahkan sendTeamTracker di import
 import { 
   createDiscordRole, 
   createDiscordChannel, 
@@ -11,7 +10,11 @@ import {
   autoSortTeamRoles,
   sendTeamTracker 
 } from '@/lib/discord';
-import { sendAllWebhooks } from '@/lib/discord-webhooks';
+
+// Import 3 Modul Discord Message Bot API yang baru
+import { sendFinanceMessage } from '@/lib/discord/messages/finance';
+import { sendCreativeMessage } from '@/lib/discord/messages/creative';
+import { sendRosterMessage } from '@/lib/discord/messages/roster';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -26,13 +29,26 @@ async function sendEmailSafe(params: any) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
+    const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
+
+    // Validasi dasar untuk mencegah server crash jika data kosong
+    if (!namaTim || typeof namaTim !== 'string') {
+      return NextResponse.json({ success: false, errors: [{ field: 'namaTim', message: "Nama tim wajib diisi!" }] }, { status: 400 });
+    }
 
     // ==========================================
     // 1. MAIN SUBMISSION (NEW TEAM)
     // ==========================================
-    const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
-    // 👇 Sisipkan .trim() di sini dan .replace(/-+$/, "") di ujungnya
-    const teamSlug = namaTim.trim().toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/-+$/, "");
+    const trimmedNamaTim = namaTim.trim();
+    
+    // Slug Generator yang aman dari spasi dan bersih dari strip di awal/akhir
+    const teamSlug = trimmedNamaTim
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+/, "")
+      .replace(/-+$/, "");
+
     const kvKey = `teams:${teamSlug}`;
 
     if (await kv.exists(kvKey)) {
@@ -44,9 +60,9 @@ export async function POST(request: NextRequest) {
 
     // Simpan ke brankas utama Redis
     await kv.hset(kvKey, {
-      namaTim: namaTim.trim(),
+      namaTim: trimmedNamaTim,
       warna: warna,
-      email: email.trim(),
+      email: email ? email.trim() : "",
       logoTim: logoTim, 
       buktiTransfer: buktiTransfer, 
       players: JSON.stringify(players), 
@@ -74,7 +90,7 @@ export async function POST(request: NextRequest) {
     const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
     
     const templateData = { 
-      namaTim, warna, ketua, wakil, totalRoster: players.length, 
+      namaTim: trimmedNamaTim, warna, ketua, wakil, totalRoster: players.length, 
       logoTim, buktiTransfer, players, editToken 
     };
 
@@ -85,28 +101,27 @@ export async function POST(request: NextRequest) {
       ? sendEmailSafe({ 
           from: EMAIL_CONFIG.sender, 
           to: email, 
-          subject: `Status Pendaftaran: Tim ${namaTim} [Teamwars S7]`, 
+          subject: `Status Pendaftaran: Tim ${trimmedNamaTim} [Teamwars S7]`, 
           html: getPesertaTemplate(templateData) 
         })
       : Promise.resolve();
 
     const discordTasks = async () => {
       try {
-        const roleId = await createDiscordRole(namaTim, warna);
+        const roleId = await createDiscordRole(trimmedNamaTim, warna);
         
         let channelId = "";
         let voiceChannelId = ""; 
-        let trackerMsgId = ""; // 👇 Tambahkan variabel untuk menangkap Tracker ID
+        let trackerMsgId = ""; 
 
         if (roleId) {
-          channelId = await createDiscordChannel(namaTim, roleId);
-          voiceChannelId = await createDiscordVoiceChannel(namaTim, roleId); 
+          channelId = await createDiscordChannel(trimmedNamaTim, roleId);
+          voiceChannelId = await createDiscordVoiceChannel(trimmedNamaTim, roleId); 
           
-          // 👇 Eksekusi pengiriman Tracker Message
           if (channelId) {
             trackerMsgId = await sendTeamTracker({
               channelId,
-              namaTim,
+              namaTim: trimmedNamaTim,
               warna,
               roleId,
               players
@@ -114,33 +129,30 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // TEMBAK WEBHOOK & TANGKAP MESSAGE ID-NYA
-        const webhookMsgIds = await sendAllWebhooks({ 
-          namaTim, warna, ketua, wakil, players, 
-          totalRoster: players.length, teamSlug, kvKey,
-          logoTim, buktiTransfer,
-          createdAt: timestampNow 
+        // Eksekusi pengiriman pesan Discord Bot API secara paralel
+        const [financeId, creativeId, rosterId] = await Promise.all([
+          sendFinanceMessage({ namaTim: trimmedNamaTim, warna, buktiTransfer, teamSlug }),
+          sendCreativeMessage({ namaTim: trimmedNamaTim, warna, logoTim }),
+          sendRosterMessage({ namaTim: trimmedNamaTim, warna, ketua, wakil, players, logoTim, createdAt: timestampNow })
+        ]);
+
+        // Simpan semua ID penting ke Redis
+        await kv.hset(kvKey, { 
+          discordRoleId: roleId || "",
+          discordChannelId: channelId, 
+          discordVoiceChannelId: voiceChannelId, 
+          trackerMsgId: trackerMsgId, 
+          adminMsgId: rosterId || "",
+          financeMsgId: financeId || "",
+          creativeMsgId: creativeId || "",
+          publicMsgId: "" // Kosongkan karena public sudah digabung ke roster
         });
 
-        // 🚨 SIMPAN SEMUA ID PENTING KE REDIS
-        if (webhookMsgIds) {
-          await kv.hset(kvKey, { 
-            discordRoleId: roleId || "",
-            discordChannelId: channelId, 
-            discordVoiceChannelId: voiceChannelId, 
-            trackerMsgId: trackerMsgId, // 👇 Simpan Message ID Tracker ke KV
-            adminMsgId: webhookMsgIds["Admin"] || "",
-            financeMsgId: webhookMsgIds["Finance"] || "",
-            creativeMsgId: webhookMsgIds["Creative"] || "",
-            publicMsgId: webhookMsgIds["Public"] || ""
-          });
-
-          try {
-            await autoSortTeamRoles();
-            console.log(`✨ Urutan Role di Discord berhasil dirapikan!`);
-          } catch (e) {
-            console.warn(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`); 
-          }
+        try {
+          await autoSortTeamRoles();
+          console.log(`✨ Urutan Role di Discord berhasil dirapikan!`);
+        } catch (e) {
+          console.warn(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`); 
         }
       } catch (err) {
         console.error("Gagal tugas Discord:", err);
@@ -154,4 +166,4 @@ export async function POST(request: NextRequest) {
     console.error("API Submit Error:", error);
     return NextResponse.json({ success: false, error: "Terjadi kesalahan server" }, { status: 500 });
   }
-  }
+}
