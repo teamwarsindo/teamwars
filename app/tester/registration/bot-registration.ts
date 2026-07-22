@@ -1,4 +1,4 @@
-import { DISCORD_CONFIG, discordAPI, getFooterText, getWIBTime, hexToDecimal } from '@/lib/discord';
+import { discordAPI, getFooterText, getWIBTime, hexToDecimal } from '@/lib/discord';
 
 interface RegistrationParams {
   namaTim: string;
@@ -13,6 +13,15 @@ interface RegistrationParams {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export const DISCORD_CONFIG = {
+  // 🛡️ ROLES
+  ROLE_FINANCE: '836952890991968266',    // Baru dipindah dari registration.ts
+  ROLE_CREATIVE: '1171096454685794324',     // Baru dipindah dari registration.ts
+
+  // Pusat CCTV (Tim Daftar & Klaim Role)
+  CH_LOG: '1525775643168735344',
+};
 
 export async function sendAllRegistrationMessages(params: RegistrationParams) {
   const { namaTim, warna, ketua, wakil, players, totalRoster, teamSlug, logoTim, buktiTransfer, createdAt, updatedAt } = params;
