@@ -22,7 +22,7 @@ export function RegistrationForm({
   isEditMode = false, 
   initialData, 
   editToken = "", 
-  isAdminMode = false // 👈 2. Beri nilai default false
+  isAdminMode = false, // 👈 2. Beri nilai default false
   isTester = false // 👈 2. Default false
 }: RegistrationFormProps) {
   const team = useTeamDetails()
