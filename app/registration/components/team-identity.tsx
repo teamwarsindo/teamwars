@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { FileDropzone } from "./file-dropzone"
-import { isValidHex, sanitizeTeamName, sanitizeHex } from "./validators"
-import { compressAndUpload } from "@/lib/cloudinary"
-import type { UploadedFile } from "./lib-registration"
 import Swal from "sweetalert2" 
+import { FileDropzone } from "./file-dropzone"
+import type { UploadedFile } from "../utils/lib-registration"
+import { isValidHex, sanitizeTeamName, sanitizeHex } from "../utils/validators"
+import { compressAndUpload } from "@/lib/cloudinary"
 
 interface TeamIdentityProps {
   email: string
