@@ -1,22 +1,21 @@
 "use client"
 
 import { useMemo, useEffect, useRef } from 'react';
-import { useTeamDetails } from "./use-team-details"
-import { useRoster } from "./use-roster"
-import { useRegistrationFlow } from "./use-registration-flow"
-
-import type { PlayerState } from "./types"
-
-import { TeamIdentity } from "./team-identity"
-import { RosterSection } from "./roster-section"
-import { ReviewModal } from "./review-modal"
-import { SuccessModal } from "./success-modal"
+import { useRoster } from "../hooks/use-roster"
+import type { PlayerState } from "../hooks/types"
+import { useTeamDetails } from "../hooks/use-team-details"
+import { useRegistrationFlow } from "../hooks/use-registration-flow"
+import { ReviewModal } from "../components/review-modal"
+import { TeamIdentity } from "../components/team-identity"
+import { SuccessModal } from "../components/success-modal"
+import { RosterSection } from "../components/roster-section"
 
 interface RegistrationFormProps {
   isEditMode?: boolean;
   initialData?: any; 
   editToken?: string;
   isAdminMode?: boolean; // 👈 1. Tambahkan interface untuk Admin Mode
+  isTester?: boolean; // 👈 1. Tambahkan ini
 }
 
 export function RegistrationForm({ 
@@ -24,11 +23,13 @@ export function RegistrationForm({
   initialData, 
   editToken = "", 
   isAdminMode = false // 👈 2. Beri nilai default false
+  isTester = false // 👈 2. Default false
 }: RegistrationFormProps) {
   const team = useTeamDetails()
   const roster = useRoster()
   
-  const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "", editToken)
+  // 👈 3. Teruskan isTester ke hook flow
+  const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "", editToken, isTester)
   const hasInitialized = useRef(false);
 
   useEffect(() => {
