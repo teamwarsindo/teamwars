@@ -137,7 +137,7 @@ export function useRegistrationFlow(
       }
       if (isEditMode && editToken) payload.token = editToken
 
-      const res = await fetch(isEditMode ? "/api/update-team" : "/api/submit", {
+      const res = await fetch(isEditMode ? "/api/update-team" : "/tester/registration/submit", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       })
     
