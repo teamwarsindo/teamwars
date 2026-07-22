@@ -1,20 +1,28 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
-import { EMAIL_CONFIG } from '@/lib/config';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
-import { 
-  createDiscordRole, 
-  createDiscordChannel, 
-  createDiscordVoiceChannel, 
-  autoSortTeamRoles,
-  sendTeamTracker 
-} from '@/lib/discord';
-
-// Import 3 Modul Discord Message Bot API yang baru
+import { createDiscordRole, createDiscordChannel, createDiscordVoiceChannel, autoSortTeamRoles, sendTeamTracker } from '@/lib/discord';
 import { sendFinanceMessage } from './finance';
 import { sendCreativeMessage } from './creative';
 import { sendRosterMessage } from './roster';
+
+// Konfigurasi Email
+export const EMAIL_CONFIG = {
+  from: {
+    name: "Team Wars Indonesia",
+    email: `registration@${DOMAIN}`, // Pakai backtick agar variabel terbaca
+  },
+  // Format untuk digunakan di fungsi pengiriman
+  sender: `Team Wars Indonesia <registration@${DOMAIN}>`, 
+  
+  // Daftar tujuan email internal
+  to: {
+    finance: `finance@${DOMAIN}`,
+    creative: `creative@${DOMAIN}`,
+    admin: `admin@${DOMAIN}`,
+  }
+};
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
