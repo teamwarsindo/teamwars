@@ -3,8 +3,8 @@ import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
 import { createDiscordRole, createDiscordChannel, createDiscordVoiceChannel,
-       sendFinanceMessage, sendCreativeMessage, sendRosterMessage,
        autoSortTeamRoles, sendTeamTracker } from '@/lib/discord';
+import { sendAllRegistrationMessages } from './bot-registration';
 
 // Cukup ubah di sini saja jika domain berubah
 const DOMAIN = "teamwars.web.id";
@@ -139,24 +139,24 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Eksekusi pengiriman pesan Discord Bot API secara paralel
-        const [financeId, creativeId, rosterId] = await Promise.all([
-          sendFinanceMessage({ namaTim: trimmedNamaTim, warna, buktiTransfer, teamSlug }),
-          sendCreativeMessage({ namaTim: trimmedNamaTim, warna, logoTim }),
-          sendRosterMessage({ namaTim: trimmedNamaTim, warna, ketua, wakil, players, logoTim, createdAt: timestampNow })
-        ]);
-
+        // Eksekusi pengiriman pesan Discord Bot API (Sudah otomatis paralel di dalam fungsinya)
+             const msgIds = await sendAllRegistrationMessages({
+                    namaTim: trimmedNamaTim, warna, ketua, wakil, players,
+                    totalRoster: players.length, teamSlug,
+                    logoTim, buktiTransfer, createdAt: timestampNow
+             });
+             
         // Simpan semua ID penting ke Redis
-        await kv.hset(kvKey, { 
-          discordRoleId: roleId || "",
-          discordChannelId: channelId, 
-          discordVoiceChannelId: voiceChannelId, 
-          trackerMsgId: trackerMsgId, 
-          adminMsgId: rosterId || "",
-          financeMsgId: financeId || "",
-          creativeMsgId: creativeId || "",
-          publicMsgId: "" // Kosongkan karena public sudah digabung ke roster
-        });
+             await kv.hset(kvKey, {
+                    discordRoleId: roleId || "",
+                    discordChannelId: channelId,
+                    discordVoiceChannelId: voiceChannelId,
+                    trackerMsgId: trackerMsgId,
+                    adminMsgId: msgIds.rosterMsgId || "",
+                    financeMsgId: msgIds.financeMsgId || "",
+                    creativeMsgId: msgIds.creativeMsgId || "",
+                    publicMsgId: msgIds.logMsgId || ""
+                    });
 
         try {
           await autoSortTeamRoles();
