@@ -29,14 +29,6 @@ function getAllFiles(dirPath: string, arrayOfFiles: string[] = []) {
 }
 
 export async function GET(request: Request) {
-  // 1. SISTEM KEAMANAN (Jangan dihapus!)
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get('secret');
-
-  if (secret !== 'katasandiku123') {
-    return NextResponse.json({ error: "Akses Ditolak! Password salah." }, { status: 401 });
-  }
-
   // 2. KONFIGURASI FOLDER ROOT
   // 👇 Tidak perlu di-set nama foldernya, langsung baca seluruh project!
   const TARGET_FOLDER = process.cwd(); 
