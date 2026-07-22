@@ -11,7 +11,7 @@ import {
   sendTeamTracker 
 } from '@/lib/discord';
 
-// Import 3 Modul Discord Message Bot API yang baru
+// Modul Discord Message Bot API
 import { sendFinanceMessage } from '@/lib/discord/messages/finance';
 import { sendCreativeMessage } from '@/lib/discord/messages/creative';
 import { sendRosterMessage } from '@/lib/discord/messages/roster';
@@ -31,17 +31,11 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
     const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
 
-    // Validasi dasar untuk mencegah server crash jika data kosong
     if (!namaTim || typeof namaTim !== 'string') {
       return NextResponse.json({ success: false, errors: [{ field: 'namaTim', message: "Nama tim wajib diisi!" }] }, { status: 400 });
     }
 
-    // ==========================================
-    // 1. MAIN SUBMISSION (NEW TEAM)
-    // ==========================================
     const trimmedNamaTim = namaTim.trim();
-    
-    // Slug Generator yang aman dari spasi dan bersih dari strip di awal/akhir
     const teamSlug = trimmedNamaTim
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "-")
@@ -73,9 +67,9 @@ export async function POST(request: NextRequest) {
     });
 
     await kv.set(`token:map:${editToken}`, teamSlug);
+    await kv.sadd("global:teams", teamSlug);
 
     // Injeksi Index Sekunder
-    await kv.sadd("global:teams", teamSlug);
     if (players && players.length > 0) {
       const igns = players.map((p: any) => p.ign.toLowerCase());
       const discords = players.map((p: any) => p.discord.toLowerCase());
@@ -94,9 +88,7 @@ export async function POST(request: NextRequest) {
       logoTim, buktiTransfer, players, editToken 
     };
 
-    // ==========================================
-    // 2. ORKESTRASI BACKGROUND TASKS
-    // ==========================================
+    // Orkestrasi Background Tasks (Email & Discord)
     const emailPromise = email 
       ? sendEmailSafe({ 
           from: EMAIL_CONFIG.sender, 
@@ -119,24 +111,16 @@ export async function POST(request: NextRequest) {
           voiceChannelId = await createDiscordVoiceChannel(trimmedNamaTim, roleId); 
           
           if (channelId) {
-            trackerMsgId = await sendTeamTracker({
-              channelId,
-              namaTim: trimmedNamaTim,
-              warna,
-              roleId,
-              players
-            });
+            trackerMsgId = await sendTeamTracker({ channelId, namaTim: trimmedNamaTim, warna, roleId, players });
           }
         }
         
-        // Eksekusi pengiriman pesan Discord Bot API secara paralel
         const [financeId, creativeId, rosterId] = await Promise.all([
           sendFinanceMessage({ namaTim: trimmedNamaTim, warna, buktiTransfer, teamSlug }),
           sendCreativeMessage({ namaTim: trimmedNamaTim, warna, logoTim }),
           sendRosterMessage({ namaTim: trimmedNamaTim, warna, ketua, wakil, players, logoTim, createdAt: timestampNow })
         ]);
 
-        // Simpan semua ID penting ke Redis
         await kv.hset(kvKey, { 
           discordRoleId: roleId || "",
           discordChannelId: channelId, 
@@ -145,18 +129,11 @@ export async function POST(request: NextRequest) {
           adminMsgId: rosterId || "",
           financeMsgId: financeId || "",
           creativeMsgId: creativeId || "",
-          publicMsgId: "" // Kosongkan karena public sudah digabung ke roster
+          publicMsgId: "" 
         });
 
-        try {
-          await autoSortTeamRoles();
-          console.log(`✨ Urutan Role di Discord berhasil dirapikan!`);
-        } catch (e) {
-          console.warn(`⚠️ Role berhasil dibuat, tapi gagal mengurutkan otomatis.`); 
-        }
-      } catch (err) {
-        console.error("Gagal tugas Discord:", err);
-      }
+        try { await autoSortTeamRoles(); } catch (e) { console.warn("Gagal mengurutkan otomatis."); }
+      } catch (err) { console.error("Gagal tugas Discord:", err); }
     };
 
     await Promise.allSettled([emailPromise, discordTasks()]);
