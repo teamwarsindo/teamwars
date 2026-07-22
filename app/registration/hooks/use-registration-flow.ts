@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from "react"
-import { STORAGE_KEY, countRole, findDuplicateFields } from "./lib-registration"
-import { isValidEmail, isValidHex, validateDuelId, validateRealName, validateTeamName, validateDiscord, validateIGN, sanitizeTeamName, sanitizeDiscord, sanitizeIGN, toProperCase, formatDuelId } from "./validators"
 import Swal from "sweetalert2"
+import { STORAGE_KEY, countRole, findDuplicateFields } from "../utils/lib-registration"
+import { isValidEmail, isValidHex, validateDuelId, validateRealName,
+        validateTeamName, validateDiscord, validateIGN, sanitizeTeamName,
+        sanitizeDiscord, sanitizeIGN, toProperCase, formatDuelId } from "../utils/validators"
 import { useDraftStorage } from "./use-draft-storage"     
 import { usePreFlightCheck } from "./use-pre-flight-check" 
 import { TeamState, RosterState, PlayerState, BackendError } from "./types"
@@ -11,7 +13,8 @@ export function useRegistrationFlow(
   roster: RosterState, 
   isEditMode: boolean = false, 
   originalTeamName: string = "",
-  editToken: string = "" 
+  editToken: string = "",
+  isTester: boolean = false // 👈 TAMBAHAN BARU
 ) {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [submitAttempted, setSubmitAttempted] = useState(false)
@@ -137,7 +140,12 @@ export function useRegistrationFlow(
       }
       if (isEditMode && editToken) payload.token = editToken
 
-      const res = await fetch(isEditMode ? "/api/update-team" : "/tester/registration/submit", {
+      // 🎯 LOGIKA ROUTING API:
+      let apiEndpoint = "/api/submit"; // Default Produksi
+      if (isEditMode) apiEndpoint = "/api/update-team";
+      else if (isTester) apiEndpoint = "/tester/registration/submit"; // Tester lari ke API tester (bot ke log)
+
+      const res = await fetch(apiEndpoint, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       })
     
