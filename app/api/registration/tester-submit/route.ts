@@ -4,7 +4,7 @@ import { kv } from '@vercel/kv';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
 import { createDiscordRole, createDiscordChannel, createDiscordVoiceChannel,
        autoSortTeamRoles, sendTeamTracker } from '@/lib/discord';
-import { sendAllRegistrationMessages } from '../bot-registration';
+import { sendAllRegistrationMessages } from './bot-registration';
 
 // Cukup ubah di sini saja jika domain berubah
 const DOMAIN = "teamwars.web.id";
