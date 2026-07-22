@@ -1,14 +1,14 @@
 "use client"
 
 import { useMemo, useEffect, useRef } from 'react';
-import { useTeamDetails } from "@/components/registration/hooks/use-team-details"
-import { useRoster } from "@/components/registration/hooks/use-roster"
-import { useRegistrationFlow } from "@/components/registration/hooks/use-registration-flow"
+import { useTeamDetails } from "./use-team-details"
+import { useRoster } from "./use-roster"
+import { useRegistrationFlow } from "./use-registration-flow"
 
-import type { PlayerState } from "@/components/registration/hooks/types"
+import type { PlayerState } from "./types"
 
-import { TeamIdentity } from "@/components/registration/team-identity"
-import { RosterSection } from "@/components/registration/roster-section"
+import { TeamIdentity } from "./team-identity"
+import { RosterSection } from "./roster-section"
 import { ReviewModal } from "./review-modal"
 import { SuccessModal } from "./success-modal"
 
