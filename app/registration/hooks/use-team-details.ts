@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { UploadedFile } from "./lib-registration"
+import type { UploadedFile } from "../utils/lib-registration"
 
 export function useTeamDetails() {
   const [email, setEmail] = useState("")
