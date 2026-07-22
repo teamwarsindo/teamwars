@@ -15,21 +15,21 @@ interface RegistrationFormProps {
   initialData?: any; 
   editToken?: string;
   isAdminMode?: boolean; // 👈 1. Tambahkan interface untuk Admin Mode
-  isTester?: boolean; // 👈 1. Tambahkan ini
+//  isTester?: boolean; // 👈 1. Tambahkan ini
 }
 
 export function RegistrationForm({ 
   isEditMode = false, 
   initialData, 
   editToken = "", 
-  isAdminMode = false, // 👈 2. Beri nilai default false
-  isTester = false // 👈 2. Default false
+  isAdminMode = false // 👈 2. Beri nilai default false
+//  isTester = false // 👈 2. Default false
 }: RegistrationFormProps) {
   const team = useTeamDetails()
   const roster = useRoster()
   
   // 👈 3. Teruskan isTester ke hook flow
-  const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "", editToken, isTester)
+  const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "", editToken)
   const hasInitialized = useRef(false);
 
   useEffect(() => {
