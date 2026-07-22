@@ -6,6 +6,9 @@ import { createDiscordRole, createDiscordChannel, createDiscordVoiceChannel,
        sendFinanceMessage, sendCreativeMessage, sendRosterMessage,
        autoSortTeamRoles, sendTeamTracker } from '@/lib/discord';
 
+// Cukup ubah di sini saja jika domain berubah
+const DOMAIN = "teamwars.web.id";
+
 // Konfigurasi Email
 export const EMAIL_CONFIG = {
   from: {
