@@ -271,24 +271,23 @@ export function TeamIdentity({
       </section>
 
       {/* MODAL PREVIEW MENGAMBANG */}
+      {/* 🎯 MODAL PREVIEW BUKTI TRANSFER (KLIK MANA SAJA UNTUK TUTUP) */}
       {previewBukti && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm p-4 cursor-zoom-out transition-all animate-in fade-in duration-200"
           onClick={() => setPreviewBukti(null)}
         >
-          <div className="relative max-w-3xl max-h-[90vh] w-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-            <button 
-              onClick={() => setPreviewBukti(null)}
-              className="absolute -top-10 right-0 text-white hover:text-gray-300 font-bold text-sm bg-black/50 px-3 py-1 rounded-full"
-            >
-              Tutup
-            </button>
-            <img 
-              src={previewBukti} 
-              alt="Preview Bukti Transfer" 
-              className="max-w-full max-h-[85vh] object-contain rounded-lg border border-white/20 shadow-2xl"
-            />
+          <div className="absolute top-6 right-6 flex items-center gap-2 text-white/60 bg-black/50 px-4 py-2 rounded-full pointer-events-none">
+            <span className="text-sm font-medium">Klik di mana saja untuk menutup</span>
+            <span className="text-xl leading-none">×</span>
           </div>
+          
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img 
+            src={previewBukti} 
+            alt="Preview Bukti Transfer" 
+            className="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-lg shadow-2xl border border-white/10"
+          />
         </div>
       )}
     </>
