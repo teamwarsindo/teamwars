@@ -1,6 +1,8 @@
 import { useState } from "react"
-import { MAX_PLAYERS, MIN_PLAYERS, defaultPlayers, createPlayer, assignRole, type Player, type RosterRole } from "./lib-registration"
-import { formatDuelId, toProperCase } from "./validators"
+import { MAX_PLAYERS, MIN_PLAYERS,
+        defaultPlayers, createPlayer, assignRole,
+        type Player, type RosterRole } from "../utils/lib-registration"
+import { formatDuelId, toProperCase } from "../utils/validators"
 
 export function useRoster() {
   const [players, setPlayers] = useState<Player[]>(defaultPlayers)
