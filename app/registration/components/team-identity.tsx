@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Swal from "sweetalert2" 
 import { FileDropzone } from "./file-dropzone"
 import type { UploadedFile } from "../utils/lib-registration"
@@ -53,6 +53,20 @@ export function TeamIdentity({
   const [isUploadingBukti, setIsUploadingBukti] = useState(false)
   const [previewBukti, setPreviewBukti] = useState<string | null>(null)
 
+  // 🎯 TAMBAHKAN KODE INI DI SINI
+  useEffect(() => {
+    if (previewBukti) {
+      document.body.style.overflow = "hidden"; // Kunci scroll
+    } else {
+      document.body.style.overflow = "unset"; // Lepas kunci
+    }
+    
+    // Cleanup function untuk berjaga-jaga jika komponen hilang
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [previewBukti]);
+  
   async function handleFileUpload(
     actualFile: File | null, 
     folderName: "logo" | "bukti",
