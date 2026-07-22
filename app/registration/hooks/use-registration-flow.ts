@@ -13,8 +13,8 @@ export function useRegistrationFlow(
   roster: RosterState, 
   isEditMode: boolean = false, 
   originalTeamName: string = "",
-  editToken: string = "",
-  isTester: boolean = false // 👈 TAMBAHAN BARU
+  editToken: string = ""
+//  isTester: boolean = false // 👈 TAMBAHAN BARU
 ) {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [submitAttempted, setSubmitAttempted] = useState(false)
@@ -141,10 +141,11 @@ export function useRegistrationFlow(
       if (isEditMode && editToken) payload.token = editToken
 
       // 🎯 LOGIKA ROUTING API:
-      let apiEndpoint = "/api/submit"; // Default Produksi
-      if (isEditMode) apiEndpoint = "/api/update-team";
-      else if (isTester) apiEndpoint = "/tester/registration/submit"; // Tester lari ke API tester (bot ke log)
-
+      let apiEndpoint = "/api/registration"; 
+      if (isEditMode) {
+        apiEndpoint = "/api/edit-team";
+      }
+            
       const res = await fetch(apiEndpoint, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       })
