@@ -9,6 +9,18 @@ function handleAdminRoutes(req: NextRequest, session: string | undefined) {
     return null;
 }
 
+// --- HELPER BARU: Tutup Halaman Bermasalah ---
+function handleMaintenanceRoutes(req: NextRequest) {
+    const { pathname } = req.nextUrl;
+    
+    // Jika user mengakses /registration atau /edit-team
+    if (pathname.startsWith('/registration') || pathname.startsWith('/edit-team')) {
+        // Lempar paksa ke halaman maintenance
+        return NextResponse.redirect(new URL('/maintenance', req.url));
+    }
+    return null;
+}
+
 // --- HELPER 3: Handle Registrasi (Auth & CSRF) ---
 function handleRegistration(req: NextRequest) {
     if (!req.nextUrl.pathname.startsWith('/registration')) return null;
@@ -45,8 +57,10 @@ function handleRegistration(req: NextRequest) {
 // FUNGSI UTAMA MIDDLEWARE
 // ==========================================
 export function proxy(request: NextRequest) {
-    if (process.env.NODE_ENV === 'development') return NextResponse.next();
+    const maintenanceRedirect = handleMaintenanceRoutes(request);
+    if (maintenanceRedirect) return maintenanceRedirect;
     
+    if (process.env.NODE_ENV === 'development') return NextResponse.next();
     const session = request.cookies.get('admin_session')?.value;
 
     // Eksekusi Helper secara berurutan
