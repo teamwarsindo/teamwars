@@ -11,15 +11,35 @@ function handleAdminRoutes(req: NextRequest, session: string | undefined) {
 
 // --- HELPER 3: Handle Registrasi (Auth & CSRF) ---
 function handleRegistration(req: NextRequest) {
-  if (!req.nextUrl.pathname.startsWith('/registration')) return null;
+    if (!req.nextUrl.pathname.startsWith('/registration')) return null;
 
-  if (Date.now() < LAUNCH_TARGET) {
-    const auth = req.headers.get('authorization')?.split(' ')[1];
-    const [user, pwd] = auth ? atob(auth).split(':') : [];
-    if (user !== 'admin' || pwd !== 'adminonly') {
-      return new NextResponse('Akses Ditolak', { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="Area Master Admin"' } });
+    if (Date.now() < LAUNCH_TARGET) {
+        const auth = req.headers.get('authorization')?.split(' ')[1];
+        const [user, pwd] = auth ? atob(auth).split(':') : [];
+
+        // 🔒 Ambil kredensial dari .env, gunakan fallback acak agar tetap aman jika .env lupa diset
+        const expectedUser = process.env.BASIC_AUTH_USER || 'twi_admin_fallback';
+        const expectedPwd = process.env.BASIC_AUTH_PWD || 'fallback_rahasia_segera_ganti';
+
+        if (user !== expectedUser || pwd !== expectedPwd) {
+            return new NextResponse('Akses Ditolak', {
+                status: 401,
+                headers: { 'WWW-Authenticate': 'Basic realm="Area Master Admin"' }
+            });
+        }
     }
-  }
+
+    const res = NextResponse.next();
+    if (!req.cookies.get('twi_csrf_token')) {
+        res.cookies.set('twi_csrf_token', crypto.randomUUID(), {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7200
+        });
+    }
+    return res;
+}
 
   const res = NextResponse.next();
   if (!req.cookies.get('twi_csrf_token')) {
