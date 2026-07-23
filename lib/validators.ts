@@ -84,8 +84,13 @@ export function validateDiscord(value: string): string | undefined {
   if (!v) return "Discord wajib diisi."
   if (v.length < 2) return "Minimal 2 karakter."
   if (v.length > 32) return "Maksimal 32 karakter."
+  
+  // Mencegah titik ganda berurutan sesuai aturan
   if (v.includes("..")) return "Tidak boleh ada titik berurutan (..)."
-  if (v.startsWith(".") || v.endsWith(".")) return "Tidak boleh diawali/diakhiri titik."
+  
+  // 🎯 UPDATE: Validasi titik di awal/akhir sudah dicabut sesuai permintaan lu
+  
+  // Hanya memperbolehkan huruf, angka, underscore, dan titik
   if (!/^[a-zA-Z0-9_.]+$/.test(v)) return "Hanya boleh huruf, angka, _, dan ."
   return undefined
 }
