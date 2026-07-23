@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
           voiceChannelId = await createDiscordVoiceChannel(trimmedNamaTim, roleId); 
           
           if (channelId) {
-            trackerMsgId = await sendTeamTracker({ channelId, namaTim: trimmedNamaTim, warna, roleId, players });
+            trackerMsgId = await sendTeamTracker({ channelId, namaTim: trimmedNamaTim, warna, roleId, players, createdAt: timestampNow });
           }
         }
         
