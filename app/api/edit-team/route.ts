@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
-import { DISCORD_CONFIG } from '@/lib/config';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { getFooterText } from '@/lib/registration/utils';
 
 export async function PUT(request: NextRequest) {
