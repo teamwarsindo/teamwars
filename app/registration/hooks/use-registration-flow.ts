@@ -27,9 +27,13 @@ export function useRegistrationFlow(
     )
 
     // 2. Validation Hook (Hook baru yang kita buat di atas)
-    const { rosterRuleOk, canSubmit, err, markTouched } = useFormValidation(
+    const { rosterRuleOk, canSubmit, err, markTouched, markTouchedMultiple } = useFormValidation(
         team, roster, rawBackendErrors, isChecking, submitAttempted
     )
+
+    const triggerSmartPasteBypass = () => {
+        setIsSmartPaste(true) // pastikan setIsSmartPaste udah ada di state atas lu
+    }
 
     // 3. Aksi ketika tombol "Review" ditekan
     async function handleReviewClick() {
@@ -58,6 +62,7 @@ export function useRegistrationFlow(
     return { 
         modalOpen, setModalOpen, submitting, serverError, success, 
         rosterRuleOk, canSubmit, isChecking, rawBackendErrors, 
-        markTouched, err, handleReviewClick, handleSubmit 
+        markTouched, markTouchedMultiple, triggerSmartPasteBypass, // 👈 INI YANG BIKIN ERROR HILANG
+        err, handleReviewClick, handleSubmit 
     }
 }
