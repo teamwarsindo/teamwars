@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
       const commandName = body.data.name;
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
+      if (commandName === 'editplayer') return await handleEditPlayer(body);
     }
 
     // 4. Routing Button Clicks (Type 3)
