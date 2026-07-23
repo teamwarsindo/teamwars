@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { discordAPI, hexToDecimal } from '../utils';
+import { discordAPI, hexToDecimal, getFooterText } from '../utils';
 import { DISCORD_CONFIG } from '../config';
 
 export async function handleBtRole(body: any) {
@@ -67,7 +67,9 @@ export async function handleBtRole(body: any) {
         { name: "🎮 IGN & Jabatan", value: `**${foundPlayer.ign}**\n*${foundPlayer.role}*`, inline: true },
         { name: "🏆 Tim", value: `**${foundTeam.namaTim}**`, inline: true }
       ],
-      timestamp: new Date().toISOString()
+      footer: { 
+            text: getFooterText(createdAt, updatedAt) 
+      }
     }]
   }));
 
