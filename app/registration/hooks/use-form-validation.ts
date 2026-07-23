@@ -59,14 +59,9 @@ export function useFormValidation(
     }
 
     // Tambahin fungsi ini di atas return
-    const markTouchedMultiple = (keys: string[]) => {
-        setTouchedFields(prev => {
-            const next = { ...prev }
-            keys.forEach(k => next[k] = true)
-            return next
-        })
+    const markTouchedMultiple = (keys: Record<string, boolean>) => {
+        setTouchedFields(prev => ({ ...prev, ...keys }))
     }
-
     // Pastikan markTouchedMultiple ikut di-return
     return { rosterRuleOk, canSubmit, err, markTouched, markTouchedMultiple }
 }
