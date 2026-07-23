@@ -5,13 +5,15 @@ export async function sendTeamTracker({
   namaTim,
   warna,
   roleId,
-  players
+  players,
+  createdAt
 }: {
   channelId: string;
   namaTim: string;
   warna: string;
   roleId: string;
   players: any[];
+  createdAt: string;
 }) {
   let rosterText = "";
   players.forEach((p: any) => {
