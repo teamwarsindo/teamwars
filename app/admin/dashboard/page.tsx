@@ -1,6 +1,5 @@
 'use client';
 
-import LayoutShared from '@/components/layout-shared';
 import { useAdminTeams } from './hooks/use-admin-teams';
 import { AdminTable } from './components/admin-table';
 import { ProofModal } from './components/proof-modal';
@@ -25,7 +24,8 @@ export default function AdminDashboardPage() {
   } = useAdminTeams();
 
   return (
-    <LayoutShared title="Dashboard Admin — TWI Season 7">
+    <main className="min-h-screen bg-neutral-950 text-white font-sans">
+      <title>Dashboard Admin — TWI Season 7</title>
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header Dashboard */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -101,6 +101,6 @@ export default function AdminDashboardPage() {
         {/* Modal Detail Roster */}
         <RosterModal team={selectedRoster} onClose={() => setSelectedRoster(null)} />
       </div>
-    </LayoutShared>
+    </main>
   );
                 }
