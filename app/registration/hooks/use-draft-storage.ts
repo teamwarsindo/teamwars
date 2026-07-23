@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import type { TeamState, RosterState } from "./types"
-import { STORAGE_KEY, type FormState } from "@/lib/registration"
+import { STORAGE_KEY, type FormState } from "../utils/lib-registration"
 
 export function useDraftStorage(team: TeamState, roster: RosterState, isEditMode: boolean) {
   const [isDraftLoaded, setIsDraftLoaded] = useState(false)

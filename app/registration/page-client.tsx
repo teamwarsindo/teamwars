@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { RegistrationForm } from "./components/registration-form";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
-import { STORAGE_KEY } from "@/lib/registration";
+import { STORAGE_KEY } from "./utils/lib-registration";
 
 export default function Page() {
   const [isCopied, setIsCopied] = useState(false);

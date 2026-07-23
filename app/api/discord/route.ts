@@ -4,7 +4,6 @@ import { verifySignature } from '@/lib/discord/utils';
 // Import Commands
 import { handleReminder } from '@/lib/discord/commands/reminder';
 import { handlePrepare } from '@/lib/discord/commands/prepare';
-import { handleEditPlayer } from '@/lib/discord/commands/edit-player';
 
 // Import Buttons
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
@@ -35,7 +34,6 @@ export async function POST(req: NextRequest) {
       const commandName = body.data.name;
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
-      if (commandName === 'editplayer') return await handleEditPlayer(body);
     }
 
     // 4. Routing Button Clicks (Type 3)
