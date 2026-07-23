@@ -27,7 +27,9 @@ export async function sendTeamTracker({
         { name: "📌 Role Tim", value: roleId ? `<@&${roleId}>` : `*(Belum Ada)*`, inline: true },
         { name: "📊 Status", value: `**0 / ${players.length}** Terverifikasi`, inline: true }
       ],
-      timestamp: new Date().toISOString()
+      footer: { 
+            text: getFooterText(createdAt) 
+      }
     }]
   };
 
