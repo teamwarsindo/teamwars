@@ -1,140 +1,196 @@
-import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@vercel/kv";
-import { revalidatePath } from "next/cache";
-import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI } from "@/lib/discord/utils";
+import { NextResponse, NextRequest } from 'next/server';
+import { kv } from '@vercel/kv';
+import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
+import { DISCORD_CONFIG } from '@/lib/config';
+import { getFooterText } from '@/lib/registration/utils';
 
-// ==========================================
-// 1. GET: Ambil Data Tim via Token
-// ==========================================
-export async function GET(req: NextRequest) {
-  const token = req.nextUrl.searchParams.get("token");
-  if (!token) return NextResponse.json({ error: "Token akses tidak ditemukan!" }, { status: 400 });
-
+export async function PUT(request: NextRequest) {
   try {
+    const body = await request.json();
+    const { token, namaTim, warna, logoTim, buktiTransfer, players } = body;
+
+    if (!token) {
+      return NextResponse.json({ error: 'Token tidak valid' }, { status: 400 });
+    }
+
+    // 1. Cari slug tim berdasarkan token
     const teamSlug = await kv.get(`token:map:${token}`);
-    if (!teamSlug) return NextResponse.json({ error: "Token tidak valid/kadaluarsa." }, { status: 404 });
+    if (!teamSlug) {
+      return NextResponse.json({ error: 'Tim tidak ditemukan' }, { status: 404 });
+    }
 
-    const teamData = await kv.hgetall(`teams:${teamSlug}`);
-    if (!teamData) return NextResponse.json({ error: "Data tim tidak ditemukan." }, { status: 404 });
+    // 2. Fetch data tim lama & map verified users dari Redis
+    const [oldTeamData, verifiedUsersMap] = await Promise.all([
+      kv.hgetall(`teams:${teamSlug}`),
+      kv.hgetall('global:verified_users'),
+    ]);
 
-    return NextResponse.json({ success: true, team: teamData }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ error: "Terjadi kesalahan pada server." }, { status: 500 });
-  }
-}
+    if (!oldTeamData) {
+      return NextResponse.json({ error: 'Data tim tidak ditemukan' }, { status: 404 });
+    }
 
-// ==========================================
-// 2. POST: Update Data Tim & Patch Discord
-// ==========================================
-export async function POST(req: NextRequest) {
-  try {
-    const payload = await req.json();
-    const { token, players, namaTim, warna, email } = payload;
+    const verifiedMap = (verifiedUsersMap as Record<string, string>) || {};
+    const oldPlayers = typeof oldTeamData.players === 'string'
+      ? JSON.parse(oldTeamData.players)
+      : (oldTeamData.players || []);
 
-    if (!token) return NextResponse.json({ error: "Akses ditolak. Token hilang." }, { status: 400 });
+    // =========================================================================
+    // BUG FIX 4: VALIDASI SENSITIF USERNAME DISCORD
+    // Jika username diedit tetapi username baru TIDAK TERVERIFIKASI di Discord
+    // =========================================================================
+    for (let i = 0; i < players.length; i++) {
+      const newPlayer = players[i];
+      const oldPlayer = oldPlayers[i];
 
-    const teamSlug = await kv.get(`token:map:${token}`);
-    if (!teamSlug) return NextResponse.json({ error: "Sesi edit tidak valid/kadaluarsa." }, { status: 403 });
+      const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().trim() : '';
+      const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().trim() : '';
 
-    const oldTeamData: any = await kv.hgetall(`teams:${teamSlug}`);
-    if (!oldTeamData) return NextResponse.json({ error: "Tim tidak ditemukan." }, { status: 404 });
+      // Jika username discord diubah dari nilai sebelumnya
+      if (oldDiscord && newDiscord !== oldDiscord) {
+        const isOldVerified = verifiedMap.hasOwnProperty(oldDiscord);
+        const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
 
-    const oldPlayers = typeof oldTeamData.players === "string" ? JSON.parse(oldTeamData.players) : oldTeamData.players;
-
-    // Logika Array Diffing (Penanganan Duplikat)
-    const oldIgns = oldPlayers.map((p: any) => p.ign.toLowerCase());
-    const oldDiscords = oldPlayers.map((p: any) => p.discord.toLowerCase());
-    const oldDuelIds = oldPlayers.map((p: any) => p.idDuelLinks || p.duelId);
-
-    const newIgns = players.map((p: any) => p.ign.toLowerCase());
-    const newDiscords = players.map((p: any) => p.discord.toLowerCase());
-    const newDuelIds = players.map((p: any) => p.idDuelLinks || p.duelId);
-
-    const ignsToRemove = oldIgns.filter((ign: string) => !newIgns.includes(ign));
-    const discordsToRemove = oldDiscords.filter((d: string) => !newDiscords.includes(d));
-    const duelIdsToRemove = oldDuelIds.filter((id: string) => !newDuelIds.includes(id));
-
-    const ignsToAdd = newIgns.filter((ign: string) => !oldIgns.includes(ign));
-    const discordsToAdd = newDiscords.filter((d: string) => !oldDiscords.includes(d));
-    const duelIdsToAdd = newDuelIds.filter((id: string) => !oldDuelIds.includes(id));
-
-    if (ignsToRemove.length > 0) await kv.srem("global:ign", ...ignsToRemove);
-    if (discordsToRemove.length > 0) await kv.srem("global:discord", ...discordsToRemove);
-    if (duelIdsToRemove.length > 0) await kv.srem("global:duelId", ...duelIdsToRemove);
-
-    if (ignsToAdd.length > 0) await kv.sadd("global:ign", ...ignsToAdd);
-    if (discordsToAdd.length > 0) await kv.sadd("global:discord", ...discordsToAdd);
-    if (duelIdsToAdd.length > 0) await kv.sadd("global:duelId", ...duelIdsToAdd);
-
-    // Auto Kick dari Verified jika ada perubahan username discord
-    if (discordsToRemove.length > 0) {
-      for (const username of discordsToRemove) {
-        const discordId = await kv.hget('global:verified_users', username);
-        if (discordId) {
-          const rolesToRemove = [DISCORD_CONFIG.ROLE_DUELIST, DISCORD_CONFIG.ROLE_KETUA, DISCORD_CONFIG.ROLE_WAKIL];
-          if (oldTeamData.discordRoleId) rolesToRemove.push(oldTeamData.discordRoleId);
-
-          const removePromises = rolesToRemove.map(rId => 
-            fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${discordId}/roles/${rId}`, {
-              method: 'DELETE', headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}` }
-            })
+        // Jika user lama sudah dapet role, tapi username baru dicoba diedit dan ternyata salah (tidak verified)
+        if (isOldVerified && !isNewVerified) {
+          return NextResponse.json(
+            {
+              error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sesuai!`
+            },
+            { status: 400 }
           );
-          await Promise.allSettled(removePromises);
-          await kv.hdel('global:verified_users', username);
         }
       }
     }
 
-    const updatedName = namaTim ? namaTim.trim() : oldTeamData.namaTim;
-    const updatedColor = warna ? warna.trim() : oldTeamData.warna;
-    const updatedEmail = email ? email.trim() : oldTeamData.email;
+    // =========================================================================
+    // BUG FIX 3: UPDATE DISPLAY NAME DISCORD (NICKNAME) JIKA IGN BERUBAH
+    // =========================================================================
+    for (let i = 0; i < players.length; i++) {
+      const newPlayer = players[i];
+      const oldPlayer = oldPlayers[i];
+      const playerDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().trim() : '';
 
-    // Simpan Pembaruan ke Database
-    await kv.hset(`teams:${teamSlug}`, {
-      namaTim: updatedName, warna: updatedColor, email: updatedEmail,
-      players: JSON.stringify(players), updatedAt: new Date().toISOString()
-    });
+      const discordId = verifiedMap[playerDiscord];
 
-    // Patch Discord
-    const parsedColor = parseInt(updatedColor.replace('#', ''), 16) || 3447003;
-    const isNameChanged = oldTeamData.namaTim !== updatedName;
-    const isColorChanged = oldTeamData.warna !== updatedColor;
-
-    if ((isNameChanged || isColorChanged) && oldTeamData.discordRoleId) {
-      try {
-        await fetch(`https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/roles/${oldTeamData.discordRoleId}`, {
-          method: 'PATCH',
-          headers: { 'Authorization': `Bot ${process.env.DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: updatedName, color: parsedColor })
-        });
-      } catch (err) { console.error("Gagal update Role:", err); }
+      // Jika pemain terverifikasi (dapet role) dan IGN-nya berubah
+      if (discordId && oldPlayer && oldPlayer.ign !== newPlayer.ign) {
+        try {
+          await discordAPI(
+            `/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${discordId}`,
+            'PATCH',
+            { nick: newPlayer.ign }
+          );
+        } catch (nickErr) {
+          console.error(`Gagal update nickname untuk @${newPlayer.discord}:`, nickErr);
+        }
+      }
     }
 
-    if (oldTeamData.adminMsgId && DISCORD_CONFIG.CH_ROSTER) {
-      const ketua = players.find((p: any) => p.role === "Ketua") || players[0];
-      const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { ign: "-" };
-      const playerListString = players.map((p: any) => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
+    // Preservasi Waktu Regis / CreatedAt
+    const createdAt = oldTeamData.createdAt || new Date().toISOString();
 
-      const payloadDiscord = {
-        embeds: [{
-          title: updatedName, color: parsedColor, thumbnail: { url: oldTeamData.logoTim },
-          fields: [
-            { name: "Ketua", value: ketua?.ign || "-", inline: true },
-            { name: "Wakil", value: wakil?.ign || "-", inline: true },
-            { name: "Players", value: playerListString, inline: false }
-          ]
-        }]
+    // 3. Update Data di Vercel KV Redis
+    const updatedTeamObj = {
+      ...oldTeamData,
+      namaTim,
+      warna,
+      logoTim: logoTim || oldTeamData.logoTim,
+      buktiTransfer: buktiTransfer || oldTeamData.buktiTransfer,
+      players: JSON.stringify(players),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await kv.hset(`teams:${teamSlug}`, updatedTeamObj);
+
+    // =========================================================================
+    // BUG FIX 1: DENGAN FOOTER DI EMBED ROSTER (CH_ROSTER)
+    // =========================================================================
+    const rosterMessageId = oldTeamData.rosterMessageId as string;
+    if (rosterMessageId) {
+      const ketua = players.find((p: any) => p.role?.toLowerCase() === 'ketua') || players[0];
+      const wakil = players.find((p: any) => p.role?.toLowerCase() === 'wakil') || players[1];
+      const playerListString = players
+        .map((p: any) => `• ${p.ign} (@${p.discord}) - DL: ${p.idDuelLinks}`)
+        .join('\n');
+
+      const rosterEmbed = {
+        title: `🛡️ ROSTER TIM: ${namaTim.toUpperCase()}`,
+        color: hexToDecimal(warna),
+        thumbnail: logoTim ? { url: logoTim } : undefined,
+        fields: [
+          { name: 'Ketua', value: ketua?.ign || '-', inline: true },
+          { name: 'Wakil', value: wakil?.ign || '-', inline: true },
+          { name: 'Players', value: playerListString, inline: false },
+        ],
+        footer: {
+          text: getFooterText(createdAt), // FOOTER DIKEMBALIKAN PRESISI!
+        },
       };
-      try { await discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${oldTeamData.adminMsgId}`, 'PATCH', payloadDiscord); } 
-      catch (err) { console.error("Gagal patch Roster:", err); }
+
+      try {
+        await discordAPI(
+          `/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${rosterMessageId}`,
+          'PATCH',
+          { embeds: [rosterEmbed] }
+        );
+      } catch (err) {
+        console.error('Gagal update roster embed message:', err);
+      }
     }
 
-    revalidatePath("/admin/dashboard"); 
-    return NextResponse.json({ success: true, message: "Perubahan berhasil disimpan!" }); 
-    
-  } catch (error: any) {
-    console.error("Update Team Error:", error);
-    return NextResponse.json({ error: "Terjadi kesalahan internal saat update." }, { status: 500 });
+    // =========================================================================
+    // BUG FIX 2: UPDATE TRACKER DI DISCORD (CH_TEAM_CAMP / TRACKER CHANNEL)
+    // =========================================================================
+    const trackerChannelId = (oldTeamData.teamChannelId || oldTeamData.channelId) as string;
+    const trackerMessageId = oldTeamData.trackerMessageId as string;
+
+    if (trackerChannelId && trackerMessageId) {
+      let verifiedCount = 0;
+      let trackerRosterText = '';
+
+      players.forEach((p: any) => {
+        const pDiscord = p.discord ? p.discord.toLowerCase().trim() : '';
+        const isVerified = verifiedMap.hasOwnProperty(pDiscord);
+
+        if (isVerified) verifiedCount++;
+
+        const icon = isVerified ? '✅' : '❌';
+        trackerRosterText += `${icon} ${p.ign} (@${p.discord}) - ${p.role}\n`;
+      });
+
+      const trackerEmbed = {
+        title: `🛡️ DATABASE TIM: ${namaTim.toUpperCase()}`,
+        description: `DAFTAR ROSTER:\n${trackerRosterText}`,
+        color: hexToDecimal(warna),
+        fields: [
+          {
+            name: '📌 Role Tim',
+            value: oldTeamData.roleId ? `<@&${oldTeamData.roleId}>` : '(Belum Ada)',
+            inline: true,
+          },
+          {
+            name: '📊 Status Verifikasi',
+            value: `${verifiedCount} / ${players.length} Terverifikasi`,
+            inline: true,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+
+      try {
+        await discordAPI(
+          `/channels/${trackerChannelId}/messages/${trackerMessageId}`,
+          'PATCH',
+          { embeds: [trackerEmbed] }
+        );
+      } catch (err) {
+        console.error('Gagal update tracker message:', err);
+      }
+    }
+
+    return NextResponse.json({ success: true, message: 'Data tim berhasil diperbarui!' });
+  } catch (error) {
+    console.error('Error Edit Team API:', error);
+    return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
   }
