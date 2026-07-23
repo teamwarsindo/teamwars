@@ -130,20 +130,20 @@ export function AdminTable({
                         <Users className="w-4 h-4" />
                       </button>
                       <a
-                        href={`/edit-team/${team.tokenEdit}`}
+                        href={team.editUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="p-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl hover:bg-amber-600 hover:text-white transition"
-                        title="Ke Edit Team (User Token)"
+                        title="Edit Team (Token User)"
                       >
                         <Edit className="w-4 h-4" />
                       </a>
                       <a
-                        href={`/admin/edit-team/${team.tokenEdit}`}
+                        href={team.adminEditUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="p-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-600 hover:text-white transition"
-                        title="Ke Edit Team (Admin Bypass)"
+                        title="Edit Team (Admin Key Bypass)"
                       >
                         <ShieldAlert className="w-4 h-4" />
                       </a>
