@@ -4,8 +4,22 @@ import { LAUNCH_TARGET } from '@/lib/config'
 // --- HELPER 1: Handle Akses Halaman Admin ---
 function handleAdminRoutes(req: NextRequest, session: string | undefined) {
     const { pathname } = req.nextUrl;
-    if (pathname === '/admin' && session) return NextResponse.redirect(new URL('/admin/dashboard', req.url));
-    if (pathname.startsWith('/admin/dashboard') && !session) return NextResponse.redirect(new URL('/admin', req.url));
+    
+    // Cek apakah URL saat ini adalah area admin
+    if (pathname.startsWith('/admin')) {
+        const isLoginRoute = pathname === '/admin/login';
+
+        // Aturan A: Jika belum login dan mengakses halaman selain login -> tendang ke login
+        if (!session && !isLoginRoute) {
+            return NextResponse.redirect(new URL('/admin/login', req.url));
+        }
+        
+        // Aturan B: Jika sudah login tapi mengakses root /admin atau /admin/login -> tendang ke dashboard
+        if (session && (pathname === '/admin' || isLoginRoute)) {
+            return NextResponse.redirect(new URL('/admin/dashboard', req.url));
+        }
+    }
+    
     return null;
 }
 
@@ -45,6 +59,7 @@ function handleRegistration(req: NextRequest) {
 // FUNGSI UTAMA MIDDLEWARE
 // ==========================================
 export function proxy(request: NextRequest) {
+    // Catatan: Jika lu butuh ngetes proteksi admin di local, matikan (comment) baris di bawah ini sementara
     if (process.env.NODE_ENV === 'development') return NextResponse.next();
     
     const session = request.cookies.get('admin_session')?.value;
@@ -57,4 +72,4 @@ export function proxy(request: NextRequest) {
     if (registrationLogic) return registrationLogic;
 
     return NextResponse.next();
-}
+            }
