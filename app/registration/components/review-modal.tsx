@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { CloseIcon, AlertIcon } from "@/components/icons"
-import type { FormState, UploadedFile } from "../utils/lib-registration"
+import type { FormState, UploadedFile } from "@/lib/registration"
 import { Captcha } from "./captcha"
 import { ZoomLightbox } from "./zoom-lightbox"
 
