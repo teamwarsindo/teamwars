@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { userAgent } from 'next/server';
 import { discordAPI } from '@/lib/discord/utils'; 
-import { DISCORD_CONFIG } from '@/lib/config'; 
+import { DISCORD_CONFIG } from '@/lib/discord/config'; 
 
 // Helper Kirim Embed ke Channel Log Discord
 async function sendDiscordLog(embed: any) {
