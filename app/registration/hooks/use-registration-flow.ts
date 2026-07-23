@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from "react"
 import Swal from "sweetalert2"
-import { STORAGE_KEY, countRole, findDuplicateFields } from "../utils/lib-registration"
+import { STORAGE_KEY, countRole, findDuplicateFields } from "@/lib/registration"
 import { isValidEmail, isValidHex, validateDuelId, validateRealName,
         validateTeamName, validateDiscord, validateIGN, sanitizeTeamName,
-        sanitizeDiscord, sanitizeIGN, toProperCase, formatDuelId } from "../utils/validators"
+        sanitizeDiscord, sanitizeIGN, toProperCase, formatDuelId } from "@/lib/validators"
 import { useDraftStorage } from "./use-draft-storage"     
 import { usePreFlightCheck } from "./use-pre-flight-check" 
 import { TeamState, RosterState, PlayerState, BackendError } from "./types"
