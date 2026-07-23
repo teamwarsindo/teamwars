@@ -160,6 +160,8 @@ export async function POST(request: NextRequest) {
         const icon = isVerified ? '✅' : '❌';
         rosterText += `${icon} ${p.ign} (@${p.discord}) - ${p.role}\n`;
       });
+
+      const teamRoleId = oldTeamData.discordRoleId || oldTeamData.roleId;
       
       const trackerPayload = {
         embeds: [{
@@ -169,7 +171,7 @@ export async function POST(request: NextRequest) {
           fields: [
             { 
               name: "📌 Role Tim", 
-              value: oldTeamData.roleId ? `<@&${oldTeamData.roleId}>` : '(Belum Ada)', 
+              value: teamRoleId ? `<@&${teamRoleId}>` : '(Belum Ada)', 
               inline: true 
             },
             { 
