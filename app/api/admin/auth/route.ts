@@ -8,7 +8,7 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 // Helper Kirim Embed ke Channel Log Discord
 async function sendDiscordLog(embed: any) {
   try {
-    await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOGS}/messages`, 'POST', {
+    await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG}/messages`, 'POST', {
       embeds: [embed]
     });
   } catch (err) {
