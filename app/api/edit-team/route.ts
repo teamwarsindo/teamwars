@@ -35,7 +35,6 @@ export async function PUT(request: NextRequest) {
 
     // =========================================================================
     // BUG FIX 4: VALIDASI SENSITIF USERNAME DISCORD
-    // Jika username diedit tetapi username baru TIDAK TERVERIFIKASI di Discord
     // =========================================================================
     for (let i = 0; i < players.length; i++) {
       const newPlayer = players[i];
@@ -44,16 +43,16 @@ export async function PUT(request: NextRequest) {
       const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().trim() : '';
       const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().trim() : '';
 
-      // Jika username discord diubah dari nilai sebelumnya
+      // Jika user mengedit username Discord yang sebelumnya sudah terverifikasi
       if (oldDiscord && newDiscord !== oldDiscord) {
         const isOldVerified = verifiedMap.hasOwnProperty(oldDiscord);
         const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
 
-        // Jika user lama sudah dapet role, tapi username baru dicoba diedit dan ternyata salah (tidak verified)
+        // Cek kalau akun lamanya "Verified" tapi diedit jadi akun yang "Salah / Belum Verified"
         if (isOldVerified && !isNewVerified) {
           return NextResponse.json(
             {
-              error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sesuai!`
+              error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sudah sesuai!`
             },
             { status: 400 }
           );
@@ -71,7 +70,7 @@ export async function PUT(request: NextRequest) {
 
       const discordId = verifiedMap[playerDiscord];
 
-      // Jika pemain terverifikasi (dapet role) dan IGN-nya berubah
+      // Jika pemain punya Role (terverifikasi) dan IGN-nya diganti di web
       if (discordId && oldPlayer && oldPlayer.ign !== newPlayer.ign) {
         try {
           await discordAPI(
@@ -85,7 +84,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Preservasi Waktu Regis / CreatedAt
+    // Ambil createdAt lama buat dioper ke getFooterText()
     const createdAt = oldTeamData.createdAt || new Date().toISOString();
 
     // 3. Update Data di Vercel KV Redis
@@ -102,35 +101,39 @@ export async function PUT(request: NextRequest) {
     await kv.hset(`teams:${teamSlug}`, updatedTeamObj);
 
     // =========================================================================
-    // BUG FIX 1: DENGAN FOOTER DI EMBED ROSTER (CH_ROSTER)
+    // BUG FIX 1: UPDATE EMBED ROSTER (SUSUNAN PERSIS DENGAN YANG LAMA)
     // =========================================================================
     const rosterMessageId = oldTeamData.rosterMessageId as string;
     if (rosterMessageId) {
       const ketua = players.find((p: any) => p.role?.toLowerCase() === 'ketua') || players[0];
       const wakil = players.find((p: any) => p.role?.toLowerCase() === 'wakil') || players[1];
-      const playerListString = players
-        .map((p: any) => `• ${p.ign} (@${p.discord}) - DL: ${p.idDuelLinks}`)
-        .join('\n');
+      
+      let playerListString = "";
+      players.forEach((p: any) => {
+        playerListString += `• ${p.ign} (@${p.discord}) - DL: ${p.idDuelLinks}\n`;
+      });
 
-      const rosterEmbed = {
-        title: `🛡️ ROSTER TIM: ${namaTim.toUpperCase()}`,
-        color: hexToDecimal(warna),
-        thumbnail: logoTim ? { url: logoTim } : undefined,
-        fields: [
-          { name: 'Ketua', value: ketua?.ign || '-', inline: true },
-          { name: 'Wakil', value: wakil?.ign || '-', inline: true },
-          { name: 'Players', value: playerListString, inline: false },
-        ],
-        footer: {
-          text: getFooterText(createdAt), // FOOTER DIKEMBALIKAN PRESISI!
-        },
+      const rosterPayload = {
+        embeds: [{
+          title: `🛡️ ROSTER TIM: ${namaTim.toUpperCase()}`,
+          color: hexToDecimal(warna),
+          thumbnail: { url: logoTim || oldTeamData.logoTim },
+          fields: [
+            { name: "Ketua", value: ketua.ign, inline: true },
+            { name: "Wakil", value: wakil.ign, inline: true },
+            { name: "Players", value: playerListString, inline: false }
+          ],
+          footer: { 
+            text: getFooterText(createdAt) 
+          }
+        }]
       };
 
       try {
         await discordAPI(
           `/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${rosterMessageId}`,
           'PATCH',
-          { embeds: [rosterEmbed] }
+          rosterPayload
         );
       } catch (err) {
         console.error('Gagal update roster embed message:', err);
@@ -138,14 +141,14 @@ export async function PUT(request: NextRequest) {
     }
 
     // =========================================================================
-    // BUG FIX 2: UPDATE TRACKER DI DISCORD (CH_TEAM_CAMP / TRACKER CHANNEL)
+    // BUG FIX 2: UPDATE EMBED TRACKER (SUSUNAN PERSIS DENGAN YANG LAMA)
     // =========================================================================
     const trackerChannelId = (oldTeamData.teamChannelId || oldTeamData.channelId) as string;
     const trackerMessageId = oldTeamData.trackerMessageId as string;
 
     if (trackerChannelId && trackerMessageId) {
       let verifiedCount = 0;
-      let trackerRosterText = '';
+      let rosterText = "";
 
       players.forEach((p: any) => {
         const pDiscord = p.discord ? p.discord.toLowerCase().trim() : '';
@@ -154,33 +157,35 @@ export async function PUT(request: NextRequest) {
         if (isVerified) verifiedCount++;
 
         const icon = isVerified ? '✅' : '❌';
-        trackerRosterText += `${icon} ${p.ign} (@${p.discord}) - ${p.role}\n`;
+        rosterText += `${icon} ${p.ign} (@${p.discord}) - ${p.role}\n`;
       });
 
-      const trackerEmbed = {
-        title: `🛡️ DATABASE TIM: ${namaTim.toUpperCase()}`,
-        description: `DAFTAR ROSTER:\n${trackerRosterText}`,
-        color: hexToDecimal(warna),
-        fields: [
-          {
-            name: '📌 Role Tim',
-            value: oldTeamData.roleId ? `<@&${oldTeamData.roleId}>` : '(Belum Ada)',
-            inline: true,
-          },
-          {
-            name: '📊 Status Verifikasi',
-            value: `${verifiedCount} / ${players.length} Terverifikasi`,
-            inline: true,
-          },
-        ],
-        timestamp: new Date().toISOString(),
+      const trackerPayload = {
+        embeds: [{
+          title: `🛡️ DATABASE TIM: ${namaTim.toUpperCase()}`,
+          description: `DAFTAR ROSTER:\n${rosterText}`,
+          color: hexToDecimal(warna),
+          fields: [
+            { 
+              name: "📌 Role Tim", 
+              value: oldTeamData.roleId ? `<@&${oldTeamData.roleId}>` : '(Belum Ada)', 
+              inline: true 
+            },
+            { 
+              name: "📊 Status", 
+              value: `${verifiedCount} / ${players.length} Terverifikasi`, 
+              inline: true 
+            }
+          ],
+          timestamp: new Date().toISOString()
+        }]
       };
 
       try {
         await discordAPI(
           `/channels/${trackerChannelId}/messages/${trackerMessageId}`,
           'PATCH',
-          { embeds: [trackerEmbed] }
+          trackerPayload
         );
       } catch (err) {
         console.error('Gagal update tracker message:', err);
@@ -192,4 +197,4 @@ export async function PUT(request: NextRequest) {
     console.error('Error Edit Team API:', error);
     return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
-  }
+        }
