@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     // BUG FIX 1: UPDATE EMBED ROSTER (SUSUNAN PERSIS DENGAN YANG LAMA)
     // =========================================================================
-    const rosterMessageId = oldTeamData.rosterMessageId as string;
+    const rosterMessageId = oldTeamData.adminMsgId as string;
     if (rosterMessageId) {
       const ketua = players.find((p: any) => p.role?.toLowerCase() === 'ketua') || players[0];
       const wakil = players.find((p: any) => p.role?.toLowerCase() === 'wakil') || players[1];
@@ -143,8 +143,8 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     // BUG FIX 2: UPDATE EMBED TRACKER (SUSUNAN PERSIS DENGAN YANG LAMA)
     // =========================================================================
-    const trackerChannelId = (oldTeamData.teamChannelId || oldTeamData.channelId) as string;
-    const trackerMessageId = oldTeamData.trackerMessageId as string;
+    const trackerChannelId = oldTeamData.discordChannelId as string;
+    const trackerMessageId = oldTeamData.trackerMsgId as string;
 
     if (trackerChannelId && trackerMessageId) {
       let verifiedCount = 0;
