@@ -20,7 +20,9 @@ export interface Team {
   warna: string;
   logo: string;
   buktiTransfer: string;
-  tokenEdit: string;
+  editToken: string;
+  editUrl: string;
+  adminEditUrl: string;
   players: Player[];
   rosterStatus: string;
 }
