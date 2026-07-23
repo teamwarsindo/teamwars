@@ -85,8 +85,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Ambil createdAt lama buat dioper ke getFooterText()
-    const createdAt = (oldTeamData.createdAt as string) || new Date().toISOString();
-
+    const createdAt = oldTeamData.createdAt as string;
+    const updatedAt = new Date().toISOString(); // <-- Tambahkan baris ini
+    
     // 3. Update Data di Vercel KV Redis
     const updatedTeamObj = {
       ...oldTeamData,
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
       logoTim: logoTim || oldTeamData.logoTim,
       buktiTransfer: buktiTransfer || oldTeamData.buktiTransfer,
       players: JSON.stringify(players),
-      updatedAt: new Date().toISOString(),
+      updatedAt: updatedAt,
     };
 
     await kv.hset(`teams:${teamSlug}`, updatedTeamObj);
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
             { name: "Players", value: playerListString, inline: false }
           ],
           footer: { 
-            text: getFooterText(createdAt) 
+            text: getFooterText(createdAt, updatedAt) 
           }
         }]
       };
@@ -177,7 +178,9 @@ export async function POST(request: NextRequest) {
               inline: true 
             }
           ],
-          timestamp: new Date().toISOString()
+          footer: { 
+            text: getFooterText(createdAt, updatedAt) 
+          }
         }]
       };
 
