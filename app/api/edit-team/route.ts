@@ -111,12 +111,12 @@ export async function POST(request: NextRequest) {
       
       let playerListString = "";
       players.forEach((p: any) => {
-        playerListString += `• ${p.ign} (@${p.discord}) - DL: ${p.idDuelLinks}\n`;
+        playerListString += `• ${p.ign} (${p.idDuelLinks})\n`;
       });
-
+      
       const rosterPayload = {
         embeds: [{
-          title: `🛡️ ROSTER TIM: ${namaTim.toUpperCase()}`,
+          title: namaTim,
           color: hexToDecimal(warna),
           thumbnail: { url: logoTim || oldTeamData.logoTim },
           fields: [
@@ -160,10 +160,10 @@ export async function POST(request: NextRequest) {
         const icon = isVerified ? '✅' : '❌';
         rosterText += `${icon} ${p.ign} (@${p.discord}) - ${p.role}\n`;
       });
-
+      
       const trackerPayload = {
         embeds: [{
-          title: `🛡️ DATABASE TIM: ${namaTim.toUpperCase()}`,
+          title: namaTim,
           description: `DAFTAR ROSTER:\n${rosterText}`,
           color: hexToDecimal(warna),
           fields: [
