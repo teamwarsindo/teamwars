@@ -85,7 +85,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Ambil createdAt lama buat dioper ke getFooterText()
-    const createdAt = oldTeamData.createdAt || new Date().toISOString();
+    const createdAt = (oldTeamData.createdAt as string) || new Date().toISOString();
 
     // 3. Update Data di Vercel KV Redis
     const updatedTeamObj = {
