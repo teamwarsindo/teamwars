@@ -1,8 +1,8 @@
 "use client"
 
 import { TrashIcon, PlusIcon, AlertIcon, CheckIcon } from "@/components/icons"
-import { formatDuelId, sanitizeRealName, sanitizeDiscord, toProperCase } from "../utils/validators"
-import { ROSTER_ROLES, MIN_PLAYERS, MAX_PLAYERS, type Player, type RosterRole } from "../utils/lib-registration"
+import { formatDuelId, sanitizeRealName, sanitizeDiscord, toProperCase } from "@/lib/validators"
+import { ROSTER_ROLES, MIN_PLAYERS, MAX_PLAYERS, type Player, type RosterRole } from "@/lib/registration"
 
 interface RosterSectionProps {
   players: Player[]
