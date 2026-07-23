@@ -27,7 +27,8 @@
     "resend": "latest",
     "cloudinary": "^2.2.0",
     "sweetalert2": "^11.x.x",
-    "tweetnacl": "latest"
+    "tweetnacl": "latest",
+    "lucide-react": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",
