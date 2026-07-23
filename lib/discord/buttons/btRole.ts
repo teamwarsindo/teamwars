@@ -57,6 +57,11 @@ export async function handleBtRole(body: any) {
   // Siapkan semua API Request dalam satu jalur paralel
   const apiPromises = rolesToActuallyAssign.map(rId => discordAPI(`/guilds/${guildId}/members/${userId}/roles/${rId}`, 'PUT'));
   apiPromises.push(discordAPI(`/guilds/${guildId}/members/${userId}`, 'PATCH', { nick: `${foundPlayer.ign}` }));
+
+  // 👇 TAMBAHKAN DUA BARIS INI 👇
+  const createdAt = foundTeam.createdAt;
+  const updatedAt = new Date().toISOString(); // Waktu verifikasi saat ini
+  // 👆 ======================== 👆
   
   apiPromises.push(discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG}/messages`, 'POST', {
     embeds: [{
