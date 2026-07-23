@@ -2,25 +2,19 @@ import { NextResponse, NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { userAgent } from 'next/server';
+// Sesuaikan path import ini dengan letak file utils dan config Discord lu!
+import { discordAPI } from '@/lib/discord/utils'; 
+import { DISCORD_CONFIG } from '@/lib/discord/config'; 
 
-// Helper Cepat Kirim Embed ke Discord
+// Helper Cepat Kirim Embed ke Discord via API lu sendiri
 async function sendDiscordLog(embed: any) {
-  const botToken = process.env.DISCORD_BOT_TOKEN; // Asumsi token bot lu
-  const channelId = process.env.DISCORD_CH_LOGS; // ID Channel khusus Log Admin
-
-  if (!botToken || !channelId) return;
-
   try {
-    await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bot ${botToken}`,
-      },
-      body: JSON.stringify({ embeds: [embed] }),
+    // Asumsi CH_LOGS adalah nama variabel channel log di config lu
+    await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG}/messages`, 'POST', {
+      embeds: [embed]
     });
   } catch (err) {
-    console.error('Gagal kirim log ke discord', err);
+    console.error('Gagal kirim log admin ke discord', err);
   }
 }
 
@@ -64,10 +58,10 @@ export async function POST(request: NextRequest) {
       await kv.lpush('admin:login_logs', logSuccess);
       await kv.ltrim('admin:login_logs', 0, 99);
 
-      // Kirim Notif Discord (Embed Hijau)
+      // Kirim Notif Discord (Embed Hijau) pakai fungsi lu
       await sendDiscordLog({
         title: "✅ Admin Login Berhasil",
-        color: 0x22c55e, // Hijau emerald
+        color: 0x22c55e, // Hijau
         fields: [
           { name: "👤 User", value: `**${username}**`, inline: true },
           { name: "📱 Device", value: `${deviceType} (${osName})`, inline: true },
@@ -87,11 +81,11 @@ export async function POST(request: NextRequest) {
     await kv.lpush('admin:login_logs', logFailed);
     await kv.ltrim('admin:login_logs', 0, 99);
 
-    // Kirim Notif Discord (Embed Merah)
+    // Kirim Notif Discord (Embed Merah) pakai fungsi lu
     await sendDiscordLog({
       title: "🚨 Peringatan: Percobaan Login Gagal!",
       description: "Seseorang mencoba mengakses panel Admin Dashboard.",
-      color: 0xef4444, // Merah rose
+      color: 0xef4444, // Merah
       fields: [
         { name: "🕵️‍♂️ Username Dicoba", value: `\`${username}\``, inline: true },
         { name: "🔑 Password Dicoba", value: `\`${password}\``, inline: true },
@@ -120,5 +114,4 @@ export async function DELETE() {
   const cookieStore = await cookies();
   cookieStore.delete('admin_session');
   return NextResponse.json({ success: true });
-           }
-    
+}
