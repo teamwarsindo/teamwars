@@ -2,19 +2,17 @@ import { NextResponse, NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { userAgent } from 'next/server';
-// Sesuaikan path import ini dengan letak file utils dan config Discord lu!
 import { discordAPI } from '@/lib/discord/utils'; 
-import { DISCORD_CONFIG } from '@/lib/discord/config'; 
+import { DISCORD_CONFIG } from '@/lib/config'; 
 
-// Helper Cepat Kirim Embed ke Discord via API lu sendiri
+// Helper Kirim Embed ke Channel Log Discord
 async function sendDiscordLog(embed: any) {
   try {
-    // Asumsi CH_LOGS adalah nama variabel channel log di config lu
-    await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG}/messages`, 'POST', {
+    await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOGS}/messages`, 'POST', {
       embeds: [embed]
     });
   } catch (err) {
-    console.error('Gagal kirim log admin ke discord', err);
+    console.error('Gagal kirim log admin ke discord:', err);
   }
 }
 
@@ -26,7 +24,11 @@ export async function POST(request: NextRequest) {
     const validUser = process.env.BASIC_AUTH_USER;
     const validPwd = process.env.BASIC_AUTH_PWD;
 
-    // Ekstrak Data User
+    if (!validUser || !validPwd) {
+      return NextResponse.json({ error: 'Kredensial server (ENV) belum diatur' }, { status: 500 });
+    }
+
+    // Ekstrak Data Client untuk Logging
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'Unknown IP';
     const country = request.headers.get('x-vercel-ip-country') || 'Unknown';
     const city = request.headers.get('x-vercel-ip-city') || 'Unknown';
@@ -38,12 +40,15 @@ export async function POST(request: NextRequest) {
     
     const timestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) + ' WIB';
 
-    if (!validUser || !validPwd) {
-      return NextResponse.json({ error: 'Kredensial server (ENV) belum diatur' }, { status: 500 });
-    }
+    // Paksa Username menjadi Lowercase
+    const inputUser = username ? username.toLowerCase().trim() : '';
+    const expectedUser = validUser.toLowerCase().trim();
+
+    const isUserCorrect = inputUser === expectedUser;
+    const isPwdCorrect = password === validPwd;
 
     // --- 1. JIKA LOGIN BERHASIL ---
-    if (username === validUser && password === validPwd) {
+    if (isUserCorrect && isPwdCorrect) {
       const cookieStore = await cookies();
       cookieStore.set('admin_session', 'authenticated', {
         httpOnly: true,
@@ -53,21 +58,21 @@ export async function POST(request: NextRequest) {
         maxAge: 60 * 60, // 1 Jam
       });
 
-      // Simpan di Redis KV
-      const logSuccess = `[SUKSES] ${timestamp} | IP: ${ip} (${city}, ${country}) | Device: ${deviceType} (${osName}) | Browser: ${browserName}`;
+      // Simpan Log Sukses di Redis KV
+      const logSuccess = `[SUKSES] ${timestamp} | User: ${inputUser} | IP: ${ip} (${city}, ${country}) | Device: ${deviceType} (${osName})`;
       await kv.lpush('admin:login_logs', logSuccess);
       await kv.ltrim('admin:login_logs', 0, 99);
 
-      // Kirim Notif Discord (Embed Hijau) pakai fungsi lu
+      // Kirim Notif Discord (Embed Hijau)
       await sendDiscordLog({
         title: "✅ Admin Login Berhasil",
         color: 0x22c55e, // Hijau
         fields: [
-          { name: "👤 User", value: `**${username}**`, inline: true },
+          { name: "👤 User", value: `**${inputUser}**`, inline: true },
           { name: "📱 Device", value: `${deviceType} (${osName})`, inline: true },
           { name: "🌐 Browser", value: browserName, inline: true },
           { name: "📍 Lokasi", value: `${city}, ${country}`, inline: true },
-          { name: "📡 IP Asli", value: `||${ip}||`, inline: true }, // IP disensor spoiler
+          { name: "📡 IP Asli", value: `||${ip}||`, inline: true }
         ],
         footer: { text: "TWI Security System" },
         timestamp: new Date().toISOString()
@@ -76,33 +81,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // --- 2. JIKA LOGIN GAGAL (ADA PENYUSUP) ---
-    const logFailed = `[GAGAL] ${timestamp} | Coba User: ${username} | IP: ${ip} (${city}, ${country}) | Device: ${deviceType}`;
+    // --- 2. JIKA LOGIN GAGAL ---
+    let errorMessage = 'Username dan password salah';
+    if (isUserCorrect && !isPwdCorrect) {
+      errorMessage = 'Password salah';
+    } else if (!isUserCorrect && isPwdCorrect) {
+      errorMessage = 'Username salah';
+    }
+
+    // Simpan Log Gagal di Redis KV
+    const logFailed = `[GAGAL - ${errorMessage.toUpperCase()}] ${timestamp} | IP: ${ip} (${city}, ${country}) | Device: ${deviceType}`;
     await kv.lpush('admin:login_logs', logFailed);
     await kv.ltrim('admin:login_logs', 0, 99);
 
-    // Kirim Notif Discord (Embed Merah) pakai fungsi lu
+    // Susun Fields Discord: BAGIAN YANG BENAR TIDAK DICANTUMKAN!
+    const failedFields = [];
+
+    // Hanya tampilkan Username Dicoba jika Username-nya SALAH
+    if (!isUserCorrect) {
+      failedFields.push({ name: "🕵️‍♂️ Username Dicoba", value: `\`${inputUser || '-'}\``, inline: true });
+    }
+
+    // Hanya tampilkan Password Dicoba jika Password-nya SALAH
+    if (!isPwdCorrect) {
+      failedFields.push({ name: "🔑 Password Dicoba", value: `\`${password || '-'}\``, inline: true });
+    }
+
+    // Tambahkan Info Perangkat & Jaringan
+    failedFields.push(
+      { name: "📱 Device", value: `${deviceType} (${osName})`, inline: true },
+      { name: "🌐 Browser", value: browserName, inline: true },
+      { name: "📍 Lokasi", value: `${city}, ${country}`, inline: true },
+      { name: "📡 IP Address", value: `||${ip}||`, inline: true }
+    );
+
+    // Kirim Notif Discord (Embed Merah)
     await sendDiscordLog({
       title: "🚨 Peringatan: Percobaan Login Gagal!",
-      description: "Seseorang mencoba mengakses panel Admin Dashboard.",
+      description: `Seseorang mencoba mengakses panel Admin Dashboard.\n**Status Kegagalan:** \`${errorMessage}\``,
       color: 0xef4444, // Merah
-      fields: [
-        { name: "🕵️‍♂️ Username Dicoba", value: `\`${username}\``, inline: true },
-        { name: "🔑 Password Dicoba", value: `\`${password}\``, inline: true },
-        { name: "📱 Device", value: `${deviceType} (${osName})`, inline: true },
-        { name: "🌐 Browser", value: browserName, inline: true },
-        { name: "📍 Lokasi", value: `${city}, ${country}`, inline: true },
-        { name: "📡 IP Address", value: `||${ip}||`, inline: true }
-      ],
-      footer: { text: "TWI Security System - Potensi Brute Force" },
+      fields: failedFields,
+      footer: { text: "TWI Security System - Audit Log" },
       timestamp: new Date().toISOString()
     });
 
     return NextResponse.json(
-      { error: 'Username atau password salah' },
+      { error: errorMessage },
       { status: 401 }
     );
   } catch (error) {
+    console.error('Error Auth API:', error);
     return NextResponse.json(
       { error: 'Terjadi kesalahan sistem' },
       { status: 500 }
@@ -114,4 +142,5 @@ export async function DELETE() {
   const cookieStore = await cookies();
   cookieStore.delete('admin_session');
   return NextResponse.json({ success: true });
-}
+      }
+        
