@@ -4,6 +4,7 @@ import { verifySignature } from '@/lib/discord/utils';
 // Import Commands
 import { handleReminder } from '@/lib/discord/commands/reminder';
 import { handlePrepare } from '@/lib/discord/commands/prepare';
+import { handleEditPlayer } from '@/lib/discord/commands/edit-player';
 
 // Import Buttons
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
