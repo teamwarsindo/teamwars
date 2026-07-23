@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // 1. Cek Sesi Cookie Admin
     const cookieStore = await cookies();
     const session = cookieStore.get('admin_session');
 
@@ -17,7 +16,8 @@ export async function GET() {
       );
     }
 
-    // 2. Fetch data dari Redis
+    const adminKey = process.env.BASIC_AUTH_PWD || '';
+
     const [allTeamSlugs, verifiedUsersMap] = await Promise.all([
       kv.smembers('global:teams'),
       kv.hgetall('global:verified_users'),
@@ -25,7 +25,6 @@ export async function GET() {
 
     const verifiedMap = (verifiedUsersMap as Record<string, string>) || {};
 
-    // 3. Loop detail tim & cross-check status verifikasi Discord
     const allTeamsData = await Promise.all(
       (allTeamSlugs || []).map(async (slug: any) => {
         const data: any = await kv.hgetall(`teams:${slug}`);
@@ -59,7 +58,6 @@ export async function GET() {
       })
     );
 
-    // 4. Sort Ascending (Pendaftar Pertama / Awal Daftar di atas)
     const formattedData = allTeamsData
       .sort((a, b) => {
         const timeA = new Date(a.createdAt || 0).getTime();
@@ -70,6 +68,13 @@ export async function GET() {
         const totalPlayers = team.players.length;
         const verifiedPlayers = team.players.filter((p: any) => p.hasRoleDiscord).length;
 
+        // Tarik token edit asli dari DB Redis (editToken)
+        const editToken = team.editToken || team.token || team.slug || '';
+        
+        // Buat Link Edit User & Admin Bypass Key
+        const editUrl = `/edit-team/${editToken}`;
+        const adminEditUrl = `/edit-team/${editToken}?key=${adminKey}`;
+
         return {
           id: team.slug,
           no: index + 1,
@@ -79,7 +84,9 @@ export async function GET() {
           warna: team.warna || '#000000',
           logo: team.logoTim || team.logo || '',
           buktiTransfer: team.buktiTransfer || '',
-          tokenEdit: team.token || team.slug,
+          editToken,
+          editUrl,
+          adminEditUrl,
           players: team.players,
           rosterStatus: `${verifiedPlayers}/${totalPlayers}`,
         };
@@ -93,4 +100,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-      }
+}
