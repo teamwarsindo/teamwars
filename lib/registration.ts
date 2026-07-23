@@ -1,95 +1,85 @@
-// ==========================================
-// 1. TIPE STATE UI (KEMBALI KE NAMA ASLI LU)
-// ==========================================
+export type RosterRole = "Ketua" | "Wakil Ketua" | "Anggota"
+export const ROSTER_ROLES: RosterRole[] = ["Ketua", "Wakil Ketua", "Anggota"]
+
+export const MIN_PLAYERS = 5
+export const MAX_PLAYERS = 10
+export const STORAGE_KEY = "twi-s7-duel-links-draft"
+
+export interface Player {
+  id: string
+  role: RosterRole
+  namaLengkap: string
+  discord: string
+  ign: string
+  duelId: string
+}
+
 export interface UploadedFile {
-    file: File | null;
-    url: string;
-    publicId?: string;
+  url: string; // Menyimpan URL Cloudinary
+  name: string;
+  size?: number;
 }
 
-// Sengaja dibalikin ke FormState biar file review-modal & hooks lu nggak hancur
 export interface FormState {
-    namaTim: string;
-    email: string;
-    hex: string;
-    logo: UploadedFile | null;
-    bukti: UploadedFile | null;
+  email: string
+  namaTim: string
+  hex: string
+  players: Player[]
 }
 
-export interface PlayerState {
-    id: string;
-    role: string;
-    ign: string;
-    discordId: string;
-    idDuelLinks: string;
+export function createPlayer(role: RosterRole): Player {
+  return { 
+    id: crypto.randomUUID(), 
+    role, 
+    namaLengkap: "", 
+    discord: "", 
+    ign: "", 
+    duelId: "" 
+  }
 }
 
-export interface RosterState {
-    players: PlayerState[];
+export function defaultPlayers(): Player[] {
+  return [
+    createPlayer("Ketua"), 
+    createPlayer("Wakil Ketua"), 
+    createPlayer("Anggota"), 
+    createPlayer("Anggota"), 
+    createPlayer("Anggota")
+  ]
 }
 
-// ==========================================
-// 2. KONTRAK API BARU (Hanya dipakai saat submit)
-// ==========================================
-export interface PlayerPayload {
-    id: string;
-    role: string;
-    ign: string;
-    discordId: string;
-    idDuelLinks: string;
+export function countRole(players: Player[], role: RosterRole): number {
+  return players.filter((p) => p.role === role).length
 }
 
-export interface RegistrationPayload {
-    namaTim: string;
-    email: string;
-    hex: string;
-    logo?: string; 
-    bukti?: string; 
-    players: PlayerPayload[];
-    isEditMode?: boolean;
-    editToken?: string; 
+export function assignRole(players: Player[], targetId: string, nextRole: RosterRole): Player[] {
+  const isUnique = nextRole === "Ketua" || nextRole === "Wakil Ketua"
+  return players.map((p) => {
+    if (p.id === targetId) return { ...p, role: nextRole }
+    if (isUnique && p.role === nextRole) return { ...p, role: "Anggota" }
+    return p
+  })
 }
 
-// ==========================================
-// 3. FUNGSI UTILITAS LAMA LU
-// ==========================================
-export const MIN_PLAYERS = 5;
-export const MAX_PLAYERS = 10;
+// Deteksi Ganda di Roster
+export function findDuplicateFields(players: Player[]): Set<string> {
+  const flagged = new Set<string>()
+  const fields: Array<keyof Pick<Player, "discord" | "ign" | "duelId">> = ["discord", "ign", "duelId"]
 
-export function countRole(players: PlayerState[], role: string): number {
-    return players.filter((p) => p.role === role).length;
-}
-
-export function findDuplicateFields(players: PlayerState[]): Set<string> {
-    const duplicates = new Set<string>();
-    const igns = new Set<string>();
-    const discords = new Set<string>();
-    const duelIds = new Set<string>();
-
-    players.forEach((p) => {
-        if (p.ign) {
-            const ignLower = p.ign.toLowerCase();
-            if (igns.has(ignLower)) duplicates.add(`${p.id}-ign`);
-            else igns.add(ignLower);
-        }
-        if (p.discordId) {
-            if (discords.has(p.discordId)) duplicates.add(`${p.id}-discordId`);
-            else discords.add(p.discordId);
-        }
-        if (p.idDuelLinks) {
-            if (duelIds.has(p.idDuelLinks)) duplicates.add(`${p.id}-duelId`);
-            else duelIds.add(p.idDuelLinks);
-        }
-    });
-    return duplicates;
-}
-
-export function createEmptyPlayer(role: string = "Anggota"): PlayerState {
-    return {
-        id: crypto.randomUUID(),
-        role,
-        ign: "",
-        discordId: "",
-        idDuelLinks: "",
-    };
+  for (const field of fields) {
+    const seen = new Map<string, string[]>()
+    for (const p of players) {
+      const raw = p[field].trim().toLowerCase()
+      if (!raw) continue
+      const ids = seen.get(raw) ?? []
+      ids.push(p.id)
+      seen.set(raw, ids)
+    }
+    for (const ids of seen.values()) {
+      if (ids.length > 1) {
+        for (const id of ids) flagged.add(`${id}-${field}`)
+      }
+    }
+  }
+  return flagged
 }
