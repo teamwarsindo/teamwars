@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       
       let playerListString = "";
       players.forEach((p: any) => {
-        playerListString += `• ${p.ign} (${p.idDuelLinks})\n`;
+        playerListString += `${p.ign} (${p.idDuelLinks})\n`;
       });
       
       const rosterPayload = {
