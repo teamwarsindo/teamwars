@@ -3,7 +3,7 @@ import { kv } from '@vercel/kv';
 import { discordAPI, hexToDecimal, getFooterText } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
-export async function PUT(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { token, namaTim, warna, logoTim, buktiTransfer, players } = body;
