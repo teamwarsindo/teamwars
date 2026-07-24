@@ -111,7 +111,9 @@ export async function handleBtRole(body: any) {
             { name: "📌 Role Tim", value: foundTeam.discordRoleId ? `<@&${foundTeam.discordRoleId}>` : `*(Belum Ada)*`, inline: true },
             { name: "📊 Status", value: `**${verifiedCount} / ${foundTeam.parsedPlayers.length}** Terverifikasi`, inline: true }
           ],
-          footer: { text: `Diperbarui pada ${dateFormatter.format(now)} pukul ${timeFormatter.format(now).replace(':', '.')} WIB` }
+          footer: { 
+            text: getFooterText(createdAt, updatedAt) 
+          }
         }]
       });
     } catch (e) {
