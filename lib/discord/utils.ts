@@ -45,12 +45,33 @@ export const toProperCase = (str: string) => str.replace(/\w\S*/g, (t) => t.char
 export const getWIBTime = () => new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "long", timeStyle: "medium" });
 
 export function getFooterText(createdAt?: string, updatedAt?: string) {
-  const formatTanggal = (dateRaw: string | Date) => new Date(dateRaw).toLocaleString("id-ID", {
-    timeZone: "Asia/Jakarta", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
-  }) + " WIB";
-  
+  const formatTanggal = (dateRaw: string | Date) => {
+    const d = new Date(dateRaw);
+    
+    // Format tanggal: "20 Jul 2026" (Bahasa Inggris)
+    const dateStr = d.toLocaleDateString("en-GB", {
+      timeZone: "Asia/Jakarta",
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+
+    // Format jam 24 jam: "17:46"
+    const timeStr = d.toLocaleTimeString("en-GB", {
+      timeZone: "Asia/Jakarta",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    });
+
+    return `${dateStr} at ${timeStr} WIB`;
+  };
+
   const waktuBuat = createdAt ? formatTanggal(createdAt) : formatTanggal(new Date());
-  return updatedAt ? `Tercatat di sistem pada ${waktuBuat}\nDiperbarui pada ${formatTanggal(updatedAt)}` : `Tercatat di sistem pada ${waktuBuat}`;
+  
+  return updatedAt 
+    ? `Registered: ${waktuBuat}\nLast Updated: ${formatTanggal(updatedAt)}` 
+    : `Registered: ${waktuBuat}`;
 }
 
 // ✨ Helper Baru untuk warna
