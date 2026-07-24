@@ -17,7 +17,8 @@ export function RosterModal({ team, onClose }: RosterModalProps) {
       onClick={onClose}
     >
       <div
-        className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-4xl w-full p-6 shadow-2xl"
+        // PERBAIKAN 1: Ganti max-w-4xl jadi max-w-6xl biar lebih lebar dan lega di laptop
+        className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-6xl w-full p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6 pb-4 border-b border-neutral-800">
@@ -42,9 +43,10 @@ export function RosterModal({ team, onClose }: RosterModalProps) {
           </button>
         </div>
 
-        <div className="overflow-y-auto max-h-[60vh] rounded-xl border border-neutral-800 bg-neutral-950">
+        {/* PERBAIKAN 2: Ubah overflow-y-auto jadi overflow-auto biar kalau layar kekecilan bisa scroll kanan-kiri */}
+        <div className="overflow-auto max-h-[60vh] rounded-xl border border-neutral-800 bg-neutral-950">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-neutral-900 text-neutral-400 text-xs uppercase tracking-wider sticky top-0">
+            <thead className="bg-neutral-900 text-neutral-400 text-xs uppercase tracking-wider sticky top-0 z-10">
               <tr>
                 <th className="p-4">Role</th>
                 <th className="p-4">Nama Lengkap</th>
@@ -55,7 +57,7 @@ export function RosterModal({ team, onClose }: RosterModalProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800/60">
-              {team.players.map((p, i) => {
+              {team.players.map((p: any, i) => {
                 const isKetua = p.role?.toLowerCase() === 'ketua';
                 const isWakil = p.role?.toLowerCase() === 'wakil';
 
@@ -74,7 +76,10 @@ export function RosterModal({ team, onClose }: RosterModalProps) {
                         {p.role}
                       </span>
                     </td>
-                    <td className="p-4 font-medium text-white">{p.nama}</td>
+                    {/* PERBAIKAN 3: Fallback ke p.namaLengkap jika p.nama tidak ada */}
+                    <td className="p-4 font-medium text-white">
+                      {p.namaLengkap || <span className="text-neutral-600 italic">Data kosong</span>}
+                    </td>
                     <td className="p-4 font-mono text-pink-400">@{p.discord}</td>
                     <td className="p-4 text-neutral-300">{p.ign}</td>
                     <td className="p-4 text-neutral-400 font-mono text-xs">{p.idDuelLinks}</td>
