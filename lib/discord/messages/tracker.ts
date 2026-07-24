@@ -22,7 +22,7 @@ export async function sendTeamTracker({
 
   const payload = {
     embeds: [{
-      title: `🛡️ DATABASE TIM: ${namaTim.toUpperCase()}`,
+      title: namaTim,
       description: `**DAFTAR ROSTER:**\n${rosterText}`,
       color: hexToDecimal(warna),
       fields: [
