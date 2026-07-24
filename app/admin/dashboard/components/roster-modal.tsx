@@ -17,11 +17,11 @@ export function RosterModal({ team, onClose }: RosterModalProps) {
       onClick={onClose}
     >
       <div
-        // PERBAIKAN 1: Ganti max-w-4xl jadi max-w-6xl biar lebih lebar dan lega di laptop
-        className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-6xl w-full p-6 shadow-2xl"
+        className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-6xl w-full p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center mb-6 pb-4 border-b border-neutral-800">
+        {/* Header Modal - Margin bawah disedikitkan biar hemat ruang vertikal */}
+        <div className="flex justify-between items-center mb-4 pb-3 border-b border-neutral-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center justify-center text-purple-400">
               <Users className="w-5 h-5" />
@@ -43,17 +43,18 @@ export function RosterModal({ team, onClose }: RosterModalProps) {
           </button>
         </div>
 
-        {/* PERBAIKAN 2: Ubah overflow-y-auto jadi overflow-auto biar kalau layar kekecilan bisa scroll kanan-kiri */}
-        <div className="overflow-auto max-h-[60vh] rounded-xl border border-neutral-800 bg-neutral-950">
+        {/* PERBAIKAN: max-h-[85vh] biar lebih tinggi ke bawah & siap SS */}
+        <div className="overflow-auto max-h-[85vh] rounded-xl border border-neutral-800 bg-neutral-950 scrollbar-thin scrollbar-thumb-neutral-700">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-neutral-900 text-neutral-400 text-xs uppercase tracking-wider sticky top-0 z-10">
               <tr>
-                <th className="p-4">Role</th>
-                <th className="p-4">Nama Lengkap</th>
-                <th className="p-4">Discord Username</th>
-                <th className="p-4">IGN (In-Game Name)</th>
-                <th className="p-4">ID Duel Links</th>
-                <th className="p-4 text-center">Status Discord</th>
+                {/* Header tabel dibikin py-3 biar ga terlalu tebal */}
+                <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Nama Lengkap</th>
+                <th className="px-4 py-3">Discord Username</th>
+                <th className="px-4 py-3">IGN (In-Game Name)</th>
+                <th className="px-4 py-3">ID Duel Links</th>
+                <th className="px-4 py-3 text-center">Status Discord</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800/60">
@@ -63,9 +64,10 @@ export function RosterModal({ team, onClose }: RosterModalProps) {
 
                 return (
                   <tr key={i} className="hover:bg-neutral-900/40 transition">
-                    <td className="p-4">
+                    {/* PERBAIKAN: td pakai px-4 py-2 (jarak atas-bawah dipendekin jadi cuma 8px) biar 10 orang muat */}
+                    <td className="px-4 py-2">
                       <span
-                        className={`text-xs font-bold px-2.5 py-1 rounded-md border ${
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-md border inline-block ${
                           isKetua
                             ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
                             : isWakil
@@ -76,20 +78,19 @@ export function RosterModal({ team, onClose }: RosterModalProps) {
                         {p.role}
                       </span>
                     </td>
-                    {/* PERBAIKAN 3: Fallback ke p.namaLengkap jika p.nama tidak ada */}
-                    <td className="p-4 font-medium text-white">
-                      {p.namaLengkap || <span className="text-neutral-600 italic">Data kosong</span>}
+                    <td className="px-4 py-2 font-medium text-white">
+                      {p.namaLengkap || p.nama || <span className="text-neutral-600 italic">Data kosong</span>}
                     </td>
-                    <td className="p-4 font-mono text-pink-400">@{p.discord}</td>
-                    <td className="p-4 text-neutral-300">{p.ign}</td>
-                    <td className="p-4 text-neutral-400 font-mono text-xs">{p.idDuelLinks}</td>
-                    <td className="p-4 text-center">
+                    <td className="px-4 py-2 font-mono text-pink-400">@{p.discord}</td>
+                    <td className="px-4 py-2 text-neutral-300">{p.ign}</td>
+                    <td className="px-4 py-2 text-neutral-400 font-mono text-xs">{p.idDuelLinks}</td>
+                    <td className="px-4 py-2 text-center">
                       {p.hasRoleDiscord ? (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold">
+                        <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[11px] font-semibold">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Verified
                         </div>
                       ) : (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg text-xs font-semibold">
+                        <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg text-[11px] font-semibold">
                           <XCircle className="w-3.5 h-3.5" /> Missing
                         </div>
                       )}
