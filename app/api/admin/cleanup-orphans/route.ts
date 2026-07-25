@@ -4,74 +4,103 @@ import { kv } from '@vercel/kv';
 export async function POST() {
   try {
     const teamKeys = await kv.keys('teams:*');
+    const verifiedUsersData = await kv.hgetall('global:verified_users') || {};
+    const verifiedMap = verifiedUsersData as Record<string, string>;
 
-    // Gunakan Set untuk mempercepat perbandingan (disimpan dalam bentuk lowercase/bersih)
-    const validDiscordSet = new Set<string>();
-    const validIgnSet = new Set<string>();
+    const validPlayers: any[] = [];
+    const validTeams = new Set<string>();
 
-    // 1. Kumpulkan semua pemain yang SAH dari seluruh tim aktif
     for (const key of teamKeys) {
       const teamData: any = await kv.hgetall(key);
       if (teamData && teamData.players) {
-        const players = typeof teamData.players === 'string' 
-          ? JSON.parse(teamData.players) 
+        const teamSlug = key.replace('teams:', '');
+        validTeams.add(teamSlug);
+
+        const players = typeof teamData.players === 'string'
+          ? JSON.parse(teamData.players)
           : teamData.players;
 
         players.forEach((p: any) => {
-          if (p.discord) {
-            // Standarisasi perbandingan: lowercase, tanpa spasi, tanpa @
-            validDiscordSet.add(p.discord.toLowerCase().replace(/^@/, '').trim());
-          }
-          if (p.ign) {
-            validIgnSet.add(p.ign.toLowerCase().trim());
-          }
+          validPlayers.push({
+            ...p,
+            teamSlug: teamSlug,
+            namaTim: teamData.namaTim
+          });
         });
       }
     }
 
-    // 2. Ambil data asli/mentah dari array Global (beserta huruf besar/kecil/simbol aslinya)
-    const rawGlobalDiscords: string[] = await kv.smembers('registered_discords') || [];
-    const rawGlobalIgns: string[] = await kv.smembers('registered_igns') || [];
-
-    // 3. Filter siapa saja yang YATIM (Ada di Global, tapi tidak terdeteksi di tim sah)
-    const orphanDiscords = rawGlobalDiscords.filter((rawDiscord) => {
-      const standardizedDiscord = rawDiscord.toLowerCase().replace(/^@/, '').trim();
-      return !validDiscordSet.has(standardizedDiscord);
-    });
-
-    const orphanIgns = rawGlobalIgns.filter((rawIgn) => {
-      const standardizedIgn = rawIgn.toLowerCase().trim();
-      return !validIgnSet.has(standardizedIgn);
-    });
-
-    // 4. Proses Sapu Bersih (Menggunakan String Asli agar SREM sukses 100%)
-    for (const d of orphanDiscords) {
-      // SREM wajib menggunakan raw string dari database
-      await kv.srem('registered_discords', d);
-      
-      // Kunci individu player selalu di-set lowercase di kode registrasi lu, jadi kita hapus versi lowercasenya
-      const cleanKey = d.toLowerCase().replace(/^@/, '').trim();
-      await kv.del(`player:${cleanKey}`);
+    // NUKE (HAPUS TOTAL)
+    await kv.del('global:discord');
+    await kv.del('global:discord_ids'); 
+    await kv.del('global:ign');
+    await kv.del('global:duellinks');
+    await kv.del('global:teams');       
+    
+    const playerKeys = await kv.keys('player:*');
+    if (playerKeys.length > 0) {
+      await kv.del(...playerKeys);
     }
 
-    for (const ign of orphanIgns) {
-      await kv.srem('registered_igns', ign);
+    // REBUILD (BANGUN ULANG) - TANPA LOWERCASE UNTUK VALUE!
+    for (const slug of Array.from(validTeams)) {
+      await kv.sadd('global:teams', slug);
+    }
+
+    let rebuildCount = 0;
+    for (const p of validPlayers) {
+      // Ambil STRING ASLI persis seperti inputan form (cuma bersihin @ dan spasi depan/belakang)
+      const originalDiscord = p.discord ? p.discord.replace(/^@/, '').trim() : '';
+      const originalIgn = p.ign ? p.ign.trim() : '';
+      const originalId = p.idDuelLinks ? p.idDuelLinks.toString().trim() : '';
+
+      // Untuk key pencarian (gembok), kita tetep butuh lowercase biar sistem nggak bingung
+      const searchKeyDiscord = originalDiscord.toLowerCase();
+
+      if (originalDiscord) {
+        // 1. Simpan STRING ASLI ke global (Huruf besar/kecil dipertahankan)
+        await kv.sadd('global:discord', originalDiscord);
+        
+        // 2. Cari ID Angka (Coba pakai string asli dulu, kalau gagal coba pakai lowercase)
+        const discordId = verifiedMap[originalDiscord] || verifiedMap[searchKeyDiscord];
+        if (discordId) {
+            await kv.sadd('global:discord_ids', discordId);
+        }
+
+        // 3. Simpan STRING ASLI ke profil player
+        await kv.set(`player:${searchKeyDiscord}`, {
+          teamId: p.teamSlug,
+          namaTim: p.namaTim,
+          ign: originalIgn,          // Simpan IGN Asli (Kapital dipertahankan)
+          discord: originalDiscord,  // Simpan Discord Asli
+          role: p.role || 'Anggota'
+        });
+      }
+      
+      if (originalIgn) {
+        // 4. Masukkan IGN Asli ke global
+        await kv.sadd('global:ign', originalIgn);
+      }
+      
+      if (originalId) {
+        await kv.sadd('global:duellinks', originalId);
+      }
+      
+      rebuildCount++;
     }
 
     return NextResponse.json({
       success: true,
       stats: {
-        totalTimDiperiksa: teamKeys.length,
-        totalPemainValid: validDiscordSet.size,
-        sampahDiscordDihapus: orphanDiscords.length,
-        sampahIgnDihapus: orphanIgns.length,
-      },
+        totalTimDirebuild: validTeams.size,
+        totalPemainDirebuild: rebuildCount,
+        status: "Nuke & Rebuild Selesai! Huruf kapital player dipertahankan."
+      }
     });
+
   } catch (error: any) {
-    console.error('Error cleanup orphans:', error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    console.error('Nuke & Rebuild Error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
         }
+    
