@@ -155,7 +155,7 @@ export async function POST(req: Request) {
       await discordAPI(`/channels/${team.discordChannelId}/messages/${team.trackerMsgId}`, 'PATCH', trackerPayload).catch(console.error);
     }
 
-    return NextResponse.json({ success: true, message: 'Sinkronisasi Super (Database, Auto-Verify Discord & Embed) berhasil!' });
+        return NextResponse.json({ success: true, message: `"${namaTim}" berhasil sinkron ke Database Global.` });
   } catch (error: any) {
     console.error('Sync Error:', error);
     return NextResponse.json({ error: 'Gagal melakukan sinkronisasi.' }, { status: 500 });
