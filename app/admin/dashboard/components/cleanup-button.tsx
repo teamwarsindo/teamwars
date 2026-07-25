@@ -6,7 +6,8 @@ export function CleanupButton() {
   const [loading, setLoading] = useState(false);
 
   const handleCleanup = async () => {
-    if (!confirm('Yakin ingin menyapu bersih data Discord & IGN yang nyangkut/yatim?')) return;
+    // Pesan konfirmasi yang lebih tegas dan profesional
+    if (!confirm('Apakah Anda yakin ingin membersihkan data residu (orphan data) Discord dan IGN dari sistem? Tindakan ini tidak dapat dibatalkan.')) return;
     
     setLoading(true);
     try {
@@ -14,12 +15,13 @@ export function CleanupButton() {
       const data = await res.json();
       
       if (data.success) {
-        alert(`Berhasil! Dihapus: ${data.stats.sampahDiscordDihapus} Discord & ${data.stats.sampahIgnDihapus} IGN Yatim.`);
+        // Laporan hasil (alert) yang lebih rapi
+        alert(`Pembersihan sistem berhasil.\nTotal data residu yang dihapus: ${data.stats.sampahDiscordDihapus} akun Discord & ${data.stats.sampahIgnDihapus} IGN.`);
       } else {
-        alert('Gagal: ' + data.error);
+        alert('Proses pembersihan gagal: ' + data.error);
       }
     } catch (err) {
-      alert('Terjadi kesalahan jaringan.');
+      alert('Terjadi kesalahan pada jaringan atau server.');
     } finally {
       setLoading(false);
     }
@@ -30,10 +32,10 @@ export function CleanupButton() {
       onClick={handleCleanup}
       disabled={loading}
       className="flex items-center gap-2 px-4 py-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-      title="Bersihkan Data Lama yang Nyangkut"
+      title="Bersihkan Data Residu Sistem"
     >
       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-      <span className="hidden sm:inline">{loading ? 'Membersihkan...' : 'Sapu Data'}</span>
+      <span className="hidden sm:inline">{loading ? 'Memproses...' : 'Bersihkan Data'}</span>
     </button>
   );
 }
