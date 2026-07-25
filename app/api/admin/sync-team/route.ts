@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const warna = team.warna as string;
     const logoTim = team.logoTim as string;
     const createdAt = team.createdAt as string;
-    const updatedAt = team.updatedAt as string || new Date().toISOString();
+    const updatedAt = team.updatedAt as string;
 
     // 1. SYNC EMBED ROSTER
     if (team.adminMsgId) {
