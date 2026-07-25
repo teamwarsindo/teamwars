@@ -149,7 +149,7 @@ export async function POST(req: Request) {
             { name: "📌 Role Tim", value: teamRoleId ? `<@&${teamRoleId}>` : '(Belum Ada)', inline: true },
             { name: "📊 Status", value: `${verifiedCount} / ${players.length} Terverifikasi`, inline: true }
           ],
-          footer: { text: getFooterText(createdAt, new Date().toISOString();) }
+          footer: { text: getFooterText(createdAt, new Date().toISOString() ) }
         }]
       };
       await discordAPI(`/channels/${team.discordChannelId}/messages/${team.trackerMsgId}`, 'PATCH', trackerPayload).catch(console.error);
