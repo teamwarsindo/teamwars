@@ -3,49 +3,55 @@ import { kv } from '@vercel/kv';
 
 export async function POST() {
   try {
-    // 1. Ambil semua key tim yang aktif di database Vercel KV
     const teamKeys = await kv.keys('teams:*');
-    
-    const validDiscords = new Set<string>();
-    const validIgns = new Set<string>();
 
-    // 2. Kumpulkan semua Discord Username & IGN dari tim yang sah (Keranjang A)
+    // Gunakan Set untuk mempercepat perbandingan (disimpan dalam bentuk lowercase/bersih)
+    const validDiscordSet = new Set<string>();
+    const validIgnSet = new Set<string>();
+
+    // 1. Kumpulkan semua pemain yang SAH dari seluruh tim aktif
     for (const key of teamKeys) {
       const teamData: any = await kv.hgetall(key);
       if (teamData && teamData.players) {
-        // Parsing aman untuk format string JSON atau array langsung
         const players = typeof teamData.players === 'string' 
           ? JSON.parse(teamData.players) 
           : teamData.players;
 
         players.forEach((p: any) => {
           if (p.discord) {
-            validDiscords.add(p.discord.toLowerCase().replace(/^@/, '').trim());
+            // Standarisasi perbandingan: lowercase, tanpa spasi, tanpa @
+            validDiscordSet.add(p.discord.toLowerCase().replace(/^@/, '').trim());
           }
           if (p.ign) {
-            validIgns.add(p.ign.toLowerCase().trim());
+            validIgnSet.add(p.ign.toLowerCase().trim());
           }
         });
       }
     }
 
-    // 3. Ambil isi set global saat ini (Keranjang B)
-    const currentDiscords = await kv.smembers('registered_discords') || [];
-    const currentIgns = await kv.smembers('registered_igns') || [];
+    // 2. Ambil data asli/mentah dari array Global (beserta huruf besar/kecil/simbol aslinya)
+    const rawGlobalDiscords: string[] = await kv.smembers('registered_discords') || [];
+    const rawGlobalIgns: string[] = await kv.smembers('registered_igns') || [];
 
-    // 4. Cari yang YATIM (Ada di Global, tapi tidak ada di Tim manapun)
-    const orphanDiscords = currentDiscords.filter(
-      (d) => !validDiscords.has(d.toLowerCase().replace(/^@/, '').trim())
-    );
-    const orphanIgns = currentIgns.filter(
-      (ign) => !validIgns.has(ign.toLowerCase().trim())
-    );
+    // 3. Filter siapa saja yang YATIM (Ada di Global, tapi tidak terdeteksi di tim sah)
+    const orphanDiscords = rawGlobalDiscords.filter((rawDiscord) => {
+      const standardizedDiscord = rawDiscord.toLowerCase().replace(/^@/, '').trim();
+      return !validDiscordSet.has(standardizedDiscord);
+    });
 
-    // 5. Eksekusi Hapus (Sapu Bersih)
+    const orphanIgns = rawGlobalIgns.filter((rawIgn) => {
+      const standardizedIgn = rawIgn.toLowerCase().trim();
+      return !validIgnSet.has(standardizedIgn);
+    });
+
+    // 4. Proses Sapu Bersih (Menggunakan String Asli agar SREM sukses 100%)
     for (const d of orphanDiscords) {
-      const cleanOrphan = d.toLowerCase().replace(/^@/, '').trim();
-      await kv.srem('registered_discords', d);       // Hapus dari global set
-      await kv.del(`player:${cleanOrphan}`);         // Hapus key individu
+      // SREM wajib menggunakan raw string dari database
+      await kv.srem('registered_discords', d);
+      
+      // Kunci individu player selalu di-set lowercase di kode registrasi lu, jadi kita hapus versi lowercasenya
+      const cleanKey = d.toLowerCase().replace(/^@/, '').trim();
+      await kv.del(`player:${cleanKey}`);
     }
 
     for (const ign of orphanIgns) {
@@ -56,7 +62,7 @@ export async function POST() {
       success: true,
       stats: {
         totalTimDiperiksa: teamKeys.length,
-        totalPemainValid: validDiscords.size,
+        totalPemainValid: validDiscordSet.size,
         sampahDiscordDihapus: orphanDiscords.length,
         sampahIgnDihapus: orphanIgns.length,
       },
@@ -68,4 +74,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-                              }
+        }
