@@ -23,7 +23,36 @@ export async function POST(req: Request) {
     const createdAt = team.createdAt as string;
     const updatedAt = team.updatedAt as string;
 
-    // 1. SYNC EMBED ROSTER
+    // =========================================================================
+    // 1. SYNC DATABASE GLOBAL (SELF-HEALING)
+    // Memastikan seluruh pemain di tim ini tercatat resmi di sistem Global.
+    // Jika belum ada, paksa masukkan. Jika sudah ada, sistem Redis akan mengabaikannya (karena Set).
+    // =========================================================================
+    for (const p of players) {
+      const cleanDiscord = p.discord?.toLowerCase().replace(/^@/, '').trim();
+      const cleanIgn = p.ign?.toLowerCase().trim();
+
+      if (cleanDiscord) {
+        // Masukkan ke array global
+        await kv.sadd('registered_discords', cleanDiscord);
+        // Perbarui profil individual player agar bot kenal dia di tim mana
+        await kv.set(`player:${cleanDiscord}`, {
+          teamId: teamSlug,
+          namaTim: namaTim,
+          ign: p.ign,
+          role: p.role || 'Anggota'
+        });
+      }
+      
+      if (cleanIgn) {
+        // Masukkan IGN ke array global
+        await kv.sadd('registered_igns', cleanIgn);
+      }
+    }
+
+    // =========================================================================
+    // 2. SYNC EMBED ROSTER DI DISCORD
+    // =========================================================================
     if (team.adminMsgId) {
       const ketua = players.find((p: any) => p.role?.toLowerCase() === 'ketua') || players[0];
       const wakil = players.find((p: any) => p.role?.toLowerCase() === 'wakil') || players[1];
@@ -47,7 +76,9 @@ export async function POST(req: Request) {
       await discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${team.adminMsgId}`, 'PATCH', rosterPayload).catch(console.error);
     }
 
-    // 2. SYNC EMBED TRACKER
+    // =========================================================================
+    // 3. SYNC EMBED TRACKER DI DISCORD
+    // =========================================================================
     if (team.discordChannelId && team.trackerMsgId) {
       let verifiedCount = 0;
       let rosterText = "";
@@ -74,10 +105,10 @@ export async function POST(req: Request) {
       await discordAPI(`/channels/${team.discordChannelId}/messages/${team.trackerMsgId}`, 'PATCH', trackerPayload).catch(console.error);
     }
 
-    return NextResponse.json({ success: true, message: 'Sinkronisasi Discord berhasil!' });
+    return NextResponse.json({ success: true, message: 'Sinkronisasi Global Database & Discord berhasil!' });
   } catch (error: any) {
     console.error('Sync Error:', error);
     return NextResponse.json({ error: 'Gagal melakukan sinkronisasi.' }, { status: 500 });
   }
-                                                                                   }
-                   
+}
+  
