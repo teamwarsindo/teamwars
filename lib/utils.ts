@@ -16,4 +16,8 @@ export const toProperCase = (str: string) =>
   str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.substring(1).toLowerCase())
 
 export const getWIBTime = () =>
-  new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "long", timeStyle: "medium" })
+  new Date().toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    dateStyle: "long",
+    timeStyle: "medium"
+  }) + " WIB";
