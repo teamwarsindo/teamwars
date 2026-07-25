@@ -4,7 +4,7 @@ import { useAdminTeams } from './hooks/use-admin-teams';
 import { AdminTable } from './components/admin-table';
 import { ProofModal } from './components/proof-modal';
 import { RosterModal } from './components/roster-modal';
-import { CleanupButton } from './components/cleanup-button'; // <-- IMPORT TOMBOL CLEANUP
+import { CleanupButton } from './components/cleanup-button';
 import { Search, LogOut, RefreshCw, Trophy } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -48,7 +48,7 @@ export default function AdminDashboardPage() {
 
           {/* Dijejerin bareng tombol Refresh & Keluar */}
           <div className="flex items-center gap-3">
-            <CleanupButton /> {/* <-- TOMBOL CLEANUP MASUK DI SINI */}
+            <CleanupButton />
             
             <button
               onClick={refresh}
@@ -97,6 +97,7 @@ export default function AdminDashboardPage() {
           isLoading={isLoading}
           onPreviewProof={(url) => setPreviewImg(url)}
           onSelectRoster={(team) => setSelectedRoster(team)}
+          onRefreshData={refresh} // <--- SUDAH DITAMBAHKAN DI SINI
         />
 
         {/* Modal Bukti Transfer */}
@@ -107,4 +108,4 @@ export default function AdminDashboardPage() {
       </div>
     </main>
   );
-}
+      }
