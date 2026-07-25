@@ -1,4 +1,4 @@
-import { toProperCase } from "../../utils"
+import { toProperCase } from '../../utils'
 
 export function getApprovalTemplate(data: {
   namaTim: string;
