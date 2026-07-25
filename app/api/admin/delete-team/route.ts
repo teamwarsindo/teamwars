@@ -2,6 +2,30 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { v2 as cloudinary } from 'cloudinary';
+
+// ⚙️ Konfigurasi Cloudinary Admin API
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// 🛠️ Helper: Ekstrak "Public ID" Cloudinary dari URL Web
+function getCloudinaryPublicId(url: string, type: 'logo' | 'bukti') {
+  try {
+    if (!url) return null;
+    const urlObj = new URL(url);
+    const filenameWithExt = urlObj.pathname.split('/').pop();
+    if (!filenameWithExt) return null;
+    
+    const filename = filenameWithExt.split('.')[0];
+    const folder = type === 'logo' ? 'twi-season-7/logos' : 'twi-season-7/bukti';
+    return `${folder}/${filename}`;
+  } catch (e) {
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -20,65 +44,122 @@ export async function POST(req: Request) {
     const verifiedMap = (verifiedUsersMap as Record<string, string>) || {};
     const players = typeof team.players === 'string' ? JSON.parse(team.players) : (team.players || []);
 
-    // 2. DISCORD CLEANUP (Dibungkus try-catch individu agar kalau 1 gagal, yang lain tetap jalan)
+    // =========================================================================
+    // 1. CLOUDINARY CLEANUP (Hapus Gambar Logo & Bukti Transfer)
+    // =========================================================================
+    const logoPublicId = getCloudinaryPublicId(team.logoTim as string, 'logo');
+    if (logoPublicId) {
+      await cloudinary.uploader.destroy(logoPublicId).catch((err) => {
+        console.error(`Gagal hapus logo ${logoPublicId} di Cloudinary:`, err);
+      });
+    }
+
+    const buktiPublicId = getCloudinaryPublicId(team.buktiTransfer as string, 'bukti');
+    if (buktiPublicId) {
+      await cloudinary.uploader.destroy(buktiPublicId).catch((err) => {
+        console.error(`Gagal hapus bukti transfer ${buktiPublicId} di Cloudinary:`, err);
+      });
+    }
+
+    // =========================================================================
+    // 2. DISCORD FULL CLEANUP (TERMASUK COPOT ROLE KETUA, WAKIL & DUELIST)
+    // =========================================================================
     
-    // A. Reset Nickname semua pemain ke default (hapus IGN)
     for (const p of players) {
-      const pDiscord = p.discord ? p.discord.toLowerCase().replace(/^@/, '').trim() : '';
-      const discordId = verifiedMap[pDiscord];
+      const originalDiscord = p.discord ? p.discord.replace(/^@/, '').trim() : '';
+      const searchKeyDiscord = originalDiscord.toLowerCase();
+      const discordId = verifiedMap[originalDiscord] || verifiedMap[searchKeyDiscord];
+      const roleJabatan = (p.role || '').toLowerCase();
 
       if (discordId) {
+        // A. Reset Nickname Pemain (Copot IGN)
         try {
-          // Ngirim nick: null akan me-reset display name ke aslinya
           await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${discordId}`, 'PATCH', { nick: null });
         } catch (err) {
-          console.error(`Gagal reset nickname user ${p.discord}:`, err);
+          console.error(`Gagal reset nickname user ${originalDiscord}:`, err);
+        }
+
+        // B. Copot Role Jabatan (Ketua / Wakil) di Discord
+        if (roleJabatan === 'ketua' && DISCORD_CONFIG.ROLE_KETUA) {
+          await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${discordId}/roles/${DISCORD_CONFIG.ROLE_KETUA}`, 'DELETE').catch(() => {});
+        } else if ((roleJabatan === 'wakil' || roleJabatan === 'wakil ketua') && DISCORD_CONFIG.ROLE_WAKIL) {
+          await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${discordId}/roles/${DISCORD_CONFIG.ROLE_WAKIL}`, 'DELETE').catch(() => {});
+        }
+
+        // C. Copot Role Duelist (Karena timnya sudah bubar/diskualifikasi)
+        if (DISCORD_CONFIG.ROLE_DUELIST) {
+          await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${discordId}/roles/${DISCORD_CONFIG.ROLE_DUELIST}`, 'DELETE').catch(() => {});
         }
       }
     }
 
-    // B. Hapus Role Tim di Discord
+    // D. Hapus Role Tim
     const roleId = team.discordRoleId || team.roleId;
     if (roleId) {
-      try {
-        await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/roles/${roleId}`, 'DELETE');
-      } catch (err) {
-        console.error(`Gagal hapus Role ID ${roleId}:`, err);
-      }
+      await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/roles/${roleId}`, 'DELETE').catch(() => {});
     }
 
-    // C. Hapus Channel Tim (Camp) di Discord
+    // E. Hapus TEXT Channel & VOICE Channel
     const channelId = team.discordChannelId || team.channelId;
     if (channelId) {
-      try {
-        await discordAPI(`/channels/${channelId}`, 'DELETE');
-      } catch (err) {
-        console.error(`Gagal hapus Channel ID ${channelId}:`, err);
-      }
+      await discordAPI(`/channels/${channelId}`, 'DELETE').catch(() => {});
+    }
+    const voiceChannelId = team.discordVoiceChannelId;
+    if (voiceChannelId) {
+      await discordAPI(`/channels/${voiceChannelId}`, 'DELETE').catch(() => {});
     }
 
-    // 3. DATABASE CLEANUP (Sapu Bersih)
+    // F. Hapus Pesan Embed di Channel #roster, #bukti-transfer, dan #logo
+    if (team.adminMsgId) {
+      await discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${team.adminMsgId}`, 'DELETE').catch(() => {});
+    }
+    if (team.financeMsgId) {
+      await discordAPI(`/channels/${DISCORD_CONFIG.CH_BUKTI}/messages/${team.financeMsgId}`, 'DELETE').catch(() => {});
+    }
+    if (team.creativeMsgId) {
+      await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOGO}/messages/${team.creativeMsgId}`, 'DELETE').catch(() => {});
+    }
+
+    // =========================================================================
+    // 3. DATABASE SAPU BERSIH (EXACT MATCH)
+    // =========================================================================
     for (const p of players) {
-      const cleanDiscord = p.discord?.toLowerCase().replace(/^@/, '').trim();
-      const cleanIgn = p.ign?.toLowerCase().trim();
+      const originalDiscord = p.discord ? p.discord.replace(/^@/, '').trim() : '';
+      const searchKeyDiscord = originalDiscord.toLowerCase();
+      const originalIgn = p.ign ? p.ign.trim() : '';
+      const idDuelLinks = p.idDuelLinks ? p.idDuelLinks.toString().trim() : '';
 
-      if (cleanDiscord) {
-        await kv.srem('registered_discords', cleanDiscord);
-        await kv.del(`player:${cleanDiscord}`);
+      if (originalDiscord) {
+        await kv.srem('global:discord', originalDiscord);
+        await kv.del(`player:${searchKeyDiscord}`);
+        
+        await kv.hdel('global:verified_users', originalDiscord);
+        await kv.hdel('global:verified_users', searchKeyDiscord);
+
+        const discordId = verifiedMap[originalDiscord] || verifiedMap[searchKeyDiscord];
+        if (discordId) {
+          await kv.srem('global:discord_ids', discordId);
+        }
       }
-      if (cleanIgn) {
-        await kv.srem('registered_igns', cleanIgn);
+      if (originalIgn) {
+        await kv.srem('global:ign', originalIgn);
+      }
+      if (idDuelLinks) {
+        await kv.srem('global:duellinks', idDuelLinks);
+        await kv.srem('global:duelId', idDuelLinks);
       }
     }
 
-    // Hapus data inti tim
-    await kv.del(`token:map:${team.editToken}`);
+    if (team.editToken) {
+      await kv.del(`token:map:${team.editToken}`);
+    }
     await kv.del(`teams:${teamSlug}`);
-    await kv.srem('teams_index', teamSlug);
+    await kv.srem('global:teams', teamSlug);
 
-    return NextResponse.json({ success: true, message: 'Tim berhasil didiskualifikasi & dihapus total!' });
+    return NextResponse.json({ success: true, message: 'Tim beserta seluruh channel, role tim/ketua/wakil/duelist, roster, logo, bukti transfer, dan jejak datanya berhasil dibasmi!' });
   } catch (error: any) {
     console.error('Error delete team:', error);
     return NextResponse.json({ error: 'Gagal menghapus tim: ' + error.message }, { status: 500 });
   }
-    }
+      }
+      
