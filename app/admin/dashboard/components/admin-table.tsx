@@ -3,16 +3,16 @@
 import { useState } from 'react';
 import { Team } from '../hooks/use-admin-teams';
 import { Eye, Users, Edit, ShieldAlert, RefreshCw, Trash2, Loader2 } from 'lucide-react';
+import { FeedbackModal, FeedbackState } from './feedback-modal';
 
 interface AdminTableProps {
   teams: Team[];
   isLoading: boolean;
   onPreviewProof: (url: string) => void;
   onSelectRoster: (team: Team) => void;
-  onRefreshData: () => void; // TAMBAHAN BARU: Untuk ngereload table pasca hapus tim
+  onRefreshData: () => void;
 }
 
-// Komponen Action khusus per baris (biar loading statenya nggak bikin satu tabel rerender)
 function TeamRowActions({
   team,
   onRefreshData,
@@ -26,6 +26,7 @@ function TeamRowActions({
 }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -33,13 +34,32 @@ function TeamRowActions({
       const res = await fetch('/api/admin/sync-team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamSlug: team.id }), // Asumsi ada field slug
+        body: JSON.stringify({ teamSlug: team.id }),
       });
       const data = await res.json();
-      if (data.success) alert(`Sukses: ${data.message}`);
-      else alert(`Gagal: ${data.error}`);
+
+      if (data.success) {
+        setFeedback({
+          isOpen: true,
+          type: 'success',
+          title: 'Sinkronisasi Berhasil',
+          message: `Data tim "${team.namaTim}" telah berhasil disinkronkan ke Database Global dan Discord.`,
+        });
+      } else {
+        setFeedback({
+          isOpen: true,
+          type: 'error',
+          title: 'Sinkronisasi Gagal',
+          message: data.error || 'Gagal memperbarui data tim di Discord.',
+        });
+      }
     } catch (err) {
-      alert('Network error saat sinkronisasi');
+      setFeedback({
+        isOpen: true,
+        type: 'error',
+        title: 'Kesalahan Jaringan',
+        message: 'Gagal menghubungkan ke server sinkronisasi.',
+      });
     } finally {
       setIsSyncing(false);
     }
@@ -47,11 +67,18 @@ function TeamRowActions({
 
   const handleDelete = async () => {
     const confirmPrompt = window.prompt(
-      `PENGHAPUSAN PERMANEN\nKetik "HAPUS" untuk mendiskualifikasi dan menghapus tim ${team.namaTim} (Role & Channel Discord juga akan dihapus):`
+      `PENGHAPUSAN PERMANEN\nKetik "HAPUS" untuk mendiskualifikasi dan menghapus tim ${team.namaTim}:`
     );
 
     if (confirmPrompt !== 'HAPUS') {
-      if (confirmPrompt !== null) alert('Pembatalan: Kata kunci tidak sesuai.');
+      if (confirmPrompt !== null) {
+        setFeedback({
+          isOpen: true,
+          type: 'error',
+          title: 'Aksi Dibatalkan',
+          message: 'Kata kunci konfirmasi tidak sesuai.',
+        });
+      }
       return;
     }
 
@@ -60,85 +87,98 @@ function TeamRowActions({
       const res = await fetch('/api/admin/delete-team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamSlug: team.id }), // Asumsi ada field slug
+        body: JSON.stringify({ teamSlug: team.id }),
       });
       const data = await res.json();
 
       if (data.success) {
-        alert('Tim berhasil dihapus!');
-        onRefreshData(); // Panggil fungsi refresh di parent
+        setFeedback({
+          isOpen: true,
+          type: 'success',
+          title: 'Tim Berhasil Dihapus',
+          message: `Tim "${team.namaTim}" telah didiskualifikasi dan seluruh data/role/channel terkait telah dibersihkan.`,
+        });
+        onRefreshData();
       } else {
-        alert(`Gagal: ${data.error}`);
+        setFeedback({
+          isOpen: true,
+          type: 'error',
+          title: 'Penghapusan Gagal',
+          message: data.error || 'Gagal menghapus tim dari database.',
+        });
       }
     } catch (err) {
-      alert('Network error saat menghapus tim');
+      setFeedback({
+        isOpen: true,
+        type: 'error',
+        title: 'Kesalahan Jaringan',
+        message: 'Gagal terhubung ke server saat menghapus tim.',
+      });
     } finally {
       setIsDeleting(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center gap-1.5">
-      {/* 1. Lihat Bukti */}
-      <button
-        onClick={() => onPreviewProof(team.buktiTransfer)}
-        className="p-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-500 hover:text-white transition"
-        title="Lihat Bukti Transfer"
-      >
-        <Eye className="w-4 h-4" />
-      </button>
+    <>
+      <div className="flex items-center justify-center gap-1.5">
+        <button
+          onClick={() => onPreviewProof(team.buktiTransfer)}
+          className="p-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-500 hover:text-white transition"
+          title="Lihat Bukti Transfer"
+        >
+          <Eye className="w-4 h-4" />
+        </button>
 
-      {/* 2. Modal Roster */}
-      <button
-        onClick={() => onSelectRoster(team)}
-        className="p-2 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-xl hover:bg-purple-500 hover:text-white transition"
-        title="Detail Roster"
-      >
-        <Users className="w-4 h-4" />
-      </button>
+        <button
+          onClick={() => onSelectRoster(team)}
+          className="p-2 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-xl hover:bg-purple-500 hover:text-white transition"
+          title="Detail Roster"
+        >
+          <Users className="w-4 h-4" />
+        </button>
 
-      {/* 3. Link Edit Tim Biasa */}
-      <a
-        href={team.editUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="p-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl hover:bg-amber-500 hover:text-white transition"
-        title="Edit Team (Token User)"
-      >
-        <Edit className="w-4 h-4" />
-      </a>
+        <a
+          href={team.editUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="p-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl hover:bg-amber-500 hover:text-white transition"
+          title="Edit Team (Token User)"
+        >
+          <Edit className="w-4 h-4" />
+        </a>
 
-      {/* 4. Link Edit Admin Bypass */}
-      <a
-        href={team.adminEditUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="p-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl hover:bg-emerald-500 hover:text-white transition"
-        title="Edit Team (Admin Key Bypass)"
-      >
-        <ShieldAlert className="w-4 h-4" />
-      </a>
+        <a
+          href={team.adminEditUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="p-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl hover:bg-emerald-500 hover:text-white transition"
+          title="Edit Team (Admin Key Bypass)"
+        >
+          <ShieldAlert className="w-4 h-4" />
+        </a>
 
-      {/* 5. TOMBOL BARU: Force Sync Discord */}
-      <button
-        onClick={handleSync}
-        disabled={isSyncing || isDeleting}
-        className="p-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl hover:bg-indigo-500 hover:text-white transition disabled:opacity-50"
-        title="Force Sync Discord (Roster & Tracker)"
-      >
-        {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-      </button>
+        <button
+          onClick={handleSync}
+          disabled={isSyncing || isDeleting}
+          className="p-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl hover:bg-indigo-500 hover:text-white transition disabled:opacity-50"
+          title="Force Sync Discord & Global DB"
+        >
+          {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+        </button>
 
-      {/* 6. TOMBOL BARU: Hapus Tim */}
-      <button
-        onClick={handleDelete}
-        disabled={isSyncing || isDeleting}
-        className="p-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition disabled:opacity-50"
-        title="Diskualifikasi & Hapus Tim"
-      >
-        {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-      </button>
-    </div>
+        <button
+          onClick={handleDelete}
+          disabled={isSyncing || isDeleting}
+          className="p-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition disabled:opacity-50"
+          title="Diskualifikasi & Hapus Tim"
+        >
+          {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        </button>
+      </div>
+
+      <FeedbackModal data={feedback} onClose={() => setFeedback(null)} />
+    </>
   );
 }
 
@@ -147,7 +187,7 @@ export function AdminTable({
   isLoading,
   onPreviewProof,
   onSelectRoster,
-  onRefreshData, // TAMBAHAN BARU
+  onRefreshData,
 }: AdminTableProps) {
   const formatDateWIB = (dateString: string) => {
     const date = new Date(dateString);
@@ -247,7 +287,6 @@ export function AdminTable({
                     </span>
                   </td>
                   <td className="p-4 text-center">
-                    {/* Menggunakan komponen aksi yang baru dibuat */}
                     <TeamRowActions
                       team={team}
                       onPreviewProof={onPreviewProof}
@@ -263,4 +302,5 @@ export function AdminTable({
       </table>
     </div>
   );
-}
+      }
+          
