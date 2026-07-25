@@ -33,7 +33,7 @@ function TeamRowActions({
       const res = await fetch('/api/admin/sync-team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamSlug: team.slug }), // Asumsi ada field slug
+        body: JSON.stringify({ teamSlug: team.id }), // Asumsi ada field slug
       });
       const data = await res.json();
       if (data.success) alert(`Sukses: ${data.message}`);
@@ -60,7 +60,7 @@ function TeamRowActions({
       const res = await fetch('/api/admin/delete-team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamSlug: team.slug }), // Asumsi ada field slug
+        body: JSON.stringify({ teamSlug: team.id }), // Asumsi ada field slug
       });
       const data = await res.json();
 
