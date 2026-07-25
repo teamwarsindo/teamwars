@@ -4,6 +4,7 @@ import { useAdminTeams } from './hooks/use-admin-teams';
 import { AdminTable } from './components/admin-table';
 import { ProofModal } from './components/proof-modal';
 import { RosterModal } from './components/roster-modal';
+import { CleanupButton } from './components/cleanup-button'; // <-- IMPORT TOMBOL CLEANUP
 import { Search, LogOut, RefreshCw, Trophy } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -45,20 +46,23 @@ export default function AdminDashboardPage() {
             </p>
           </div>
 
+          {/* Dijejerin bareng tombol Refresh & Keluar */}
           <div className="flex items-center gap-3">
+            <CleanupButton /> {/* <-- TOMBOL CLEANUP MASUK DI SINI */}
+            
             <button
               onClick={refresh}
               className="flex items-center gap-2 px-4 py-2.5 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 hover:text-white rounded-xl text-sm font-medium transition"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh Data
+              <span className="hidden sm:inline">Refresh Data</span>
             </button>
             <button
               onClick={logout}
-              className="flex items-center gap-2 px-4 py-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-600 hover:text-white rounded-xl text-sm font-medium transition"
+              className="flex items-center gap-2 px-4 py-2.5 bg-neutral-900 border border-neutral-800 text-neutral-400 hover:bg-rose-600 hover:border-rose-600 hover:text-white rounded-xl text-sm font-medium transition"
             >
               <LogOut className="w-4 h-4" />
-              Keluar
+              <span className="hidden sm:inline">Keluar</span>
             </button>
           </div>
         </div>
@@ -103,4 +107,4 @@ export default function AdminDashboardPage() {
       </div>
     </main>
   );
-                }
+}
