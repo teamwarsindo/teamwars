@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Team } from '../hooks/use-admin-teams';
 import { Eye, Users, Edit, ShieldAlert, RefreshCw, Trash2, Loader2 } from 'lucide-react';
 import { FeedbackModal, FeedbackState } from './feedback-modal';
+import Swal from 'sweetalert2';
 
 interface AdminTableProps {
   teams: Team[];
@@ -66,21 +67,27 @@ function TeamRowActions({
   };
 
   const handleDelete = async () => {
-    const confirmPrompt = window.prompt(
-      `PENGHAPUSAN PERMANEN\nKetik "HAPUS" untuk mendiskualifikasi dan menghapus tim ${team.namaTim}:`
-    );
+    // MENGGUNAKAN SWEETALERT2 UNTUK PROMPT MODERN
+    const { value: confirmText, isDismissed } = await Swal.fire({
+      title: 'PENGHAPUSAN PERMANEN',
+      html: `Ketik <b>HAPUS</b> untuk mendiskualifikasi dan menghapus tim <span class="text-rose-500 font-bold">${team.namaTim}</span>`,
+      input: 'text',
+      icon: 'warning',
+      background: '#171717', // Warna gelap ala neutral-900
+      color: '#fff',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444', // Warna merah rose-500
+      cancelButtonColor: '#3f3f46', // Warna abu-abu neutral-700
+      confirmButtonText: 'Eksekusi Hapus',
+      cancelButtonText: 'Batal',
+      inputValidator: (value) => {
+        if (!value) return 'Kamu harus mengetik kata konfirmasi!';
+        if (value !== 'HAPUS') return 'Kata kunci tidak sesuai!';
+      },
+    });
 
-    if (confirmPrompt !== 'HAPUS') {
-      if (confirmPrompt !== null) {
-        setFeedback({
-          isOpen: true,
-          type: 'error',
-          title: 'Aksi Dibatalkan',
-          message: 'Kata kunci konfirmasi tidak sesuai.',
-        });
-      }
-      return;
-    }
+    // Batalkan jika user klik di luar kotak, tekan tombol Batal, atau input salah
+    if (isDismissed || confirmText !== 'HAPUS') return;
 
     setIsDeleting(true);
     try {
@@ -96,7 +103,7 @@ function TeamRowActions({
           isOpen: true,
           type: 'success',
           title: 'Tim Berhasil Dihapus',
-          message: `Tim "${team.namaTim}" telah didiskualifikasi dan seluruh data/role/channel terkait telah dibersihkan.`,
+          message: data.message || `Tim "${team.namaTim}" telah didiskualifikasi dan seluruh data/role/channel terkait telah dibersihkan.`,
         });
         onRefreshData();
       } else {
@@ -118,7 +125,6 @@ function TeamRowActions({
       setIsDeleting(false);
     }
   };
-
   return (
     <>
       <div className="flex items-center justify-center gap-1.5">
