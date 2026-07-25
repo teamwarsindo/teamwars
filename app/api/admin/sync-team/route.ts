@@ -7,46 +7,93 @@ export async function POST(req: Request) {
   try {
     const { teamSlug } = await req.json();
 
-    const [team, verifiedUsersMap] = await Promise.all([
+    const [team, verifiedUsersData] = await Promise.all([
       kv.hgetall(`teams:${teamSlug}`),
       kv.hgetall('global:verified_users')
     ]);
 
     if (!team) return NextResponse.json({ error: 'Tim tidak ditemukan.' }, { status: 404 });
 
-    const verifiedMap = (verifiedUsersMap as Record<string, string>) || {};
+    const verifiedMap = (verifiedUsersData as Record<string, string>) || {};
     const players = typeof team.players === 'string' ? JSON.parse(team.players) : (team.players || []);
     
     const namaTim = team.namaTim as string;
     const warna = team.warna as string;
     const logoTim = team.logoTim as string;
+    const teamRoleId = team.discordRoleId || team.roleId;
     const createdAt = team.createdAt as string;
     const updatedAt = team.updatedAt as string;
 
     // =========================================================================
-    // 1. SYNC DATABASE GLOBAL (SELF-HEALING)
-    // Memastikan seluruh pemain di tim ini tercatat resmi di sistem Global.
-    // Jika belum ada, paksa masukkan. Jika sudah ada, sistem Redis akan mengabaikannya (karena Set).
+    // 1. AUTO-DISCOVERY & SYNC DATABASE GLOBAL
+    // Mempertahankan huruf kapital, auto-search member Discord, auto-verify!
     // =========================================================================
     for (const p of players) {
-      const cleanDiscord = p.discord?.toLowerCase().replace(/^@/, '').trim();
-      const cleanIgn = p.ign?.toLowerCase().trim();
+      const originalDiscord = p.discord ? p.discord.replace(/^@/, '').trim() : '';
+      const originalIgn = p.ign ? p.ign.trim() : '';
+      const searchKeyDiscord = originalDiscord.toLowerCase();
 
-      if (cleanDiscord) {
-        // Masukkan ke array global
-        await kv.sadd('registered_discords', cleanDiscord);
-        // Perbarui profil individual player agar bot kenal dia di tim mana
-        await kv.set(`player:${cleanDiscord}`, {
+      // --- A. SYNC GLOBAL DB (SELF-HEALING) ---
+      if (originalDiscord) {
+        await kv.sadd('global:discord', originalDiscord);
+        await kv.set(`player:${searchKeyDiscord}`, {
           teamId: teamSlug,
           namaTim: namaTim,
-          ign: p.ign,
+          ign: originalIgn,
+          discord: originalDiscord,
           role: p.role || 'Anggota'
         });
       }
-      
-      if (cleanIgn) {
-        // Masukkan IGN ke array global
-        await kv.sadd('registered_igns', cleanIgn);
+      if (originalIgn) {
+        await kv.sadd('global:ign', originalIgn);
+      }
+      if (p.idDuelLinks) {
+        await kv.sadd('global:duellinks', p.idDuelLinks.toString().trim());
+      }
+
+      // --- B. DISCORD AUTO-VERIFIKASI (INTEL MODE) ---
+      let isVerified = !!(verifiedMap[originalDiscord] || verifiedMap[searchKeyDiscord]);
+
+      if (!isVerified && originalDiscord) {
+        try {
+          // Cari user di server Discord berdasarkan username-nya
+          const searchRes = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/search?query=${encodeURIComponent(originalDiscord)}&limit=5`, 'GET');
+          const member = searchRes?.find((m: any) => m.user.username.toLowerCase() === searchKeyDiscord);
+          
+          if (member) {
+            const userId = member.user.id;
+            const roleJabatan = (p.role || '').toLowerCase();
+
+            // 1. Ubah Nickname jadi IGN
+            await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}`, 'PATCH', { nick: originalIgn }).catch(() => {});
+            
+            // 2. Berikan Role Tim (Jika tim sudah punya role)
+            if (teamRoleId) {
+              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${teamRoleId}`, 'PUT').catch(() => {});
+            }
+            
+            // 3. Berikan Role Duelist & Verified
+            await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${DISCORD_CONFIG.ROLE_DUELIST}`, 'PUT').catch(() => {});
+            await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${DISCORD_CONFIG.ROLE_VERIFIED}`, 'PUT').catch(() => {});
+
+            // 4. Berikan Role Ketua / Wakil sesuai jabatannya
+            if (roleJabatan === 'ketua') {
+              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${DISCORD_CONFIG.ROLE_KETUA}`, 'PUT').catch(() => {});
+            } else if (roleJabatan === 'wakil' || roleJabatan === 'wakil ketua') {
+              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${DISCORD_CONFIG.ROLE_WAKIL}`, 'PUT').catch(() => {});
+            }
+
+            // 5. Catat otomatis ke database Global Verified
+            await kv.hset('global:verified_users', { [originalDiscord]: userId });
+            await kv.sadd('global:discord_ids', userId);
+            
+            // Update map lokal agar Tracker langsung valid
+            verifiedMap[originalDiscord] = userId;
+            verifiedMap[searchKeyDiscord] = userId;
+          }
+        } catch (err) {
+          console.error(`[Auto-Sync] Gagal memproses auto-verify untuk ${originalDiscord}:`, err);
+        }
       }
     }
 
@@ -55,7 +102,7 @@ export async function POST(req: Request) {
     // =========================================================================
     if (team.adminMsgId) {
       const ketua = players.find((p: any) => p.role?.toLowerCase() === 'ketua') || players[0];
-      const wakil = players.find((p: any) => p.role?.toLowerCase() === 'wakil') || players[1];
+      const wakil = players.find((p: any) => p.role?.toLowerCase() === 'wakil' || p.role?.toLowerCase() === 'wakil ketua') || players[1];
       
       let playerListString = "";
       players.forEach((p: any) => { playerListString += `${p.ign} (${p.idDuelLinks})\n`; });
@@ -84,19 +131,22 @@ export async function POST(req: Request) {
       let rosterText = "";
 
       players.forEach((p: any) => {
-        const isVerified = verifiedMap.hasOwnProperty(p.discord?.toLowerCase().replace(/^@/, '').trim());
+        const originalDiscord = p.discord ? p.discord.replace(/^@/, '').trim() : '';
+        const searchKeyDiscord = originalDiscord.toLowerCase();
+        
+        const isVerified = !!(verifiedMap[originalDiscord] || verifiedMap[searchKeyDiscord]);
         if (isVerified) verifiedCount++;
-        rosterText += `${isVerified ? '✅' : '❌'} ${p.ign} (@${p.discord}) - ${p.role}\n`;
+        
+        rosterText += `${isVerified ? '✅' : '❌'} ${p.ign} (@${originalDiscord}) - ${p.role}\n`;
       });
 
-      const roleId = team.discordRoleId || team.roleId;
       const trackerPayload = {
         embeds: [{
           title: namaTim,
           description: `DAFTAR ROSTER:\n${rosterText}`,
           color: hexToDecimal(warna),
           fields: [
-            { name: "📌 Role Tim", value: roleId ? `<@&${roleId}>` : '(Belum Ada)', inline: true },
+            { name: "📌 Role Tim", value: teamRoleId ? `<@&${teamRoleId}>` : '(Belum Ada)', inline: true },
             { name: "📊 Status", value: `${verifiedCount} / ${players.length} Terverifikasi`, inline: true }
           ],
           footer: { text: getFooterText(createdAt, updatedAt) }
@@ -105,10 +155,9 @@ export async function POST(req: Request) {
       await discordAPI(`/channels/${team.discordChannelId}/messages/${team.trackerMsgId}`, 'PATCH', trackerPayload).catch(console.error);
     }
 
-    return NextResponse.json({ success: true, message: 'Sinkronisasi Global Database & Discord berhasil!' });
+    return NextResponse.json({ success: true, message: 'Sinkronisasi Super (Database, Auto-Verify Discord & Embed) berhasil!' });
   } catch (error: any) {
     console.error('Sync Error:', error);
     return NextResponse.json({ error: 'Gagal melakukan sinkronisasi.' }, { status: 500 });
   }
-}
-  
+                                  }
