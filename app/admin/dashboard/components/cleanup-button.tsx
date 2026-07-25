@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Trash2, Loader2 } from 'lucide-react';
+import { DatabaseZap, Loader2 } from 'lucide-react'; // Pakai icon DatabaseZap biar lebih keren
 import { FeedbackModal, FeedbackState } from './feedback-modal';
 
 export function CleanupButton() {
@@ -8,8 +8,6 @@ export function CleanupButton() {
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
 
   const handleCleanup = async () => {
-    if (!confirm('Apakah Anda yakin ingin membersihkan data residu (orphan data) Discord dan IGN dari sistem?')) return;
-
     setLoading(true);
     try {
       const res = await fetch('/api/admin/cleanup-orphans', { method: 'POST' });
@@ -19,20 +17,20 @@ export function CleanupButton() {
         setFeedback({
           isOpen: true,
           type: 'success',
-          title: 'Pembersihan Berhasil',
-          message: 'Data residu sistem telah berhasil dibersihkan.',
+          title: 'Database Berhasil Direset',
+          message: 'Sistem telah menghapus data lama dan membangun ulang index Global berdasarkan tim yang aktif saat ini.',
           details: [
-            `Akun Discord Dihapus: ${data.stats.sampahDiscordDihapus}`,
-            `IGN Dihapus: ${data.stats.sampahIgnDihapus}`,
-            `Total Tim Diperiksa: ${data.stats.totalTimDiperiksa}`,
+            `Total Tim: ${data.stats.totalTimDitemukan}`,
+            `Pemain Tervalidasi & Masuk Global: ${data.stats.totalPemainDirebuild}`,
+            `Status: ${data.stats.status}`,
           ],
         });
       } else {
         setFeedback({
           isOpen: true,
           type: 'error',
-          title: 'Gagal Membersihkan Data',
-          message: data.error || 'Terjadi kesalahan saat memproses data residu.',
+          title: 'Gagal Rebuild Database',
+          message: data.error || 'Terjadi kesalahan saat memproses rebuild data.',
         });
       }
     } catch (err) {
@@ -53,13 +51,13 @@ export function CleanupButton() {
         onClick={handleCleanup}
         disabled={loading}
         className="flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-xl text-xs sm:text-sm font-semibold transition disabled:opacity-50"
-        title="Bersihkan Data Residu Sistem"
+        title="Nuke & Rebuild Global Database"
       >
-        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-        <span className="hidden sm:inline">{loading ? 'Memproses...' : 'Bersihkan Data'}</span>
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseZap className="w-4 h-4" />}
+        <span className="hidden sm:inline">{loading ? 'Memproses...' : 'Rebuild Database'}</span>
       </button>
 
       <FeedbackModal data={feedback} onClose={() => setFeedback(null)} />
     </>
   );
-    }
+        }
