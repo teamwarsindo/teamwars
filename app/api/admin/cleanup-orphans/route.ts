@@ -1,26 +1,26 @@
 import { NextResponse } from 'next/server';
-import { Redis } from '@upstash/redis';
+import { kv } from '@vercel/kv';
 
-const redis = Redis.fromEnv();
-
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    // 1. Ambil semua ID tim yang terdaftar
-    const teamIds: string[] = await redis.smembers('teams_index') || [];
+    // 1. Ambil semua key tim yang aktif di database Vercel KV
+    const teamKeys = await kv.keys('teams:*');
     
     const validDiscords = new Set<string>();
     const validIgns = new Set<string>();
-    const activePlayerKeys = new Set<string>();
 
-    // 2. Kumpulkan semua Discord Username & IGN resmi dari seluruh tim aktif
-    for (const id of teamIds) {
-      const teamData: any = await redis.get(`team:${id}`);
-      if (teamData && teamData.players && Array.isArray(teamData.players)) {
-        teamData.players.forEach((p: any) => {
+    // 2. Kumpulkan semua Discord Username & IGN dari tim yang sah (Keranjang A)
+    for (const key of teamKeys) {
+      const teamData: any = await kv.hgetall(key);
+      if (teamData && teamData.players) {
+        // Parsing aman untuk format string JSON atau array langsung
+        const players = typeof teamData.players === 'string' 
+          ? JSON.parse(teamData.players) 
+          : teamData.players;
+
+        players.forEach((p: any) => {
           if (p.discord) {
-            const cleanDiscord = p.discord.toLowerCase().replace(/^@/, '').trim();
-            validDiscords.add(cleanDiscord);
-            activePlayerKeys.add(`player:${cleanDiscord}`);
+            validDiscords.add(p.discord.toLowerCase().replace(/^@/, '').trim());
           }
           if (p.ign) {
             validIgns.add(p.ign.toLowerCase().trim());
@@ -29,11 +29,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Ambil data set global yang ada saat ini di Redis
-    const currentDiscords: string[] = await redis.smembers('registered_discords') || [];
-    const currentIgns: string[] = await redis.smembers('registered_igns') || [];
+    // 3. Ambil isi set global saat ini (Keranjang B)
+    const currentDiscords = await kv.smembers('registered_discords') || [];
+    const currentIgns = await kv.smembers('registered_igns') || [];
 
-    // 4. Cari data yatim (ada di global set tetapi TIDAK ada di tim manapun)
+    // 4. Cari yang YATIM (Ada di Global, tapi tidak ada di Tim manapun)
     const orphanDiscords = currentDiscords.filter(
       (d) => !validDiscords.has(d.toLowerCase().replace(/^@/, '').trim())
     );
@@ -41,30 +41,24 @@ export async function POST(req: Request) {
       (ign) => !validIgns.has(ign.toLowerCase().trim())
     );
 
-    // 5. Hapus data yatim dari set global
-    if (orphanDiscords.length > 0) {
-      await redis.srem('registered_discords', ...orphanDiscords);
-      // Hapus juga key individual player jika ada
-      for (const orphan of orphanDiscords) {
-        const cleanOrphan = orphan.toLowerCase().replace(/^@/, '').trim();
-        await redis.del(`player:${cleanOrphan}`);
-      }
+    // 5. Eksekusi Hapus (Sapu Bersih)
+    for (const d of orphanDiscords) {
+      const cleanOrphan = d.toLowerCase().replace(/^@/, '').trim();
+      await kv.srem('registered_discords', d);       // Hapus dari global set
+      await kv.del(`player:${cleanOrphan}`);         // Hapus key individu
     }
 
-    if (orphanIgns.length > 0) {
-      await redis.srem('registered_igns', ...orphanIgns);
+    for (const ign of orphanIgns) {
+      await kv.srem('registered_igns', ign);
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Pembersihan data yatim selesai!',
       stats: {
-        totalTimAktif: teamIds.length,
+        totalTimDiperiksa: teamKeys.length,
         totalPemainValid: validDiscords.size,
         sampahDiscordDihapus: orphanDiscords.length,
         sampahIgnDihapus: orphanIgns.length,
-        listDiscordDihapus: orphanDiscords,
-        listIgnDihapus: orphanIgns,
       },
     });
   } catch (error: any) {
@@ -74,4 +68,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+                              }
