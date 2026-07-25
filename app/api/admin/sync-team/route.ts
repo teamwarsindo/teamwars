@@ -36,13 +36,6 @@ export async function POST(req: Request) {
       // --- A. SYNC GLOBAL DB (SELF-HEALING) ---
       if (originalDiscord) {
         await kv.sadd('global:discord', originalDiscord);
-        await kv.set(`player:${searchKeyDiscord}`, {
-          teamId: teamSlug,
-          namaTim: namaTim,
-          ign: originalIgn,
-          discord: originalDiscord,
-          role: p.role || 'Anggota'
-        });
       }
       if (originalIgn) {
         await kv.sadd('global:ign', originalIgn);
@@ -155,7 +148,7 @@ export async function POST(req: Request) {
       await discordAPI(`/channels/${team.discordChannelId}/messages/${team.trackerMsgId}`, 'PATCH', trackerPayload).catch(console.error);
     }
 
-        return NextResponse.json({ success: true, message: `"${namaTim}" berhasil sinkron ke Database Global.` });
+    return NextResponse.json({ success: true, message: `"${namaTim}" berhasil sinkron ke Database Global.` });
   } catch (error: any) {
     console.error('Sync Error:', error);
     return NextResponse.json({ error: 'Gagal melakukan sinkronisasi.' }, { status: 500 });
