@@ -17,17 +17,16 @@ interface FeedbackModalProps {
 }
 
 export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
-  // HOOK BARU: Mengunci Scroll Body saat Modal Terbuka
   useEffect(() => {
+    // Kunci scroll saat modal muncul
     if (data && data.isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = ''; // Balikin ke default (string kosong lebih aman dari 'unset')
     }
 
-    // Cleanup function: pastikan scroll kebuka lagi kalau komponen tiba-tiba hancur
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = '';
     };
   }, [data]);
 
@@ -37,16 +36,17 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+      // PERBAIKAN: z-[9999] agar dipastikan nampil paling depan menutupi apapun!
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-6 shadow-2xl overflow-hidden relative flex flex-col items-center text-center"
+        className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative flex flex-col items-center text-center"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
         >
           <X className="w-5 h-5" />
         </button>
@@ -61,15 +61,15 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
           {isSuccess ? <CheckCircle2 className="w-8 h-8" /> : <AlertTriangle className="w-8 h-8" />}
         </div>
 
-        <h3 className="text-lg font-bold text-white mb-1">{data.title}</h3>
-        <p className="text-sm text-neutral-300 leading-relaxed mb-4">{data.message}</p>
+        <h3 className="text-lg font-bold text-white mb-2">{data.title}</h3>
+        <p className="text-sm text-neutral-300 leading-relaxed mb-5">{data.message}</p>
 
         {data.details && data.details.length > 0 && (
-          <div className="w-full bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 mb-5 text-left text-xs text-neutral-400 space-y-1">
+          <div className="w-full bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 mb-5 text-left text-xs text-neutral-400 space-y-1.5">
             {data.details.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSuccess ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                <span className="truncate">{item}</span>
+              <div key={idx} className="flex items-start gap-2">
+                <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSuccess ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                <span className="leading-snug break-words">{item}</span>
               </div>
             ))}
           </div>
@@ -77,15 +77,15 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
 
         <button
           onClick={onClose}
-          className={`w-full py-2.5 px-4 rounded-xl font-semibold text-sm transition shadow-lg ${
+          className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition shadow-lg ${
             isSuccess
               ? 'bg-emerald-500 hover:bg-emerald-600 text-neutral-950'
               : 'bg-rose-500 hover:bg-rose-600 text-white'
           }`}
         >
-          Tutup
+          Tutup Panel
         </button>
       </div>
     </div>
   );
-        }
+}
