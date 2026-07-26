@@ -14,24 +14,23 @@ interface RegistrationFormProps {
   isEditMode?: boolean;
   initialData?: any; 
   editToken?: string;
-  isAdminMode?: boolean; // 👈 1. Tambahkan interface untuk Admin Mode
-//  isTester?: boolean; // 👈 1. Tambahkan ini
+  isAdminMode?: boolean; 
 }
 
 export function RegistrationForm({ 
   isEditMode = false, 
   initialData, 
   editToken = "", 
-  isAdminMode = false // 👈 2. Beri nilai default false
-//  isTester = false // 👈 2. Default false
+  isAdminMode = false 
 }: RegistrationFormProps) {
   const team = useTeamDetails()
   const roster = useRoster()
   
-  // 👈 3. Teruskan isTester ke hook flow
   const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "", editToken)
   const hasInitialized = useRef(false);
+  const hasAutoFilled = useRef(false);
 
+  // 1. useEffect bawaan untuk Edit Mode
   useEffect(() => {
     if (isEditMode && initialData && !hasInitialized.current) {
       team.setEmail(initialData.email || "");
@@ -56,10 +55,38 @@ export function RegistrationForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, initialData]); 
 
+  // 2. TAMBAHAN: Script Auto-Fill untuk Testing via URL
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !isEditMode && !hasAutoFilled.current) {
+      const params = new URLSearchParams(window.location.search);
+      
+      if (params.get('test') === 'auto') {
+        const randomStr = Math.floor(Math.random() * 1000);
+        
+        team.setEmail(`tester${randomStr}@teamwars.web.id`);
+        team.setNamaTim(`TIM TESTER ${randomStr}`);
+        team.setHex("#FF5733"); 
+        
+        team.setLogo({ url: "https://teamwars.web.id/dummy-logo.png", name: "dummy-logo.png", size: 1024 });
+        team.setBukti({ url: "https://teamwars.web.id/dummy-bukti.jpg", name: "dummy-bukti.jpg", size: 1024 });
+        
+        roster.setPlayers([
+          { id: "test-1", namaLengkap: "Tester Satu", ign: `Tester1_${randomStr}`, discord: `test1#${randomStr}`, duelId: `111222${randomStr}`, role: "Ketua" },
+          { id: "test-2", namaLengkap: "Tester Dua", ign: `Tester2_${randomStr}`, discord: `test2#${randomStr}`, duelId: `222333${randomStr}`, role: "Wakil Ketua" },
+          { id: "test-3", namaLengkap: "Tester Tiga", ign: `Tester3_${randomStr}`, discord: `test3#${randomStr}`, duelId: `333444${randomStr}`, role: "Member" },
+          { id: "test-4", namaLengkap: "Tester Empat", ign: `Tester4_${randomStr}`, discord: `test4#${randomStr}`, duelId: `444555${randomStr}`, role: "Member" },
+          { id: "test-5", namaLengkap: "Tester Lima", ign: `Tester5_${randomStr}`, discord: `test5#${randomStr}`, duelId: `555666${randomStr}`, role: "Member" },
+        ]);
+
+        hasAutoFilled.current = true; 
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode]);
+
   const hasChanges = useMemo(() => {
     if (!isEditMode || !initialData) return true; 
 
-    // 👈 3. Tambahkan deteksi perubahan Email untuk Admin
     const emailChanged = team.email.trim() !== (initialData.email || "").trim();
     const nameChanged = team.namaTim.trim() !== (initialData.namaTim || "").trim();
     const colorChanged = team.hex.toLowerCase() !== (initialData.warna || "").toLowerCase();
@@ -80,7 +107,6 @@ export function RegistrationForm({
 
     const rosterChanged = JSON.stringify(currentRoster) !== JSON.stringify(originalRoster);
 
-    // Jangan lupa masukkan emailChanged ke dalam return
     return nameChanged || colorChanged || rosterChanged || emailChanged;
   }, [team.email, team.namaTim, team.hex, roster.players, isEditMode, initialData]);
   
@@ -99,7 +125,7 @@ export function RegistrationForm({
           err={flow.err} 
           markTouched={flow.markTouched} 
           isEditMode={isEditMode}
-          isAdminMode={isAdminMode} // 👈 4. Lempar sinyal Admin ke komponen form (input)
+          isAdminMode={isAdminMode} 
         />
 
         <RosterSection 
@@ -112,7 +138,7 @@ export function RegistrationForm({
           err={flow.err} 
           markTouched={flow.markTouched} 
           isEditMode={isEditMode}
-          isAdminMode={isAdminMode} // 👈 5. PERBAIKAN: Lempar sinyal Admin ke RosterSection juga
+          isAdminMode={isAdminMode} 
         />
 
         <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
