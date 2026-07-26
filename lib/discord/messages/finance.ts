@@ -6,8 +6,10 @@ export async function sendFinanceMessage(params: {
   warna: string;
   buktiTransfer: string;
   teamSlug: string;
+  channelId?: string;  // Parameter opsional
+  categoryId?: string; // Parameter opsional
 }) {
-  const { namaTim, warna, buktiTransfer, teamSlug } = params;
+  const { namaTim, warna, buktiTransfer, teamSlug, channelId } = params;
   
   const payload = {
     content: `<@&${DISCORD_CONFIG.ROLE_FINANCE}> 💰 Setoran Masuk dari **${namaTim}**!`, 
@@ -23,8 +25,11 @@ export async function sendFinanceMessage(params: {
     }]
   };
 
+  // Gunakan channelId dari input, jika kosong fallback ke config
+  const targetChannel = channelId || DISCORD_CONFIG.CH_BUKTI;
+
   try {
-    const res = await discordAPI(`/channels/${DISCORD_CONFIG.CH_BUKTI}/messages`, 'POST', payload);
+    const res = await discordAPI(`/channels/${targetChannel}/messages`, 'POST', payload);
     return res?.id || null;
   } catch (error) {
     console.error(`Gagal kirim Finance msg untuk ${namaTim}:`, error);
