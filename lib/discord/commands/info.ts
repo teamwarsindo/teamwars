@@ -47,7 +47,7 @@ export async function handleInfo(body: any) {
   // Gabungkan role (hindari mapping jika member tidak punya role)
   let roleString = 'Belum ada role';
   if (targetMember?.roles && targetMember.roles.length > 0) {
-    roleString = targetMember.roles.map((id: string) => `<@&${id}>`).join('/n');
+    roleString = targetMember.roles.map((id: string) => `<@&${id}>`).join('\n');
   }
 
   // 4. Susun Payload Embed JSON
