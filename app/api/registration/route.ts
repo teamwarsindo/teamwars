@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
       buktiTransfer: buktiTransfer, 
       players: JSON.stringify(players), 
       createdAt: timestampNow,
-      updatedAt: timestampNow,
       statusVerifikasi: "Pending",
       editToken: editToken
     });
