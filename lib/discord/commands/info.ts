@@ -38,10 +38,11 @@ export async function handleInfo(body: any) {
     avatarUrl = `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`;
   }
 
-  // 3. Format Data & Roles
-  const globalName = targetUser.global_name || targetUser.username;
+    // 3. Format Data & Roles
   const username = targetUser.username;
-  const nickname = targetMember?.nick || '*Sama dengan Global Name*';
+  
+  // LOGIKA CERDAS: Ambil Nickname Server. Jika kosong, ambil Global Name. Jika kosong lagi, ambil Username.
+  const displayName = targetMember?.nick || targetUser.global_name || targetUser.username;
   
   // Gabungkan role (hindari mapping jika member tidak punya role)
   let roleString = 'Belum ada role';
@@ -51,13 +52,13 @@ export async function handleInfo(body: any) {
 
   // 4. Susun Payload Embed JSON
   const responsePayload = {
-    type: 4, // Tipe 4 = Membalas interaction dengan pesan
+    type: 4, 
     data: {
       embeds: [
         {
-          color: 3447003, // Warna biru HEX #3498DB
+          color: 3447003, 
           author: {
-            name: `Informasi Profil: ${globalName}`,
+            name: `Informasi Profil: ${displayName}`, // 👈 Pakai nama yang lagi dipakai
             icon_url: avatarUrl
           },
           thumbnail: {
@@ -66,17 +67,17 @@ export async function handleInfo(body: any) {
           fields: [
             {
               name: '📝 Username (Untuk Form Web)',
-              value: `\`@${username}\`\n*(Gunakan persis seperti ini di form registrasi)*`,
+              value: username,
               inline: false
             },
             {
-              name: '🏷️ Nickname Server (IGN)',
-              value: nickname,
+              name: '🏷️ Display Name (IGN)',
+              value: displayName, // 👈 Tampilkan langsung nama yang lagi muncul di server
               inline: true
             },
             {
               name: '🆔 Discord ID',
-              value: `\`${targetUser.id}\``,
+              value: targetUser.id,
               inline: true
             },
             {
@@ -92,6 +93,7 @@ export async function handleInfo(body: any) {
       ]
     }
   };
+
 
   return NextResponse.json(responsePayload);
               }
