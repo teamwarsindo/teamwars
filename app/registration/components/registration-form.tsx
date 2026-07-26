@@ -73,9 +73,9 @@ export function RegistrationForm({
         roster.setPlayers([
           { id: "test-1", namaLengkap: "Tester Satu", ign: `Tester1_${randomStr}`, discord: `test1#${randomStr}`, duelId: `111222${randomStr}`, role: "Ketua" },
           { id: "test-2", namaLengkap: "Tester Dua", ign: `Tester2_${randomStr}`, discord: `test2#${randomStr}`, duelId: `222333${randomStr}`, role: "Wakil Ketua" },
-          { id: "test-3", namaLengkap: "Tester Tiga", ign: `Tester3_${randomStr}`, discord: `test3#${randomStr}`, duelId: `333444${randomStr}`, role: "Member" },
-          { id: "test-4", namaLengkap: "Tester Empat", ign: `Tester4_${randomStr}`, discord: `test4#${randomStr}`, duelId: `444555${randomStr}`, role: "Member" },
-          { id: "test-5", namaLengkap: "Tester Lima", ign: `Tester5_${randomStr}`, discord: `test5#${randomStr}`, duelId: `555666${randomStr}`, role: "Member" },
+          { id: "test-3", namaLengkap: "Tester Tiga", ign: `Tester3_${randomStr}`, discord: `test3#${randomStr}`, duelId: `333444${randomStr}`, role: "Anggota" },
+          { id: "test-4", namaLengkap: "Tester Empat", ign: `Tester4_${randomStr}`, discord: `test4#${randomStr}`, duelId: `444555${randomStr}`, role: "Anggota" },
+          { id: "test-5", namaLengkap: "Tester Lima", ign: `Tester5_${randomStr}`, discord: `test5#${randomStr}`, duelId: `555666${randomStr}`, role: "Anggota" },
         ]);
 
         hasAutoFilled.current = true; 
