@@ -14,7 +14,7 @@ export function useRegistrationFlow(
   isEditMode: boolean = false, 
   originalTeamName: string = "",
   editToken: string = ""
-//  isTester: boolean = false // 👈 TAMBAHAN BARU
+//  isTester: boolean = false 
 ) {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [submitAttempted, setSubmitAttempted] = useState(false)
@@ -131,12 +131,20 @@ export function useRegistrationFlow(
         setSubmitting(false); setServerError("Gambar belum selesai diunggah.")
         return
       }
+
+      // 👈 TAMBAHAN: Ambil channel ID dari URL jika ada
+      let testChannelId = undefined;
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        testChannelId = params.get("channel") || undefined;
+      }
       
       const payload: any = {
         email: team.email.trim(), namaTim: sanitizeTeamName(team.namaTim), warna: team.hex.toUpperCase(),
         logoTim: team.logo.url, buktiTransfer: team.bukti.url,
         players: roster.players.map(p => ({ role: p.role, namaLengkap: toProperCase(p.namaLengkap), discord: sanitizeDiscord(p.discord), ign: sanitizeIGN(p.ign), idDuelLinks: formatDuelId(p.duelId) })),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        channelId: testChannelId // 👈 TAMBAHAN: Sisipkan ke payload
       }
       if (isEditMode && editToken) payload.token = editToken
 
@@ -167,5 +175,4 @@ export function useRegistrationFlow(
   }
 
   return { modalOpen, setModalOpen, submitting, serverError, success, rosterRuleOk, canSubmit, isChecking, rawBackendErrors, triggerSmartPasteBypass, markTouched, markTouchedMultiple, err, handleReviewClick, handleSubmit }
-                                   }
-      
+}
