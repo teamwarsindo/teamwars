@@ -58,7 +58,7 @@ export async function handleInfo(body: any) {
         {
           color: 3447003, 
           author: {
-            name: `Informasi Profil` // 👈 Pakai nama yang lagi dipakai
+            name: `Informasi Profil`, // 👈 Pakai nama yang lagi dipakai
             icon_url: avatarUrl
           },
           thumbnail: {
