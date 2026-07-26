@@ -79,8 +79,11 @@ export async function POST(req: Request) {
 
     const teamRoleId = team.discordRoleId || team.roleId;
 
+        // Fungsi pembantu untuk memberi jeda agar tidak terkena limit Discord
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
     // =========================================================================
-    // 2. AUTO-DISCOVERY & SYNC DATABASE GLOBAL (SELF-HEALING)
+    // 2. AUTO-DISCOVERY & SYNC DATABASE GLOBAL (FORCE SYNC & AUTO CLEAN)
     // =========================================================================
     for (const p of players) {
       const originalDiscord = p.discord ? p.discord.replace(/^@/, '').trim() : '';
@@ -93,12 +96,11 @@ export async function POST(req: Request) {
       if (originalIgn) await kv.sadd('global:ign', originalIgn);
       if (duelId) await kv.sadd('global:duellinks', duelId.toString().trim());
 
-      // --- B. AUTO-VERIFY DISCORD (INTEL MODE) ---
-            // --- B. AUTO-VERIFY DISCORD & FORCE SYNC ROLE ---
-      let isVerified = !!(verifiedMap[originalDiscord] || verifiedMap[searchKeyDiscord]);
-
       if (originalDiscord) {
         try {
+          // Jeda 500ms agar Discord tidak memblokir karena spam (Rate Limit)
+          await sleep(500);
+
           const searchRes = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/search?query=${encodeURIComponent(originalDiscord)}&limit=5`, 'GET');
           const member = searchRes?.find((m: any) => m.user.username.toLowerCase() === searchKeyDiscord);
           
@@ -106,38 +108,40 @@ export async function POST(req: Request) {
             const userId = member.user.id;
             const roleJabatan = (p.role || '');
 
-            // Ubah Nickname (Pakai try-catch terpisah karena ubah nick owner/admin server pasti gagal)
-            try {
-              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}`, 'PATCH', { nick: originalIgn });
-            } catch (e) {}
+            try { await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}`, 'PATCH', { nick: originalIgn }); } catch (e) {}
             
             try {
-              // TEMBAK ROLE (Hapus .catch kosong agar error terbaca jika bot kurang permission)
-              if (teamRoleId) {
-                await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${teamRoleId}`, 'PUT');
-              }
+              if (teamRoleId) await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${teamRoleId}`, 'PUT');
               
+              await sleep(100); // Jeda kecil antar role
               await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${DISCORD_CONFIG.ROLE_DUELIST}`, 'PUT');
               await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${DISCORD_CONFIG.ROLE_VERIFIED}`, 'PUT');
 
               if (roleJabatan === 'Ketua') {
+                await sleep(100);
                 await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${DISCORD_CONFIG.ROLE_KETUA}`, 'PUT');
               } else if (roleJabatan === 'Wakil Ketua') {
+                await sleep(100);
                 await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${userId}/roles/${DISCORD_CONFIG.ROLE_WAKIL}`, 'PUT');
               }
 
-              // Jika sukses sampai sini, artinya role beneran masuk! Baru kita catat ke Database
+              // Jika berhasil, pastikan dicatat di database
               await kv.hset('global:verified_users', { [originalDiscord]: userId });
               await kv.sadd('global:discord_ids', userId);
               
               verifiedMap[originalDiscord] = userId;
               verifiedMap[searchKeyDiscord] = userId;
-              isVerified = true;
 
             } catch (roleError) {
-              // Jika bot posisinya di bawah role yg mau dikasih, errornya akan muncul di server logs!
-              console.error(`[CRITICAL] Gagal memberi role ke @${originalDiscord}. Cek posisi (Hirarki) Role Bot di Discord!`, roleError);
+              console.error(`Gagal memberi role ke @${originalDiscord}`, roleError);
             }
+          } else {
+            // JIKA TIDAK KETEMU (Belum join / typo): Hapus dari memori lokal agar centangnya dicabut (jadi ❌)
+            delete verifiedMap[originalDiscord];
+            delete verifiedMap[searchKeyDiscord];
+            // Hapus juga "data hantu" dari database KV
+            await kv.hdel('global:verified_users', originalDiscord);
+            await kv.hdel('global:verified_users', searchKeyDiscord);
           }
         } catch (err) {
           console.error(`[Auto-Sync] Gagal mencari user @${originalDiscord} di server:`, err);
