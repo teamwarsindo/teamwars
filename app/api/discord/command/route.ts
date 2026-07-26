@@ -16,6 +16,19 @@ export async function GET(req: Request) {
     {
       name: 'prepare',
       description: 'Kirim briefing in-game dan info Room ID di channel match.',
+    },
+    // 👇 TAMBAHKAN COMMAND INFO DI SINI 👇
+    {
+      name: 'info',
+      description: 'Lihat informasi profil Discord kamu atau pemain lain',
+      options: [
+        {
+          type: 6, // Type 6 adalah USER
+          name: 'target',
+          description: 'Pilih user yang ingin dilihat infonya (kosongkan untuk diri sendiri)',
+          required: false,
+        }
+      ]
     }
   ];
 
