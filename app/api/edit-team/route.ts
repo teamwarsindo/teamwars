@@ -12,13 +12,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Token tidak valid' }, { status: 400 });
     }
 
-    // 1. Cari slug tim berdasarkan token
+    // 1. Validasi Token & Ambil Data Tim
     const teamSlug = await kv.get(`token:map:${token}`);
     if (!teamSlug) {
       return NextResponse.json({ error: 'Tim tidak ditemukan' }, { status: 404 });
     }
 
-    // 2. Fetch data tim lama & map verified users dari Redis
     const [oldTeamData, verifiedUsersMap] = await Promise.all([
       kv.hgetall(`teams:${teamSlug}`),
       kv.hgetall('global:verified_users'),
@@ -33,9 +32,7 @@ export async function POST(request: NextRequest) {
       ? JSON.parse(oldTeamData.players)
       : (oldTeamData.players || []);
 
-    // =========================================================================
-    // BUG FIX 4: VALIDASI SENSITIF USERNAME DISCORD
-    // =========================================================================
+    // 2. Validasi Sensitif Username Discord (Mencegah ganti dari Verified ke Unverified)
     for (let i = 0; i < players.length; i++) {
       const newPlayer = players[i];
       const oldPlayer = oldPlayers[i];
@@ -43,34 +40,26 @@ export async function POST(request: NextRequest) {
       const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().trim() : '';
       const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().trim() : '';
 
-      // Jika user mengedit username Discord yang sebelumnya sudah terverifikasi
       if (oldDiscord && newDiscord !== oldDiscord) {
         const isOldVerified = verifiedMap.hasOwnProperty(oldDiscord);
         const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
 
-        // Cek kalau akun lamanya "Verified" tapi diedit jadi akun yang "Salah / Belum Verified"
         if (isOldVerified && !isNewVerified) {
           return NextResponse.json(
-            {
-              error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sudah sesuai!`
-            },
+            { error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sudah sesuai!` },
             { status: 400 }
           );
         }
       }
     }
 
-    // =========================================================================
-    // BUG FIX 3: UPDATE DISPLAY NAME DISCORD (NICKNAME) JIKA IGN BERUBAH
-    // =========================================================================
+    // 3. Update Nickname Discord Server (Jika IGN berubah di Web)
     for (let i = 0; i < players.length; i++) {
       const newPlayer = players[i];
       const oldPlayer = oldPlayers[i];
       const playerDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().trim() : '';
-
       const discordId = verifiedMap[playerDiscord];
 
-      // Jika pemain punya Role (terverifikasi) dan IGN-nya diganti di web
       if (discordId && oldPlayer && oldPlayer.ign !== newPlayer.ign) {
         try {
           await discordAPI(
@@ -84,47 +73,41 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // =========================================================================
-    // BUG FIX 5: CLEANUP ORPHAN DATA (DATA YATIM) - Disesuaikan dengan Regis
-    // =========================================================================
+    // 4. Sinkronisasi Data Global / Cleanup (Hanya ubah yang diedit)
     const getCleanDiscord = (p: any) => p?.discord?.toLowerCase().replace(/^@/, '').trim();
     const getCleanIgn = (p: any) => p?.ign?.toLowerCase().trim();
     const getCleanDuelLinks = (p: any) => (p?.idDuelLinks || p?.duelId);
 
-    const newDiscordSet = new Set(players.map(getCleanDiscord).filter(Boolean));
-    
-    // Cari pemain lama yang dihapus/diganti
-    const removedPlayers = oldPlayers.filter((oldP: any) => {
-      const oldD = getCleanDiscord(oldP);
-      return oldD && !newDiscordSet.has(oldD);
-    });
+    const oldDiscords = new Set(oldPlayers.map(getCleanDiscord).filter(Boolean));
+    const oldIgns = new Set(oldPlayers.map(getCleanIgn).filter(Boolean));
+    const oldDuelLinks = new Set(oldPlayers.map(getCleanDuelLinks).filter(Boolean));
 
-    // 5A. Hapus jejak pemain yang terbuang dari global set (Gunakan key yang sama dengan Regis)
-    for (const p of removedPlayers) {
-      const cleanDiscord = getCleanDiscord(p);
-      const cleanIgn = getCleanIgn(p);
-      const cleanDuelLinks = getCleanDuelLinks(p);
+    const newDiscords = new Set(players.map(getCleanDiscord).filter(Boolean));
+    const newIgns = new Set(players.map(getCleanIgn).filter(Boolean));
+    const newDuelLinks = new Set(players.map(getCleanDuelLinks).filter(Boolean));
 
-      if (cleanDiscord) await kv.srem('global:discord', cleanDiscord);
-      if (cleanIgn) await kv.srem('global:ign', cleanIgn);
-      if (cleanDuelLinks) await kv.srem('global:duellinks', cleanDuelLinks);
-    }
+    // 4A. Hapus data lama yang diganti
+    const discordsToRemove = [...oldDiscords].filter(d => !newDiscords.has(d));
+    const ignsToRemove = [...oldIgns].filter(i => !newIgns.has(i));
+    const duelLinksToRemove = [...oldDuelLinks].filter(dl => !newDuelLinks.has(dl));
 
-    // 5B. Daftarkan pemain baru ke global set agar tidak bisa daftar di tim lain
-    const ignsToSet = players.map(getCleanIgn).filter(Boolean);
-    const discordsToSet = players.map(getCleanDiscord).filter(Boolean);
-    const duelLinksToSet = players.map(getCleanDuelLinks).filter(Boolean);
+    if (discordsToRemove.length) await kv.srem('global:discord', ...discordsToRemove);
+    if (ignsToRemove.length) await kv.srem('global:ign', ...ignsToRemove);
+    if (duelLinksToRemove.length) await kv.srem('global:duellinks', ...duelLinksToRemove);
 
-    if (ignsToSet.length) await kv.sadd("global:ign", ...ignsToSet);
-    if (discordsToSet.length) await kv.sadd("global:discord", ...discordsToSet);
-    if (duelLinksToSet.length) await kv.sadd("global:duellinks", ...duelLinksToSet);
-    // =========================================================================
+    // 4B. Tambah data baru yang masuk
+    const discordsToAdd = [...newDiscords].filter(d => !oldDiscords.has(d));
+    const ignsToAdd = [...newIgns].filter(i => !oldIgns.has(i));
+    const duelLinksToAdd = [...newDuelLinks].filter(dl => !oldDuelLinks.has(dl));
 
-    // Ambil createdAt lama buat dioper ke getFooterText()
+    if (discordsToAdd.length) await kv.sadd('global:discord', ...discordsToAdd);
+    if (ignsToAdd.length) await kv.sadd('global:ign', ...ignsToAdd);
+    if (duelLinksToAdd.length) await kv.sadd('global:duellinks', ...duelLinksToAdd);
+
+    // 5. Update Data Utama di Brankas KV Redis
     const createdAt = oldTeamData.createdAt as string;
     const updatedAt = new Date().toISOString(); 
     
-    // 3. Update Data di Vercel KV Redis
     const updatedTeamObj = {
       ...oldTeamData,
       namaTim,
@@ -137,12 +120,14 @@ export async function POST(request: NextRequest) {
 
     await kv.hset(`teams:${teamSlug}`, updatedTeamObj);
 
-    // =========================================================================
-    // BUG FIX 1: UPDATE EMBED ROSTER (SUSUNAN PERSIS DENGAN YANG LAMA)
-    // =========================================================================
+    // 6. Update Pesan Embed di Discord (Roster & Tracker)
     const rosterMessageId = oldTeamData.adminMsgId as string;
+    const trackerChannelId = oldTeamData.discordChannelId as string;
+    const trackerMessageId = oldTeamData.trackerMsgId as string;
+    const teamRoleId = oldTeamData.discordRoleId || oldTeamData.roleId;
+
+    // 6A. Update Embed Roster
     if (rosterMessageId) {
-      // Disesuaikan agar sama persis dengan metode pencarian regis
       const ketua = players.find((p: any) => p.role === "Ketua") || { ign: "-", idDuelLinks: "-" };
       const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { ign: "-", idDuelLinks: "-" };
       
@@ -161,29 +146,15 @@ export async function POST(request: NextRequest) {
             { name: "Wakil", value: wakil.ign, inline: true },
             { name: "Players", value: playerListString, inline: false }
           ],
-          footer: { 
-            text: getFooterText(createdAt, updatedAt) 
-          }
+          footer: { text: getFooterText(createdAt, updatedAt) }
         }]
       };
 
-      try {
-        await discordAPI(
-          `/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${rosterMessageId}`,
-          'PATCH',
-          rosterPayload
-        );
-      } catch (err) {
-        console.error('Gagal update roster embed message:', err);
-      }
+      discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${rosterMessageId}`, 'PATCH', rosterPayload)
+        .catch(err => console.error('Gagal update roster embed message:', err));
     }
 
-    // =========================================================================
-    // BUG FIX 2: UPDATE EMBED TRACKER (SUSUNAN PERSIS DENGAN YANG LAMA)
-    // =========================================================================
-    const trackerChannelId = oldTeamData.discordChannelId as string;
-    const trackerMessageId = oldTeamData.trackerMsgId as string;
-
+    // 6B. Update Embed Tracker
     if (trackerChannelId && trackerMessageId) {
       let verifiedCount = 0;
       let rosterText = "";
@@ -197,8 +168,6 @@ export async function POST(request: NextRequest) {
         const icon = isVerified ? '✅' : '❌';
         rosterText += `${icon} ${p.ign} (@${p.discord}) - ${p.role}\n`;
       });
-
-      const teamRoleId = oldTeamData.discordRoleId || oldTeamData.roleId;
       
       const trackerPayload = {
         embeds: [{
@@ -206,32 +175,15 @@ export async function POST(request: NextRequest) {
           description: `DAFTAR ROSTER:\n${rosterText}`,
           color: hexToDecimal(warna),
           fields: [
-            { 
-              name: "📌 Role Tim", 
-              value: teamRoleId ? `<@&${teamRoleId}>` : '(Belum Ada)', 
-              inline: true 
-            },
-            { 
-              name: "📊 Status", 
-              value: `${verifiedCount} / ${players.length} Terverifikasi`, 
-              inline: true 
-            }
+            { name: "📌 Role Tim", value: teamRoleId ? `<@&${teamRoleId}>` : '(Belum Ada)', inline: true },
+            { name: "📊 Status", value: `${verifiedCount} / ${players.length} Terverifikasi`, inline: true }
           ],
-          footer: { 
-            text: getFooterText(createdAt, updatedAt) 
-          }
+          footer: { text: getFooterText(createdAt, updatedAt) }
         }]
       };
 
-      try {
-        await discordAPI(
-          `/channels/${trackerChannelId}/messages/${trackerMessageId}`,
-          'PATCH',
-          trackerPayload
-        );
-      } catch (err) {
-        console.error('Gagal update tracker message:', err);
-      }
+      discordAPI(`/channels/${trackerChannelId}/messages/${trackerMessageId}`, 'PATCH', trackerPayload)
+        .catch(err => console.error('Gagal update tracker message:', err));
     }
 
     return NextResponse.json({ success: true, message: 'Data tim berhasil diperbarui!' });
@@ -239,4 +191,5 @@ export async function POST(request: NextRequest) {
     console.error('Error Edit Team API:', error);
     return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
-    }
+  }
+      
