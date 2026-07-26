@@ -1,8 +1,8 @@
-import { DISCORD_CONFIG } from './config';
+import { DISCORD_CONFIG } from './config'; // Pastikan config sudah di-import
 import { discordAPI } from './utils';
 
 export async function createDiscordChannel(teamName: string, roleId: string) {
-  const guildId = process.env.DISCORD_GUILD_ID;
+  const guildId = DISCORD_CONFIG.GUILD_ID; // 👈 Ubah di sini
   const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
 
   if (!guildId || !roleId) return null;
@@ -22,7 +22,7 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
 }
 
 export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
-  const guildId = process.env.DISCORD_GUILD_ID;
+  const guildId = DISCORD_CONFIG.GUILD_ID; // 👈 Ubah di sini
   const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
 
   if (!guildId || !roleId) return null;
