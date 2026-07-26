@@ -9,13 +9,14 @@ export async function sendRosterMessage(params: {
   players: any[];
   logoTim: string;
   createdAt: string;
+  channelId?: string;  // Parameter opsional
+  categoryId?: string; // Parameter opsional
 }) {
-  const { namaTim, warna, ketua, wakil, players, logoTim, createdAt } = params;
+  const { namaTim, warna, ketua, wakil, players, logoTim, createdAt, channelId } = params;
 
   const playerListString = players.map(p => `${p.ign} (${p.idDuelLinks || p.duelId})`).join('\n');
 
   const payload = {
-    // Bisa tambahkan content ping role tertentu di sini jika diperlukan
     embeds: [{
       title: namaTim,
       color: hexToDecimal(warna),
@@ -29,8 +30,11 @@ export async function sendRosterMessage(params: {
     }]
   };
 
+  // Gunakan channelId dari input, jika kosong fallback ke config
+  const targetChannel = channelId || DISCORD_CONFIG.CH_ROSTER;
+
   try {
-    const res = await discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages`, 'POST', payload);
+    const res = await discordAPI(`/channels/${targetChannel}/messages`, 'POST', payload);
     return res?.id || null;
   } catch (error) {
     console.error(`Gagal kirim Roster msg untuk ${namaTim}:`, error);
