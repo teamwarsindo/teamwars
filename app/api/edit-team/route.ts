@@ -85,10 +85,11 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // BUG FIX 5: CLEANUP ORPHAN DATA (DATA YATIM)
+    // BUG FIX 5: CLEANUP ORPHAN DATA (DATA YATIM) - Disesuaikan dengan Regis
     // =========================================================================
     const getCleanDiscord = (p: any) => p?.discord?.toLowerCase().replace(/^@/, '').trim();
     const getCleanIgn = (p: any) => p?.ign?.toLowerCase().trim();
+    const getCleanDuelLinks = (p: any) => (p?.idDuelLinks || p?.duelId);
 
     const newDiscordSet = new Set(players.map(getCleanDiscord).filter(Boolean));
     
@@ -98,30 +99,25 @@ export async function POST(request: NextRequest) {
       return oldD && !newDiscordSet.has(oldD);
     });
 
-    // 5A. Hapus jejak pemain yang terbuang dari global set
+    // 5A. Hapus jejak pemain yang terbuang dari global set (Gunakan key yang sama dengan Regis)
     for (const p of removedPlayers) {
       const cleanDiscord = getCleanDiscord(p);
       const cleanIgn = getCleanIgn(p);
-      if (cleanDiscord) {
-        await kv.srem('registered_discords', cleanDiscord);
-        await kv.del(`player:${cleanDiscord}`);
-      }
-      if (cleanIgn) {
-        await kv.srem('registered_igns', cleanIgn);
-      }
+      const cleanDuelLinks = getCleanDuelLinks(p);
+
+      if (cleanDiscord) await kv.srem('global:discord', cleanDiscord);
+      if (cleanIgn) await kv.srem('global:ign', cleanIgn);
+      if (cleanDuelLinks) await kv.srem('global:duellinks', cleanDuelLinks);
     }
 
     // 5B. Daftarkan pemain baru ke global set agar tidak bisa daftar di tim lain
-    for (const p of players) {
-      const cleanDiscord = getCleanDiscord(p);
-      const cleanIgn = getCleanIgn(p);
-      if (cleanDiscord) {
-        await kv.sadd('registered_discords', cleanDiscord);
-      }
-      if (cleanIgn) {
-        await kv.sadd('registered_igns', cleanIgn);
-      }
-    }
+    const ignsToSet = players.map(getCleanIgn).filter(Boolean);
+    const discordsToSet = players.map(getCleanDiscord).filter(Boolean);
+    const duelLinksToSet = players.map(getCleanDuelLinks).filter(Boolean);
+
+    if (ignsToSet.length) await kv.sadd("global:ign", ...ignsToSet);
+    if (discordsToSet.length) await kv.sadd("global:discord", ...discordsToSet);
+    if (duelLinksToSet.length) await kv.sadd("global:duellinks", ...duelLinksToSet);
     // =========================================================================
 
     // Ambil createdAt lama buat dioper ke getFooterText()
@@ -146,12 +142,13 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     const rosterMessageId = oldTeamData.adminMsgId as string;
     if (rosterMessageId) {
-      const ketua = players.find((p: any) => p.role?.toLowerCase() === 'ketua') || players[0];
-      const wakil = players.find((p: any) => p.role?.toLowerCase() === 'wakil') || players[1];
+      // Disesuaikan agar sama persis dengan metode pencarian regis
+      const ketua = players.find((p: any) => p.role === "Ketua") || { ign: "-", idDuelLinks: "-" };
+      const wakil = players.find((p: any) => p.role === "Wakil Ketua") || { ign: "-", idDuelLinks: "-" };
       
       let playerListString = "";
       players.forEach((p: any) => {
-        playerListString += `${p.ign} (${p.idDuelLinks})\n`;
+        playerListString += `${p.ign} (${p.idDuelLinks || p.duelId})\n`;
       });
       
       const rosterPayload = {
@@ -242,4 +239,4 @@ export async function POST(request: NextRequest) {
     console.error('Error Edit Team API:', error);
     return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
-}
+    }
