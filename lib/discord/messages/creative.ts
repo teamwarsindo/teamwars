@@ -5,8 +5,10 @@ export async function sendCreativeMessage(params: {
   namaTim: string;
   warna: string;
   logoTim: string;
+  channelId?: string;  // Parameter opsional
+  categoryId?: string; // Parameter opsional
 }) {
-  const { namaTim, warna, logoTim } = params;
+  const { namaTim, warna, logoTim, channelId } = params;
 
   // Handle URL Cloudinary jika ada
   let directDownloadLogo = logoTim;
@@ -30,8 +32,11 @@ export async function sendCreativeMessage(params: {
     }]
   };
 
+  // Gunakan channelId dari input, jika kosong fallback ke config
+  const targetChannel = channelId || DISCORD_CONFIG.CH_LOGO;
+
   try {
-    const res = await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOGO}/messages`, 'POST', payload);
+    const res = await discordAPI(`/channels/${targetChannel}/messages`, 'POST', payload);
     return res?.id || null;
   } catch (error) {
     console.error(`Gagal kirim Creative msg untuk ${namaTim}:`, error);
