@@ -47,7 +47,7 @@ export async function handleInfo(body: any) {
   // Gabungkan role (hindari mapping jika member tidak punya role)
   let roleString = 'Belum ada role';
   if (targetMember?.roles && targetMember.roles.length > 0) {
-    roleString = targetMember.roles.map((id: string) => `<@&${id}>`).join(' ');
+    roleString = targetMember.roles.map((id: string) => `<@&${id}>`).join('/n');
   }
 
   // 4. Susun Payload Embed JSON
@@ -58,7 +58,7 @@ export async function handleInfo(body: any) {
         {
           color: 3447003, 
           author: {
-            name: `Informasi Profil: ${displayName}`, // 👈 Pakai nama yang lagi dipakai
+            name: `Informasi Profil` // 👈 Pakai nama yang lagi dipakai
             icon_url: avatarUrl
           },
           thumbnail: {
@@ -66,7 +66,7 @@ export async function handleInfo(body: any) {
           },
           fields: [
             {
-              name: '📝 Username (Untuk Form Web)',
+              name: '📝 Username Discord',
               value: username,
               inline: false
             },
