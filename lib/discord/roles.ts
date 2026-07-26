@@ -1,9 +1,9 @@
 import { kv } from '@vercel/kv';
-import { DISCORD_CONFIG } from './config';
+import { DISCORD_CONFIG } from './config'; // Pastikan config sudah di-import
 import { discordAPI, hexToDecimal } from './utils';
 
 export async function createDiscordRole(teamName: string, colorHex: string) {
-  const guildId = process.env.DISCORD_GUILD_ID;
+  const guildId = DISCORD_CONFIG.GUILD_ID; // 👈 Ubah di sini
   if (!guildId) return null;
 
   const data = await discordAPI(`/guilds/${guildId}/roles`, 'POST', {
@@ -17,7 +17,7 @@ export async function createDiscordRole(teamName: string, colorHex: string) {
 }
 
 export async function autoSortTeamRoles() {
-  const guildId = process.env.DISCORD_GUILD_ID;
+  const guildId = DISCORD_CONFIG.GUILD_ID; // 👈 Ubah di sini
   if (!guildId) return false;
 
   try {
