@@ -234,7 +234,7 @@ export const ruleCategories: RuleCategory[] = [
         title: "5. Ruang Pertandingan (Room) & Komunikasi",
         points: [
           "a. Room dibuat khusus oleh wasit. Dilarang keras menyebarkan ID room. Hanya pemain yang sedang bertanding yang boleh berada di room. Semua pihak (menang/kalah) wajib segera keluar room setelah duel usai.",
-          "b. Seluruh pemain yang didaftarkan wajib masuk ke voice chat (VC) discord TWI. Wasit akan melakukan inspeksi berkala. Terindikasi membicarakan cheat/mod/bug di VC akan berujung diskualifikasi instan. Layar (screen share) hanya boleh dilakukan oleh pemain yang sedang bertanding."
+          "b. Seluruh pemain yang didaftarkan boleh masuk ke voice chat (VC) discord TWI. Wasit akan melakukan inspeksi berkala. Terindikasi membicarakan cheat/mod/bug di VC akan berujung diskualifikasi instan. Layar (screen share) hanya boleh dilakukan oleh pemain yang sedang bertanding."
         ]
       },
       {
