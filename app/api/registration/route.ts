@@ -29,7 +29,8 @@ async function sendEmailSafe(params: any) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { email, namaTim, warna, logoTim, buktiTransfer, players } = data; 
+    // 👈 TAMBAHAN: Ekstrak channelId, alias menjadi customChannelId agar tidak bentrok
+    const { email, namaTim, warna, logoTim, buktiTransfer, players, channelId: customChannelId } = data; 
 
     if (!namaTim || typeof namaTim !== 'string') {
       return NextResponse.json({ success: false, errors: [{ field: 'namaTim', message: "Nama tim wajib diisi!" }] }, { status: 400 });
@@ -114,10 +115,11 @@ export async function POST(request: NextRequest) {
           }
         }
         
+        // 👈 TAMBAHAN: Lempar customChannelId ke fungsi-fungsi pengirim pesan
         const [financeId, creativeId, rosterId] = await Promise.all([
-          sendFinanceMessage({ namaTim: trimmedNamaTim, warna, buktiTransfer, teamSlug }),
-          sendCreativeMessage({ namaTim: trimmedNamaTim, warna, logoTim }),
-          sendRosterMessage({ namaTim: trimmedNamaTim, warna, ketua, wakil, players, logoTim, createdAt: timestampNow })
+          sendFinanceMessage({ namaTim: trimmedNamaTim, warna, buktiTransfer, teamSlug, channelId: customChannelId }),
+          sendCreativeMessage({ namaTim: trimmedNamaTim, warna, logoTim, channelId: customChannelId }),
+          sendRosterMessage({ namaTim: trimmedNamaTim, warna, ketua, wakil, players, logoTim, createdAt: timestampNow, channelId: customChannelId })
         ]);
 
         await kv.hset(kvKey, { 
@@ -143,3 +145,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Terjadi kesalahan server" }, { status: 500 });
   }
 }
+  
