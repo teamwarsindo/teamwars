@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Team } from '../hooks/use-admin-teams';
-import { Eye, Users, Edit, ShieldAlert, RefreshCw, Trash2, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Users, Edit, ShieldAlert, RefreshCw, Trash2, Loader2 } from 'lucide-react';
 import { FeedbackModal, FeedbackState } from './feedback-modal';
 import Swal from 'sweetalert2';
 
@@ -67,7 +67,6 @@ function TeamRowActions({
   };
 
   const handleDelete = async () => {
-    // MENGGUNAKAN SWEETALERT2 UNTUK PROMPT MODERN
     const { value: confirmText, isDismissed } = await Swal.fire({
       title: 'PENGHAPUSAN PERMANEN',
       html: `Ketik <b>HAPUS</b> untuk mendiskualifikasi dan menghapus tim <span class="text-rose-500 font-bold">${team.namaTim}</span>`,
@@ -195,6 +194,9 @@ export function AdminTable({
   onSelectRoster,
   onRefreshData,
 }: AdminTableProps) {
+  // 1. State untuk merekam tim mana saja yang emailnya sedang di-unhide
+  const [visibleEmails, setVisibleEmails] = useState<Record<string, boolean>>({});
+
   const formatDateWIB = (dateString: string) => {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return '-';
@@ -211,6 +213,22 @@ export function AdminTable({
         })
         .replace(/\./g, ':') + ' WIB'
     );
+  };
+
+  // 2. Fungsi cerdas untuk menyensor email
+  const maskEmail = (email: string) => {
+    if (!email) return '••••••••••••';
+  
+    // Langsung kembalikan titik/bintang secara penuh tanpa peduli panjang aslinya
+    return '••••••••••••••••'; 
+  };
+
+  // 3. Fungsi untuk menyalakan/mematikan visibilitas email
+  const toggleEmail = (teamId: string) => {
+    setVisibleEmails((prev) => ({
+      ...prev,
+      [teamId]: !prev[teamId],
+    }));
   };
 
   return (
@@ -245,6 +263,9 @@ export function AdminTable({
             teams.map((team) => {
               const [verified, total] = team.rosterStatus.split('/');
               const isComplete = verified === total;
+              
+              // Cek status email untuk baris ini
+              const isEmailVisible = visibleEmails[team.id];
 
               return (
                 <tr
@@ -272,8 +293,24 @@ export function AdminTable({
                   <td className="px-4 py-3 font-bold text-white whitespace-normal break-words max-w-[200px]">
                     {team.namaTim}
                   </td>
+                  {/* 👇 BAGIAN EMAIL YANG DIUBAH 👇 */}
                   <td className="px-4 py-3 text-neutral-400">
-                    {team.email}
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs">
+                        {isEmailVisible ? team.email : maskEmail(team.email)}
+                      </span>
+                      <button
+                        onClick={() => toggleEmail(team.id)}
+                        className="text-neutral-500 hover:text-white transition p-1 rounded-md hover:bg-neutral-800"
+                        title={isEmailVisible ? "Sembunyikan Email" : "Tampilkan Email"}
+                      >
+                        {isEmailVisible ? (
+                          <EyeOff className="w-3.5 h-3.5" />
+                        ) : (
+                          <Eye className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-neutral-300 font-mono text-xs">
                     {formatDateWIB(team.waktuRegis)}
