@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { discordAPI } from '@/lib/discord/utils'; // 👈 Wajib di-import
-import { DISCORD_CONFIG } from '@/lib/discord/config'; // 👈 Wajib di-import
+import { discordAPI } from '@/lib/discord/utils';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 export async function handleInfo(body: any) {
   // 1. Deteksi Target
@@ -40,8 +40,10 @@ export async function handleInfo(body: any) {
   const username = targetUser.username;
   const displayName = targetMember?.nick || targetUser.global_name || targetUser.username;
   
-  // 4. SUSUN ROLE (Dengan Sorting via API)
+  // 4. SUSUN ROLE & AMBIL WARNA TERTINGGI
   let roleString = 'Belum ada role';
+  let embedColor = 3447003; // Default warna biru jika user tidak punya role berwarna
+
   if (targetMember?.roles && targetMember.roles.length > 0) {
     try {
       // Tarik data hierarki role dari server
@@ -54,6 +56,12 @@ export async function handleInfo(body: any) {
           .filter((r: any) => r !== undefined)
           // Urutkan dari posisi tertinggi ke terendah
           .sort((a: any, b: any) => b.position - a.position);
+
+        // Cari role teratas yang Punya Warna (bukan 0/default transparan)
+        const highestColorRole = sortedRoles.find((r: any) => r.color > 0);
+        if (highestColorRole) {
+          embedColor = highestColorRole.color; // Timpa warna embed dengan warna role
+        }
 
         roleString = sortedRoles.map((r: any) => `<@&${r.id}>`).join('\n');
       } else {
@@ -73,11 +81,11 @@ export async function handleInfo(body: any) {
     data: {
       embeds: [
         {
-          color: 3447003, 
+          color: embedColor, // 👈 Menggunakan variabel warna yang sudah kita buat
           author: {
             name: `Informasi Profil`
           },
-          description: `<@${targetUser.id}>`, // 👈 Ini yang bikin tag nyala biru di atas
+          description: `<@${targetUser.id}>`,
           thumbnail: {
             url: avatarUrl
           },
@@ -112,4 +120,4 @@ export async function handleInfo(body: any) {
   };
 
   return NextResponse.json(responsePayload);
-        }
+      }
