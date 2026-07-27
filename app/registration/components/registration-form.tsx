@@ -109,6 +109,29 @@ export function RegistrationForm({
 
     return nameChanged || colorChanged || rosterChanged || emailChanged;
   }, [team.email, team.namaTim, team.hex, roster.players, isEditMode, initialData]);
+
+  const handleSyncDiscord = async () => {
+    // Buat format slug tim persis seperti di backend
+    const teamSlug = team.namaTim
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+/, "")
+      .replace(/-+$/, "");
+
+    const response = await fetch('/api/admin/sync-team', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamSlug }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.error) {
+      throw new Error(data.error || "Terjadi kesalahan sistem saat sinkronisasi.");
+    }
+  };
   
   return (
     <>
@@ -177,6 +200,7 @@ export function RegistrationForm({
         onClose={() => window.location.reload()} 
         namaTim={team.namaTim} 
         isEditMode={isEditMode}
+        onSync={!isEditMode ? handleSyncDiscord : undefined} 
       />
     </>
   )
