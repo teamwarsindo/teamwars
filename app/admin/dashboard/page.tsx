@@ -27,7 +27,10 @@ export default function AdminDashboardPage() {
   return (
     <main className="min-h-screen bg-neutral-950 text-white font-sans">
       <title>Dashboard Admin — TWI Season 7</title>
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      
+      {/* 👇 INI YANG DIUBAH: w-[95%] max-w-none agar melebar maksimal 👇 */}
+      <div className="w-[95%] max-w-none mx-auto px-4 py-8">
+        
         {/* Header Dashboard */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
@@ -97,7 +100,7 @@ export default function AdminDashboardPage() {
           isLoading={isLoading}
           onPreviewProof={(url) => setPreviewImg(url)}
           onSelectRoster={(team) => setSelectedRoster(team)}
-          onRefreshData={refresh} // <--- SUDAH DITAMBAHKAN DI SINI
+          onRefreshData={refresh}
         />
 
         {/* Modal Bukti Transfer */}
@@ -108,4 +111,4 @@ export default function AdminDashboardPage() {
       </div>
     </main>
   );
-      }
+}
