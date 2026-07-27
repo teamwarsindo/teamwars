@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { discordAPI } from '@/lib/discord/utils'; // 👈 Wajib di-import
+import { DISCORD_CONFIG } from '@/lib/discord/config'; // 👈 Wajib di-import
 
 export async function handleInfo(body: any) {
   // 1. Deteksi Target
@@ -38,11 +40,31 @@ export async function handleInfo(body: any) {
   const username = targetUser.username;
   const displayName = targetMember?.nick || targetUser.global_name || targetUser.username;
   
-  // 4. SUSUN ROLE (Langsung Tembak Tanpa API)
+  // 4. SUSUN ROLE (Dengan Sorting via API)
   let roleString = 'Belum ada role';
   if (targetMember?.roles && targetMember.roles.length > 0) {
-    // Langsung gabungkan ID Role dengan spasi baris (\n)
-    roleString = targetMember.roles.map((id: string) => `<@&${id}>`).join('\n');
+    try {
+      // Tarik data hierarki role dari server
+      const guildRoles = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/roles`, 'GET');
+      
+      if (guildRoles && Array.isArray(guildRoles)) {
+        // Cocokkan ID Role yang dimiliki user dengan posisi Role di server
+        const sortedRoles = targetMember.roles
+          .map((roleId: string) => guildRoles.find((r: any) => r.id === roleId))
+          .filter((r: any) => r !== undefined)
+          // Urutkan dari posisi tertinggi ke terendah
+          .sort((a: any, b: any) => b.position - a.position);
+
+        roleString = sortedRoles.map((r: any) => `<@&${r.id}>`).join('\n');
+      } else {
+        // Fallback jika API mengembalikan data kosong
+        roleString = targetMember.roles.map((id: string) => `<@&${id}>`).join('\n');
+      }
+    } catch (error) {
+      console.error('Gagal fetch roles untuk sorting:', error);
+      // Fallback kalau API gagal
+      roleString = targetMember.roles.map((id: string) => `<@&${id}>`).join('\n');
+    }
   }
 
   // 5. Susun Payload Embed JSON
@@ -55,7 +77,7 @@ export async function handleInfo(body: any) {
           author: {
             name: `Informasi Profil`
           },
-          description: `<@${targetUser.id}>`,
+          description: `<@${targetUser.id}>`, // 👈 Ini yang bikin tag nyala biru di atas
           thumbnail: {
             url: avatarUrl
           },
@@ -82,7 +104,7 @@ export async function handleInfo(body: any) {
             }
           ],
           footer: {
-            text: 'Tips: Bingung ganti username? Buka Settings > My Account > Username'
+            text: 'Tips: Bingung ganti username?\nBuka Settings > My Account > Username'
           }
         }
       ]
@@ -90,5 +112,4 @@ export async function handleInfo(body: any) {
   };
 
   return NextResponse.json(responsePayload);
-}
-  
+        }
