@@ -98,48 +98,58 @@ export async function POST(req: Request) {
             }
           }
 
-          // JIKA MEMBER DITEMUKAN (via ID atau Search), LANJUTKAN EKSEKUSI!
+                    // JIKA MEMBER DITEMUKAN (via ID atau Search), LANJUTKAN EKSEKUSI!
           if (memberData && targetUserId) {
             // Kunci username (yang valid) ke Global DB
             await kv.sadd('global:discord', currentDiscord);
             const roleJabatan = (p.role || '');
 
-            // 1. GANTI NICKNAME (Ign)
-            try {
-              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}`, 'PATCH', { nick: originalIgn });
-              await sleep(400); // Jeda agar tidak dianggap spam
-            } catch (nickErr) {
-              // Jika bot gagal ganti nick (misal: user adalah admin/owner), biarkan saja dan lanjut
-              console.error(`Info: Gagal ubah nickname untuk @${currentDiscord}`);
-            }
+            // Kumpulkan semua role lama pemain (agar tidak terhapus)
+            const currentRoles = memberData.roles || [];
+            const newRoles = new Set(currentRoles);
 
-            // 2. KASIH ROLE TIM
-            if (teamRoleId) {
-              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}/roles/${teamRoleId}`, 'PUT').catch(() => null);
-              await sleep(400);
-            }
+            // Tambahkan Role Baru ke dalam tumpukan
+            if (teamRoleId) newRoles.add(teamRoleId);
+            if (DISCORD_CONFIG.ROLE_DUELIST) newRoles.add(DISCORD_CONFIG.ROLE_DUELIST);
+            if (DISCORD_CONFIG.ROLE_VERIFIED) newRoles.add(DISCORD_CONFIG.ROLE_VERIFIED);
             
-            // 3. KASIH ROLE DUELIST & VERIFIED
-            await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}/roles/${DISCORD_CONFIG.ROLE_DUELIST}`, 'PUT').catch(() => null);
-            await sleep(400);
-            await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}/roles/${DISCORD_CONFIG.ROLE_VERIFIED}`, 'PUT').catch(() => null);
-            await sleep(400);
-
-            // 4. KASIH ROLE JABATAN
-            if (roleJabatan === 'Ketua') {
-              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}/roles/${DISCORD_CONFIG.ROLE_KETUA}`, 'PUT').catch(() => null);
-            } else if (roleJabatan === 'Wakil Ketua' || roleJabatan === 'Wakil') {
-              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}/roles/${DISCORD_CONFIG.ROLE_WAKIL}`, 'PUT').catch(() => null);
+            if (roleJabatan === 'Ketua' && DISCORD_CONFIG.ROLE_KETUA) {
+              newRoles.add(DISCORD_CONFIG.ROLE_KETUA);
+            } else if ((roleJabatan === 'Wakil Ketua' || roleJabatan === 'Wakil') && DISCORD_CONFIG.ROLE_WAKIL) {
+              newRoles.add(DISCORD_CONFIG.ROLE_WAKIL);
             }
 
-            // Tandai Berhasil
-            isUserVerified = true;
-            verifiedCount++;
-          }
-        } catch (err) {
-          console.error(`Gagal sinkronisasi user @${currentDiscord}:`, err);
+            // GANTI NICKNAME & SEMUA ROLE SEKALIGUS DALAM 1 REQUEST API!
+            try {
+              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}`, 'PATCH', { 
+                nick: originalIgn,
+                roles: Array.from(newRoles)
+              });
+              
+              // Tandai Berhasil
+              isUserVerified = true;
+              verifiedCount++;
+              
+              // Beri jeda 1 detik sebelum memproses pemain selanjutnya
+              await sleep(1000); 
+              
+            } catch (patchErr) {
+              console.error(`Info: Gagal ubah profil untuk @${currentDiscord}`, patchErr);
+              
+              // FALLBACK: Jika bot gagal ganti nickname (misal user adalah Admin/Owner Server),
+              // kita coba ulangi TAPI HANYA berikan ROLE saja (tanpa nickname)
+              try {
+                  await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}`, 'PATCH', { 
+                    roles: Array.from(newRoles)
+                  });
+                  isUserVerified = true;
+                  verifiedCount++;
+                  await sleep(1000);
+              } catch(fallbackErr) {
+                  console.error(`Gagal total untuk @${currentDiscord}:`, fallbackErr);
+              }
+            }
         }
-      }
 
       // Susun teks untuk di Embed Tracker (✅ / ❌)
       rosterText += `${isUserVerified ? '✅' : '❌'} ${p.ign} (@${currentDiscord}) - ${p.role}\n`;
