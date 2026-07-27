@@ -11,20 +11,10 @@ const DOMAIN = "teamwars.web.id";
 
 // Konfigurasi Email
 export const EMAIL_CONFIG = {
-  from: {
-    name: "Team Wars Indonesia",
-    email: `registration@${DOMAIN}`, // Pakai backtick agar variabel terbaca
-  },
-  // Format untuk digunakan di fungsi pengiriman
-  sender: `Team Wars Indonesia <registration@${DOMAIN}>`, 
-  
-  // Daftar tujuan email internal
-  to: {
-    finance: `finance@${DOMAIN}`,
-    creative: `creative@${DOMAIN}`,
-    admin: `admin@${DOMAIN}`,
-  }
+  // Format utama untuk digunakan di fungsi pengiriman Resend
+  sender: `Team Wars Indonesia <registration@${DOMAIN}>`
 };
+
 
 export const DISCORD_CONFIG = {
   // 🛡️ ROLES
