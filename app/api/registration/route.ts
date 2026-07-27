@@ -123,14 +123,13 @@ export async function POST(request: NextRequest) {
         ]);
 
         await kv.hset(kvKey, { 
-          discordRoleId: roleId || "",
+          discordRoleId: roleId,
           discordChannelId: channelId, 
           discordVoiceChannelId: voiceChannelId, 
           trackerMsgId: trackerMsgId, 
-          adminMsgId: rosterId || "",
-          financeMsgId: financeId || "",
-          creativeMsgId: creativeId || "",
-          publicMsgId: "" 
+          adminMsgId: rosterId,
+          financeMsgId: financeId,
+          creativeMsgId: creativeId
         });
 
         try { await autoSortTeamRoles(); } catch (e) { console.warn("Gagal mengurutkan otomatis."); }
