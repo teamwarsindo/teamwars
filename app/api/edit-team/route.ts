@@ -120,11 +120,17 @@ export async function POST(request: NextRequest) {
 
     await kv.hset(`teams:${teamSlug}`, updatedTeamObj);
 
-    // 6. Update Pesan Embed di Discord (Roster & Tracker)
+    // ... (Kode Langkah 1 sampai 5 milikmu di atas tetap sama) ...
+
+    // 6. DEKLARASI VARIABEL DISCORD (Dari oldTeamData)
     const rosterMessageId = oldTeamData.adminMsgId as string;
     const trackerChannelId = oldTeamData.discordChannelId as string;
     const trackerMessageId = oldTeamData.trackerMsgId as string;
     const teamRoleId = oldTeamData.discordRoleId || oldTeamData.roleId;
+    
+    // Variabel untuk Pesan Creative (Sesuaikan nama key-nya jika di databasemu berbeda)
+    const creativeMsgId = oldTeamData.creativeMsgId as string; 
+    const creativeChannelId = oldTeamData.creativeChannelId || DISCORD_CONFIG.CH_LOGO;
 
     // 6A. Update Embed Roster
     if (rosterMessageId) {
@@ -186,13 +192,7 @@ export async function POST(request: NextRequest) {
         .catch(err => console.error('Gagal update tracker message:', err));
     }
 
-    return NextResponse.json({ success: true, message: 'Data tim berhasil diperbarui!' });
-  } catch (error) {
-    console.error('Error Edit Team API:', error);
-    return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
-  }
-
-  // 6C. Update Warna Role Tim di Discord (Hanya jika warna berubah)
+    // 6C. Update Warna Role Tim di Discord (Hanya jika warna berubah)
     if (teamRoleId && warna && warna !== oldTeamData.warna) {
       discordAPI(
         `/guilds/${DISCORD_CONFIG.GUILD_ID}/roles/${teamRoleId}`,
@@ -201,13 +201,8 @@ export async function POST(request: NextRequest) {
       ).catch(err => console.error(`Gagal update warna role ${teamRoleId}:`, err));
     }
 
-  // 6D. Update Pesan Creative (Warna dan Teks Hex)
-    // Sesuaikan 'creativeMsgId' dengan nama key yang kamu pakai di database
-    const creativeMsgId = oldTeamData.creativeMsgId as string; 
-    const creativeChannelId = oldTeamData.creativeChannelId || DISCORD_CONFIG.CH_LOGO;
-
+    // 6D. Update Pesan Creative (Warna dan Teks Hex)
     if (creativeMsgId && warna && warna !== oldTeamData.warna) {
-      // Reconstruct URL Download (sama seperti saat pertama kali dikirim)
       const currentLogo = logoTim || oldTeamData.logoTim;
       let directDownloadLogo = currentLogo;
       
@@ -233,5 +228,10 @@ export async function POST(request: NextRequest) {
       discordAPI(`/channels/${creativeChannelId}/messages/${creativeMsgId}`, 'PATCH', creativePayload)
         .catch(err => console.error('Gagal update pesan creative:', err));
     }
+
+    return NextResponse.json({ success: true, message: 'Data tim berhasil diperbarui!' });
+  } catch (error) {
+    console.error('Error Edit Team API:', error);
+    return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
-      
+}
