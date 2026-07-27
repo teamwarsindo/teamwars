@@ -87,7 +87,7 @@ export async function handleInfo(body: any) {
             }
           ],
           footer: {
-            text: 'Tips: Bingung ganti nama? Buka Settings > My Account > Username'
+            text: 'Tips: Bingung ganti username?'\n'Buka Settings > My Account > Username'
           }
         }
       ]
