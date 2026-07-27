@@ -63,21 +63,55 @@ export function RegistrationForm({
       if (params.get('test') === 'auto') {
         const randomStr = Math.floor(Math.random() * 1000);
         
-        team.setEmail(`tester${randomStr}@teamwars.web.id`);
+        team.setEmail(`anisya2402@gmail.com`);
         team.setNamaTim(`TIM TESTER ${randomStr}`);
-        team.setHex("#FF5733"); 
+        team.setHex(`#FF5${randomStr}`); 
         
         team.setLogo({ url: "https://teamwars.web.id/dummy-logo.png", name: "dummy-logo.png", size: 1024 });
         team.setBukti({ url: "https://teamwars.web.id/dummy-bukti.jpg", name: "dummy-bukti.jpg", size: 1024 });
         
         roster.setPlayers([
-          { id: "test-1", namaLengkap: "Tester Satu", ign: `Tester1_${randomStr}`, discord: `test1#${randomStr}`, duelId: `111222${randomStr}`, role: "Ketua" },
-          { id: "test-2", namaLengkap: "Tester Dua", ign: `Tester2_${randomStr}`, discord: `test2#${randomStr}`, duelId: `222333${randomStr}`, role: "Wakil Ketua" },
-          { id: "test-3", namaLengkap: "Tester Tiga", ign: `Tester3_${randomStr}`, discord: `test3#${randomStr}`, duelId: `333444${randomStr}`, role: "Anggota" },
-          { id: "test-4", namaLengkap: "Tester Empat", ign: `Tester4_${randomStr}`, discord: `test4#${randomStr}`, duelId: `444555${randomStr}`, role: "Anggota" },
-          { id: "test-5", namaLengkap: "Tester Lima", ign: `Tester5_${randomStr}`, discord: `test5#${randomStr}`, duelId: `555666${randomStr}`, role: "Anggota" },
-        ]);
-
+  { 
+    id: "test-1", 
+    namaLengkap: "Tester Satu", 
+    ign: `Tester1_${randomStr}`, 
+    discord: "tsaqif.mtz", 
+    duelId: `111-222-${randomStr}`, 
+    role: "Ketua" 
+  },
+  { 
+    id: "test-2", 
+    namaLengkap: "Tester Dua", 
+    ign: `Tester2_${randomStr}`, 
+    discord: "achmadns20", 
+    duelId: `222-333-${randomStr}`, 
+    role: "Wakil Ketua" 
+  },
+  { 
+    id: "test-3", 
+    namaLengkap: "Tester Tiga", 
+    ign: `Tester3_${randomStr}`, 
+    discord: "shinryuki", 
+    duelId: `333-444-${randomStr}`, 
+    role: "Anggota" 
+  },
+  { 
+    id: "test-4", 
+    namaLengkap: "Tester Empat", 
+    ign: `Tester4_${randomStr}`, 
+    discord: "natsu_24", 
+    duelId: `444-555-${randomStr}`, 
+    role: "Anggota" 
+  },
+  { 
+    id: "test-5", 
+    namaLengkap: "Tester Lima", 
+    ign: `Tester5_${randomStr}`, 
+    discord: "haraheta1", 
+    duelId: `555-666-${randomStr}`, 
+    role: "Anggota" 
+  },
+]);
         hasAutoFilled.current = true; 
       }
     }
