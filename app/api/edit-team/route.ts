@@ -191,5 +191,47 @@ export async function POST(request: NextRequest) {
     console.error('Error Edit Team API:', error);
     return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
+
+  // 6C. Update Warna Role Tim di Discord (Hanya jika warna berubah)
+    if (teamRoleId && warna && warna !== oldTeamData.warna) {
+      discordAPI(
+        `/guilds/${DISCORD_CONFIG.GUILD_ID}/roles/${teamRoleId}`,
+        'PATCH',
+        { color: hexToDecimal(warna) }
+      ).catch(err => console.error(`Gagal update warna role ${teamRoleId}:`, err));
+    }
+
+  // 6D. Update Pesan Creative (Warna dan Teks Hex)
+    // Sesuaikan 'creativeMsgId' dengan nama key yang kamu pakai di database
+    const creativeMsgId = oldTeamData.creativeMsgId as string; 
+    const creativeChannelId = oldTeamData.creativeChannelId || DISCORD_CONFIG.CH_LOGO;
+
+    if (creativeMsgId && warna && warna !== oldTeamData.warna) {
+      // Reconstruct URL Download (sama seperti saat pertama kali dikirim)
+      const currentLogo = logoTim || oldTeamData.logoTim;
+      let directDownloadLogo = currentLogo;
+      
+      if (currentLogo && currentLogo.includes('/upload/logo/')) {
+        const splitUrl = currentLogo.split('/upload/logo/');
+        if (splitUrl.length > 1) {
+          directDownloadLogo = `https://teamwars.web.id/logo/${splitUrl[1]}/download`;
+        }
+      }
+
+      const creativePayload = {
+        embeds: [{
+          title: `Aset Visual: ${namaTim}`,
+          color: hexToDecimal(warna),
+          description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](${directDownloadLogo})**`,
+          image: { url: currentLogo },
+          fields: [
+            { name: "Kode Warna (Hex)", value: `\`${warna}\``, inline: true }
+          ]
+        }]
+      };
+
+      discordAPI(`/channels/${creativeChannelId}/messages/${creativeMsgId}`, 'PATCH', creativePayload)
+        .catch(err => console.error('Gagal update pesan creative:', err));
+    }
   }
       
