@@ -1,56 +1,51 @@
 import { NextResponse } from 'next/server';
 
 export async function handleInfo(body: any) {
-  // 1. Deteksi Target (Diri sendiri atau orang lain)
-  const options = body.data.options || [];
+  // 1. Deteksi Target
+  const options = body.data?.options || [];
   const targetOption = options.find((opt: any) => opt.name === 'target');
   
   let targetUser;
   let targetMember;
 
   if (targetOption) {
-    // Jika mencari orang lain, ambil dari data "resolved"
     const targetId = targetOption.value;
     targetUser = body.data.resolved.users[targetId];
     targetMember = body.data.resolved.members[targetId];
   } else {
-    // Jika tidak ada target, gunakan data pemanggil command
     targetUser = body.member.user;
     targetMember = body.member;
   }
 
-  // Jika user ternyata bukan member server ini (misal bot), handle dengan aman
   if (!targetUser) {
     return NextResponse.json({
       type: 4,
-      data: { content: '❌ User tidak ditemukan.', flags: 64 }
+      data: { content: '❌ User tidak ditemukan di server ini.', flags: 64 }
     });
   }
 
-  // 2. Format Avatar URL
+  // 2. Format Avatar URL (Anti Error Build BigInt)
   let avatarUrl = '';
   if (targetUser.avatar) {
     const ext = targetUser.avatar.startsWith('a_') ? 'gif' : 'png';
     avatarUrl = `https://cdn.discordapp.com/avatars/${targetUser.id}/${targetUser.avatar}.${ext}?size=256`;
   } else {
-    // Fallback ke Default Avatar Discord jika user tidak pasang foto profil
-    const defaultAvatarIndex = (BigInt(targetUser.id) >> 22n) % 6n;
+    const defaultAvatarIndex = (BigInt(targetUser.id) >> BigInt(22)) % BigInt(6);
     avatarUrl = `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`;
   }
 
-    // 3. Format Data & Roles
+  // 3. Format Nama Cerdas
   const username = targetUser.username;
-  
-  // LOGIKA CERDAS: Ambil Nickname Server. Jika kosong, ambil Global Name. Jika kosong lagi, ambil Username.
   const displayName = targetMember?.nick || targetUser.global_name || targetUser.username;
   
-  // Gabungkan role (hindari mapping jika member tidak punya role)
+  // 4. SUSUN ROLE (Langsung Tembak Tanpa API)
   let roleString = 'Belum ada role';
   if (targetMember?.roles && targetMember.roles.length > 0) {
+    // Langsung gabungkan ID Role dengan spasi baris (\n)
     roleString = targetMember.roles.map((id: string) => `<@&${id}>`).join('\n');
   }
 
-  // 4. Susun Payload Embed JSON
+  // 5. Susun Payload Embed JSON
   const responsePayload = {
     type: 4, 
     data: {
@@ -58,7 +53,7 @@ export async function handleInfo(body: any) {
         {
           color: 3447003, 
           author: {
-            name: `Informasi Profil`, // 👈 Pakai nama yang lagi dipakai
+            name: `Informasi Profil @${username}`, 
             icon_url: avatarUrl
           },
           thumbnail: {
@@ -72,13 +67,13 @@ export async function handleInfo(body: any) {
             },
             {
               name: '🏷️ Display Name (IGN)',
-              value: displayName, // 👈 Tampilkan langsung nama yang lagi muncul di server
-              inline: true
+              value: displayName, 
+              inline: false
             },
             {
               name: '🆔 Discord ID',
               value: targetUser.id,
-              inline: true
+              inline: false
             },
             {
               name: '🛡️ Role Saat Ini',
@@ -87,13 +82,13 @@ export async function handleInfo(body: any) {
             }
           ],
           footer: {
-            text: 'Tips: Bingung ganti username?\nBuka Settings > My Account > Username'
+            text: 'Tips: Bingung ganti username? Buka Settings > My Account > Username'
           }
         }
       ]
     }
   };
 
-
   return NextResponse.json(responsePayload);
-              }
+}
+  
