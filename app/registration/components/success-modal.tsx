@@ -1,29 +1,53 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { CheckIcon, CloseIcon } from "@/components/icons"
+// Pastikan kamu punya icon Loader/Refresh. Jika pakai lucide-react:
+import { Loader2 } from "lucide-react"
 
 interface SuccessModalProps {
   open: boolean
   onClose: () => void
   namaTim: string
   isEditMode?: boolean
+  // Tambahan Props untuk Sinkronisasi
+  onSync?: () => Promise<void> 
 }
 
-export function SuccessModal({ open, onClose, namaTim, isEditMode = false }: SuccessModalProps) {
-  // Tambahkan useEffect untuk mengunci scroll body ketika modal aktif
+export function SuccessModal({ open, onClose, namaTim, isEditMode = false, onSync }: SuccessModalProps) {
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncSuccess, setSyncSuccess] = useState(false)
+
+  // Mengunci scroll body ketika modal aktif
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden"
+      // Reset state ketika modal baru dibuka
+      setIsSyncing(false)
+      setSyncSuccess(false)
     } else {
       document.body.style.overflow = "unset"
     }
     
-    // Pastikan untuk mengembalikan state awal (unset) ketika komponen hilang dari DOM
     return () => {
       document.body.style.overflow = "unset"
     }
   }, [open])
+
+  const handleSyncClick = async () => {
+    if (!onSync) return;
+    
+    setIsSyncing(true);
+    try {
+      await onSync();
+      setSyncSuccess(true);
+    } catch (error) {
+      console.error("Gagal sinkronisasi", error);
+      // Opsional: Kamu bisa tambahkan notifikasi error (toast) di sini
+    } finally {
+      setIsSyncing(false);
+    }
+  }
 
   if (!open) return null
 
@@ -55,21 +79,52 @@ export function SuccessModal({ open, onClose, namaTim, isEditMode = false }: Suc
           </h2>
           <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
             {isEditMode ? (
-              <> Data tim <span className="font-semibold text-primary">{namaTim}</span> telah berhasil diperbarui di sistem. </> ) : (
-              <> Tim <span className="font-semibold text-primary">{namaTim}</span> telah berhasil didaftarkan ke Team Wars Indonesia Season 7. </> )}
+              <> Data tim <span className="font-semibold text-primary">{namaTim}</span> telah berhasil diperbarui di sistem. </> 
+            ) : (
+              <> Tim <span className="font-semibold text-primary">{namaTim}</span> telah berhasil didaftarkan ke Team Wars Indonesia Season 7. </> 
+            )}
           </p>
         </div>
 
-        {/* Tombol Selesai */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-6 w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground shadow-md transition-all hover:brightness-110 active:scale-[0.99]"
-        >
-          Selesai
-        </button>
+        {/* Area Tombol Aksi */}
+        <div className="mt-6 flex flex-col gap-3">
+          {/* Tombol Sinkronisasi (Hanya muncul jika prop onSync diberikan) */}
+          {onSync && !syncSuccess && (
+            <button
+              type="button"
+              onClick={handleSyncClick}
+              disabled={isSyncing}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/50 bg-primary/10 py-3.5 text-sm font-semibold text-primary shadow-sm transition-all hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Memproses Sinkronisasi...
+                </>
+              ) : (
+                "Sinkronisasi Anggota ke Discord"
+              )}
+            </button>
+          )}
+
+          {/* Pesan Sukses Sinkronisasi */}
+          {syncSuccess && (
+            <div className="rounded-xl bg-emerald-500/10 py-3 text-sm font-medium text-emerald-500 border border-emerald-500/20">
+              Sinkronisasi role Discord berhasil diproses!
+            </div>
+          )}
+
+          {/* Tombol Selesai (Primary) */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground shadow-md transition-all hover:brightness-110 active:scale-[0.99]"
+          >
+            {syncSuccess ? "Tutup" : "Selesai (Nanti Saja)"}
+          </button>
+        </div>
         
       </div>
     </div>
   )
-}
+          }
