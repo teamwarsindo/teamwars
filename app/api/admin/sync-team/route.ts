@@ -98,7 +98,7 @@ export async function POST(req: Request) {
             }
           }
 
-                    // JIKA MEMBER DITEMUKAN (via ID atau Search), LANJUTKAN EKSEKUSI!
+          // JIKA MEMBER DITEMUKAN (via ID atau Search), LANJUTKAN EKSEKUSI!
           if (memberData && targetUserId) {
             // Kunci username (yang valid) ke Global DB
             await kv.sadd('global:discord', currentDiscord);
@@ -149,7 +149,12 @@ export async function POST(req: Request) {
                   console.error(`Gagal total untuk @${currentDiscord}:`, fallbackErr);
               }
             }
+          }
+        } catch (err) {
+          // Blok catch yang hilang sudah dikembalikan ke sini
+          console.error(`Gagal sinkronisasi user @${currentDiscord}:`, err);
         }
+      } // Penutup if (currentDiscord) yang hilang sudah dikembalikan
 
       // Susun teks untuk di Embed Tracker (✅ / ❌)
       rosterText += `${isUserVerified ? '✅' : '❌'} ${p.ign} (@${currentDiscord}) - ${p.role}\n`;
@@ -185,4 +190,5 @@ export async function POST(req: Request) {
     console.error('Sync Error:', error);
     return NextResponse.json({ error: 'Gagal melakukan sinkronisasi.' }, { status: 500 });
   }
-          }
+} // Penutup utama fungsi POST
+        
