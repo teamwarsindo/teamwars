@@ -30,7 +30,7 @@ export function ReviewModal({
     open, onClose, form, logo, bukti, submitting, serverError, onConfirm, isEditMode = false
 }: ReviewModalProps) {
     
-    // Checkbox Persetujuan State (Masih di sini karena terkait erat dengan form final)
+    // Checkbox Persetujuan State
     const [setujuData, setSetujuData] = useState(false)
     const [setujuRules, setSetujuRules] = useState(false)
     
@@ -117,6 +117,34 @@ export function ReviewModal({
                         </div>
                     </div>
 
+                    {/* 💡 BAGIAN ROSTER PEMAIN (DIKEMBALIKAN DI SINI) 💡 */}
+                    <div className="mt-6 space-y-3">
+                        <h3 className="font-semibold text-primary">
+                            Daftar Roster ({form.players?.length || 0} Pemain)
+                        </h3>
+                        <div className="divide-y rounded-xl border bg-muted/20 overflow-hidden">
+                            {form.players && form.players.length > 0 ? (
+                                form.players.map((player: any, index: number) => (
+                                    <div key={player.id || index} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-foreground">{index + 1}. {player.namaLengkap || "—"}</span>
+                                            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary border border-primary/20">
+                                                {player.role || "Anggota"}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                            <span>IGN: <strong className="text-foreground">{player.ign || "—"}</strong></span>
+                                            <span>Discord: <strong className="text-foreground">{player.discord ? `@${player.discord.replace(/^@/, '')}` : "—"}</strong></span>
+                                            <span>ID: <strong className="text-foreground">{player.duelId || player.idDuelLinks || "—"}</strong></span>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-4 text-center text-xs text-muted-foreground">Data roster tidak ditemukan.</div>
+                            )}
+                        </div>
+                    </div>
+
                     <hr className="my-6" />
 
                     {/* Persetujuan & Captcha */}
@@ -130,7 +158,7 @@ export function ReviewModal({
                             <span className="text-sm text-muted-foreground">Tim kami telah membaca dan menyetujui seluruh <a href="/rules" target="_blank" className="text-primary hover:underline">Rulebook & Guidelines</a> yang berlaku.</span>
                         </label>
 
-                        {/* Komponen Captcha yang sudah diisolasi */}
+                        {/* Komponen Captcha */}
                         <Captcha onValidChange={setIsCaptchaValid} resetTrigger={open} />
                     </div>
                 </div>
