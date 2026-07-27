@@ -53,9 +53,9 @@ export async function handleInfo(body: any) {
         {
           color: 3447003, 
           author: {
-            name: `Informasi Profil @${username}`, 
-            icon_url: avatarUrl
+            name: `Informasi Profil`
           },
+          description: `<@${targetUser.id}>`,
           thumbnail: {
             url: avatarUrl
           },
