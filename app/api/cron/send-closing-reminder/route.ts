@@ -27,7 +27,7 @@ function getRemainingTimeText(): string {
   return text;
 }
 
-// Helper untuk kirim log aktivitas ke Channel CCTV / Log Discord
+// Helper kirim log ke Channel CH_LOG
 async function sendDiscordLog(title: string, description: string, color = 3447003) {
   try {
     await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG}/messages`, 'POST', {
@@ -58,7 +58,6 @@ export async function GET(request: NextRequest) {
     let targetTeamKey: string | null = null;
     let targetTeamData: any = null;
 
-    // Cari 1 tim pertama yang BELUM dikirim reminder (reminderSent != 'true')
     for (const key of teamKeys) {
       const teamData: any = await kv.hgetall(key);
       if (teamData && teamData.email && teamData.reminderSent !== 'true') {
@@ -68,7 +67,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Jika seluruh tim sudah terkirim
     if (!targetTeamKey || !targetTeamData) {
       return NextResponse.json({
         success: true,
@@ -90,7 +88,7 @@ export async function GET(request: NextRequest) {
       targetTeamData.ketua || { namaLengkap: 'Kapten' };
     const teamName = targetTeamData.namaTim || 'Tim';
 
-    // 1. Kirim Email via Resend
+    // 1. Kirim Email
     const emailHtml = getClosingReminderTemplate({
       namaTim: teamName,
       namaKetua: ketuaTim.namaLengkap,
@@ -106,7 +104,7 @@ export async function GET(request: NextRequest) {
       html: emailHtml,
     });
 
-    // 2. Kirim Embed Discord ke Channel Tim
+    // 2. Kirim Embed Discord Ke Channel Tim
     const channelId = targetTeamData.discordChannelId;
     const roleId = targetTeamData.discordRoleId || targetTeamData.roleId;
 
@@ -126,14 +124,14 @@ export async function GET(request: NextRequest) {
       ).catch((err) => console.error(`Gagal kirim reminder Discord ke tim ${teamName}:`, err));
     }
 
-    // 3. Tandai status di Redis
+    // 3. Tandai Terkirim di Redis
     await kv.hset(targetTeamKey, { reminderSent: 'true' });
 
-    // 4. Send CCTV / System Log ke Channel Log Discord Admin
+    // 4. Kirim Laporan Log Ke Channel Log Admin
     await sendDiscordLog(
       `📢 Reminder Terkirim: Tim ${teamName}`,
       `• **Email Registered:** \`${targetTeamData.email}\`\n• **Channel DC:** <#${channelId || 'N/A'}>\n• **Sisa Waktu:** ${sisaWaktuText}\n• **Status:** ✅ Terkirim via Resend & Discord`,
-      3066993 // Warna Hijau Success
+      3066993
     );
 
     return NextResponse.json({
@@ -148,11 +146,10 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Error Cron Job Reminder:', error);
 
-    // Kirim Error Log ke Channel Log Discord
     await sendDiscordLog(
       `❌ Error Cron Job Reminder`,
       `**Pesan Error:** \`${error.message || 'Unknown Error'}\``,
-      15158332 // Warna Merah Error
+      15158332
     );
 
     return NextResponse.json(
@@ -161,4 +158,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-  
