@@ -15,11 +15,15 @@ const nextConfig = {
         destination: 'https://www.instagram.com/teamwarsindonesia',
         permanent: true,
       },
-`      {
-        source: '/registration',
-        destination: '/maintenance',
-        permanent: true,
-      },`
+      // --------------------------------------------------
+      // MAINTENANCE (Diberhentikan sementara)
+      // Hilangkan tanda '//' jika ingin mengaktifkan lagi
+      // --------------------------------------------------
+      // {
+      //   source: '/registration',
+      //   destination: '/maintenance',
+      //   permanent: false, // Disarankan pakai false saat maintenance agar browser tidak nge-cache permanen
+      // },
     ]
   },
 
