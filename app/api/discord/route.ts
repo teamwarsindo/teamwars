@@ -4,11 +4,12 @@ import { verifySignature } from '@/lib/discord/utils';
 // Import Commands
 import { handleReminder } from '@/lib/discord/commands/reminder';
 import { handlePrepare } from '@/lib/discord/commands/prepare';
-import { handleInfo } from '@/lib/discord/commands/info'; // 👇 Tambahkan import ini
+import { handleInfo } from '@/lib/discord/commands/info';
 
 // Import Buttons
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
 import { handleBtRole } from '@/lib/discord/buttons/btRole';
+import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam'; // 👈 1. Tambahkan import ini
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -35,7 +36,6 @@ export async function POST(req: NextRequest) {
       const commandName = body.data.name;
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
-      // 👇 Tambahkan routing untuk info 👇
       if (commandName === 'info') return await handleInfo(body); 
     }
 
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       const customId = body.data.custom_id;
       if (customId === 'bt_verified') return await handleBtVerified(body);
       if (customId === 'bt_role') return await handleBtRole(body);
+      if (customId === 'btn_edit_team') return await handleBtEditTeam(body); // 👈 2. Tambahkan routing ini
     }
 
     return new NextResponse('Unknown Interaction', { status: 400 });
@@ -51,4 +52,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-}
+    }
