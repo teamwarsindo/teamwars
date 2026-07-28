@@ -15,6 +15,11 @@ const nextConfig = {
         destination: 'https://www.instagram.com/teamwarsindonesia',
         permanent: true,
       },
+      {
+        source: '/registration',
+        destination: '/maintenance',
+        permanent: true,
+      },
     ]
   },
 
