@@ -6,7 +6,11 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { token, namaTim, warna, logoTim, buktiTransfer, players } = body;
+    const { token, namaTim, warna, logoTim, buktiTransfer, players, key } = body;
+
+    // 🔑 DETEKSI ADMIN: Cek dari Body JSON atau Query Params URL
+    const urlKey = request.nextUrl.searchParams.get('key');
+    const isAdminKey = (key === '470212070957252618') || (urlKey === '470212070957252618');
 
     if (!token) {
       return NextResponse.json({ error: 'Token tidak valid' }, { status: 400 });
@@ -33,38 +37,35 @@ export async function POST(request: NextRequest) {
       : (oldTeamData.players || []);
 
     // 2. Validasi Sensitif Username Discord
-// Bolehkan bypass validasi JIKA yang edit adalah Admin (ada key/role admin)
-const searchParams = request.nextUrl.searchParams;
-const isAdminKey = searchParams.get('key') === '470212070957252618';
+    // 🛡️ BIAARKAN BYPASS JIKA MODE ADMIN ACTIVE!
+    if (!isAdminKey) {
+      for (let i = 0; i < players.length; i++) {
+        const newPlayer = players[i];
+        const oldPlayer = oldPlayers[i];
 
-if (!isAdminKey) { // 👈 Jika bukan Admin, baru lakukan pengecekan ketat ini
-  for (let i = 0; i < players.length; i++) {
-    const newPlayer = players[i];
-    const oldPlayer = oldPlayers[i];
+        // Bersihkan tanda '@' agar pencocokan ke database presisi
+        const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().replace(/^@/, '').trim() : '';
+        const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().replace(/^@/, '').trim() : '';
 
-    const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().trim() : '';
-    const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().trim() : '';
+        if (oldDiscord && newDiscord !== oldDiscord) {
+          const isOldVerified = verifiedMap.hasOwnProperty(oldDiscord);
+          const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
 
-    if (oldDiscord && newDiscord !== oldDiscord) {
-      const isOldVerified = verifiedMap.hasOwnProperty(oldDiscord);
-      const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
-
-      if (isOldVerified && !isNewVerified) {
-        return NextResponse.json(
-          { error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sudah sesuai!` },
-          { status: 400 }
-        );
+          if (isOldVerified && !isNewVerified) {
+            return NextResponse.json(
+              { error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sudah sesuai!` },
+              { status: 400 }
+            );
+          }
+        }
       }
     }
-  }
-}
-
 
     // 3. Update Nickname Discord Server (Jika IGN berubah di Web)
     for (let i = 0; i < players.length; i++) {
       const newPlayer = players[i];
       const oldPlayer = oldPlayers[i];
-      const playerDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().trim() : '';
+      const playerDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().replace(/^@/, '').trim() : '';
       const discordId = verifiedMap[playerDiscord];
 
       if (discordId && oldPlayer && oldPlayer.ign !== newPlayer.ign) {
@@ -80,7 +81,7 @@ if (!isAdminKey) { // 👈 Jika bukan Admin, baru lakukan pengecekan ketat ini
       }
     }
 
-    // 4. Sinkronisasi Data Global / Cleanup (Hanya ubah yang diedit)
+    // 4. Sinkronisasi Data Global / Cleanup
     const getCleanDiscord = (p: any) => p?.discord?.toLowerCase().replace(/^@/, '').trim();
     const getCleanIgn = (p: any) => p?.ign?.toLowerCase().trim();
     const getCleanDuelLinks = (p: any) => (p?.idDuelLinks || p?.duelId);
@@ -127,15 +128,12 @@ if (!isAdminKey) { // 👈 Jika bukan Admin, baru lakukan pengecekan ketat ini
 
     await kv.hset(`teams:${teamSlug}`, updatedTeamObj);
 
-    // ... (Kode Langkah 1 sampai 5 milikmu di atas tetap sama) ...
-
-    // 6. DEKLARASI VARIABEL DISCORD (Dari oldTeamData)
+    // 6. DEKLARASI VARIABEL DISCORD
     const rosterMessageId = oldTeamData.adminMsgId as string;
     const trackerChannelId = oldTeamData.discordChannelId as string;
     const trackerMessageId = oldTeamData.trackerMsgId as string;
     const teamRoleId = oldTeamData.discordRoleId || oldTeamData.roleId;
     
-    // Variabel untuk Pesan Creative (Sesuaikan nama key-nya jika di databasemu berbeda)
     const creativeMsgId = oldTeamData.creativeMsgId as string; 
     const creativeChannelId = oldTeamData.creativeChannelId || DISCORD_CONFIG.CH_LOGO;
 
@@ -173,7 +171,7 @@ if (!isAdminKey) { // 👈 Jika bukan Admin, baru lakukan pengecekan ketat ini
       let rosterText = "";
 
       players.forEach((p: any) => {
-        const pDiscord = p.discord ? p.discord.toLowerCase().trim() : '';
+        const pDiscord = p.discord ? p.discord.toLowerCase().replace(/^@/, '').trim() : '';
         const isVerified = verifiedMap.hasOwnProperty(pDiscord);
 
         if (isVerified) verifiedCount++;
@@ -199,7 +197,7 @@ if (!isAdminKey) { // 👈 Jika bukan Admin, baru lakukan pengecekan ketat ini
         .catch(err => console.error('Gagal update tracker message:', err));
     }
 
-    // 6C. Update Warna Role Tim di Discord (Hanya jika warna berubah)
+    // 6C. Update Warna Role Tim di Discord
     if (teamRoleId && warna && warna !== oldTeamData.warna) {
       discordAPI(
         `/guilds/${DISCORD_CONFIG.GUILD_ID}/roles/${teamRoleId}`,
@@ -208,7 +206,7 @@ if (!isAdminKey) { // 👈 Jika bukan Admin, baru lakukan pengecekan ketat ini
       ).catch(err => console.error(`Gagal update warna role ${teamRoleId}:`, err));
     }
 
-    // 6D. Update Pesan Creative (Warna dan Teks Hex)
+    // 6D. Update Pesan Creative
     if (creativeMsgId && warna && warna !== oldTeamData.warna) {
       const currentLogo = logoTim || oldTeamData.logoTim;
       let directDownloadLogo = currentLogo;
@@ -242,3 +240,4 @@ if (!isAdminKey) { // 👈 Jika bukan Admin, baru lakukan pengecekan ketat ini
     return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
 }
+  
