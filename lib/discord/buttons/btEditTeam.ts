@@ -42,11 +42,11 @@ export async function handleBtEditTeam(body: any) {
       }
     }
 
-    // 👑 2. JIKA USER ADALAH ADMIN DISCORD (Pakai Query ?key=ROLE_ADMIN)
+    // 👑 2. JIKA USER ADALAH ADMIN DISCORD (Langsung pakai ID angka 470212070957252618)
     if (isAdmin) {
       const adminEditUrl = editToken 
-        ? `https://teamwars.web.id/edit-team/${editToken}?key=${DISCORD_CONFIG.ROLE_ADMIN}` 
-        : `https://teamwars.web.id/edit-team?key=${DISCORD_CONFIG.ROLE_ADMIN}`;
+        ? `https://teamwars.web.id/edit-team/${editToken}?key=470212070957252618` 
+        : `https://teamwars.web.id/edit-team?key=470212070957252618`;
 
       return NextResponse.json({
         type: 4,
@@ -108,5 +108,4 @@ export async function handleBtEditTeam(body: any) {
       },
     });
   }
-          }
-        
+      }
