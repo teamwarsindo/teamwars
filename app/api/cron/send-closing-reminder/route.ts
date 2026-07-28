@@ -3,11 +3,11 @@ import { kv } from '@vercel/kv';
 import { Resend } from 'resend';
 import { EMAIL_CONFIG, CLOSE_TARGET_DATE, DISCORD_CONFIG } from '@/lib/config';
 import { getClosingReminderTemplate } from '@/lib/email-templates';
+import { createClosingReminderEmbed } from '@/lib/discord/messages/closingReminderEmbed';
 import { discordAPI } from '@/lib/discord/utils';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Helper hitung sisa waktu mundur berdasarkan CLOSE_TARGET_DATE dari lib/config
 function getRemainingTimeText(): string {
   const now = new Date();
   const targetClosing = new Date(CLOSE_TARGET_DATE);
@@ -27,87 +27,23 @@ function getRemainingTimeText(): string {
   return text;
 }
 
-// Helper untuk masking email (ac••••@gmail.com)
-function maskEmail(email: string) {
-  if (!email) return '••••@••••.com';
-  const [name, domain] = email.split('@');
-  if (!domain) return '••••@••••.com';
-  const maskedName = name.length > 2 ? name.slice(0, 2) + '••••' : name[0] + '••••';
-  return `${maskedName}@${domain}`;
-}
-
-// Helper format waktu footer (Contoh: 28 Jul 2026 at 22:45 WIB)
-function getFormattedFooterTime() {
-  const d = new Date();
-  const dateStr = d.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'Asia/Jakarta',
-  });
-  const timeStr = d.toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Jakarta',
-  }).replace('.', ':');
-
-  return `${dateStr} at ${timeStr} WIB`;
-}
-
-// Helper untuk membuat Payload Embed + Interactive Button Discord
-function createDiscordEmbedPayload(params: {
-  roleMentionId: string;
-  namaTim: string;
-  email: string;
-  sisaWaktuText: string;
-  hexWarna: string;
-}) {
-  const hexDecimal = parseInt(params.hexWarna.replace('#', ''), 16) || 15158332;
-
-  return {
-    content: `<@&${params.roleMentionId}>`, // Tag role tim
-    embeds: [
-      {
-        title: "⏳ Pendaftaran Segera Ditutup!",
-        color: hexDecimal,
-        description: `Periksa kembali data roster tim **${params.namaTim}** sebelum waktu pendaftaran berakhir.`,
-        fields: [
-          {
-            name: "⏱️ Sisa Waktu",
-            value: `\`\`\`${params.sisaWaktuText}\`\`\``,
-            inline: false,
-          },
-          {
-            name: "🔍 Hal yang Wajib Dicek",
-            value: "• Typo pada **IGN** & **Duel ID**.\n• Status verifikasi Discord pemain.\n• Tambah / kurangi anggota roster (Maks 10).",
-            inline: false,
-          },
-          {
-            name: "📝 Cara Edit Data Tim",
-            value: `Klik tombol **Edit Team** di bawah atau gunakan tautan yang dikirim ke email registered:\n📧 \`${maskEmail(params.email)}\`\n\n*Gagal/Email tidak ketemu? Hubungi Admin Discord.*`,
-            inline: false,
-          },
-        ],
-        footer: {
-          text: getFormattedFooterTime(),
+// Helper untuk kirim log aktivitas ke Channel CCTV / Log Discord
+async function sendDiscordLog(title: string, description: string, color = 3447003) {
+  try {
+    await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG}/messages`, 'POST', {
+      embeds: [
+        {
+          title,
+          description,
+          color,
+          timestamp: new Date().toISOString(),
+          footer: { text: 'System Cron Reminder • TWI S7' },
         },
-      },
-    ],
-    components: [
-      {
-        type: 1, // Action Row
-        components: [
-          {
-            type: 2, // Button Component (Trigger Discord Interactions)
-            style: 1, // Primary (Blurple) Button
-            custom_id: "btn_edit_team",
-            label: "Edit Team",
-            emoji: { name: "✏️" }
-          }
-        ]
-      }
-    ]
-  };
+      ],
+    });
+  } catch (err) {
+    console.error('Gagal kirim log ke Discord CH_LOG:', err);
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -128,7 +64,7 @@ export async function GET(request: NextRequest) {
       if (teamData && teamData.email && teamData.reminderSent !== 'true') {
         targetTeamKey = key;
         targetTeamData = teamData;
-        break; // Stop loop begitu menemukan 1 tim!
+        break;
       }
     }
 
@@ -141,7 +77,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Ekstrak data tim
     let parsedPlayers = [];
     try {
       parsedPlayers = typeof targetTeamData.players === 'string'
@@ -171,12 +106,12 @@ export async function GET(request: NextRequest) {
       html: emailHtml,
     });
 
-    // 2. Kirim Embed Discord ke Channel Tim & Tag Role Tim
+    // 2. Kirim Embed Discord ke Channel Tim
     const channelId = targetTeamData.discordChannelId;
     const roleId = targetTeamData.discordRoleId || targetTeamData.roleId;
 
     if (channelId && roleId) {
-      const discordPayload = createDiscordEmbedPayload({
+      const discordPayload = createClosingReminderEmbed({
         roleMentionId: roleId,
         namaTim: teamName,
         email: targetTeamData.email,
@@ -191,8 +126,15 @@ export async function GET(request: NextRequest) {
       ).catch((err) => console.error(`Gagal kirim reminder Discord ke tim ${teamName}:`, err));
     }
 
-    // 3. Tandai status di Redis agar tidak terkirim dua kali
+    // 3. Tandai status di Redis
     await kv.hset(targetTeamKey, { reminderSent: 'true' });
+
+    // 4. Send CCTV / System Log ke Channel Log Discord Admin
+    await sendDiscordLog(
+      `📢 Reminder Terkirim: Tim ${teamName}`,
+      `• **Email Registered:** \`${targetTeamData.email}\`\n• **Channel DC:** <#${channelId || 'N/A'}>\n• **Sisa Waktu:** ${sisaWaktuText}\n• **Status:** ✅ Terkirim via Resend & Discord`,
+      3066993 // Warna Hijau Success
+    );
 
     return NextResponse.json({
       success: true,
@@ -205,6 +147,14 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error Cron Job Reminder:', error);
+
+    // Kirim Error Log ke Channel Log Discord
+    await sendDiscordLog(
+      `❌ Error Cron Job Reminder`,
+      `**Pesan Error:** \`${error.message || 'Unknown Error'}\``,
+      15158332 // Warna Merah Error
+    );
+
     return NextResponse.json(
       { error: error.message || 'Internal Server Error' },
       { status: 500 }
