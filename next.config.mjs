@@ -8,22 +8,13 @@ const nextConfig = {
       {
         source: '/fb',
         destination: 'https://www.facebook.com/teamwars.id',
-        permanent: true, // HTTP 308 (Bagus untuk SEO)
+        permanent: true,
       },
       {
         source: '/ig',
         destination: 'https://www.instagram.com/teamwarsindonesia',
         permanent: true,
       },
-      // --------------------------------------------------
-      // MAINTENANCE (Diberhentikan sementara)
-      // Hilangkan tanda '//' jika ingin mengaktifkan lagi
-      // --------------------------------------------------
-      // {
-      //   source: '/registration',
-      //   destination: '/maintenance',
-      //   permanent: false, // Disarankan pakai false saat maintenance agar browser tidak nge-cache permanen
-      // },
     ]
   },
 
@@ -32,7 +23,14 @@ const nextConfig = {
   // ----------------------------------------------------
   async rewrites() {
     return [
-      // Format URL lu: domain.com/bukti/namafilenya.jpg
+      // 🌟 NEW: Masking Khusus Logo SVG untuk BIMI / Email
+      // Menembak Cloudinary dengan transformasi f_svg (format ke SVG)
+      {
+        source: '/logo-bimi.svg',
+        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/f_svg/v1785258907/logo/logo-twis7.jpg',
+      },
+
+      // Format URL: domain.com/bukti/namafilenya.jpg
       {
         source: '/bukti/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/bukti/:path*',
@@ -42,7 +40,7 @@ const nextConfig = {
         source: '/logo/:path*/download',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/fl_attachment/logo/:path*',
       },
-      // Format URL lu: domain.com/logo/namafilenya.png
+      // Format URL: domain.com/logo/namafilenya.png
       {
         source: '/logo/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/logo/:path*',
