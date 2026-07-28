@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { token, namaTim, warna, logoTim, buktiTransfer, players, key } = body;
 
-    // 🔑 DETEKSI ADMIN: Cek dari Body JSON atau Query Params URL
+    // 🔑 Deteksi Mode Admin
     const urlKey = request.nextUrl.searchParams.get('key');
     const isAdminKey = (key === '470212070957252618') || (urlKey === '470212070957252618');
 
@@ -36,32 +36,29 @@ export async function POST(request: NextRequest) {
       ? JSON.parse(oldTeamData.players)
       : (oldTeamData.players || []);
 
-    // 2. Validasi Sensitif Username Discord
-    // 🛡️ BIAARKAN BYPASS JIKA MODE ADMIN ACTIVE!
-    if (!isAdminKey) {
-      for (let i = 0; i < players.length; i++) {
-        const newPlayer = players[i];
-        const oldPlayer = oldPlayers[i];
+    // 2. Peringatan Status Verifikasi Discord (TIDAK MEMBLOKIR PENYIMPANAN)
+    const warnings: string[] = [];
 
-        // Bersihkan tanda '@' agar pencocokan ke database presisi
-        const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().replace(/^@/, '').trim() : '';
-        const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().replace(/^@/, '').trim() : '';
+    for (let i = 0; i < players.length; i++) {
+      const newPlayer = players[i];
+      const oldPlayer = oldPlayers[i];
 
-        if (oldDiscord && newDiscord !== oldDiscord) {
-          const isOldVerified = verifiedMap.hasOwnProperty(oldDiscord);
-          const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
+      const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().replace(/^@/, '').trim() : '';
+      const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().replace(/^@/, '').trim() : '';
 
-          if (isOldVerified && !isNewVerified) {
-            return NextResponse.json(
-              { error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sudah sesuai!` },
-              { status: 400 }
-            );
-          }
+      if (newDiscord) {
+        const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
+        if (!isNewVerified) {
+          warnings.push(`Pemain ${newPlayer.ign} (@${newPlayer.discord}) belum terverifikasi di Discord TWI.`);
         }
       }
     }
 
-    // 3. Update Nickname Discord Server (Jika IGN berubah di Web)
+    if (warnings.length > 0) {
+      console.warn('⚠️ Peringatan Edit Tim:', warnings.join(' | '));
+    }
+
+    // 3. Update Nickname Discord Server (Jika IGN berubah di Web & Terverifikasi)
     for (let i = 0; i < players.length; i++) {
       const newPlayer = players[i];
       const oldPlayer = oldPlayers[i];
@@ -112,7 +109,7 @@ export async function POST(request: NextRequest) {
     if (ignsToAdd.length) await kv.sadd('global:ign', ...ignsToAdd);
     if (duelLinksToAdd.length) await kv.sadd('global:duellinks', ...duelLinksToAdd);
 
-    // 5. Update Data Utama di Brankas KV Redis
+    // 5. Update Data Utama di KV Redis
     const createdAt = oldTeamData.createdAt as string;
     const updatedAt = new Date().toISOString(); 
     
@@ -128,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     await kv.hset(`teams:${teamSlug}`, updatedTeamObj);
 
-    // 6. DEKLARASI VARIABEL DISCORD
+    // 6. Update Embeds Discord (Roster, Tracker, Creative)
     const rosterMessageId = oldTeamData.adminMsgId as string;
     const trackerChannelId = oldTeamData.discordChannelId as string;
     const trackerMessageId = oldTeamData.trackerMsgId as string;
@@ -165,7 +162,7 @@ export async function POST(request: NextRequest) {
         .catch(err => console.error('Gagal update roster embed message:', err));
     }
 
-    // 6B. Update Embed Tracker
+    // 6B. Update Embed Tracker (Otomatis menampilkan Tanda ❌ jika belum terverifikasi)
     if (trackerChannelId && trackerMessageId) {
       let verifiedCount = 0;
       let rosterText = "";
@@ -197,7 +194,7 @@ export async function POST(request: NextRequest) {
         .catch(err => console.error('Gagal update tracker message:', err));
     }
 
-    // 6C. Update Warna Role Tim di Discord
+    // 6C. Update Warna Role Tim
     if (teamRoleId && warna && warna !== oldTeamData.warna) {
       discordAPI(
         `/guilds/${DISCORD_CONFIG.GUILD_ID}/roles/${teamRoleId}`,
@@ -234,10 +231,16 @@ export async function POST(request: NextRequest) {
         .catch(err => console.error('Gagal update pesan creative:', err));
     }
 
-    return NextResponse.json({ success: true, message: 'Data tim berhasil diperbarui!' });
+    // 7. Berikan Respons Berhasil (Plus catatan warning jika ada)
+    return NextResponse.json({
+      success: true,
+      message: 'Data tim berhasil diperbarui!',
+      warnings: warnings.length > 0 ? warnings : undefined,
+    });
+
   } catch (error) {
     console.error('Error Edit Team API:', error);
     return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
-}
-  
+  }
+                                    
