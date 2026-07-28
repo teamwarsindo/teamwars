@@ -36,7 +36,7 @@ function maskEmail(email: string) {
   return `${maskedName}@${domain}`;
 }
 
-// Helper format waktu footer (Contoh: 28 Jul 2026 at 22:31 WIB)
+// Helper format waktu footer (Contoh: 28 Jul 2026 at 22:45 WIB)
 function getFormattedFooterTime() {
   const d = new Date();
   const dateStr = d.toLocaleDateString('en-GB', {
@@ -65,7 +65,7 @@ function createDiscordEmbedPayload(params: {
   const hexDecimal = parseInt(params.hexWarna.replace('#', ''), 16) || 15158332;
 
   return {
-    content: `<@&${params.roleMentionId}>`, // Hanya tag role tim
+    content: `<@&${params.roleMentionId}>`, // Tag role tim
     embeds: [
       {
         title: "⏳ Pendaftaran Segera Ditutup!",
@@ -112,88 +112,13 @@ function createDiscordEmbedPayload(params: {
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const testEmail = searchParams.get('email'); // Contoh Testing: ?email=achmadnsss20@gmail.com
     const sisaWaktuText = getRemainingTimeText();
-
-    // Ambil data tim dari Vercel KV Redis
     const teamKeys = await kv.keys('teams:*');
 
     if (!teamKeys || teamKeys.length === 0) {
-      return NextResponse.json({ message: 'Tidak ada data tim di Redis.' }, { status: 404 });
+      return NextResponse.json({ message: 'Tidak ada data tim di Redis.' });
     }
 
-    // ==========================================
-    // 1. MODE TESTING (?email=achmadnsss20@gmail.com)
-    // ==========================================
-    if (testEmail) {
-      // Ambil tim pertama dari Redis sebagai data sampel asli
-      const sampleTeamKey = teamKeys[0];
-      const sampleTeamData: any = await kv.hgetall(sampleTeamKey);
-
-      let parsedPlayers = [];
-      try {
-        parsedPlayers = typeof sampleTeamData.players === 'string'
-          ? JSON.parse(sampleTeamData.players)
-          : sampleTeamData.players || [];
-      } catch (e) {
-        parsedPlayers = [];
-      }
-
-      const ketuaTim = parsedPlayers.find((p: any) => p.role === 'Ketua') ||
-        sampleTeamData.ketua || { namaLengkap: 'Kapten' };
-      const teamName = sampleTeamData.namaTim || 'Tim Awal';
-      const editToken = sampleTeamData.editToken || 'sample-token';
-      const teamColor = sampleTeamData.warna || '#7300FF';
-      const teamRoleId = sampleTeamData.discordRoleId || sampleTeamData.roleId || DISCORD_CONFIG.ROLE_ADMIN;
-
-      // A. Kirim Email Testing (Pakai data tim sampel, tapi dikirim ke email kamu)
-      const emailHtml = getClosingReminderTemplate({
-        namaTim: teamName,
-        namaKetua: ketuaTim.namaLengkap,
-        warna: teamColor,
-        editToken: editToken,
-        sisaWaktuText,
-      });
-
-      await resend.emails.send({
-        from: EMAIL_CONFIG.sender,
-        to: testEmail,
-        subject: `⚠️ [TESTING] Pendaftaran Akan Ditutup: Cek Data Tim ${teamName} [Team Wars S7]`,
-        html: emailHtml,
-      });
-
-      // B. Kirim Embed Testing ke CH_LOG (Tag Role Asli Tim + Link Token Asli Tim)
-      const testDiscordPayload = createDiscordEmbedPayload({
-        roleMentionId: teamRoleId, // Tag Role Asli Tim tersebut
-        namaTim: teamName,
-        email: testEmail, // Ditulis email kamu agar pas dicek sesuai
-        sisaWaktuText,
-        hexWarna: teamColor,
-      });
-
-      await discordAPI(
-        `/channels/${DISCORD_CONFIG.CH_LOG}/messages`, // Tetap ke Channel Log
-        'POST',
-        testDiscordPayload
-      ).catch((err) => console.error('Gagal kirim testing embed Discord:', err));
-
-      return NextResponse.json({
-        success: true,
-        mode: 'TESTING',
-        usingSampleTeam: teamName,
-        sentToEmail: testEmail,
-        sentToDiscordChannel: `CH_LOG (${DISCORD_CONFIG.CH_LOG})`,
-        taggedTeamRole: `<@&${teamRoleId}>`,
-        editTokenUsed: editToken,
-        sisaWaktu: sisaWaktuText,
-        message: `Uji coba sukses menggunakan data tim asli: ${teamName}!`,
-      });
-    }
-
-    // ==========================================
-    // 2. MODE CRON-JOB.ORG (Proses 1 Tim per Request)
-    // ==========================================
     let targetTeamKey: string | null = null;
     let targetTeamData: any = null;
 
@@ -203,7 +128,7 @@ export async function GET(request: NextRequest) {
       if (teamData && teamData.email && teamData.reminderSent !== 'true') {
         targetTeamKey = key;
         targetTeamData = teamData;
-        break; // Stop loop langsung begitu menemukan 1 tim!
+        break; // Stop loop begitu menemukan 1 tim!
       }
     }
 
@@ -230,7 +155,7 @@ export async function GET(request: NextRequest) {
       targetTeamData.ketua || { namaLengkap: 'Kapten' };
     const teamName = targetTeamData.namaTim || 'Tim';
 
-    // A. Kirim Email via Resend
+    // 1. Kirim Email via Resend
     const emailHtml = getClosingReminderTemplate({
       namaTim: teamName,
       namaKetua: ketuaTim.namaLengkap,
@@ -246,7 +171,7 @@ export async function GET(request: NextRequest) {
       html: emailHtml,
     });
 
-    // B. Kirim Embed Discord ke Channel Tim & Tag Role Tim
+    // 2. Kirim Embed Discord ke Channel Tim & Tag Role Tim
     const channelId = targetTeamData.discordChannelId;
     const roleId = targetTeamData.discordRoleId || targetTeamData.roleId;
 
@@ -266,7 +191,7 @@ export async function GET(request: NextRequest) {
       ).catch((err) => console.error(`Gagal kirim reminder Discord ke tim ${teamName}:`, err));
     }
 
-    // Tandai status di Redis agar tidak terkirim dua kali
+    // 3. Tandai status di Redis agar tidak terkirim dua kali
     await kv.hset(targetTeamKey, { reminderSent: 'true' });
 
     return NextResponse.json({
@@ -285,4 +210,5 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-      }
+}
+  
