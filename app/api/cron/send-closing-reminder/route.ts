@@ -27,7 +27,7 @@ function getRemainingTimeText(): string {
   return text;
 }
 
-// Helper untuk masking/sensor email agar aman dipajang di Discord publik (m**a@gmail.com)
+// Helper untuk masking email (ac••••@gmail.com)
 function maskEmail(email: string) {
   if (!email) return '••••@••••.com';
   const [name, domain] = email.split('@');
@@ -36,50 +36,79 @@ function maskEmail(email: string) {
   return `${maskedName}@${domain}`;
 }
 
-// Helper untuk membuat Payload Embed Discord
+// Helper format waktu footer (Contoh: 28 Jul 2026 at 22:16 WIB)
+function getFormattedFooterTime() {
+  const d = new Date();
+  const dateStr = d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta',
+  }); // 28 Jul 2026
+  const timeStr = d.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta',
+  }).replace('.', ':'); // 22:16
+
+  return `${dateStr} at ${timeStr} WIB`;
+}
+
+// Helper untuk membuat Payload Embed + Tombol Discord
 function createDiscordEmbedPayload(params: {
   roleMentionId: string;
   namaTim: string;
   email: string;
+  editToken: string;
   sisaWaktuText: string;
   hexWarna: string;
 }) {
-  const hexDecimal = parseInt(params.hexWarna.replace('#', ''), 16) || 15158332; // Default Merah jika invalid
+  const hexDecimal = parseInt(params.hexWarna.replace('#', ''), 16) || 15158332;
+  const editUrl = `https://teamwars.web.id/edit-team/${params.editToken}`;
 
   return {
-    content: `<@&${params.roleMentionId}> ⚠️ **PEMBERITAHUAN PENTING PENUTUPAN PENDAFTARAN TWI S7**`,
+    content: `<@&${params.roleMentionId}>`, // Hanya tag role
     embeds: [
       {
-        title: `⏳ Pendaftaran Akan Ditutup: Tim ${params.namaTim}`,
+        title: "⏳ Pendaftaran Segera Ditutup!",
         color: hexDecimal,
-        description: `Halo seluruh anggota tim **${params.namaTim}**!\n\nGerbang pendaftaran Team Wars Indonesia Season 7 akan segera dikunci. Harap pastikan seluruh susunan pemain dan data tim kalian sudah **100% valid** sebelum waktu habis.`,
+        description: `Periksa kembali data roster tim **${params.namaTim}** sebelum waktu pendaftaran berakhir.`,
         fields: [
           {
-            name: "⏱️ Sisa Waktu Pendaftaran",
+            name: "⏱️ Sisa Waktu",
             value: `\`\`\`${params.sisaWaktuText}\`\`\``,
             inline: false,
           },
           {
-            name: "🔍 Apa yang Harus Diperiksa?",
-            value: "• Pastikan tidak ada **typo / salah ketik** IGN & Duel ID.\n• Pastikan status verifikasi Discord pemain sudah ✅.\n• Tambah / kurangi roster jika diperlukan (Maks 10 Pemain).",
+            name: "🔍 Hal yang Wajib Dicek",
+            value: "• Typo pada **IGN** & **Duel ID**.\n• Status verifikasi Discord pemain.\n• Tambah / kurangi anggota roster (Maks 10).",
             inline: false,
           },
           {
-            name: "✉️ Cara Mengubah / Edit Data Tim",
-            value: `Tautan (*link*) khusus untuk mengedit data tim telah kami kirimkan ke inbox email registered kalian:\n📧 **\`${maskEmail(params.email)}\`**\n\n*Periksa folder Primary, Promo, atau Spam pada email tersebut.*`,
-            inline: false,
-          },
-          {
-            name: "🆘 Tidak Menemukan Email / Ingin Ubah Identitas Utama?",
-            value: "Jika email tidak ditemukan, atau ingin mengubah **Ketua / Wakil / Nama Tim / Logo**, harap segera hubungi **Admin Discord** di server TWI.",
+            name: "📝 Cara Edit Data Tim",
+            value: `Klik tombol **Edit Team** di bawah atau gunakan tautan yang dikirim ke email registered:\n📧 \`${maskEmail(params.email)}\`\n\n*Gagal/Email tidak ketemu? Hubungi Admin Discord.*`,
             inline: false,
           },
         ],
         footer: {
-          text: "Team Wars Indonesia Season 7 • Otomatisasi Sistem",
+          text: getFormattedFooterTime(), // Format: 28 Jul 2026 at 22:16 WIB
         },
       },
     ],
+    components: [
+      {
+        type: 1, // Action Row
+        components: [
+          {
+            type: 2, // Button Component
+            style: 5, // Link Button Style
+            label: "Edit Team",
+            url: editUrl,
+            emoji: { name: "✏️" }
+          }
+        ]
+      }
+    ]
   };
 }
 
@@ -109,11 +138,12 @@ export async function GET(request: NextRequest) {
         html: emailHtml,
       });
 
-      // B. Kirim Embed Discord Testing ke CH_LOG & Tag ROLE_ADMIN
+      // B. Kirim Embed + Button Testing ke CH_LOG & Tag ROLE_ADMIN
       const testDiscordPayload = createDiscordEmbedPayload({
         roleMentionId: DISCORD_CONFIG.ROLE_ADMIN, // Tag Role Admin saat Testing
         namaTim: 'Asashin OG (TEST)',
         email: testEmail,
+        editToken: 'sample-test-token-123',
         sisaWaktuText,
         hexWarna: '#7300FF',
       });
@@ -205,6 +235,7 @@ export async function GET(request: NextRequest) {
         roleMentionId: roleId,
         namaTim: teamName,
         email: targetTeamData.email,
+        editToken: targetTeamData.editToken || '',
         sisaWaktuText,
         hexWarna: targetTeamData.warna || '#4CAF50',
       });
@@ -235,4 +266,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-                                      }
+}
