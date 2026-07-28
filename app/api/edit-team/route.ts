@@ -32,26 +32,33 @@ export async function POST(request: NextRequest) {
       ? JSON.parse(oldTeamData.players)
       : (oldTeamData.players || []);
 
-    // 2. Validasi Sensitif Username Discord (Mencegah ganti dari Verified ke Unverified)
-    for (let i = 0; i < players.length; i++) {
-      const newPlayer = players[i];
-      const oldPlayer = oldPlayers[i];
+    // 2. Validasi Sensitif Username Discord
+// Bolehkan bypass validasi JIKA yang edit adalah Admin (ada key/role admin)
+const searchParams = request.nextUrl.searchParams;
+const isAdminKey = searchParams.get('key') === '470212070957252618';
 
-      const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().trim() : '';
-      const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().trim() : '';
+if (!isAdminKey) { // 👈 Jika bukan Admin, baru lakukan pengecekan ketat ini
+  for (let i = 0; i < players.length; i++) {
+    const newPlayer = players[i];
+    const oldPlayer = oldPlayers[i];
 
-      if (oldDiscord && newDiscord !== oldDiscord) {
-        const isOldVerified = verifiedMap.hasOwnProperty(oldDiscord);
-        const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
+    const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().trim() : '';
+    const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().trim() : '';
 
-        if (isOldVerified && !isNewVerified) {
-          return NextResponse.json(
-            { error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sudah sesuai!` },
-            { status: 400 }
-          );
-        }
+    if (oldDiscord && newDiscord !== oldDiscord) {
+      const isOldVerified = verifiedMap.hasOwnProperty(oldDiscord);
+      const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
+
+      if (isOldVerified && !isNewVerified) {
+        return NextResponse.json(
+          { error: `Username Discord "@${newPlayer.discord}" untuk pemain ${newPlayer.ign} belum terverifikasi di server Discord TWI. Pastikan username sudah sesuai!` },
+          { status: 400 }
+        );
       }
     }
+  }
+}
+
 
     // 3. Update Nickname Discord Server (Jika IGN berubah di Web)
     for (let i = 0; i < players.length; i++) {
