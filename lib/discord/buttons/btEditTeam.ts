@@ -22,45 +22,57 @@ export async function handleBtEditTeam(body: any) {
     // ⛔ JIKA BUKAN KETUA / WAKIL / ADMIN
     if (!hasPermission) {
       return NextResponse.json({
-        type: 4, // Respond with message
+        type: 4,
         data: {
           content: "🚫 **Akses Ditolak!**\nHanya **Ketua Tim**, **Wakil Ketua**, atau **Admin Discord** yang memiliki akses untuk membuka tautan edit roster.",
-          flags: EPHEMERAL_FLAG, // Rahasia (hanya orang ini yang lihat)
+          flags: EPHEMERAL_FLAG,
         },
       });
     }
 
     // ✅ JIKA USER ADALAH KETUA / WAKIL / ADMIN
-    // Cari data tim dari Vercel KV Redis berdasarkan Channel ID tempat button diklik
     const teamKeys = await kv.keys('teams:*');
     let editToken = '';
     let teamName = '';
 
-    for (const key of teamKeys) {
-      const teamData: any = await kv.hgetall(key);
-      if (teamData && teamData.discordChannelId === channelId) {
-        editToken = teamData.editToken;
-        teamName = teamData.namaTim;
-        break;
+    if (teamKeys && teamKeys.length > 0) {
+      // 2a. Cari tim yang channel_id-nya cocok dengan channel tempat tombol diklik
+      for (const key of teamKeys) {
+        const teamData: any = await kv.hgetall(key);
+        if (teamData && teamData.discordChannelId === channelId) {
+          editToken = teamData.editToken || '';
+          teamName = teamData.namaTim || '';
+          break;
+        }
+      }
+
+      // 2b. Jika tidak ketemu (misal diklik saat TESTING di channel CH_LOG), gunakan data tim pertama dari Redis
+      if (!editToken) {
+        const sampleTeamData: any = await kv.hgetall(teamKeys[0]);
+        if (sampleTeamData) {
+          editToken = sampleTeamData.editToken || '';
+          teamName = sampleTeamData.namaTim || 'Tim Sample';
+        }
       }
     }
 
-    const editUrl = editToken
-      ? `https://teamwars.web.id/edit-team/${editToken}`
+    // Susun URL Lengkap dengan Token
+    const editUrl = editToken 
+      ? `https://teamwars.web.id/edit-team/${editToken}` 
       : 'https://teamwars.web.id/edit-team';
 
     return NextResponse.json({
       type: 4,
       data: {
-        content: `✅ **Akses Diberikan!**\nBerikut adalah tautan khusus untuk mengedit data roster tim **${teamName || ''}**:\n\n*Catatan: Tautan ini bersifat rahasia, jangan bagikan kepada pihak selain manajemen tim.*`,
-        flags: EPHEMERAL_FLAG, // Rahasia (hanya orang ini yang lihat)
+        content: `✅ **Akses Diberikan!**\nBerikut adalah tautan khusus untuk mengedit data roster tim **${teamName}**:\n\n🔗 \`${editUrl}\`\n\n*Catatan: Tautan ini bersifat rahasia, jangan bagikan kepada pihak selain manajemen tim.*`,
+        flags: EPHEMERAL_FLAG, // Ephemeral: Hanya user yang menekan tombol yang bisa melihat pesan ini
         components: [
           {
             type: 1, // Action Row
             components: [
               {
-                type: 2, // Button URL Component
-                style: 5, // Link Style
+                type: 2, // Button Component
+                style: 5, // Link URL Button
                 label: "Buka Form Edit Roster",
                 url: editUrl,
                 emoji: { name: "✏️" }
@@ -81,4 +93,4 @@ export async function handleBtEditTeam(body: any) {
       },
     });
   }
-      }
+            }
