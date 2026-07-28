@@ -22,13 +22,11 @@ export async function POST(request: NextRequest) {
 
     // Proses pengiriman melalui Resend
     const { data: resendData, error: resendError } = await resend.emails.send({
-      // PENTING: Jika domain belum diverifikasi di Resend, kamu WAJIB pakai onboarding@resend.dev
-      // Jika sudah diverifikasi, ganti dengan email domainmu (misal: no-reply@domainkamu.com)
-      from: 'onboarding@resend.dev', 
-      to: email,
-      subject: `Test Debugging Email [${new Date().toISOString()}]`,
-      html: `<p>Ini adalah email test untuk mengecek log error.</p>`,
-    });
+  from: 'Team Wars Indonesia <registration@teamwars.web.id>', // 👈 Format dengan Display Name
+  to: email,
+  subject: `Test Debugging Email [${new Date().toISOString()}]`,
+  html: `<p>Ini adalah email test dari Team Wars Indonesia.</p>`,
+});
 
     // Jika dari sisi Resend mengembalikan error (misal: domain belum verifikasi, bounce, dll)
     if (resendError) {
