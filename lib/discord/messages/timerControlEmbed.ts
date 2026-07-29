@@ -20,7 +20,7 @@ export interface MatchTimerData {
 export function createTimerControlEmbed(data: MatchTimerData, nowInSeconds: number) {
   const { teamA, teamB } = data;
 
-  // Target End Timestamp untuk native countdown Discord (<t:TIMESTAMP:R>)
+  // Hitung Timestamp kapan timer akan habis di masa depan
   const targetEndTimeA = teamA.state.isRunning
     ? nowInSeconds + teamA.state.remainingSeconds
     : null;
@@ -28,23 +28,25 @@ export function createTimerControlEmbed(data: MatchTimerData, nowInSeconds: numb
     ? nowInSeconds + teamB.state.remainingSeconds
     : null;
 
-  // Format Status Teks Tim A
-  let statusTextA = '⚪ **Belum Mulai**';
+  // --- RENDER TIM A ---
+  let displayA = `# ⚪ ${formatTime(teamA.state.remainingSeconds)}`; // Default Belum Mulai
   if (teamA.state.isRunning) {
-    statusTextA = `▶️ **Sedang Berjalan** (Habis <t:${targetEndTimeA}:R>)`;
+    // Pakai <t:TIMESTAMP:R> agar DETIKNYA BERJALAN LIVE di Discord
+    displayA = `# 🔴 <t:${targetEndTimeA}:R> (\`${formatTime(teamA.state.remainingSeconds)}\`)`;
   } else if (teamA.state.hasStarted) {
-    statusTextA = `⏸️ **Paused** (\`${formatTime(teamA.state.remainingSeconds)}\`)`;
+    displayA = `# ⏸️ ${formatTime(teamA.state.remainingSeconds)}`;
   }
 
-  // Format Status Teks Tim B
-  let statusTextB = '⚪ **Belum Mulai**';
+  // --- RENDER TIM B ---
+  let displayB = `# ⚪ ${formatTime(teamB.state.remainingSeconds)}`; // Default Belum Mulai
   if (teamB.state.isRunning) {
-    statusTextB = `▶️ **Sedang Berjalan** (Habis <t:${targetEndTimeB}:R>)`;
+    // Pakai <t:TIMESTAMP:R> agar DETIKNYA BERJALAN LIVE di Discord
+    displayB = `# 🔴 <t:${targetEndTimeB}:R> (\`${formatTime(teamB.state.remainingSeconds)}\`)`;
   } else if (teamB.state.hasStarted) {
-    statusTextB = `⏸️ **Paused** (\`${formatTime(teamB.state.remainingSeconds)}\`)`;
+    displayB = `# ⏸️ ${formatTime(teamB.state.remainingSeconds)}`;
   }
 
-  // Visual Tombol Dinamis (Style: 3 = Green, 4 = Red, 1 = Blurple)
+  // Visual Tombol
   const btnA = {
     label: teamA.state.isRunning ? 'Pause Tim A' : teamA.state.hasStarted ? 'Resume Tim A' : 'Start Tim A',
     style: teamA.state.isRunning ? 4 : teamA.state.hasStarted ? 1 : 3,
@@ -60,23 +62,21 @@ export function createTimerControlEmbed(data: MatchTimerData, nowInSeconds: numb
   return {
     embeds: [
       {
-        title: '⏱️ MATCH TIME CONTROL — TWI SEASON 7',
-        description: 'Waktu kontrol 15 menit per tim. Berjalan saat ganti deck, pause saat di dalam duel.',
+        title: '⏱️ MATCH TIME CONTROL — TWI S7',
         color: 3447003,
         fields: [
           {
             name: `🔵 TIM A: ${teamA.nama}`,
-            value: `• **Sisa Waktu:** \`${formatTime(teamA.state.remainingSeconds)}\`\n• **Status:** ${statusTextA}`,
-            inline: true,
+            value: displayA,
+            inline: false, // Diset false agar angka gedenya leluasa
           },
           {
             name: `🔴 TIM B: ${teamB.nama}`,
-            value: `• **Sisa Waktu:** \`${formatTime(teamB.state.remainingSeconds)}\`\n• **Status:** ${statusTextB}`,
-            inline: true,
+            value: displayB,
+            inline: false,
           },
         ],
-        footer: { text: 'Klik tombol di bawah untuk mengontrol timer • Wasit Only' },
-        timestamp: new Date().toISOString(),
+        footer: { text: 'Kontrol Timer Wasit' },
       },
     ],
     components: [
@@ -84,7 +84,7 @@ export function createTimerControlEmbed(data: MatchTimerData, nowInSeconds: numb
         type: 1, // Action Row
         components: [
           {
-            type: 2, // Button Component
+            type: 2,
             custom_id: 'toggle_timer_teamA',
             style: btnA.style,
             label: btnA.label,
