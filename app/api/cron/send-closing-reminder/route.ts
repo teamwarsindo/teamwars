@@ -11,6 +11,27 @@ import { discordAPI } from '@/lib/discord/utils';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Helper format tanggal & jam: "29 Jul 2026 at 14:30 WIB"
+function getFormattedDateTime(): string {
+  const d = new Date();
+
+  const dateStr = d.toLocaleDateString('en-GB', {
+    timeZone: 'Asia/Jakarta',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const timeStr = d.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Jakarta',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  return `${dateStr} at ${timeStr} WIB`;
+}
+
 function getRemainingTimeText(): string {
   const now = new Date();
   const targetClosing = new Date(CLOSE_TARGET_DATE);
@@ -30,9 +51,11 @@ function getRemainingTimeText(): string {
   return text;
 }
 
-// Helper kirim log ke Channel CH_LOG
+// Helper kirim log ke Channel CH_LOG Admin
 async function sendDiscordLog(title: string, description: string, color = 3447003) {
   try {
+    const formattedDateTime = getFormattedDateTime();
+
     await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG}/messages`, 'POST', {
       embeds: [
         {
@@ -40,7 +63,9 @@ async function sendDiscordLog(title: string, description: string, color = 344700
           description,
           color,
           timestamp: new Date().toISOString(),
-          footer: { text: 'System Cron Reminder • TWI S7' },
+          footer: {
+            text: `Sistem Registrasi • Sent on ${formattedDateTime}`,
+          },
         },
       ],
     });
@@ -52,6 +77,7 @@ async function sendDiscordLog(title: string, description: string, color = 344700
 export async function GET(request: NextRequest) {
   try {
     const sisaWaktuText = getRemainingTimeText();
+    const formattedDateTime = getFormattedDateTime();
 
     // 1. Ambil daftar SLUG dari SET 'global:teams'
     const allTeamSlugs: string[] = (await kv.smembers('global:teams')) || [];
@@ -68,25 +94,21 @@ export async function GET(request: NextRequest) {
 
     // 3. Cari 1 slug tim yang BELUM ada di 'reminders:sent'
     for (const slug of allTeamSlugs) {
-      // Lewati jika slug tim sudah terdaftar di 'reminders:sent' (Asashin OG otomatis terlewati)
       if (sentSlugs.includes(slug)) {
         continue;
       }
 
-      // Ambil detail data tim dari Hash 'teams:SLUG'
       const teamData: any = await kv.hgetall(`teams:${slug}`);
 
       if (teamData && teamData.email) {
         targetSlug = slug;
         targetTeamData = teamData;
-        break; // Dapatkan 1 tim target, lalu hentikan pencarian
+        break;
       } else {
-        // Jika data tim rusak atau tidak ada email, masukkan ke reminders:sent agar tidak diproses berulang
         await kv.sadd('reminders:sent', slug);
       }
     }
 
-    // Jika seluruh tim sudah selesai menerima email
     if (!targetSlug || !targetTeamData) {
       return NextResponse.json({
         success: true,
@@ -95,7 +117,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Parse data pemain
     let parsedPlayers = [];
     try {
       parsedPlayers = typeof targetTeamData.players === 'string'
@@ -125,7 +146,7 @@ export async function GET(request: NextRequest) {
       html: emailHtml,
     });
 
-    // B. Kirim Embed Discord Ke Channel Tim
+    // B. Kirim Embed Discord Ke Channel Tim & OTOMATIS PIN
     const channelId = targetTeamData.discordChannelId;
     const roleId = targetTeamData.discordRoleId || targetTeamData.roleId;
 
@@ -138,11 +159,31 @@ export async function GET(request: NextRequest) {
         hexWarna: targetTeamData.warna || '#4CAF50',
       });
 
-      await discordAPI(
-        `/channels/${channelId}/messages`,
-        'POST',
-        discordPayload
-      ).catch((err) => console.error(`Gagal kirim reminder Discord ke tim ${teamName}:`, err));
+      // 💡 FOOTER DISCORD SESUAI REQUEST
+      if (discordPayload.embeds && discordPayload.embeds.length > 0) {
+        discordPayload.embeds[0].footer = {
+          text: `Sistem Registrasi • Sent on ${formattedDateTime}`,
+        };
+      }
+
+      try {
+        // 1. Kirim Pesan Embed
+        const sentMessage: any = await discordAPI(
+          `/channels/${channelId}/messages`,
+          'POST',
+          discordPayload
+        );
+
+        // 2. PIN PESAN di channel tim
+        if (sentMessage && sentMessage.id) {
+          await discordAPI(
+            `/channels/${channelId}/pins/${sentMessage.id}`,
+            'PUT'
+          );
+        }
+      } catch (err) {
+        console.error(`Gagal kirim / pin reminder Discord ke tim ${teamName}:`, err);
+      }
     }
 
     // C. Tulis SLUG yang berhasil dikirim ke SET 'reminders:sent'
@@ -151,7 +192,7 @@ export async function GET(request: NextRequest) {
     // D. Kirim Log Ke Channel Admin Discord
     await sendDiscordLog(
       `📢 Reminder Terkirim: Tim ${teamName}`,
-      `• **Slug:** \`${targetSlug}\`\n• **Email Registered:** \`${targetTeamData.email}\`\n• **Channel DC:** <#${channelId || 'N/A'}>\n• **Sisa Waktu:** ${sisaWaktuText}\n• **Status:** ✅ Terkirim via Resend & Discord`,
+      `• **Slug:** \`${targetSlug}\`\n• **Email Registered:** \`${targetTeamData.email}\`\n• **Channel DC:** <#${channelId || 'N/A'}>\n• **Sisa Waktu:** ${sisaWaktuText}\n• **Status:** ✅ Terkirim via Resend, Logged & Auto-Pinned`,
       3066993
     );
 
@@ -162,7 +203,7 @@ export async function GET(request: NextRequest) {
       email: targetTeamData.email,
       discordChannelId: channelId || 'Tidak ada Channel ID',
       sisaWaktu: sisaWaktuText,
-      message: `Berhasil mengirim email & notifikasi Discord ke ${teamName}!`,
+      message: `Berhasil mengirim email & notifikasi Discord (Auto-Pinned) ke ${teamName}!`,
     });
 
   } catch (error: any) {
@@ -179,4 +220,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-          }
+}
