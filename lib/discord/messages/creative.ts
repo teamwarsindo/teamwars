@@ -5,8 +5,8 @@ export async function sendCreativeMessage(params: {
   namaTim: string;
   warna: string;
   logoTim: string;
-  channelId?: string;  // Parameter opsional
-  categoryId?: string; // Parameter opsional
+  channelId?: string;
+  categoryId?: string;
 }) {
   const { namaTim, warna, logoTim, channelId } = params;
 
@@ -15,7 +15,16 @@ export async function sendCreativeMessage(params: {
   if (logoTim.includes('/upload/logo/')) {
     const splitUrl = logoTim.split('/upload/logo/');
     if (splitUrl.length > 1) {
-      directDownloadLogo = `https://teamwars.web.id/logo/${splitUrl[1]}/download`;
+      // 1. Ambil path filenya
+      let filePath = splitUrl[1]; 
+      
+      // 2. Buang query string (?t=123...) jika ada
+      if (filePath.includes('?')) {
+        filePath = filePath.split('?')[0];
+      }
+
+      // 3. Gabungkan menjadi link download yang bersih
+      directDownloadLogo = `https://teamwars.web.id/logo/${filePath}/download`;
     }
   }
 
@@ -32,7 +41,6 @@ export async function sendCreativeMessage(params: {
     }]
   };
 
-  // Gunakan channelId dari input, jika kosong fallback ke config
   const targetChannel = channelId || DISCORD_CONFIG.CH_LOGO;
 
   try {
