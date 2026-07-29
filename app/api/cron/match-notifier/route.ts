@@ -6,7 +6,7 @@ import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/config';
 import { discordAPI } from '@/lib/discord/utils';
 
-// Data Match
+// Data Match Dummy
 const MATCH_DATA = {
   matchId: 'twi-s7-match-01',
   matchTimeWIB: '20.00 WIB',
@@ -22,20 +22,21 @@ const MATCH_DATA = {
   },
   matchChannelId: '610153245955850240',
   wasit: {
-    mention: '<@377669305283641345>',
+    nama: 'Admin TWI',
+    mention: '@WasitBertugas',
   },
-  roomId: '568646',
+  roomId: 'ROOM-TWI-8892',
 };
 
 // 1. Generator Embed REMINDER
 function buildReminderEmbed(teamName: string, roleId: string, matchTime: string, wasitMention: string) {
   return {
-    content: `<@&${roleId}>`, // Mention ditaruh di luar embed agar role tetap ter-ping Notification
+    content: `<@&${roleId}>`, // Ping Role
     embeds: [
       {
         title: '⏳ REMINDER MATCH — TWI SEASON 7',
         description: `Halo **${teamName}**, pertandingan kalian akan dimulai malam ini!`,
-        color: 15844367, // Warna Gold / Warning
+        color: 15844367, // Gold / Warning
         fields: [
           {
             name: '⏰ Jadwal Krusial',
@@ -74,7 +75,7 @@ function buildPrepareEmbed() {
       {
         title: '⚔️ MATCH BRIEFING & ROOM MATCH',
         description: `Match dipimpin oleh Wasit ${wasit.mention}. Waktu tanding telah tiba!`,
-        color: 3066993, // Warna Hijau / Ready
+        color: 3066993, // Green / Ready
         fields: [
           {
             name: '🎮 Room Match',
@@ -109,6 +110,17 @@ function buildPrepareEmbed() {
   };
 }
 
+// Helper Hapus Pesan Discord
+async function deleteDiscordMessage(channelId: string, messageId: string) {
+  try {
+    if (channelId && messageId) {
+      await discordAPI(`/channels/${channelId}/messages/${messageId}`, 'DELETE');
+    }
+  } catch (err) {
+    console.error(`Gagal menghapus pesan ${messageId} di channel ${channelId}:`, err);
+  }
+}
+
 // Helper Log Discord Admin
 async function sendAdminLog(description: string) {
   try {
@@ -129,7 +141,6 @@ async function sendAdminLog(description: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Dapatkan Jam & Menit WIB saat ini
     const now = new Date();
     const wibOffset = 7 * 60 * 60 * 1000;
     const wibDate = new Date(now.getTime() + wibOffset);
@@ -138,19 +149,30 @@ export async function GET(request: NextRequest) {
     const minutes = wibDate.getUTCMinutes();
 
     const kvKey = `reminders:checkpoint:${MATCH_DATA.matchId}`;
-    
-    // Ambil list checkpoint yang sudah pernah terkirim
     const sentCheckpoints: string[] = (await kv.smembers(kvKey)) || [];
 
     // --- LOGIKA 1: JAM 18.00 WIB (REMINDER 1) ---
     if (hours === 18 && !sentCheckpoints.includes('reminder_1')) {
-      await discordAPI(`/channels/${MATCH_DATA.teamA.channelId}/messages`, 'POST', {
-        content: buildReminderMessage(MATCH_DATA.teamA.nama, MATCH_DATA.teamA.roleId, MATCH_DATA.matchTimeWIB),
-      });
+      const payloadA = buildReminderEmbed(
+        MATCH_DATA.teamA.nama,
+        MATCH_DATA.teamA.roleId,
+        MATCH_DATA.matchTimeWIB,
+        MATCH_DATA.wasit.mention
+      );
+      const payloadB = buildReminderEmbed(
+        MATCH_DATA.teamB.nama,
+        MATCH_DATA.teamB.roleId,
+        MATCH_DATA.matchTimeWIB,
+        MATCH_DATA.wasit.mention
+      );
 
-      await discordAPI(`/channels/${MATCH_DATA.teamB.channelId}/messages`, 'POST', {
-        content: buildReminderMessage(MATCH_DATA.teamB.nama, MATCH_DATA.teamB.roleId, MATCH_DATA.matchTimeWIB),
-      });
+      // Kirim ke Tim A & simpan ID
+      const resA: any = await discordAPI(`/channels/${MATCH_DATA.teamA.channelId}/messages`, 'POST', payloadA);
+      if (resA?.id) await kv.hset(`msg:${MATCH_DATA.matchId}`, { teamA_rem1: resA.id });
+
+      // Kirim ke Tim B & simpan ID
+      const resB: any = await discordAPI(`/channels/${MATCH_DATA.teamB.channelId}/messages`, 'POST', payloadB);
+      if (resB?.id) await kv.hset(`msg:${MATCH_DATA.matchId}`, { teamB_rem1: resB.id });
 
       await kv.sadd(kvKey, 'reminder_1');
       await sendAdminLog(`✅ **Reminder 1 (18.00 WIB)** berhasil dikirim ke channel tim ${MATCH_DATA.teamA.nama} & ${MATCH_DATA.teamB.nama}`);
@@ -158,27 +180,40 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, step: 'reminder_1_sent' });
     }
 
-    // --- LOGIKA 2: JAM 19.00 WIB (REMINDER 2) ---
+    // --- LOGIKA 2: JAM 19.00 WIB (REMINDER 2 + HAPUS REMINDER 1) ---
     if (hours === 19 && minutes < 45 && !sentCheckpoints.includes('reminder_2')) {
-      await discordAPI(`/channels/${MATCH_DATA.teamA.channelId}/messages`, 'POST', {
-        content: buildReminderMessage(MATCH_DATA.teamA.nama, MATCH_DATA.teamA.roleId, MATCH_DATA.matchTimeWIB),
-      });
+      // 1. Ambil ID pesan lama dari KV dan hapus
+      const oldMsgs: any = await kv.hgetall(`msg:${MATCH_DATA.matchId}`);
+      if (oldMsgs?.teamA_rem1) await deleteDiscordMessage(MATCH_DATA.teamA.channelId, oldMsgs.teamA_rem1);
+      if (oldMsgs?.teamB_rem1) await deleteDiscordMessage(MATCH_DATA.teamB.channelId, oldMsgs.teamB_rem1);
 
-      await discordAPI(`/channels/${MATCH_DATA.teamB.channelId}/messages`, 'POST', {
-        content: buildReminderMessage(MATCH_DATA.teamB.nama, MATCH_DATA.teamB.roleId, MATCH_DATA.matchTimeWIB),
-      });
+      // 2. Kirim Reminder 2 Embed
+      const payloadA = buildReminderEmbed(
+        MATCH_DATA.teamA.nama,
+        MATCH_DATA.teamA.roleId,
+        MATCH_DATA.matchTimeWIB,
+        MATCH_DATA.wasit.mention
+      );
+      const payloadB = buildReminderEmbed(
+        MATCH_DATA.teamB.nama,
+        MATCH_DATA.teamB.roleId,
+        MATCH_DATA.matchTimeWIB,
+        MATCH_DATA.wasit.mention
+      );
+
+      await discordAPI(`/channels/${MATCH_DATA.teamA.channelId}/messages`, 'POST', payloadA);
+      await discordAPI(`/channels/${MATCH_DATA.teamB.channelId}/messages`, 'POST', payloadB);
 
       await kv.sadd(kvKey, 'reminder_2');
-      await sendAdminLog(`✅ **Reminder 2 (19.00 WIB)** berhasil dikirim ke channel tim ${MATCH_DATA.teamA.nama} & ${MATCH_DATA.teamB.nama}`);
+      await sendAdminLog(`✅ **Reminder 2 (19.00 WIB)** berhasil dikirim & **Reminder 1 lama telah dihapus**.`);
 
       return NextResponse.json({ success: true, step: 'reminder_2_sent' });
     }
 
     // --- LOGIKA 3: JAM 19.45 WIB (PREPARE / MATCH BRIEFING) ---
     if (hours === 19 && minutes >= 45 && !sentCheckpoints.includes('prepare')) {
-      await discordAPI(`/channels/${MATCH_DATA.matchChannelId}/messages`, 'POST', {
-        content: buildPrepareMessage(),
-      });
+      const preparePayload = buildPrepareEmbed();
+      await discordAPI(`/channels/${MATCH_DATA.matchChannelId}/messages`, 'POST', preparePayload);
 
       await kv.sadd(kvKey, 'prepare');
       await sendAdminLog(`🚀 **Prepare Match Briefing (19.45 WIB)** berhasil dikirim ke Channel Match (${MATCH_DATA.matchChannelId})!`);
