@@ -14,7 +14,6 @@ export interface MatchTesterConfig {
   matchChannelId: string;
   roomId: string;
   wasit: {
-    nama: string;
     mention: string;
   };
   teamA: TeamTimerConfig;
