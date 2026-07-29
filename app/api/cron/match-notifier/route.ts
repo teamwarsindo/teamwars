@@ -22,10 +22,9 @@ const MATCH_DATA = {
   },
   matchChannelId: '610153245955850240',
   wasit: {
-    nama: 'Admin TWI',
-    mention: '@WasitBertugas',
-  },
-  roomId: 'ROOM-TWI-8892',
+    mention: '<@377669305283641345>',
+},
+  roomId: '46856',
 };
 
 // 1. Generator Embed REMINDER
