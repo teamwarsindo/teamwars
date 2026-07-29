@@ -48,9 +48,9 @@ export function useRegistrationFlow(
     }
   }, [team.email, team.namaTim, team.hex, roster.players])
 
-  // 2. Panggil fungsionalitas Pre-Flight (API Check)
+  // 2. Panggil fungsionalitas Pre-Flight (API Check) - 🎯 DITAMBAHKAN editToken DI SINI
   const { isChecking, rawBackendErrors } = usePreFlightCheck(
-    team.namaTim, roster.players, isEditMode, originalTeamName, isSmartPaste, setIsSmartPaste
+    team.namaTim, roster.players, isEditMode, originalTeamName, isSmartPaste, setIsSmartPaste, editToken
   )
 
   const rosterRuleOk = countRole(roster.players, "Ketua") === 1 && countRole(roster.players, "Wakil Ketua") === 1
@@ -132,7 +132,7 @@ export function useRegistrationFlow(
         return
       }
 
-      // 👈 TAMBAHAN: Ambil channel ID dari URL jika ada
+      // Ambil channel ID dari URL jika ada
       let testChannelId = undefined;
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
@@ -144,11 +144,11 @@ export function useRegistrationFlow(
         logoTim: team.logo.url, buktiTransfer: team.bukti.url,
         players: roster.players.map(p => ({ role: p.role, namaLengkap: toProperCase(p.namaLengkap), discord: sanitizeDiscord(p.discord), ign: sanitizeIGN(p.ign), idDuelLinks: formatDuelId(p.duelId) })),
         createdAt: new Date().toISOString(),
-        channelId: testChannelId // 👈 TAMBAHAN: Sisipkan ke payload
+        channelId: testChannelId
       }
       if (isEditMode && editToken) payload.token = editToken
 
-      // 🎯 LOGIKA ROUTING API:
+      // LOGIKA ROUTING API:
       let apiEndpoint = "/api/registration"; 
       if (isEditMode) {
         apiEndpoint = "/api/edit-team";
@@ -175,4 +175,4 @@ export function useRegistrationFlow(
   }
 
   return { modalOpen, setModalOpen, submitting, serverError, success, rosterRuleOk, canSubmit, isChecking, rawBackendErrors, triggerSmartPasteBypass, markTouched, markTouchedMultiple, err, handleReviewClick, handleSubmit }
-}
+      }
