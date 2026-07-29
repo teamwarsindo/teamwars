@@ -17,7 +17,6 @@ export async function GET(req: Request) {
       name: 'prepare',
       description: 'Kirim briefing in-game dan info Room ID di channel match.',
     },
-    // 👇 TAMBAHKAN COMMAND INFO DI SINI 👇
     {
       name: 'info',
       description: 'Lihat informasi profil Discord kamu atau pemain lain',
@@ -29,7 +28,12 @@ export async function GET(req: Request) {
           required: false,
         }
       ]
-    }
+    },
+    // 👇 COMMAND TIMER BARU 👇
+    {
+      name: 'timer',
+      description: 'Tampilkan Panel Timer Kontrol Waktu Match TWI S7',
+    },
   ];
 
   const slashResult = await discordAPI(`/applications/${appId}/commands`, 'PUT', commands);
