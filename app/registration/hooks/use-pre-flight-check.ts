@@ -7,7 +7,8 @@ export function usePreFlightCheck(
   isEditMode: boolean, 
   originalTeamName: string,
   isSmartPaste: boolean,
-  setIsSmartPaste: (val: boolean) => void
+  setIsSmartPaste: (val: boolean) => void,
+  editToken: string = "" // 👈 TAMBAHAN: Parameter editToken
 ) {
   const [isChecking, setIsChecking] = useState(false)
   const [rawBackendErrors, setRawBackendErrors] = useState<BackendError[]>([])
@@ -16,15 +17,15 @@ export function usePreFlightCheck(
     ign: p.ign, discord: p.discord, idDuelLinks: p.duelId
   })))
 
-    useEffect(() => {
-      // 1. Cek apakah ada satupun data pemain yang sudah diisi
-      const hasPlayerData = players.some(p => p.duelId.trim() || p.discord.trim() || p.ign.trim())
+  useEffect(() => {
+    // 1. Cek apakah ada satupun data pemain yang sudah diisi
+    const hasPlayerData = players.some(p => p.duelId.trim() || p.discord.trim() || p.ign.trim())
 
-      // 2. Kalau Nama Tim KOSONG dan Pemain juga KOSONG, baru hentikan proses (return)
-      if (!namaTim.trim() && !hasPlayerData) {
-        setRawBackendErrors(prev => (prev.length === 0 ? prev : []))
+    // 2. Kalau Nama Tim KOSONG dan Pemain juga KOSONG, baru hentikan proses (return)
+    if (!namaTim.trim() && !hasPlayerData) {
+      setRawBackendErrors(prev => (prev.length === 0 ? prev : []))
       return
-      }
+    }
 
     const controller = new AbortController()
     const signal = controller.signal
@@ -40,6 +41,7 @@ export function usePreFlightCheck(
           isPreFlight: true,
           namaTim: namaTim.trim(),
           excludeSlug: safeExcludeSlug, 
+          token: isEditMode ? editToken : undefined, // 👈 TAMBAHAN: Sisipkan editToken ke payload
           players: JSON.parse(playersCheckPayload)
         }
         
@@ -75,7 +77,7 @@ export function usePreFlightCheck(
       const timer = setTimeout(() => runPreFlightCheck(), 500)
       return () => { clearTimeout(timer); controller.abort() }
     }
-  }, [namaTim, playersCheckPayload, isSmartPaste, isEditMode, originalTeamName, setIsSmartPaste]) 
+  }, [namaTim, playersCheckPayload, isSmartPaste, isEditMode, originalTeamName, editToken, setIsSmartPaste]) 
 
   return { isChecking, rawBackendErrors }
-        }
+    }
