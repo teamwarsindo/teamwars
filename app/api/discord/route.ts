@@ -9,7 +9,8 @@ import { handleInfo } from '@/lib/discord/commands/info';
 // Import Buttons
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
 import { handleBtRole } from '@/lib/discord/buttons/btRole';
-import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam'; // 👈 Import ini
+import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
+import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer'; // 👈 Import ini
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -41,7 +42,12 @@ export async function POST(req: NextRequest) {
       const customId = body.data.custom_id;
       if (customId === 'bt_verified') return await handleBtVerified(body);
       if (customId === 'bt_role') return await handleBtRole(body);
-      if (customId === 'btn_edit_team') return await handleBtEditTeam(body); // 👈 Register button ini
+      if (customId === 'btn_edit_team') return await handleBtEditTeam(body);
+      
+      // 👈 Register Handler Timer Button (A atau B)
+      if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') {
+        return await handleBtTimer(body);
+      }
     }
 
     return new NextResponse('Unknown Interaction', { status: 400 });
@@ -49,4 +55,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-        }
+}
