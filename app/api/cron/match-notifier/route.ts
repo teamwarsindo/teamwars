@@ -6,7 +6,7 @@ import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/config';
 import { discordAPI } from '@/lib/discord/utils';
 
-// Data Match Dummy
+// Data Match
 const MATCH_DATA = {
   matchId: 'twi-s7-match-01',
   matchTimeWIB: '20.00 WIB',
@@ -22,18 +22,16 @@ const MATCH_DATA = {
   },
   matchChannelId: '610153245955850240',
   wasit: {
-    nama: 'Admin TWI',
-    mention: '@WasitBertugas',
+    mention: '<@377669305283641345>',
   },
-  roomId: 'ROOM-TWI-8892',
+  roomId: '568646',
 };
 
-// Generator Template Pesan
+// Generator Template Pesan Reminder (Tag Role langsung menyatu di paragraf)
 function buildReminderMessage(teamName: string, roleId: string, matchTime: string): string {
-  return `<@&${roleId}>
-⏳ **[REMINDER] PERSIAPAN PRA-PERTANDINGAN TWI SEASON 7** ⏳
+  return `⏳ **[REMINDER] PERSIAPAN PRA-PERTANDINGAN TWI SEASON 7** ⏳
 
-Halo **${teamName}**, pertandingan kalian akan dimulai pada pukul **${matchTime}** malam ini. 
+Halo <@&${roleId}> (**${teamName}**), pertandingan kalian akan dimulai pada pukul **${matchTime}** malam ini. 
 Mohon segera menyelesaikan administrasi deck dengan memperhatikan regulasi berikut:
 
 ⚠️ **ATURAN PENGUMPULAN DECK:**
@@ -52,6 +50,7 @@ Silakan persiapkan line-up terbaik kalian!
 🔗 **Baca regulasi selengkapnya di:** https://teamwars.web.id/rules`;
 }
 
+// Generator Template Pesan Prepare / Briefing (Jam 19.45)
 function buildPrepareMessage(): string {
   const { teamA, teamB, wasit, roomId } = MATCH_DATA;
   return `📢 **[MATCH BRIEFING] TWI SEASON 7** 📢
@@ -100,7 +99,6 @@ export async function GET(request: NextRequest) {
   try {
     // Dapatkan Jam & Menit WIB saat ini
     const now = new Date();
-    // UTC+7 (WIB)
     const wibOffset = 7 * 60 * 60 * 1000;
     const wibDate = new Date(now.getTime() + wibOffset);
     
@@ -109,17 +107,15 @@ export async function GET(request: NextRequest) {
 
     const kvKey = `reminders:checkpoint:${MATCH_DATA.matchId}`;
     
-    // Ambil list checkpoint yang sudah pernah terkirim (contoh: ["reminder_1", "reminder_2"])
+    // Ambil list checkpoint yang sudah pernah terkirim
     const sentCheckpoints: string[] = (await kv.smembers(kvKey)) || [];
 
     // --- LOGIKA 1: JAM 18.00 WIB (REMINDER 1) ---
     if (hours === 18 && !sentCheckpoints.includes('reminder_1')) {
-      // Kirim ke Channel Tim A
       await discordAPI(`/channels/${MATCH_DATA.teamA.channelId}/messages`, 'POST', {
         content: buildReminderMessage(MATCH_DATA.teamA.nama, MATCH_DATA.teamA.roleId, MATCH_DATA.matchTimeWIB),
       });
 
-      // Kirim ke Channel Tim B
       await discordAPI(`/channels/${MATCH_DATA.teamB.channelId}/messages`, 'POST', {
         content: buildReminderMessage(MATCH_DATA.teamB.nama, MATCH_DATA.teamB.roleId, MATCH_DATA.matchTimeWIB),
       });
@@ -132,12 +128,10 @@ export async function GET(request: NextRequest) {
 
     // --- LOGIKA 2: JAM 19.00 WIB (REMINDER 2) ---
     if (hours === 19 && minutes < 45 && !sentCheckpoints.includes('reminder_2')) {
-      // Kirim ke Channel Tim A
       await discordAPI(`/channels/${MATCH_DATA.teamA.channelId}/messages`, 'POST', {
         content: buildReminderMessage(MATCH_DATA.teamA.nama, MATCH_DATA.teamA.roleId, MATCH_DATA.matchTimeWIB),
       });
 
-      // Kirim ke Channel Tim B
       await discordAPI(`/channels/${MATCH_DATA.teamB.channelId}/messages`, 'POST', {
         content: buildReminderMessage(MATCH_DATA.teamB.nama, MATCH_DATA.teamB.roleId, MATCH_DATA.matchTimeWIB),
       });
@@ -150,7 +144,6 @@ export async function GET(request: NextRequest) {
 
     // --- LOGIKA 3: JAM 19.45 WIB (PREPARE / MATCH BRIEFING) ---
     if (hours === 19 && minutes >= 45 && !sentCheckpoints.includes('prepare')) {
-      // Kirim ke Channel Match
       await discordAPI(`/channels/${MATCH_DATA.matchChannelId}/messages`, 'POST', {
         content: buildPrepareMessage(),
       });
@@ -174,4 +167,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-  
