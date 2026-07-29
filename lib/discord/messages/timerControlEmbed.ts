@@ -20,7 +20,7 @@ export interface MatchTimerData {
 export function createTimerControlEmbed(data: MatchTimerData, nowInSeconds: number) {
   const { teamA, teamB } = data;
 
-  // Hitung Timestamp kapan timer akan habis di masa depan
+  // Hitung Timestamp kapan timer akan habis
   const targetEndTimeA = teamA.state.isRunning
     ? nowInSeconds + teamA.state.remainingSeconds
     : null;
@@ -29,21 +29,20 @@ export function createTimerControlEmbed(data: MatchTimerData, nowInSeconds: numb
     : null;
 
   // --- RENDER TIM A ---
-  let displayA = `# ⚪ ${formatTime(teamA.state.remainingSeconds)}`; // Default Belum Mulai
+  let displayA = `⚪ **\`${formatTime(teamA.state.remainingSeconds)}\`** *(Belum Mulai)*`;
   if (teamA.state.isRunning) {
-    // Pakai <t:TIMESTAMP:R> agar DETIKNYA BERJALAN LIVE di Discord
-    displayA = `# 🔴 <t:${targetEndTimeA}:R> (\`${formatTime(teamA.state.remainingSeconds)}\`)`;
+    // Gunakan <t:TIMESTAMP:R> agar berjalan live menghitung mundur
+    displayA = `🔴 **BERJALAN** ➔ Sisa Waktu: <t:${targetEndTimeA}:R>`;
   } else if (teamA.state.hasStarted) {
-    displayA = `# ⏸️ ${formatTime(teamA.state.remainingSeconds)}`;
+    displayA = `⏸️ **PAUSED** ➔ Sisa Waktu: **\`${formatTime(teamA.state.remainingSeconds)}\`**`;
   }
 
   // --- RENDER TIM B ---
-  let displayB = `# ⚪ ${formatTime(teamB.state.remainingSeconds)}`; // Default Belum Mulai
+  let displayB = `⚪ **\`${formatTime(teamB.state.remainingSeconds)}\`** *(Belum Mulai)*`;
   if (teamB.state.isRunning) {
-    // Pakai <t:TIMESTAMP:R> agar DETIKNYA BERJALAN LIVE di Discord
-    displayB = `# 🔴 <t:${targetEndTimeB}:R> (\`${formatTime(teamB.state.remainingSeconds)}\`)`;
+    displayB = `🔴 **BERJALAN** ➔ Sisa Waktu: <t:${targetEndTimeB}:R>`;
   } else if (teamB.state.hasStarted) {
-    displayB = `# ⏸️ ${formatTime(teamB.state.remainingSeconds)}`;
+    displayB = `⏸️ **PAUSED** ➔ Sisa Waktu: **\`${formatTime(teamB.state.remainingSeconds)}\`**`;
   }
 
   // Visual Tombol
@@ -68,7 +67,7 @@ export function createTimerControlEmbed(data: MatchTimerData, nowInSeconds: numb
           {
             name: `🔵 TIM A: ${teamA.nama}`,
             value: displayA,
-            inline: false, // Diset false agar angka gedenya leluasa
+            inline: false,
           },
           {
             name: `🔴 TIM B: ${teamB.nama}`,
