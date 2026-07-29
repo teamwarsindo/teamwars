@@ -5,6 +5,7 @@ import { verifySignature } from '@/lib/discord/utils';
 import { handleReminder } from '@/lib/discord/commands/reminder';
 import { handlePrepare } from '@/lib/discord/commands/prepare';
 import { handleInfo } from '@/lib/discord/commands/info';
+import { handleTimerCommand } from '@/lib/discord/commands/timer';
 
 // Import Buttons
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body); 
+      if (commandName === 'timer') return await handleTimerCommand(body);
     }
 
     // Routing Button Interactions (Type 3)
