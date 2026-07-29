@@ -27,7 +27,7 @@ export async function GET() {
           // Pola Regex untuk menangkap URL logo di dalam Markdown link
           const newDescription = description.replace(
             /https:\/\/teamwars\.web\.id\/logo\/([^()\s]+)/g,
-            (match, p1) => {
+            (match: string, p1: string) => { // 👈 PERBAIKAN TYPESCRIPT DI SINI
               // Jika URL kena query string atau penulisan /download yang salah
               let cleanPath = p1;
               
@@ -67,4 +67,5 @@ export async function GET() {
     console.error('Error fixing creative links:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-            }
+}
+  
