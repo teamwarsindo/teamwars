@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ----------------------------------------------------
-  // 1. REDIRECTS (Pengalihan URL Sosial Media)
-  // ----------------------------------------------------
   async redirects() {
     return [
       {
@@ -18,29 +15,22 @@ const nextConfig = {
     ]
   },
 
-  // ----------------------------------------------------
-  // 2. REWRITES (Masking Link Cloudinary langsung Proxy)
-  // ----------------------------------------------------
   async rewrites() {
     return [
-      // 🌟 NEW: Masking Khusus Logo SVG untuk BIMI / Email
-      // Menembak Cloudinary dengan transformasi f_svg (format ke SVG)
-      {
-        source: '/logo-bimi.svg',
-        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/f_svg/v1785258907/logo/logo-twis7.jpg',
-      },
-
-      // Format URL: domain.com/bukti/namafilenya.jpg
+      // Format URL Bukti
       {
         source: '/bukti/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/bukti/:path*',
       },
-      // Masking Download
+
+      // ⚡ MASKING DOWNLOAD (Harus di ATAS /logo/:path*)
+      // Menambahkan fl_attachment agar browser langsung men-download otomatis
       {
-        source: '/logo/:path*/download',
-        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/fl_attachment/logo/:path*',
+        source: '/logo/:filename/download',
+        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/fl_attachment/logo/:filename',
       },
-      // Format URL: domain.com/logo/namafilenya.png
+
+      // Format URL Logo Biasa untuk Display Web
       {
         source: '/logo/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/logo/:path*',
@@ -48,9 +38,6 @@ const nextConfig = {
     ]
   },
 
-  // ----------------------------------------------------
-  // 3. IMAGE DOMAINS (Biar <Image /> Next.js ga error)
-  // ----------------------------------------------------
   images: {
     remotePatterns: [
       {
