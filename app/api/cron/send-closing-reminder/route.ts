@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { Resend } from 'resend';
@@ -49,25 +52,42 @@ async function sendDiscordLog(title: string, description: string, color = 344700
 export async function GET(request: NextRequest) {
   try {
     const sisaWaktuText = getRemainingTimeText();
-    const teamKeys = await kv.keys('teams:*');
 
-    if (!teamKeys || teamKeys.length === 0) {
-      return NextResponse.json({ message: 'Tidak ada data tim di Redis.' });
+    // 1. Ambil daftar SLUG dari SET 'global:teams'
+    const allTeamSlugs: string[] = (await kv.smembers('global:teams')) || [];
+
+    if (!allTeamSlugs || allTeamSlugs.length === 0) {
+      return NextResponse.json({ message: 'Tidak ada data tim di global:teams Redis.' });
     }
 
-    let targetTeamKey: string | null = null;
+    // 2. Ambil daftar SLUG yang SUDAH dikirim dari SET 'reminders:sent'
+    const sentSlugs: string[] = (await kv.smembers('reminders:sent')) || [];
+
+    let targetSlug: string | null = null;
     let targetTeamData: any = null;
 
-    for (const key of teamKeys) {
-      const teamData: any = await kv.hgetall(key);
-      if (teamData && teamData.email && teamData.reminderSent !== 'true') {
-        targetTeamKey = key;
+    // 3. Cari 1 slug tim yang BELUM ada di 'reminders:sent'
+    for (const slug of allTeamSlugs) {
+      // Lewati jika slug tim sudah terdaftar di 'reminders:sent' (Asashin OG otomatis terlewati)
+      if (sentSlugs.includes(slug)) {
+        continue;
+      }
+
+      // Ambil detail data tim dari Hash 'teams:SLUG'
+      const teamData: any = await kv.hgetall(`teams:${slug}`);
+
+      if (teamData && teamData.email) {
+        targetSlug = slug;
         targetTeamData = teamData;
-        break;
+        break; // Dapatkan 1 tim target, lalu hentikan pencarian
+      } else {
+        // Jika data tim rusak atau tidak ada email, masukkan ke reminders:sent agar tidak diproses berulang
+        await kv.sadd('reminders:sent', slug);
       }
     }
 
-    if (!targetTeamKey || !targetTeamData) {
+    // Jika seluruh tim sudah selesai menerima email
+    if (!targetSlug || !targetTeamData) {
       return NextResponse.json({
         success: true,
         completed: true,
@@ -75,6 +95,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Parse data pemain
     let parsedPlayers = [];
     try {
       parsedPlayers = typeof targetTeamData.players === 'string'
@@ -88,7 +109,7 @@ export async function GET(request: NextRequest) {
       targetTeamData.ketua || { namaLengkap: 'Kapten' };
     const teamName = targetTeamData.namaTim || 'Tim';
 
-    // 1. Kirim Email
+    // A. Kirim Email via Resend
     const emailHtml = getClosingReminderTemplate({
       namaTim: teamName,
       namaKetua: ketuaTim.namaLengkap,
@@ -104,7 +125,7 @@ export async function GET(request: NextRequest) {
       html: emailHtml,
     });
 
-    // 2. Kirim Embed Discord Ke Channel Tim
+    // B. Kirim Embed Discord Ke Channel Tim
     const channelId = targetTeamData.discordChannelId;
     const roleId = targetTeamData.discordRoleId || targetTeamData.roleId;
 
@@ -124,19 +145,20 @@ export async function GET(request: NextRequest) {
       ).catch((err) => console.error(`Gagal kirim reminder Discord ke tim ${teamName}:`, err));
     }
 
-    // 3. Tandai Terkirim di Redis
-    await kv.hset(targetTeamKey, { reminderSent: 'true' });
+    // C. Tulis SLUG yang berhasil dikirim ke SET 'reminders:sent'
+    await kv.sadd('reminders:sent', targetSlug);
 
-    // 4. Kirim Laporan Log Ke Channel Log Admin
+    // D. Kirim Log Ke Channel Admin Discord
     await sendDiscordLog(
       `📢 Reminder Terkirim: Tim ${teamName}`,
-      `• **Email Registered:** \`${targetTeamData.email}\`\n• **Channel DC:** <#${channelId || 'N/A'}>\n• **Sisa Waktu:** ${sisaWaktuText}\n• **Status:** ✅ Terkirim via Resend & Discord`,
+      `• **Slug:** \`${targetSlug}\`\n• **Email Registered:** \`${targetTeamData.email}\`\n• **Channel DC:** <#${channelId || 'N/A'}>\n• **Sisa Waktu:** ${sisaWaktuText}\n• **Status:** ✅ Terkirim via Resend & Discord`,
       3066993
     );
 
     return NextResponse.json({
       success: true,
       sentToTeam: teamName,
+      slug: targetSlug,
       email: targetTeamData.email,
       discordChannelId: channelId || 'Tidak ada Channel ID',
       sisaWaktu: sisaWaktuText,
@@ -157,4 +179,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+          }
