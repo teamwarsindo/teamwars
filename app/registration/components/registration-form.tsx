@@ -55,7 +55,7 @@ export function RegistrationForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, initialData]); 
 
-  // 2. TAMBAHAN: Script Auto-Fill untuk Testing via URL
+  // 2. Script Auto-Fill untuk Testing via URL
   useEffect(() => {
     if (typeof window !== 'undefined' && !isEditMode && !hasAutoFilled.current) {
       const params = new URLSearchParams(window.location.search);
@@ -71,59 +71,64 @@ export function RegistrationForm({
         team.setBukti({ url: "https://teamwars.web.id/dummy-bukti.jpg", name: "dummy-bukti.jpg", size: 1024 });
         
         roster.setPlayers([
-  { 
-    id: "test-1", 
-    namaLengkap: "Tester Satu", 
-    ign: `Tester1_${randomStr}`, 
-    discord: "tsaqif.mtz", 
-    duelId: `111-222-${randomStr}`, 
-    role: "Ketua" 
-  },
-  { 
-    id: "test-2", 
-    namaLengkap: "Tester Dua", 
-    ign: `Tester2_${randomStr}`, 
-    discord: "achmadns20", 
-    duelId: `222-333-${randomStr}`, 
-    role: "Wakil Ketua" 
-  },
-  { 
-    id: "test-3", 
-    namaLengkap: "Tester Tiga", 
-    ign: `Tester3_${randomStr}`, 
-    discord: "shinryuki", 
-    duelId: `333-444-${randomStr}`, 
-    role: "Anggota" 
-  },
-  { 
-    id: "test-4", 
-    namaLengkap: "Tester Empat", 
-    ign: `Tester4_${randomStr}`, 
-    discord: "natsu_24", 
-    duelId: `444-555-${randomStr}`, 
-    role: "Anggota" 
-  },
-  { 
-    id: "test-5", 
-    namaLengkap: "Tester Lima", 
-    ign: `Tester5_${randomStr}`, 
-    discord: "haraheta1", 
-    duelId: `555-666-${randomStr}`, 
-    role: "Anggota" 
-  },
-]);
+          { 
+            id: "test-1", 
+            namaLengkap: "Tester Satu", 
+            ign: `Tester1_${randomStr}`, 
+            discord: "tsaqif.mtz", 
+            duelId: `111-222-${randomStr}`, 
+            role: "Ketua" 
+          },
+          { 
+            id: "test-2", 
+            namaLengkap: "Tester Dua", 
+            ign: `Tester2_${randomStr}`, 
+            discord: "achmadns20", 
+            duelId: `222-333-${randomStr}`, 
+            role: "Wakil Ketua" 
+          },
+          { 
+            id: "test-3", 
+            namaLengkap: "Tester Tiga", 
+            ign: `Tester3_${randomStr}`, 
+            discord: "shinryuki", 
+            duelId: `333-444-${randomStr}`, 
+            role: "Anggota" 
+          },
+          { 
+            id: "test-4", 
+            namaLengkap: "Tester Empat", 
+            ign: `Tester4_${randomStr}`, 
+            discord: "natsu_24", 
+            duelId: `444-555-${randomStr}`, 
+            role: "Anggota" 
+          },
+          { 
+            id: "test-5", 
+            namaLengkap: "Tester Lima", 
+            ign: `Tester5_${randomStr}`, 
+            discord: "haraheta1", 
+            duelId: `555-666-${randomStr}`, 
+            role: "Anggota" 
+          },
+        ]);
         hasAutoFilled.current = true; 
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode]);
 
+  // 3. Deteksi Perubahan Data Termasuk Logo & Bukti Transfer
   const hasChanges = useMemo(() => {
     if (!isEditMode || !initialData) return true; 
 
     const emailChanged = team.email.trim() !== (initialData.email || "").trim();
     const nameChanged = team.namaTim.trim() !== (initialData.namaTim || "").trim();
     const colorChanged = team.hex.toLowerCase() !== (initialData.warna || "").toLowerCase();
+
+    // Cek perubahan logo & bukti transfer (baik berupa File baru maupun URL baru)
+    const logoChanged = team.logo?.file !== undefined || (team.logo?.url && team.logo.url !== initialData.logoTim);
+    const buktiChanged = team.bukti?.file !== undefined || (team.bukti?.url && team.bukti.url !== initialData.buktiTransfer);
 
     const currentRoster = roster.players.map((p) => ({
       ign: p.ign.trim(),
@@ -141,8 +146,8 @@ export function RegistrationForm({
 
     const rosterChanged = JSON.stringify(currentRoster) !== JSON.stringify(originalRoster);
 
-    return nameChanged || colorChanged || rosterChanged || emailChanged;
-  }, [team.email, team.namaTim, team.hex, roster.players, isEditMode, initialData]);
+    return nameChanged || colorChanged || rosterChanged || emailChanged || logoChanged || buktiChanged;
+  }, [team.email, team.namaTim, team.hex, team.logo, team.bukti, roster.players, isEditMode, initialData]);
 
   const handleSyncDiscord = async () => {
     // Buat format slug tim persis seperti di backend
@@ -238,4 +243,4 @@ export function RegistrationForm({
       />
     </>
   )
-}
+              }
