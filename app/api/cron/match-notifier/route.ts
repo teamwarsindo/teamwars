@@ -27,54 +27,86 @@ const MATCH_DATA = {
   roomId: '568646',
 };
 
-// Generator Template Pesan Reminder (Tag Role langsung menyatu di paragraf)
-function buildReminderMessage(teamName: string, roleId: string, matchTime: string): string {
-  return `⏳ **[REMINDER] PERSIAPAN PRA-PERTANDINGAN TWI SEASON 7** ⏳
-
-Halo <@&${roleId}> (**${teamName}**), pertandingan kalian akan dimulai pada pukul **${matchTime}** malam ini. 
-Mohon segera menyelesaikan administrasi deck dengan memperhatikan regulasi berikut:
-
-⚠️ **ATURAN PENGUMPULAN DECK:**
-• Kesepuluh (10) deck wajib dikirimkan di channel ini selambat-lambatnya 60 menit sebelum jadwal pertandingan dimulai. Gambar screenshot deck harus yang paling terbaru dan terlihat jelas.
-• **Sanksi Keterlambatan:** Pemotongan waktu kontrol tim sebanyak 2 menit per deck yang terlambat.
-• **Sanksi Slot Kosong:** Jika hingga kick-off ada slot deck yang tidak dikirim, slot otomatis dinyatakan auto-loss.
-
-🔍 **VALIDASI DATA PEMAIN & SANKSI FATAL:**
-• **IGN & ID:** Ketua tim wajib memastikan ID serta In-Game Name (IGN) pemain sesuai dengan data registrasi. 
-🚨 Masuk menggunakan ID/IGN akun yang salah = **Loss 2 deck/game**.
-🚨 Ketahuan mengubah isi kartu dari deck yang sudah disubmit = **Loss 2 deck/game**.
-• **Komposisi Archetype:** Maksimal penggunaan 1 jenis archetype yang sama dalam satu tim adalah 5 kali. Memasuki pertandingan dengan archetype yang salah = **Loss 1 deck/game**.
-
-Silakan persiapkan line-up terbaik kalian!
-
-🔗 **Baca regulasi selengkapnya di:** https://teamwars.web.id/rules`;
+// 1. Generator Embed REMINDER
+function buildReminderEmbed(teamName: string, roleId: string, matchTime: string, wasitMention: string) {
+  return {
+    content: `<@&${roleId}>`, // Mention ditaruh di luar embed agar role tetap ter-ping Notification
+    embeds: [
+      {
+        title: '⏳ REMINDER MATCH — TWI SEASON 7',
+        description: `Halo **${teamName}**, pertandingan kalian akan dimulai malam ini!`,
+        color: 15844367, // Warna Gold / Warning
+        fields: [
+          {
+            name: '⏰ Jadwal Krusial',
+            value: `• **Kick-off:** \`${matchTime}\`\n• **Batas Pengumpulan Deck:** 60 Menit sebelum Kick-off`,
+            inline: false,
+          },
+          {
+            name: '⚠️ Aturan Deck (10 Deck)',
+            value: `• Kirim SS terbaru & jelas di channel ini.\n• **Telat:** Potong waktu kontrol 2 menit/deck.\n• **Slot Kosong saat Kick-off:** Auto-Loss.`,
+            inline: false,
+          },
+          {
+            name: '🚨 Sanksi Fatal',
+            value: `• **Salah ID/IGN & Ubah Deck:** \`Loss 2 Deck/Game\`\n• **Archetype > 5x / Salah Archetype:** \`Loss 1 Deck/Game\``,
+            inline: false,
+          },
+          {
+            name: '❓ Butuh Bantuan & Regulasi',
+            value: `Tanya Wasit: ${wasitMention}\n[Baca Rules Lengkap](https://teamwars.web.id/rules)`,
+            inline: false,
+          },
+        ],
+        footer: { text: 'Team Wars Indonesia • Season 7' },
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
 }
 
-// Generator Template Pesan Prepare / Briefing (Jam 19.45)
-function buildPrepareMessage(): string {
+// 2. Generator Embed PREPARE
+function buildPrepareEmbed() {
   const { teamA, teamB, wasit, roomId } = MATCH_DATA;
-  return `📢 **[MATCH BRIEFING] TWI SEASON 7** 📢
-
-Halo Kapten <@&${teamA.roleId}> (${teamA.nama}) dan <@&${teamB.roleId}> (${teamB.nama})! Waktu pertandingan tiba.
-Wasit ${wasit.mention} akan segera mengambil alih kendali. Sebelum masuk room, mohon patuhi regulasi in-game mutlak berikut:
-
-⏰ **WAKTU KONTROL & KOMUNIKASI:**
-• Waktu kontrol total: **15 menit per match** untuk masing-masing tim. 
-• Waktu berjalan saat persiapan/ganti deck, dan berhenti (di-pause) saat pemain bermain atau berada di dalam lobby.
-
-📸 **KEWAJIBAN BUKTI & TEKNIS:**
-• **SS Starting Hand:** Pemain wajib mengambil screenshot (SS) full screen (menampilkan hand/field sendiri, hand/field lawan, dan jumlah kartu lawan) lalu mengirimkannya ke channel tim tiap game berakhir.
-• **Sanksi SS:** Gagal melampirkan SS = Peringatan Ringan. Akumulasi 2x Peringatan Ringan dalam satu match = **Loss 1 deck**.
-• **DC & Glitch:** Disconnect = Kalah otomatis di game tersebut. Laporan Glitch wajib menyertakan bukti kuat maksimal 5 menit sejak kejadian.
-
-🎮 **ROOM MATCH:**
-• ID Room: **${roomId}**
-*(Dilarang menyebarkan ID room. Hanya pemain yang bertanding yang boleh berada di room dan wajib keluar setelah duel usai).*
-
-============================================
-Silakan Kapten <@&${teamA.roleId}> dan <@&${teamB.roleId}> konfirmasi kesiapannya dan sebutkan **Starter** yang akan turun ke channel tim masing masing!
-
-🔗 **Baca regulasi selengkapnya di:** https://teamwars.web.id/rules`;
+  return {
+    content: `📢 **Kapten <@&${teamA.roleId}> (${teamA.nama}) & <@&${teamB.roleId}> (${teamB.nama})!**`,
+    embeds: [
+      {
+        title: '⚔️ MATCH BRIEFING & ROOM MATCH',
+        description: `Match dipimpin oleh Wasit ${wasit.mention}. Waktu tanding telah tiba!`,
+        color: 3066993, // Warna Hijau / Ready
+        fields: [
+          {
+            name: '🎮 Room Match',
+            value: `**ID Room:** \`${roomId}\`\n*(Privat! Hanya pemain tanding yang boleh masuk)*`,
+            inline: false,
+          },
+          {
+            name: '⏱️ Waktu Kontrol',
+            value: `\`15 Menit / Match\` (Jalan saat ganti deck, pause saat di dalam game/lobby).`,
+            inline: true,
+          },
+          {
+            name: '📸 SS Starting Hand',
+            value: `Wajib SS tiap game. Akumulasi 2x Peringatan SS = \`Loss 1 Deck\`.`,
+            inline: true,
+          },
+          {
+            name: '⚠️ DC & Glitch',
+            value: `Disconnect = Kalah Otomatis game tersebut.`,
+            inline: false,
+          },
+          {
+            name: '📢 INSTRUKSI KAPTEN',
+            value: `> Silakan konfirmasi kesiapan dan sebutkan **STARTER** yang turun di channel tim masing-masing!`,
+            inline: false,
+          },
+        ],
+        footer: { text: 'Team Wars Indonesia • Season 7' },
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
 }
 
 // Helper Log Discord Admin
