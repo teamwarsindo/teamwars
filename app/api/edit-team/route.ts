@@ -31,6 +31,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Data tim tidak ditemukan' }, { status: 404 });
     }
 
+    // 🛑 Validasi Tambahan: Jika Nama Tim Diubah saat Edit, Cek Bentrok Nama Tim Lain
+    const newTeamSlug = namaTim.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
+    if (newTeamSlug !== teamSlug) {
+      const isExist = await kv.sismember("global:teams", newTeamSlug);
+      if (isExist) {
+        return NextResponse.json({ error: `Nama tim "${namaTim}" sudah digunakan oleh tim lain!` }, { status: 400 });
+      }
+      // Update indeks global nama tim jika berganti nama
+      await kv.srem("global:teams", teamSlug);
+      await kv.sadd("global:teams", newTeamSlug);
+      await kv.set(`token:map:${token}`, newTeamSlug);
+    }
+
+    const targetSlug = newTeamSlug; // Pakai slug baru jika berubah, atau slug lama jika tetap
+
     const verifiedMap = (verifiedUsersMap as Record<string, string>) || {};
     const oldPlayers = typeof oldTeamData.players === 'string'
       ? JSON.parse(oldTeamData.players)
@@ -123,7 +138,12 @@ export async function POST(request: NextRequest) {
       updatedAt: updatedAt,
     };
 
-    await kv.hset(`teams:${teamSlug}`, updatedTeamObj);
+    // Jika ganti slug nama tim, hapus key lama
+    if (newTeamSlug !== teamSlug) {
+      await kv.del(`teams:${teamSlug}`);
+    }
+
+    await kv.hset(`teams:${targetSlug}`, updatedTeamObj);
 
     // 6. Update Embeds Discord (Roster, Tracker, Creative)
     const rosterMessageId = oldTeamData.adminMsgId as string;
@@ -242,5 +262,5 @@ export async function POST(request: NextRequest) {
     console.error('Error Edit Team API:', error);
     return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
-  }
-                                    
+      }
+        
