@@ -26,7 +26,13 @@ export function RegistrationForm({
   const team = useTeamDetails()
   const roster = useRoster()
   
-  const flow = useRegistrationFlow(team, roster, isEditMode, initialData?.namaTim || "", editToken)
+  const flow = useRegistrationFlow(
+    team, 
+    roster, 
+    isEditMode, 
+    initialData?.namaTim || "", 
+    editToken
+  )
   const hasInitialized = useRef(false);
   const hasAutoFilled = useRef(false);
 
@@ -126,9 +132,9 @@ export function RegistrationForm({
     const nameChanged = team.namaTim.trim() !== (initialData.namaTim || "").trim();
     const colorChanged = team.hex.toLowerCase() !== (initialData.warna || "").toLowerCase();
 
-    // Cek perubahan logo & bukti transfer (baik berupa File baru maupun URL baru)
-    const logoChanged = team.logo?.file !== undefined || (team.logo?.url && team.logo.url !== initialData.logoTim);
-    const buktiChanged = team.bukti?.file !== undefined || (team.bukti?.url && team.bukti.url !== initialData.buktiTransfer);
+    // Cek perubahan URL logo & bukti transfer terhadap data awal
+    const logoChanged = Boolean(team.logo?.url && team.logo.url !== initialData.logoTim);
+    const buktiChanged = Boolean(team.bukti?.url && team.bukti.url !== initialData.buktiTransfer);
 
     const currentRoster = roster.players.map((p) => ({
       ign: p.ign.trim(),
@@ -243,4 +249,4 @@ export function RegistrationForm({
       />
     </>
   )
-              }
+}
