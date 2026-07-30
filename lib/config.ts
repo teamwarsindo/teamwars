@@ -3,7 +3,7 @@ export const LAUNCH_TARGET_DATE = "2026-07-07T17:44:00+07:00"
 export const LAUNCH_TARGET = new Date(LAUNCH_TARGET_DATE).getTime()
 
 // Waktu Tutup: 31 Juli 2026, 07.31.26 WIB
-export const CLOSE_TARGET_DATE = "2026-07-31T20:26:31+07:00"
+export const CLOSE_TARGET_DATE = "2026-07-30T19:04:31+07:00"
 export const CLOSE_TARGET = new Date(CLOSE_TARGET_DATE).getTime()
 
 // Cukup ubah di sini saja jika domain berubah
