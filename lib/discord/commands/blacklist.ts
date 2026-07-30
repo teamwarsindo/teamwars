@@ -9,17 +9,18 @@ export async function handleBlacklistCommand(body: any) {
     const userId = member?.user?.id || body.user?.id;
     const userRoles: string[] = member?.roles || [];
 
-    // 🔒 1. PERMISSION CHECK: Cek apakah user punya Role Admin / Referee / ID Spesifik
+    // 🔒 1. PERMISSION CHECK: Admin / Referee
     const isAdmin = userRoles.some(roleId => 
-      roleId === DISCORD_CONFIG.ROLE_ADMIN
+      roleId === DISCORD_CONFIG.ROLE_ADMIN || 
+      roleId === DISCORD_CONFIG.ROLE_REFEREE
     );
 
     if (!isAdmin) {
       return NextResponse.json({
         type: 4,
         data: {
-          content: '❌ Kamu tidak memiliki izin (Permission Admin) untuk mengelola blacklist!',
-          flags: 64, // Ephemeral (Hanya terlihat oleh pengirim)
+          content: '❌ Kamu tidak memiliki izin (Permission Admin/Referee) untuk mengelola blacklist!',
+          flags: 64, // Ephemeral
         },
       });
     }
@@ -44,9 +45,9 @@ export async function handleBlacklistCommand(body: any) {
             embeds: [
               {
                 title: '🟢 Daftar Blacklist Kosong',
-                description: 'Saat ini belum ada ID Duel Links yang di-blacklist.',
+                description: 'Saat ini tidak ada ID Duel Links yang berada dalam daftar blacklist.',
                 color: 3066993, // Green
-                footer: { text: `Diperbarui pada ${getWIBTime()}` },
+                footer: { text: `Team Wars Indonesia • ${getWIBTime()}` },
               },
             ],
             flags: 64,
@@ -72,7 +73,7 @@ export async function handleBlacklistCommand(body: any) {
       });
     }
 
-    // Untuk ADD & REMOVE, wajib validasi format 9 angka
+    // Validasi format 9 angka
     const cleanNumbers = rawInput.replace(/\D/g, '');
     if (cleanNumbers.length !== 9) {
       return NextResponse.json({
@@ -111,9 +112,9 @@ export async function handleBlacklistCommand(body: any) {
           embeds: [
             {
               title: '✅ ID Berhasil Ditambahkan ke Blacklist',
-              description: `ID Duel Links \`${formattedId}\` telah resmi di-blacklist.\nPemain dengan ID ini **tidak akan bisa mendaftar atau melakukan edit team**.`,
+              description: `ID Duel Links \`${formattedId}\` telah resmi di-blacklist.\n\n⛔ Pemain dengan ID ini **DILARANG BERTANDING / BERMAIN** di seluruh turnamen TWI.\n\n👤 **Eksekutor:** <@${userId}>`,
               color: 15158332, // Red
-              footer: { text: `Eksekutor: <@${userId}> • ${getWIBTime()}` },
+              footer: { text: `Team Wars Indonesia • ${getWIBTime()}` },
             },
           ],
         },
@@ -145,9 +146,9 @@ export async function handleBlacklistCommand(body: any) {
           embeds: [
             {
               title: '🟢 ID Berhasil Dihapus dari Blacklist',
-              description: `ID Duel Links \`${formattedId}\` telah dihapus dari blacklist dan dapat mendaftar kembali.`,
+              description: `ID Duel Links \`${formattedId}\` telah dihapus dari blacklist dan diizinkan bertanding kembali.\n\n👤 **Eksekutor:** <@${userId}>`,
               color: 3066993, // Green
-              footer: { text: `Eksekutor: <@${userId}> • ${getWIBTime()}` },
+              footer: { text: `Team Wars Indonesia • ${getWIBTime()}` },
             },
           ],
         },
@@ -166,4 +167,4 @@ export async function handleBlacklistCommand(body: any) {
       },
     });
   }
-                  }
+        }
