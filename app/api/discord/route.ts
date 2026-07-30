@@ -7,7 +7,8 @@ import { handlePrepare } from '@/lib/discord/commands/prepare';
 import { handleInfo } from '@/lib/discord/commands/info';
 import { handleTimerCommand } from '@/lib/discord/commands/timer';
 import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
-import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist'; // 👈 Import Command Blacklist
+import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
+import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 
 // Import Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
@@ -25,14 +26,14 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get('x-signature-ed25519');
     const timestamp = req.headers.get('x-signature-timestamp');
 
-    // 🛡️ 1. Verifikasi Keamanan Signature Discord Webhook
+    // 🛡️ 1. Verifikasi Signature Discord
     if (!verifySignature(rawBody, signature, timestamp)) {
       return new NextResponse('Akses Ditolak', { status: 401 });
     }
 
     const body = JSON.parse(rawBody);
 
-    // 🏓 2. Ping Interaction dari Discord
+    // 🏓 2. Ping Interaction (Type 1)
     if (body.type === 1) {
       return NextResponse.json({ type: 1 });
     }
@@ -46,7 +47,8 @@ export async function POST(req: NextRequest) {
       if (commandName === 'info') return await handleInfo(body); 
       if (commandName === 'timer') return await handleTimerCommand(body);
       if (commandName === 'cek-id') return await handleCekId(body);
-      if (commandName === 'blacklist') return await handleBlacklistCommand(body); // 👈 Routing /blacklist
+      if (commandName === 'blacklist') return await handleBlacklistCommand(body);
+      if (commandName === 'cek-roster') return await handleCekRoster(body);
     }
 
     // 🔘 4. Routing Button Interactions (Type 3)
@@ -57,7 +59,6 @@ export async function POST(req: NextRequest) {
       if (customId === 'bt_role') return await handleBtRole(body);
       if (customId === 'btn_edit_team') return await handleBtEditTeam(body);
       
-      // Routing Button Timer
       if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') {
         return await handleBtTimer(body);
       }
@@ -69,5 +70,5 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-    }
-        
+}
+  
