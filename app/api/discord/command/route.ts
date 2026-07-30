@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   if (!appId) return NextResponse.json({ error: 'Missing Client ID' }, { status: 500 });
 
   // ==========================================
-  // 1. REGISTER SLASH COMMANDS (Overwrite)
+  // 1. REGISTER SLASH COMMANDS (PUT Overwrite)
   // ==========================================
   const commands = [
     {
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
       description: 'Lihat informasi profil Discord kamu atau pemain lain',
       options: [
         {
-          type: 6, // Type 6 adalah USER
+          type: 6, // USER
           name: 'target',
           description: 'Pilih user yang ingin dilihat infonya (kosongkan untuk diri sendiri)',
           required: false,
@@ -55,7 +55,6 @@ export async function GET(req: Request) {
         },
       ],
     },
-    // 👇 COMMAND BLACKLIST BARU (ADMIN & REFEREE) 👇
     {
       name: 'blacklist',
       description: '[ADMIN] Kelola ID Duel Links yang di-blacklist',
@@ -75,6 +74,24 @@ export async function GET(req: Request) {
           type: 3, // STRING (Input)
           name: 'id',
           description: 'Masukkan angka ID Duel Links (Wajib untuk Add/Remove)',
+          required: false,
+        },
+      ],
+    },
+    {
+      name: 'cek-roster',
+      description: '[REFEREE] Cek roster tim berdasarkan Tag/Nama Tim (Privat)',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'team1',
+          description: 'Masukkan Tag / Nama Tim Pertama (Contoh: FPF / TWI)',
+          required: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'team2',
+          description: 'Masukkan Tag / Nama Tim Kedua (Opsional untuk adu match)',
           required: false,
         },
       ],
