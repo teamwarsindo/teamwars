@@ -33,13 +33,12 @@ export async function GET(req: Request) {
       name: 'timer',
       description: 'Tampilkan Panel Timer Kontrol Waktu Match TWI S7',
     },
-    // 👇 COMMAND CEK ID BARU 👇
     {
       name: 'cek-id',
       description: 'Cek pemilik ID Game di database TWI',
       options: [
         {
-          type: 3, // Type 3 = STRING (Sub-Choice)
+          type: 3, // STRING (Choice)
           name: 'game',
           description: 'Pilih jenis game',
           required: true,
@@ -49,10 +48,34 @@ export async function GET(req: Request) {
           ],
         },
         {
-          type: 3, // Type 3 = STRING (Input)
+          type: 3, // STRING (Input)
           name: 'id',
-          description: 'Masukkan angka ID Game (Contoh: 305-348-162 atau 305348162)',
+          description: 'Masukkan angka ID Game (Contoh: 168-256-618 atau 168256618)',
           required: true,
+        },
+      ],
+    },
+    // 👇 COMMAND BLACKLIST BARU (ADMIN & REFEREE) 👇
+    {
+      name: 'blacklist',
+      description: '[ADMIN] Kelola ID Duel Links yang di-blacklist',
+      options: [
+        {
+          type: 3, // STRING (Choice)
+          name: 'action',
+          description: 'Pilih aksi yang ingin dilakukan',
+          required: true,
+          choices: [
+            { name: 'Tambah ke Blacklist (Add)', value: 'add' },
+            { name: 'Hapus dari Blacklist (Remove)', value: 'remove' },
+            { name: 'Lihat Semua Blacklist (List)', value: 'list' },
+          ],
+        },
+        {
+          type: 3, // STRING (Input)
+          name: 'id',
+          description: 'Masukkan angka ID Duel Links (Wajib untuk Add/Remove)',
+          required: false,
         },
       ],
     },
@@ -60,6 +83,9 @@ export async function GET(req: Request) {
 
   const slashResult = await discordAPI(`/applications/${appId}/commands`, 'PUT', commands);
 
+  // ==========================================
+  // 2. KEMBALIKAN RESPON
+  // ==========================================
   if (slashResult) {
     return NextResponse.json({ 
       message: '✅ Setup Berhasil Dijalankan!', 
@@ -68,4 +94,4 @@ export async function GET(req: Request) {
   } else {
     return NextResponse.json({ error: '❌ Gagal mendaftarkan commands' }, { status: 500 });
   }
-            }
+}
