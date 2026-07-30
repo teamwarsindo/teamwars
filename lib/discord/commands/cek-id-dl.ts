@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { hexToDecimal, getFooterText } from '@/lib/discord/utils';
+import { hexToDecimal, getWIBTime } from '@/lib/discord/utils';
 
 export async function handleCekId(body: any) {
   try {
@@ -8,19 +8,18 @@ export async function handleCekId(body: any) {
     const gameTypeOption = options.find((opt: any) => opt.name === 'game');
     const idOption = options.find((opt: any) => opt.name === 'id');
 
-    const gameType = gameTypeOption?.value; // 'dl' atau 'md'
+    const gameType = gameTypeOption?.value;
     const rawInput = idOption?.value || '';
 
     // Ambil angka saja dari input user
     const cleanNumbers = rawInput.replace(/\D/g, '');
 
-    // Validasi Panjang Angka (Duel Links harus 9 digit)
     if (cleanNumbers.length !== 9) {
       return NextResponse.json({
         type: 4,
         data: {
           content: `❌ Format ID Duel Links salah! ID harus terdiri dari **9 angka**. (Contoh: \`305-348-162\` atau \`305348162\`)`,
-          flags: 64, // Ephemeral (Hanya terlihat oleh pengirim)
+          flags: 64,
         },
       });
     }
@@ -43,7 +42,6 @@ export async function handleCekId(body: any) {
     // ===================================================
     const verifiedUsersMap = (await kv.hgetall('global:verified_users')) as Record<string, string> || {};
     
-    // Ambil semua key tim dari Redis
     const teamKeys = await kv.keys('teams:*');
     let foundData: any = null;
 
@@ -55,7 +53,6 @@ export async function handleCekId(body: any) {
         ? JSON.parse(teamData.players) 
         : (teamData.players || []);
 
-      // Cari pemain berdasarkan ID Duel Links (formatted: xxx-xxx-xxx)
       const matchedPlayer = players.find((p: any) => {
         const pId = (p.idDuelLinks || p.duelId || '').trim();
         return pId === formattedId;
@@ -66,7 +63,7 @@ export async function handleCekId(body: any) {
           player: matchedPlayer,
           team: teamData,
         };
-        break; // Hentikan pencarian jika sudah ketemu
+        break;
       }
     }
 
@@ -82,7 +79,7 @@ export async function handleCekId(body: any) {
               title: '⚠️ ID Duel Links Tidak Ditemukan',
               description: `ID Game **${formattedId}** tidak terdaftar pada roster tim mana pun di database TWI.`,
               color: 15158332, // Red
-              footer: { text: getFooterText() },
+              footer: { text: `Dicari pada: ${getWIBTime()}` },
             },
           ],
         },
@@ -90,12 +87,20 @@ export async function handleCekId(body: any) {
     }
 
     const { player, team } = foundData;
-    const cleanDiscord = player.discord ? player.discord.toLowerCase().replace(/^@/, '').trim() : '';
+    
+    // Fix Formatting Discord Mention / Username
+    const rawDiscord = (player.discord || '').trim();
+    const cleanDiscord = rawDiscord.toLowerCase().replace(/^@/, '');
     const discordId = verifiedUsersMap[cleanDiscord];
-    const isVerified = Boolean(discordId);
 
+    // Jika ada ID Discord terverifikasi, gunakan <@ID>. Jika tidak ada, cukup tampilkan username string polos
+    let discordDisplay = rawDiscord ? `@${cleanDiscord}` : '-';
+    if (discordId) {
+      discordDisplay = `<@${discordId}>`;
+    }
+
+    const isVerified = Boolean(discordId);
     const embedColor = hexToDecimal(team.warna);
-    const discordMention = discordId ? `<@${discordId}>` : `@${player.discord || '-'}`;
 
     return NextResponse.json({
       type: 4,
@@ -110,11 +115,12 @@ export async function handleCekId(body: any) {
               { name: '👥 Nama Tim', value: team.namaTim || '-', inline: true },
               { name: '👤 IGN Pemain', value: player.ign || '-', inline: true },
               { name: '🏷️ Role Tim', value: player.role || 'Member', inline: true },
-              { name: '💬 Discord', value: `${discordMention}`, inline: true },
+              { name: '💬 Discord', value: discordDisplay, inline: true },
               { name: '📊 Status Discord', value: isVerified ? '✅ Terverifikasi' : '❌ Belum Terverifikasi', inline: true },
             ],
+            // Footer yang lebih relevan untuk hasil pencarian ID
             footer: { 
-              text: getFooterText(team.createdAt, team.updatedAt) 
+              text: `Team Wars Indonesia • Dicari pada ${getWIBTime()}` 
             },
           },
         ],
@@ -131,4 +137,4 @@ export async function handleCekId(body: any) {
       },
     });
   }
-  }
+}
