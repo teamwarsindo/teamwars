@@ -24,7 +24,7 @@ export async function handleCekId(body: any) {
       });
     }
 
-    // 🔄 Format ulang murni ke format KV: "305-348-162"
+    // 🔄 Format ulang ke format standar: "305-348-162"
     const formattedId = `${cleanNumbers.slice(0, 3)}-${cleanNumbers.slice(3, 6)}-${cleanNumbers.slice(6, 9)}`;
 
     if (gameType === 'md') {
@@ -38,10 +38,14 @@ export async function handleCekId(body: any) {
     }
 
     // ===================================================
-    // 🔍 PENCARIAN DI DATABASE (REDIS KV)
+    // ⛔ 1. CEK STATUS BLACKLIST DI REDIS
+    // ===================================================
+    const isBlacklisted = await kv.sismember('global:blacklisted_ids', formattedId);
+
+    // ===================================================
+    // 🔍 2. PENCARIAN DI DATABASE TIM (REDIS KV)
     // ===================================================
     const verifiedUsersMap = (await kv.hgetall('global:verified_users')) as Record<string, string> || {};
-    
     const teamKeys = await kv.keys('teams:*');
     let foundData: any = null;
 
@@ -67,18 +71,17 @@ export async function handleCekId(body: any) {
       }
     }
 
-    // ===================================================
-    // 📤 RESPONSE EMBED DISCORD
-    // ===================================================
     if (!foundData) {
       return NextResponse.json({
         type: 4,
         data: {
           embeds: [
             {
-              title: '⚠️ ID Duel Links Tidak Ditemukan',
-              description: `ID Game **${formattedId}** tidak terdaftar pada roster tim mana pun di database TWI.`,
-              color: 15158332, // Red
+              title: isBlacklisted ? '⛔ ID Terdeteksi BLACKLIST!' : '⚠️ ID Duel Links Tidak Ditemukan',
+              description: isBlacklisted 
+                ? `⚠️ ID Game **${formattedId}** berada dalam **DAFTAR BLACKLIST TWI** dan tidak terdaftar di tim mana pun!`
+                : `ID Game **${formattedId}** tidak terdaftar pada roster tim mana pun di database TWI.`,
+              color: isBlacklisted ? 10038562 : 15158332, // Dark Red jika Blacklist
               footer: { text: `Dicari pada: ${getWIBTime()}` },
             },
           ],
@@ -93,21 +96,24 @@ export async function handleCekId(body: any) {
     const cleanDiscord = rawDiscord.toLowerCase().replace(/^@/, '');
     const discordId = verifiedUsersMap[cleanDiscord];
 
-    // Jika ada ID Discord terverifikasi, gunakan <@ID>. Jika tidak ada, cukup tampilkan username string polos
     let discordDisplay = rawDiscord ? `@${cleanDiscord}` : '-';
     if (discordId) {
       discordDisplay = `<@${discordId}>`;
     }
 
     const isVerified = Boolean(discordId);
-    const embedColor = hexToDecimal(team.warna);
+    
+    // Warna Embed: Jika Blacklist -> Merah Gelap Peringatan (10038562), jika tidak -> Warna Tim
+    const embedColor = isBlacklisted ? 10038562 : hexToDecimal(team.warna);
 
     return NextResponse.json({
       type: 4,
       data: {
         embeds: [
           {
-            title: '🎴 Data ID Duel Links Ditemukan!',
+            title: isBlacklisted 
+              ? '⛔ ID Duel Links Ditemukan (STATUS: BLACKLIST!)' 
+              : '🎴 Data ID Duel Links Ditemukan!',
             color: embedColor,
             thumbnail: team.logoTim ? { url: team.logoTim } : undefined,
             fields: [
@@ -116,11 +122,18 @@ export async function handleCekId(body: any) {
               { name: '👤 IGN Pemain', value: player.ign || '-', inline: true },
               { name: '🏷️ Role Tim', value: player.role || 'Member', inline: true },
               { name: '💬 Discord', value: discordDisplay, inline: true },
-              { name: '📊 Status Discord', value: isVerified ? '✅ Terverifikasi' : '❌ Belum Terverifikasi', inline: true },
+              { 
+                name: '📊 Status Akun', 
+                value: isBlacklisted 
+                  ? '⛔ **BLACKLISTED (DILARANG MAIN)**' 
+                  : (isVerified ? '✅ Terverifikasi' : '❌ Belum Terverifikasi'), 
+                inline: true 
+              },
             ],
-            // Footer yang lebih relevan untuk hasil pencarian ID
             footer: { 
-              text: `Team Wars Indonesia • Dicari pada ${getWIBTime()}` 
+              text: isBlacklisted 
+                ? `PERINGATAN: ID ini dilarang berpartisipasi! • ${getWIBTime()}` 
+                : `Team Wars Indonesia • Dicari pada ${getWIBTime()}` 
             },
           },
         ],
@@ -137,4 +150,4 @@ export async function handleCekId(body: any) {
       },
     });
   }
-}
+              }
