@@ -106,9 +106,9 @@ export async function handleCekRoster(body: any) {
       });
     }
 
-    // 🎯 HELPER PEMBENTUK EMBED SESUAI TEMPLATE roster.ts
+    // 🎯 HELPER PEMBENTUK EMBED IDENTIK DENGAN TEMPLATE roster.ts
     const buildTemplateEmbed = (teamData: any) => {
-      const { namaTim, warna, players, logoTim, createdAt } = teamData;
+      const { namaTim, warna, players, logoTim, createdAt, updatedAt } = teamData;
 
       // Cari ketua & wakil dari roster
       const ketua = players.find((p: any) => 
@@ -119,7 +119,7 @@ export async function handleCekRoster(body: any) {
         p.role?.toLowerCase() === 'wakil' || p.role?.toLowerCase() === 'wakil ketua'
       ) || { ign: '-' };
 
-      // Susun list pemain persis seperti template roster.ts: IGN (ID)
+      // Format daftar pemain: IGN (ID)
       const playerListString = players.map((p: any) => {
         const rawId = (p.idDuelLinks || p.duelId || '-').trim();
         const cleanNumbers = rawId.replace(/\D/g, '');
@@ -139,7 +139,8 @@ export async function handleCekRoster(body: any) {
           { name: "Wakil", value: wakil.ign || '-', inline: true },
           { name: "Players", value: playerListString || '_Tidak ada pemain_', inline: false }
         ],
-        footer: { text: getFooterText(createdAt) }
+        // 💡 Passing createdAt DAN updatedAt agar baris "Last Updated" muncul!
+        footer: { text: getFooterText(createdAt, updatedAt) }
       };
     };
 
@@ -179,5 +180,4 @@ export async function handleCekRoster(body: any) {
       },
     });
   }
-  }
-      
+}
