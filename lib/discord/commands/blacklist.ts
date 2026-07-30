@@ -11,15 +11,14 @@ export async function handleBlacklistCommand(body: any) {
 
     // 🔒 1. PERMISSION CHECK: Cek apakah user punya Role Admin / Referee / ID Spesifik
     const isAdmin = userRoles.some(roleId => 
-      roleId === DISCORD_CONFIG.ROLE_ADMIN || 
-      roleId === DISCORD_CONFIG.ROLE_REFEREE
+      roleId === DISCORD_CONFIG.ROLE_ADMIN
     );
 
     if (!isAdmin) {
       return NextResponse.json({
         type: 4,
         data: {
-          content: '❌ Kamu tidak memiliki izin (Permission Admin/Referee) untuk mengelola blacklist!',
+          content: '❌ Kamu tidak memiliki izin (Permission Admin) untuk mengelola blacklist!',
           flags: 64, // Ephemeral (Hanya terlihat oleh pengirim)
         },
       });
