@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   if (!appId) return NextResponse.json({ error: 'Missing Client ID' }, { status: 500 });
 
   // ==========================================
-  // 1. REGISTER SLASH COMMANDS (PUT Overwrite)
+  // REGISTER SLASH COMMANDS (PUT Overwrite)
   // ==========================================
   const commands = [
     {
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
       description: 'Cek pemilik ID Game di database TWI',
       options: [
         {
-          type: 3, // STRING (Choice)
+          type: 3, // STRING Choice
           name: 'game',
           description: 'Pilih jenis game',
           required: true,
@@ -48,7 +48,7 @@ export async function GET(req: Request) {
           ],
         },
         {
-          type: 3, // STRING (Input)
+          type: 3, // STRING Input
           name: 'id',
           description: 'Masukkan angka ID Game (Contoh: 168-256-618 atau 168256618)',
           required: true,
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
       description: '[ADMIN] Kelola ID Duel Links yang di-blacklist',
       options: [
         {
-          type: 3, // STRING (Choice)
+          type: 3, // STRING Choice
           name: 'action',
           description: 'Pilih aksi yang ingin dilakukan',
           required: true,
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
           ],
         },
         {
-          type: 3, // STRING (Input)
+          type: 3, // STRING Input
           name: 'id',
           description: 'Masukkan angka ID Duel Links (Wajib untuk Add/Remove)',
           required: false,
@@ -80,18 +80,18 @@ export async function GET(req: Request) {
     },
     {
       name: 'cek-roster',
-      description: '[REFEREE] Cek roster tim berdasarkan Tag/Nama Tim (Privat)',
+      description: '[REFEREE] Cek roster tim berdasarkan Tag Role Tim Discord (Privat)',
       options: [
         {
-          type: 3, // STRING
+          type: 8, // 👈 TYPE 8 = ROLE (Mention Native Role Discord)
           name: 'team1',
-          description: 'Masukkan Tag / Nama Tim Pertama (Contoh: FPF / TWI)',
+          description: 'Tag Role Tim Pertama (Contoh: @Team A)',
           required: true,
         },
         {
-          type: 3, // STRING
+          type: 8, // 👈 TYPE 8 = ROLE
           name: 'team2',
-          description: 'Masukkan Tag / Nama Tim Kedua (Opsional untuk adu match)',
+          description: 'Tag Role Tim Kedua (Opsional)',
           required: false,
         },
       ],
@@ -100,9 +100,6 @@ export async function GET(req: Request) {
 
   const slashResult = await discordAPI(`/applications/${appId}/commands`, 'PUT', commands);
 
-  // ==========================================
-  // 2. KEMBALIKAN RESPON
-  // ==========================================
   if (slashResult) {
     return NextResponse.json({ 
       message: '✅ Setup Berhasil Dijalankan!', 
