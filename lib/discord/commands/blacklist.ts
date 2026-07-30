@@ -1,22 +1,25 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { getWIBTime } from '@/lib/discord/utils';
-
-// Array ID Discord Admin yang diizinkan memakai command ini
-const ADMIN_DISCORD_IDS = [
-  '470212070957252618', // Ganti / Tambahkan ID Discord kamu & Panitia lain di sini
-];
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 export async function handleBlacklistCommand(body: any) {
   try {
-    const userId = body.member?.user?.id || body.user?.id;
+    const member = body.member;
+    const userId = member?.user?.id || body.user?.id;
+    const userRoles: string[] = member?.roles || [];
 
-    // 🔒 1. PERMISSION CHECK (Hanya Admin yang bisa)
-    if (!ADMIN_DISCORD_IDS.includes(userId)) {
+    // 🔒 1. PERMISSION CHECK: Cek apakah user punya Role Admin / Referee / ID Spesifik
+    const isAdmin = userRoles.some(roleId => 
+      roleId === DISCORD_CONFIG.ROLE_ADMIN || 
+      roleId === DISCORD_CONFIG.ROLE_REFEREE
+    );
+
+    if (!isAdmin) {
       return NextResponse.json({
         type: 4,
         data: {
-          content: '❌ Kamu tidak memiliki izin (Permission) untuk mengelola blacklist!',
+          content: '❌ Kamu tidak memiliki izin (Permission Admin/Referee) untuk mengelola blacklist!',
           flags: 64, // Ephemeral (Hanya terlihat oleh pengirim)
         },
       });
@@ -70,7 +73,7 @@ export async function handleBlacklistCommand(body: any) {
       });
     }
 
-    // Untuk ADD & REMOVE, butuh validasi input ID 9 digit
+    // Untuk ADD & REMOVE, wajib validasi format 9 angka
     const cleanNumbers = rawInput.replace(/\D/g, '');
     if (cleanNumbers.length !== 9) {
       return NextResponse.json({
@@ -164,5 +167,4 @@ export async function handleBlacklistCommand(body: any) {
       },
     });
   }
-}
-  
+                  }
