@@ -6,12 +6,13 @@ import { handleReminder } from '@/lib/discord/commands/reminder';
 import { handlePrepare } from '@/lib/discord/commands/prepare';
 import { handleInfo } from '@/lib/discord/commands/info';
 import { handleTimerCommand } from '@/lib/discord/commands/timer';
+import { handleCekId } from '@/lib/discord/commands/cek-id-dl'; // 👈 1. Import Handler Baru
 
 // Import Buttons
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
 import { handleBtRole } from '@/lib/discord/buttons/btRole';
 import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
-import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer'; // 👈 Import ini
+import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -31,12 +32,14 @@ export async function POST(req: NextRequest) {
 
     if (body.type === 1) return NextResponse.json({ type: 1 });
 
+    // Routing Slash Commands (Type 2)
     if (body.type === 2) {
       const commandName = body.data.name;
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body); 
       if (commandName === 'timer') return await handleTimerCommand(body);
+      if (commandName === 'cek-id') return await handleCekId(body); // 👈 2. Routing Command Cek ID
     }
 
     // Routing Button Interactions (Type 3)
@@ -46,7 +49,6 @@ export async function POST(req: NextRequest) {
       if (customId === 'bt_role') return await handleBtRole(body);
       if (customId === 'btn_edit_team') return await handleBtEditTeam(body);
       
-      // 👈 Register Handler Timer Button (A atau B)
       if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') {
         return await handleBtTimer(body);
       }
@@ -57,4 +59,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-}
+          }
