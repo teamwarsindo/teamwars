@@ -3,17 +3,27 @@ import { kv } from '@vercel/kv';
 import { hexToDecimal } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
-// Helper pencarian data tim di Redis KV berdasarkan Role ID Discord
-async function findTeamByRoleId(roleId: string) {
+// Helper pencarian data tim di Redis KV berdasarkan Role ID / Nama Role
+async function findTeamByRoleId(roleId: string, roleName?: string) {
   if (!roleId) return null;
 
   const teamKeys = await kv.keys('teams:*');
+  
+  // 🔍 LAPIS 1: Cek berdasarkan ID Role di Redis KV
   for (const key of teamKeys) {
     const teamData: any = await kv.hgetall(key);
     if (!teamData) continue;
 
-    // Cek Role ID yang tersimpan di data tim
-    const savedRoleId = teamData.roleId || teamData.roleTeamId || teamData.roleTeam || '';
+    // 🎯 Sertakan discordRoleId (Sesuai dengan field simpanan API Submit Pendaftaran)
+    const savedRoleId = 
+      teamData.discordRoleId || 
+      teamData.roleId || 
+      teamData.roleTeamId || 
+      teamData.roleTeam || 
+      teamData.idRole || 
+      teamData.role_id || 
+      teamData.teamRoleId || 
+      '';
 
     if (savedRoleId === roleId) {
       const players = typeof teamData.players === 'string' 
@@ -21,6 +31,34 @@ async function findTeamByRoleId(roleId: string) {
         : (teamData.players || []);
       
       return { ...teamData, players };
+    }
+  }
+
+  // 🔍 LAPIS 2 (FALLBACK): Jika ID tidak tersimpan, cocokkan Nama Role dengan Tag / Nama Tim / Slug
+  if (roleName) {
+    const cleanRoleName = roleName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    for (const key of teamKeys) {
+      const teamData: any = await kv.hgetall(key);
+      if (!teamData) continue;
+
+      const tag = (teamData.tagTim || teamData.tag || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const nama = (teamData.namaTim || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const slug = key.replace('teams:', '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      // Pengecekan kemiripan teks
+      if (
+        cleanRoleName === tag || 
+        cleanRoleName === slug || 
+        nama.replace(/[^a-z0-9]/g, '').includes(cleanRoleName) || 
+        cleanRoleName.includes(nama.replace(/[^a-z0-9]/g, ''))
+      ) {
+        const players = typeof teamData.players === 'string' 
+          ? JSON.parse(teamData.players) 
+          : (teamData.players || []);
+        
+        return { ...teamData, players };
+      }
     }
   }
 
@@ -49,12 +87,18 @@ export async function handleCekRoster(body: any) {
     }
 
     const options = body.data?.options || [];
-    // Input Type 8 (ROLE) mengembalikan ID Role berupa string
+    const resolvedRoles = body.data?.resolved?.roles || {};
+
+    // Ambil ID Role dari input Type 8 (ROLE)
     const team1RoleId = options.find((opt: any) => opt.name === 'team1')?.value;
     const team2RoleId = options.find((opt: any) => opt.name === 'team2')?.value;
 
-    const team1Data = await findTeamByRoleId(team1RoleId);
-    const team2Data = team2RoleId ? await findTeamByRoleId(team2RoleId) : null;
+    // Ambil Nama Role dari resolved data Discord (jika ada)
+    const team1RoleName = team1RoleId ? resolvedRoles[team1RoleId]?.name : undefined;
+    const team2RoleName = team2RoleId ? resolvedRoles[team2RoleId]?.name : undefined;
+
+    const team1Data = await findTeamByRoleId(team1RoleId, team1RoleName);
+    const team2Data = team2RoleId ? await findTeamByRoleId(team2RoleId, team2RoleName) : null;
 
     if (!team1Data) {
       return NextResponse.json({
@@ -91,7 +135,7 @@ export async function handleCekRoster(body: any) {
       }).join('\n\n');
 
       return {
-        title: `🛡️ Roster: ${team.namaTim} [${team.tagTim || 'NO-TAG'}]`,
+        title: `🛡️ Roster: ${team.namaTim} [${team.tagTim || team.tag || 'NO-TAG'}]`,
         color: hexToDecimal(team.warna),
         thumbnail: team.logoTim ? { url: team.logoTim } : undefined,
         description: playerLines || '_Belum ada data pemain._',
@@ -114,7 +158,7 @@ export async function handleCekRoster(body: any) {
       }
     }
 
-    // 📤 Send Response Ephemeral (Hanya Referee yang melihat)
+    // 📤 Send Response Ephemeral (Hanya Referee yang bisa lihat)
     return NextResponse.json({
       type: 4,
       data: {
@@ -133,4 +177,4 @@ export async function handleCekRoster(body: any) {
       },
     });
   }
-}
+        }
