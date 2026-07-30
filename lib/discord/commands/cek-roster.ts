@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { hexToDecimal } from '@/lib/discord/utils';
+import { hexToDecimal, getFooterText } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 // Helper pencarian data tim di Redis KV berdasarkan Role ID / Nama Role
@@ -14,7 +14,6 @@ async function findTeamByRoleId(roleId: string, roleName?: string) {
     const teamData: any = await kv.hgetall(key);
     if (!teamData) continue;
 
-    // 🎯 Sertakan discordRoleId (Sesuai dengan field simpanan API Submit Pendaftaran)
     const savedRoleId = 
       teamData.discordRoleId || 
       teamData.roleId || 
@@ -34,7 +33,7 @@ async function findTeamByRoleId(roleId: string, roleName?: string) {
     }
   }
 
-  // 🔍 LAPIS 2 (FALLBACK): Jika ID tidak tersimpan, cocokkan Nama Role dengan Tag / Nama Tim / Slug
+  // 🔍 LAPIS 2 (FALLBACK): Cocokkan Nama Role dengan Tag / Nama Tim / Slug
   if (roleName) {
     const cleanRoleName = roleName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -46,7 +45,6 @@ async function findTeamByRoleId(roleId: string, roleName?: string) {
       const nama = (teamData.namaTim || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const slug = key.replace('teams:', '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-      // Pengecekan kemiripan teks
       if (
         cleanRoleName === tag || 
         cleanRoleName === slug || 
@@ -89,11 +87,9 @@ export async function handleCekRoster(body: any) {
     const options = body.data?.options || [];
     const resolvedRoles = body.data?.resolved?.roles || {};
 
-    // Ambil ID Role dari input Type 8 (ROLE)
     const team1RoleId = options.find((opt: any) => opt.name === 'team1')?.value;
     const team2RoleId = options.find((opt: any) => opt.name === 'team2')?.value;
 
-    // Ambil Nama Role dari resolved data Discord (jika ada)
     const team1RoleName = team1RoleId ? resolvedRoles[team1RoleId]?.name : undefined;
     const team2RoleName = team2RoleId ? resolvedRoles[team2RoleId]?.name : undefined;
 
@@ -110,55 +106,61 @@ export async function handleCekRoster(body: any) {
       });
     }
 
-    // Ambil data verifikasi user & blacklist dari Redis
-    const verifiedUsersMap = (await kv.hgetall('global:verified_users')) as Record<string, string> || {};
-    const blacklistSet = (await kv.smembers('global:blacklisted_ids')) || [];
+    // 🎯 HELPER PEMBENTUK EMBED SESUAI TEMPLATE roster.ts
+    const buildTemplateEmbed = (teamData: any) => {
+      const { namaTim, warna, players, logoTim, createdAt } = teamData;
 
-    // Helper Rakit Embed
-    const buildTeamEmbed = (team: any) => {
-      const playerLines = team.players.map((p: any, idx: number) => {
-        const rawDiscord = (p.discord || '').trim();
-        const cleanDiscord = rawDiscord.toLowerCase().replace(/^@/, '');
-        const discordId = verifiedUsersMap[cleanDiscord];
-        const discordMention = discordId ? `<@${discordId}>` : `@${cleanDiscord || '-'}`;
+      // Cari ketua & wakil dari roster
+      const ketua = players.find((p: any) => 
+        p.role?.toLowerCase() === 'ketua' || p.role?.toLowerCase() === 'ketua tim'
+      ) || players[0] || { ign: '-' };
 
-        const rawId = (p.idDuelLinks || p.duelId || '').trim();
+      const wakil = players.find((p: any) => 
+        p.role?.toLowerCase() === 'wakil' || p.role?.toLowerCase() === 'wakil ketua'
+      ) || { ign: '-' };
+
+      // Susun list pemain persis seperti template roster.ts: IGN (ID)
+      const playerListString = players.map((p: any) => {
+        const rawId = (p.idDuelLinks || p.duelId || '-').trim();
         const cleanNumbers = rawId.replace(/\D/g, '');
         const formattedId = cleanNumbers.length === 9 
           ? `${cleanNumbers.slice(0, 3)}-${cleanNumbers.slice(3, 6)}-${cleanNumbers.slice(6, 9)}`
           : rawId;
 
-        const isBlacklisted = blacklistSet.includes(formattedId);
-        const statusIcon = isBlacklisted ? '⛔ *BLACKLIST*' : (discordId ? '✅' : '❌');
-
-        return `**${idx + 1}. ${p.ign || '-'}** (${p.role || 'Member'})\n└ ID: \`${formattedId}\` | DC: ${discordMention} | ${statusIcon}`;
-      }).join('\n\n');
+        return `${p.ign || '-'} (${formattedId})`;
+      }).join('\n');
 
       return {
-        title: `🛡️ Roster: ${team.namaTim} [${team.tagTim || team.tag || 'NO-TAG'}]`,
-        color: hexToDecimal(team.warna),
-        thumbnail: team.logoTim ? { url: team.logoTim } : undefined,
-        description: playerLines || '_Belum ada data pemain._',
-        footer: { text: `Total Roster: ${team.players.length} Pemain • TWI S7` },
+        title: namaTim,
+        color: hexToDecimal(warna),
+        thumbnail: logoTim ? { url: logoTim } : undefined,
+        fields: [
+          { name: "Ketua", value: ketua.ign || '-', inline: true },
+          { name: "Wakil", value: wakil.ign || '-', inline: true },
+          { name: "Players", value: playerListString || '_Tidak ada pemain_', inline: false }
+        ],
+        footer: { text: getFooterText(createdAt) }
       };
     };
 
-    const embeds: any[] = [buildTeamEmbed(team1Data)];
+    const embeds: any[] = [buildTemplateEmbed(team1Data)];
 
     if (team2RoleId) {
       if (team2Data) {
-        embeds.push(buildTeamEmbed(team2Data));
+        embeds.push(buildTemplateEmbed(team2Data));
       } else {
         embeds.push({
           title: `⚠️ Tim 2 Tidak Ditemukan`,
-          description: `Data untuk Role <@&${team2RoleId}> tidak dapat ditemukan di database.`,
           color: 15158332,
-          footer: { text: 'Team Wars Indonesia' },
+          fields: [
+            { name: "Keterangan", value: `Data untuk Role <@&${team2RoleId}> tidak ditemukan di database.`, inline: false }
+          ],
+          footer: { text: getFooterText(new Date().toISOString()) }
         });
       }
     }
 
-    // 📤 Send Response Ephemeral (Hanya Referee yang bisa lihat)
+    // 📤 Send Response Ephemeral (Privat)
     return NextResponse.json({
       type: 4,
       data: {
@@ -177,4 +179,5 @@ export async function handleCekRoster(body: any) {
       },
     });
   }
-        }
+  }
+      
