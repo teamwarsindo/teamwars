@@ -3,22 +3,19 @@ import { kv } from '@vercel/kv';
 import { hexToDecimal } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
-// Helper pencarian data tim di Redis KV berdasarkan Tag / Slug / Nama
-async function findTeamData(query: string) {
-  if (!query) return null;
-  const cleanQuery = query.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+// Helper pencarian data tim di Redis KV berdasarkan Role ID Discord
+async function findTeamByRoleId(roleId: string) {
+  if (!roleId) return null;
 
   const teamKeys = await kv.keys('teams:*');
   for (const key of teamKeys) {
     const teamData: any = await kv.hgetall(key);
     if (!teamData) continue;
 
-    const tag = (teamData.tagTim || teamData.tag || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const nama = (teamData.namaTim || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const slug = key.replace('teams:', '').toLowerCase();
+    // Cek Role ID yang tersimpan di data tim
+    const savedRoleId = teamData.roleId || teamData.roleTeamId || teamData.roleTeam || '';
 
-    // Cocokkan dengan Tag, Slug, atau Nama Tim
-    if (tag === cleanQuery || slug === cleanQuery || nama.includes(cleanQuery)) {
+    if (savedRoleId === roleId) {
       const players = typeof teamData.players === 'string' 
         ? JSON.parse(teamData.players) 
         : (teamData.players || []);
@@ -52,27 +49,28 @@ export async function handleCekRoster(body: any) {
     }
 
     const options = body.data?.options || [];
-    const team1Input = options.find((opt: any) => opt.name === 'team1')?.value;
-    const team2Input = options.find((opt: any) => opt.name === 'team2')?.value;
+    // Input Type 8 (ROLE) mengembalikan ID Role berupa string
+    const team1RoleId = options.find((opt: any) => opt.name === 'team1')?.value;
+    const team2RoleId = options.find((opt: any) => opt.name === 'team2')?.value;
 
-    const team1Data = await findTeamData(team1Input);
-    const team2Data = team2Input ? await findTeamData(team2Input) : null;
+    const team1Data = await findTeamByRoleId(team1RoleId);
+    const team2Data = team2RoleId ? await findTeamByRoleId(team2RoleId) : null;
 
     if (!team1Data) {
       return NextResponse.json({
         type: 4,
         data: {
-          content: `❌ Tim dengan Tag/Nama \`${team1Input}\` tidak ditemukan di database!`,
+          content: `❌ Tim dengan Role <@&${team1RoleId}> tidak ditemukan di database TWI!`,
           flags: 64,
         },
       });
     }
 
-    // Ambil data verifikasi user & blacklist
+    // Ambil data verifikasi user & blacklist dari Redis
     const verifiedUsersMap = (await kv.hgetall('global:verified_users')) as Record<string, string> || {};
     const blacklistSet = (await kv.smembers('global:blacklisted_ids')) || [];
 
-    // 🎯 Helper Rakit Embed Manual
+    // Helper Rakit Embed
     const buildTeamEmbed = (team: any) => {
       const playerLines = team.players.map((p: any, idx: number) => {
         const rawDiscord = (p.discord || '').trim();
@@ -101,23 +99,22 @@ export async function handleCekRoster(body: any) {
       };
     };
 
-    // 💡 Deklarasi tipe any[] secara eksplisit mencegah error Vercel build
     const embeds: any[] = [buildTeamEmbed(team1Data)];
 
-    if (team2Input) {
+    if (team2RoleId) {
       if (team2Data) {
         embeds.push(buildTeamEmbed(team2Data));
       } else {
         embeds.push({
-          title: `⚠️ Tim 2 (${team2Input}) Tidak Ditemukan`,
-          description: `Data untuk \`${team2Input}\` tidak dapat ditemukan di database.`,
+          title: `⚠️ Tim 2 Tidak Ditemukan`,
+          description: `Data untuk Role <@&${team2RoleId}> tidak dapat ditemukan di database.`,
           color: 15158332,
           footer: { text: 'Team Wars Indonesia' },
         });
       }
     }
 
-    // 📤 Send Response Ephemeral (Hanya Referee yang bisa lihat)
+    // 📤 Send Response Ephemeral (Hanya Referee yang melihat)
     return NextResponse.json({
       type: 4,
       data: {
