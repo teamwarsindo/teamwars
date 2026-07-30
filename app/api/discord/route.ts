@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get('x-signature-ed25519');
     const timestamp = req.headers.get('x-signature-timestamp');
 
-    // 🛡️ 1. Verifikasi Signature Discord
+    // 🛡️ 1. Verifikasi Signature Discord Webhook
     if (!verifySignature(rawBody, signature, timestamp)) {
       return new NextResponse('Akses Ditolak', { status: 401 });
     }
@@ -70,5 +70,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-}
-  
+    }
