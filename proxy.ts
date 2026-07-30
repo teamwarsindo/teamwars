@@ -1,20 +1,16 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { LAUNCH_TARGET } from '@/lib/config'
+import { NextResponse, type NextRequest } from 'next/server';
 
 // --- HELPER 1: Handle Akses Halaman Admin ---
 function handleAdminRoutes(req: NextRequest, session: string | undefined) {
     const { pathname } = req.nextUrl;
     
-    // Cek apakah URL saat ini adalah area admin
     if (pathname.startsWith('/admin')) {
         const isLoginRoute = pathname === '/admin/login';
 
-        // Aturan A: Jika belum login dan mengakses halaman selain login -> tendang ke login
         if (!session && !isLoginRoute) {
             return NextResponse.redirect(new URL('/admin/login', req.url));
         }
         
-        // Aturan B: Jika sudah login tapi mengakses root /admin atau /admin/login -> tendang ke dashboard
         if (session && (pathname === '/admin' || isLoginRoute)) {
             return NextResponse.redirect(new URL('/admin/dashboard', req.url));
         }
@@ -23,26 +19,19 @@ function handleAdminRoutes(req: NextRequest, session: string | undefined) {
     return null;
 }
 
-// --- HELPER 3: Handle Registrasi (Auth & CSRF) ---
+// --- HELPER 2: Handle Registrasi Ditutup (Redirect ke Home) ---
 function handleRegistration(req: NextRequest) {
-    if (!req.nextUrl.pathname.startsWith('/registration')) return null;
+    const { pathname } = req.nextUrl;
 
-    if (Date.now() < LAUNCH_TARGET) {
-        const auth = req.headers.get('authorization')?.split(' ')[1];
-        const [user, pwd] = auth ? atob(auth).split(':') : [];
-
-        // 🔒 Ambil kredensial dari .env, gunakan fallback acak agar tetap aman jika .env lupa diset
-        const expectedUser = process.env.BASIC_AUTH_USER || 'twi_admin_fallback';
-        const expectedPwd = process.env.BASIC_AUTH_PWD || 'fallback_rahasia_segera_ganti';
-
-        if (user !== expectedUser || pwd !== expectedPwd) {
-            return new NextResponse('Akses Ditolak', {
-                status: 401,
-                headers: { 'WWW-Authenticate': 'Basic realm="Area Master Admin"' }
-            });
-        }
+    // Jika pengguna mencoba membuka halaman form pendaftaran (/registration)
+    if (pathname === '/registration' || pathname === '/registration/') {
+        // Alihkan (Redirect) ke Halaman Utama dengan notifikasi pendaftaran ditutup
+        const homeUrl = new URL('/', req.url);
+        homeUrl.searchParams.set('error', 'registration_closed');
+        return NextResponse.redirect(homeUrl);
     }
 
+    // Tetapkan CSRF Token untuk request API/Edit yang sah
     const res = NextResponse.next();
     if (!req.cookies.get('twi_csrf_token')) {
         res.cookies.set('twi_csrf_token', crypto.randomUUID(), {
@@ -56,15 +45,13 @@ function handleRegistration(req: NextRequest) {
 }
 
 // ==========================================
-// FUNGSI UTAMA MIDDLEWARE
+// FUNGSI UTAMA MIDDLEWARE (PROXY)
 // ==========================================
 export function proxy(request: NextRequest) {
-    // Catatan: Jika lu butuh ngetes proteksi admin di local, matikan (comment) baris di bawah ini sementara
     if (process.env.NODE_ENV === 'development') return NextResponse.next();
     
     const session = request.cookies.get('admin_session')?.value;
 
-    // Eksekusi Helper secara berurutan
     const adminRedirect = handleAdminRoutes(request, session);
     if (adminRedirect) return adminRedirect;
     
@@ -72,4 +59,5 @@ export function proxy(request: NextRequest) {
     if (registrationLogic) return registrationLogic;
 
     return NextResponse.next();
-            }
+}
+    
