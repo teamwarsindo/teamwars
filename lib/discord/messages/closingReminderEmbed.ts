@@ -36,28 +36,28 @@ export function createClosingReminderEmbed(params: {
     content: `<@&${params.roleMentionId}>`,
     embeds: [
       {
-        title: "⏳ Pendaftaran Segera Ditutup!",
+        title: "⌛ Pengingat Batas Akhir Edit Team!",
         color: hexDecimal,
-        description: `Periksa kembali data roster tim **${params.namaTim}** sebelum waktu pendaftaran berakhir.`,
+        description: `Pendaftaran baru telah **ditutup**. Segera periksa dan kunci data roster tim **${params.namaTim}** sebelum waktu perbaikan berakhir!`,
         fields: [
           {
-            name: "⏱️ Sisa Waktu",
+            name: "⏱️ Sisa Waktu Edit Data",
             value: `\`\`\`${params.sisaWaktuText}\`\`\``,
             inline: false,
           },
           {
-            name: "🔍 Hal yang Wajib Dicek",
-            value: "• Typo pada **IGN** & **Duel ID**.\n• Status verifikasi Discord pemain.\n• Tambah / kurangi anggota roster (Maks 10).",
+            name: "🔍 Poin Penting Perbaikan Roster",
+            value: "• Pastikan tidak ada typo pada **IGN In-Game** & **Duel ID**.\n• Pastikan seluruh anggota tim sudah **Terverifikasi Discord**.\n• Atur susunan pemain utama dan cadangan (Maks. 10 Pemain).",
             inline: false,
           },
           {
-            name: "📝 Cara Edit Data Tim",
-            value: `Klik tombol **Edit Team** di bawah atau gunakan tautan yang dikirim ke email registered:\n📧 \`${maskEmail(params.email)}\`\n\n*Gagal/Email tidak ketemu? Hubungi Admin Discord.*`,
+            name: "📝 Cara Memperbarui Data Tim",
+            value: `Klik tombol **Edit Team** di bawah ini atau buka tautan verifikasi yang dikirim ke email registered:\n📧 \`${maskEmail(params.email)}\`\n\n*Catatan: Setelah waktu habis, data roster akan terkunci secara otomatis dan tidak bisa diubah.*`,
             inline: false,
           },
         ],
         footer: {
-          text: getFormattedFooterTime(),
+          text: `Team Wars Indonesia • ${getFormattedFooterTime()}`,
         },
       },
     ],
@@ -77,4 +77,3 @@ export function createClosingReminderEmbed(params: {
     ]
   };
 }
-  
