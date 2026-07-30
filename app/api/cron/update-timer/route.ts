@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
 
-// Target Deadline Edit Team (Sesuaikan batas waktu perbaikan)
+// Target Deadline Edit Team
 const EDIT_DEADLINE = new Date('2026-07-31T21:23:00+07:00').getTime();
 
 // Helper pengereman (sleep) 200ms per tim agar 100% aman dari rate limit
@@ -25,7 +25,7 @@ function getRemainingTimeText(deadlineTime: number) {
   return `${minutes} Menit`;
 }
 
-// Helper Sensor Email persis seperti di gambar (ab****@gmail.com)
+// Helper Sensor Email (ab****@gmail.com)
 function maskEmail(email: string) {
   if (!email || !email.includes('@')) return 'e****@gmail.com';
   const [name, domain] = email.split('@');
@@ -33,9 +33,9 @@ function maskEmail(email: string) {
   return `${name.slice(0, 2)}****@${domain}`;
 }
 
-// Helper Format Waktu Footer persis: Sent on 30 Jul 2026 at 21:23 WIB
-function getFormattedSentTime(createdAtISO?: string) {
-  const dateObj = createdAtISO ? new Date(createdAtISO) : new Date();
+// Helper Format Waktu Footer Terkini (Realtime saat Cron berjalan)
+function getCurrentFormattedTime() {
+  const dateObj = new Date();
   
   const dateStr = dateObj.toLocaleDateString('en-GB', {
     day: '2-digit',
@@ -49,7 +49,7 @@ function getFormattedSentTime(createdAtISO?: string) {
     minute: '2-digit',
     hour12: false,
     timeZone: 'Asia/Jakarta'
-  }).replace('.', ':'); // Hasil: "21:23"
+  }).replace('.', ':'); // Hasil: "23:57"
 
   return `Sistem Registrasi • Sent on ${dateStr} at ${timeStr} WIB`;
 }
@@ -69,6 +69,7 @@ export async function GET(req: Request) {
 
     const remainingText = getRemainingTimeText(EDIT_DEADLINE);
     const isExpired = Date.now() >= EDIT_DEADLINE;
+    const currentFooterText = getCurrentFormattedTime(); // Waktu realtime saat ini
 
     let updatedCount = 0;
 
@@ -79,14 +80,15 @@ export async function GET(req: Request) {
 
       const channelId = teamData.discordChannelId;
       const roleId = teamData.discordRoleId;
+      const savedMsgId = teamData.editReminderMsgId;
       const namaTim = teamData.namaTim || 'TEAM';
       const colorHex = teamData.warna || '#e91e63';
       const maskedEmail = maskEmail(teamData.email || '');
-      const footerSentText = getFormattedSentTime(teamData.createdAt);
 
-      if (!channelId) continue;
+      // Skip jika tidak ada channelId ATAU belum punya Message ID
+      if (!channelId || !savedMsgId) continue;
 
-      // 🎯 Embed Payload Persis Gambar
+      // 🎯 Embed Payload
       const embedPayload = {
         title: '⌛ Pengingat Batas Akhir Edit Team!',
         color: hexToDecimal(colorHex),
@@ -101,7 +103,7 @@ export async function GET(req: Request) {
           `📧 \`${maskedEmail}\`\n\n` +
           `_Catatan: Setelah waktu habis, data roster akan terkunci secara otomatis dan tidak bisa diubah._`,
         footer: {
-          text: footerSentText
+          text: currentFooterText // Date & Time terkini
         }
       };
 
@@ -122,64 +124,35 @@ export async function GET(req: Request) {
       ];
 
       const mentionContent = roleId ? `<@&${roleId}>` : `@${namaTim}`;
-      const savedMsgId = teamData.editReminderMsgId;
 
-      if (savedMsgId) {
-        // 🔄 1. EDIT PESAN YANG SUDAH ADA (PATCH)
-        try {
-          const res = await discordAPI(`/channels/${channelId}/messages/${savedMsgId}`, 'PATCH', {
-            content: mentionContent,
-            embeds: [embedPayload],
-            components
-          });
-
-          // Jika ternyata pesan terhapus manual di Discord, buat pesan baru (Fallback)
-          if (!res?.id) {
-            const newRes = await discordAPI(`/channels/${channelId}/messages`, 'POST', {
-              content: mentionContent,
-              embeds: [embedPayload],
-              components
-            });
-            if (newRes?.id) {
-              await kv.hset(key, { editReminderMsgId: newRes.id });
-            }
-          }
-        } catch (e) {
-          console.error(`Gagal edit reminder tim ${namaTim}:`, e);
-        }
-      } else {
-        // ➕ 2. KIRIM PESAN BARU DENGAN POST & SIMPAN MSG ID
-        try {
-          const newRes = await discordAPI(`/channels/${channelId}/messages`, 'POST', {
-            content: mentionContent,
-            embeds: [embedPayload],
-            components
-          });
-
-          if (newRes?.id) {
-            await kv.hset(key, { editReminderMsgId: newRes.id });
-          }
-        } catch (e) {
-          console.error(`Gagal kirim new reminder tim ${namaTim}:`, e);
-        }
+      // 🔄 MURNI EDIT PESAN YANG SUDAH ADA (PATCH ONLY)
+      try {
+        await discordAPI(`/channels/${channelId}/messages/${savedMsgId}`, 'PATCH', {
+          content: mentionContent,
+          embeds: [embedPayload],
+          components
+        });
+        
+        updatedCount++;
+      } catch (e) {
+        console.error(`Gagal edit reminder tim ${namaTim} (MsgID: ${savedMsgId}):`, e);
       }
 
-      updatedCount++;
-
-      // ⏱️ Pengereman 200ms per channel agar AMAN dari Rate Limit
+      // ⏱️ Pengereman 200ms per channel agar AMAN dari Rate Limit Discord
       await sleep(200);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Timer 16 tim berhasil di-update!`,
+      message: `Timer 16 tim berhasil di-update secara realtime!`,
       totalTimDiproses: updatedCount,
-      sisaWaktu: remainingText
+      sisaWaktu: remainingText,
+      lastUpdated: currentFooterText
     });
 
   } catch (error) {
     console.error('Error running update-timer cron:', error);
     return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
   }
-                   }
-          
+    }
+    
