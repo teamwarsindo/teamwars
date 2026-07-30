@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { hexToDecimal, getFooterText } from '@/lib/discord/utils';
+import { hexToDecimal } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
-// Helper pencarian data tim di Redis KV
+// Helper pencarian data tim di Redis KV berdasarkan Tag / Slug / Nama
 async function findTeamData(query: string) {
   if (!query) return null;
   const cleanQuery = query.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -17,6 +17,7 @@ async function findTeamData(query: string) {
     const nama = (teamData.namaTim || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const slug = key.replace('teams:', '').toLowerCase();
 
+    // Cocokkan dengan Tag, Slug, atau Nama Tim
     if (tag === cleanQuery || slug === cleanQuery || nama.includes(cleanQuery)) {
       const players = typeof teamData.players === 'string' 
         ? JSON.parse(teamData.players) 
@@ -27,32 +28,6 @@ async function findTeamData(query: string) {
   }
 
   return null;
-}
-
-// Helper pembentuk Embed Roster mengikuti struktur dari roster.ts
-function buildRosterEmbed(teamData: any) {
-  const { namaTim, warna, players, logoTim, createdAt } = teamData;
-
-  // Cari ketua dan wakil dari daftar players
-  const ketua = players.find((p: any) => p.role?.toLowerCase() === 'ketua') || players[0] || { ign: '-' };
-  const wakil = players.find((p: any) => p.role?.toLowerCase() === 'wakil') || { ign: '-' };
-
-  // Format daftar pemain seperti pada roster.ts
-  const playerListString = players.map((p: any) => 
-    `${p.ign} (${p.idDuelLinks || p.duelId || '-'})`
-  ).join('\n');
-
-  return {
-    title: namaTim,
-    color: hexToDecimal(warna),
-    thumbnail: logoTim ? { url: logoTim } : undefined,
-    fields: [
-      { name: "Ketua", value: ketua.ign || '-', inline: true },
-      { name: "Wakil", value: wakil.ign || '-', inline: true },
-      { name: "Players", value: playerListString || '_Tidak ada pemain_', inline: false }
-    ],
-    footer: { text: getFooterText(createdAt) }
-  };
 }
 
 export async function handleCekRoster(body: any) {
@@ -71,7 +46,7 @@ export async function handleCekRoster(body: any) {
         type: 4,
         data: {
           content: '❌ Kamu tidak memiliki izin (Permission Admin/Referee) untuk melihat roster ini!',
-          flags: 64, // Ephemeral (Hanya terlihat oleh pengirim)
+          flags: 64, // Ephemeral (Privat)
         },
       });
     }
@@ -80,7 +55,6 @@ export async function handleCekRoster(body: any) {
     const team1Input = options.find((opt: any) => opt.name === 'team1')?.value;
     const team2Input = options.find((opt: any) => opt.name === 'team2')?.value;
 
-    // Search Tim 1 & Tim 2
     const team1Data = await findTeamData(team1Input);
     const team2Data = team2Input ? await findTeamData(team2Input) : null;
 
@@ -94,27 +68,61 @@ export async function handleCekRoster(body: any) {
       });
     }
 
-    // Rakit embed sesuai template roster.ts
-    const embeds = [buildRosterEmbed(team1Data)];
+    // Ambil data verifikasi user & blacklist
+    const verifiedUsersMap = (await kv.hgetall('global:verified_users')) as Record<string, string> || {};
+    const blacklistSet = (await kv.smembers('global:blacklisted_ids')) || [];
+
+    // 🎯 Helper Rakit Embed Manual
+    const buildTeamEmbed = (team: any) => {
+      const playerLines = team.players.map((p: any, idx: number) => {
+        const rawDiscord = (p.discord || '').trim();
+        const cleanDiscord = rawDiscord.toLowerCase().replace(/^@/, '');
+        const discordId = verifiedUsersMap[cleanDiscord];
+        const discordMention = discordId ? `<@${discordId}>` : `@${cleanDiscord || '-'}`;
+
+        const rawId = (p.idDuelLinks || p.duelId || '').trim();
+        const cleanNumbers = rawId.replace(/\D/g, '');
+        const formattedId = cleanNumbers.length === 9 
+          ? `${cleanNumbers.slice(0, 3)}-${cleanNumbers.slice(3, 6)}-${cleanNumbers.slice(6, 9)}`
+          : rawId;
+
+        const isBlacklisted = blacklistSet.includes(formattedId);
+        const statusIcon = isBlacklisted ? '⛔ *BLACKLIST*' : (discordId ? '✅' : '❌');
+
+        return `**${idx + 1}. ${p.ign || '-'}** (${p.role || 'Member'})\n└ ID: \`${formattedId}\` | DC: ${discordMention} | ${statusIcon}`;
+      }).join('\n\n');
+
+      return {
+        title: `🛡️ Roster: ${team.namaTim} [${team.tagTim || 'NO-TAG'}]`,
+        color: hexToDecimal(team.warna),
+        thumbnail: team.logoTim ? { url: team.logoTim } : undefined,
+        description: playerLines || '_Belum ada data pemain._',
+        footer: { text: `Total Roster: ${team.players.length} Pemain • TWI S7` },
+      };
+    };
+
+    // 💡 Deklarasi tipe any[] secara eksplisit mencegah error Vercel build
+    const embeds: any[] = [buildTeamEmbed(team1Data)];
 
     if (team2Input) {
       if (team2Data) {
-        embeds.push(buildRosterEmbed(team2Data));
+        embeds.push(buildTeamEmbed(team2Data));
       } else {
         embeds.push({
           title: `⚠️ Tim 2 (${team2Input}) Tidak Ditemukan`,
           description: `Data untuk \`${team2Input}\` tidak dapat ditemukan di database.`,
           color: 15158332,
+          footer: { text: 'Team Wars Indonesia' },
         });
       }
     }
 
-    // 📤 Return Response Ephemeral
+    // 📤 Send Response Ephemeral (Hanya Referee yang bisa lihat)
     return NextResponse.json({
       type: 4,
       data: {
         embeds,
-        flags: 64, // Hanya referee yang lihat
+        flags: 64, 
       },
     });
 
