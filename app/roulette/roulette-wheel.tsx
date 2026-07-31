@@ -135,4 +135,4 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
       />
     </div>
   );
-    }
+        }
