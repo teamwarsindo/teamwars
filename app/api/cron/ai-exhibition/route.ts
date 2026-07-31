@@ -7,26 +7,19 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 // Ambil Channel ID Exhibition dari file config
 const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH_EXHI;
 
-// Helper untuk mengecek apakah pesan didominasi oleh emoji / simbol
+// Helper pengecekan emoji
 function isMajorityEmoji(text: string): boolean {
   if (!text) return true;
-  
-  // Hapus karakter whitespace
   const cleanText = text.replace(/\s+/g, '');
   if (cleanText.length === 0) return true;
 
-  // Hitung jumlah huruf dan angka saja (Alphanumeric)
   const letterAndNumberMatches = cleanText.match(/[\p{L}\p{N}]/gu) || [];
-  const letterAndNumberCount = letterAndNumberMatches.length;
-
-  // Jika jumlah huruf/angka kurang dari 40% total karakter, anggap mayoritas emoji/simbol
-  const ratio = letterAndNumberCount / cleanText.length;
-  return ratio < 0.4;
+  const ratio = letterAndNumberMatches.length / cleanText.length;
+  return ratio < 0.4; // Skip jika < 40% huruf/angka
 }
 
 export async function GET(req: Request) {
   try {
-    // 🛡️ Parameter reset untuk menghapus cache KV Redis (misal: /api/cron/ai-exhibition?reset=true)
     const { searchParams } = new URL(req.url);
     const isReset = searchParams.get('reset') === 'true';
 
@@ -41,18 +34,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, message: 'Cache Redis berhasil di-reset!' });
     }
 
-    // 1. Fetch 8 PESAN TERAKHIR di Channel Exhibition untuk Konteks Percakapan
-    const rawMessages = await discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages?limit=8`, 'GET');
+    // ⚡ 1. PARALLEL FETCH: Ambil pesan Discord + Cek Redis bersamaan
+    const [rawMessages, lastRepliedMsgId] = await Promise.all([
+      discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages?limit=5`, 'GET'),
+      kv.get<string>(redisKey)
+    ]);
 
     if (!rawMessages || !Array.isArray(rawMessages) || rawMessages.length === 0) {
       return NextResponse.json({ message: 'Tidak ada pesan di channel exhibition' });
     }
 
-    // Urutkan dari pesan lama ke baru (kronologis)
-    const conversation = [...rawMessages].reverse();
-    const lastMsg = rawMessages[0]; // Pesan paling baru (terakhir)
+    const lastMsg = rawMessages[0]; // Pesan paling baru
 
-    // 🛑 Rule 1: Skip jika pesan terakhir dikirim oleh Bot
+    // 🛑 Rule 1: Skip jika pesan dari Bot
     if (lastMsg.author?.bot) {
       return NextResponse.json({ message: 'Pesan terakhir dikirim oleh Bot, di-skip.' });
     }
@@ -62,40 +56,40 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: 'Pesan berupa media/stiker, di-skip.' });
     }
 
-    // 🛑 Rule 3: Skip jika pesan mayoritas berupa Emoji / Simbol
+    // 🛑 Rule 3: Skip jika mayoritas emoji
     if (isMajorityEmoji(lastMsg.content)) {
       return NextResponse.json({ message: 'Pesan mayoritas emoji/simbol, di-skip.' });
     }
 
-    // 🛑 Rule 4: Anti-Spam Redis (Cek apakah pesan ID ini sudah pernah dibalas)
-    const lastRepliedMsgId = await kv.get<string>(redisKey);
+    // 🛑 Rule 4: Anti-Spam (Sudah pernah dibalas)
     if (lastRepliedMsgId === lastMsg.id) {
       return NextResponse.json({ message: 'Pesan ini sudah dibalas sebelumnya.' });
     }
 
-    // 🧠 2. Rakit Riwayat Chat sebagai Konteks Pembelajaran AI
+    // 🧠 2. Rakit Riwayat Chat
+    const conversation = [...rawMessages].reverse();
     const formattedHistory = conversation.map((msg) => {
       const role = msg.author?.bot ? 'Bot' : msg.author?.username || 'User';
       return `${role}: ${msg.content}`;
     }).join('\n');
 
-    const promptText = `Berikut adalah riwayat percakapan terbaru di chat room:\n${formattedHistory}\n\n` +
-      `Tolong berikan balasan singkat untuk pesan TERAKHIR dari ${lastMsg.author?.username}: "${lastMsg.content}"`;
+    const promptText = `Riwayat percakapan:\n${formattedHistory}\n\n` +
+      `Balas pesan terakhir dari ${lastMsg.author?.username}: "${lastMsg.content}"`;
 
-    // 🤖 3. Generate Balasan Gemini AI (Pakai Gemini Flash Terbaru)
+    // 🤖 3. Generate Balasan Gemini (Menggunakan gemini-1.5-flash)
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-1.5-flash',
       contents: promptText,
       config: {
         systemInstruction:
-          'Kamu adalah member/anak Discord biasa di server esports/gaming Indonesia yang santai, rada sarkas, agak pinggir jurang/dark joke khas tongkrongan netizen lokal, cuek, tapi tetep akrab.\n\n' +
+          'Kamu adalah member Discord biasa di server esports/gaming Indonesia. Santai, rada sarkas, agak pinggir jurang/dark joke khas tongkrongan netizen lokal, cuek, tapi tetep akrab.\n\n' +
           'ATURAN PENTING GAYA BAHASA:\n' +
-          '1. JANGAN PERNAH pakai kata "bro", "wkwk" di awal kalimat, "halo", "semangat", atau gaya bahasa CS/Admin AI yang ramah lebay.\n' +
-          '2. Jangan pakai emoji berlebihan (maksimal 1 atau gak usah pakai sama sekali).\n' +
-          '3. Gunakan bahasa gaul harian/ketikan anak Discord lokal yang natural, singkat (1 kalimat pendek atau max 15 kata).\n' +
-          '4. Jika bahas politik/isu Indonesia, boleh bercanda tipis ala "pinggir jurang" (sarkas/nyindir halus) tapi tetap dalam batas aman.\n' +
-          '5. Fokus membalas pesan terakhir dengan memperhatikan riwayat obrolan di atasnya.',
-        temperature: 0.9,
+          '1. JANGAN PERNAH pakai kata "bro", "wkwk" di awal kalimat, "halo", "semangat", atau gaya bahasa CS/Admin AI lebay.\n' +
+          '2. Jangan pakai emoji berlebihan (max 1 atau tidak sama sekali).\n' +
+          '3. Gunakan bahasa gaul/ketikan anak Discord lokal yang natural dan singkat (max 15 kata).\n' +
+          '4. Jika bahas politik/isu lokal, boleh bercanda tipis ala pinggir jurang (sarkas halus).\n' +
+          '5. Balas pesan terakhir dengan memperhatikan riwayat chat.',
+        temperature: 0.7, // Dioptimasi agar AI berfikir lebih cepat
       },
     });
 
@@ -105,18 +99,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Gemini AI tidak menghasilkan jawaban' }, { status: 500 });
     }
 
-    // 💬 4. Kirim Direct Reply ke Pesan Terakhir di Discord
+    // 💬 4. Direct Reply ke Discord + Simpan Redis secara berurutan
     await discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages`, 'POST', {
       content: aiReplyText,
-      message_reference: {
-        message_id: lastMsg.id, // Menempelkan balasan langsung
-      },
-      allowed_mentions: {
-        replied_user: false
-      }
+      message_reference: { message_id: lastMsg.id },
+      allowed_mentions: { replied_user: false }
     });
 
-    // 💾 5. Simpan ID Pesan ke Redis KV
     await kv.set(redisKey, lastMsg.id);
 
     return NextResponse.json({
