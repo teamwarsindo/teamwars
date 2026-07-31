@@ -7,7 +7,7 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 // Ambil Channel ID Exhibition dari file config
 const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH_EXHI;
 
-// Helper pengecekan emoji
+// Helper pengecekan emoji (Abaikan jika mayoritas emoji/simbol)
 function isMajorityEmoji(text: string): boolean {
   if (!text) return true;
   const cleanText = text.replace(/\s+/g, '');
@@ -15,7 +15,7 @@ function isMajorityEmoji(text: string): boolean {
 
   const letterAndNumberMatches = cleanText.match(/[\p{L}\p{N}]/gu) || [];
   const ratio = letterAndNumberMatches.length / cleanText.length;
-  return ratio < 0.4; // Skip jika < 40% huruf/angka
+  return ratio < 0.4;
 }
 
 export async function GET(req: Request) {
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
 
     // ⚡ 1. PARALLEL FETCH: Ambil pesan Discord + Cek Redis bersamaan
     const [rawMessages, lastRepliedMsgId] = await Promise.all([
-      discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages?limit=5`, 'GET'),
+      discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages?limit=5`, 'GET');,
       kv.get<string>(redisKey)
     ]);
 
@@ -76,9 +76,9 @@ export async function GET(req: Request) {
     const promptText = `Riwayat percakapan:\n${formattedHistory}\n\n` +
       `Balas pesan terakhir dari ${lastMsg.author?.username}: "${lastMsg.content}"`;
 
-    // 🤖 Generate Balasan Gemini AI
+    // 🤖 3. Generate Balasan Gemini AI (Menggunakan gemini-1.5-flash)
     const response = await ai.models.generateContent({
-      model: 'models/gemini-2.5-flash',
+      model: 'gemini-1.5-flash', 
       contents: promptText,
       config: {
         systemInstruction:
@@ -90,10 +90,9 @@ export async function GET(req: Request) {
           '4. Jika member becanda/menyapa, balas dengan santai, lucu, dan tetap sopan.\n' +
           '5. Ketikan singkat, padat, dan jelas (maksimal 1–2 kalimat, max 15 kata).\n' +
           '6. Hindari gaya bicara AI yang kaku seperti "Halo kak, ada yang bisa dibantu?". Gunakan ketikan santai natural.',
-        temperature: 0.6, // Ditinggikan sedikit dari default agar fleksibel tapi tetap terkontrol
+        temperature: 0.6,
       },
     });
-
 
     const aiReplyText = response.text?.trim();
 
