@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { TeamItem } from "@/app/api/roulette-state/route";
 
 interface RouletteWheelProps {
-  teams: string[];
+  teams: TeamItem[];
   winningIndex: number | null;
   isSpinning: boolean;
   onSpinEnd: () => void;
@@ -12,6 +13,20 @@ interface RouletteWheelProps {
 export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: RouletteWheelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentAngleRef = useRef(0);
+  const loadedImagesRef = useRef<Record<string, HTMLImageElement>>({});
+
+  // Preload gambar logo tim
+  useEffect(() => {
+    teams.forEach((team) => {
+      if (team.logo && !loadedImagesRef.current[team.logo]) {
+        const img = new Image();
+        img.src = team.logo;
+        img.onload = () => {
+          loadedImagesRef.current[team.logo] = img;
+        };
+      }
+    });
+  }, [teams]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -36,6 +51,7 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         const start = angleOffset + i * sliceAngle;
         const end = start + sliceAngle;
 
+        // Draw Wedge Irisan
         ctx.beginPath();
         ctx.moveTo(radius, radius);
         ctx.arc(radius, radius, radius - 10, start, end);
@@ -47,14 +63,22 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         ctx.strokeStyle = "rgba(0,255,255,0.3)";
         ctx.stroke();
 
-        // Render Teks Nama Tim
+        // Render Teks & Logo
         ctx.save();
         ctx.translate(radius, radius);
         ctx.rotate(start + sliceAngle / 2);
+
+        // Render Logo jika sudah ter-load
+        const img = loadedImagesRef.current[team.logo];
+        if (img) {
+          ctx.drawImage(img, radius - 75, -12, 24, 24);
+        }
+
+        // Render Teks Nama Tim
         ctx.textAlign = "right";
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "bold 12px sans-serif";
-        ctx.fillText(team.length > 12 ? team.slice(0, 10) + ".." : team, radius - 30, 4);
+        ctx.fillText(team.name.length > 10 ? team.name.slice(0, 8) + ".." : team.name, radius - 45, 4);
         ctx.restore();
       });
 
@@ -73,10 +97,9 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
       return;
     }
 
-    // Animasi Spin
     let animationId: number;
     const startTime = performance.now();
-    const duration = 4000; // 4 Detik
+    const duration = 4000;
     const targetSlice = winningIndex ?? 0;
     
     const sliceMiddle = targetSlice * sliceAngle + sliceAngle / 2;
@@ -112,4 +135,4 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
       />
     </div>
   );
-                                                   }
+    }
