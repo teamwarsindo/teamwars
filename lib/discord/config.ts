@@ -24,6 +24,7 @@ export const DISCORD_CONFIG = {
 
   // Pusat CCTV (Tim Daftar & Klaim Role)
   CH_LOG: '1525775643168735344',
+  CH_EXHI: '1532353687450685522',
 
   // Guild ID
   GUILD_ID: '458835709030039553',
