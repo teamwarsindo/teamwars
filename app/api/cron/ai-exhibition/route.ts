@@ -2,89 +2,101 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { ai } from '@/lib/gemini';
 import { discordAPI } from '@/lib/discord/utils';
-// 🎯 Import ID Channel Exhibition dari config Discord kamu
-import { DISCORD_CONFIG } from '@/lib/discord/config'; 
-
-// Ambil Channel ID Exhibition dari file config
-const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH_EXHI;
+import { CH_EXHI } from '@/lib/discord/config';
 
 export async function GET(req: Request) {
   try {
-    // 🛡️ Security Check Header Cron
-    const authHeader = req.headers.get('authorization');
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // 🛡️ Optional: Query parameter untuk reset cache KV Redis
+    const { searchParams } = new URL(req.url);
+    const isReset = searchParams.get('reset') === 'true';
+
+    const redisKey = `ai_replied:${CH_EXHI}`;
+
+    if (isReset) {
+      await kv.del(redisKey);
+      return NextResponse.json({ success: true, message: 'Cache Redis berhasil di-reset!' });
     }
 
-    if (!EXHIBITION_CHANNEL_ID) {
-      return NextResponse.json({ error: 'EXHIBITION_CHANNEL_ID belum diset di lib/discord/config' }, { status: 400 });
+    if (!CH_EXHI) {
+      return NextResponse.json({ error: 'CH_EXHI belum diset di config' }, { status: 400 });
     }
 
-    // 1. Fetch 1 Pesan Terakhir di Channel Exhibition
-    const messages = await discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages?limit=1`, 'GET');
+    // 1. Fetch 8 PESAN TERAKHIR untuk Konteks Percakapan (Biar Nyambung)
+    const rawMessages = await discordAPI(`/channels/${CH_EXHI}/messages?limit=8`, 'GET');
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json({ message: 'Tidak ada pesan ditemukan di channel exhibition' });
+    if (!rawMessages || !Array.isArray(rawMessages) || rawMessages.length === 0) {
+      return NextResponse.json({ message: 'Tidak ada pesan di channel' });
     }
 
-    const lastMsg = messages[0];
+    // Discord mengembalikan array dari pesan terbaru ke lama, kita urutkan balik (kronologis)
+    const conversation = [...rawMessages].reverse();
+    const lastMsg = rawMessages[0]; // Pesan paling baru
 
-    // 🛑 Rule 1: SKIP jika pesan berasal dari BOT (Mencegah Infinite Loop)
+    // 🛑 Rule 1: Skip jika pesan terakhir dari BOT
     if (lastMsg.author?.bot) {
       return NextResponse.json({ message: 'Pesan terakhir dikirim oleh Bot, di-skip.' });
     }
 
-    // 🛑 Rule 2: SKIP jika pesan kosong (misal gambar/stiker tanpa teks)
+    // 🛑 Rule 2: Skip jika teks kosong
     if (!lastMsg.content || lastMsg.content.trim() === '') {
-      return NextResponse.json({ message: 'Pesan terakhir berupa media/stiker tanpa teks, di-skip.' });
+      return NextResponse.json({ message: 'Pesan berupa media/stiker, di-skip.' });
     }
 
-    // 🛑 Rule 3: CEK REDIS KV (Mencegah menjawab pesan lama yang sama berulang kali)
-    const redisKey = `ai_replied:${EXHIBITION_CHANNEL_ID}`;
+    // 🛑 Rule 3: Anti-Spam Redis (Kecuali pas dipaksa reset)
     const lastRepliedMsgId = await kv.get<string>(redisKey);
-
     if (lastRepliedMsgId === lastMsg.id) {
-      return NextResponse.json({ message: 'Pesan terakhir sudah pernah dibalas sebelumnya. Tidak ada chat baru.' });
+      return NextResponse.json({ message: 'Pesan ini sudah dibalas sebelumnya.' });
     }
 
-    const username = lastMsg.author.username || 'User';
-    const userMessage = lastMsg.content;
+    // 🧠 2. Rakit Histori Chat untuk Gemini AI
+    const formattedHistory = conversation.map((msg) => {
+      const role = msg.author?.bot ? 'Bot' : msg.author?.username || 'User';
+      return `${role}: ${msg.content}`;
+    }).join('\n');
 
-    // 🤖 2. Minta Gemini AI Merespons Pesan User
+    const promptText = `Berikut adalah riwayat percakapan terbaru di chat room:\n${formattedHistory}\n\n` +
+      `Tolong berikan balasan singkat untuk pesan TERAKHIR dari ${lastMsg.author?.username}: "${lastMsg.content}"`;
+
+    // 🤖 3. Generate Balasan Gemini
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: `Pesan dari user '${username}': "${userMessage}"`,
+      model: 'gemini-1.5-flash',
+      contents: promptText,
       config: {
-        systemInstruction: 
-          'Kamu adalah AI Admin/Bot ramah di channel exhibition turnamen esports. ' +
-          'Tugasmu adalah menjawab atau merespons pesan/pertanyaan user dengan gaya bahasa yang santai, akrab, Gaul khas anak game/esports, dan natural dalam Bahasa Indonesia. ' +
-          'Jika user bertanya, beri jawaban yang jelas & masuk akal. ' +
-          'Jika user hanya menyapa atau ngobrol, balas dengan santai & ramah. ' +
-          'Jawab maksimal 2-3 kalimat agar scannable dan tidak terlalu panjang.',
-        temperature: 0.7,
+        systemInstruction:
+          'Kamu adalah member/anak Discord biasa di server esports/gaming Indonesia yang santai, rada sarkas, agak pinggir jurang/dark joke khas tongkrongan netizen lokal, cuek, tapi tetep akrab.\n\n' +
+          'ATURAN PENTING GAYA BAHASA:\n' +
+          '1. JANGAN PERNAH pakai kata "bro", "wkwk" di awal kalimat, "halo", "semangat", atau gaya bahasa CS/Admin AI yang ramah lebay.\n' +
+          '2. Jangan pakai emoji berlebihan (maksimal 1 atau gak usah pakai sama sekali).\n' +
+          '3. Gunakan bahasa gaul harian/ketikan anak Discord lokal yang natural, singkat (1 kalimat pendek atau max 15 kata).\n' +
+          '4. Jika bahas politik/isu Indonesia, boleh bercanda tipis ala "pinggir jurang" (sarkas/nyindir halus) tapi tetap dalam batas aman.\n' +
+          '5. Fokus membalas pesan terakhir dengan memperhatikan riwayat obrolan di atasnya.',
+        temperature: 0.9, // Naikkan dikit biar lebih kreatif/random & gak kaku
       },
     });
 
-    const aiReplyText = response.text;
+    const aiReplyText = response.text?.trim();
 
     if (!aiReplyText) {
       return NextResponse.json({ error: 'Gemini AI tidak menghasilkan jawaban' }, { status: 500 });
     }
 
-    // 💬 3. Kirim Balasan (Reply) Langsung ke Pesan User di Discord
-    await discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages`, 'POST', {
+    // 💬 4. Kirim Reply Tepat Menempel ke Pesan Terakhir
+    await discordAPI(`/channels/${CH_EXHI}/messages`, 'POST', {
       content: aiReplyText,
       message_reference: {
-        message_id: lastMsg.id, // Direct Reply ke pesan user
+        message_id: lastMsg.id, // Menempelkan fitur reply seperti screenshot
       },
+      allowed_mentions: {
+        replied_user: false // Set true kalau mau ngemention orangnya, false kalau enggak
+      }
     });
 
-    // 💾 4. SIMPAN ID PESAN KE REDIS KV agar tidak dibalas ulang di cron berikutnya
+    // 💾 5. Simpan ke Redis
     await kv.set(redisKey, lastMsg.id);
 
     return NextResponse.json({
       success: true,
-      userPrompt: userMessage,
+      userPrompt: lastMsg.content,
       aiReply: aiReplyText,
       messageId: lastMsg.id
     });
