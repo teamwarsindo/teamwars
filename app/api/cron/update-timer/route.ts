@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
+import { DISCORD_CONFIG } from '@/lib/discord/config'; // <-- Import terpisah di sini
 
-// Target Deadline Edit Team
+// Target Deadline Edit Team (Jumat, 31 Juli 2026, 21:23 WIB)
 const EDIT_DEADLINE = new Date('2026-07-31T21:23:00+07:00').getTime();
 
-// Helper pengereman (sleep) 200ms per tim agar 100% aman dari rate limit
+// Helper pengereman (sleep) ms per request agar aman dari rate limit
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Helper Hitung Sisa Waktu Format (X Jam Y Menit)
@@ -25,7 +26,7 @@ function getRemainingTimeText(deadlineTime: number) {
   return `${minutes} Menit`;
 }
 
-// Helper Sensor Email (ab****@gmail.com)
+// Helper Sensor Email
 function maskEmail(email: string) {
   if (!email || !email.includes('@')) return 'e****@gmail.com';
   const [name, domain] = email.split('@');
@@ -33,23 +34,25 @@ function maskEmail(email: string) {
   return `${name.slice(0, 2)}****@${domain}`;
 }
 
-// Helper Format Waktu Footer Terkini (Realtime saat Cron berjalan)
+// Helper Format Waktu Footer Terkini
 function getCurrentFormattedTime() {
   const dateObj = new Date();
-  
+
   const dateStr = dateObj.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-    timeZone: 'Asia/Jakarta'
-  }); // Hasil: "30 Jul 2026"
+    timeZone: 'Asia/Jakarta',
+  });
 
-  const timeStr = dateObj.toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Asia/Jakarta'
-  }).replace('.', ':'); // Hasil: "23:57"
+  const timeStr = dateObj
+    .toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Jakarta',
+    })
+    .replace('.', ':');
 
   return `Sistem Registrasi • Sent on ${dateStr} at ${timeStr} WIB`;
 }
@@ -58,7 +61,10 @@ export async function GET(req: Request) {
   try {
     // 🛡️ Security Check Header Cron Vercel / External Cron
     const authHeader = req.headers.get('authorization');
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (
+      process.env.CRON_SECRET &&
+      authHeader !== `Bearer ${process.env.CRON_SECRET}`
+    ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -67,11 +73,17 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: 'Tidak ada tim di database' });
     }
 
+    const now = Date.now();
+    const remainingMs = EDIT_DEADLINE - now;
     const remainingText = getRemainingTimeText(EDIT_DEADLINE);
-    const isExpired = Date.now() >= EDIT_DEADLINE;
-    const currentFooterText = getCurrentFormattedTime(); // Waktu realtime saat ini
+    const isExpired = remainingMs <= 0;
+
+    // ⏱️ Pemicu Tepat 1 Jam (antara 50-60 menit sebelum deadline)
+    const isOneHourTrigger = remainingMs <= 60 * 60 * 1000 && remainingMs > 50 * 60 * 1000;
+    const currentFooterText = getCurrentFormattedTime();
 
     let updatedCount = 0;
+    const collectedRoles: string[] = [];
 
     // Loop semua tim secara berurutan
     for (const key of allTeamKeys) {
@@ -80,31 +92,43 @@ export async function GET(req: Request) {
 
       const channelId = teamData.discordChannelId;
       const roleId = teamData.discordRoleId;
-      const savedMsgId = teamData.editReminderMsgId;
+      let savedMsgId = teamData.editReminderMsgId;
       const namaTim = teamData.namaTim || 'TEAM';
       const colorHex = teamData.warna || '#e91e63';
       const maskedEmail = maskEmail(teamData.email || '');
 
-      // Skip jika tidak ada channelId ATAU belum punya Message ID
-      if (!channelId || !savedMsgId) continue;
+      // Kumpulkan Role ID untuk dimasukkan ke dalam embed news
+      if (roleId) {
+        collectedRoles.push(`<@&${roleId}>`);
+      }
 
-      // 🎯 Embed Payload
+      if (!channelId) continue;
+
+      // Cek apakah trigger 1 jam untuk tim ini sudah pernah dieksekusi
+      const hasSent1h = teamData.reminder1hSent === true;
+
+      // 🎯 Embed Payload untuk Channel Tim
       const embedPayload = {
-        title: '⌛ Pengingat Batas Akhir Edit Team!',
-        color: hexToDecimal(colorHex),
-        description: `Pendaftaran baru telah **ditutup**. Segera periksa dan kunci data roster tim **${namaTim}** sebelum waktu perbaikan berakhir!\n\n` +
-          `⏰ **Sisa Waktu Edit Data**\n\`\`\`\n${remainingText}\n\`\`\`\n\n` +
-          `🔍 **Poin Penting Perbaikan Roster**\n` +
-          `• Pastikan tidak ada typo pada **IGN In-Game & Duel ID**.\n` +
-          `• Pastikan seluruh anggota tim sudah **Terverifikasi Discord**.\n` +
-          `• Atur susunan pemain utama dan cadangan (Maks. 10 Pemain).\n\n` +
-          `📝 **Cara Memperbarui Data Tim**\n` +
-          `Klik tombol **Edit Team** di bawah ini atau buka tautan verifikasi yang dikirim ke email registered:\n` +
-          `📧 \`${maskedEmail}\`\n\n` +
-          `_Catatan: Setelah waktu habis, data roster akan terkunci secara otomatis dan tidak bisa diubah._`,
+        title: isExpired
+          ? '🔒 Akses Edit Team Telah Ditutup!'
+          : '⌛ Pengingat Batas Akhir Edit Team!',
+        color: hexToDecimal(isExpired ? '#f44336' : colorHex),
+        description: isExpired
+          ? `Sesi perbaikan dan pembaruan data roster untuk tim **${namaTim}** resmi **ditutup**.\n\n` +
+            `Seluruh data roster telah dikunci untuk penataan jadwal pertandingan.`
+          : `Pendaftaran baru telah **ditutup**. Segera periksa dan kunci data roster tim **${namaTim}** sebelum waktu perbaikan berakhir!\n\n` +
+            `⏰ **Sisa Waktu Edit Data**\n\`\`\`\n${remainingText}\n\`\`\`\n\n` +
+            `🔍 **Poin Penting Perbaikan Roster**\n` +
+            `• Pastikan tidak ada typo pada **IGN In-Game & Duel ID**.\n` +
+            `• Pastikan seluruh anggota tim sudah **Terverifikasi Discord**.\n` +
+            `• Atur susunan pemain utama dan cadangan (Maks. 10 Pemain).\n\n` +
+            `📝 **Cara Memperbarui Data Tim**\n` +
+            `Klik tombol **Edit Team** di bawah ini atau buka tautan verifikasi yang dikirim ke email registered:\n` +
+            `📧 \`${maskedEmail}\`\n\n` +
+            `_Catatan: Setelah waktu habis, data roster akan terkunci secara otomatis dan tidak bisa diubah._`,
         footer: {
-          text: currentFooterText // Date & Time terkini
-        }
+          text: currentFooterText,
+        },
       };
 
       // 🔘 Component Button
@@ -114,45 +138,128 @@ export async function GET(req: Request) {
           components: [
             {
               type: 2, // BUTTON
-              style: 1, // PRIMARY (BLUE)
+              style: isExpired ? 2 : 1, // SECONDARY (GRAY) / PRIMARY (BLUE)
               label: isExpired ? '🔒 Edit Team Terkunci' : '✏️ Edit Team',
               custom_id: 'btn_edit_team',
               disabled: isExpired,
-            }
-          ]
-        }
+            },
+          ],
+        },
       ];
 
       const mentionContent = roleId ? `<@&${roleId}>` : `@${namaTim}`;
 
-      // 🔄 MURNI EDIT PESAN YANG SUDAH ADA (PATCH ONLY)
       try {
-        await discordAPI(`/channels/${channelId}/messages/${savedMsgId}`, 'PATCH', {
-          content: mentionContent,
-          embeds: [embedPayload],
-          components
-        });
-        
+        // 🔄 LOGIKA 1: Sisa Tepat 1 Jam & BELUM pernah kirim ulang -> Send Message Baru (1x Saja)
+        if (isOneHourTrigger && !hasSent1h && !isExpired) {
+          if (savedMsgId) {
+            try {
+              await discordAPI(
+                `/channels/${channelId}/messages/${savedMsgId}`,
+                'DELETE'
+              );
+            } catch (err) {
+              console.log(`Gagal hapus pesan lama tim ${namaTim}:`, err);
+            }
+          }
+
+          const newMsg: any = await discordAPI(
+            `/channels/${channelId}/messages`,
+            'POST',
+            {
+              content: mentionContent,
+              embeds: [embedPayload],
+              components,
+            }
+          );
+
+          if (newMsg && newMsg.id) {
+            await kv.hset(key, { 
+              editReminderMsgId: newMsg.id,
+              reminder1hSent: true 
+            });
+          }
+        }
+        // 🔄 LOGIKA 2: Update Rutin / Status Ditutup -> Selalu Pakai PATCH (Message yang ada)
+        else if (savedMsgId) {
+          await discordAPI(
+            `/channels/${channelId}/messages/${savedMsgId}`,
+            'PATCH',
+            {
+              content: mentionContent,
+              embeds: [embedPayload],
+              components,
+            }
+          );
+        }
+
         updatedCount++;
       } catch (e) {
-        console.error(`Gagal edit reminder tim ${namaTim} (MsgID: ${savedMsgId}):`, e);
+        console.error(
+          `Gagal memproses timer tim ${namaTim} (MsgID: ${savedMsgId}):`,
+          e
+        );
       }
 
-      // ⏱️ Pengereman 200ms per channel agar AMAN dari Rate Limit Discord
       await sleep(200);
+    }
+
+    // 📢 LOGIKA 3: Kirim Pengumuman ke Channel News Saat Waktu Habis (1x Saja)
+    // 2. DISCORD_CONFIG.CH_NEWS dipanggil di sini:
+    if (isExpired && DISCORD_CONFIG?.CH_NEWS) {
+      const hasAnnounced = await kv.get('team_edit_closed_announced');
+
+      if (!hasAnnounced) {
+        const rolesText =
+          collectedRoles.length > 0 ? collectedRoles.join(' ') : 'Semua Tim';
+
+        const newsEmbed = {
+          title: '🎉 Selamat Bergabung di Turnamen!',
+          color: hexToDecimal('#2ecc71'),
+          description:
+            `Batas waktu perbaikan data roster tim resmi **DITUTUP**! 🔒\n\n` +
+            `Selamat bertanding dan selamat bergabung kepada seluruh tim terdaftar:\n` +
+            `${rolesText}\n\n` +
+            `📌 **Informasi Selanjutnya:**\n` +
+            `• 📋 **Technical Meeting:** Minggu, 2 Agustus 2026 pukul 20:00 WIB\n` +
+            `• ⚔️ **Match Exhibition:** Senin, 3 Agustus 2026 (Jam pelaksanaan menyusul)\n` +
+            `• 📊 **Info Jadwal & Bagan:** Menyusul\n\n` +
+            `_Catatan: Seluruh data roster tim telah **dikunci** dan tidak dapat diubah kembali._\n\n` +
+            `Good luck and have fun! 🔥`,
+          footer: {
+            text: currentFooterText,
+          },
+        };
+
+        try {
+          // 3. Mengirimkan payload POST ke endpoint Discord API dengan ID Channel News
+          await discordAPI(
+            `/channels/${DISCORD_CONFIG.CH_NEWS}/messages`,
+            'POST',
+            {
+              content: '@everyone',
+              embeds: [newsEmbed],
+            }
+          );
+
+          await kv.set('team_edit_closed_announced', true);
+        } catch (newsErr) {
+          console.error('Gagal mengirim pengumuman ke channel news:', newsErr);
+        }
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: `Timer 16 tim berhasil di-update secara realtime!`,
+      message: isExpired
+        ? 'Waktu habis, data tim terkunci dan pengumuman news terkirim.'
+        : 'Timer berhasil diperbarui!',
       totalTimDiproses: updatedCount,
       sisaWaktu: remainingText,
-      lastUpdated: currentFooterText
+      lastUpdated: currentFooterText,
     });
-
   } catch (error) {
     console.error('Error running update-timer cron:', error);
     return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
   }
-    }
-    
+        }
