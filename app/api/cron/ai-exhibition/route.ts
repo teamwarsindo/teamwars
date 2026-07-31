@@ -78,7 +78,7 @@ export async function GET(req: Request) {
 
     // 🤖 3. Generate Balasan Gemini (Menggunakan gemini-1.5-flash)
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-3.5-flash-lite',
       contents: promptText,
       config: {
         systemInstruction:
