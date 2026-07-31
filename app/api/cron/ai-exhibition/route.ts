@@ -76,6 +76,18 @@ export async function GET(req: Request) {
     const promptText = `Riwayat percakapan:\n${formattedHistory}\n\n` +
       `Balas pesan terakhir dari ${lastMsg.author?.username}: "${lastMsg.content}"`;
 
+    // 🔍 TES CEK DAFTAR MODEL YANG AKTIF DULU
+    try {
+      const listResult = await ai.models.list();
+      const availableModels = [];
+      for await (const m of listResult) {
+        availableModels.push(m.name);
+      }
+      console.log("🔥 MODEL YANG AKTIF DAN BISA DIPAKAI KEY INI:", availableModels);
+    } catch (err) {
+      console.error("Gagal fetch list models:", err);
+    }
+    
     // 🤖 3. Generate Balasan Gemini AI
     // 💡 Format model 'models/gemini-2.5-flash' wajib diawali 'models/' di API v1beta
     const response = await ai.models.generateContent({
