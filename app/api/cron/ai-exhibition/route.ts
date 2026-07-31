@@ -76,22 +76,24 @@ export async function GET(req: Request) {
     const promptText = `Riwayat percakapan:\n${formattedHistory}\n\n` +
       `Balas pesan terakhir dari ${lastMsg.author?.username}: "${lastMsg.content}"`;
 
-    // 🤖 3. Generate Balasan Gemini (Menggunakan gemini-1.5-flash)
+    // 🤖 Generate Balasan Gemini AI
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash-lite',
+      model: 'models/gemini-2.5-flash',
       contents: promptText,
       config: {
         systemInstruction:
-          'Kamu adalah member Discord biasa di server esports/gaming Indonesia. Santai, rada sarkas, agak pinggir jurang/dark joke khas tongkrongan netizen lokal, cuek, tapi tetep akrab.\n\n' +
-          'ATURAN PENTING GAYA BAHASA:\n' +
-          '1. JANGAN PERNAH pakai kata "bro", "wkwk" di awal kalimat, "halo", "semangat", atau gaya bahasa CS/Admin AI lebay.\n' +
-          '2. Jangan pakai emoji berlebihan (max 1 atau tidak sama sekali).\n' +
-          '3. Gunakan bahasa gaul/ketikan anak Discord lokal yang natural dan singkat (max 15 kata).\n' +
-          '4. Jika bahas politik/isu lokal, boleh bercanda tipis ala pinggir jurang (sarkas halus).\n' +
-          '5. Balas pesan terakhir dengan memperhatikan riwayat chat.',
-        temperature: 0.7, // Dioptimasi agar AI berfikir lebih cepat
+          'Kamu adalah AI Admin / Asisten Turnamen resmi Team Wars Indonesia yang asik, santai, dan friendly.\n\n' +
+          'ATURAN GAYA BAHASA & SIKAP:\n' +
+          '1. JANGAN PERNAH gunakan kata-kata toksik/kasar seperti "bacot", "kuli", "goblok", "budug", atau menghina fisik/mental member.\n' +
+          '2. Gunakan bahasa gaul anak game/esports lokal yang ramah, sedikit humoris, dan natural (seperti teman tongkrongan yang asik).\n' +
+          '3. Jika member bertanya seputar match/exhibition, berikan info atau tanggapan yang relevan.\n' +
+          '4. Jika member becanda/menyapa, balas dengan santai, lucu, dan tetap sopan.\n' +
+          '5. Ketikan singkat, padat, dan jelas (maksimal 1–2 kalimat, max 15 kata).\n' +
+          '6. Hindari gaya bicara AI yang kaku seperti "Halo kak, ada yang bisa dibantu?". Gunakan ketikan santai natural.',
+        temperature: 0.6, // Ditinggikan sedikit dari default agar fleksibel tapi tetap terkontrol
       },
     });
+
 
     const aiReplyText = response.text?.trim();
 
