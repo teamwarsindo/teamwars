@@ -5,7 +5,24 @@ import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 // Ambil Channel ID Exhibition dari file config
-const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH_EXHI;
+const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.channels.exhibition;
+
+// Helper untuk mengecek apakah pesan didominasi oleh emoji / simbol
+function isMajorityEmoji(text: string): boolean {
+  if (!text) return true;
+  
+  // Hapus karakter whitespace
+  const cleanText = text.replace(/\s+/g, '');
+  if (cleanText.length === 0) return true;
+
+  // Hitung jumlah huruf dan angka saja (Alphanumeric)
+  const letterAndNumberMatches = cleanText.match(/[\p{L}\p{N}]/gu) || [];
+  const letterAndNumberCount = letterAndNumberMatches.length;
+
+  // Jika jumlah huruf/angka kurang dari 40% total karakter, anggap mayoritas emoji/simbol
+  const ratio = letterAndNumberCount / cleanText.length;
+  return ratio < 0.4;
+}
 
 export async function GET(req: Request) {
   try {
@@ -40,12 +57,17 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: 'Pesan terakhir dikirim oleh Bot, di-skip.' });
     }
 
-    // 🛑 Rule 2: Skip jika teks kosong (misal gambar/stiker)
+    // 🛑 Rule 2: Skip jika teks kosong
     if (!lastMsg.content || lastMsg.content.trim() === '') {
       return NextResponse.json({ message: 'Pesan berupa media/stiker, di-skip.' });
     }
 
-    // 🛑 Rule 3: Anti-Spam Redis (Cek apakah pesan ID ini sudah pernah dibalas)
+    // 🛑 Rule 3: Skip jika pesan mayoritas berupa Emoji / Simbol
+    if (isMajorityEmoji(lastMsg.content)) {
+      return NextResponse.json({ message: 'Pesan mayoritas emoji/simbol, di-skip.' });
+    }
+
+    // 🛑 Rule 4: Anti-Spam Redis (Cek apakah pesan ID ini sudah pernah dibalas)
     const lastRepliedMsgId = await kv.get<string>(redisKey);
     if (lastRepliedMsgId === lastMsg.id) {
       return NextResponse.json({ message: 'Pesan ini sudah dibalas sebelumnya.' });
@@ -60,9 +82,9 @@ export async function GET(req: Request) {
     const promptText = `Berikut adalah riwayat percakapan terbaru di chat room:\n${formattedHistory}\n\n` +
       `Tolong berikan balasan singkat untuk pesan TERAKHIR dari ${lastMsg.author?.username}: "${lastMsg.content}"`;
 
-    // 🤖 3. Generate Balasan Gemini AI
+    // 🤖 3. Generate Balasan Gemini AI (Pakai Gemini Flash Terbaru)
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-3.6-flash',
       contents: promptText,
       config: {
         systemInstruction:
@@ -87,7 +109,7 @@ export async function GET(req: Request) {
     await discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages`, 'POST', {
       content: aiReplyText,
       message_reference: {
-        message_id: lastMsg.id, // Menempelkan balasan langsung (seperti screenshot)
+        message_id: lastMsg.id, // Menempelkan balasan langsung
       },
       allowed_mentions: {
         replied_user: false
