@@ -2,15 +2,25 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI, hexToDecimal, getFooterText } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { createClosingReminderEmbed } from '@/lib/discord/messages/closingReminderEmbed';
 
-// Fungsi jeda agar tidak di-limit oleh Discord (Anti-Spam)
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+function maskEmail(email: string) {
+  if (!email) return '••••@••••.com';
+  const [name, domain] = email.split('@');
+  if (!domain) return '••••@••••.com';
+  const maskedName = name.length > 2 ? name.slice(0, 2) + '••••' : name[0] + '••••';
+  return `${maskedName}@${domain}`;
+}
 
 export async function POST(req: Request) {
   try {
     const { teamSlug } = await req.json();
 
-    if (!teamSlug) return NextResponse.json({ error: 'Slug tim tidak diberikan.' }, { status: 400 });
+    if (!teamSlug) {
+      return NextResponse.json({ error: 'Slug tim wajib diisi.' }, { status: 400 });
+    }
 
     const kvKey = `teams:${teamSlug}`;
     const [team, verifiedUsersData] = await Promise.all([
@@ -18,79 +28,130 @@ export async function POST(req: Request) {
       kv.hgetall('global:verified_users')
     ]);
 
-    if (!team) return NextResponse.json({ error: 'Tim tidak ditemukan.' }, { status: 404 });
+    if (!team) {
+      return NextResponse.json({ error: `Data tim '${teamSlug}' tidak ditemukan di Redis.` }, { status: 404 });
+    }
 
     const verifiedMap = (verifiedUsersData as Record<string, string>) || {};
-    const namaTim = team.namaTim as string;
-    const warna = team.warna as string;
-    const createdAt = team.createdAt as string;
-    const teamRoleId = team.discordRoleId || team.roleId;
+    const namaTim = (team.namaTim as string) || 'UNKNOWN';
+    const warna = (team.warna as string) || '#00FFFF';
+    const createdAt = (team.createdAt as string) || new Date().toISOString();
+    const email = (team.email as string) || '';
+    const logoTim = (team.logoTim as string) || (team.logo as string) || '';
+    const buktiTransfer = (team.buktiTransfer as string) || '';
+    const teamRoleId = (team.discordRoleId || team.roleId) as string;
+    
     const players = typeof team.players === 'string' ? JSON.parse(team.players) : (team.players || []);
 
-    let verifiedCount = 0;
-    let rosterText = "";
-    let teamDataChanged = false; // Tanda jika ada username Discord yang ter-update otomatis
+    // Channel & Embed IDs dari KV
+    const textChannelId = team.discordChannelId as string;
+    const voiceChannelId = team.discordVoiceChannelId as string;
+    const categoryId = DISCORD_CONFIG.CT_TEAM_ID; // Fallback ke Kategori Tim di config
+
+    const adminMsgId = team.adminMsgId as string;
+    const rosterMsgId = team.rosterMsgId as string;
+    const creativeMsgId = team.creativeMsgId as string;
+    const financeMsgId = team.financeMsgId as string;
+    const trackerMsgId = team.trackerMsgId as string;
+    const editReminderMsgId = team.editReminderMsgId as string;
+
+    const GUILD_ID = DISCORD_CONFIG.GUILD_ID;
+    const hexDecimal = hexToDecimal(warna, 65535);
 
     // =========================================================================
-    // 1. UPDATE GLOBAL DB, CEK DISCORD ID, GANTI NICKNAME & KASIH ROLE
+    // 1. SINKRONISASI ROLE & CHANNEL DISCORD
     // =========================================================================
+
+    // A. Update Role Tim (Nama & Warna)
+    if (teamRoleId && GUILD_ID) {
+      await discordAPI(`/guilds/${GUILD_ID}/roles/${teamRoleId}`, 'PATCH', {
+        name: namaTim,
+        color: hexDecimal,
+      }).catch(err => console.error(`[Sync Role Failed] RoleId ${teamRoleId}:`, err));
+      await sleep(300);
+    }
+
+    // B. Update Text Channel (Nama sesuai slug standar & Topic)
+    if (textChannelId) {
+      const cleanSlugName = teamSlug.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      await discordAPI(`/channels/${textChannelId}`, 'PATCH', {
+        name: cleanSlugName,
+        parent_id: categoryId,
+        topic: `Official Text Channel for ${namaTim}`,
+      }).catch(err => console.error(`[Sync Text Channel Failed] ChanId ${textChannelId}:`, err));
+      await sleep(300);
+    }
+
+    // C. Update Voice Channel
+    if (voiceChannelId) {
+      await discordAPI(`/channels/${voiceChannelId}`, 'PATCH', {
+        name: namaTim,
+        parent_id: categoryId,
+      }).catch(err => console.error(`[Sync Voice Channel Failed] VoiceId ${voiceChannelId}:`, err));
+      await sleep(300);
+    }
+
+    // =========================================================================
+    // 2. SINKRONISASI ROSTER PEMAIN, NICKNAME & ROLE MEMBER
+    // =========================================================================
+    let verifiedCount = 0;
+    let trackerRosterText = "";
+    let teamDataChanged = false;
+
+    let ketuaObj = { ign: "-" };
+    let wakilObj = { ign: "-" };
+    const playerListArray: string[] = [];
+
     for (let i = 0; i < players.length; i++) {
       const p = players[i];
       let currentDiscord = p.discord ? p.discord.replace(/^@/, '').trim() : '';
       const originalIgn = p.ign ? p.ign.trim() : '';
-      const duelId = p.idDuelLinks || p.duelId;
+      const duelId = p.idDuelLinks || p.duelId || '';
+      const roleJabatan = p.role || 'Anggota';
       let isUserVerified = false;
 
-      // Update IGN & Duel ID Global (SADD anti-dobel otomatis)
+      // Filter Ketua / Wakil untuk Embed Roster
+      if (roleJabatan === 'Ketua') ketuaObj = p;
+      if (roleJabatan === 'Wakil Ketua' || roleJabatan === 'Wakil') wakilObj = p;
+      playerListArray.push(`${originalIgn} (${duelId})`);
+
       if (originalIgn) await kv.sadd('global:ign', originalIgn);
       if (duelId) await kv.sadd('global:duellinks', duelId.toString().trim());
 
       if (currentDiscord) {
         const searchKeyDiscord = currentDiscord.toLowerCase();
-        // Cek apakah kita sudah punya Discord ID-nya dari database
         const knownUserId = verifiedMap[currentDiscord] || verifiedMap[searchKeyDiscord];
         let targetUserId = knownUserId;
         let memberData = null;
 
         try {
           if (knownUserId) {
-            // SKENARIO A: Punya Discord ID. Cek langsung ke server Discord-nya!
-            await sleep(500);
-            memberData = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${knownUserId}`, 'GET');
+            await sleep(400);
+            memberData = await discordAPI(`/guilds/${GUILD_ID}/members/${knownUserId}`, 'GET');
             
             if (memberData && memberData.user) {
               const realDiscordUsername = memberData.user.username;
-              
-              // DETEKSI AUTO-UPDATE: Jika username di Discord ternyata beda dengan di database tim
               if (realDiscordUsername.toLowerCase() !== searchKeyDiscord) {
-                console.log(`[Auto-Update] Username berubah! Lama: ${currentDiscord} -> Baru: ${realDiscordUsername}`);
-                
-                // Hapus username lama dari Database Global
                 await kv.srem('global:discord', currentDiscord);
                 await kv.hdel('global:verified_users', currentDiscord);
                 await kv.hdel('global:verified_users', searchKeyDiscord);
 
-                // Update variabel dengan username yang baru
                 currentDiscord = realDiscordUsername;
-                p.discord = realDiscordUsername; // Update langsung di roster tim
+                p.discord = realDiscordUsername;
                 teamDataChanged = true;
-                
-                // Tambah username baru ke Database Global
+
                 verifiedMap[realDiscordUsername] = knownUserId;
                 verifiedMap[realDiscordUsername.toLowerCase()] = knownUserId;
                 await kv.hset('global:verified_users', { [realDiscordUsername]: knownUserId });
               }
             }
           } else {
-            // SKENARIO B: Belum tahu Discord ID (Pemain Baru). Cari lewat fitur Search.
-            await sleep(500);
-            const searchRes = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/search?query=${encodeURIComponent(currentDiscord)}&limit=5`, 'GET');
+            await sleep(400);
+            const searchRes = await discordAPI(`/guilds/${GUILD_ID}/members/search?query=${encodeURIComponent(currentDiscord)}&limit=5`, 'GET');
             memberData = searchRes?.find((m: any) => m.user.username.toLowerCase() === searchKeyDiscord);
             
             if (memberData) {
               targetUserId = memberData.user.id;
-              
-              // Simpan Discord ID yang baru ditemukan ke Database Global
               await kv.hset('global:verified_users', { [currentDiscord]: targetUserId });
               await kv.sadd('global:discord_ids', targetUserId);
               verifiedMap[currentDiscord] = targetUserId;
@@ -98,17 +159,11 @@ export async function POST(req: Request) {
             }
           }
 
-                    // JIKA MEMBER DITEMUKAN (via ID atau Search), LANJUTKAN EKSEKUSI!
           if (memberData && targetUserId) {
-            // Kunci username (yang valid) ke Global DB
             await kv.sadd('global:discord', currentDiscord);
-            const roleJabatan = (p.role || '');
-
-            // Kumpulkan semua role lama pemain (agar tidak terhapus)
             const currentRoles = memberData.roles || [];
             const newRoles = new Set(currentRoles);
 
-            // Daftar Role Baru yang ingin ditambahkan
             const rolesToAdd = [];
             if (teamRoleId) rolesToAdd.push(teamRoleId);
             if (DISCORD_CONFIG.ROLE_DUELIST) rolesToAdd.push(DISCORD_CONFIG.ROLE_DUELIST);
@@ -116,82 +171,173 @@ export async function POST(req: Request) {
             if (roleJabatan === 'Ketua' && DISCORD_CONFIG.ROLE_KETUA) rolesToAdd.push(DISCORD_CONFIG.ROLE_KETUA);
             else if ((roleJabatan === 'Wakil Ketua' || roleJabatan === 'Wakil') && DISCORD_CONFIG.ROLE_WAKIL) rolesToAdd.push(DISCORD_CONFIG.ROLE_WAKIL);
 
-            // Masukkan ke set untuk Bulk Update
             rolesToAdd.forEach(r => newRoles.add(r));
 
-            // 1. COBA BULK UPDATE SEKALIGUS (Cepat untuk member biasa)
             try {
-              await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}`, 'PATCH', { 
+              await discordAPI(`/guilds/${GUILD_ID}/members/${targetUserId}`, 'PATCH', { 
                 nick: originalIgn,
                 roles: Array.from(newRoles)
               });
-              
               isUserVerified = true;
               verifiedCount++;
-              await sleep(1000); 
-              
+              await sleep(400); 
             } catch (bulkErr) {
-              console.error(`[Admin Detected] Bulk Update ditolak untuk @${currentDiscord}. Mengaktifkan Fallback Manual...`);
-              
-              // 2. FALLBACK MANUAL (Khusus untuk Admin/Owner yang kebal PATCH Bulk)
               try {
-                  // A. Coba paksakan ganti Nickname (Biasanya akan tetap gagal untuk Admin, jadi kita hiraukan error-nya)
-                  await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}`, 'PATCH', { nick: originalIgn }).catch(() => null);
-                  
-                  // B. Suntikkan Role SATU PER SATU secara aman tanpa menyentuh Role Admin bawaan user
-                  for (const rId of rolesToAdd) {
-                      await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}/roles/${rId}`, 'PUT').catch(() => null);
-                      await sleep(300); // jeda irit per role
-                  }
-
-                  // Beri status Sukses (karena role berhasil masuk meskipun IGN gagal)
-                  isUserVerified = true;
-                  verifiedCount++;
-                  
+                await discordAPI(`/guilds/${GUILD_ID}/members/${targetUserId}`, 'PATCH', { nick: originalIgn }).catch(() => null);
+                for (const rId of rolesToAdd) {
+                  await discordAPI(`/guilds/${GUILD_ID}/members/${targetUserId}/roles/${rId}`, 'PUT').catch(() => null);
+                  await sleep(200);
+                }
+                isUserVerified = true;
+                verifiedCount++;
               } catch(fallbackErr) {
-                  console.error(`Gagal total Fallback untuk @${currentDiscord}:`, fallbackErr);
+                console.error(`Fallback Gagal untuk @${currentDiscord}:`, fallbackErr);
               }
             }
           }
         } catch (err) {
-          // Blok catch yang hilang sudah dikembalikan ke sini
           console.error(`Gagal sinkronisasi user @${currentDiscord}:`, err);
         }
-      } // Penutup if (currentDiscord) yang hilang sudah dikembalikan
+      }
 
-      // Susun teks untuk di Embed Tracker (✅ / ❌)
-      rosterText += `${isUserVerified ? '✅' : '❌'} ${p.ign} (@${currentDiscord}) - ${p.role}\n`;
+      trackerRosterText += `${isUserVerified ? '✅' : '❌'} **${originalIgn}** (\`@${currentDiscord}\`) - *${roleJabatan}*\n`;
     }
 
-    // Jika ada username yang ter-update otomatis dari Discord, Simpan JSON Players terbaru ke Tim!
     if (teamDataChanged) {
-       await kv.hset(kvKey, { players: JSON.stringify(players) });
+      await kv.hset(kvKey, { players: JSON.stringify(players) });
     }
 
     // =========================================================================
-    // 2. UPDATE EMBED TRACKER
+    // 3. SINKRONISASI ENAM (6) EMBED DISCORD SEKALIGUS
     // =========================================================================
-    if (team.discordChannelId && team.trackerMsgId) {
+
+    // A. Embed Tracker (Di Channel Khusus Tim)
+    if (textChannelId && trackerMsgId) {
       const trackerPayload = {
         embeds: [{
           title: namaTim,
-          description: `DAFTAR ROSTER:\n${rosterText}`,
-          color: hexToDecimal(warna),
+          description: `**DAFTAR ROSTER:**\n${trackerRosterText}`,
+          color: hexDecimal,
           fields: [
-            { name: "📌 Role Tim", value: teamRoleId ? `<@&${teamRoleId}>` : '(Belum Ada)', inline: true },
-            { name: "📊 Status", value: `${verifiedCount} / ${players.length} Terverifikasi`, inline: true }
+            { name: "📌 Role Tim", value: teamRoleId ? `<@&${teamRoleId}>` : '*(Belum Ada)*', inline: true },
+            { name: "📊 Status", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true }
           ],
-          footer: { text: getFooterText(createdAt, new Date().toISOString() ) }
+          footer: { text: getFooterText(createdAt) }
         }]
       };
-      
-      await discordAPI(`/channels/${team.discordChannelId}/messages/${team.trackerMsgId}`, 'PATCH', trackerPayload).catch(() => {});
+      await discordAPI(`/channels/${textChannelId}/messages/${trackerMsgId}`, 'PATCH', trackerPayload).catch(() => {});
+      await sleep(300);
     }
 
-    return NextResponse.json({ success: true, message: `Sinkronisasi Cerdas untuk "${namaTim}" selesai!` });
+    // B. Embed Roster (Channel Roster Utama / Config)
+    if (rosterMsgId) {
+      const rosterChannel = DISCORD_CONFIG.CH_ROSTER;
+      const rosterPayload = {
+        embeds: [{
+          title: namaTim,
+          color: hexDecimal,
+          thumbnail: { url: logoTim },
+          fields: [
+            { name: "Ketua", value: ketuaObj.ign || '-', inline: true },
+            { name: "Wakil", value: wakilObj.ign || '-', inline: true },
+            { name: "Players", value: playerListArray.join('\n') || '-', inline: false }
+          ],
+          footer: { text: getFooterText(createdAt) }
+        }]
+      };
+      await discordAPI(`/channels/${rosterChannel}/messages/${rosterMsgId}`, 'PATCH', rosterPayload).catch(() => {});
+      await sleep(300);
+    }
+
+    // C. Embed Creative (Channel Logo / Config)
+    if (creativeMsgId) {
+      const creativeChannel = DISCORD_CONFIG.CH_LOGO;
+      
+      let directDownloadLogo = logoTim;
+      if (logoTim.includes('/upload/logo/')) {
+        const splitUrl = logoTim.split('/upload/logo/');
+        if (splitUrl.length > 1) {
+          let filePath = splitUrl[1]; 
+          if (filePath.includes('?')) filePath = filePath.split('?')[0];
+          directDownloadLogo = `https://teamwars.web.id/logo/${filePath}/download`;
+        }
+      }
+
+      const creativePayload = {
+        content: `<@&${DISCORD_CONFIG.ROLE_CREATIVE}> 🎨 Aset Tim Baru: **${namaTim}**!`, 
+        embeds: [{
+          title: `Aset Visual: ${namaTim}`,
+          color: hexDecimal,
+          description: `**[⬇️ KLIK DISINI UNTUK DOWNLOAD LOGO MENTAH](${directDownloadLogo})**`,
+          image: { url: logoTim },
+          fields: [
+            { name: "Kode Warna (Hex)", value: `\`${warna}\``, inline: true }
+          ]
+        }]
+      };
+      await discordAPI(`/channels/${creativeChannel}/messages/${creativeMsgId}`, 'PATCH', creativePayload).catch(() => {});
+      await sleep(300);
+    }
+
+    // D. Embed Finance (Channel Bukti / Config)
+    if (financeMsgId) {
+      const financeChannel = DISCORD_CONFIG.CH_BUKTI;
+      const financePayload = {
+        content: `<@&${DISCORD_CONFIG.ROLE_FINANCE}> 💰 Setoran Masuk dari **${namaTim}**!`, 
+        embeds: [{
+          title: `Detail Registrasi: ${namaTim}`,
+          color: hexDecimal,
+          description: `**[✅ KLIK DISINI UNTUK KONFIRMASI PEMBAYARAN](https://teamwars.web.id/api/approve?team=${teamSlug})**\n*(Link akan membuka browser & mengirim email sukses ke peserta)*`,
+          image: { url: buktiTransfer },
+          fields: [
+            { name: "Status", value: "🟢 Sinkron/Approved", inline: true }
+          ],
+        }]
+      };
+      await discordAPI(`/channels/${financeChannel}/messages/${financeMsgId}`, 'PATCH', financePayload).catch(() => {});
+      await sleep(300);
+    }
+
+    // E. Embed Admin Review (Jika Ada)
+    if (adminMsgId) {
+      const adminChannel = DISCORD_CONFIG.CH_LOG;
+      const adminPayload = {
+        embeds: [{
+          title: `🛡️ AUDIT ADMIN: ${namaTim}`,
+          color: hexDecimal,
+          thumbnail: { url: logoTim },
+          fields: [
+            { name: "Team Slug", value: `\`${teamSlug}\``, inline: true },
+            { name: "Registered Email", value: maskEmail(email), inline: true },
+            { name: "Role Mention", value: teamRoleId ? `<@&${teamRoleId}>` : '-', inline: true },
+            { name: "Total Roster", value: `${players.length} Pemain`, inline: true }
+          ],
+          footer: { text: `Audit Engine Auto-Sync • ${getFooterText(createdAt)}` }
+        }]
+      };
+      await discordAPI(`/channels/${adminChannel}/messages/${adminMsgId}`, 'PATCH', adminPayload).catch(() => {});
+      await sleep(300);
+    }
+
+    // F. Embed Closing Edit Reminder (Jika Ada)
+    if (textChannelId && editReminderMsgId) {
+      const reminderPayload = createClosingReminderEmbed({
+        roleMentionId: teamRoleId,
+        namaTim: namaTim,
+        email: email,
+        sisaWaktuText: "Pendaftaran Dikunci / Ter-sinkronkan",
+        hexWarna: warna
+      });
+      await discordAPI(`/channels/${textChannelId}/messages/${editReminderMsgId}`, 'PATCH', reminderPayload).catch(() => {});
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Sinkronisasi Total (Role, Text/Voice Channel, Roster, & 6 Embed Discord) untuk Tim "${namaTim}" Berhasil!`
+    });
+
   } catch (error: any) {
-    console.error('Sync Error:', error);
-    return NextResponse.json({ error: 'Gagal melakukan sinkronisasi.' }, { status: 500 });
+    console.error('Error Sync Engine:', error);
+    return NextResponse.json({ error: 'Gagal melakukan sinkronisasi tim.' }, { status: 500 });
   }
-} // Penutup utama fungsi POST
-        
+}
