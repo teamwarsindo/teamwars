@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
-import { DISCORD_CONFIG } from '@/lib/discord/config'; // <-- Import terpisah di sini
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 // Target Deadline Edit Team (Jumat, 31 Juli 2026, 21:23 WIB)
 const EDIT_DEADLINE = new Date('2026-07-31T21:23:00+07:00').getTime();
@@ -78,8 +78,8 @@ export async function GET(req: Request) {
     const remainingText = getRemainingTimeText(EDIT_DEADLINE);
     const isExpired = remainingMs <= 0;
 
-    // ⏱️ Pemicu Tepat 1 Jam (antara 50-60 menit sebelum deadline)
-    const isOneHourTrigger = remainingMs <= 60 * 60 * 1000 && remainingMs > 50 * 60 * 1000;
+    // ⏱️ PEMICU RESEND: Sisa Waktu <= 30 Menit (dan belum expired)
+    const is30MinTrigger = remainingMs <= 30 * 60 * 1000 && remainingMs > 0;
     const currentFooterText = getCurrentFormattedTime();
 
     let updatedCount = 0;
@@ -104,8 +104,8 @@ export async function GET(req: Request) {
 
       if (!channelId) continue;
 
-      // Cek apakah trigger 1 jam untuk tim ini sudah pernah dieksekusi
-      const hasSent1h = teamData.reminder1hSent === true;
+      // Cek apakah resend 30 menit sudah pernah dijalankan (Cast ke boolean aman)
+      const hasSent30m = teamData.reminder30mSent === true || teamData.reminder30mSent === 'true';
 
       // 🎯 Embed Payload untuk Channel Tim
       const embedPayload = {
@@ -150,8 +150,9 @@ export async function GET(req: Request) {
       const mentionContent = roleId ? `<@&${roleId}>` : `@${namaTim}`;
 
       try {
-        // 🔄 LOGIKA 1: Sisa Tepat 1 Jam & BELUM pernah kirim ulang -> Send Message Baru (1x Saja)
-        if (isOneHourTrigger && !hasSent1h && !isExpired) {
+        // 🔄 LOGIKA 1: Sisa <= 30 Menit & BELUM pernah kirim ulang -> Send Message Baru (1x saja per tim)
+        if (is30MinTrigger && !hasSent30m && !isExpired) {
+          // Hapus pesan lama jika ada
           if (savedMsgId) {
             try {
               await discordAPI(
@@ -159,10 +160,11 @@ export async function GET(req: Request) {
                 'DELETE'
               );
             } catch (err) {
-              console.log(`Gagal hapus pesan lama tim ${namaTim}:`, err);
+              console.log(`Log: Pesan lama tidak ada/gagal hapus (${namaTim})`);
             }
           }
 
+          // Kirim pesan baru di posisi paling bawah
           const newMsg: any = await discordAPI(
             `/channels/${channelId}/messages`,
             'POST',
@@ -173,14 +175,15 @@ export async function GET(req: Request) {
             }
           );
 
+          // Simpan MsgID baru & pasang penanda reminder30mSent ke KV
           if (newMsg && newMsg.id) {
             await kv.hset(key, { 
               editReminderMsgId: newMsg.id,
-              reminder1hSent: true 
+              reminder30mSent: true 
             });
           }
         }
-        // 🔄 LOGIKA 2: Update Rutin / Status Ditutup -> Selalu Pakai PATCH (Message yang ada)
+        // 🔄 LOGIKA 2: Update Rutin Biasa / Status Ditutup -> Pakai PATCH pada pesan yang ada
         else if (savedMsgId) {
           await discordAPI(
             `/channels/${channelId}/messages/${savedMsgId}`,
@@ -205,7 +208,6 @@ export async function GET(req: Request) {
     }
 
     // 📢 LOGIKA 3: Kirim Pengumuman ke Channel News Saat Waktu Habis (1x Saja)
-    // 2. DISCORD_CONFIG.CH_NEWS dipanggil di sini:
     if (isExpired && DISCORD_CONFIG?.CH_NEWS) {
       const hasAnnounced = await kv.get('team_edit_closed_announced');
 
@@ -232,7 +234,6 @@ export async function GET(req: Request) {
         };
 
         try {
-          // 3. Mengirimkan payload POST ke endpoint Discord API dengan ID Channel News
           await discordAPI(
             `/channels/${DISCORD_CONFIG.CH_NEWS}/messages`,
             'POST',
@@ -262,4 +263,4 @@ export async function GET(req: Request) {
     console.error('Error running update-timer cron:', error);
     return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
   }
-        }
+            }
