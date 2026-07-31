@@ -5,7 +5,7 @@ import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 // Ambil Channel ID Exhibition dari file config
-const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH.EXHI;
+const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH_EXHI;
 
 // Helper pengecekan emoji (Abaikan jika mayoritas emoji/simbol)
 function isMajorityEmoji(text: string): boolean {
