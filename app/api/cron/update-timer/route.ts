@@ -104,7 +104,7 @@ export async function GET(req: Request) {
 
       if (!channelId) continue;
 
-      // Cek apakah resend 30 menit sudah pernah dijalankan (Cast ke boolean aman)
+      // Cek apakah resend 30 menit sudah pernah dijalankan
       const hasSent30m = teamData.reminder30mSent === true || teamData.reminder30mSent === 'true';
 
       // 🎯 Embed Payload untuk Channel Tim
@@ -152,7 +152,6 @@ export async function GET(req: Request) {
       try {
         // 🔄 LOGIKA 1: Sisa <= 30 Menit & BELUM pernah kirim ulang -> Send Message Baru (1x saja per tim)
         if (is30MinTrigger && !hasSent30m && !isExpired) {
-          // Hapus pesan lama jika ada
           if (savedMsgId) {
             try {
               await discordAPI(
@@ -164,7 +163,6 @@ export async function GET(req: Request) {
             }
           }
 
-          // Kirim pesan baru di posisi paling bawah
           const newMsg: any = await discordAPI(
             `/channels/${channelId}/messages`,
             'POST',
@@ -175,7 +173,6 @@ export async function GET(req: Request) {
             }
           );
 
-          // Simpan MsgID baru & pasang penanda reminder30mSent ke KV
           if (newMsg && newMsg.id) {
             await kv.hset(key, { 
               editReminderMsgId: newMsg.id,
@@ -224,8 +221,10 @@ export async function GET(req: Request) {
             `${rolesText}\n\n` +
             `📌 **Informasi Selanjutnya:**\n` +
             `• 📋 **Technical Meeting:** Minggu, 2 Agustus 2026 pukul 20:00 WIB\n` +
-            `• ⚔️ **Match Exhibition:** Senin, 3 Agustus 2026 (Jam pelaksanaan menyusul)\n` +
-            `• 📊 **Info Jadwal & Bagan:** Menyusul\n\n` +
+            `• 🔀 **Shuffle Tim ke Grup:** Senin, 3 Agustus 2026 pukul 19:00 WIB\n` +
+            `• ⚔️ **Match Exhibition:** Senin, 3 Agustus 2026 pukul 20:00 WIB\n` +
+            `• 📺 **Link Streaming:** Menyusul\n` +
+            `• 📊 **Info Jadwal & Bagan Main:** Menyusul\n\n` +
             `_Catatan: Seluruh data roster tim telah **dikunci** dan tidak dapat diubah kembali._\n\n` +
             `Good luck and have fun! 🔥`,
           footer: {
@@ -263,4 +262,4 @@ export async function GET(req: Request) {
     console.error('Error running update-timer cron:', error);
     return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
   }
-            }
+}
