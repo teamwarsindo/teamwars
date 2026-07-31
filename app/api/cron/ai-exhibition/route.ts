@@ -79,7 +79,7 @@ export async function GET(req: Request) {
     // 🤖 3. Generate Balasan Gemini AI
     // 💡 Format model 'models/gemini-2.5-flash' wajib diawali 'models/' di API v1beta
     const response = await ai.models.generateContent({
-      model: 'models/gemini-2.5-flash', 
+      model: 'gemini-2.0-flash',
       contents: promptText,
       config: {
         systemInstruction:
