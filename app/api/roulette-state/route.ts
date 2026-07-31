@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 
-// Key KV yang menyimpan daftar tim pendaftaran resmi & state pengundian
-const KV_KEY_TEAMS = 'twi:teams_list'; // Sesuaikan key ini jika nama key list tim kamu berbeda
 const KV_KEY_ROULETTE = 'twi:roulette_state';
 
 export interface TeamItem {
@@ -12,8 +10,24 @@ export interface TeamItem {
 
 export async function GET() {
   try {
-    // 1. Murni ambil daftar tim resmi langsung dari Vercel KV
-    const masterTeams = (await kv.get<TeamItem[]>(KV_KEY_TEAMS)) || [];
+    // 1. Ambil semua key tim yang diawali "teams:" dari Vercel KV
+    const teamKeys = await kv.keys('teams:*');
+    let masterTeams: TeamItem[] = [];
+
+    if (teamKeys && teamKeys.length > 0) {
+      // Ambil seluruh data tim secara paralel
+      const rawTeams = await Promise.all(
+        teamKeys.map((key) => kv.get<any>(key))
+      );
+
+      // Mapping data menggunakan properti namaTim dan logoTim
+      masterTeams = rawTeams
+        .filter(Boolean)
+        .map((team) => ({
+          name: team.namaTim || team.name || 'Unknown Team',
+          logo: team.logoTim || team.logo || '/logo.webp',
+        }));
+    }
 
     // 2. Ambil state pengundian roulette saat ini dari Vercel KV
     const currentState = await kv.get<{
@@ -22,7 +36,7 @@ export async function GET() {
       groupB: TeamItem[];
     }>(KV_KEY_ROULETTE);
 
-    // Jika belum pernah di-spin, kembalikan masterTeams sebagai sisa tim awal
+    // Jika roulette belum pernah di-spin, kembalikan masterTeams sebagai sisa tim
     if (!currentState) {
       return NextResponse.json({
         masterTeams,
@@ -47,7 +61,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { remainingTeams, groupA, groupB } = body;
 
-    // Simpan progres pengundian terbaru ke KV
+    // Simpan progres pengundian terbaru ke Vercel KV
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams,
       groupA,
@@ -63,7 +77,7 @@ export async function POST(req: Request) {
 
 export async function DELETE() {
   try {
-    // Menghapus hanya state pengundian roulette (data master tim di KV_KEY_TEAMS tetap aman)
+    // Menghapus hanya state pengundian roulette (data tim asli di `teams:*` TETAP AMAN)
     await kv.del(KV_KEY_ROULETTE);
     return NextResponse.json({ success: true });
   } catch (error) {
