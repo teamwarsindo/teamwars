@@ -5,7 +5,7 @@ import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 // Ambil Channel ID Exhibition dari file config
-const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH_EXHI;
+const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.channels.exhibition;
 
 // Helper pengecekan emoji (Abaikan jika mayoritas emoji/simbol)
 function isMajorityEmoji(text: string): boolean {
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
 
     // ⚡ 1. PARALLEL FETCH: Ambil pesan Discord + Cek Redis bersamaan
     const [rawMessages, lastRepliedMsgId] = await Promise.all([
-      discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages?limit=5`, 'GET');,
+      discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages?limit=5`, 'GET'),
       kv.get<string>(redisKey)
     ]);
 
@@ -78,7 +78,7 @@ export async function GET(req: Request) {
 
     // 🤖 3. Generate Balasan Gemini AI (Menggunakan gemini-1.5-flash)
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash', 
+      model: 'gemini-1.5-flash',
       contents: promptText,
       config: {
         systemInstruction:
@@ -120,4 +120,4 @@ export async function GET(req: Request) {
     console.error('Error Auto-Reply Gemini AI Exhibition:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+      }
