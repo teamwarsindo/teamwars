@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { ai } from '@/lib/gemini';
 import { discordAPI } from '@/lib/discord/utils';
-import { CH_EXHI } from '@/lib/discord/config';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
+
+// Ambil Channel ID Exhibition dari file config
+const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH_EXHI;
 
 export async function GET(req: Request) {
   try {
