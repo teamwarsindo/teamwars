@@ -1,48 +1,46 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    // 1. Ambil SEMUA key yang ada di Vercel KV
+    // 1. Ambil seluruh nama key menggunakan perintah KEYS '*'
     const keys = await kv.keys('*');
 
-    const dbSnapshot: Record<string, any> = {};
-
-    // 2. Looping setiap key untuk mengecek tipe dan isinya
-    for (const key of keys) {
-      const type = await kv.type(key);
-
-      try {
-        if (type === 'string') {
-          // Jika tipe datanya String biasa
-          dbSnapshot[key] = { type, value: await kv.get(key) };
-        } else if (type === 'hash') {
-          // Jika tipe datanya Hash (biasanya untuk object Team)
-          dbSnapshot[key] = { type, value: await kv.hgetall(key) };
-        } else if (type === 'set') {
-          // Jika tipe datanya Set (biasanya untuk list Discord/IGN global)
-          dbSnapshot[key] = { type, value: await kv.smembers(key) };
-        } else if (type === 'list') {
-          // Jika tipe datanya List
-          dbSnapshot[key] = { type, value: await kv.lrange(key, 0, -1) };
-        } else {
-          dbSnapshot[key] = { type, value: '[Tipe data tidak didukung untuk inspect]' };
-        }
-      } catch (err: any) {
-        dbSnapshot[key] = { type, error: err.message };
-      }
+    if (!keys || keys.length === 0) {
+      return NextResponse.json({
+        success: true,
+        totalKeys: 0,
+        keys: [],
+        message: 'Tidak ada key tersimpan di Vercel KV / Redis.',
+      });
     }
 
-    // 3. Kembalikan semua data mentah ke browser
+    // 2. Ambil informasi Tipe Data dan Nilai/Detail dari setiap key secara paralel
+    const keysDetails = await Promise.all(
+      keys.map(async (key) => {
+        const type = await kv.type(key);
+        const value = await kv.get(key);
+
+        return {
+          key,
+          type,
+          value,
+        };
+      })
+    );
+
     return NextResponse.json({
       success: true,
       totalKeys: keys.length,
-      data: dbSnapshot,
+      keys: keysDetails,
     });
-  } catch (error: any) {
-    console.error('Inspect Redis Error:', error);
+  } catch (error) {
+    console.error('Error fetching Redis keys:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
