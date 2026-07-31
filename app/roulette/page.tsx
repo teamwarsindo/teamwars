@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { RouletteContainer } from "./roulette-container";
@@ -12,11 +14,24 @@ export default function RoulettePage({
 }: {
   searchParams: { admin?: string };
 }) {
-  const isAdmin = searchParams.admin === "true" || searchParams.admin === "twi2026";
+  const cookieStore = cookies();
+  const adminCookie = cookieStore.get("admin_session")?.value;
+  const isAuth = Boolean(adminCookie); // Cek apakah sudah login
+
+  const wantsAdmin = searchParams.admin === "true";
+
+  // Jika pengunjung meminta akses admin (?admin=true) tapi belum login, 
+  // lempar ke halaman login admin dengan callback kembali ke roulette.
+  if (wantsAdmin && !isAuth) {
+    redirect("/admin/login?callbackUrl=/roulette?admin=true");
+  }
+
+  // Tentukan apakah user berhak menjadi admin di halaman ini
+  const isAdmin = wantsAdmin && isAuth;
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
-      {/* Ambient glow */}
+      {/* Ambient Glow */}
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
       <TopBar title="Official Group Draw" />
@@ -34,7 +49,7 @@ export default function RoulettePage({
           </p>
         </section>
 
-        {/* Komponen Interaktif Dalam Satu Folder */}
+        {/* Komponen Interaktif Terproteksi */}
         <Suspense fallback={<div className="text-center py-10 text-xs text-muted-foreground">Loading Draw Engine...</div>}>
           <RouletteContainer isAdmin={isAdmin} />
         </Suspense>
@@ -43,4 +58,4 @@ export default function RoulettePage({
       </div>
     </main>
   );
-}
+            }
