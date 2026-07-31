@@ -239,9 +239,4 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     </div>
   );
-                     }
-</div>
-
-    </div>
-  );
-}
+      }
