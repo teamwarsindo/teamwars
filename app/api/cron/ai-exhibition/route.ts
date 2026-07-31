@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { ai } from '@/lib/gemini';
 import { discordAPI } from '@/lib/discord/utils';
-import { CH_EXHI } from '@/lib/discord/config';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 
-// Helper pengecekan emoji (Skip jika mayoritas emoji/simbol)
+// Ambil Channel ID Exhibition dari file config
+const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH.EXHI;
+
+// Helper pengecekan emoji (Abaikan jika mayoritas emoji/simbol)
 function isMajorityEmoji(text: string): boolean {
   if (!text) return true;
   const cleanText = text.replace(/\s+/g, '');
@@ -20,20 +23,20 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const isReset = searchParams.get('reset') === 'true';
 
-    if (!CH_EXHI) {
-      return NextResponse.json({ error: 'CH_EXHI belum diset di lib/discord/config' }, { status: 400 });
+    if (!EXHIBITION_CHANNEL_ID) {
+      return NextResponse.json({ error: 'EXHIBITION_CHANNEL_ID belum diset di DISCORD_CONFIG.channels.exhibition' }, { status: 400 });
     }
 
-    const redisKey = `ai_replied:${CH_EXHI}`;
+    const redisKey = `ai_replied:${EXHIBITION_CHANNEL_ID}`;
 
     if (isReset) {
       await kv.del(redisKey);
       return NextResponse.json({ success: true, message: 'Cache Redis berhasil di-reset!' });
     }
 
-    // ⚡ 1. PARALLEL FETCH: Ambil pesan Discord + Cek Redis bersamaan (Tanpa Typo)
+    // ⚡ 1. PARALLEL FETCH: Ambil pesan Discord + Cek Redis bersamaan
     const [rawMessages, lastRepliedMsgId] = await Promise.all([
-      discordAPI(`/channels/${CH_EXHI}/messages?limit=5`, 'GET'),
+      discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages?limit=5`, 'GET'),
       kv.get<string>(redisKey)
     ]);
 
@@ -73,21 +76,21 @@ export async function GET(req: Request) {
     const promptText = `Riwayat percakapan:\n${formattedHistory}\n\n` +
       `Balas pesan terakhir dari ${lastMsg.author?.username}: "${lastMsg.content}"`;
 
-    // 🤖 3. Generate Balasan Gemini AI (Pakai 'gemini-2.5-flash' murni tanpa prefix models/)
+    // 🤖 3. Generate Balasan Gemini AI
+    // 💡 Format model 'models/gemini-2.5-flash' wajib diawali 'models/' di API v1beta
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'models/gemini-2.5-flash', 
       contents: promptText,
       config: {
         systemInstruction:
-          'Kamu adalah AI Admin / Asisten Turnamen resmi Team Wars Indonesia yang asik, santai, dan friendly.\n\n' +
-          'ATURAN GAYA BAHASA & SIKAP:\n' +
-          '1. JANGAN PERNAH gunakan kata-kata toksik/kasar seperti "bacot", "kuli", "goblok", "budug", atau menghina fisik/mental member.\n' +
-          '2. Gunakan bahasa gaul anak game/esports lokal yang ramah, sedikit humoris, dan natural (seperti teman tongkrongan yang asik).\n' +
-          '3. Jika member bertanya seputar match/exhibition, berikan info atau tanggapan yang relevan.\n' +
-          '4. Jika member becanda/menyapa, balas dengan santai, lucu, dan tetap sopan.\n' +
-          '5. Ketikan singkat, padat, dan jelas (maksimal 1–2 kalimat, max 15 kata).\n' +
-          '6. Hindari gaya bicara AI yang kaku seperti "Halo kak, ada yang bisa dibantu?". Gunakan ketikan santai natural.',
-        temperature: 0.6,
+          'Kamu adalah member Discord biasa di server esports/gaming Indonesia. Santai, rada sarkas, agak pinggir jurang/dark joke khas tongkrongan netizen lokal, cuek, tapi tetep akrab.\n\n' +
+          'ATURAN PENTING GAYA BAHASA:\n' +
+          '1. JANGAN PERNAH pakai kata "bro", "wkwk" di awal kalimat, "halo", "semangat", atau gaya bahasa CS/Admin AI lebay.\n' +
+          '2. Jangan pakai emoji berlebihan (max 1 atau tidak sama sekali).\n' +
+          '3. Gunakan bahasa gaul/ketikan anak Discord lokal yang natural dan singkat (max 15 kata).\n' +
+          '4. Jika bahas politik/isu lokal, boleh bercanda tipis ala pinggir jurang (sarkas halus).\n' +
+          '5. Balas pesan terakhir dengan memperhatikan riwayat chat.',
+        temperature: 0.7,
       },
     });
 
@@ -98,7 +101,7 @@ export async function GET(req: Request) {
     }
 
     // 💬 4. Direct Reply ke Discord + Simpan Redis secara berurutan
-    await discordAPI(`/channels/${CH_EXHI}/messages`, 'POST', {
+    await discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages`, 'POST', {
       content: aiReplyText,
       message_reference: { message_id: lastMsg.id },
       allowed_mentions: { replied_user: false }
@@ -117,5 +120,4 @@ export async function GET(req: Request) {
     console.error('Error Auto-Reply Gemini AI Exhibition:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-      }
-                                              q
+}
