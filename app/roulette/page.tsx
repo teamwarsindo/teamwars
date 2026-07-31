@@ -14,7 +14,7 @@ export default async function RoulettePage({
 }: {
   searchParams: Promise<{ admin?: string }>;
 }) {
-  // 1. Await cookies() & searchParams untuk Next.js 15/16
+  // 1. Await cookies() dan searchParams (Wajib untuk Next.js 15/16)
   const cookieStore = await cookies();
   const resolvedSearchParams = await searchParams;
 
@@ -23,12 +23,12 @@ export default async function RoulettePage({
 
   const wantsAdmin = resolvedSearchParams.admin === "true";
 
-  // 2. Jika minta akses admin (?admin=true) tapi belum login, lempar ke /admin
+  // 2. Jika meminta akses admin (?admin=true) tapi belum login, lempar ke halaman login admin (/admin)
   if (wantsAdmin && !isAuth) {
-    redirect("/admin");
+    redirect("/admin?callbackUrl=/roulette?admin=true");
   }
 
-  // 3. Admin aktif jika sudah login dan mengakses via parameter ?admin=true
+  // 3. Status admin aktif jika sudah login dan mengakses via ?admin=true
   const isAdmin = wantsAdmin && isAuth;
 
   return (
@@ -60,4 +60,4 @@ export default async function RoulettePage({
       </div>
     </main>
   );
-        }
+}
