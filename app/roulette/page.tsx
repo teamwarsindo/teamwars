@@ -9,24 +9,26 @@ export const metadata = {
   description: "Pengundian Group A dan Group B resmi Team Wars Indonesia Season 7",
 };
 
-export default function RoulettePage({
+export default async function RoulettePage({
   searchParams,
 }: {
-  searchParams: { admin?: string };
+  searchParams: Promise<{ admin?: string }>;
 }) {
-  const cookieStore = cookies();
+  // 1. Await cookies() & searchParams untuk Next.js 15/16
+  const cookieStore = await cookies();
+  const resolvedSearchParams = await searchParams;
+
   const adminCookie = cookieStore.get("admin_session")?.value;
-  const isAuth = Boolean(adminCookie); // Cek apakah sudah login
+  const isAuth = Boolean(adminCookie);
 
-  const wantsAdmin = searchParams.admin === "true";
+  const wantsAdmin = resolvedSearchParams.admin === "true";
 
-  // Jika pengunjung meminta akses admin (?admin=true) tapi belum login, 
-  // lempar ke halaman login admin dengan callback kembali ke roulette.
+  // 2. Jika minta akses admin (?admin=true) tapi belum login, lempar ke /admin
   if (wantsAdmin && !isAuth) {
-    redirect("/admin/login?callbackUrl=/roulette?admin=true");
+    redirect("/admin");
   }
 
-  // Tentukan apakah user berhak menjadi admin di halaman ini
+  // 3. Admin aktif jika sudah login dan mengakses via parameter ?admin=true
   const isAdmin = wantsAdmin && isAuth;
 
   return (
@@ -49,7 +51,7 @@ export default function RoulettePage({
           </p>
         </section>
 
-        {/* Komponen Interaktif Terproteksi */}
+        {/* Komponen Interaktif Terproteksi Session Admin */}
         <Suspense fallback={<div className="text-center py-10 text-xs text-muted-foreground">Loading Draw Engine...</div>}>
           <RouletteContainer isAdmin={isAdmin} />
         </Suspense>
@@ -58,4 +60,4 @@ export default function RoulettePage({
       </div>
     </main>
   );
-            }
+        }
