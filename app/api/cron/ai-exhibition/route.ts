@@ -2,11 +2,9 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { ai } from '@/lib/gemini';
 import { discordAPI } from '@/lib/discord/utils';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { CH_EXHI } from '@/lib/discord/config';
 
-// Ambil Channel ID Exhibition dari file config
-const EXHIBITION_CHANNEL_ID = DISCORD_CONFIG.CH_EXHI;
-// Helper pengecekan emoji (Abaikan jika mayoritas emoji/simbol)
+// Helper pengecekan emoji (Skip jika mayoritas emoji/simbol)
 function isMajorityEmoji(text: string): boolean {
   if (!text) return true;
   const cleanText = text.replace(/\s+/g, '');
@@ -22,20 +20,20 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const isReset = searchParams.get('reset') === 'true';
 
-    if (!EXHIBITION_CHANNEL_ID) {
-      return NextResponse.json({ error: 'EXHIBITION_CHANNEL_ID belum diset di DISCORD_CONFIG.channels.exhibition' }, { status: 400 });
+    if (!CH_EXHI) {
+      return NextResponse.json({ error: 'CH_EXHI belum diset di lib/discord/config' }, { status: 400 });
     }
 
-    const redisKey = `ai_replied:${EXHIBITION_CHANNEL_ID}`;
+    const redisKey = `ai_replied:${CH_EXHI}`;
 
     if (isReset) {
       await kv.del(redisKey);
       return NextResponse.json({ success: true, message: 'Cache Redis berhasil di-reset!' });
     }
 
-    // ⚡ 1. PARALLEL FETCH: Ambil pesan Discord + Cek Redis bersamaan
+    // ⚡ 1. PARALLEL FETCH: Ambil pesan Discord + Cek Redis bersamaan (Tanpa Typo)
     const [rawMessages, lastRepliedMsgId] = await Promise.all([
-      discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages?limit=5`, 'GET'),
+      discordAPI(`/channels/${CH_EXHI}/messages?limit=5`, 'GET'),
       kv.get<string>(redisKey)
     ]);
 
@@ -75,9 +73,9 @@ export async function GET(req: Request) {
     const promptText = `Riwayat percakapan:\n${formattedHistory}\n\n` +
       `Balas pesan terakhir dari ${lastMsg.author?.username}: "${lastMsg.content}"`;
 
-    // 🤖 3. Generate Balasan Gemini AI (Menggunakan gemini-1.5-flash)
+    // 🤖 3. Generate Balasan Gemini AI (Pakai 'gemini-2.5-flash' murni tanpa prefix models/)
     const response = await ai.models.generateContent({
-      model: 'models/gemini-2.5-flash', 
+      model: 'gemini-2.5-flash',
       contents: promptText,
       config: {
         systemInstruction:
@@ -100,7 +98,7 @@ export async function GET(req: Request) {
     }
 
     // 💬 4. Direct Reply ke Discord + Simpan Redis secara berurutan
-    await discordAPI(`/channels/${EXHIBITION_CHANNEL_ID}/messages`, 'POST', {
+    await discordAPI(`/channels/${CH_EXHI}/messages`, 'POST', {
       content: aiReplyText,
       message_reference: { message_id: lastMsg.id },
       allowed_mentions: { replied_user: false }
@@ -120,3 +118,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
       }
+                                              q
