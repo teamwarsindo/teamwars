@@ -2,17 +2,17 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
 
-// Konfigurasi Target Channel & Role ID
+// Konfigurasi Target Channel & Role ID (Sudah Diperbaiki)
 const CHANNELS_CONFIG = [
   {
-    channelId: '1532352873113849938', // CH_STAR
-    roleId: '1532352873113849938',
+    channelId: '1532355472764440576', // CH_STAR
+    roleId: '1532352873113849938',    // Role STAR
     kvKey: 'msg_reminder:ch_star',
     type: 'reminder',
   },
   {
-    channelId: '1524245016552144978', // CH_CHAM
-    roleId: '1524245016552144978',
+    channelId: '1532355753535471827', // CH_CHAMP
+    roleId: '1524245016552144978',    // Role CHAM
     kvKey: 'msg_reminder:ch_cham',
     type: 'reminder',
   },
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const forceRun = searchParams.get('force') === 'true'; 
     const forceType = searchParams.get('type'); 
-    const resetMatch = searchParams.get('reset_match') === 'true'; // Khusus jika sengaja ingin ganti pesan match
+    const resetMatch = searchParams.get('reset_match') === 'true';
 
     // 🕒 Cek Waktu WIB Saat Ini
     const now = new Date();
@@ -75,15 +75,13 @@ export async function GET(req: Request) {
     const results = [];
 
     for (const target of CHANNELS_CONFIG) {
-      // 🛡️ ISOLASI ERROR: Memastikan jika 1 channel error, channel lain TETAP TER-CREATE
       try {
         // =========================================================================
-        // A. CHANNEL MATCH INFO (SANGAT STRICT: HANYA BOLEH 1X SEPANJANG MASA)
+        // A. CHANNEL MATCH INFO (Strict: HANYA BOLEH 1X SEPANJANG MASA)
         // =========================================================================
         if (target.type === 'match_info') {
           const existingMatchMsgId = await kv.get<string>(target.kvKey);
 
-          // 🛑 Jika sudah ada di KV dan TIDAK minta reset_match=true, SKIP TOTAL!
           if (existingMatchMsgId && !resetMatch) {
             results.push({ 
               channel: target.channelId, 
@@ -94,7 +92,6 @@ export async function GET(req: Request) {
             continue; 
           }
 
-          // Hapus pesan lama hanya jika ada instruksi khusus reset_match=true
           if (existingMatchMsgId && resetMatch) {
             await discordAPI(`/channels/${target.channelId}/messages/${existingMatchMsgId}`, 'DELETE').catch(() => null);
             await kv.del(target.kvKey);
@@ -151,7 +148,7 @@ export async function GET(req: Request) {
         }
 
         // =========================================================================
-        // B. CHANNEL REMINDER TIM (CH_STAR & CH_CHAM)
+        // B. CHANNEL REMINDER TIM (CH_STAR & CH_CHAMP)
         // =========================================================================
         
         // Hapus pesan lama jika ada
