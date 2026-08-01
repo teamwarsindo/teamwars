@@ -42,6 +42,46 @@ function makeEphemeralResponse(content: string, components: any[] = []) {
   });
 }
 
+/**
+ * 🛠️ EXPORT FUNGSI SETUP UTAMA (Kirim Pesan Pertama Kali)
+ */
+export async function initBiddingMessages(env: any) {
+  const initialData: BidStore = { groupA: null, groupB: null, logs: [] };
+  const isClosed = !isBidOpen();
+
+  const mainEmbed = buildMainBidEmbed(initialData, isClosed);
+  const logEmbed = buildLogBidEmbed(initialData.logs);
+  const components = getBidButtons(isClosed);
+
+  const token = process.env.DISCORD_BOT_TOKEN || env?.DISCORD_TOKEN;
+  const headers = { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' };
+
+  // 1. Send Pesan Utama
+  const resMain = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ embeds: [mainEmbed], components })
+  });
+  const msgMain: any = await resMain.json();
+
+  // 2. Send Pesan Log
+  const resLog = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ embeds: [logEmbed] })
+  });
+  const msgLog: any = await resLog.json();
+
+  if (env?.KV_STORE) {
+    await env.KV_STORE.put(KV_MSG_MAIN_KEY, msgMain.id);
+    await env.KV_STORE.put(KV_MSG_LOG_KEY, msgLog.id);
+    await env.KV_STORE.put(KV_BID_KEY, JSON.stringify(initialData));
+  }
+}
+
+/**
+ * Memperbarui (PATCH) 2 Pesan Embed Terpisah di Channel Bidding
+ */
 export async function syncBidMessages(env: any, forceClosed: boolean = false) {
   const isClosed = forceClosed || !isBidOpen();
 
@@ -62,7 +102,7 @@ export async function syncBidMessages(env: any, forceClosed: boolean = false) {
 }
 
 /**
- * 1. STEP SATU: Modal Form Submit Handler -> Tampilkan Konfirmasi (Belum simpan ke KV)
+ * Form Submit Handler
  */
 export async function processBidSubmission(interaction: any, env: any) {
   if (!isBidOpen()) {
@@ -89,14 +129,12 @@ export async function processBidSubmission(interaction: any, env: any) {
 
   const amountInput = parseInt(amountRaw.replace(/[^0-9]/g, ''), 10);
 
-  // Validasi Minimal 100.000
   if (isNaN(amountInput) || amountInput < 100000) {
-    return makeEphemeralResponse("❌ **Bid ditolak!** Nominal bid minimal adalah **Rp100.000**.");
+    return makeEphemeralResponse("❌ **Bid ditolak!** Minimal nominal bid adalah **Rp100.000**.");
   }
 
-  // Validasi Kelipatan 10.000
   if ((amountInput - 100000) % 10000 !== 0) {
-    return makeEphemeralResponse("❌ **Bid ditolak!** Nominal bid harus kelipatan **Rp10.000** (Contoh: 100.000, 110.000, 120.000).");
+    return makeEphemeralResponse("❌ **Bid ditolak!** Nominal bid harus dalam kelipatan **Rp10.000**.");
   }
 
   const rawData = env?.KV_STORE ? await env.KV_STORE.get(KV_BID_KEY) : null;
@@ -105,7 +143,6 @@ export async function processBidSubmission(interaction: any, env: any) {
   const currentA = data.groupA?.amount || 0;
   const currentB = data.groupB?.amount || 0;
 
-  // Logika Validasi Harus LEBIH TINGGI dari Bid yang sudah ada
   if (groupTarget === "A") {
     const minRequired = currentA === 0 ? 100000 : currentA + 10000;
     if (amountInput < minRequired) {
@@ -120,11 +157,10 @@ export async function processBidSubmission(interaction: any, env: any) {
     const minReqA = currentA === 0 ? 100000 : currentA + 10000;
     const minReqB = currentB === 0 ? 100000 : currentB + 10000;
     if (amountInput < minReqA || amountInput < minReqB) {
-      return makeEphemeralResponse(`❌ **Bid ditolak!** Untuk bid Keduanya, nominal **${formatRupiah(amountInput)}** harus lebih tinggi dari Group A (Min: ${formatRupiah(minReqA)}) DAN Group B (Min: ${formatRupiah(minReqB)}).`);
+      return makeEphemeralResponse(`❌ **Bid ditolak!** Nominal **${formatRupiah(amountInput)}** harus lebih tinggi dari Group A (Min: ${formatRupiah(minReqA)}) DAN Group B (Min: ${formatRupiah(minReqB)}).`);
     }
   }
 
-  // Simpan data pending sementara di KV dengan ID Unik
   const pendingId = `pending_${Date.now()}_${interaction.member?.user?.id || interaction.user?.id}`;
   const pendingData = {
     groupTarget,
@@ -136,7 +172,7 @@ export async function processBidSubmission(interaction: any, env: any) {
   };
 
   if (env?.KV_STORE) {
-    await env.KV_STORE.put(pendingId, JSON.stringify(pendingData), { expirationTtl: 300 }); // Expire dalam 5 menit
+    await env.KV_STORE.put(pendingId, JSON.stringify(pendingData), { expirationTtl: 300 });
   }
 
   const confirmText = groupTarget === "BOTH"
@@ -155,14 +191,14 @@ export async function processBidSubmission(interaction: any, env: any) {
 }
 
 /**
- * 2. STEP DUA: User Klik [ Ya, Saya Yakin ] atau [ Batal ]
+ * Button Confirmation Handler
  */
 export async function handleConfirmBid(interaction: any, env: any) {
   const customId = interaction.data.custom_id;
   
   if (customId.startsWith("confirm_bid_no_")) {
     return NextResponse.json({
-      type: 7, // UPDATE_MESSAGE
+      type: 7,
       data: { content: "❌ Bidding dibatalkan.", components: [] }
     });
   }
@@ -179,7 +215,6 @@ export async function handleConfirmBid(interaction: any, env: any) {
 
   const pending = typeof rawPending === 'string' ? JSON.parse(rawPending) : rawPending;
 
-  // Load Data Bidding Utama
   const rawData = env?.KV_STORE ? await env.KV_STORE.get(KV_BID_KEY) : null;
   let data: BidStore = typeof rawData === 'string' ? JSON.parse(rawData) : (rawData || { groupA: null, groupB: null, logs: [] });
 
@@ -219,17 +254,15 @@ export async function handleConfirmBid(interaction: any, env: any) {
     });
   }
 
-  // Simpan Permanent ke KV
   if (env?.KV_STORE) {
     await env.KV_STORE.put(KV_BID_KEY, JSON.stringify(data));
-    await env.KV_STORE.delete(pendingId); // Hapus cache pending
+    await env.KV_STORE.delete(pendingId);
   }
 
-  // Update Embed Discord Utama & Log di Channel
   await syncBidMessages(env);
 
   return NextResponse.json({
-    type: 7, // Update pesan ephemeral tadi
+    type: 7,
     data: {
       content: `✅ **Berhasil!** Bid kamu sebesar **${formatRupiah(pending.amountInput)}** telah resmi tercatat! Pesan di channel telah diperbarui.`,
       components: []
