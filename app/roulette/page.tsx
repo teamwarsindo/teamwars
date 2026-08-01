@@ -46,13 +46,13 @@ export default async function RoulettePage({
           </div>
         ) : (
           <>
-            {/* ⚙️ DESKRIPSI SISTEM PENGUNDIAN & ALGORITMA SHUFFLE */}
-            <section className="mb-6 max-w-2xl rounded-xl border border-primary/20 bg-muted/40 p-4 text-center backdrop-blur-sm">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-primary">
-                ⚙️ Sistem Pengundian Transparan (Math.random Algorithm)
+            {/* ⚙️ DESKRIPSI & JUDUL RINGKAS */}
+            <section className="mb-6 max-w-xl rounded-xl border border-primary/20 bg-muted/40 p-3.5 text-center backdrop-blur-sm">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-primary">
+                ⚙️ System Random: Math.random()
               </h2>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                Pengundian dilakukan secara adil dan transparan menggunakan algoritma <span className="font-mono font-semibold text-cyan-400">Uniform Distribution (Math.random())</span> di mana setiap tim memiliki probabilitas acak yang sama persis. Tim terpilih akan otomatis dihapus dari daftar putar roda untuk menghindari pengundian ganda.
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pengundian acak adil berbasis <span className="font-mono text-cyan-400">Uniform Distribution</span>. Tim terpilih otomatis masuk grup & keluar dari roda.
               </p>
             </section>
 
