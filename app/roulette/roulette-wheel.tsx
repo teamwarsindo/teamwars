@@ -10,12 +10,14 @@ interface RouletteWheelProps {
   onSpinEnd: () => void;
 }
 
-// 🎨 Warna dasar esports senada dengan background theme (Selang-seling dark)
+// 🎨 Palette Warna Soft Modern Esports (Slate, Soft Indigo, Deep Cyan, Dark Violet)
 const SLICE_COLORS = [
-  "#0f172a", // Dark Slate
-  "#1e293b", // Slate
-  "#111827", // Gray Dark
-  "#1f2937", // Gray
+  "#1e293b", // Slate 800
+  "#312e81", // Indigo 900 (Soft)
+  "#164e63", // Cyan 900 (Soft)
+  "#3b0764", // Purple 950 (Soft)
+  "#1e1b4b", // Deep Indigo
+  "#0f766e", // Teal 700 (Soft)
 ];
 
 export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: RouletteWheelProps) {
@@ -44,7 +46,7 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         const start = angleOffset + i * sliceAngle;
         const end = start + sliceAngle;
 
-        // 1. Gambar Irisan Wajah (Wedge) dengan warna senada background
+        // Gambar Irisan dengan warna Modern Soft
         ctx.beginPath();
         ctx.moveTo(radius, radius);
         ctx.arc(radius, radius, radius - 10, start, end);
@@ -53,48 +55,44 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         ctx.fillStyle = SLICE_COLORS[i % SLICE_COLORS.length];
         ctx.fill();
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = "rgba(0, 255, 255, 0.25)"; // Border cyan halus
+        ctx.strokeStyle = "rgba(56, 189, 248, 0.25)"; // Cyan border glow
         ctx.stroke();
 
-        // 2. Render Teks Nama Tim (Full & Auto-Fit Size)
+        // Teks Nama Tim Auto-Fit
         ctx.save();
         ctx.translate(radius, radius);
         ctx.rotate(start + sliceAngle / 2);
 
-        // Kuantitas tim makin banyak -> font awal disesuaikan
         let fontSize = Math.max(8, Math.min(13, Math.floor(220 / numSlices)));
-        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.font = `600 ${fontSize}px sans-serif`;
 
-        // Ukur panjang teks & auto-downscale jika teks terlalu panjang untuk irisan
-        const maxTextWidth = radius - 60;
+        const maxTextWidth = radius - 55;
         let textWidth = ctx.measureText(team.name).width;
 
         while (textWidth > maxTextWidth && fontSize > 7) {
           fontSize -= 0.5;
-          ctx.font = `bold ${fontSize}px sans-serif`;
+          ctx.font = `600 ${fontSize}px sans-serif`;
           textWidth = ctx.measureText(team.name).width;
         }
 
         ctx.textAlign = "right";
-        ctx.fillStyle = "#E2E8F0"; // Warna teks putih terang bersih
-        ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
-        ctx.shadowBlur = 4;
+        ctx.fillStyle = "#F1F5F9"; // Soft Slate White
+        ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+        ctx.shadowBlur = 3;
         
-        // Render Nama Tim Full
         ctx.fillText(team.name, radius - 25, fontSize / 3);
-
         ctx.restore();
       });
 
-      // 3. Jarum Marker Atas (Esports Accent Glow)
+      // Pointer Marker Atas
       ctx.beginPath();
       ctx.moveTo(radius - 12, 10);
       ctx.lineTo(radius + 12, 10);
       ctx.lineTo(radius, 32);
       ctx.closePath();
-      ctx.fillStyle = "#00F0FF";
-      ctx.shadowColor = "rgba(0, 240, 255, 0.8)";
-      ctx.shadowBlur = 10;
+      ctx.fillStyle = "#38BDF8"; // Sky Blue Glow
+      ctx.shadowColor = "rgba(56, 189, 248, 0.8)";
+      ctx.shadowBlur = 12;
       ctx.fill();
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = "#FFFFFF";
@@ -140,9 +138,8 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         ref={canvasRef}
         width={380}
         height={380}
-        className="rounded-full border-2 border-cyan-500/30 shadow-[0_0_50px_rgba(0,255,255,0.15)] bg-slate-950"
+        className="rounded-full border-2 border-sky-500/20 shadow-[0_0_60px_rgba(56,189,248,0.12)] bg-slate-900/90"
       />
     </div>
   );
-}
-  
+      }
