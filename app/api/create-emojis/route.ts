@@ -2,14 +2,26 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { v2 as cloudinary } from 'cloudinary';
 
-// Konfigurasi Cloudinary
-cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
+
+// 🗜️ Fungsi Pembantu: Mengompresi URL logo menggunakan Cloudinary CDN Transformation
+function getOptimizedLogoUrl(originalUrl: string): string {
+  if (!originalUrl || !originalUrl.startsWith('http')) return originalUrl;
+
+  // Jika URL sudah merupakan URL Cloudinary murni
+  if (originalUrl.includes('res.cloudinary.com') && originalUrl.includes('/upload/')) {
+    return originalUrl.replace('/upload/', '/upload/w_128,h_128,c_fill,q_auto,f_png/');
+  }
+
+  // Jika URL berformat lain atau URL masking, manfaatkan Fetch URL Cloudinary untuk kompresi otomatis
+  if (CLOUD_NAME) {
+    const encodedUrl = encodeURIComponent(originalUrl);
+    return `https://res.cloudinary.com/${CLOUD_NAME}/image/fetch/w_128,h_128,c_fill,q_auto,f_png/${encodedUrl}`;
+  }
+
+  return originalUrl;
+}
 
 export async function GET() {
   try {
@@ -65,37 +77,33 @@ export async function GET() {
       }
 
       try {
-        // 🚀 1. UPLOAD OTOMATIS KE CLOUDINARY + KOMPRESI & RESIZE ON-THE-FLY
-        // Cloudinary akan otomatis terima gambar besar, kompres, crop kotak 128x128, dan ubah jadi PNG kecil
-        const uploadResult = await cloudinary.uploader.upload(team.logo, {
-          folder: 'discord_emojis_temp',
-          width: 128,
-          height: 128,
-          crop: 'fill',
-          fetch_format: 'auto',
-          quality: 'auto',
-        });
+        // 🚀 Terapkan kompresi URL otomatis (Ukuran turun dari ~2 MB jadi ~15 KB)
+        const optimizedUrl = getOptimizedLogoUrl(team.logo);
 
-        const optimizedUrl = uploadResult.secure_url;
-
-        // 2. Download hasil gambar yang sudah dikecilkan oleh Cloudinary
         const imageRes = await fetch(optimizedUrl);
-        if (!imageRes.ok) throw new Error("Gagal download gambar teroptimasi.");
+        if (!imageRes.ok) {
+          // Fallback ke URL asli jika fetch Cloudinary terhalang
+          const fallbackRes = await fetch(team.logo);
+          if (!fallbackRes.ok) throw new Error(`Gagal download logo (${fallbackRes.statusText})`);
+          var arrayBuffer = await fallbackRes.arrayBuffer();
+          var contentType = fallbackRes.headers.get("content-type") || "image/png";
+        } else {
+          var arrayBuffer = await imageRes.arrayBuffer();
+          var contentType = imageRes.headers.get("content-type") || "image/png";
+        }
         
-        const contentType = imageRes.headers.get("content-type") || "image/png";
-        const arrayBuffer = await imageRes.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
-        // 3. Pastikan benar-benar di bawah 256 KB
+        // Pengecekan Batas Ukuran File Discord (256 KB)
         if (buffer.length > 256 * 1024) {
           failedCount++;
-          details.push(`❌ Gagal ${team.name}: Ukuran masih terlalu besar (${Math.round(buffer.length / 1024)} KB).`);
+          details.push(`❌ Gagal ${team.name}: File masih kebesaran (${Math.round(buffer.length / 1024)} KB > 256 KB).`);
           continue;
         }
 
         const base64Image = `data:${contentType};base64,${buffer.toString('base64')}`;
 
-        // 4. Kirim ke Discord API
+        // Kirim request ke Discord API
         const res = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/emojis`, 'POST', {
           name: validName,
           image: base64Image,
@@ -106,12 +114,12 @@ export async function GET() {
           details.push(`✅ Berhasil: :${validName}: untuk ${team.name}`);
         } else {
           failedCount++;
-          const errorMsg = res?.message || JSON.stringify(res);
+          const errorMsg = res?.message || (res ? JSON.stringify(res) : "Response kosong dari Discord");
           details.push(`❌ Gagal ${team.name}: ${errorMsg}`);
         }
       } catch (err: any) {
         failedCount++;
-        details.push(`❌ Error ${team.name}: ${err.message || err}`);
+        details.push(`❌ Error ${team.name}: ${err?.message || String(err)}`);
       }
     }
 
@@ -125,4 +133,5 @@ export async function GET() {
     console.error("API Error create-emojis:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
-}
+                   }
+      
