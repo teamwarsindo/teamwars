@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG, BID_START_TARGET, BID_CLOSE_TARGET } from '@/lib/config';
 import { getBidButtons } from '@/lib/discord/buttons/bidding';
 import { buildMainBidEmbed, patchMainBidMessage, formatRupiah } from '@/lib/discord/messages/bidding';
@@ -34,14 +35,14 @@ function getWibTimestamp(): string {
 function makeEphemeralResponse(content: string) {
   return NextResponse.json({
     type: 4,
-    data: {
-      content,
-      flags: 64
-    }
+    data: { content, flags: 64 }
   });
 }
 
-export async function initBiddingMessages(env: any) {
+/**
+ * 🚀 Inisialisasi awal pengiriman pesan 2 Embed ke channel bidding
+ */
+export async function initBiddingMessages() {
   const initialData: BidStore = { groupA: null, groupB: null, logs: [] };
   const isClosed = !isBidOpen();
 
@@ -49,9 +50,10 @@ export async function initBiddingMessages(env: any) {
   const logEmbed = buildLogBidEmbed(initialData.logs);
   const components = getBidButtons(isClosed);
 
-  const token = process.env.DISCORD_BOT_TOKEN || env?.DISCORD_TOKEN;
+  const token = process.env.DISCORD_BOT_TOKEN;
   const headers = { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' };
 
+  // 1. Send Pesan Utama
   const resMain = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
     method: 'POST',
     headers,
@@ -59,6 +61,7 @@ export async function initBiddingMessages(env: any) {
   });
   const msgMain: any = await resMain.json();
 
+  // 2. Send Pesan Log
   const resLog = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
     method: 'POST',
     headers,
@@ -66,38 +69,38 @@ export async function initBiddingMessages(env: any) {
   });
   const msgLog: any = await resLog.json();
 
-  if (env?.KV_STORE) {
-    await env.KV_STORE.put(KV_MSG_MAIN_KEY, msgMain.id);
-    await env.KV_STORE.put(KV_MSG_LOG_KEY, msgLog.id);
-    await env.KV_STORE.put(KV_BID_KEY, JSON.stringify(initialData));
-  }
+  // Simpan ID Message ke Vercel KV Redis
+  await kv.set(KV_MSG_MAIN_KEY, msgMain.id);
+  await kv.set(KV_MSG_LOG_KEY, msgLog.id);
+  await kv.set(KV_BID_KEY, initialData);
 }
 
-export async function syncBidMessages(env: any, forceClosed: boolean = false) {
+/**
+ * 🔄 Sync / PATCH Update 2 Embed ke Discord
+ */
+export async function syncBidMessages(forceClosed: boolean = false) {
   const isClosed = forceClosed || !isBidOpen();
 
-  const rawData = env?.KV_STORE ? await env.KV_STORE.get(KV_BID_KEY) : null;
-  const data: BidStore = typeof rawData === 'string' ? JSON.parse(rawData) : (rawData || { groupA: null, groupB: null, logs: [] });
+  const data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
+  const mainMsgId = await kv.get<string>(KV_MSG_MAIN_KEY);
+  const logMsgId = await kv.get<string>(KV_MSG_LOG_KEY);
 
-  const mainMsgId = env?.KV_STORE ? await env.KV_STORE.get(KV_MSG_MAIN_KEY) : null;
-  const logMsgId = env?.KV_STORE ? await env.KV_STORE.get(KV_MSG_LOG_KEY) : null;
-
-  const token = process.env.DISCORD_BOT_TOKEN || env?.DISCORD_TOKEN;
+  const token = process.env.DISCORD_BOT_TOKEN;
 
   if (mainMsgId) {
-    await patchMainBidMessage(mainMsgId, data, isClosed, token);
+    await patchMainBidMessage(mainMsgId, data, isClosed, token!);
   }
   if (logMsgId) {
-    await patchLogBidMessage(logMsgId, data.logs, token);
+    await patchLogBidMessage(logMsgId, data.logs, token!);
   }
 }
 
 /**
- * PROSES SUBMISSION MODAL SECARA LANGSUNG & REAL-TIME
+ * 📝 Pemroses Submission Modal Bidding User
  */
-export async function processBidSubmission(interaction: any, env: any) {
+export async function processBidSubmission(interaction: any) {
   if (!isBidOpen()) {
-    await syncBidMessages(env, true);
+    await syncBidMessages(true);
     return makeEphemeralResponse("❌ **Bidding sudah ditutup!** (Batas waktu: 8 Agustus 2026, 20:00 WIB)");
   }
 
@@ -120,24 +123,22 @@ export async function processBidSubmission(interaction: any, env: any) {
 
   const amountInput = parseInt(amountRaw.replace(/[^0-9]/g, ''), 10);
 
-  // 1. Validasi Minimal Nominal Bid (Minimal Rp100.000)
+  // Validasi Minimal Rp100.000 & Kelipatan 10.000
   if (isNaN(amountInput) || amountInput < 100000) {
     return makeEphemeralResponse("❌ **Bid ditolak!** Minimal nominal bid adalah **Rp100.000**.");
   }
 
-  // 2. Validasi Kelipatan Rp10.000
   if ((amountInput - 100000) % 10000 !== 0) {
-    return makeEphemeralResponse("❌ **Bid ditolak!** Nominal bid harus dalam kelipatan **Rp10.000** (Contoh: 110.000, 120.000).");
+    return makeEphemeralResponse("❌ **Bid ditolak!** Nominal bid harus dalam kelipatan **Rp10.000**.");
   }
 
-  // 3. Load Data Bidding Saat Ini
-  const rawData = env?.KV_STORE ? await env.KV_STORE.get(KV_BID_KEY) : null;
-  let data: BidStore = typeof rawData === 'string' ? JSON.parse(rawData) : (rawData || { groupA: null, groupB: null, logs: [] });
+  // Load data dari Vercel KV
+  let data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
 
   const currentA = data.groupA?.amount || 0;
   const currentB = data.groupB?.amount || 0;
 
-  // 4. Validasi Min Bid Lebih Tinggi dari Papan Harga Saat Ini
+  // Logika Base Price Rp100.000 (Bid pertama peserta minimal HARUS Rp110.000)
   if (groupTarget === "A") {
     const minRequiredA = currentA === 0 ? 110000 : currentA + 10000;
     if (amountInput < minRequiredA) {
@@ -156,7 +157,7 @@ export async function processBidSubmission(interaction: any, env: any) {
     }
   }
 
-  // 5. Simpan Langsung Data Permanen ke KV
+  // Simpan Data
   const user = interaction.member?.user || interaction.user;
   const timestamp = getWibTimestamp();
 
@@ -171,17 +172,15 @@ export async function processBidSubmission(interaction: any, env: any) {
     data.logs.unshift({ group: "B", amount: amountInput, name: finalNameB, username: user.username, timestamp });
   }
 
-  if (env?.KV_STORE) {
-    await env.KV_STORE.put(KV_BID_KEY, JSON.stringify(data));
-  }
+  // Set Ke Redis KV
+  await kv.set(KV_BID_KEY, data);
 
-  // 6. Langsung Update Embed Discord di Channel
-  await syncBidMessages(env);
+  // Sync update embed
+  await syncBidMessages();
 
-  // 7. Balas sukses ke user
   const successMessage = groupTarget === "BOTH"
-    ? `✅ **Berhasil!** Bid sebesar **${formatRupiah(amountInput)}** untuk **Group A** (*"${nameA}"*) & **Group B** (*"${nameB}"*) telah diterima dan dicatat!`
-    : `✅ **Berhasil!** Bid sebesar **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah diterima dan dicatat!`;
+    ? `✅ **Berhasil!** Bid sebesar **${formatRupiah(amountInput)}** untuk **Group A** (*"${nameA}"*) & **Group B** (*"${nameB}"*) telah diterima!`
+    : `✅ **Berhasil!** Bid sebesar **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah diterima!`;
 
   return makeEphemeralResponse(successMessage);
 }
