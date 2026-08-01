@@ -11,26 +11,35 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const [groupA, setGroupA] = useState<TeamItem[]>([]);
   const [groupB, setGroupB] = useState<TeamItem[]>([]);
   
+  // ⏳ Tambahkan state isLoading agar tidak langsung "Pengundian Selesai"
+  const [isLoading, setIsLoading] = useState(true);
+
   const [isSpinning, setIsSpinning] = useState(false);
   const [winningIndex, setWinningIndex] = useState<number | null>(null);
   const [celebrationWinner, setCelebrationWinner] = useState<TeamItem | null>(null);
 
-  const totalSlots = masterTeams.length || 10;
+  // Perhitungan kuota dinamis berdasarkan total tim yang ada di KV
+  const totalSlots = masterTeams.length;
   const halfQuota = Math.ceil(totalSlots / 2);
 
   // Ambil Data dari Vercel KV saat halaman dibuka
   useEffect(() => {
+    setIsLoading(true);
     fetch("/api/roulette-state")
       .then((res) => res.json())
       .then((data) => {
         if (data) {
-          setMasterTeams(data.masterTeams || []);
-          setRemainingTeams(data.remainingTeams || []);
+          const master = data.masterTeams || [];
+          setMasterTeams(master);
+          
+          // Jika state KV belum ada, isi remainingTeams dengan masterTeams
+          setRemainingTeams(data.remainingTeams || master);
           setGroupA(data.groupA || []);
           setGroupB(data.groupB || []);
         }
       })
-      .catch(() => null);
+      .catch((err) => console.error("Error fetching state:", err))
+      .finally(() => setIsLoading(false));
   }, []);
 
   // Simpan Perubahan ke Vercel KV
@@ -78,6 +87,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
   const handleReset = async () => {
     if (confirm("Reset ulang hasil pengundian dan hapus data di Vercel KV?")) {
+      setIsLoading(true);
       setRemainingTeams(masterTeams);
       setGroupA([]);
       setGroupB([]);
@@ -85,10 +95,22 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
       setIsSpinning(false);
 
       await fetch("/api/roulette-state", { method: "DELETE" }).catch(() => null);
+      setIsLoading(false);
     }
   };
 
   const targetGroup = groupA.length < halfQuota ? "GROUP A" : "GROUP B";
+
+  // 1. Tampilkan status Loading saat data sedang ditarik dari KV
+  if (isLoading) {
+    return (
+      <div className="flex h-[360px] w-full items-center justify-center rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-md">
+        <p className="animate-pulse text-xs font-semibold text-primary">
+          ⏳ Memuat Data Tim dari Vercel KV...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex w-full max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-between">
@@ -136,7 +158,14 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           </span>
         </div>
 
-        {remainingTeams.length > 0 ? (
+        {/* 2. Cek jika masterTeams memang kosong sama sekali dari KV */}
+        {masterTeams.length === 0 ? (
+          <div className="flex h-[360px] w-[360px] items-center justify-center rounded-full border border-dashed border-destructive/40 bg-muted/20 text-center p-6">
+            <p className="text-xs font-bold text-destructive">
+              ⚠️ Tidak ada data tim pendaftaran ditemukan di KV (`teams:*`).
+            </p>
+          </div>
+        ) : remainingTeams.length > 0 ? (
           <RouletteWheel
             teams={remainingTeams}
             winningIndex={winningIndex}
@@ -154,7 +183,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           <div className="mt-6 flex w-full max-w-xs flex-col gap-2">
             <button
               onClick={handleStartSpin}
-              disabled={isSpinning || remainingTeams.length === 0}
+              disabled={isSpinning || remainingTeams.length === 0 || masterTeams.length === 0}
               className="w-full rounded-xl bg-primary py-3 text-xs font-extrabold uppercase tracking-widest text-primary-foreground shadow-[0_0_20px_rgba(0,255,255,0.4)] transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
               {isSpinning ? "SPINNING..." : "🎯 PUTAR ROULETTE"}
@@ -185,7 +214,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
             </span>
           </div>
           <ul className="space-y-2">
-            {Array.from({ length: halfQuota }).map((_, i) => (
+            {Array.from({ length: halfQuota || 1 }).map((_, i) => (
               <li
                 key={i}
                 className="flex items-center justify-between rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-xs"
@@ -193,9 +222,11 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
                 <span className="text-muted-foreground">Slot #{i + 1}</span>
                 {groupA[i] ? (
                   <div className="flex items-center gap-2">
-                    <div className="relative h-5 w-5 overflow-hidden rounded-full border border-primary/20">
-                      <Image src={groupA[i].logo} alt={groupA[i].name} fill className="object-cover" />
-                    </div>
+                    {groupA[i].logo && (
+                      <div className="relative h-5 w-5 overflow-hidden rounded-full border border-primary/20">
+                        <Image src={groupA[i].logo} alt={groupA[i].name} fill className="object-cover" />
+                      </div>
+                    )}
                     <span className="font-bold text-foreground">{groupA[i].name}</span>
                   </div>
                 ) : (
@@ -215,7 +246,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
             </span>
           </div>
           <ul className="space-y-2">
-            {Array.from({ length: totalSlots - halfQuota }).map((_, i) => (
+            {Array.from({ length: Math.max(totalSlots - halfQuota, 1) }).map((_, i) => (
               <li
                 key={i}
                 className="flex items-center justify-between rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-xs"
@@ -223,9 +254,11 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
                 <span className="text-muted-foreground">Slot #{i + 1}</span>
                 {groupB[i] ? (
                   <div className="flex items-center gap-2">
-                    <div className="relative h-5 w-5 overflow-hidden rounded-full border border-primary/20">
-                      <Image src={groupB[i].logo} alt={groupB[i].name} fill className="object-cover" />
-                    </div>
+                    {groupB[i].logo && (
+                      <div className="relative h-5 w-5 overflow-hidden rounded-full border border-primary/20">
+                        <Image src={groupB[i].logo} alt={groupB[i].name} fill className="object-cover" />
+                      </div>
+                    )}
                     <span className="font-bold text-foreground">{groupB[i].name}</span>
                   </div>
                 ) : (
