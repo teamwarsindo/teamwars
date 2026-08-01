@@ -4,7 +4,7 @@ import { formatRupiah } from '@/lib/discord/messages/bidding';
 export function buildLogBidEmbed(logs: Array<any>) {
   const logList = logs.slice(0, 10).map((log) => {
     const groupLabel = log.group === "BOTH" ? "Group A & B" : `Group ${log.group}`;
-    const displayName = log.displayName || log.username; // Pakai Display Name / Server Nick
+    const displayName = log.displayName || log.username;
     return `\`[${log.timestamp}]\` **${displayName}** bid **${formatRupiah(log.amount)}** ➔ **${groupLabel}** (*"${log.name}"*)`;
   }).join("\n\n") || "_Belum ada riwayat bidding._";
 
@@ -19,7 +19,7 @@ export function buildLogBidEmbed(logs: Array<any>) {
 export async function patchLogBidMessage(msgId: string, logs: Array<any>, token: string) {
   const embed = buildLogBidEmbed(logs);
 
-  await fetch(`[https://discord.com/api/v10/channels/$](https://discord.com/api/v10/channels/$){DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
+  await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
     method: 'PATCH',
     headers: {
       'Authorization': `Bot ${token}`,
