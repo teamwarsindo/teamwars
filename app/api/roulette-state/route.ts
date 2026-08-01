@@ -6,32 +6,29 @@ const KV_KEY_ROULETTE = 'twi:roulette_state';
 export interface TeamItem {
   name: string;
   logo: string;
+  color?: string;
 }
 
 export async function GET() {
   try {
-    // 1. Ambil semua key yang diawali "teams:" dari Vercel KV
     const teamKeys = await kv.keys('teams:*');
     let masterTeams: TeamItem[] = [];
 
     if (teamKeys && teamKeys.length > 0) {
-      // 2. Ambil data dengan kv.hgetall() secara paralel
       const rawTeams = await Promise.all(
         teamKeys.map((key) => kv.hgetall<Record<string, any>>(key))
       );
 
-      // 3. Filter data non-null dan tambahkan Optional Chaining (?.)
       masterTeams = rawTeams
         .filter((team): team is Record<string, any> => Boolean(team))
         .map((team) => ({
           name: team?.namaTim || team?.name || 'Unknown Team',
           logo: team?.logoTim || team?.logo || '/logo.webp',
+          color: team?.warna || team?.color || undefined,
         }))
-        // Urutkan secara alfabetis berdasarkan nama tim
         .sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    // 4. Ambil state pengundian roulette dari KV
     const currentState = await kv.get<{
       remainingTeams: TeamItem[];
       groupA: TeamItem[];
@@ -83,4 +80,4 @@ export async function DELETE() {
     console.error('Error DELETE Roulette State:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+  }
