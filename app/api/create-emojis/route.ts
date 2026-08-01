@@ -3,9 +3,17 @@ import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 
+// 🛠️ Fungsi pembantu untuk inject kompresi Cloudinary
+function getOptimizedLogoUrl(url: string): string {
+  if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
+    // Inject parameter kompresi gambar Cloudinary: lebar 128px, kualitas auto, format PNG
+    return url.replace('/upload/', '/upload/w_128,h_128,c_fill,q_auto,f_png/');
+  }
+  return url;
+}
+
 export async function GET() {
   try {
-    // 1. Ambil semua data tim dari Vercel KV
     const teamKeys = await kv.keys('teams:*');
     if (!teamKeys || teamKeys.length === 0) {
       return NextResponse.json({ success: false, message: "Tidak ada tim ditemukan di database." });
@@ -22,7 +30,6 @@ export async function GET() {
         logo: team?.logoTim || team?.logo || '',
       }));
 
-    // Ambil daftar emoji yang SUDAH ADA di Discord agar tidak duplicate
     let existingEmojis: any[] = [];
     try {
       existingEmojis = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/emojis`, 'GET');
@@ -38,7 +45,6 @@ export async function GET() {
     let failedCount = 0;
     const details: string[] = [];
 
-    // 2. Loop setiap tim
     for (const team of teams) {
       if (!team.logo || !team.logo.startsWith("http")) {
         failedCount++;
@@ -46,7 +52,6 @@ export async function GET() {
         continue;
       }
 
-      // Format nama emoji
       const rawEmojiName = team.name
         .replace(/[^a-zA-Z0-9]/g, '_')
         .replace(/_+/g, '_')
@@ -54,7 +59,6 @@ export async function GET() {
 
       const validName = (rawEmojiName.length < 2 ? `t_${rawEmojiName}` : rawEmojiName).slice(0, 32);
 
-      // Cek jika emoji sudah pernah dibuat
       if (existingNames.has(validName)) {
         failedCount++;
         details.push(`ℹ️ Skipped ${team.name}: Emoji :${validName}: sudah ada di Discord.`);
@@ -62,24 +66,25 @@ export async function GET() {
       }
 
       try {
-        // Download logo
-        const imageRes = await fetch(team.logo);
+        // 🚀 Terapkan kompresi URL Cloudinary
+        const optimizedUrl = getOptimizedLogoUrl(team.logo);
+
+        const imageRes = await fetch(optimizedUrl);
         if (!imageRes.ok) throw new Error("Gagal download gambar logo.");
         
         const contentType = imageRes.headers.get("content-type") || "image/png";
         const arrayBuffer = await imageRes.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
-        // ⚠️ Cek Batas Ukuran File Discord (Maksimal 256 KB)
+        // Cek Batas Ukuran File Discord (256 KB)
         if (buffer.length > 256 * 1024) {
           failedCount++;
-          details.push(`❌ Gagal ${team.name}: Ukuran file logo terlalu besar (${Math.round(buffer.length / 1024)} KB > 256 KB).`);
+          details.push(`❌ Gagal ${team.name}: Ukuran file terlalu besar (${Math.round(buffer.length / 1024)} KB > 256 KB).`);
           continue;
         }
 
         const base64Image = `data:${contentType};base64,${buffer.toString('base64')}`;
 
-        // Kirim request ke Discord
         const res = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/emojis`, 'POST', {
           name: validName,
           image: base64Image,
@@ -109,5 +114,4 @@ export async function GET() {
     console.error("API Error create-emojis:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
-}
-  
+        }
