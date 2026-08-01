@@ -10,6 +10,8 @@ interface RouletteWheelProps {
   onSpinEnd: () => void;
 }
 
+const FALLBACK_COLORS = ["#00FFFF", "#1A1D24", "#008B8B", "#2A2E39", "#00BFFF", "#111827"];
+
 export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: RouletteWheelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentAngleRef = useRef(0);
@@ -20,6 +22,7 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
     teams.forEach((team) => {
       if (team.logo && !loadedImagesRef.current[team.logo]) {
         const img = new Image();
+        img.crossOrigin = "anonymous";
         img.src = team.logo;
         img.onload = () => {
           loadedImagesRef.current[team.logo] = img;
@@ -42,54 +45,52 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
 
     const sliceAngle = (2 * Math.PI) / numSlices;
     const radius = canvas.width / 2;
-    const colors = ["#00FFFF", "#1A1D24", "#008B8B", "#2A2E39", "#00BFFF", "#111827"];
 
     const draw = (angleOffset: number) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
+
       teams.forEach((team, i) => {
         const start = angleOffset + i * sliceAngle;
         const end = start + sliceAngle;
 
-        // Draw Wedge Irisan
+        // 🎨 Gunakan warna khas tim dari KV
         ctx.beginPath();
         ctx.moveTo(radius, radius);
         ctx.arc(radius, radius, radius - 10, start, end);
         ctx.closePath();
 
-        ctx.fillStyle = colors[i % colors.length];
+        ctx.fillStyle = team.color || FALLBACK_COLORS[i % FALLBACK_COLORS.length];
         ctx.fill();
         ctx.lineWidth = 2;
         ctx.strokeStyle = "rgba(0,255,255,0.3)";
         ctx.stroke();
 
-        // Render Teks & Logo
+        // 🖼️ Render Logo Tim saja (Tanpa Teks Nama)
         ctx.save();
         ctx.translate(radius, radius);
         ctx.rotate(start + sliceAngle / 2);
 
-        // Render Logo jika sudah ter-load
         const img = loadedImagesRef.current[team.logo];
         if (img) {
-          ctx.drawImage(img, radius - 75, -12, 24, 24);
+          // Render logo di posisi tengah irisan
+          const logoSize = numSlices > 12 ? 24 : 32;
+          ctx.drawImage(img, radius - 55, -logoSize / 2, logoSize, logoSize);
         }
 
-        // Render Teks Nama Tim
-        ctx.textAlign = "right";
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font = "bold 12px sans-serif";
-        ctx.fillText(team.name.length > 10 ? team.name.slice(0, 8) + ".." : team.name, radius - 45, 4);
         ctx.restore();
       });
 
-      // Jarum Penunjuk Atas (Marker)
+      // Jarum Marker Atas
       ctx.beginPath();
       ctx.moveTo(radius - 12, 10);
       ctx.lineTo(radius + 12, 10);
-      ctx.lineTo(radius, 30);
+      ctx.lineTo(radius, 32);
       ctx.closePath();
       ctx.fillStyle = "#FF0055";
       ctx.fill();
+      ctx.strokeStyle = "#FFFFFF";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     };
 
     if (!isSpinning) {
@@ -101,7 +102,7 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
     const startTime = performance.now();
     const duration = 4000;
     const targetSlice = winningIndex ?? 0;
-    
+
     const sliceMiddle = targetSlice * sliceAngle + sliceAngle / 2;
     const targetAngle = 6 * Math.PI * 2 + (1.5 * Math.PI - sliceMiddle);
 
@@ -109,7 +110,7 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
       const elapsed = time - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const easeOut = 1 - Math.pow(1 - progress, 3);
-      
+
       const currentAngle = easeOut * targetAngle;
       currentAngleRef.current = currentAngle % (2 * Math.PI);
       draw(currentAngle);
@@ -129,10 +130,10 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
     <div className="relative flex flex-col items-center justify-center">
       <canvas
         ref={canvasRef}
-        width={360}
-        height={360}
-        className="rounded-full shadow-[0_0_50px_rgba(0,255,255,0.2)] border-2 border-primary/30"
+        width={380}
+        height={380}
+        className="rounded-full border-2 border-primary/30 shadow-[0_0_50px_rgba(0,255,255,0.2)]"
       />
     </div>
   );
-        }
+          }
