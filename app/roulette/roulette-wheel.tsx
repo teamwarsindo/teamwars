@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { TeamItem } from "@/app/api/roulette-state/route";
 
 interface RouletteWheelProps {
@@ -10,70 +10,18 @@ interface RouletteWheelProps {
   onSpinEnd: () => void;
 }
 
-const FALLBACK_COLORS = ["#00FFFF", "#1A1D24", "#008B8B", "#2A2E39", "#00BFFF", "#111827"];
-
-// 🗜️ Fungsi Kompresi Logo ke Ukuran Ringan (64x64 px)
-function compressAndResizeImage(img: HTMLImageElement, targetSize = 64): Promise<HTMLImageElement> {
-  return new Promise((resolve) => {
-    const offCanvas = document.createElement("canvas");
-    offCanvas.width = targetSize;
-    offCanvas.height = targetSize;
-    const ctx = offCanvas.getContext("2d");
-
-    if (!ctx) return resolve(img);
-
-    // Gambar ulang ke canvas kecil untuk kompresi
-    ctx.drawImage(img, 0, 0, targetSize, targetSize);
-
-    const compressedImg = new Image();
-    compressedImg.src = offCanvas.toDataURL("image/png", 0.7); // Kompresi kualitas 70%
-    compressedImg.onload = () => resolve(compressedImg);
-    compressedImg.onerror = () => resolve(img);
-  });
-}
+// 🎨 Warna dasar esports senada dengan background theme (Selang-seling dark)
+const SLICE_COLORS = [
+  "#0f172a", // Dark Slate
+  "#1e293b", // Slate
+  "#111827", // Gray Dark
+  "#1f2937", // Gray
+];
 
 export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: RouletteWheelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentAngleRef = useRef(0);
-  
-  const [loadedImages, setLoadedImages] = useState<Record<string, HTMLImageElement>>({});
 
-  // 1. PRELOAD & KOMPRES GAMBAR LOGO secara Asynchronous
-  useEffect(() => {
-    let isMounted = true;
-
-    const promises = teams.map((team) => {
-      return new Promise<{ logo: string; img: HTMLImageElement | null }>((resolve) => {
-        if (!team.logo) return resolve({ logo: team.logo, img: null });
-
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = team.logo;
-
-        img.onload = async () => {
-          // Kompres logo ke 64x64px agar sangat ringan diputar
-          const compressed = await compressAndResizeImage(img, 64);
-          resolve({ logo: team.logo, img: compressed });
-        };
-        img.onerror = () => resolve({ logo: team.logo, img: null });
-      });
-    });
-
-    Promise.all(promises).then((results) => {
-      if (!isMounted) return;
-      const imgMap: Record<string, HTMLImageElement> = {};
-      results.forEach((res) => {
-        if (res.img) imgMap[res.logo] = res.img;
-      });
-      setLoadedImages(imgMap);
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [teams]);
-
-  // 2. RENDER CANVAS ROULETTE
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -96,48 +44,60 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         const start = angleOffset + i * sliceAngle;
         const end = start + sliceAngle;
 
-        // Draw Irisan / Wedge
+        // 1. Gambar Irisan Wajah (Wedge) dengan warna senada background
         ctx.beginPath();
         ctx.moveTo(radius, radius);
         ctx.arc(radius, radius, radius - 10, start, end);
         ctx.closePath();
 
-        ctx.fillStyle = team.color || FALLBACK_COLORS[i % FALLBACK_COLORS.length];
+        ctx.fillStyle = SLICE_COLORS[i % SLICE_COLORS.length];
         ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "rgba(0,255,255,0.3)";
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "rgba(0, 255, 255, 0.25)"; // Border cyan halus
         ctx.stroke();
 
-        // Render Gambar Logo Terkompresi
+        // 2. Render Teks Nama Tim (Full & Auto-Fit Size)
         ctx.save();
         ctx.translate(radius, radius);
         ctx.rotate(start + sliceAngle / 2);
 
-        const img = loadedImages[team.logo];
-        if (img) {
-          const logoSize = numSlices > 12 ? 26 : 32;
-          const logoDistance = radius - 45;
-          ctx.drawImage(img, logoDistance - logoSize / 2, -logoSize / 2, logoSize, logoSize);
-        } else {
-          ctx.textAlign = "right";
-          ctx.fillStyle = "#FFFFFF";
-          ctx.font = "bold 11px sans-serif";
-          ctx.fillText(team.name.substring(0, 4), radius - 30, 4);
+        // Kuantitas tim makin banyak -> font awal disesuaikan
+        let fontSize = Math.max(8, Math.min(13, Math.floor(220 / numSlices)));
+        ctx.font = `bold ${fontSize}px sans-serif`;
+
+        // Ukur panjang teks & auto-downscale jika teks terlalu panjang untuk irisan
+        const maxTextWidth = radius - 60;
+        let textWidth = ctx.measureText(team.name).width;
+
+        while (textWidth > maxTextWidth && fontSize > 7) {
+          fontSize -= 0.5;
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          textWidth = ctx.measureText(team.name).width;
         }
+
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#E2E8F0"; // Warna teks putih terang bersih
+        ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+        ctx.shadowBlur = 4;
+        
+        // Render Nama Tim Full
+        ctx.fillText(team.name, radius - 25, fontSize / 3);
 
         ctx.restore();
       });
 
-      // Jarum Marker Atas
+      // 3. Jarum Marker Atas (Esports Accent Glow)
       ctx.beginPath();
       ctx.moveTo(radius - 12, 10);
       ctx.lineTo(radius + 12, 10);
       ctx.lineTo(radius, 32);
       ctx.closePath();
-      ctx.fillStyle = "#FF0055";
+      ctx.fillStyle = "#00F0FF";
+      ctx.shadowColor = "rgba(0, 240, 255, 0.8)";
+      ctx.shadowBlur = 10;
       ctx.fill();
-      ctx.strokeStyle = "#FFFFFF";
       ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "#FFFFFF";
       ctx.stroke();
     };
 
@@ -172,7 +132,7 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
 
     animationId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animationId);
-  }, [teams, winningIndex, isSpinning, onSpinEnd, loadedImages]);
+  }, [teams, winningIndex, isSpinning, onSpinEnd]);
 
   return (
     <div className="relative flex flex-col items-center justify-center">
@@ -180,8 +140,9 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         ref={canvasRef}
         width={380}
         height={380}
-        className="rounded-full border-2 border-primary/30 shadow-[0_0_50px_rgba(0,255,255,0.2)]"
+        className="rounded-full border-2 border-cyan-500/30 shadow-[0_0_50px_rgba(0,255,255,0.15)] bg-slate-950"
       />
     </div>
   );
-            }
+}
+  
