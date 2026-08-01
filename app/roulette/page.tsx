@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { RouletteContainer } from "./roulette-container";
-import { AdminLoginForm } from "@/components/admin-login-form"; // 👈 Pakai komponen shared ini
+import { AdminLoginForm } from "@/components/admin-login-form";
 
 export const metadata = {
   title: "Official Group Draw Roulette — Team Wars Indonesia",
@@ -28,29 +28,17 @@ export default async function RoulettePage({
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
-      <TopBar title={showLoginForm ? "Admin Authentication" : "Official Group Draw"} />
+      <TopBar title={showLoginForm ? "Admin Portal" : "Official Group Draw"} />
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4 pb-4 sm:px-6 lg:px-12">
         <HeroHeader showDetails={false} />
 
         {showLoginForm ? (
-          <div className="my-6 w-full max-w-md">
-            <div className="mb-4 text-center">
-              <span className="inline-block rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-400 border border-amber-500/20">
-                🔒 Akses Panel Admin Diperlukan
-              </span>
-            </div>
-            <Suspense fallback={<div className="text-center py-6 text-xs text-muted-foreground">Loading Form...</div>}>
-              <AdminLoginForm 
-                title="Login Admin Roulette"
-                subtitle="Masukkan kredensial panitia untuk mengontrol roulette"
-                buttonText="Masuk & Buka Kontrol Roulette"
-              />
-            </Suspense>
-          </div>
+          <Suspense fallback={<div className="text-center py-6 text-xs text-muted-foreground">Loading Form...</div>}>
+            <AdminLoginForm />
+          </Suspense>
         ) : (
           <>
-            {/* ⚙️ DESKRIPSI & JUDUL RINGKAS */}
             <section className="mb-6 max-w-xl rounded-xl border border-primary/20 bg-muted/40 p-3.5 text-center backdrop-blur-sm">
               <h2 className="text-xs font-bold uppercase tracking-wider text-primary">
                 ⚙️ System Random: Math.random()
@@ -70,4 +58,4 @@ export default async function RoulettePage({
       </div>
     </main>
   );
-              }
+}
