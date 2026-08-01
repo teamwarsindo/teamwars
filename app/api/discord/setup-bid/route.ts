@@ -5,7 +5,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    // Jalankan fungsi inisialisasi untuk mengirim 2 pesan embed pertama kali
     await initBiddingMessages(process.env);
 
     return NextResponse.json({
