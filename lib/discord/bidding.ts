@@ -177,7 +177,7 @@ export async function processBidSubmission(interaction: any) {
     if (amountInput < minRequiredB) {
       return makeEphemeralResponse(`❌ **Bid ditolak!** Group B saat ini **${formatRupiah(currentB === 0 ? 100000 : currentB)}**. Bid minimal kamu harus **${formatRupiah(minRequiredB)}**.`);
     }
-  }
+  } 
 
   const member = interaction.member;
   const user = member?.user || interaction.user;
