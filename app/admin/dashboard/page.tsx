@@ -1,19 +1,19 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAdminTeams } from './hooks/use-admin-teams';
 import { AdminTable } from './components/admin-table';
 import { ProofModal } from './components/proof-modal';
 import { RosterModal } from './components/roster-modal';
-import { DashboardHeader } from './components/dashboard-header';
-import { DashboardControls } from './components/dashboard-controls';
+import { ApiController } from './components/api-controller';
+import { CleanupButton } from './components/cleanup-button';
 import { AdminLoginForm } from '@/components/admin-login-form';
+import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
+import { Search, RefreshCw, LogOut, Trophy } from 'lucide-react';
 
 function DashboardContent() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const router = useRouter();
 
   const {
     teams,
@@ -31,14 +31,10 @@ function DashboardContent() {
     logout,
   } = useAdminTeams();
 
-  // Cek apakah cookie admin_session aktif dengan memanggil endpoint atau cek state
   useEffect(() => {
-    // Kita coba fetch state / verifikasi ke API atau cek sederhana
-    // Karena useAdminTeams biasanya akan gagal/return unauthorized jika cookie tidak ada,
-    // kita bisa buat state pengecekan sesi sederhana atau cek lewat endpoint auth.
     async function verifyAuth() {
       try {
-        const res = await fetch('/api/admin/verify'); // atau endpoint yang lempar 401 jika belum login
+        const res = await fetch('/api/admin/verify');
         if (res.ok) {
           setIsAuthorized(true);
         } else {
@@ -55,54 +51,110 @@ function DashboardContent() {
 
   if (isCheckingAuth) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-950 text-neutral-400 text-xs">
-        ⏳ Memverifikasi Sesi Admin...
-      </div>
+      <main className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-background text-foreground">
+        <p className="text-xs text-muted-foreground animate-pulse">⏳ Memverifikasi Sesi Admin...</p>
+      </main>
     );
   }
 
-  // Jika belum login, tampilkan form login persis seperti di Roulette
+  // 🔒 Jika belum login, tampilkan Login Form dengan Layout Shared TWI
   if (!isAuthorized) {
     return (
-      <main className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-neutral-950 text-white px-4">
-        <div className="w-full max-w-md">
+      <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
+        <title>Admin Login — TWI Season 7</title>
+        <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
+        <TopBar title="Admin Portal" />
+        
+        <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4 pb-4 sm:px-6">
+          <HeroHeader showDetails={false} />
           <AdminLoginForm
             title="Admin Dashboard"
             subtitle="Masukkan kredensial panitia untuk mengakses dashboard"
             buttonText="Masuk ke Dashboard"
             onSuccess={() => setIsAuthorized(true)}
           />
+          <Footer />
         </div>
       </main>
     );
   }
 
-  // Jika sudah login, tampilkan dashboard lengkap
+  // 📊 Jika sudah login, tampilkan Dashboard Utama
   return (
-    <main className="min-h-screen bg-neutral-950 text-white font-sans">
+    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <title>Dashboard Admin — TWI Season 7</title>
-      
-      <div className="w-[95%] max-w-none mx-auto px-4 py-8">
+      <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
+      <TopBar title="Admin Dashboard" />
+
+      <div className="relative z-10 w-[95%] max-w-7xl mx-auto px-4 py-8 flex-1">
         
         {/* Header Dashboard */}
-        <DashboardHeader
-          totalCount={totalCount}
-          isLoading={isLoading}
-          onRefresh={refresh}
-          onLogout={() => {
-            logout();
-            setIsAuthorized(false);
-          }}
-        />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <div className="flex items-center gap-2 text-primary mb-1">
+              <Trophy className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-wider">
+                Team Wars Indonesia Season 7
+              </span>
+            </div>
+            <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
+              Dashboard Admin
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Total <span className="text-foreground font-semibold">{totalCount}</span> tim
+              terdaftar di Vercel KV Redis
+            </p>
+          </div>
 
-        {/* Control Bar: Search & Filter */}
-        <DashboardControls
-          search={search}
-          setSearch={setSearch}
-          filter={filter}
-          setFilter={setFilter}
-          totalCount={totalCount}
-        />
+          {/* Action Control Panel */}
+          <div className="flex flex-wrap items-center gap-3">
+            <ApiController />
+            <CleanupButton />
+            
+            <button
+              onClick={refresh}
+              className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border hover:bg-muted text-foreground rounded-xl text-sm font-medium transition cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh Data</span>
+            </button>
+            
+            <button
+              onClick={() => {
+                logout();
+                setIsAuthorized(false);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border text-muted-foreground hover:bg-destructive hover:border-destructive hover:text-white rounded-xl text-sm font-medium transition cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Keluar</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Search & Filter Bar (Tanpa Bikin File Baru) */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Cari berdasarkan nama tim atau email..."
+              className="w-full pl-10 pr-4 py-2.5 bg-background border border-input rounded-xl text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <select
+            className="bg-background border border-input rounded-xl px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary transition cursor-pointer"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="all">Semua Tim ({totalCount})</option>
+            <option value="complete">Roster Lengkap Verified</option>
+            <option value="incomplete">Roster Belum Lengkap</option>
+          </select>
+        </div>
 
         {/* Tabel Interaktif */}
         <AdminTable
@@ -119,14 +171,17 @@ function DashboardContent() {
         {/* Modal Detail Roster */}
         <RosterModal team={selectedRoster} onClose={() => setSelectedRoster(null)} />
       </div>
+
+      <Footer />
     </main>
   );
 }
 
 export default function AdminDashboardPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-neutral-950 text-neutral-400 flex items-center justify-center text-xs">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-background text-muted-foreground flex items-center justify-center text-xs">Loading...</div>}>
       <DashboardContent />
     </Suspense>
   );
 }
+  
