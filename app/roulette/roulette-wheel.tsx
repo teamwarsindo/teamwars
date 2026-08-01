@@ -13,7 +13,6 @@ interface RouletteWheelProps {
   onSpinEnd: () => void;
 }
 
-// 🎨 Warna Murni Berdasarkan Indeks (0 = Cyan, 1 = Slate)
 const DUAL_COLORS = ["#0284C7", "#334155"];
 
 export function RouletteWheel({
@@ -43,12 +42,14 @@ export function RouletteWheel({
     const sliceAngle = (2 * Math.PI) / numSlices;
     const radius = canvas.width / 2;
 
-    const draw = (angleOffset: number) => {
+    const draw = (rotationAngle: number) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 🎨 Gambarkan irisan berdasarkan indeks (i)
+      // Start dari Jam 12 (-PI/2) agar pendaftar #1 ada di atas dan bergerak SEARAH JARUM JAM
+      const startBaseAngle = -Math.PI / 2 + rotationAngle;
+
       teams.forEach((team, i) => {
-        const start = angleOffset + i * sliceAngle;
+        const start = startBaseAngle + i * sliceAngle;
         const end = start + sliceAngle;
 
         ctx.beginPath();
@@ -56,7 +57,6 @@ export function RouletteWheel({
         ctx.arc(radius, radius, radius - 10, start, end);
         ctx.closePath();
 
-        // Warna selang-seling murni sesuai indeks i
         ctx.fillStyle = DUAL_COLORS[i % 2];
         ctx.fill();
         ctx.lineWidth = 1.5;
@@ -85,7 +85,7 @@ export function RouletteWheel({
         ctx.restore();
       });
 
-      // 📍 Jarum Penanda Atas (Jam 12 / 1.5 PI Radian)
+      // Jarum Jam 12 Atas
       ctx.beginPath();
       ctx.moveTo(radius - 12, 10);
       ctx.lineTo(radius + 12, 10);
@@ -107,17 +107,10 @@ export function RouletteWheel({
     const startAnimTime = startTimeMs || performance.now();
     const targetSlice = winningIndex ?? 0;
 
-    // 🎯 RUMUS EKSAK POSISI JARUM JAM 12:
-    // Posisikan tengah irisan targetSlice tepat berhadapan dengan jarum jam 12 (1.5 * PI)
+    // 🎯 RUMUS ROTASI PENGUNDIAN SEARAH JARUM JAM:
+    // Posisikan tengah irisan targetSlice tepat berhenti di bawah jarum jam 12
     const sliceMiddle = (targetSlice + 0.5) * sliceAngle;
-    
-    // 5 Putaran Penuh (10 * PI) + Penyesuaian Offset Jarum Jam 12
-    let baseTargetAngle = 10 * Math.PI + (1.5 * Math.PI - sliceMiddle);
-    
-    // Pastikan nilai sudut selalu positif untuk arah putaran searah jarum jam
-    while (baseTargetAngle < currentAngleRef.current) {
-      baseTargetAngle += 2 * Math.PI;
-    }
+    const baseTargetAngle = 10 * Math.PI - sliceMiddle;
 
     const computedTargetAngle = targetAngleServer ?? baseTargetAngle;
 
@@ -125,8 +118,6 @@ export function RouletteWheel({
       const now = performance.now();
       const elapsed = Math.max(0, now - startAnimTime);
       const progress = Math.min(elapsed / durationMs, 1);
-      
-      // Easing Function: Putaran cepat di awal lalu melambat halus di akhir
       const easeOut = 1 - Math.pow(1 - progress, 3);
 
       const currentAngle = easeOut * computedTargetAngle;
