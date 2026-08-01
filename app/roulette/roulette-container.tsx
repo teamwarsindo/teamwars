@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { RouletteWheel } from "./roulette-wheel";
-import { TeamItem, RouletteState } from "@/app/api/roulette-state/route";
+import { TeamItem } from "@/app/api/roulette-state/route";
 import Swal from "sweetalert2";
 
 export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
@@ -17,40 +17,42 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const [winningIndex, setWinningIndex] = useState<number | null>(null);
   const [celebrationWinner, setCelebrationWinner] = useState<TeamItem | null>(null);
   
-  // Ref untuk mendeteksi event spin terbaru
   const lastProcessedSpinRef = useRef<number | null>(null);
   const [spinStartTimeMs, setSpinStartTimeMs] = useState<number | undefined>(undefined);
 
   const totalSlots = masterTeams.length;
   const halfQuota = Math.ceil(totalSlots / 2);
 
-  // Sync state dari KV
   const fetchState = async () => {
     try {
       const res = await fetch("/api/roulette-state");
-      const data: RouletteState & { masterTeams: TeamItem[] } = await res.json();
+      const data = await res.json();
       
       if (data) {
         setMasterTeams(data.masterTeams || []);
         
-        // Update data jika tidak sedang muter di layar client
         if (!isSpinning) {
           setRemainingTeams(data.remainingTeams || []);
           setGroupA(data.groupA || []);
           setGroupB(data.groupB || []);
         }
 
-        // 🎬 LOGIKA SIARAN LIVE UNTUK USER/PENONTON
+        if (!isAdmin) {
+          if (!data.celebrationWinner) {
+            setCelebrationWinner(null);
+          } else if (!isSpinning && data.celebrationWinner) {
+            setCelebrationWinner(data.celebrationWinner);
+          }
+        }
+
         if (!isAdmin && data.spinEvent && data.spinEvent.startTime !== lastProcessedSpinRef.current) {
           const now = Date.now();
           const elapsed = now - data.spinEvent.startTime;
 
-          // Jika event spin belum kadaluarsa (masih dalam 4 detik)
           if (elapsed < data.spinEvent.durationMs) {
             lastProcessedSpinRef.current = data.spinEvent.startTime;
             setWinningIndex(data.spinEvent.winningIndex);
             
-            // Hitung penyesuaian waktu lokal agar animasi halus
             const localStartMs = performance.now() - elapsed;
             setSpinStartTimeMs(localStartMs);
             setIsSpinning(true);
@@ -68,7 +70,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     fetchState();
   }, []);
 
-  // Polling halus 1 detik di background
   useEffect(() => {
     const interval = setInterval(() => {
       fetchState();
@@ -77,28 +78,14 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     return () => clearInterval(interval);
   }, [isSpinning, isAdmin]);
 
-  // Simpan State & Trigger Spin Event ke KV
-  const triggerSpinToKV = async (winIdx: number, targetGrp: "GROUP_A" | "GROUP_B") => {
-    const spinData = {
-      winningIndex: winIdx,
-      startTime: Date.now(),
-      durationMs: 4000,
-      targetGroup: targetGrp,
-    };
-
-    await fetch("/api/roulette-state", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        remainingTeams,
-        groupA,
-        groupB,
-        spinEvent: spinData,
-      }),
-    }).catch(() => null);
-  };
-
-  const saveToKV = async (newRemaining: TeamItem[], newGroupA: TeamItem[], newGroupB: TeamItem[]) => {
+  const saveStateToKV = async (
+    newRemaining: TeamItem[],
+    newGroupA: TeamItem[],
+    newGroupB: TeamItem[],
+    winner: TeamItem | null,
+    spinEventData: any = null,
+    logData: any = null
+  ) => {
     await fetch("/api/roulette-state", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -106,33 +93,40 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         remainingTeams: newRemaining,
         groupA: newGroupA,
         groupB: newGroupB,
-        spinEvent: null, // Reset spin event setelah selesai
+        celebrationWinner: winner,
+        spinEvent: spinEventData,
+        newLog: logData,
       }),
     }).catch(() => null);
   };
 
-  // ADMIN: KLIK TOMBOL PUTAR
   const handleStartSpin = () => {
     if (isSpinning || remainingTeams.length === 0) return;
+    
     setCelebrationWinner(null);
     const randomIndex = Math.floor(Math.random() * remainingTeams.length);
     
-    let target: "GROUP_A" | "GROUP_B" = "GROUP_A";
+    let target: "Group A" | "Group B" = "Group A";
     if (manualGroup === "AUTO") {
-      target = groupA.length < halfQuota ? "GROUP_A" : "GROUP_B";
+      target = groupA.length < halfQuota ? "Group A" : "Group B";
     } else {
-      target = manualGroup === "GROUP_A" ? "GROUP_A" : "GROUP_B";
+      target = manualGroup === "GROUP_A" ? "Group A" : "Group B";
     }
 
     setWinningIndex(randomIndex);
     setSpinStartTimeMs(performance.now());
     setIsSpinning(true);
 
-    // Kirim sinyal spin live ke Vercel KV
-    triggerSpinToKV(randomIndex, target);
+    const spinData = {
+      winningIndex: randomIndex,
+      startTime: Date.now(),
+      durationMs: 4000,
+      targetGroup: target,
+    };
+
+    saveStateToKV(remainingTeams, groupA, groupB, null, spinData, null);
   };
 
-  // ANIMASI SELESAI (SAMA UNTUK ADMIN & PENONTON)
   const handleSpinEnd = () => {
     if (winningIndex === null) return;
 
@@ -147,6 +141,9 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     if (target === "AUTO") {
       target = newGroupA.length < halfQuota ? "GROUP_A" : "GROUP_B";
     }
+
+    const groupName: "Group A" | "Group B" = target === "GROUP_A" ? "Group A" : "Group B";
+    const slotNum = target === "GROUP_A" ? newGroupA.length + 1 : newGroupB.length + 1;
 
     if (target === "GROUP_A") {
       newGroupA.push(selectedTeam);
@@ -163,14 +160,30 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     setCelebrationWinner(selectedTeam);
 
     if (isAdmin) {
-      saveToKV(newRemaining, newGroupA, newGroupB);
+      const newLogItem = {
+        id: `${Date.now()}-${selectedTeam.name.replace(/\s+/g, '')}`,
+        timestamp: new Date().toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" }) + " WIB",
+        teamName: selectedTeam.name,
+        teamLogo: selectedTeam.logo,
+        targetGroup: groupName,
+        slotNumber: slotNum,
+      };
+
+      saveStateToKV(newRemaining, newGroupA, newGroupB, selectedTeam, null, newLogItem);
+    }
+  };
+
+  const handleCloseCelebration = () => {
+    setCelebrationWinner(null);
+    if (isAdmin) {
+      saveStateToKV(remainingTeams, groupA, groupB, null, null, null);
     }
   };
 
   const handleReset = async () => {
     const result = await Swal.fire({
       title: "RESET PENGUNDIAN?",
-      html: "Apakah kamu yakin ingin mengosongkan hasil Group A & Group B?",
+      html: "Apakah kamu yakin ingin mengosongkan hasil Group A & Group B dan membersihkan log di Discord?",
       icon: "warning",
       background: "#171717",
       color: "#fff",
@@ -195,7 +208,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     Swal.fire({
       title: "Berhasil Direset",
-      text: "Data pengundian telah berhasil dibersihkan dari Vercel KV.",
+      text: "Seluruh tim dikembalikan ke roda dan log di Discord telah dibersihkan.",
       icon: "success",
       background: "#171717",
       color: "#fff",
@@ -203,14 +216,15 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     });
   };
 
+  // 🏷️ Hapus kata "Auto", hanya tampilkan "Group A" / "Group B"
   const currentTargetLabel =
     manualGroup === "GROUP_A"
-      ? "GROUP A"
+      ? "Group A"
       : manualGroup === "GROUP_B"
-      ? "GROUP B"
+      ? "Group B"
       : groupA.length < halfQuota
-      ? "GROUP A (Auto)"
-      : "GROUP B (Auto)";
+      ? "Group A"
+      : "Group B";
 
   if (isLoading) {
     return (
@@ -225,7 +239,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="relative flex w-full max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-between">
       
-      {/* 🎊 MODAL POPUP PERAYAAN TIM TERPILIH */}
+      {/* 🎊 MODAL POPUP TIM TERPILIH */}
       {celebrationWinner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-4">
           <div className="relative w-full max-w-md rounded-3xl border-2 border-primary bg-card p-8 text-center shadow-[0_0_80px_rgba(0,255,255,0.4)]">
@@ -254,15 +268,21 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
               {celebrationWinner.name}
             </h2>
             <p className="text-sm text-muted-foreground mb-6">
-              Berhasil masuk ke slot <span className="font-bold text-primary">{groupA.some(t => t.name === celebrationWinner.name) ? "GROUP A" : "GROUP B"}</span>
+              Berhasil masuk ke slot <span className="font-bold text-primary">{groupA.some(t => t.name === celebrationWinner.name) ? "Group A" : "Group B"}</span>
             </p>
             
-            <button
-              onClick={() => setCelebrationWinner(null)}
-              className="w-full rounded-xl bg-primary py-3 text-xs font-bold uppercase tracking-widest text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/20 cursor-pointer"
-            >
-              {isAdmin ? "LANJUTKAN DRAW ➔" : "TUTUP NOTIFIKASI"}
-            </button>
+            {isAdmin ? (
+              <button
+                onClick={handleCloseCelebration}
+                className="w-full rounded-xl bg-primary py-3 text-xs font-bold uppercase tracking-widest text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/20 cursor-pointer"
+              >
+                LANJUTKAN DRAW ➔
+              </button>
+            ) : (
+              <div className="rounded-xl bg-muted/40 p-3 text-xs font-medium text-muted-foreground animate-pulse">
+                ⏳ Menunggu Admin Melanjutkan Draw...
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -296,7 +316,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           </div>
         )}
 
-        {/* 🎛️ PANEL KONTROL ADMIN VS TAMPILAN PENONTON (LIVE STREAM) */}
+        {/* KONTROL ADMIN VS PENONTON */}
         {isAdmin ? (
           <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
             <div className="flex w-full items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 p-1">
@@ -347,11 +367,10 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
               disabled={isSpinning}
               className="w-full rounded-xl border border-destructive/40 bg-destructive/10 py-2 text-[10px] font-bold uppercase tracking-wider text-destructive hover:bg-destructive/20 cursor-pointer"
             >
-              🔄 RESET DRAW (HAPUS DB KV)
+              🔄 RESET DRAW
             </button>
           </div>
         ) : (
-          /* 📺 TAMPILAN BERSIH PENONTON (LIVE SPECTATOR) - KONTROL HIDDEN */
           <div className="mt-6 flex flex-col items-center gap-2">
             <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/20 px-4 py-2 text-xs font-bold text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
               <span className="relative flex h-2.5 w-2.5">
@@ -452,5 +471,5 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     </div>
   );
-    }
-            
+      }
+      
