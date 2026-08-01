@@ -6,7 +6,19 @@ const KV_KEY_ROULETTE = 'twi:roulette_state';
 export interface TeamItem {
   name: string;
   logo: string;
-  color?: string;
+}
+
+export interface RouletteState {
+  remainingTeams: TeamItem[];
+  groupA: TeamItem[];
+  groupB: TeamItem[];
+  // Data sync animasi live
+  spinEvent?: {
+    winningIndex: number;
+    startTime: number; // Timestamp Date.now()
+    durationMs: number; // Misal 4000ms
+    targetGroup: "GROUP_A" | "GROUP_B";
+  } | null;
 }
 
 export async function GET() {
@@ -24,16 +36,11 @@ export async function GET() {
         .map((team) => ({
           name: team?.namaTim || team?.name || 'Unknown Team',
           logo: team?.logoTim || team?.logo || '/logo.webp',
-          color: team?.warna || team?.color || undefined,
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    const currentState = await kv.get<{
-      remainingTeams: TeamItem[];
-      groupA: TeamItem[];
-      groupB: TeamItem[];
-    }>(KV_KEY_ROULETTE);
+    const currentState = await kv.get<RouletteState>(KV_KEY_ROULETTE);
 
     if (!currentState) {
       return NextResponse.json({
@@ -41,6 +48,7 @@ export async function GET() {
         remainingTeams: masterTeams,
         groupA: [],
         groupB: [],
+        spinEvent: null,
       });
     }
 
@@ -57,12 +65,13 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { remainingTeams, groupA, groupB } = body;
+    const { remainingTeams, groupA, groupB, spinEvent } = body;
 
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams,
       groupA,
       groupB,
+      spinEvent: spinEvent || null,
     });
 
     return NextResponse.json({ success: true });
@@ -80,4 +89,4 @@ export async function DELETE() {
     console.error('Error DELETE Roulette State:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-  }
+}
