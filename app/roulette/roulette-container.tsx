@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { RouletteWheel } from "./roulette-wheel";
 import { TeamItem } from "@/app/api/roulette-state/route";
 import Swal from "sweetalert2";
@@ -11,6 +11,9 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const [groupA, setGroupA] = useState<TeamItem[]>([]);
   const [groupB, setGroupB] = useState<TeamItem[]>([]);
   
+  // 🔀 Mode Target Group Manual (Auto / Group A / Group B)
+  const [manualGroup, setManualGroup] = useState<"AUTO" | "GROUP_A" | "GROUP_B">("AUTO");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSpinning, setIsSpinning] = useState(false);
   const [winningIndex, setWinningIndex] = useState<number | null>(null);
@@ -19,23 +22,38 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const totalSlots = masterTeams.length;
   const halfQuota = Math.ceil(totalSlots / 2);
 
-  // Load state dari KV saat pertama kali buka
+  const fetchState = async () => {
+    try {
+      const res = await fetch("/api/roulette-state");
+      const data = await res.json();
+      if (data) {
+        setMasterTeams(data.masterTeams || []);
+        setRemainingTeams(data.remainingTeams || []);
+        setGroupA(data.groupA || []);
+        setGroupB(data.groupB || []);
+      }
+    } catch (err) {
+      console.error("Error fetching state:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 1. Initial Load
   useEffect(() => {
-    setIsLoading(true);
-    fetch("/api/roulette-state")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data) {
-          const master = data.masterTeams || [];
-          setMasterTeams(master);
-          setRemainingTeams(data.remainingTeams || master);
-          setGroupA(data.groupA || []);
-          setGroupB(data.groupB || []);
-        }
-      })
-      .catch((err) => console.error("Error fetching state:", err))
-      .finally(() => setIsLoading(false));
+    fetchState();
   }, []);
+
+  // ⚡ 2. LIVE REAL-TIME POLLING DI SISI USER (Setiap 2 Detik saat tidak sedang memutar)
+  useEffect(() => {
+    if (isSpinning) return; // Jangan refresh state saat animasi roda sedang berputar
+
+    const interval = setInterval(() => {
+      fetchState();
+    }, 2000); // Polling setiap 2 detik secara halus di background
+
+    return () => clearInterval(interval);
+  }, [isSpinning]);
 
   const saveToKV = async (newRemaining: TeamItem[], newGroupA: TeamItem[], newGroupB: TeamItem[]) => {
     await fetch("/api/roulette-state", {
@@ -62,7 +80,13 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     let newGroupA = [...groupA];
     let newGroupB = [...groupB];
 
-    if (newGroupA.length < halfQuota) {
+    // 🔀 Penentuan Group Berdasarkan Pilihan Admin atau Auto
+    let target = manualGroup;
+    if (target === "AUTO") {
+      target = newGroupA.length < halfQuota ? "GROUP_A" : "GROUP_B";
+    }
+
+    if (target === "GROUP_A") {
       newGroupA.push(selectedTeam);
     } else {
       newGroupB.push(selectedTeam);
@@ -79,7 +103,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     saveToKV(newRemaining, newGroupA, newGroupB);
   };
 
-  // 🔥 NOTIFIKASI RESET DENGAN SWEETALERT2 DARK THEME
   const handleReset = async () => {
     const result = await Swal.fire({
       title: "RESET PENGUNDIAN?",
@@ -116,7 +139,15 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     });
   };
 
-  const targetGroup = groupA.length < halfQuota ? "GROUP A" : "GROUP B";
+  // Menentukan label target group saat ini
+  const currentTargetLabel =
+    manualGroup === "GROUP_A"
+      ? "GROUP A"
+      : manualGroup === "GROUP_B"
+      ? "GROUP B"
+      : groupA.length < halfQuota
+      ? "GROUP A (Auto)"
+      : "GROUP B (Auto)";
 
   if (isLoading) {
     return (
@@ -139,7 +170,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
               🎉 TIM TERPILIH!
             </span>
             
-            {/* LOGO DENGAN FALLBACK SAMA DENGAN ADMINTABLE */}
             <div className="relative mx-auto mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-2 shadow-inner">
               {celebrationWinner.logo ? (
                 <img
@@ -147,7 +177,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
                   alt={celebrationWinner.name}
                   className="h-full w-full object-cover rounded-xl"
                   onError={(e) => {
-                    // Jika gambar URL broken, ganti ke gambar fallback
                     (e.target as HTMLImageElement).src = "/logo.webp";
                   }}
                 />
@@ -177,9 +206,11 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
       {/* AREA ROULETTE */}
       <div className="flex flex-1 flex-col items-center rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-md">
+        
+        {/* TARGET SLOT DISPLAY */}
         <div className="mb-4 text-center">
           <span className="inline-block rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
-            Target Slot: <span className={groupA.length < halfQuota ? "text-cyan-400" : "text-amber-400"}>{targetGroup}</span>
+            Target Slot: <span className={currentTargetLabel.includes("A") ? "text-cyan-400" : "text-amber-400"}>{currentTargetLabel}</span>
           </span>
         </div>
 
@@ -202,9 +233,47 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           </div>
         )}
 
-        {/* KONTROL ADMIN */}
+        {/* KONTROL ADMIN & SWITCH GROUP */}
         {isAdmin ? (
-          <div className="mt-6 flex w-full max-w-xs flex-col gap-2">
+          <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
+            
+            {/* 🔀 SWITCHER TARGET GROUP MANUAL */}
+            <div className="flex w-full items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 p-1">
+              <button
+                type="button"
+                onClick={() => setManualGroup("AUTO")}
+                className={`flex-1 rounded-lg py-1.5 text-[10px] font-bold uppercase transition ${
+                  manualGroup === "AUTO"
+                    ? "bg-primary text-primary-foreground shadow"
+                    : "text-neutral-400 hover:text-white"
+                }`}
+              >
+                Auto
+              </button>
+              <button
+                type="button"
+                onClick={() => setManualGroup("GROUP_A")}
+                className={`flex-1 rounded-lg py-1.5 text-[10px] font-bold uppercase transition ${
+                  manualGroup === "GROUP_A"
+                    ? "bg-cyan-500 text-white shadow"
+                    : "text-neutral-400 hover:text-white"
+                }`}
+              >
+                Group A
+              </button>
+              <button
+                type="button"
+                onClick={() => setManualGroup("GROUP_B")}
+                className={`flex-1 rounded-lg py-1.5 text-[10px] font-bold uppercase transition ${
+                  manualGroup === "GROUP_B"
+                    ? "bg-amber-500 text-white shadow"
+                    : "text-neutral-400 hover:text-white"
+                }`}
+              >
+                Group B
+              </button>
+            </div>
+
             <button
               onClick={handleStartSpin}
               disabled={isSpinning || remainingTeams.length === 0 || masterTeams.length === 0}
@@ -221,8 +290,12 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
             </button>
           </div>
         ) : (
-          <div className="mt-6 rounded-lg bg-muted/50 px-4 py-2 text-[11px] font-medium text-muted-foreground">
-            👁️ Mode Penonton (Live Spectator)
+          <div className="mt-6 flex items-center gap-2 rounded-lg bg-muted/50 px-4 py-2 text-[11px] font-medium text-muted-foreground">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Live Spectator Mode (Auto Update)</span>
           </div>
         )}
       </div>
@@ -246,7 +319,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
                 <span className="text-muted-foreground">Slot #{i + 1}</span>
                 {groupA[i] ? (
                   <div className="flex items-center gap-2">
-                    {/* AVATAR LOGO SAMA PERSIS SEPERTI ADMINTABLE */}
                     <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-950 border border-neutral-800 shrink-0">
                       {groupA[i].logo ? (
                         <img
@@ -288,7 +360,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
                 <span className="text-muted-foreground">Slot #{i + 1}</span>
                 {groupB[i] ? (
                   <div className="flex items-center gap-2">
-                    {/* AVATAR LOGO SAMA PERSIS SEPERTI ADMINTABLE */}
                     <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-950 border border-neutral-800 shrink-0">
                       {groupB[i].logo ? (
                         <img
@@ -316,4 +387,5 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     </div>
   );
-      }
+  }
+  
