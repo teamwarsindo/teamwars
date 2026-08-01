@@ -12,7 +12,6 @@ export function ApiController() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [apiResponse, setApiResponse] = useState<string | null>(null);
 
-  // 🔍 Scan otomatis daftar API Route
   const fetchRoutes = async () => {
     setIsLoadingRoutes(true);
     try {
@@ -35,65 +34,57 @@ export function ApiController() {
     }
   }, [isOpen]);
 
-  // 🚀 SEKALI KLIK: Eksekusi metode GET, POST, dan DELETE secara otomatis
-  const handleExecuteAllMethods = async () => {
+  // 🎯 Run Biasa Sesuai Apa Adanya API
+  const handleExecuteApi = async () => {
     if (!selectedRoute) return;
 
     setIsExecuting(true);
-    setApiResponse('⏳ Memproses eksekusi semua metode (GET, POST, DELETE)...');
+    setApiResponse('⏳ Sedang memproses request API...');
 
-    const methods: ('GET' | 'POST' | 'DELETE')[] = ['GET', 'POST', 'DELETE'];
-    let combinedResults = '';
+    try {
+      const res = await fetch(selectedRoute, {
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-    for (const method of methods) {
-      try {
-        const res = await fetch(selectedRoute, {
-          method: method,
-          headers: { 'Content-Type': 'application/json' },
-        });
+      const contentType = res.headers.get('content-type');
+      let data: any;
 
-        const contentType = res.headers.get('content-type');
-        let data: any;
-
-        if (contentType && contentType.includes('application/json')) {
-          data = await res.json();
-        } else {
-          data = await res.text();
-        }
-
-        const formattedData = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
-        
-        combinedResults += `========================================\n`;
-        combinedResults += `🔹 METHOD: ${method} (${res.status} ${res.statusText})\n`;
-        combinedResults += `========================================\n`;
-        combinedResults += `${formattedData}\n\n`;
-
-      } catch (err: any) {
-        combinedResults += `========================================\n`;
-        combinedResults += `❌ METHOD: ${method} (ERROR)\n`;
-        combinedResults += `========================================\n`;
-        combinedResults += `${err.message || 'Gagal mengeksekusi'}\n\n`;
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        data = await res.text();
       }
+
+      const formattedData = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+      
+      let resultText = `========================================\n`;
+      resultText += `🔹 RESPONSE STATUS: ${res.status} ${res.statusText}\n`;
+      resultText += `========================================\n`;
+      resultText += `${formattedData}`;
+
+      setApiResponse(resultText);
+
+      if (res.ok) {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: `API ${selectedRoute} Selesai!`,
+          showConfirmButton: false,
+          timer: 2000,
+          background: '#171717',
+          color: '#fff',
+        });
+      }
+    } catch (err: any) {
+      setApiResponse(`❌ Error Eksekusi: ${err.message || 'Gagal terhubung ke API'}`);
+    } finally {
+      setIsExecuting(false);
     }
-
-    setApiResponse(combinedResults);
-    setIsExecuting(false);
-
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      icon: 'success',
-      title: `Eksekusi ${selectedRoute} Selesai!`,
-      showConfirmButton: false,
-      timer: 2000,
-      background: '#171717',
-      color: '#fff',
-    });
   };
 
   return (
     <>
-      {/* Tombol Pemicu di Dashboard */}
       <button
         onClick={() => setIsOpen(true)}
         className="flex items-center gap-2 px-4 py-2.5 bg-blue-600/10 border border-blue-500/30 hover:bg-blue-600/20 text-blue-400 hover:text-blue-300 rounded-xl text-sm font-medium transition cursor-pointer"
@@ -102,12 +93,10 @@ export function ApiController() {
         <span>API Runner</span>
       </button>
 
-      {/* Modal Console */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-3 py-4">
           <div className="relative w-full max-w-lg rounded-2xl border border-neutral-800 bg-neutral-950 p-5 text-white shadow-2xl max-h-[90vh] flex flex-col">
             
-            {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3 mb-4 shrink-0">
               <div className="flex items-center gap-2 text-blue-400">
                 <Terminal className="w-5 h-5" />
@@ -121,10 +110,7 @@ export function ApiController() {
               </button>
             </div>
 
-            {/* Content Body */}
             <div className="flex flex-col gap-4 overflow-y-auto pr-1">
-              
-              {/* Controls */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-neutral-400">
@@ -146,7 +132,6 @@ export function ApiController() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {/* Route Dropdown */}
                     <select
                       value={selectedRoute}
                       onChange={(e) => setSelectedRoute(e.target.value)}
@@ -159,9 +144,8 @@ export function ApiController() {
                       ))}
                     </select>
 
-                    {/* Tombol Eksekusi All */}
                     <button
-                      onClick={handleExecuteAllMethods}
+                      onClick={handleExecuteApi}
                       disabled={isExecuting || !selectedRoute}
                       className="w-full mt-1 flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition disabled:opacity-50 cursor-pointer shrink-0 shadow-lg shadow-blue-600/20"
                     >
@@ -170,19 +154,18 @@ export function ApiController() {
                       ) : (
                         <Play className="w-4 h-4 fill-current" />
                       )}
-                      <span>{isExecuting ? 'Mengeksekusi Semua Method...' : '⚡ JALANKAN API (RUN ALL)'}</span>
+                      <span>{isExecuting ? 'Memproses API...' : '⚡ JALANKAN API'}</span>
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* 📺 KOLOM HASIL RESPON CONSOLE */}
               <div className="flex flex-col gap-1.5 mt-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
                   📟 Hasil Respon Console:
                 </span>
                 <pre className="h-56 w-full overflow-x-auto overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900/90 p-3 font-mono text-[10px] leading-relaxed text-emerald-400 whitespace-pre-wrap break-all">
-                  {apiResponse || '// Klik "Jalankan API" di atas untuk mengeksekusi seluruh method dan melihat hasilnya di sini.'}
+                  {apiResponse || '// Klik "Jalankan API" untuk mengeksekusi.'}
                 </pre>
               </div>
 
@@ -193,5 +176,4 @@ export function ApiController() {
       )}
     </>
   );
-  }
-        
+}
