@@ -57,7 +57,7 @@ function DashboardContent() {
     );
   }
 
-  // 🔒 Jika belum login, tampilkan Login Form dengan Layout Shared TWI
+  // 🔒 Jika belum login, tampilkan Form Login kosongan
   if (!isAuthorized) {
     return (
       <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
@@ -67,12 +67,7 @@ function DashboardContent() {
         
         <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4 pb-4 sm:px-6">
           <HeroHeader showDetails={false} />
-          <AdminLoginForm
-            title="Admin Dashboard"
-            subtitle="Masukkan kredensial panitia untuk mengakses dashboard"
-            buttonText="Masuk ke Dashboard"
-            onSuccess={() => setIsAuthorized(true)}
-          />
+          <AdminLoginForm onSuccess={() => setIsAuthorized(true)} />
           <Footer />
         </div>
       </main>
@@ -132,7 +127,7 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Search & Filter Bar (Tanpa Bikin File Baru) */}
+        {/* Search & Filter Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-muted-foreground" />
@@ -184,4 +179,3 @@ export default function AdminDashboardPage() {
     </Suspense>
   );
 }
-  
