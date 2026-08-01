@@ -5,6 +5,7 @@ import { AdminTable } from './components/admin-table';
 import { ProofModal } from './components/proof-modal';
 import { RosterModal } from './components/roster-modal';
 import { CleanupButton } from './components/cleanup-button';
+import { ApiController } from './components/api-controller'; // 👈 IMPORT KONTROLER
 import { Search, LogOut, RefreshCw, Trophy } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -28,7 +29,6 @@ export default function AdminDashboardPage() {
     <main className="min-h-screen bg-neutral-950 text-white font-sans">
       <title>Dashboard Admin — TWI Season 7</title>
       
-      {/* 👇 INI YANG DIUBAH: w-[95%] max-w-none agar melebar maksimal 👇 */}
       <div className="w-[95%] max-w-none mx-auto px-4 py-8">
         
         {/* Header Dashboard */}
@@ -49,8 +49,9 @@ export default function AdminDashboardPage() {
             </p>
           </div>
 
-          {/* Dijejerin bareng tombol Refresh & Keluar */}
-          <div className="flex items-center gap-3">
+          {/* Action Control Panel */}
+          <div className="flex flex-wrap items-center gap-3">
+            <ApiController /> {/* 👈 TOMBOL API KONTROLER MANUAL DISCORD EMOJI */}
             <CleanupButton />
             
             <button
@@ -111,4 +112,5 @@ export default function AdminDashboardPage() {
       </div>
     </main>
   );
-}
+                }
+              
