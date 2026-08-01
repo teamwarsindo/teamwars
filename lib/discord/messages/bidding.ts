@@ -5,9 +5,6 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-/**
- * 🎨 EMBED UTAMA: Menggunakan Code Block dengan Format String Aman (Bebas Syntax Error)
- */
 export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
   const statusTitle = isClosed ? "🔴 LELANG PENAMAAN DIVISI TWI 2026 (DITUTUP)" : "🏆 LELANG PENAMAAN DIVISI TWI 2026";
   const statusDesc = isClosed 
@@ -37,7 +34,7 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
   return {
     title: statusTitle,
     description: statusDesc,
-    color: isClosed ? 0xED4245 : 0xFEE75C, // Warna Emas/Kuning Terang
+    color: isClosed ? 0xED4245 : 0xFEE75C,
     fields: [
       {
         name: "🥇 GROUP A — HIGHEST BIDDER",
@@ -63,7 +60,7 @@ export async function patchMainBidMessage(msgId: string, data: any, isClosed: bo
   const embed = buildMainBidEmbed(data, isClosed);
   const components = getBidButtons(isClosed);
 
-  await fetch(`[https://discord.com/api/v10/channels/$](https://discord.com/api/v10/channels/$){DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
+  await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
     method: 'PATCH',
     headers: {
       'Authorization': `Bot ${token}`,
