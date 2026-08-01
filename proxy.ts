@@ -6,23 +6,28 @@ import { NextResponse, type NextRequest } from 'next/server';
 function handleAdminRoutes(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. Jika request menuju API Admin, BIARKAN LEWAT (Jangan di-redirect oleh middleware)
+  // 1. Biarkan API Admin lewat tanpa di-redirect oleh middleware
   if (pathname.startsWith('/api/admin')) {
     return null;
   }
 
-  // 2. Baca Cookie Session yang dibuat oleh API Auth kamu tadi ('admin_session')
+  // 2. Baca Cookie Session
   const sessionToken = req.cookies.get('admin_session')?.value;
-  const isAdminPath = pathname.startsWith('/admin');
-  const isLoginPage = pathname === '/admin/login' || pathname === '/admin';
 
-  // A. Jika mencoba masuk Halaman Admin (dashboard, dll) TANPA Cookie Session -> Lempar ke Login
-  if (isAdminPath && !isLoginPage && !sessionToken) {
-    return NextResponse.redirect(new URL('/admin/login', req.url));
+  // 🟢 A. Jika membuka root `/admin` atau `/admin/`, paksa lempar ke `/admin/dashboard`
+  if (pathname === '/admin' || pathname === '/admin/') {
+    return NextResponse.redirect(new URL('/admin/dashboard', req.url));
   }
 
-  // B. Jika SUDAH punya Cookie Session tapi malah buka Halaman Login -> Lempar ke Dashboard
-  if (isLoginPage && sessionToken) {
+  // 🟢 B. Jika membuka `/admin/dashboard` tapi BELUM punya cookie session
+  // Biarkan LEWAT (jangan di-redirect) karena halaman /admin/dashboard kamu yang memuat form login-nya
+  if (pathname.startsWith('/admin/dashboard')) {
+    return null; 
+  }
+
+  // 🟢 C. Untuk rute sub-admin lainnya (misal: /admin/settings, /admin/users, dll)
+  // Jika BELUM login, paksa lempar ke `/admin/dashboard`
+  if (pathname.startsWith('/admin/') && !sessionToken) {
     return NextResponse.redirect(new URL('/admin/dashboard', req.url));
   }
 
@@ -73,6 +78,7 @@ export function proxy(request: NextRequest) {
 // ==========================================
 export const config = {
   matcher: [
+    '/admin',
     '/admin/:path*',
     '/registration/:path*',
   ],
