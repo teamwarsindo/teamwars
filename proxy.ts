@@ -1,19 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 // --- HELPER 1: Handle Akses Halaman Admin ---
-function handleAdminRoutes(req: NextRequest, session: string | undefined) {
+function handleAdminRoutes(req: NextRequest) {
     const { pathname } = req.nextUrl;
     
-    if (pathname.startsWith('/admin')) {
-        const isLoginRoute = pathname === '/admin/login';
-
-        if (!session && !isLoginRoute) {
-            return NextResponse.redirect(new URL('/admin/login', req.url));
-        }
-        
-        if (session && (pathname === '/admin' || isLoginRoute)) {
-            return NextResponse.redirect(new URL('/admin/dashboard', req.url));
-        }
+    // Jika mengakses halaman /admin (baik itu /admin, /admin/login, dll, selain /admin/dashboard itu sendiri)
+    if (pathname.startsWith('/admin') && pathname !== '/admin/dashboard') {
+        return NextResponse.redirect(new URL('/admin/dashboard', req.url));
     }
     
     return null;
@@ -23,15 +16,12 @@ function handleAdminRoutes(req: NextRequest, session: string | undefined) {
 function handleRegistration(req: NextRequest) {
     const { pathname } = req.nextUrl;
 
-    // Jika pengguna mencoba membuka halaman form pendaftaran (/registration)
     if (pathname === '/registration' || pathname === '/registration/') {
-        // Alihkan (Redirect) ke Halaman Utama dengan notifikasi pendaftaran ditutup
         const homeUrl = new URL('/', req.url);
         homeUrl.searchParams.set('error', 'registration_closed');
         return NextResponse.redirect(homeUrl);
     }
 
-    // Tetapkan CSRF Token untuk request API/Edit yang sah
     const res = NextResponse.next();
     if (!req.cookies.get('twi_csrf_token')) {
         res.cookies.set('twi_csrf_token', crypto.randomUUID(), {
@@ -49,10 +39,9 @@ function handleRegistration(req: NextRequest) {
 // ==========================================
 export function proxy(request: NextRequest) {
     if (process.env.NODE_ENV === 'development') return NextResponse.next();
-    
-    const session = request.cookies.get('admin_session')?.value;
 
-    const adminRedirect = handleAdminRoutes(request, session);
+    // Tidak perlu cek session di middleware lagi, langsung alihkan ke /admin/dashboard
+    const adminRedirect = handleAdminRoutes(request);
     if (adminRedirect) return adminRedirect;
     
     const registrationLogic = handleRegistration(request);
@@ -60,4 +49,4 @@ export function proxy(request: NextRequest) {
 
     return NextResponse.next();
 }
-    
+
