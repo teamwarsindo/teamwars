@@ -2,15 +2,7 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-
-// 🛠️ Fungsi pembantu untuk inject kompresi Cloudinary
-function getOptimizedLogoUrl(url: string): string {
-  if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
-    // Inject parameter kompresi gambar Cloudinary: lebar 128px, kualitas auto, format PNG
-    return url.replace('/upload/', '/upload/w_128,h_128,c_fill,q_auto,f_png/');
-  }
-  return url;
-}
+import sharp from 'sharp'; // 🛠️ Auto resize gambar murni di server Node.js
 
 export async function GET() {
   try {
@@ -66,25 +58,23 @@ export async function GET() {
       }
 
       try {
-        // 🚀 Terapkan kompresi URL Cloudinary
-        const optimizedUrl = getOptimizedLogoUrl(team.logo);
-
-        const imageRes = await fetch(optimizedUrl);
+        // 1. Download Gambar Asli
+        const imageRes = await fetch(team.logo);
         if (!imageRes.ok) throw new Error("Gagal download gambar logo.");
         
-        const contentType = imageRes.headers.get("content-type") || "image/png";
         const arrayBuffer = await imageRes.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const rawBuffer = Buffer.from(arrayBuffer);
 
-        // Cek Batas Ukuran File Discord (256 KB)
-        if (buffer.length > 256 * 1024) {
-          failedCount++;
-          details.push(`❌ Gagal ${team.name}: Ukuran file terlalu besar (${Math.round(buffer.length / 1024)} KB > 256 KB).`);
-          continue;
-        }
+        // 2. 🗜️ RESIZE & KOMPRES DENGAN SHARP (Pasti < 50 KB & 128x128px)
+        const compressedBuffer = await sharp(rawBuffer)
+          .resize(128, 128, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+          .png({ compressionLevel: 9, quality: 80 })
+          .toBuffer();
 
-        const base64Image = `data:${contentType};base64,${buffer.toString('base64')}`;
+        // 3. Ubah ke Base64 Data URI
+        const base64Image = `data:image/png;base64,${compressedBuffer.toString('base64')}`;
 
+        // 4. Kirim ke Discord API
         const res = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/emojis`, 'POST', {
           name: validName,
           image: base64Image,
@@ -114,4 +104,4 @@ export async function GET() {
     console.error("API Error create-emojis:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
-        }
+      }
