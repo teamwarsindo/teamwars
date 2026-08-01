@@ -10,33 +10,34 @@ export interface TeamItem {
 
 export async function GET() {
   try {
-    // 1. Ambil semua key tim yang diawali "teams:" dari Vercel KV
+    // 1. Ambil semua key yang diawali "teams:" dari Vercel KV
     const teamKeys = await kv.keys('teams:*');
     let masterTeams: TeamItem[] = [];
 
     if (teamKeys && teamKeys.length > 0) {
-      // Ambil seluruh data tim secara paralel
+      // 2. Gunakan kv.hgetall() secara paralel karena data disimpan menggunakan kv.hset()
       const rawTeams = await Promise.all(
-        teamKeys.map((key) => kv.get<any>(key))
+        teamKeys.map((key) => kv.hgetall<Record<string, any>>(key))
       );
 
-      // Mapping data menggunakan properti namaTim dan logoTim
+      // 3. Extract properti namaTim dan logoTim
       masterTeams = rawTeams
         .filter(Boolean)
         .map((team) => ({
-          name: team.namaTim || team.name || 'Unknown Team',
-          logo: team.logoTim || team.logo || '/logo.webp',
-        }));
+          name: team.namaTim || 'Unknown Team',
+          logo: team.logoTim || '/logo.webp',
+        }))
+        // Urutkan secara alfabetis berdasarkan nama tim
+        .sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    // 2. Ambil state pengundian roulette saat ini dari Vercel KV
+    // 4. Ambil state pengundian roulette dari KV
     const currentState = await kv.get<{
       remainingTeams: TeamItem[];
       groupA: TeamItem[];
       groupB: TeamItem[];
     }>(KV_KEY_ROULETTE);
 
-    // Jika roulette belum pernah di-spin, kembalikan masterTeams sebagai sisa tim
     if (!currentState) {
       return NextResponse.json({
         masterTeams,
@@ -61,7 +62,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { remainingTeams, groupA, groupB } = body;
 
-    // Simpan progres pengundian terbaru ke Vercel KV
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams,
       groupA,
