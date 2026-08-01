@@ -10,6 +10,7 @@ import { handleTimerCommand } from '@/lib/discord/commands/timer';
 import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
 import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
+import { handleCancelBid } from '@/lib/discord/commands/cancel-bid'; // 👈 TAMBAHAN: Handler Batal Bid Admin
 
 // Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
       if (commandName === 'cek-id') return await handleCekId(body);
       if (commandName === 'blacklist') return await handleBlacklistCommand(body);
       if (commandName === 'cek-roster') return await handleCekRoster(body);
+      if (commandName === 'cancel-bid') return await handleCancelBid(body); // 👈 TAMBAHAN: Route ke Cancel Bid
     }
 
     // 🔘 Button Interactions (Type 3)
@@ -81,7 +83,6 @@ export async function POST(req: NextRequest) {
 
         const minAmount = groupTarget === "A" ? minAmountA : minAmountB;
 
-        // Passing 2 argumen saja
         return NextResponse.json(getBidModal(groupTarget, minAmount));
       }
     }
