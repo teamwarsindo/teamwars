@@ -6,6 +6,15 @@ export const LAUNCH_TARGET = new Date(LAUNCH_TARGET_DATE).getTime()
 export const CLOSE_TARGET_DATE = "2026-07-31T19:04:31+07:00"
 export const CLOSE_TARGET = new Date(CLOSE_TARGET_DATE).getTime()
 
+// --- BIDDING CONFIGURATION (DITAMBAHKAN) ---
+// Waktu Buka Bid: 1 Agustus 2026, 00:00:00 WIB
+export const BID_START_DATE = "2026-08-01T00:00:00+07:00";
+export const BID_START_TARGET = new Date(BID_START_DATE).getTime();
+
+// Waktu Tutup Bid: 8 Agustus 2026, 20:00:00 WIB
+export const BID_CLOSE_DATE = "2026-08-08T20:00:00+07:00";
+export const BID_CLOSE_TARGET = new Date(BID_CLOSE_DATE).getTime();
+
 // Cukup ubah di sini saja jika domain berubah
 const DOMAIN = "teamwars.web.id";
 
@@ -14,7 +23,6 @@ export const EMAIL_CONFIG = {
   // Format utama untuk digunakan di fungsi pengiriman Resend
   sender: `Team Wars Indonesia <registration@${DOMAIN}>`
 };
-
 
 export const DISCORD_CONFIG = {
   // 🛡️ ROLES
@@ -42,6 +50,9 @@ export const DISCORD_CONFIG = {
 
   // Pusat CCTV (Tim Daftar & Klaim Role)
   CH_LOG: '1525775643168735344',
+
+  // Channel Lelang/Bidding (Ditambahkan)
+  CH_BID: '856446649940049930',
 
   // Guild ID
   GUILD_ID: '458835709030039553',
