@@ -26,9 +26,11 @@ export interface RouletteState {
   remainingTeams: TeamItem[];
   groupA: TeamItem[];
   groupB: TeamItem[];
+  selectedTargetGroup?: "GROUP_A" | "GROUP_B";
   celebrationWinner?: TeamItem | null;
   spinEvent?: {
     winningIndex: number;
+    targetAngle: number;
     startTime: number;
     durationMs: number;
     targetGroup: "Group A" | "Group B";
@@ -63,6 +65,7 @@ export async function GET() {
         remainingTeams: masterTeams,
         groupA: [],
         groupB: [],
+        selectedTargetGroup: "GROUP_A",
         logs,
         celebrationWinner: null,
         spinEvent: null,
@@ -83,18 +86,17 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { remainingTeams, groupA, groupB, celebrationWinner, spinEvent, newLog } = body;
+    const { remainingTeams, groupA, groupB, selectedTargetGroup, celebrationWinner, spinEvent, newLog } = body;
 
-    // 1. Simpan State Pengundian ke KV
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams,
       groupA,
       groupB,
+      selectedTargetGroup: selectedTargetGroup || "GROUP_A",
       celebrationWinner: celebrationWinner || null,
       spinEvent: spinEvent || null,
     });
 
-    // 2. Jika ada log tim baru terpilih -> Kirim ke Discord CH_SHUFFLE & Simpan ke KV
     if (newLog) {
       const embedPayload = buildRouletteLogEmbed({
         teamName: newLog.teamName,
@@ -103,7 +105,6 @@ export async function POST(req: Request) {
         slotNumber: newLog.slotNumber,
       });
 
-      // Kirim pesan ke Channel CH_SHUFFLE via bot
       const resDiscord = await discordAPI(
         `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages`,
         'POST',
@@ -127,10 +128,8 @@ export async function POST(req: Request) {
 
 export async function DELETE() {
   try {
-    // 1. Ambil seluruh log histori sebelumnya untuk menghapus pesan di Discord
     const existingLogs = (await kv.get<LogItem[]>(KV_KEY_LOGS)) || [];
 
-    // Hapus pesan-pesan log lama di channel CH_SHUFFLE
     for (const log of existingLogs) {
       if (log.discordMessageId) {
         await discordAPI(
@@ -140,7 +139,6 @@ export async function DELETE() {
       }
     }
 
-    // 2. Kirim notifikasi ringkas "Reset Draw" ke Discord
     const resetEmbedPayload = buildRouletteResetEmbed();
     await discordAPI(
       `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages`,
@@ -148,7 +146,6 @@ export async function DELETE() {
       resetEmbedPayload
     );
 
-    // 3. Hapus State KV
     await kv.del(KV_KEY_ROULETTE);
     await kv.del(KV_KEY_LOGS);
 
@@ -157,4 +154,4 @@ export async function DELETE() {
     console.error('Error DELETE Roulette State:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-                          }
+}
