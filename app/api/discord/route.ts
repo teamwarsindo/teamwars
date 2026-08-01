@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { kv } from '@vercel/kv';
 import { verifySignature } from '@/lib/discord/utils';
 
 // Slash Commands
@@ -18,7 +19,7 @@ import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 
 // Bidding Module
 import { getBidModal } from '@/lib/discord/buttons/bidding';
-import { processBidSubmission, KV_BID_KEY } from '@/lib/discord/bidding';
+import { processBidSubmission, KV_BID_KEY, BidStore } from '@/lib/discord/bidding';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -61,13 +62,11 @@ export async function POST(req: NextRequest) {
         return await handleBtTimer(body);
       }
 
-      // 🏆 Klik Tombol Bidding -> Buka Form Modal dengan Label Minimal Bid yang Dinamis
+      // 🏆 Handler Tombol Bidding (Menampilkan Modal Form dengan Min Nominal Dinamis)
       if (customId.startsWith('btn_bid_')) {
         const groupTarget = customId.replace('btn_bid_', '');
 
-        // Baca data KV untuk cek nominal tertinggi saat ini
-        const rawData = process.env?.KV_STORE ? await process.env.KV_STORE.get(KV_BID_KEY) : null;
-        const data = typeof rawData === 'string' ? JSON.parse(rawData) : (rawData || { groupA: null, groupB: null });
+        const data = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null };
 
         const currentA = data.groupA?.amount || 0;
         const currentB = data.groupB?.amount || 0;
@@ -84,7 +83,7 @@ export async function POST(req: NextRequest) {
       const customId = body.data.custom_id;
 
       if (customId.startsWith('modal_bid_')) {
-        return await processBidSubmission(body, process.env);
+        return await processBidSubmission(body);
       }
     }
 
