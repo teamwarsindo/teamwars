@@ -6,7 +6,7 @@ export function formatRupiah(amount: number): string {
 }
 
 /**
- * 🎨 EMBED UTAMA: Dibuat sangat menonjol dengan Codeblock & Highlight Visual
+ * 🎨 EMBED UTAMA: Menggunakan Code Block dengan Format String Aman (Bebas Syntax Error)
  */
 export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
   const statusTitle = isClosed ? "🔴 LELANG PENAMAAN DIVISI TWI 2026 (DITUTUP)" : "🏆 LELANG PENAMAAN DIVISI TWI 2026";
@@ -14,23 +14,24 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
     ? "❌ **Bidding telah resmi ditutup!** Terima kasih kepada seluruh tim yang berpartisipasi." 
     : "🔥 **Kesempatan memberikan nama resmi Divisi TWI 2026!**\nSilakan klik tombol di bawah untuk melakukan penawaran.";
 
-  const formatGroupCard = (groupData: any, groupName: string) => {
+  const formatGroupCard = (groupData: any) => {
     if (!groupData) {
-      return (
-        ````yaml\n` +
-        `STATUS : BELUM ADA BID\n` +
-        `BASE   : Rp 100.000\n` +
-        `MIN BID: Rp 110.000\n` +
-        `````
-      );
+      return [
+        "```yaml",
+        "STATUS : BELUM ADA BID",
+        "BASE   : Rp 100.000",
+        "MIN BID: Rp 110.000",
+        "```"
+      ].join("\n");
     }
-    return (
-      ````fix\n` +
-      `HIGHEST BID: ${formatRupiah(groupData.amount)}\n` +
-      `NAMA DIVISI: "${groupData.name}"\n` +
-      ````\n` +
+
+    return [
+      "```fix",
+      `HIGHEST BID: ${formatRupiah(groupData.amount)}`,
+      `NAMA DIVISI: "${groupData.name}"`,
+      "```",
       `👤 **Penawar:** <@${groupData.userId}>`
-    );
+    ].join("\n");
   };
 
   return {
@@ -40,12 +41,12 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
     fields: [
       {
         name: "🥇 GROUP A — HIGHEST BIDDER",
-        value: formatGroupCard(data.groupA, "A"),
+        value: formatGroupCard(data.groupA),
         inline: false
       },
       {
         name: "🥇 GROUP B — HIGHEST BIDDER",
-        value: formatGroupCard(data.groupB, "B"),
+        value: formatGroupCard(data.groupB),
         inline: false
       },
       {
