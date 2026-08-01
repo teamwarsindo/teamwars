@@ -43,9 +43,13 @@ function makeEphemeralResponse(content: string) {
   });
 }
 
-export async function initBiddingMessages() {
-  const initialData: BidStore = { groupA: null, groupB: null, logs: [] };
-  const isClosed = !isBidOpen();
+/**
+ * 🚀 Inisialisasi awal pengiriman pesan
+ */
+export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
+  const isClosed = overrideStatus ? overrideStatus === 'closed' : !isBidOpen();
+
+  const initialData: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
 
   const mainEmbed = buildMainBidEmbed(initialData, isClosed);
   const logEmbed = buildLogBidEmbed(initialData.logs);
@@ -69,8 +73,11 @@ export async function initBiddingMessages() {
   await kv.set(KV_BID_KEY, initialData);
 }
 
-export async function syncBidMessages(forceClosed: boolean = false) {
-  const isClosed = forceClosed || !isBidOpen();
+/**
+ * 🔄 Sync Update Embed
+ */
+export async function syncBidMessages(forceClosed?: boolean) {
+  const isClosed = typeof forceClosed === 'boolean' ? forceClosed : !isBidOpen();
 
   const data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
   const mainMsgId = await kv.get<string>(KV_MSG_MAIN_KEY);
@@ -78,15 +85,18 @@ export async function syncBidMessages(forceClosed: boolean = false) {
 
   const token = process.env.DISCORD_BOT_TOKEN;
 
-  // Jalankan PATCH secara paralel agar waktu tunggu tetap cepat
   await Promise.all([
     mainMsgId ? patchMainBidMessage(mainMsgId, data, isClosed, token!) : Promise.resolve(),
     logMsgId ? patchLogBidMessage(logMsgId, data.logs, token!) : Promise.resolve()
   ]);
 }
 
+/**
+ * 📝 Pemroses Submisi Form Modal Bidding
+ */
 export async function processBidSubmission(interaction: any) {
   if (!isBidOpen()) {
+    await syncBidMessages(true);
     return makeEphemeralResponse("❌ **Bidding sudah ditutup!** (Batas waktu: 8 Agustus 2026, 20:00 WIB)");
   }
 
@@ -95,14 +105,11 @@ export async function processBidSubmission(interaction: any) {
   
   const rows = interaction.data.components || [];
   let nameA = "";
-  let nameB = "";
   let amountRaw = "";
 
   for (const row of rows) {
     for (const comp of (row.components || [])) {
       if (comp.custom_id === "input_division_name") nameA = comp.value.trim();
-      if (comp.custom_id === "input_division_name_a") nameA = comp.value.trim();
-      if (comp.custom_id === "input_division_name_b") nameB = comp.value.trim();
       if (comp.custom_id === "input_bid_amount") amountRaw = comp.value;
     }
   }
@@ -132,12 +139,6 @@ export async function processBidSubmission(interaction: any) {
     if (amountInput < minRequiredB) {
       return makeEphemeralResponse(`❌ **Bid ditolak!** Group B saat ini **${formatRupiah(currentB === 0 ? 100000 : currentB)}**. Bid minimal kamu harus **${formatRupiah(minRequiredB)}**.`);
     }
-  } else if (groupTarget === "BOTH") {
-    const minReqA = currentA === 0 ? 110000 : currentA + 10000;
-    const minReqB = currentB === 0 ? 110000 : currentB + 10000;
-    if (amountInput < minReqA || amountInput < minReqB) {
-      return makeEphemeralResponse(`❌ **Bid ditolak!** Nominal **${formatRupiah(amountInput)}** harus lebih tinggi dari Group A (Min: ${formatRupiah(minReqA)}) DAN Group B (Min: ${formatRupiah(minReqB)}).`);
-    }
   }
 
   const member = interaction.member;
@@ -145,31 +146,17 @@ export async function processBidSubmission(interaction: any) {
   const displayName = member?.nick || user.global_name || user.username;
   const timestamp = getFullWibTimestamp();
 
-  if (groupTarget === "A" || groupTarget === "BOTH") {
+  if (groupTarget === "A") {
     data.groupA = { amount: amountInput, name: nameA, userId: user.id, username: user.username, displayName, timestamp };
+  } else if (groupTarget === "B") {
+    data.groupB = { amount: amountInput, name: nameA, userId: user.id, username: user.username, displayName, timestamp };
   }
 
-  if (groupTarget === "B" || groupTarget === "BOTH") {
-    const finalNameB = groupTarget === "BOTH" ? nameB : nameA;
-    data.groupB = { amount: amountInput, name: finalNameB, userId: user.id, username: user.username, displayName, timestamp };
-  }
+  data.logs.unshift({ group: groupTarget, amount: amountInput, name: nameA, username: user.username, displayName, timestamp });
 
-  if (groupTarget === "BOTH") {
-    data.logs.unshift({ group: "BOTH", amount: amountInput, name: `A: "${nameA}" | B: "${nameB}"`, username: user.username, displayName, timestamp });
-  } else {
-    data.logs.unshift({ group: groupTarget, amount: amountInput, name: nameA, username: user.username, displayName, timestamp });
-  }
-
-  // 1. Simpan ke KV
   await kv.set(KV_BID_KEY, data);
 
-  // 2. TUNGGU (AWAIT) PATCH update pesan Discord sampai beres, dikirim secara paralel biar wusss!
   await syncBidMessages();
 
-  // 3. Kirim respon balik
-  const successMessage = groupTarget === "BOTH"
-    ? `✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group A** (*"${nameA}"*) & **Group B** (*"${nameB}"*) telah dicatat!`
-    : `✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`;
-
-  return makeEphemeralResponse(successMessage);
+  return makeEphemeralResponse(`✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`);
 }
