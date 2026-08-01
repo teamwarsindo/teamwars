@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import { RouletteWheel } from "./roulette-wheel";
 import { TeamItem } from "@/app/api/roulette-state/route";
+import Swal from "sweetalert2";
 
 export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const [masterTeams, setMasterTeams] = useState<TeamItem[]>([]);
@@ -11,18 +11,15 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const [groupA, setGroupA] = useState<TeamItem[]>([]);
   const [groupB, setGroupB] = useState<TeamItem[]>([]);
   
-  // ⏳ Tambahkan state isLoading agar tidak langsung "Pengundian Selesai"
   const [isLoading, setIsLoading] = useState(true);
-
   const [isSpinning, setIsSpinning] = useState(false);
   const [winningIndex, setWinningIndex] = useState<number | null>(null);
   const [celebrationWinner, setCelebrationWinner] = useState<TeamItem | null>(null);
 
-  // Perhitungan kuota dinamis berdasarkan total tim yang ada di KV
   const totalSlots = masterTeams.length;
   const halfQuota = Math.ceil(totalSlots / 2);
 
-  // Ambil Data dari Vercel KV saat halaman dibuka
+  // Load state dari KV saat pertama kali buka
   useEffect(() => {
     setIsLoading(true);
     fetch("/api/roulette-state")
@@ -31,8 +28,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         if (data) {
           const master = data.masterTeams || [];
           setMasterTeams(master);
-          
-          // Jika state KV belum ada, isi remainingTeams dengan masterTeams
           setRemainingTeams(data.remainingTeams || master);
           setGroupA(data.groupA || []);
           setGroupB(data.groupB || []);
@@ -42,7 +37,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  // Simpan Perubahan ke Vercel KV
   const saveToKV = async (newRemaining: TeamItem[], newGroupA: TeamItem[], newGroupB: TeamItem[]) => {
     await fetch("/api/roulette-state", {
       method: "POST",
@@ -85,23 +79,45 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     saveToKV(newRemaining, newGroupA, newGroupB);
   };
 
+  // 🔥 NOTIFIKASI RESET DENGAN SWEETALERT2 DARK THEME
   const handleReset = async () => {
-    if (confirm("Reset ulang hasil pengundian dan hapus data di Vercel KV?")) {
-      setIsLoading(true);
-      setRemainingTeams(masterTeams);
-      setGroupA([]);
-      setGroupB([]);
-      setCelebrationWinner(null);
-      setIsSpinning(false);
+    const result = await Swal.fire({
+      title: "RESET PENGUNDIAN?",
+      html: "Apakah kamu yakin ingin mengosongkan hasil Group A & Group B serta memuat ulang seluruh tim terdaftar?",
+      icon: "warning",
+      background: "#171717",
+      color: "#fff",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#3f3f46",
+      confirmButtonText: "Ya, Reset Sekarang",
+      cancelButtonText: "Batal",
+    });
 
-      await fetch("/api/roulette-state", { method: "DELETE" }).catch(() => null);
-      setIsLoading(false);
-    }
+    if (!result.isConfirmed) return;
+
+    setIsLoading(true);
+    setRemainingTeams(masterTeams);
+    setGroupA([]);
+    setGroupB([]);
+    setCelebrationWinner(null);
+    setIsSpinning(false);
+
+    await fetch("/api/roulette-state", { method: "DELETE" }).catch(() => null);
+    setIsLoading(false);
+
+    Swal.fire({
+      title: "Berhasil Direset",
+      text: "Data pengundian telah berhasil dibersihkan dari Vercel KV.",
+      icon: "success",
+      background: "#171717",
+      color: "#fff",
+      confirmButtonColor: "#00F0FF",
+    });
   };
 
   const targetGroup = groupA.length < halfQuota ? "GROUP A" : "GROUP B";
 
-  // 1. Tampilkan status Loading saat data sedang ditarik dari KV
   if (isLoading) {
     return (
       <div className="flex h-[360px] w-full items-center justify-center rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-md">
@@ -123,14 +139,23 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
               🎉 TIM TERPILIH!
             </span>
             
-            {/* Logo Tim Besar */}
-            <div className="relative mx-auto mb-4 h-24 w-24 overflow-hidden rounded-2xl border border-primary/40 bg-muted/30 p-2">
-              <Image
-                src={celebrationWinner.logo}
-                alt={celebrationWinner.name}
-                fill
-                className="object-contain"
-              />
+            {/* LOGO DENGAN FALLBACK SAMA DENGAN ADMINTABLE */}
+            <div className="relative mx-auto mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-2 shadow-inner">
+              {celebrationWinner.logo ? (
+                <img
+                  src={celebrationWinner.logo}
+                  alt={celebrationWinner.name}
+                  className="h-full w-full object-cover rounded-xl"
+                  onError={(e) => {
+                    // Jika gambar URL broken, ganti ke gambar fallback
+                    (e.target as HTMLImageElement).src = "/logo.webp";
+                  }}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center rounded-xl bg-neutral-800 text-xs font-bold text-neutral-400">
+                  N/A
+                </div>
+              )}
             </div>
 
             <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl mb-2">
@@ -158,11 +183,10 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           </span>
         </div>
 
-        {/* 2. Cek jika masterTeams memang kosong sama sekali dari KV */}
         {masterTeams.length === 0 ? (
           <div className="flex h-[360px] w-[360px] items-center justify-center rounded-full border border-dashed border-destructive/40 bg-muted/20 text-center p-6">
             <p className="text-xs font-bold text-destructive">
-              ⚠️ Tidak ada data tim pendaftaran ditemukan di KV (`teams:*`).
+              ⚠️ Tidak ada data tim pendaftaran ditemukan di KV.
             </p>
           </div>
         ) : remainingTeams.length > 0 ? (
@@ -222,11 +246,21 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
                 <span className="text-muted-foreground">Slot #{i + 1}</span>
                 {groupA[i] ? (
                   <div className="flex items-center gap-2">
-                    {groupA[i].logo && (
-                      <div className="relative h-5 w-5 overflow-hidden rounded-full border border-primary/20">
-                        <Image src={groupA[i].logo} alt={groupA[i].name} fill className="object-cover" />
-                      </div>
-                    )}
+                    {/* AVATAR LOGO SAMA PERSIS SEPERTI ADMINTABLE */}
+                    <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-950 border border-neutral-800 shrink-0">
+                      {groupA[i].logo ? (
+                        <img
+                          src={groupA[i].logo}
+                          alt={groupA[i].name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/logo.webp";
+                          }}
+                        />
+                      ) : (
+                        <span className="text-[8px] text-neutral-500">N/A</span>
+                      )}
+                    </div>
                     <span className="font-bold text-foreground">{groupA[i].name}</span>
                   </div>
                 ) : (
@@ -254,11 +288,21 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
                 <span className="text-muted-foreground">Slot #{i + 1}</span>
                 {groupB[i] ? (
                   <div className="flex items-center gap-2">
-                    {groupB[i].logo && (
-                      <div className="relative h-5 w-5 overflow-hidden rounded-full border border-primary/20">
-                        <Image src={groupB[i].logo} alt={groupB[i].name} fill className="object-cover" />
-                      </div>
-                    )}
+                    {/* AVATAR LOGO SAMA PERSIS SEPERTI ADMINTABLE */}
+                    <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-neutral-950 border border-neutral-800 shrink-0">
+                      {groupB[i].logo ? (
+                        <img
+                          src={groupB[i].logo}
+                          alt={groupB[i].name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/logo.webp";
+                          }}
+                        />
+                      ) : (
+                        <span className="text-[8px] text-neutral-500">N/A</span>
+                      )}
+                    </div>
                     <span className="font-bold text-foreground">{groupB[i].name}</span>
                   </div>
                 ) : (
