@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Terminal, Play, Loader2, X, RefreshCw } from 'lucide-react';
+import { Terminal, Play, Loader2, X, RefreshCw, Copy, Check } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export function ApiController() {
@@ -11,6 +11,7 @@ export function ApiController() {
   const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [apiResponse, setApiResponse] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   const fetchRoutes = async () => {
     setIsLoadingRoutes(true);
@@ -34,12 +35,11 @@ export function ApiController() {
     }
   }, [isOpen]);
 
-  // 🎯 Run Biasa Sesuai Apa Adanya API
   const handleExecuteApi = async () => {
     if (!selectedRoute) return;
 
     setIsExecuting(true);
-    setApiResponse('⏳ Sedang memproses request API...');
+    setApiResponse('⏳ Sedang memproses request API & kompresi...');
 
     try {
       const res = await fetch(selectedRoute, {
@@ -81,6 +81,14 @@ export function ApiController() {
     } finally {
       setIsExecuting(false);
     }
+  };
+
+  // 📋 Fungsi Copy Hasil Response
+  const handleCopyResult = () => {
+    if (!apiResponse) return;
+    navigator.clipboard.writeText(apiResponse);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   return (
@@ -160,10 +168,22 @@ export function ApiController() {
                 )}
               </div>
 
+              {/* 📺 HASIL RESPON CONSOLE + TOMBOL COPY */}
               <div className="flex flex-col gap-1.5 mt-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-                  📟 Hasil Respon Console:
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                    📟 Hasil Respon Console:
+                  </span>
+                  {apiResponse && (
+                    <button
+                      onClick={handleCopyResult}
+                      className="flex items-center gap-1 text-[10px] font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-1 rounded-lg border border-blue-500/30 transition cursor-pointer"
+                    >
+                      {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{isCopied ? 'Tercopy!' : 'Copy Result'}</span>
+                    </button>
+                  )}
+                </div>
                 <pre className="h-56 w-full overflow-x-auto overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900/90 p-3 font-mono text-[10px] leading-relaxed text-emerald-400 whitespace-pre-wrap break-all">
                   {apiResponse || '// Klik "Jalankan API" untuk mengeksekusi.'}
                 </pre>
@@ -176,4 +196,4 @@ export function ApiController() {
       )}
     </>
   );
-}
+      }
