@@ -2,7 +2,39 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import sharp from 'sharp'; // 🛠️ Auto resize gambar murni di server Node.js
+import { v2 as cloudinary } from 'cloudinary';
+
+// Konfigurasi Cloudinary (Otomatis membaca env CLOUDINARY_URL / credentials jika ada)
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// 🗜️ Fungsi Kompresi URL Cloudinary
+function getOptimizedUrl(originalUrl: string): string {
+  try {
+    if (originalUrl.includes('res.cloudinary.com')) {
+      // Ambil Public ID dari URL Cloudinary
+      const parts = originalUrl.split('/upload/');
+      if (parts.length === 2) {
+        // Hapus prefix transformasi lama jika ada
+        const pathAfterUpload = parts[1].replace(/^v\d+\//, '').replace(/^[a-z]_[^/]+\//, '');
+        return cloudinary.url(pathAfterUpload, {
+          width: 128,
+          height: 128,
+          crop: 'fill',
+          quality: 'auto',
+          format: 'png',
+          secure: true,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("Gagal konversi URL Cloudinary, menggunakan URL asli:", e);
+  }
+  return originalUrl;
+}
 
 export async function GET() {
   try {
@@ -58,23 +90,25 @@ export async function GET() {
       }
 
       try {
-        // 1. Download Gambar Asli
-        const imageRes = await fetch(team.logo);
+        // 🚀 Optimasi URL dengan Cloudinary SDK
+        const targetUrl = getOptimizedUrl(team.logo);
+
+        const imageRes = await fetch(targetUrl);
         if (!imageRes.ok) throw new Error("Gagal download gambar logo.");
         
+        const contentType = imageRes.headers.get("content-type") || "image/png";
         const arrayBuffer = await imageRes.arrayBuffer();
-        const rawBuffer = Buffer.from(arrayBuffer);
+        const buffer = Buffer.from(arrayBuffer);
 
-        // 2. 🗜️ RESIZE & KOMPRES DENGAN SHARP (Pasti < 50 KB & 128x128px)
-        const compressedBuffer = await sharp(rawBuffer)
-          .resize(128, 128, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-          .png({ compressionLevel: 9, quality: 80 })
-          .toBuffer();
+        // Cek Batas Ukuran File Discord (256 KB)
+        if (buffer.length > 256 * 1024) {
+          failedCount++;
+          details.push(`❌ Gagal ${team.name}: Ukuran file terlalu besar (${Math.round(buffer.length / 1024)} KB > 256 KB).`);
+          continue;
+        }
 
-        // 3. Ubah ke Base64 Data URI
-        const base64Image = `data:image/png;base64,${compressedBuffer.toString('base64')}`;
+        const base64Image = `data:${contentType};base64,${buffer.toString('base64')}`;
 
-        // 4. Kirim ke Discord API
         const res = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/emojis`, 'POST', {
           name: validName,
           image: base64Image,
@@ -104,4 +138,4 @@ export async function GET() {
     console.error("API Error create-emojis:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
-      }
+            }
