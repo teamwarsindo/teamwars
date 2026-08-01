@@ -92,9 +92,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { remainingTeams, groupA, groupB, selectedTargetGroup, celebrationWinner, spinEvent, newLog } = body;
 
-    const currentState = (await kv.get<RouletteState>(KV_KEY_ROULETTE)) || {};
+    const currentState = (await kv.get<RouletteState>(KV_KEY_ROULETTE)) || ({} as RouletteState);
     let currentResetMsgId = currentState.resetMessageId || null;
-
+    
     // 🧹 HAPUS PESAN "RESET DRAW" JIKA ROULETTE MULAI DIPUTAR (SPIN AKTIF)
     if (spinEvent && currentResetMsgId) {
       await discordAPI(
