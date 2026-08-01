@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TeamItem } from "@/app/api/roulette-state/route";
 
 interface RouletteWheelProps {
@@ -12,25 +12,68 @@ interface RouletteWheelProps {
 
 const FALLBACK_COLORS = ["#00FFFF", "#1A1D24", "#008B8B", "#2A2E39", "#00BFFF", "#111827"];
 
+// 🗜️ Fungsi Kompresi Logo ke Ukuran Ringan (64x64 px)
+function compressAndResizeImage(img: HTMLImageElement, targetSize = 64): Promise<HTMLImageElement> {
+  return new Promise((resolve) => {
+    const offCanvas = document.createElement("canvas");
+    offCanvas.width = targetSize;
+    offCanvas.height = targetSize;
+    const ctx = offCanvas.getContext("2d");
+
+    if (!ctx) return resolve(img);
+
+    // Gambar ulang ke canvas kecil untuk kompresi
+    ctx.drawImage(img, 0, 0, targetSize, targetSize);
+
+    const compressedImg = new Image();
+    compressedImg.src = offCanvas.toDataURL("image/png", 0.7); // Kompresi kualitas 70%
+    compressedImg.onload = () => resolve(compressedImg);
+    compressedImg.onerror = () => resolve(img);
+  });
+}
+
 export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: RouletteWheelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentAngleRef = useRef(0);
-  const loadedImagesRef = useRef<Record<string, HTMLImageElement>>({});
+  
+  const [loadedImages, setLoadedImages] = useState<Record<string, HTMLImageElement>>({});
 
-  // Preload gambar logo tim
+  // 1. PRELOAD & KOMPRES GAMBAR LOGO secara Asynchronous
   useEffect(() => {
-    teams.forEach((team) => {
-      if (team.logo && !loadedImagesRef.current[team.logo]) {
+    let isMounted = true;
+
+    const promises = teams.map((team) => {
+      return new Promise<{ logo: string; img: HTMLImageElement | null }>((resolve) => {
+        if (!team.logo) return resolve({ logo: team.logo, img: null });
+
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.src = team.logo;
-        img.onload = () => {
-          loadedImagesRef.current[team.logo] = img;
+
+        img.onload = async () => {
+          // Kompres logo ke 64x64px agar sangat ringan diputar
+          const compressed = await compressAndResizeImage(img, 64);
+          resolve({ logo: team.logo, img: compressed });
         };
-      }
+        img.onerror = () => resolve({ logo: team.logo, img: null });
+      });
     });
+
+    Promise.all(promises).then((results) => {
+      if (!isMounted) return;
+      const imgMap: Record<string, HTMLImageElement> = {};
+      results.forEach((res) => {
+        if (res.img) imgMap[res.logo] = res.img;
+      });
+      setLoadedImages(imgMap);
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, [teams]);
 
+  // 2. RENDER CANVAS ROULETTE
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -53,7 +96,7 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         const start = angleOffset + i * sliceAngle;
         const end = start + sliceAngle;
 
-        // 🎨 Gunakan warna khas tim dari KV
+        // Draw Irisan / Wedge
         ctx.beginPath();
         ctx.moveTo(radius, radius);
         ctx.arc(radius, radius, radius - 10, start, end);
@@ -65,16 +108,21 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         ctx.strokeStyle = "rgba(0,255,255,0.3)";
         ctx.stroke();
 
-        // 🖼️ Render Logo Tim saja (Tanpa Teks Nama)
+        // Render Gambar Logo Terkompresi
         ctx.save();
         ctx.translate(radius, radius);
         ctx.rotate(start + sliceAngle / 2);
 
-        const img = loadedImagesRef.current[team.logo];
+        const img = loadedImages[team.logo];
         if (img) {
-          // Render logo di posisi tengah irisan
-          const logoSize = numSlices > 12 ? 24 : 32;
-          ctx.drawImage(img, radius - 55, -logoSize / 2, logoSize, logoSize);
+          const logoSize = numSlices > 12 ? 26 : 32;
+          const logoDistance = radius - 45;
+          ctx.drawImage(img, logoDistance - logoSize / 2, -logoSize / 2, logoSize, logoSize);
+        } else {
+          ctx.textAlign = "right";
+          ctx.fillStyle = "#FFFFFF";
+          ctx.font = "bold 11px sans-serif";
+          ctx.fillText(team.name.substring(0, 4), radius - 30, 4);
         }
 
         ctx.restore();
@@ -124,7 +172,7 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
 
     animationId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animationId);
-  }, [teams, winningIndex, isSpinning, onSpinEnd]);
+  }, [teams, winningIndex, isSpinning, onSpinEnd, loadedImages]);
 
   return (
     <div className="relative flex flex-col items-center justify-center">
@@ -136,4 +184,4 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
       />
     </div>
   );
-          }
+            }
