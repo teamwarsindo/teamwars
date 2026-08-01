@@ -2,11 +2,11 @@ import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { RouletteContainer } from "./roulette-container";
-import AdminLoginFormInline from "./admin-login-form"; // Form login inline
+import AdminLoginForm from "./admin-login-form";
 
 export const metadata = {
   title: "Official Group Draw Roulette — Team Wars Indonesia",
-  description: "Pengundian Group A dan Group B resmi Team Wars Indonesia Season 7",
+  description: "Pengundian Group A dan Group B resmi Team Wars Indonesia",
 };
 
 export default async function RoulettePage({
@@ -14,7 +14,6 @@ export default async function RoulettePage({
 }: {
   searchParams: Promise<{ admin?: string }>;
 }) {
-  // 1. Await cookies() dan searchParams (Next.js 15/16)
   const cookieStore = await cookies();
   const resolvedSearchParams = await searchParams;
 
@@ -22,16 +21,11 @@ export default async function RoulettePage({
   const isAuth = Boolean(adminCookie);
   const wantsAdmin = resolvedSearchParams.admin === "true";
 
-  // 2. TENTUKAN MODE:
-  // - Jika ?admin=true tapi BELUM login -> Render Form Login di URL yang sama
   const showLoginForm = wantsAdmin && !isAuth;
-  
-  // - Mode admin aktif jika ?admin=true DAN sudah login
   const isAdmin = wantsAdmin && isAuth;
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
-      {/* Ambient Glow */}
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
       <TopBar title={showLoginForm ? "Admin Authentication" : "Official Group Draw"} />
@@ -40,7 +34,6 @@ export default async function RoulettePage({
         <HeroHeader showDetails={false} />
 
         {showLoginForm ? (
-          /* 🔐 JIKA INGIN AKSES ADMIN TAPI BELUM LOGIN: Tampilkan Form Login di URL yang sama */
           <div className="my-6 w-full max-w-md">
             <div className="mb-4 text-center">
               <span className="inline-block rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-400 border border-amber-500/20">
@@ -48,23 +41,21 @@ export default async function RoulettePage({
               </span>
             </div>
             <Suspense fallback={<div className="text-center py-6 text-xs text-muted-foreground">Loading Form...</div>}>
-              <AdminLoginFormInline />
+              <AdminLoginForm />
             </Suspense>
           </div>
         ) : (
-          /* 🎯 JIKA PENONTON / ADMIN SUDAH LOGIN: Tampilkan Roulette Engine */
           <>
-            {/* Keterangan Sistem Roulette */}
+            {/* ⚙️ DESKRIPSI SISTEM PENGUNDIAN & ALGORITMA SHUFFLE */}
             <section className="mb-6 max-w-2xl rounded-xl border border-primary/20 bg-muted/40 p-4 text-center backdrop-blur-sm">
               <h2 className="text-sm font-bold uppercase tracking-wider text-primary">
-                ⚙️ Sistem Pengundian Group (Half-Capacity)
+                ⚙️ Sistem Pengundian Transparan (Math.random Algorithm)
               </h2>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Roda roulette akan mengundi tim terdaftar satu per satu secara acak. **50% tim pertama** yang terpilih otomatis masuk ke <span className="font-bold text-cyan-400">Group A</span>. Setelah kuota Group A penuh, sisa tim selanjutnya otomatis menempati <span className="font-bold text-amber-400">Group B</span>.
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                Pengundian dilakukan secara adil dan transparan menggunakan algoritma <span className="font-mono font-semibold text-cyan-400">Uniform Distribution (Math.random())</span> di mana setiap tim memiliki probabilitas acak yang sama persis. Tim terpilih akan otomatis dihapus dari daftar putar roda untuk menghindari pengundian ganda.
               </p>
             </section>
 
-            {/* Komponen Interaktif Roulette */}
             <Suspense fallback={<div className="text-center py-10 text-xs text-muted-foreground">Loading Draw Engine...</div>}>
               <RouletteContainer isAdmin={isAdmin} />
             </Suspense>
