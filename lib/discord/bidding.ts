@@ -10,13 +10,14 @@ export interface BidData {
   name: string;
   userId: string;
   username: string;
+  displayName: string;
   timestamp: string;
 }
 
 export interface BidStore {
   groupA: BidData | null;
   groupB: BidData | null;
-  logs: Array<{ group: string; amount: number; name: string; username: string; timestamp: string }>;
+  logs: Array<{ group: string; amount: number; name: string; username: string; displayName: string; timestamp: string }>;
 }
 
 export const KV_BID_KEY = "twi_bidding_data";
@@ -28,8 +29,14 @@ export function isBidOpen(): boolean {
   return now >= BID_START_TARGET && now <= BID_CLOSE_TARGET;
 }
 
-function getWibTimestamp(): string {
-  return new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' }) + ' WIB';
+/**
+ * 🕒 Format Timestamp Lengkap: DD/MM/YYYY HH:mm:ss WIB
+ */
+function getFullWibTimestamp(): string {
+  const date = new Date();
+  const dateStr = date.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = date.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return `${dateStr} ${timeStr} WIB`;
 }
 
 function makeEphemeralResponse(content: string) {
@@ -39,9 +46,6 @@ function makeEphemeralResponse(content: string) {
   });
 }
 
-/**
- * 🚀 Inisialisasi awal pengiriman pesan 2 Embed ke channel bidding
- */
 export async function initBiddingMessages() {
   const initialData: BidStore = { groupA: null, groupB: null, logs: [] };
   const isClosed = !isBidOpen();
@@ -53,31 +57,21 @@ export async function initBiddingMessages() {
   const token = process.env.DISCORD_BOT_TOKEN;
   const headers = { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' };
 
-  // 1. Send Pesan Utama
-  const resMain = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ embeds: [mainEmbed], components })
+  const resMain = await fetch(`[https://discord.com/api/v10/channels/$](https://discord.com/api/v10/channels/$){DISCORD_CONFIG.CH_BID}/messages`, {
+    method: 'POST', headers, body: JSON.stringify({ embeds: [mainEmbed], components })
   });
   const msgMain: any = await resMain.json();
 
-  // 2. Send Pesan Log
-  const resLog = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ embeds: [logEmbed] })
+  const resLog = await fetch(`[https://discord.com/api/v10/channels/$](https://discord.com/api/v10/channels/$){DISCORD_CONFIG.CH_BID}/messages`, {
+    method: 'POST', headers, body: JSON.stringify({ embeds: [logEmbed] })
   });
   const msgLog: any = await resLog.json();
 
-  // Simpan ID Message ke Vercel KV Redis
   await kv.set(KV_MSG_MAIN_KEY, msgMain.id);
   await kv.set(KV_MSG_LOG_KEY, msgLog.id);
   await kv.set(KV_BID_KEY, initialData);
 }
 
-/**
- * 🔄 Sync / PATCH Update 2 Embed ke Discord
- */
 export async function syncBidMessages(forceClosed: boolean = false) {
   const isClosed = forceClosed || !isBidOpen();
 
@@ -87,33 +81,28 @@ export async function syncBidMessages(forceClosed: boolean = false) {
 
   const token = process.env.DISCORD_BOT_TOKEN;
 
-  if (mainMsgId) {
-    await patchMainBidMessage(mainMsgId, data, isClosed, token!);
-  }
-  if (logMsgId) {
-    await patchLogBidMessage(logMsgId, data.logs, token!);
-  }
+  if (mainMsgId) await patchMainBidMessage(mainMsgId, data, isClosed, token!);
+  if (logMsgId) await patchLogBidMessage(logMsgId, data.logs, token!);
 }
 
 /**
- * 📝 Pemroses Submission Modal Bidding User
+ * ⚡ Pemroses Modal Submission (Optimized & Quick Response)
  */
 export async function processBidSubmission(interaction: any) {
   if (!isBidOpen()) {
-    await syncBidMessages(true);
     return makeEphemeralResponse("❌ **Bidding sudah ditutup!** (Batas waktu: 8 Agustus 2026, 20:00 WIB)");
   }
 
   const customId = interaction.data.custom_id; 
   const groupTarget = customId.replace("modal_bid_", ""); 
   
-  const components = interaction.data.components;
+  const rows = interaction.data.components || [];
   let nameA = "";
   let nameB = "";
   let amountRaw = "";
 
-  for (const row of components) {
-    for (const comp of row.components) {
+  for (const row of rows) {
+    for (const comp of (row.components || [])) {
       if (comp.custom_id === "input_division_name") nameA = comp.value.trim();
       if (comp.custom_id === "input_division_name_a") nameA = comp.value.trim();
       if (comp.custom_id === "input_division_name_b") nameB = comp.value.trim();
@@ -123,31 +112,30 @@ export async function processBidSubmission(interaction: any) {
 
   const amountInput = parseInt(amountRaw.replace(/[^0-9]/g, ''), 10);
 
-  // Validasi Minimal Rp100.000 & Kelipatan 10.000
+  // Validasi Nominal
   if (isNaN(amountInput) || amountInput < 100000) {
-    return makeEphemeralResponse("❌ **Bid ditolak!** Minimal nominal bid adalah **Rp100.000**.");
+    return makeEphemeralResponse("❌ **Bid ditolak!** Minimal nominal bid adalah **Rp 100.000**.");
   }
 
   if ((amountInput - 100000) % 10000 !== 0) {
-    return makeEphemeralResponse("❌ **Bid ditolak!** Nominal bid harus dalam kelipatan **Rp10.000**.");
+    return makeEphemeralResponse("❌ **Bid ditolak!** Nominal bid harus kelipatan **Rp 10.000** (Contoh: 110000, 120000).");
   }
 
-  // Load data dari Vercel KV
-  let data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
+  const data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
 
   const currentA = data.groupA?.amount || 0;
   const currentB = data.groupB?.amount || 0;
 
-  // Logika Base Price Rp100.000 (Bid pertama peserta minimal HARUS Rp110.000)
+  // Validasi Harga Awal
   if (groupTarget === "A") {
     const minRequiredA = currentA === 0 ? 110000 : currentA + 10000;
     if (amountInput < minRequiredA) {
-      return makeEphemeralResponse(`❌ **Bid ditolak!** Bid Group A saat ini **${formatRupiah(currentA === 0 ? 100000 : currentA)}**. Bid kamu minimal harus **${formatRupiah(minRequiredA)}**.`);
+      return makeEphemeralResponse(`❌ **Bid ditolak!** Group A saat ini **${formatRupiah(currentA === 0 ? 100000 : currentA)}**. Bid minimal kamu harus **${formatRupiah(minRequiredA)}**.`);
     }
   } else if (groupTarget === "B") {
     const minRequiredB = currentB === 0 ? 110000 : currentB + 10000;
     if (amountInput < minRequiredB) {
-      return makeEphemeralResponse(`❌ **Bid ditolak!** Bid Group B saat ini **${formatRupiah(currentB === 0 ? 100000 : currentB)}**. Bid kamu minimal harus **${formatRupiah(minRequiredB)}**.`);
+      return makeEphemeralResponse(`❌ **Bid ditolak!** Group B saat ini **${formatRupiah(currentB === 0 ? 100000 : currentB)}**. Bid minimal kamu harus **${formatRupiah(minRequiredB)}**.`);
     }
   } else if (groupTarget === "BOTH") {
     const minReqA = currentA === 0 ? 110000 : currentA + 10000;
@@ -157,30 +145,38 @@ export async function processBidSubmission(interaction: any) {
     }
   }
 
-  // Simpan Data
-  const user = interaction.member?.user || interaction.user;
-  const timestamp = getWibTimestamp();
+  // 👤 Ekstrak Display Name & User ID
+  const member = interaction.member;
+  const user = member?.user || interaction.user;
+  const displayName = member?.nick || user.global_name || user.username;
+  const timestamp = getFullWibTimestamp();
 
   if (groupTarget === "A" || groupTarget === "BOTH") {
-    data.groupA = { amount: amountInput, name: nameA, userId: user.id, username: user.username, timestamp };
-    data.logs.unshift({ group: "A", amount: amountInput, name: nameA, username: user.username, timestamp });
+    data.groupA = { amount: amountInput, name: nameA, userId: user.id, username: user.username, displayName, timestamp };
   }
 
   if (groupTarget === "B" || groupTarget === "BOTH") {
     const finalNameB = groupTarget === "BOTH" ? nameB : nameA;
-    data.groupB = { amount: amountInput, name: finalNameB, userId: user.id, username: user.username, timestamp };
-    data.logs.unshift({ group: "B", amount: amountInput, name: finalNameB, username: user.username, timestamp });
+    data.groupB = { amount: amountInput, name: finalNameB, userId: user.id, username: user.username, displayName, timestamp };
   }
 
-  // Set Ke Redis KV
+  // Catat Log Riwayat
+  if (groupTarget === "BOTH") {
+    data.logs.unshift({ group: "BOTH", amount: amountInput, name: `A: "${nameA}" | B: "${nameB}"`, username: user.username, displayName, timestamp });
+  } else {
+    data.logs.unshift({ group: groupTarget, amount: amountInput, name: nameA, username: user.username, displayName, timestamp });
+  }
+
+  // Simpan KV
   await kv.set(KV_BID_KEY, data);
 
-  // Sync update embed
-  await syncBidMessages();
+  // Sync PATCH Embeds ke Discord Channel secara paralel/background
+  syncBidMessages().catch(err => console.error("Sync Embed Error:", err));
 
+  // Balas respons secepat mungkin agar tidak "didn't respond in time"
   const successMessage = groupTarget === "BOTH"
-    ? `✅ **Berhasil!** Bid sebesar **${formatRupiah(amountInput)}** untuk **Group A** (*"${nameA}"*) & **Group B** (*"${nameB}"*) telah diterima!`
-    : `✅ **Berhasil!** Bid sebesar **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah diterima!`;
+    ? `✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group A** (*"${nameA}"*) & **Group B** (*"${nameB}"*) telah dicatat!`
+    : `✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`;
 
   return makeEphemeralResponse(successMessage);
 }
