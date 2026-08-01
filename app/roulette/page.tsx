@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { RouletteContainer } from "./roulette-container";
-import AdminLoginForm from "./admin-login-form";
+import { AdminLoginForm } from "@/components/admin-login-form"; // 👈 Pakai komponen shared ini
 
 export const metadata = {
   title: "Official Group Draw Roulette — Team Wars Indonesia",
@@ -41,7 +41,11 @@ export default async function RoulettePage({
               </span>
             </div>
             <Suspense fallback={<div className="text-center py-6 text-xs text-muted-foreground">Loading Form...</div>}>
-              <AdminLoginForm />
+              <AdminLoginForm 
+                title="Login Admin Roulette"
+                subtitle="Masukkan kredensial panitia untuk mengontrol roulette"
+                buttonText="Masuk & Buka Kontrol Roulette"
+              />
             </Suspense>
           </div>
         ) : (
@@ -66,4 +70,4 @@ export default async function RoulettePage({
       </div>
     </main>
   );
-}
+              }
