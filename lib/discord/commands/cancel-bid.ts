@@ -19,13 +19,13 @@ function getFullWibTimestamp(): string {
 }
 
 export async function handleCancelBid(interaction: any) {
-  // 1. Cek Hak Akses Admin (Memeriksa Roles atau Permission)
+  // 1. Cek Hak Akses Admin (Mendukung ROLE_ADMIN, ROLE_REFEREE, atau Administrator Permission)
   const member = interaction.member;
   const userRoles: string[] = member?.roles || [];
   
-  // Masukkan ID Role Admin / Panitia TWI di sini (atau batasi ID User Admin)
-  const ADMIN_ROLES = [DISCORD_CONFIG.ROLE_ADMIN, DISCORD_CONFIG.ROLE_PANITIA]; // Sesuaikan dengan ID Role di config
-  const isAdmin = userRoles.some(roleId => ADMIN_ROLES.includes(roleId)) || member?.permissions === "8"; // 8 = Administrator Permission
+  // Menggunakan Role Admin yang ada di DISCORD_CONFIG
+  const ADMIN_ROLES = [DISCORD_CONFIG.ROLE_ADMIN, DISCORD_CONFIG.ROLE_REFEREE];
+  const isAdmin = userRoles.some(roleId => ADMIN_ROLES.includes(roleId)) || member?.permissions === "8";
 
   if (!isAdmin) {
     return makeEphemeralResponse("❌ **Akses Ditolak!** Hanya Panitia/Admin yang dapat membatalkan bid.");
@@ -56,10 +56,9 @@ export async function handleCancelBid(interaction: any) {
   const cancelledBidName = targetBid.name;
   const cancelledUser = targetBid.displayName || targetBid.username;
 
-  // 4. Cari Bid Sah Terakhir Sebagai Pengganti (Rollback Ke Highest Bidder Sebelumnya)
-  // Filter log yang tidak termasuk dalam bid yang dibatalkan
+  // 4. Rollback ke Bid Sah Terakhir (Filter log yang bukan milik bid yang dibatalkan)
   const remainingLogsForGroup = data.logs.filter(
-    log => log.group === groupTarget && log.amount !== cancelledBidAmount
+    log => log.group === groupTarget && log.amount !== cancelledBidAmount && !log.displayName.includes('[ADMIN]')
   );
 
   const previousValidBid = remainingLogsForGroup.length > 0 ? remainingLogsForGroup[0] : null;
@@ -68,7 +67,7 @@ export async function handleCancelBid(interaction: any) {
     data.groupA = previousValidBid ? {
       amount: previousValidBid.amount,
       name: previousValidBid.name,
-      userId: "", // Opsional jika log menyimpan userId
+      userId: "",
       username: previousValidBid.username,
       displayName: previousValidBid.displayName,
       timestamp: previousValidBid.timestamp
