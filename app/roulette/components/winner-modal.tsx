@@ -4,12 +4,12 @@ import { TeamItem } from "@/app/api/roulette-state/route";
 
 interface WinnerModalProps {
   winner: TeamItem;
-  targetGroup: string;
+  groupName: string; // 👈 Diubah dari targetGroup ke groupName
   isAdmin: boolean;
   onClose: () => void;
 }
 
-export function WinnerModal({ winner, targetGroup, isAdmin, onClose }: WinnerModalProps) {
+export function WinnerModal({ winner, groupName, isAdmin, onClose }: WinnerModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-4">
       <div className="relative w-full max-w-md rounded-3xl border border-primary/30 bg-card p-8 text-center shadow-2xl">
@@ -36,7 +36,7 @@ export function WinnerModal({ winner, targetGroup, isAdmin, onClose }: WinnerMod
           {winner.name}
         </h2>
         <p className="text-sm text-muted-foreground mb-6">
-          Berhasil dialokasikan ke <span className="font-bold text-primary">{targetGroup}</span>
+          Berhasil dialokasikan ke <span className="font-bold text-primary">{groupName}</span>
         </p>
 
         {isAdmin ? (
@@ -54,4 +54,4 @@ export function WinnerModal({ winner, targetGroup, isAdmin, onClose }: WinnerMod
       </div>
     </div>
   );
-}
+        }
