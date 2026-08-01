@@ -19,7 +19,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const [celebrationWinner, setCelebrationWinner] = useState<TeamItem | null>(null);
   
   const lastSpinTimeRef = useRef<number | null>(null);
-  const hasAnimatedRef = useRef<boolean>(false);
   const [spinStartTimeMs, setSpinStartTimeMs] = useState<number | undefined>(undefined);
 
   const totalSlots = masterTeams.length;
@@ -55,35 +54,28 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           setManualGroup(data.selectedTargetGroup);
         }
 
-        // Hanya update state tim jika roda tidak sedang diputar
         if (!isSpinning) {
           setRemainingTeams(data.remainingTeams || []);
           setGroupA(data.groupA || []);
           setGroupB(data.groupB || []);
         }
 
-        // 🟢 SINKRONISASI MODAL PENONTON
         if (!isAdmin) {
-          // Jika Admin sudah klik Lanjutkan Draw, tutup modal di penonton
           if (!data.celebrationWinner && !isSpinning) {
             setCelebrationWinner(null);
           }
         }
 
-        // 🎬 LOGIKA ANIMASI LIVE UNTUK PENONTON (CEK DENGAN FLAG SINGULAR)
         if (!isAdmin && data.spinEvent) {
           const spinId = data.spinEvent.startTime;
 
-          // Jika ada event spin baru yang belum pernah dianimasikan di HP penonton
           if (spinId !== lastSpinTimeRef.current) {
             lastSpinTimeRef.current = spinId;
-            hasAnimatedRef.current = true;
 
             setWinningIndex(data.spinEvent.winningIndex);
             setServerTargetAngle(data.spinEvent.targetAngle);
-            setCelebrationWinner(null); // Sembunyikan modal lama jika ada
+            setCelebrationWinner(null);
 
-            // Paksa animasi berputar penuh 4 detik di HP Penonton
             setSpinStartTimeMs(performance.now());
             setIsSpinning(true);
           }
@@ -147,7 +139,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     const numSlices = remainingTeams.length;
     const sliceAngle = (2 * Math.PI) / numSlices;
     const sliceMiddle = (randomIndex + 0.5) * sliceAngle;
-    const exactTargetAngle = 10 * Math.PI + (1.5 * Math.PI - sliceMiddle);
+    const exactTargetAngle = 10 * Math.PI - sliceMiddle;
 
     setWinningIndex(randomIndex);
     setServerTargetAngle(exactTargetAngle);
@@ -265,7 +257,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="relative flex w-full max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-between">
       
-      {/* 🎊 MODAL POPUP TIM TERPILIH */}
       {celebrationWinner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-4">
           <div className="relative w-full max-w-md rounded-3xl border border-primary/30 bg-card p-8 text-center shadow-2xl">
@@ -313,7 +304,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* AREA ROULETTE */}
       <div className="flex flex-1 flex-col items-center rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-md">
         
         <div className="mb-4 text-center">
@@ -343,7 +333,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           </div>
         )}
 
-        {/* KONTROL ADMIN VS PENONTON */}
         {isAdmin ? (
           <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
             <div className="flex w-full items-center justify-between rounded-xl border border-border bg-background p-1">
@@ -402,7 +391,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
-      {/* HASIL GROUP A & GROUP B */}
       <div className="grid w-full flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-sky-500/20 bg-sky-950/10 p-5 backdrop-blur-md">
           <div className="mb-3 flex items-center justify-between border-b border-sky-500/20 pb-2">
@@ -487,5 +475,5 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     </div>
   );
-    }
-              
+        }
+                  
