@@ -18,13 +18,14 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const [serverTargetAngle, setServerTargetAngle] = useState<number | null>(null);
   const [celebrationWinner, setCelebrationWinner] = useState<TeamItem | null>(null);
   
-  const lastProcessedSpinRef = useRef<number | null>(null);
+  const lastSpinTimeRef = useRef<number | null>(null);
+  const hasAnimatedRef = useRef<boolean>(false);
   const [spinStartTimeMs, setSpinStartTimeMs] = useState<number | undefined>(undefined);
 
   const totalSlots = masterTeams.length;
   const halfQuota = Math.ceil(totalSlots / 2);
 
-  // 🔒 Lock Scroll Body saat Modal Perayaan Terpilih Aktif
+  // 🔒 Lock Scroll Body saat Modal Aktif
   useEffect(() => {
     if (celebrationWinner) {
       document.body.style.overflow = "hidden";
@@ -36,14 +37,12 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     };
   }, [celebrationWinner]);
 
-  // Otomatis pindah pilihan default ke Group B saat Group A penuh
   useEffect(() => {
     if (groupA.length >= halfQuota && groupA.length > 0) {
       setManualGroup("GROUP_B");
     }
   }, [groupA.length, halfQuota]);
 
-  // Sync state dari KV Server
   const fetchState = async () => {
     try {
       const res = await fetch("/api/roulette-state");
@@ -52,37 +51,40 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
       if (data) {
         setMasterTeams(data.masterTeams || []);
         
-        // 🟢 Sinkronisasi Pilihan Target Grup dari Admin ke Penonton Live
         if (!isAdmin && data.selectedTargetGroup) {
           setManualGroup(data.selectedTargetGroup);
         }
 
+        // Hanya update state tim jika roda tidak sedang diputar
         if (!isSpinning) {
           setRemainingTeams(data.remainingTeams || []);
           setGroupA(data.groupA || []);
           setGroupB(data.groupB || []);
         }
 
+        // 🟢 SINKRONISASI MODAL PENONTON
         if (!isAdmin) {
-          if (!data.celebrationWinner) {
+          // Jika Admin sudah klik Lanjutkan Draw, tutup modal di penonton
+          if (!data.celebrationWinner && !isSpinning) {
             setCelebrationWinner(null);
-          } else if (!isSpinning && data.celebrationWinner) {
-            setCelebrationWinner(data.celebrationWinner);
           }
         }
 
-        // 🎬 Logika Animasi Siaran Live Penonton
-        if (!isAdmin && data.spinEvent && data.spinEvent.startTime !== lastProcessedSpinRef.current) {
-          const now = Date.now();
-          const elapsed = now - data.spinEvent.startTime;
+        // 🎬 LOGIKA ANIMASI LIVE UNTUK PENONTON (CEK DENGAN FLAG SINGULAR)
+        if (!isAdmin && data.spinEvent) {
+          const spinId = data.spinEvent.startTime;
 
-          if (elapsed < data.spinEvent.durationMs) {
-            lastProcessedSpinRef.current = data.spinEvent.startTime;
+          // Jika ada event spin baru yang belum pernah dianimasikan di HP penonton
+          if (spinId !== lastSpinTimeRef.current) {
+            lastSpinTimeRef.current = spinId;
+            hasAnimatedRef.current = true;
+
             setWinningIndex(data.spinEvent.winningIndex);
             setServerTargetAngle(data.spinEvent.targetAngle);
-            
-            const localStartMs = performance.now() - elapsed;
-            setSpinStartTimeMs(localStartMs);
+            setCelebrationWinner(null); // Sembunyikan modal lama jika ada
+
+            // Paksa animasi berputar penuh 4 detik di HP Penonton
+            setSpinStartTimeMs(performance.now());
             setIsSpinning(true);
           }
         }
@@ -98,7 +100,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     fetchState();
   }, []);
 
-  // Polling halus setiap 1 detik
   useEffect(() => {
     const interval = setInterval(() => {
       fetchState();
@@ -136,7 +137,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     saveStateToKV(remainingTeams, groupA, groupB, celebrationWinner, null, null, group);
   };
 
-  // 🎯 ADMIN: MULAI PENGUNDIAN (Hitung Sudut Presisi Eksak)
   const handleStartSpin = () => {
     if (isSpinning || remainingTeams.length === 0) return;
     
@@ -144,7 +144,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     const randomIndex = Math.floor(Math.random() * remainingTeams.length);
     const target: "Group A" | "Group B" = manualGroup === "GROUP_A" ? "Group A" : "Group B";
 
-    // 🎯 Rumus Presisi Jarum Jam 12 (1.5 PI Radian)
     const numSlices = remainingTeams.length;
     const sliceAngle = (2 * Math.PI) / numSlices;
     const sliceMiddle = (randomIndex + 0.5) * sliceAngle;
@@ -166,14 +165,12 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     saveStateToKV(remainingTeams, groupA, groupB, null, spinData, null, manualGroup);
   };
 
-  // ANIMASI SELESAI
   const handleSpinEnd = () => {
     if (winningIndex === null) return;
 
     const selectedTeam = remainingTeams[winningIndex];
     if (!selectedTeam) return;
 
-    // Hapus tim terpilih dari Roda Roulette
     const newRemaining = remainingTeams.filter((_, idx) => idx !== winningIndex);
     let newGroupA = [...groupA];
     let newGroupB = [...groupB];
@@ -268,7 +265,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="relative flex w-full max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-between">
       
-      {/* 🎊 MODAL POPUP TIM TERPILIH (LOCK SCROLL ACTIVE) */}
+      {/* 🎊 MODAL POPUP TIM TERPILIH */}
       {celebrationWinner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-4">
           <div className="relative w-full max-w-md rounded-3xl border border-primary/30 bg-card p-8 text-center shadow-2xl">
@@ -316,7 +313,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* AREA ROULETTE ENGINE */}
+      {/* AREA ROULETTE */}
       <div className="flex flex-1 flex-col items-center rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-md">
         
         <div className="mb-4 text-center">
@@ -346,7 +343,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           </div>
         )}
 
-        {/* KONTROL ADMIN VS TAMPILAN PENONTON LIVE */}
+        {/* KONTROL ADMIN VS PENONTON */}
         {isAdmin ? (
           <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
             <div className="flex w-full items-center justify-between rounded-xl border border-border bg-background p-1">
@@ -405,7 +402,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
-      {/* HASIL ALOKASI GROUP A & GROUP B */}
+      {/* HASIL GROUP A & GROUP B */}
       <div className="grid w-full flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-sky-500/20 bg-sky-950/10 p-5 backdrop-blur-md">
           <div className="mb-3 flex items-center justify-between border-b border-sky-500/20 pb-2">
@@ -491,4 +488,4 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     </div>
   );
     }
-        
+              
