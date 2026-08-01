@@ -52,9 +52,6 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
         <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/20 text-primary shadow-lg shadow-primary/10">
           <ShieldCheck className="h-8 w-8" />
         </div>
-        <h1 className="text-xl font-bold tracking-wide text-foreground sm:text-2xl">
-          Admin Portal TWI
-        </h1>
       </div>
 
       {error && (
@@ -109,4 +106,4 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
       </form>
     </div>
   );
-            }
+}
