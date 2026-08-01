@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
-import { DISCORD_CONFIG } from '@/lib/discord/config'; // ⚙️ Ambil config dari project
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 export async function GET() {
   try {
@@ -22,36 +22,64 @@ export async function GET() {
         logo: team?.logoTim || team?.logo || '',
       }));
 
+    // Ambil daftar emoji yang SUDAH ADA di Discord agar tidak duplicate
+    let existingEmojis: any[] = [];
+    try {
+      existingEmojis = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/emojis`, 'GET');
+    } catch (e) {
+      console.warn("Gagal mengambil daftar emoji eksisting:", e);
+    }
+
+    const existingNames = new Set(
+      Array.isArray(existingEmojis) ? existingEmojis.map((e) => e.name) : []
+    );
+
     let successCount = 0;
     let failedCount = 0;
     const details: string[] = [];
 
-    // 2. Loop setiap tim untuk dibuatkan emojinya di Discord
+    // 2. Loop setiap tim
     for (const team of teams) {
       if (!team.logo || !team.logo.startsWith("http")) {
         failedCount++;
-        details.push(`Skipped ${team.name}: URL logo tidak valid.`);
+        details.push(`⚠️ Skipped ${team.name}: URL logo tidak valid.`);
+        continue;
+      }
+
+      // Format nama emoji
+      const rawEmojiName = team.name
+        .replace(/[^a-zA-Z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .toLowerCase();
+
+      const validName = (rawEmojiName.length < 2 ? `t_${rawEmojiName}` : rawEmojiName).slice(0, 32);
+
+      // Cek jika emoji sudah pernah dibuat
+      if (existingNames.has(validName)) {
+        failedCount++;
+        details.push(`ℹ️ Skipped ${team.name}: Emoji :${validName}: sudah ada di Discord.`);
         continue;
       }
 
       try {
-        // Download gambar logo
+        // Download logo
         const imageRes = await fetch(team.logo);
-        if (!imageRes.ok) throw new Error("Gagal download gambar dari URL.");
+        if (!imageRes.ok) throw new Error("Gagal download gambar logo.");
         
+        const contentType = imageRes.headers.get("content-type") || "image/png";
         const arrayBuffer = await imageRes.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
-        const base64Image = `data:image/png;base64,${buffer.toString('base64')}`;
 
-        // Format nama emoji sesuai standar Discord (hanya huruf, angka, underscore min 2 karakter)
-        const emojiName = team.name
-          .replace(/[^a-zA-Z0-9]/g, '_')
-          .replace(/_+/g, '_')
-          .toLowerCase();
+        // ⚠️ Cek Batas Ukuran File Discord (Maksimal 256 KB)
+        if (buffer.length > 256 * 1024) {
+          failedCount++;
+          details.push(`❌ Gagal ${team.name}: Ukuran file logo terlalu besar (${Math.round(buffer.length / 1024)} KB > 256 KB).`);
+          continue;
+        }
 
-        const validName = emojiName.length < 2 ? `t_${emojiName}` : emojiName;
+        const base64Image = `data:${contentType};base64,${buffer.toString('base64')}`;
 
-        // 3. Kirim request ke Discord API menggunakan GUILD_ID dari config
+        // Kirim request ke Discord
         const res = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/emojis`, 'POST', {
           name: validName,
           image: base64Image,
@@ -59,14 +87,15 @@ export async function GET() {
 
         if (res && res.id) {
           successCount++;
-          details.push(`Berhasil buat emoji :${validName}: untuk tim ${team.name}`);
+          details.push(`✅ Berhasil: :${validName}: untuk ${team.name}`);
         } else {
           failedCount++;
-          details.push(`Gagal buat emoji untuk ${team.name}: Batas slot penuh atau nama sudah ada.`);
+          const errorMsg = res?.message || JSON.stringify(res);
+          details.push(`❌ Gagal ${team.name}: ${errorMsg}`);
         }
       } catch (err: any) {
         failedCount++;
-        details.push(`Error ${team.name}: ${err.message || err}`);
+        details.push(`❌ Error ${team.name}: ${err.message || err}`);
       }
     }
 
