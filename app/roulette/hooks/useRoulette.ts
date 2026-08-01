@@ -1,110 +1,51 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { TeamItem } from "@/app/api/roulette-state/route";
+import { useEffect } from "react";
+import { useRouletteSync } from "./useRouletteSync";
+import { useRouletteSpin } from "./useRouletteSpin";
 import Swal from "sweetalert2";
 
 export function useRoulette(isAdmin: boolean) {
-  const [masterTeams, setMasterTeams] = useState<TeamItem[]>([]);
-  const [remainingTeams, setRemainingTeams] = useState<TeamItem[]>([]);
-  const [groupA, setGroupA] = useState<TeamItem[]>([]);
-  const [groupB, setGroupB] = useState<TeamItem[]>([]);
-  const [manualGroup, setManualGroup] = useState<"GROUP_A" | "GROUP_B">("GROUP_A");
-  
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSpinning, setIsSpinning] = useState(false);
-  const [winningIndex, setWinningIndex] = useState<number | null>(null);
-  const [serverTargetAngle, setServerTargetAngle] = useState<number | null>(null);
-  const [celebrationWinner, setCelebrationWinner] = useState<TeamItem | null>(null);
+  const spin = useRouletteSpin();
+  const sync = useRouletteSync(isAdmin, spin.isSpinning);
 
-  const lastSpinTimeRef = useRef<number | null>(null);
-  const [spinStartTimeMs, setSpinStartTimeMs] = useState<number | undefined>(undefined);
+  const quotaGroupA = Math.ceil(sync.masterTeams.length / 2);
+  const quotaGroupB = sync.masterTeams.length - quotaGroupA;
 
-  const quotaGroupA = Math.ceil(masterTeams.length / 2);
-  const quotaGroupB = masterTeams.length - quotaGroupA;
+  const isGroupAFull = sync.groupA.length >= quotaGroupA && quotaGroupA > 0;
+  const isGroupBFull = sync.groupB.length >= quotaGroupB && quotaGroupB > 0;
+  const isCurrentGroupFull =
+    (sync.manualGroup === "GROUP_A" && isGroupAFull) ||
+    (sync.manualGroup === "GROUP_B" && isGroupBFull);
 
-  const isGroupAFull = groupA.length >= quotaGroupA && quotaGroupA > 0;
-  const isGroupBFull = groupB.length >= quotaGroupB && quotaGroupB > 0;
-  const isCurrentGroupFull = (manualGroup === "GROUP_A" && isGroupAFull) || (manualGroup === "GROUP_B" && isGroupBFull);
-
-  // Auto switch grup jika salah satu grup penuh
+  // Auto-switch grup jika salah satu grup penuh
   useEffect(() => {
-    if (manualGroup === "GROUP_A" && isGroupAFull && !isGroupBFull) setManualGroup("GROUP_B");
-    else if (manualGroup === "GROUP_B" && isGroupBFull && !isGroupAFull) setManualGroup("GROUP_A");
-  }, [groupA.length, groupB.length, isGroupAFull, isGroupBFull, manualGroup]);
-
-  // Sync state dari Vercel KV
-  const fetchState = async () => {
-    try {
-      const res = await fetch("/api/roulette-state");
-      const data = await res.json();
-      if (!data) return;
-
-      setMasterTeams(data.masterTeams || []);
-      if (!isAdmin && data.selectedTargetGroup) setManualGroup(data.selectedTargetGroup);
-
-      if (!isSpinning) {
-        const allocatedNames = new Set([...(data.groupA || []).map((t: TeamItem) => t.name), ...(data.groupB || []).map((t: TeamItem) => t.name)]);
-        const syncedRemaining = (data.remainingTeams || []).filter((t: TeamItem) => !allocatedNames.has(t.name));
-        
-        setRemainingTeams(syncedRemaining);
-        setGroupA(data.groupA || []);
-        setGroupB(data.groupB || []);
-        if (!isAdmin) setCelebrationWinner(data.celebrationWinner || null);
-      }
-
-      if (!isAdmin && data.spinEvent && data.spinEvent.startTime !== lastSpinTimeRef.current) {
-        const elapsed = Date.now() - data.spinEvent.startTime;
-        if (elapsed < data.spinEvent.durationMs) {
-          lastSpinTimeRef.current = data.spinEvent.startTime;
-          setWinningIndex(data.spinEvent.winningIndex);
-          setServerTargetAngle(data.spinEvent.targetAngle);
-          setCelebrationWinner(null);
-          setSpinStartTimeMs(performance.now() - elapsed);
-          setIsSpinning(true);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
+    if (sync.manualGroup === "GROUP_A" && isGroupAFull && !isGroupBFull) {
+      sync.setManualGroup("GROUP_B");
+    } else if (sync.manualGroup === "GROUP_B" && isGroupBFull && !isGroupAFull) {
+      sync.setManualGroup("GROUP_A");
     }
-  };
+  }, [sync.groupA.length, sync.groupB.length, isGroupAFull, isGroupBFull, sync.manualGroup]);
 
-  useEffect(() => { fetchState(); }, []);
+  // Sync Interval Polling
   useEffect(() => {
-    const interval = setInterval(fetchState, 1000);
-    return () => clearInterval(interval);
-  }, [isSpinning, isAdmin]);
+    sync.fetchState(spin.triggerRemoteSpin);
+  }, []);
 
-  const saveStateToKV = async (newRemaining: TeamItem[], newGroupA: TeamItem[], newGroupB: TeamItem[], winner: TeamItem | null, spinData: any = null) => {
-    await fetch("/api/roulette-state", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        remainingTeams: newRemaining,
-        groupA: newGroupA,
-        groupB: newGroupB,
-        selectedTargetGroup: manualGroup,
-        celebrationWinner: winner,
-        spinEvent: spinData,
-      }),
-    }).catch(() => null);
-  };
+  useEffect(() => {
+    const interval = setInterval(() => {
+      sync.fetchState(spin.triggerRemoteSpin);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [spin.isSpinning, isAdmin]);
 
   const handleStartSpin = () => {
-    if (isSpinning || remainingTeams.length === 0 || isCurrentGroupFull) return;
+    if (spin.isSpinning || sync.remainingTeams.length === 0 || isCurrentGroupFull) return;
 
-    setCelebrationWinner(null);
-    const randomIndex = Math.floor(Math.random() * remainingTeams.length);
-    const exactTargetAngle = 10 * Math.PI - (randomIndex + 0.5) * ((2 * Math.PI) / remainingTeams.length);
+    sync.setCelebrationWinner(null);
+    const { randomIndex, exactTargetAngle } = spin.calculateSpin(sync.remainingTeams);
 
-    setWinningIndex(randomIndex);
-    setServerTargetAngle(exactTargetAngle);
-    setSpinStartTimeMs(performance.now());
-    setIsSpinning(true);
-
-    saveStateToKV(remainingTeams, groupA, groupB, null, {
+    sync.saveStateToKV(sync.remainingTeams, sync.groupA, sync.groupB, null, {
       winningIndex: randomIndex,
       targetAngle: exactTargetAngle,
       startTime: Date.now(),
@@ -113,22 +54,30 @@ export function useRoulette(isAdmin: boolean) {
   };
 
   const handleSpinEnd = () => {
-    if (winningIndex === null) return;
-    const selectedTeam = remainingTeams[winningIndex];
+    if (spin.winningIndex === null) return;
+    const selectedTeam = sync.remainingTeams[spin.winningIndex];
     if (!selectedTeam) return;
 
-    const newRemaining = remainingTeams.filter((_, idx) => idx !== winningIndex);
-    const newGroupA = manualGroup === "GROUP_A" ? [...groupA, selectedTeam] : groupA;
-    const newGroupB = manualGroup === "GROUP_B" ? [...groupB, selectedTeam] : groupB;
+    const newRemaining = sync.remainingTeams.filter((_, idx) => idx !== spin.winningIndex);
+    const newGroupA = sync.manualGroup === "GROUP_A" ? [...sync.groupA, selectedTeam] : sync.groupA;
+    const newGroupB = sync.manualGroup === "GROUP_B" ? [...sync.groupB, selectedTeam] : sync.groupB;
 
-    setRemainingTeams(newRemaining);
-    setGroupA(newGroupA);
-    setGroupB(newGroupB);
-    setIsSpinning(false);
-    setWinningIndex(null);
-    setCelebrationWinner(selectedTeam);
+    sync.setRemainingTeams(newRemaining);
+    sync.setGroupA(newGroupA);
+    sync.setGroupB(newGroupB);
+    spin.resetSpinState();
+    sync.setCelebrationWinner(selectedTeam);
 
-    if (isAdmin) saveStateToKV(newRemaining, newGroupA, newGroupB, selectedTeam, null);
+    if (isAdmin) {
+      sync.saveStateToKV(newRemaining, newGroupA, newGroupB, selectedTeam, null);
+    }
+  };
+
+  const closeCelebration = (adminMode: boolean) => {
+    sync.setCelebrationWinner(null);
+    if (adminMode) {
+      sync.saveStateToKV(sync.remainingTeams, sync.groupA, sync.groupB, null);
+    }
   };
 
   const handleReset = async () => {
@@ -136,23 +85,31 @@ export function useRoulette(isAdmin: boolean) {
       title: "RESET PENGUNDIAN?",
       text: "Kosongkan hasil Group A & Group B?",
       icon: "warning",
+      background: "#171717",
+      color: "#fff",
       showCancelButton: true,
       confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#3f3f46",
       confirmButtonText: "Ya, Reset",
     });
 
     if (!res.isConfirmed) return;
-    setIsLoading(true);
+    sync.setIsLoading(true);
     await fetch("/api/roulette-state", { method: "DELETE" }).catch(() => null);
-    fetchState();
+    sync.fetchState(spin.triggerRemoteSpin);
   };
 
   return {
-    masterTeams, remainingTeams, groupA, groupB, manualGroup, setManualGroup,
-    isLoading, isSpinning, winningIndex, serverTargetAngle, spinStartTimeMs,
-    celebrationWinner, setCelebrationWinner, quotaGroupA, quotaGroupB,
-    isGroupAFull, isGroupBFull, isCurrentGroupFull,
-    handleStartSpin, handleSpinEnd, handleReset, saveStateToKV
+    ...sync,
+    ...spin,
+    quotaGroupA,
+    quotaGroupB,
+    isGroupAFull,
+    isGroupBFull,
+    isCurrentGroupFull,
+    handleStartSpin,
+    handleSpinEnd,
+    closeCelebration,
+    handleReset,
   };
-    }
-      
+}
