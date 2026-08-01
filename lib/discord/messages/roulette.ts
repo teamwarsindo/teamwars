@@ -1,4 +1,3 @@
-import { DISCORD_CONFIG } from "@/lib/discord/config";
 import { getFooterText } from "@/lib/discord/utils";
 
 export interface RouletteLogData {
@@ -8,27 +7,22 @@ export interface RouletteLogData {
   slotNumber: number;
 }
 
-// 🎯 Embed saat tim berhasil terpilih
+// 🎯 Embed Tim Terpilih (Sangat Simpel & Bebas Kata Judi/Slot)
 export function buildRouletteLogEmbed(data: RouletteLogData) {
   const isGroupA = data.targetGroup === "Group A";
-  const colorCode = isGroupA ? 0x00F0FF : 0xF59E0B; // Cyan untuk Group A, Amber untuk Group B
+  const colorCode = isGroupA ? 0x0284C7 : 0xD97706; // Sky Blue untuk Group A, Amber untuk Group B
 
   return {
     embeds: [
       {
-        title: `🎉 TIM TERPILIH — ${data.targetGroup.toUpperCase()}`,
-        description: `**${data.teamName}** resmi menempati **Slot #${data.slotNumber}** di **${data.targetGroup}**!`,
+        title: `🏆 ${data.teamName.toUpperCase()}`,
+        description: `Resmi masuk ke **${data.targetGroup}** *(Urutan #${data.slotNumber})*`,
         color: colorCode,
         thumbnail: {
           url: data.teamLogo && data.teamLogo.startsWith("http")
             ? data.teamLogo
             : "https://teamwars.web.id/logo.webp",
         },
-        fields: [
-          { name: "Nama Tim", value: data.teamName, inline: true },
-          { name: "Target Slot", value: `${data.targetGroup} (Slot #${data.slotNumber})`, inline: true },
-          { name: "Waktu Draw", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
-        ],
         footer: {
           text: getFooterText(),
           icon_url: "https://teamwars.web.id/logo.webp",
@@ -38,14 +32,14 @@ export function buildRouletteLogEmbed(data: RouletteLogData) {
   };
 }
 
-// 🔄 Embed saat admin melakukan Reset Draw
+// 🔄 Embed Reset Pengundian
 export function buildRouletteResetEmbed() {
   return {
     embeds: [
       {
-        title: "🔄 Reset Draw",
-        description: "Pengundian group telah di-reset oleh Admin. Seluruh tim dikembalikan ke dalam Roda Roulette dan log pengundian sebelumnya telah dibersihkan.",
-        color: 0xEF4444, // Red
+        title: "🔄 Pengundian Direset",
+        description: "Seluruh tim dikembalikan ke dalam roda pengundian.",
+        color: 0xEF4444, // Merah Clean
         footer: {
           text: getFooterText(),
           icon_url: "https://teamwars.web.id/logo.webp",
