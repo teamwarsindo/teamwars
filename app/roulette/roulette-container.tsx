@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { RouletteWheel } from "./roulette-wheel";
+import { RouletteCelebrationModal } from "./roulette-celebration-modal";
+import { RouletteGroupList } from "./roulette-group-list";
 import { TeamItem } from "@/app/api/roulette-state/route";
 import Swal from "sweetalert2";
 
@@ -29,7 +31,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const isGroupBFull = groupB.length >= quotaB;
   const isDrawFinished = remainingTeams.length === 0 && masterTeams.length > 0;
 
-  // Lock Scroll Body saat Modal Aktif
   useEffect(() => {
     if (celebrationWinner) {
       document.body.style.overflow = "hidden";
@@ -41,7 +42,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     };
   }, [celebrationWinner]);
 
-  // 🔒 OTOMATIS DAN STRICT PINDAH GRUP JIKA SALAH SATU KUOTA FULL
   useEffect(() => {
     if (isGroupAFull && !isGroupBFull) {
       setManualGroup("GROUP_B");
@@ -160,7 +160,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const handleStartSpin = () => {
     if (isSpinning || remainingTeams.length === 0) return;
 
-    // ⛔ VALIDASI STRICT SEBELUM SPIN DIMOBAK
     let activeGroup = manualGroup;
     if (activeGroup === "GROUP_A" && isGroupAFull) {
       if (isGroupBFull) {
@@ -213,7 +212,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     let newGroupA = [...groupA];
     let newGroupB = [...groupB];
 
-    // Gunakan alokasi grup yang konsisten
     const activeGroup = manualGroup;
     const groupName: "Group A" | "Group B" = activeGroup === "GROUP_A" ? "Group A" : "Group B";
 
@@ -307,50 +305,12 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     <div className="relative flex w-full max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-between">
       
       {celebrationWinner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-4">
-          <div className="relative w-full max-w-md rounded-3xl border border-primary/30 bg-card p-8 text-center shadow-2xl">
-            <span className="inline-block rounded-full bg-primary/10 px-4 py-1 text-xs font-bold uppercase tracking-widest text-primary mb-4 border border-primary/20">
-              🎉 TIM TERPILIH!
-            </span>
-            
-            <div className="relative mx-auto mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-border bg-background p-2">
-              {celebrationWinner.logo ? (
-                <img
-                  src={celebrationWinner.logo}
-                  alt={celebrationWinner.name}
-                  className="h-full w-full object-cover rounded-xl"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = "/logo.webp";
-                  }}
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center rounded-xl bg-muted text-xs font-bold text-muted-foreground">
-                  N/A
-                </div>
-              )}
-            </div>
-
-            <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl mb-2">
-              {celebrationWinner.name}
-            </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Berhasil dialokasikan ke <span className="font-bold text-primary">{groupA.some(t => t.name === celebrationWinner.name) ? "Group A" : "Group B"}</span>
-            </p>
-            
-            {isAdmin ? (
-              <button
-                onClick={handleCloseCelebration}
-                className="w-full rounded-xl bg-primary py-3 text-xs font-bold uppercase tracking-widest text-primary-foreground hover:opacity-90 shadow-lg transition cursor-pointer"
-              >
-                LANJUTKAN PENGUNDIAN ➔
-              </button>
-            ) : (
-              <div className="rounded-xl bg-muted/50 p-3 text-xs font-medium text-muted-foreground animate-pulse">
-                ⏳ Menunggu Panitia Melanjutkan Pengundian...
-              </div>
-            )}
-          </div>
-        </div>
+        <RouletteCelebrationModal
+          celebrationWinner={celebrationWinner}
+          groupA={groupA}
+          isAdmin={isAdmin}
+          onClose={handleCloseCelebration}
+        />
       )}
 
       <div className="flex flex-1 flex-col items-center rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-md">
@@ -384,7 +344,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
         {isAdmin ? (
           <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
-            {/* 🔒 TOGGLE SWITCH GROUP DIMATIKAN JIKA TERSEDIA KUOTA HABIS / SUDAH SELESAI */}
             <div className="flex w-full items-center justify-between rounded-xl border border-border bg-background p-1">
               <button
                 type="button"
@@ -443,58 +402,13 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
-      <div className="grid w-full flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-sky-500/20 bg-sky-950/10 p-5 backdrop-blur-md">
-          <div className="mb-3 flex items-center justify-between border-b border-sky-500/20 pb-2">
-            <h3 className="font-extrabold text-sky-400">GROUP A</h3>
-            <span className="text-[10px] font-bold text-muted-foreground">
-              {groupA.length} / {quotaA} TIM
-            </span>
-          </div>
-          <ul className="space-y-2">
-            {Array.from({ length: quotaA || 1 }).map((_, i) => (
-              <li
-                key={i}
-                className="flex items-center justify-between rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-xs"
-              >
-                <span className="text-muted-foreground">Posisi #{i + 1}</span>
-                {groupA[i] ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-lg bg-background border border-border shrink-0">
-                      {groupA[i].logo ? (
-                        <img
-                          src={groupA[i].logo}
-                          alt={groupA[i].name}
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "/logo.webp";
-                          }}
-                        />
-                      ) : (
-                        <span className="text-[8px] text-muted-foreground">N/A</span>
-                      )}
-                    </div>
-                    <span className="font-bold text-foreground">{groupA[i].name}</span>
-                  </div>
-                ) : (
-                  <span className="italic text-muted-foreground/40">Menunggu Pengundian...</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
+      <RouletteGroupList
+        groupA={groupA}
+        groupB={groupB}
+        quotaA={quotaA}
+        quotaB={quotaB}
+      />
 
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-950/10 p-5 backdrop-blur-md">
-          <div className="mb-3 flex items-center justify-between border-b border-amber-500/20 pb-2">
-            <h3 className="font-extrabold text-amber-400">GROUP B</h3>
-            <span className="text-[10px] font-bold text-muted-foreground">
-              {groupB.length} / {quotaB} TIM
-            </span>
-          </div>
-          <ul className="space-y-2">
-            {Array.from({ length: Math.max(quotaB, 1) }).map((_, i) => (
-              <li
-                key={i}
-                className="flex items-center justify-between rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-xs"
-              >
-                <span className="text-muted-foreg
+    </div>
+  );
+            }
