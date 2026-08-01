@@ -62,7 +62,6 @@ export async function POST(req: NextRequest) {
         return await handleBtTimer(body);
       }
 
-      // 🏆 Handler Tombol Bidding (Menampilkan Modal Form dengan Min Nominal Dinamis)
       if (customId.startsWith('btn_bid_')) {
         const groupTarget = customId.replace('btn_bid_', '');
 
