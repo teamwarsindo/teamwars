@@ -15,17 +15,17 @@ export async function GET() {
     let masterTeams: TeamItem[] = [];
 
     if (teamKeys && teamKeys.length > 0) {
-      // 2. Gunakan kv.hgetall() secara paralel karena data disimpan menggunakan kv.hset()
+      // 2. Ambil data dengan kv.hgetall() secara paralel
       const rawTeams = await Promise.all(
         teamKeys.map((key) => kv.hgetall<Record<string, any>>(key))
       );
 
-      // 3. Extract properti namaTim dan logoTim
+      // 3. Filter data non-null dan tambahkan Optional Chaining (?.)
       masterTeams = rawTeams
-        .filter(Boolean)
+        .filter((team): team is Record<string, any> => Boolean(team))
         .map((team) => ({
-          name: team.namaTim || 'Unknown Team',
-          logo: team.logoTim || '/logo.webp',
+          name: team?.namaTim || team?.name || 'Unknown Team',
+          logo: team?.logoTim || team?.logo || '/logo.webp',
         }))
         // Urutkan secara alfabetis berdasarkan nama tim
         .sort((a, b) => a.name.localeCompare(b.name));
@@ -77,7 +77,6 @@ export async function POST(req: Request) {
 
 export async function DELETE() {
   try {
-    // Menghapus hanya state pengundian roulette (data tim asli di `teams:*` TETAP AMAN)
     await kv.del(KV_KEY_ROULETTE);
     return NextResponse.json({ success: true });
   } catch (error) {
