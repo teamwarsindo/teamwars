@@ -42,42 +42,67 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     }
   }, [groupA.length, halfQuota]);
 
+  // 🔄 AMBIL STATE & SINKRONISASI PRESISI (REFRESH / HP BARU NYALA / MODAL LOCK)
   const fetchState = async () => {
     try {
       const res = await fetch("/api/roulette-state");
       const data = await res.json();
       
       if (data) {
-        setMasterTeams(data.masterTeams || []);
+        const fetchedMaster: TeamItem[] = data.masterTeams || [];
+        const fetchedGroupA: TeamItem[] = data.groupA || [];
+        const fetchedGroupB: TeamItem[] = data.groupB || [];
+
+        setMasterTeams(fetchedMaster);
         
         if (!isAdmin && data.selectedTargetGroup) {
           setManualGroup(data.selectedTargetGroup);
         }
 
+        // Saring remainingTeams dari masterTeams minus gA & gB
         if (!isSpinning) {
-          setRemainingTeams(data.remainingTeams || []);
-          setGroupA(data.groupA || []);
-          setGroupB(data.groupB || []);
+          const allocatedNames = new Set([
+            ...fetchedGroupA.map((t) => t.name),
+            ...fetchedGroupB.map((t) => t.name),
+          ]);
+
+          const syncedRemaining = (data.remainingTeams && data.remainingTeams.length > 0)
+            ? data.remainingTeams.filter((t: TeamItem) => !allocatedNames.has(t.name))
+            : fetchedMaster.filter((t: TeamItem) => !allocatedNames.has(t.name));
+
+          setRemainingTeams(syncedRemaining);
+          setGroupA(fetchedGroupA);
+          setGroupB(fetchedGroupB);
         }
 
-        if (!isAdmin) {
-          if (!data.celebrationWinner && !isSpinning) {
+        // 🟢 SINKRONISASI MODAL PENONTON:
+        // Modal penonton tetap tampil dan HANYA hilang ketika Admin menekan tombol "Lanjutkan Pengundian"
+        if (!isAdmin && !isSpinning) {
+          if (data.celebrationWinner) {
+            setCelebrationWinner(data.celebrationWinner);
+          } else {
             setCelebrationWinner(null);
           }
         }
 
+        // 🎬 LOGIKA ANIMASI LIVE PENONTON
         if (!isAdmin && data.spinEvent) {
           const spinId = data.spinEvent.startTime;
 
           if (spinId !== lastSpinTimeRef.current) {
-            lastSpinTimeRef.current = spinId;
+            const now = Date.now();
+            const elapsed = now - data.spinEvent.startTime;
 
-            setWinningIndex(data.spinEvent.winningIndex);
-            setServerTargetAngle(data.spinEvent.targetAngle);
-            setCelebrationWinner(null);
+            if (elapsed < data.spinEvent.durationMs) {
+              lastSpinTimeRef.current = spinId;
+              setWinningIndex(data.spinEvent.winningIndex);
+              setServerTargetAngle(data.spinEvent.targetAngle);
+              setCelebrationWinner(null);
 
-            setSpinStartTimeMs(performance.now());
-            setIsSpinning(true);
+              const localStartMs = performance.now() - elapsed;
+              setSpinStartTimeMs(localStartMs);
+              setIsSpinning(true);
+            }
           }
         }
       }
@@ -475,5 +500,4 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     </div>
   );
-        }
-                  
+      }
