@@ -7,20 +7,21 @@ interface RouletteWheelProps {
   teams: TeamItem[];
   winningIndex: number | null;
   isSpinning: boolean;
+  startTimeMs?: number; // Timestamp kapan spin dimulai
+  durationMs?: number;  // Durasi spin (default 4000ms)
   onSpinEnd: () => void;
 }
 
-// 🎨 Palette Warna Soft Modern Esports (Slate, Soft Indigo, Deep Cyan, Dark Violet)
-const SLICE_COLORS = [
-  "#1e293b", // Slate 800
-  "#312e81", // Indigo 900 (Soft)
-  "#164e63", // Cyan 900 (Soft)
-  "#3b0764", // Purple 950 (Soft)
-  "#1e1b4b", // Deep Indigo
-  "#0f766e", // Teal 700 (Soft)
-];
+const SLICE_COLORS = ["#0f172a", "#312e81", "#164e63", "#3b0764", "#1e1b4b", "#0f766e"];
 
-export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: RouletteWheelProps) {
+export function RouletteWheel({
+  teams,
+  winningIndex,
+  isSpinning,
+  startTimeMs,
+  durationMs = 4000,
+  onSpinEnd,
+}: RouletteWheelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentAngleRef = useRef(0);
 
@@ -46,7 +47,6 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         const start = angleOffset + i * sliceAngle;
         const end = start + sliceAngle;
 
-        // Gambar Irisan dengan warna Modern Soft
         ctx.beginPath();
         ctx.moveTo(radius, radius);
         ctx.arc(radius, radius, radius - 10, start, end);
@@ -55,10 +55,9 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         ctx.fillStyle = SLICE_COLORS[i % SLICE_COLORS.length];
         ctx.fill();
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = "rgba(56, 189, 248, 0.25)"; // Cyan border glow
+        ctx.strokeStyle = "rgba(56, 189, 248, 0.25)";
         ctx.stroke();
 
-        // Teks Nama Tim Auto-Fit
         ctx.save();
         ctx.translate(radius, radius);
         ctx.rotate(start + sliceAngle / 2);
@@ -76,21 +75,21 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
         }
 
         ctx.textAlign = "right";
-        ctx.fillStyle = "#F1F5F9"; // Soft Slate White
+        ctx.fillStyle = "#F1F5F9";
         ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
         ctx.shadowBlur = 3;
-        
+
         ctx.fillText(team.name, radius - 25, fontSize / 3);
         ctx.restore();
       });
 
-      // Pointer Marker Atas
+      // Pointer Marker
       ctx.beginPath();
       ctx.moveTo(radius - 12, 10);
       ctx.lineTo(radius + 12, 10);
       ctx.lineTo(radius, 32);
       ctx.closePath();
-      ctx.fillStyle = "#38BDF8"; // Sky Blue Glow
+      ctx.fillStyle = "#38BDF8";
       ctx.shadowColor = "rgba(56, 189, 248, 0.8)";
       ctx.shadowBlur = 12;
       ctx.fill();
@@ -105,16 +104,17 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
     }
 
     let animationId: number;
-    const startTime = performance.now();
-    const duration = 4000;
+    // Gunakan timestamp server jika ada, atau waktu lokal jika admin
+    const startAnimTime = startTimeMs || performance.now();
     const targetSlice = winningIndex ?? 0;
 
     const sliceMiddle = targetSlice * sliceAngle + sliceAngle / 2;
     const targetAngle = 6 * Math.PI * 2 + (1.5 * Math.PI - sliceMiddle);
 
-    const animate = (time: number) => {
-      const elapsed = time - startTime;
-      const progress = Math.min(elapsed / duration, 1);
+    const animate = () => {
+      const now = performance.now();
+      const elapsed = Math.max(0, now - startAnimTime);
+      const progress = Math.min(elapsed / durationMs, 1);
       const easeOut = 1 - Math.pow(1 - progress, 3);
 
       const currentAngle = easeOut * targetAngle;
@@ -130,7 +130,7 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
 
     animationId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animationId);
-  }, [teams, winningIndex, isSpinning, onSpinEnd]);
+  }, [teams, winningIndex, isSpinning, startTimeMs, durationMs, onSpinEnd]);
 
   return (
     <div className="relative flex flex-col items-center justify-center">
@@ -142,4 +142,4 @@ export function RouletteWheel({ teams, winningIndex, isSpinning, onSpinEnd }: Ro
       />
     </div>
   );
-      }
+}
