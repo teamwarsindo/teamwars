@@ -34,9 +34,12 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
         throw new Error(data.error || "Login gagal");
       }
 
+      // 🟢 Jika login sukses:
       if (onSuccess) {
         onSuccess();
       } else {
+        // Redirect langsung ke /admin/dashboard & refresh state
+        router.push("/admin/dashboard");
         router.refresh();
       }
     } catch (err: any) {
@@ -52,6 +55,12 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
         <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/20 text-primary shadow-lg shadow-primary/10">
           <ShieldCheck className="h-8 w-8" />
         </div>
+        <h2 className="text-xl font-bold tracking-tight text-foreground">
+          Admin Control Center
+        </h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Masukkan kredensial khusus untuk mengakses panel kontrol
+        </p>
       </div>
 
       {error && (
