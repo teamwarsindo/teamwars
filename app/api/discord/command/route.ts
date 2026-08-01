@@ -83,15 +83,37 @@ export async function GET(req: Request) {
       description: '[REFEREE] Cek roster tim berdasarkan Tag Role Tim Discord (Privat)',
       options: [
         {
-          type: 8, // 👈 TYPE 8 = ROLE (Mention Native Role Discord)
+          type: 8, // ROLE
           name: 'team1',
           description: 'Tag Role Tim Pertama (Contoh: @Team A)',
           required: true,
         },
         {
-          type: 8, // 👈 TYPE 8 = ROLE
+          type: 8, // ROLE
           name: 'team2',
           description: 'Tag Role Tim Kedua (Opsional)',
+          required: false,
+        },
+      ],
+    },
+    {
+      name: 'cancel-bid',
+      description: '[ADMIN] Batal/Anulir bid tertinggi group tertentu',
+      options: [
+        {
+          type: 3, // STRING Choice
+          name: 'group',
+          description: 'Pilih Group yang ingin dibatalkan bid-nya',
+          required: true,
+          choices: [
+            { name: 'Group A', value: 'A' },
+            { name: 'Group B', value: 'B' },
+          ],
+        },
+        {
+          type: 3, // STRING Input
+          name: 'alasan',
+          description: 'Alasan pembatalan (Contoh: Nama SARA / Bid Tidak Wajar)',
           required: false,
         },
       ],
@@ -102,7 +124,7 @@ export async function GET(req: Request) {
 
   if (slashResult) {
     return NextResponse.json({ 
-      message: '✅ Setup Berhasil Dijalankan!', 
+      message: '✅ Setup Slash Commands Berhasil Dijalankan!', 
       commands: slashResult
     });
   } else {
