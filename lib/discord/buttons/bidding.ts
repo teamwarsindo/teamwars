@@ -11,8 +11,11 @@ export function getBidButtons(isClosed: boolean = false) {
   ];
 }
 
-export function getBidModal(groupTarget: string) {
+export function getBidModal(groupTarget: string, minAmountA: number = 110000, minAmountB: number = 110000) {
+  const formatRupiah = (num: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
+
   if (groupTarget === "BOTH") {
+    const minBoth = Math.max(minAmountA, minAmountB);
     return {
       type: 9, // Modal Response
       data: {
@@ -53,9 +56,9 @@ export function getBidModal(groupTarget: string) {
               {
                 type: 4,
                 custom_id: "input_bid_amount",
-                label: "Nominal Bid Masing-Masing (Min Rp100.000)",
+                label: `Nominal Bid Masing-Masing (MINIMAL: ${formatRupiah(minBoth)})`,
                 style: 1,
-                placeholder: "Contoh: 110000",
+                placeholder: `Ketik angka tanpa titik, contoh: ${minBoth}`,
                 required: true,
                 min_length: 6,
                 max_length: 10
@@ -66,6 +69,8 @@ export function getBidModal(groupTarget: string) {
       }
     };
   }
+
+  const minAmount = groupTarget === "A" ? minAmountA : minAmountB;
 
   return {
     type: 9,
@@ -93,9 +98,9 @@ export function getBidModal(groupTarget: string) {
             {
               type: 4,
               custom_id: "input_bid_amount",
-              label: "Nominal Bid (Kelipatan Rp10.000)",
+              label: `Nominal Bid (MINIMAL: ${formatRupiah(minAmount)})`,
               style: 1,
-              placeholder: "Contoh: 100000",
+              placeholder: `Ketik angka tanpa titik, contoh: ${minAmount}`,
               required: true,
               min_length: 6,
               max_length: 10
@@ -105,29 +110,4 @@ export function getBidModal(groupTarget: string) {
       ]
     }
   };
-}
-
-/**
- * Tombol Konfirmasi Ephemeral [ Yakin / Batal ]
- */
-export function getConfirmButtons(pendingId: string) {
-  return [
-    {
-      type: 1,
-      components: [
-        {
-          type: 2,
-          style: 3, // Green
-          label: "Ya, Saya Yakin",
-          custom_id: `confirm_bid_yes_${pendingId}`
-        },
-        {
-          type: 2,
-          style: 4, // Red
-          label: "Batal",
-          custom_id: `confirm_bid_no_${pendingId}`
-        }
-      ]
-    }
-  ];
 }
