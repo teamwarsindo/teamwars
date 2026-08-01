@@ -34,7 +34,7 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
   return {
     title: statusTitle,
     description: statusDesc,
-    color: isClosed ? 0xED4245 : 0xFEE75C,
+    color: isClosed ? 0xED4245 : 0xFEE75C, // Merah jika ditutup, Kuning jika buka
     fields: [
       {
         name: "🥇 GROUP A — HIGHEST BIDDER",
@@ -45,10 +45,6 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
         name: "🥇 GROUP B — HIGHEST BIDDER",
         value: formatGroupCard(data.groupB),
         inline: false
-      },
-      {
-        name: "📋 Ketentuan Lelang",
-        value: "▫️ **Harga Awal:** Rp 100.000 (Base)\n▫️ **Kelipatan Bid:** Rp 10.000\n▫️ **Batas Waktu:** 8 Agustus 2026, Pukul 20:00 WIB"
       }
     ],
     footer: { text: "Team Wars Indonesia • Auto-updated Live System" },
