@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySignature } from '@/lib/discord/utils';
 
-// Slash Commands & Buttons...
+// Slash Commands
 import { handleReminder } from '@/lib/discord/commands/reminder';
 import { handlePrepare } from '@/lib/discord/commands/prepare';
 import { handleInfo } from '@/lib/discord/commands/info';
@@ -10,6 +10,7 @@ import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
 import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 
+// Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
 import { handleBtRole } from '@/lib/discord/buttons/btRole';
 import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
@@ -17,7 +18,7 @@ import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 
 // Bidding Module
 import { getBidModal } from '@/lib/discord/buttons/bidding';
-import { processBidSubmission, handleConfirmBid } from '@/lib/discord/bidding';
+import { processBidSubmission, KV_BID_KEY } from '@/lib/discord/bidding';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -60,15 +61,21 @@ export async function POST(req: NextRequest) {
         return await handleBtTimer(body);
       }
 
-      // 1. Klik Tombol "Bid Group A/B/Keduanya" -> Buka Form Modal
+      // 🏆 Klik Tombol Bidding -> Buka Form Modal dengan Label Minimal Bid yang Dinamis
       if (customId.startsWith('btn_bid_')) {
         const groupTarget = customId.replace('btn_bid_', '');
-        return NextResponse.json(getBidModal(groupTarget));
-      }
 
-      // 2. Klik Tombol Konfirmasi [ Ya, Saya Yakin / Batal ]
-      if (customId.startsWith('confirm_bid_')) {
-        return await handleConfirmBid(body, process.env);
+        // Baca data KV untuk cek nominal tertinggi saat ini
+        const rawData = process.env?.KV_STORE ? await process.env.KV_STORE.get(KV_BID_KEY) : null;
+        const data = typeof rawData === 'string' ? JSON.parse(rawData) : (rawData || { groupA: null, groupB: null });
+
+        const currentA = data.groupA?.amount || 0;
+        const currentB = data.groupB?.amount || 0;
+
+        const minAmountA = currentA === 0 ? 110000 : currentA + 10000;
+        const minAmountB = currentB === 0 ? 110000 : currentB + 10000;
+
+        return NextResponse.json(getBidModal(groupTarget, minAmountA, minAmountB));
       }
     }
 
