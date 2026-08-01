@@ -44,12 +44,13 @@ function makeEphemeralResponse(content: string) {
 }
 
 /**
- * 🚀 Inisialisasi awal pengiriman pesan
+ * 🚀 Inisialisasi awal pengiriman pesan (OTOMATIS RESET DATA LEANG)
  */
 export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   const isClosed = overrideStatus ? overrideStatus === 'closed' : !isBidOpen();
 
-  const initialData: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
+  // 🟢 RESET DATA: Selalu mulai dengan data bersih (Group A & B null, logs kosong)
+  const initialData: BidStore = { groupA: null, groupB: null, logs: [] };
 
   const mainEmbed = buildMainBidEmbed(initialData, isClosed);
   const logPayload = buildLogBidPayload(initialData.logs);
@@ -58,23 +59,26 @@ export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   const token = process.env.DISCORD_BOT_TOKEN;
   const headers = { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' };
 
+  // Kirim Pesan Utama Lelang
   const resMain = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
     method: 'POST', headers, body: JSON.stringify({ embeds: [mainEmbed], components })
   });
   const msgMain: any = await resMain.json();
 
+  // Kirim Pesan Log Lelang
   const resLog = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
     method: 'POST', headers, body: JSON.stringify(logPayload)
   });
   const msgLog: any = await resLog.json();
 
+  // Simpan ID pesan baru & Timpa/Overwrite data lama di KV dengan data bersih
   await kv.set(KV_MSG_MAIN_KEY, msgMain.id);
   await kv.set(KV_MSG_LOG_KEY, msgLog.id);
-  await kv.set(KV_BID_KEY, initialData);
+  await kv.set(KV_BID_KEY, initialData); 
 }
 
 /**
- * 🔄 Sync Update Embed
+ * 🔄 Sync Update Embed (Dipanggil saat ada user Bid agar Embed ter-update)
  */
 export async function syncBidMessages(forceClosed?: boolean) {
   const isClosed = typeof forceClosed === 'boolean' ? forceClosed : !isBidOpen();
@@ -92,7 +96,7 @@ export async function syncBidMessages(forceClosed?: boolean) {
 }
 
 /**
- * 📜 Handler Tombol Lihat Seluruh Log (EXPORT DITAMBAHKAN)
+ * 📜 Handler Tombol Lihat Seluruh Log
  */
 export async function handleViewFullLog() {
   const data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
@@ -190,7 +194,9 @@ export async function processBidSubmission(interaction: any) {
 
   await kv.set(KV_BID_KEY, data);
 
+  // Sync / Update Tampilan Embed di Discord
   await syncBidMessages();
 
   return makeEphemeralResponse(`✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`);
-}
+    }
+  
