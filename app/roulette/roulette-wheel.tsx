@@ -7,12 +7,22 @@ interface RouletteWheelProps {
   teams: TeamItem[];
   winningIndex: number | null;
   isSpinning: boolean;
-  startTimeMs?: number; // Timestamp kapan spin dimulai
-  durationMs?: number;  // Durasi spin (default 4000ms)
+  startTimeMs?: number;
+  durationMs?: number;
   onSpinEnd: () => void;
 }
 
-const SLICE_COLORS = ["#0f172a", "#312e81", "#164e63", "#3b0764", "#1e1b4b", "#0f766e"];
+// 🎨 Palette Warna Neon Soft Esports (Sangat Kontras & Catchy)
+const VIBRANT_PALETTE = [
+  "#00E5FF", // Cyan Neon
+  "#FF2A85", // Magenta Neon
+  "#FFB800", // Gold / Amber
+  "#7C3AED", // Vivid Purple
+  "#10B981", // Emerald Green
+  "#2563EB", // Royal Blue
+  "#F43F5E", // Rose Pink
+  "#0284C7", // Sky Blue
+];
 
 export function RouletteWheel({
   teams,
@@ -47,50 +57,52 @@ export function RouletteWheel({
         const start = angleOffset + i * sliceAngle;
         const end = start + sliceAngle;
 
+        // Irisan Roda
         ctx.beginPath();
         ctx.moveTo(radius, radius);
         ctx.arc(radius, radius, radius - 10, start, end);
         ctx.closePath();
 
-        ctx.fillStyle = SLICE_COLORS[i % SLICE_COLORS.length];
+        ctx.fillStyle = VIBRANT_PALETTE[i % VIBRANT_PALETTE.length];
         ctx.fill();
-        ctx.lineWidth = 1.5;
-        ctx.strokeStyle = "rgba(56, 189, 248, 0.25)";
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#0F172A"; // Border gelap pembatas antar irisan
         ctx.stroke();
 
+        // Teks Nama Tim
         ctx.save();
         ctx.translate(radius, radius);
         ctx.rotate(start + sliceAngle / 2);
 
         let fontSize = Math.max(8, Math.min(13, Math.floor(220 / numSlices)));
-        ctx.font = `600 ${fontSize}px sans-serif`;
+        ctx.font = `800 ${fontSize}px sans-serif`;
 
         const maxTextWidth = radius - 55;
         let textWidth = ctx.measureText(team.name).width;
 
         while (textWidth > maxTextWidth && fontSize > 7) {
           fontSize -= 0.5;
-          ctx.font = `600 ${fontSize}px sans-serif`;
+          ctx.font = `800 ${fontSize}px sans-serif`;
           textWidth = ctx.measureText(team.name).width;
         }
 
         ctx.textAlign = "right";
-        ctx.fillStyle = "#F1F5F9";
-        ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
-        ctx.shadowBlur = 3;
+        ctx.fillStyle = "#FFFFFF";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
+        ctx.shadowBlur = 5;
 
         ctx.fillText(team.name, radius - 25, fontSize / 3);
         ctx.restore();
       });
 
-      // Pointer Marker
+      // Pointer Marker Atas
       ctx.beginPath();
       ctx.moveTo(radius - 12, 10);
       ctx.lineTo(radius + 12, 10);
       ctx.lineTo(radius, 32);
       ctx.closePath();
-      ctx.fillStyle = "#38BDF8";
-      ctx.shadowColor = "rgba(56, 189, 248, 0.8)";
+      ctx.fillStyle = "#FF0055";
+      ctx.shadowColor = "rgba(255, 0, 85, 0.9)";
       ctx.shadowBlur = 12;
       ctx.fill();
       ctx.lineWidth = 1.5;
@@ -104,7 +116,6 @@ export function RouletteWheel({
     }
 
     let animationId: number;
-    // Gunakan timestamp server jika ada, atau waktu lokal jika admin
     const startAnimTime = startTimeMs || performance.now();
     const targetSlice = winningIndex ?? 0;
 
@@ -138,8 +149,8 @@ export function RouletteWheel({
         ref={canvasRef}
         width={380}
         height={380}
-        className="rounded-full border-2 border-sky-500/20 shadow-[0_0_60px_rgba(56,189,248,0.12)] bg-slate-900/90"
+        className="rounded-full border-4 border-cyan-500/40 shadow-[0_0_50px_rgba(0,229,255,0.25)] bg-slate-950"
       />
     </div>
   );
-}
+                    }
