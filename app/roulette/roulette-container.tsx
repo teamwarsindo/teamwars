@@ -11,7 +11,8 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const [groupA, setGroupA] = useState<TeamItem[]>([]);
   const [groupB, setGroupB] = useState<TeamItem[]>([]);
   
-  const [manualGroup, setManualGroup] = useState<"AUTO" | "GROUP_A" | "GROUP_B">("AUTO");
+  // 🔀 Hanya ada pilihan GROUP_A dan GROUP_B
+  const [manualGroup, setManualGroup] = useState<"GROUP_A" | "GROUP_B">("GROUP_A");
   const [isLoading, setIsLoading] = useState(true);
   const [isSpinning, setIsSpinning] = useState(false);
   const [winningIndex, setWinningIndex] = useState<number | null>(null);
@@ -22,6 +23,13 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
   const totalSlots = masterTeams.length;
   const halfQuota = Math.ceil(totalSlots / 2);
+
+  // Otomatis pindahkan target switcher ke Group B jika Group A sudah penuh
+  useEffect(() => {
+    if (groupA.length >= halfQuota && groupA.length > 0) {
+      setManualGroup("GROUP_B");
+    }
+  }, [groupA.length, halfQuota]);
 
   const fetchState = async () => {
     try {
@@ -105,13 +113,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     
     setCelebrationWinner(null);
     const randomIndex = Math.floor(Math.random() * remainingTeams.length);
-    
-    let target: "Group A" | "Group B" = "Group A";
-    if (manualGroup === "AUTO") {
-      target = groupA.length < halfQuota ? "Group A" : "Group B";
-    } else {
-      target = manualGroup === "GROUP_A" ? "Group A" : "Group B";
-    }
+    const target: "Group A" | "Group B" = manualGroup === "GROUP_A" ? "Group A" : "Group B";
 
     setWinningIndex(randomIndex);
     setSpinStartTimeMs(performance.now());
@@ -137,15 +139,10 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     let newGroupA = [...groupA];
     let newGroupB = [...groupB];
 
-    let target = manualGroup;
-    if (target === "AUTO") {
-      target = newGroupA.length < halfQuota ? "GROUP_A" : "GROUP_B";
-    }
+    const groupName: "Group A" | "Group B" = manualGroup === "GROUP_A" ? "Group A" : "Group B";
+    const slotNum = manualGroup === "GROUP_A" ? newGroupA.length + 1 : newGroupB.length + 1;
 
-    const groupName: "Group A" | "Group B" = target === "GROUP_A" ? "Group A" : "Group B";
-    const slotNum = target === "GROUP_A" ? newGroupA.length + 1 : newGroupB.length + 1;
-
-    if (target === "GROUP_A") {
+    if (manualGroup === "GROUP_A") {
       newGroupA.push(selectedTeam);
     } else {
       newGroupB.push(selectedTeam);
@@ -202,6 +199,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     setGroupB([]);
     setCelebrationWinner(null);
     setIsSpinning(false);
+    setManualGroup("GROUP_A");
 
     await fetch("/api/roulette-state", { method: "DELETE" }).catch(() => null);
     setIsLoading(false);
@@ -216,15 +214,8 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     });
   };
 
-  // 🏷️ Hapus kata "Auto", hanya tampilkan "Group A" / "Group B"
-  const currentTargetLabel =
-    manualGroup === "GROUP_A"
-      ? "Group A"
-      : manualGroup === "GROUP_B"
-      ? "Group B"
-      : groupA.length < halfQuota
-      ? "Group A"
-      : "Group B";
+  // Label Murni "Group A" atau "Group B"
+  const currentTargetLabel = manualGroup === "GROUP_A" ? "Group A" : "Group B";
 
   if (isLoading) {
     return (
@@ -316,25 +307,14 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           </div>
         )}
 
-        {/* KONTROL ADMIN VS PENONTON */}
+        {/* KONTROL ADMIN (HANYA SWITCH GROUP A & GROUP B) */}
         {isAdmin ? (
           <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
             <div className="flex w-full items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 p-1">
               <button
                 type="button"
-                onClick={() => setManualGroup("AUTO")}
-                className={`flex-1 rounded-lg py-1.5 text-[10px] font-bold uppercase transition ${
-                  manualGroup === "AUTO"
-                    ? "bg-primary text-primary-foreground shadow"
-                    : "text-neutral-400 hover:text-white"
-                }`}
-              >
-                Auto
-              </button>
-              <button
-                type="button"
                 onClick={() => setManualGroup("GROUP_A")}
-                className={`flex-1 rounded-lg py-1.5 text-[10px] font-bold uppercase transition ${
+                className={`flex-1 rounded-lg py-2 text-[10px] font-bold uppercase transition ${
                   manualGroup === "GROUP_A"
                     ? "bg-cyan-500 text-white shadow"
                     : "text-neutral-400 hover:text-white"
@@ -345,7 +325,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
               <button
                 type="button"
                 onClick={() => setManualGroup("GROUP_B")}
-                className={`flex-1 rounded-lg py-1.5 text-[10px] font-bold uppercase transition ${
+                className={`flex-1 rounded-lg py-2 text-[10px] font-bold uppercase transition ${
                   manualGroup === "GROUP_B"
                     ? "bg-amber-500 text-white shadow"
                     : "text-neutral-400 hover:text-white"
@@ -471,5 +451,5 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     </div>
   );
-      }
-      
+        }
+                    
