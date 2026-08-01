@@ -16,6 +16,10 @@ import { handleBtRole } from '@/lib/discord/buttons/btRole';
 import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
 import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 
+// Import Bidding Module
+import { getBidModal } from '@/lib/discord/buttons/bidding';
+import { processBidSubmission } from '@/lib/discord/bidding';
+
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
@@ -62,6 +66,23 @@ export async function POST(req: NextRequest) {
       if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') {
         return await handleBtTimer(body);
       }
+
+      // 🏆 Handler Tombol Bidding (Menampilkan Modal Form Input)
+      if (customId.startsWith('btn_bid_')) {
+        const groupTarget = customId.replace('btn_bid_', '');
+        const modal = getBidModal(groupTarget);
+        return NextResponse.json(modal);
+      }
+    }
+
+    // 📝 5. Routing Modal Submit Interactions (Type 5)
+    if (body.type === 5) {
+      const customId = body.data.custom_id;
+
+      // 🏆 Handler Submission Form Bidding
+      if (customId.startsWith('modal_bid_')) {
+        return await processBidSubmission(body, process.env);
+      }
     }
 
     return new NextResponse('Unknown Interaction', { status: 400 });
@@ -70,4 +91,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-    }
+}
