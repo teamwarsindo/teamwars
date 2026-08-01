@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     {
       name: 'prepare',
       description: 'Kirim briefing in-game dan info Room ID di channel match.',
-    }, 
+    },
     {
       name: 'info',
       description: 'Lihat informasi profil Discord kamu atau pemain lain',
