@@ -78,8 +78,11 @@ export async function syncBidMessages(forceClosed: boolean = false) {
 
   const token = process.env.DISCORD_BOT_TOKEN;
 
-  if (mainMsgId) await patchMainBidMessage(mainMsgId, data, isClosed, token!);
-  if (logMsgId) await patchLogBidMessage(logMsgId, data.logs, token!);
+  // Jalankan PATCH secara paralel agar waktu tunggu tetap cepat
+  await Promise.all([
+    mainMsgId ? patchMainBidMessage(mainMsgId, data, isClosed, token!) : Promise.resolve(),
+    logMsgId ? patchLogBidMessage(logMsgId, data.logs, token!) : Promise.resolve()
+  ]);
 }
 
 export async function processBidSubmission(interaction: any) {
@@ -157,10 +160,13 @@ export async function processBidSubmission(interaction: any) {
     data.logs.unshift({ group: groupTarget, amount: amountInput, name: nameA, username: user.username, displayName, timestamp });
   }
 
+  // 1. Simpan ke KV
   await kv.set(KV_BID_KEY, data);
 
-  syncBidMessages().catch(err => console.error("Sync Embed Error:", err));
+  // 2. TUNGGU (AWAIT) PATCH update pesan Discord sampai beres, dikirim secara paralel biar wusss!
+  await syncBidMessages();
 
+  // 3. Kirim respon balik
   const successMessage = groupTarget === "BOTH"
     ? `✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group A** (*"${nameA}"*) & **Group B** (*"${nameB}"*) telah dicatat!`
     : `✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`;
