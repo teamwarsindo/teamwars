@@ -3,10 +3,9 @@ import { initBiddingMessages } from '@/lib/discord/bidding';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    await initBiddingMessages(process.env);
-
+    await initBiddingMessages();
     return NextResponse.json({
       success: true,
       message: '✅ Pesan Bidding berhasil dikirim ke channel!',
@@ -14,10 +13,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error('Gagal mengirim pesan bidding:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error?.message || 'Gagal mengirim pesan bidding',
-      },
+      { success: false, error: error?.message || 'Gagal mengirim pesan bidding' },
       { status: 500 }
     );
   }
