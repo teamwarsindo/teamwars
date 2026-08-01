@@ -29,9 +29,6 @@ export function isBidOpen(): boolean {
   return now >= BID_START_TARGET && now <= BID_CLOSE_TARGET;
 }
 
-/**
- * 🕒 Format Timestamp Lengkap: DD/MM/YYYY HH:mm:ss WIB
- */
 function getFullWibTimestamp(): string {
   const date = new Date();
   const dateStr = date.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -57,12 +54,12 @@ export async function initBiddingMessages() {
   const token = process.env.DISCORD_BOT_TOKEN;
   const headers = { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' };
 
-  const resMain = await fetch(`[https://discord.com/api/v10/channels/$](https://discord.com/api/v10/channels/$){DISCORD_CONFIG.CH_BID}/messages`, {
+  const resMain = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
     method: 'POST', headers, body: JSON.stringify({ embeds: [mainEmbed], components })
   });
   const msgMain: any = await resMain.json();
 
-  const resLog = await fetch(`[https://discord.com/api/v10/channels/$](https://discord.com/api/v10/channels/$){DISCORD_CONFIG.CH_BID}/messages`, {
+  const resLog = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
     method: 'POST', headers, body: JSON.stringify({ embeds: [logEmbed] })
   });
   const msgLog: any = await resLog.json();
@@ -85,9 +82,6 @@ export async function syncBidMessages(forceClosed: boolean = false) {
   if (logMsgId) await patchLogBidMessage(logMsgId, data.logs, token!);
 }
 
-/**
- * ⚡ Pemroses Modal Submission (Optimized & Quick Response)
- */
 export async function processBidSubmission(interaction: any) {
   if (!isBidOpen()) {
     return makeEphemeralResponse("❌ **Bidding sudah ditutup!** (Batas waktu: 8 Agustus 2026, 20:00 WIB)");
@@ -112,7 +106,6 @@ export async function processBidSubmission(interaction: any) {
 
   const amountInput = parseInt(amountRaw.replace(/[^0-9]/g, ''), 10);
 
-  // Validasi Nominal
   if (isNaN(amountInput) || amountInput < 100000) {
     return makeEphemeralResponse("❌ **Bid ditolak!** Minimal nominal bid adalah **Rp 100.000**.");
   }
@@ -126,7 +119,6 @@ export async function processBidSubmission(interaction: any) {
   const currentA = data.groupA?.amount || 0;
   const currentB = data.groupB?.amount || 0;
 
-  // Validasi Harga Awal
   if (groupTarget === "A") {
     const minRequiredA = currentA === 0 ? 110000 : currentA + 10000;
     if (amountInput < minRequiredA) {
@@ -145,7 +137,6 @@ export async function processBidSubmission(interaction: any) {
     }
   }
 
-  // 👤 Ekstrak Display Name & User ID
   const member = interaction.member;
   const user = member?.user || interaction.user;
   const displayName = member?.nick || user.global_name || user.username;
@@ -160,20 +151,16 @@ export async function processBidSubmission(interaction: any) {
     data.groupB = { amount: amountInput, name: finalNameB, userId: user.id, username: user.username, displayName, timestamp };
   }
 
-  // Catat Log Riwayat
   if (groupTarget === "BOTH") {
     data.logs.unshift({ group: "BOTH", amount: amountInput, name: `A: "${nameA}" | B: "${nameB}"`, username: user.username, displayName, timestamp });
   } else {
     data.logs.unshift({ group: groupTarget, amount: amountInput, name: nameA, username: user.username, displayName, timestamp });
   }
 
-  // Simpan KV
   await kv.set(KV_BID_KEY, data);
 
-  // Sync PATCH Embeds ke Discord Channel secara paralel/background
   syncBidMessages().catch(err => console.error("Sync Embed Error:", err));
 
-  // Balas respons secepat mungkin agar tidak "didn't respond in time"
   const successMessage = groupTarget === "BOTH"
     ? `✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group A** (*"${nameA}"*) & **Group B** (*"${nameB}"*) telah dicatat!`
     : `✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`;
