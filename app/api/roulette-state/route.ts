@@ -29,7 +29,7 @@ export interface RouletteState {
   groupB: TeamItem[];
   selectedTargetGroup?: "GROUP_A" | "GROUP_B";
   celebrationWinner?: TeamItem | null;
-  resetMessageId?: string | null; // 🔑 Simpan ID pesan Reset Draw
+  resetMessageId?: string | null;
   spinEvent?: {
     winningIndex: number;
     targetAngle: number;
@@ -95,12 +95,12 @@ export async function POST(req: Request) {
     const currentState = (await kv.get<RouletteState>(KV_KEY_ROULETTE)) || ({} as RouletteState);
     let currentResetMsgId = currentState.resetMessageId || null;
     
-    // 🧹 HAPUS PESAN "RESET DRAW" JIKA ROULETTE MULAI DIPUTAR (SPIN AKTIF)
+    // Hapus pesan "Reset Draw" jika roda mulai diputar
     if (spinEvent && currentResetMsgId) {
       await discordAPI(
         `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${currentResetMsgId}`,
         'DELETE'
-      );
+      ).catch(() => null);
       currentResetMsgId = null;
     }
 
@@ -150,25 +150,33 @@ export async function DELETE() {
     const currentState = await kv.get<RouletteState>(KV_KEY_ROULETTE);
     const existingLogs = (await kv.get<LogItem[]>(KV_KEY_LOGS)) || [];
 
-    // 1. Hapus semua pesan log tim terpilih lama
+    // 1. Kumpulkan seluruh ID pesan yang perlu dihapus dari Discord
+    const deletePromises: Promise<any>[] = [];
+
     for (const log of existingLogs) {
       if (log.discordMessageId) {
-        await discordAPI(
-          `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${log.discordMessageId}`,
-          'DELETE'
+        deletePromises.push(
+          discordAPI(
+            `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${log.discordMessageId}`,
+            'DELETE'
+          )
         );
       }
     }
 
-    // 2. Hapus pesan "Reset Draw" lama jika ada
     if (currentState?.resetMessageId) {
-      await discordAPI(
-        `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${currentState.resetMessageId}`,
-        'DELETE'
+      deletePromises.push(
+        discordAPI(
+          `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${currentState.resetMessageId}`,
+          'DELETE'
+        )
       );
     }
 
-    // 3. Kirim 1 PESAN RESET DRAW BARU dan simpan ID pesannya
+    // Jalankan semua penghapusan secara paralel tanpa menghentikan eksekusi jika 1 pesan gagal
+    await Promise.allSettled(deletePromises);
+
+    // 2. Kirim 1 PESAN RESET DRAW BARU
     const resetEmbedPayload = buildRouletteResetEmbed();
     const resDiscord = await discordAPI(
       `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages`,
@@ -178,7 +186,7 @@ export async function DELETE() {
 
     const newResetMsgId = resDiscord?.id || null;
 
-    // 4. Bersihkan State KV & Simpan ID Pesan Reset yang Baru
+    // 3. Bersihkan KV State
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams: [],
       groupA: [],
@@ -196,4 +204,5 @@ export async function DELETE() {
     console.error('Error DELETE Roulette State:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+        }
+    
