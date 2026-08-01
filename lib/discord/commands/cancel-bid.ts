@@ -30,7 +30,7 @@ export async function handleCancelBid(interaction: any) {
   if (!isAdmin) {
     return makeEphemeralResponse("❌ **Akses Ditolak!** Hanya Panitia/Admin yang dapat membatalkan bid.");
   }
-
+ 
   // 2. Ekstrak Parameter Command
   const options = interaction.data.options || [];
   const groupTargetOption = options.find((opt: any) => opt.name === 'group');
