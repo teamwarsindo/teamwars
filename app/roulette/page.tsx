@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { RouletteContainer } from "./roulette-container";
-import AdminLoginFormInline from "@/components/admin-login-form-inline"; // Form login inline
+import AdminLoginFormInline from "./admin-login-form-inline"; // Form login inline
 
 export const metadata = {
   title: "Official Group Draw Roulette — Team Wars Indonesia",
