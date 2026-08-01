@@ -19,7 +19,7 @@ import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 
 // Bidding Module
 import { getBidModal } from '@/lib/discord/buttons/bidding';
-import { processBidSubmission, KV_BID_KEY, BidStore } from '@/lib/discord/bidding';
+import { processBidSubmission, handleViewFullLog, KV_BID_KEY, BidStore } from '@/lib/discord/bidding';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -62,6 +62,12 @@ export async function POST(req: NextRequest) {
         return await handleBtTimer(body);
       }
 
+      // 📜 Tombol Lihat Seluruh Log
+      if (customId === 'btn_view_full_log') {
+        return await handleViewFullLog();
+      }
+
+      // 🏆 Tombol Bid Group A / B
       if (customId.startsWith('btn_bid_')) {
         const groupTarget = customId.replace('btn_bid_', '');
 
@@ -73,7 +79,10 @@ export async function POST(req: NextRequest) {
         const minAmountA = currentA === 0 ? 110000 : currentA + 10000;
         const minAmountB = currentB === 0 ? 110000 : currentB + 10000;
 
-        return NextResponse.json(getBidModal(groupTarget, minAmountA, minAmountB));
+        const minAmount = groupTarget === "A" ? minAmountA : minAmountB;
+
+        // Passing 2 argumen saja
+        return NextResponse.json(getBidModal(groupTarget, minAmount));
       }
     }
 
