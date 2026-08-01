@@ -3,7 +3,7 @@ import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG, BID_START_TARGET, BID_CLOSE_TARGET } from '@/lib/config';
 import { getBidButtons } from '@/lib/discord/buttons/bidding';
 import { buildMainBidEmbed, patchMainBidMessage, formatRupiah } from '@/lib/discord/messages/bidding';
-import { buildLogBidEmbed, patchLogBidMessage } from '@/lib/discord/messages/log-bidding';
+import { buildLogBidPayload, patchLogBidMessage } from '@/lib/discord/messages/log-bidding';
 
 export interface BidData {
   amount: number;
@@ -52,7 +52,7 @@ export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   const initialData: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
 
   const mainEmbed = buildMainBidEmbed(initialData, isClosed);
-  const logEmbed = buildLogBidEmbed(initialData.logs);
+  const logPayload = buildLogBidPayload(initialData.logs);
   const components = getBidButtons(isClosed);
 
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -64,7 +64,7 @@ export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   const msgMain: any = await resMain.json();
 
   const resLog = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
-    method: 'POST', headers, body: JSON.stringify({ embeds: [logEmbed] })
+    method: 'POST', headers, body: JSON.stringify(logPayload)
   });
   const msgLog: any = await resLog.json();
 
@@ -89,6 +89,40 @@ export async function syncBidMessages(forceClosed?: boolean) {
     mainMsgId ? patchMainBidMessage(mainMsgId, data, isClosed, token!) : Promise.resolve(),
     logMsgId ? patchLogBidMessage(logMsgId, data.logs, token!) : Promise.resolve()
   ]);
+}
+
+/**
+ * 📜 Handler Tombol Lihat Seluruh Log (EXPORT DITAMBAHKAN)
+ */
+export async function handleViewFullLog() {
+  const data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
+
+  if (!data.logs || data.logs.length === 0) {
+    return makeEphemeralResponse("ℹ️ **Belum ada riwayat bidding saat ini.**");
+  }
+
+  const fullLogList = data.logs.map((log, index) => {
+    const displayName = log.displayName || log.username;
+    return `**${index + 1}.** \`[${log.timestamp}]\` **${displayName}** bid **${formatRupiah(log.amount)}** ➔ **Group ${log.group}** (*"${log.name}"*)`;
+  }).join("\n\n");
+
+  const trimmedList = fullLogList.length > 3900 ? fullLogList.substring(0, 3900) + "\n\n_...dan riwayat lama lainnya._" : fullLogList;
+
+  return NextResponse.json({
+    type: 4,
+    data: {
+      flags: 64, // Ephemeral
+      embeds: [
+        {
+          title: `📜 SELURUH RIWAYAT BIDDING (${data.logs.length} Total)`,
+          description: trimmedList,
+          color: 0x5865F2,
+          footer: { text: "Team Wars Indonesia • Full Audit Trail" },
+          timestamp: new Date().toISOString()
+        }
+      ]
+    }
+  });
 }
 
 /**
