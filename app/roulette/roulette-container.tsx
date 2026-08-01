@@ -22,14 +22,9 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const [spinStartTimeMs, setSpinStartTimeMs] = useState<number | undefined>(undefined);
 
   const totalSlots = masterTeams.length;
-  const quotaGroupA = Math.ceil(totalSlots / 2);
-  const quotaGroupB = totalSlots - quotaGroupA;
+  const halfQuota = Math.ceil(totalSlots / 2);
 
-  const isGroupAFull = groupA.length >= quotaGroupA && quotaGroupA > 0;
-  const isGroupBFull = groupB.length >= quotaGroupB && quotaGroupB > 0;
-  const isAllGroupsFull = isGroupAFull && isGroupBFull;
-
-  // Lock scroll saat modal pemenang aktif
+  // 🔒 Lock Scroll Body saat Modal Aktif
   useEffect(() => {
     if (celebrationWinner) {
       document.body.style.overflow = "hidden";
@@ -41,16 +36,13 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     };
   }, [celebrationWinner]);
 
-  // Auto-switch ke grup yang belum penuh
   useEffect(() => {
-    if (manualGroup === "GROUP_A" && isGroupAFull && !isGroupBFull) {
+    if (groupA.length >= halfQuota && groupA.length > 0) {
       setManualGroup("GROUP_B");
-    } else if (manualGroup === "GROUP_B" && isGroupBFull && !isGroupAFull) {
-      setManualGroup("GROUP_A");
     }
-  }, [groupA.length, groupB.length, isGroupAFull, isGroupBFull, manualGroup]);
+  }, [groupA.length, halfQuota]);
 
-  // Ambil state terkini dari Redis KV
+  // 🔄 AMBIL STATE & SINKRONISASI PRESISI (REFRESH / HP BARU NYALA / MODAL LOCK)
   const fetchState = async () => {
     try {
       const res = await fetch("/api/roulette-state");
@@ -67,27 +59,24 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           setManualGroup(data.selectedTargetGroup);
         }
 
+        // Saring remainingTeams dari masterTeams minus gA & gB
         if (!isSpinning) {
-          // Jika tidak ada tim di Group A dan B (baru di-reset), kembalikan sisa tim = masterTeams
-          if (fetchedGroupA.length === 0 && fetchedGroupB.length === 0) {
-            setRemainingTeams(data.remainingTeams || fetchedMaster);
-          } else {
-            const allocatedNames = new Set([
-              ...fetchedGroupA.map((t) => t.name),
-              ...fetchedGroupB.map((t) => t.name),
-            ]);
+          const allocatedNames = new Set([
+            ...fetchedGroupA.map((t) => t.name),
+            ...fetchedGroupB.map((t) => t.name),
+          ]);
 
-            const syncedRemaining = (data.remainingTeams && data.remainingTeams.length > 0)
-              ? data.remainingTeams.filter((t: TeamItem) => !allocatedNames.has(t.name))
-              : fetchedMaster.filter((t: TeamItem) => !allocatedNames.has(t.name));
+          const syncedRemaining = (data.remainingTeams && data.remainingTeams.length > 0)
+            ? data.remainingTeams.filter((t: TeamItem) => !allocatedNames.has(t.name))
+            : fetchedMaster.filter((t: TeamItem) => !allocatedNames.has(t.name));
 
-            setRemainingTeams(syncedRemaining);
-          }
-
+          setRemainingTeams(syncedRemaining);
           setGroupA(fetchedGroupA);
           setGroupB(fetchedGroupB);
         }
 
+        // 🟢 SINKRONISASI MODAL PENONTON:
+        // Modal penonton tetap tampil dan HANYA hilang ketika Admin menekan tombol "Lanjutkan Pengundian"
         if (!isAdmin && !isSpinning) {
           if (data.celebrationWinner) {
             setCelebrationWinner(data.celebrationWinner);
@@ -96,6 +85,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           }
         }
 
+        // 🎬 LOGIKA ANIMASI LIVE PENONTON
         if (!isAdmin && data.spinEvent) {
           const spinId = data.spinEvent.startTime;
 
@@ -160,7 +150,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   };
 
   const handleSwitchGroup = (group: "GROUP_A" | "GROUP_B") => {
-    if ((group === "GROUP_A" && isGroupAFull) || (group === "GROUP_B" && isGroupBFull)) return;
     setManualGroup(group);
     saveStateToKV(remainingTeams, groupA, groupB, celebrationWinner, null, null, group);
   };
@@ -168,27 +157,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const handleStartSpin = () => {
     if (isSpinning || remainingTeams.length === 0) return;
     
-    if (manualGroup === "GROUP_A" && isGroupAFull) {
-      Swal.fire({
-        icon: "warning",
-        title: "Group A Sudah Penuh!",
-        text: "Silakan pindah alokasi pengundian ke Group B.",
-        background: "#171717",
-        color: "#fff",
-      });
-      return;
-    }
-    if (manualGroup === "GROUP_B" && isGroupBFull) {
-      Swal.fire({
-        icon: "warning",
-        title: "Group B Sudah Penuh!",
-        text: "Silakan pindah alokasi pengundian ke Group A.",
-        background: "#171717",
-        color: "#fff",
-      });
-      return;
-    }
-
     setCelebrationWinner(null);
     const randomIndex = Math.floor(Math.random() * remainingTeams.length);
     const target: "Group A" | "Group B" = manualGroup === "GROUP_A" ? "Group A" : "Group B";
@@ -279,15 +247,14 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     if (!result.isConfirmed) return;
 
     setIsLoading(true);
-
-    // Hapus data di server & hapus chat log di Discord
-    await fetch("/api/roulette-state", { method: "DELETE" }).catch(() => null);
-
-    // Ambil state baru secara utuh
-    await fetchState();
+    setRemainingTeams(masterTeams);
+    setGroupA([]);
+    setGroupB([]);
     setCelebrationWinner(null);
     setIsSpinning(false);
     setManualGroup("GROUP_A");
+
+    await fetch("/api/roulette-state", { method: "DELETE" }).catch(() => null);
     setIsLoading(false);
 
     Swal.fire({
@@ -301,7 +268,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   };
 
   const currentTargetLabel = manualGroup === "GROUP_A" ? "Group A" : "Group B";
-  const isCurrentGroupFull = (manualGroup === "GROUP_A" && isGroupAFull) || (manualGroup === "GROUP_B" && isGroupBFull);
 
   if (isLoading) {
     return (
@@ -316,7 +282,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="relative flex w-full max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-between">
       
-      {/* Modal Pemenang */}
       {celebrationWinner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-4">
           <div className="relative w-full max-w-md rounded-3xl border border-primary/30 bg-card p-8 text-center shadow-2xl">
@@ -364,7 +329,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* Main Container Roda Roulette */}
       <div className="flex flex-1 flex-col items-center rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-md">
         
         <div className="mb-4 text-center">
@@ -379,7 +343,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
               ⚠️ Tidak ada data tim terdaftar.
             </p>
           </div>
-        ) : remainingTeams.length > 0 && !isAllGroupsFull ? (
+        ) : remainingTeams.length > 0 ? (
           <RouletteWheel
             teams={remainingTeams}
             winningIndex={winningIndex}
@@ -399,43 +363,35 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
             <div className="flex w-full items-center justify-between rounded-xl border border-border bg-background p-1">
               <button
                 type="button"
-                disabled={isGroupAFull}
                 onClick={() => handleSwitchGroup("GROUP_A")}
                 className={`flex-1 rounded-lg py-2 text-[10px] font-bold uppercase transition ${
                   manualGroup === "GROUP_A"
                     ? "bg-sky-600 text-white shadow"
                     : "text-muted-foreground hover:text-foreground"
-                } ${isGroupAFull ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                }`}
               >
-                Group A {isGroupAFull ? "(Full)" : ""}
+                Group A
               </button>
-
               <button
                 type="button"
-                disabled={isGroupBFull}
                 onClick={() => handleSwitchGroup("GROUP_B")}
                 className={`flex-1 rounded-lg py-2 text-[10px] font-bold uppercase transition ${
                   manualGroup === "GROUP_B"
                     ? "bg-amber-600 text-white shadow"
                     : "text-muted-foreground hover:text-foreground"
-                } ${isGroupBFull ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                }`}
               >
-                Group B {isGroupBFull ? "(Full)" : ""}
+                Group B
               </button>
             </div>
 
             <button
               onClick={handleStartSpin}
-              disabled={isSpinning || remainingTeams.length === 0 || masterTeams.length === 0 || isCurrentGroupFull}
+              disabled={isSpinning || remainingTeams.length === 0 || masterTeams.length === 0}
               className="w-full rounded-xl bg-primary py-3 text-xs font-extrabold uppercase tracking-widest text-primary-foreground shadow-md transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
-              {isSpinning
-                ? "MEMUTAR PENGUNDIAN..."
-                : isCurrentGroupFull
-                ? `${currentTargetLabel.toUpperCase()} SUDAH PENUH`
-                : "🎯 MULAI PENGUNDIAN"}
+              {isSpinning ? "MEMUTAR PENGUNDIAN..." : "🎯 MULAI PENGUNDIAN"}
             </button>
-
             <button
               onClick={handleReset}
               disabled={isSpinning}
@@ -460,17 +416,16 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
-      {/* Tabel Hasil Group A & Group B */}
       <div className="grid w-full flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-sky-500/20 bg-sky-950/10 p-5 backdrop-blur-md">
           <div className="mb-3 flex items-center justify-between border-b border-sky-500/20 pb-2">
             <h3 className="font-extrabold text-sky-400">GROUP A</h3>
             <span className="text-[10px] font-bold text-muted-foreground">
-              {groupA.length} / {quotaGroupA} TIM
+              {groupA.length} / {halfQuota} TIM
             </span>
           </div>
           <ul className="space-y-2">
-            {Array.from({ length: quotaGroupA || 1 }).map((_, i) => (
+            {Array.from({ length: halfQuota || 1 }).map((_, i) => (
               <li
                 key={i}
                 className="flex items-center justify-between rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-xs"
@@ -506,11 +461,11 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           <div className="mb-3 flex items-center justify-between border-b border-amber-500/20 pb-2">
             <h3 className="font-extrabold text-amber-400">GROUP B</h3>
             <span className="text-[10px] font-bold text-muted-foreground">
-              {groupB.length} / {quotaGroupB} TIM
+              {groupB.length} / {totalSlots - halfQuota} TIM
             </span>
           </div>
           <ul className="space-y-2">
-            {Array.from({ length: Math.max(quotaGroupB, 1) }).map((_, i) => (
+            {Array.from({ length: Math.max(totalSlots - halfQuota, 1) }).map((_, i) => (
               <li
                 key={i}
                 className="flex items-center justify-between rounded-lg border border-border/40 bg-background/50 px-3 py-2 text-xs"
