@@ -10,6 +10,7 @@ const KV_KEY_LOGS = 'twi:roulette_logs';
 export interface TeamItem {
   name: string;
   logo: string;
+  createdAt?: string;
 }
 
 export interface LogItem {
@@ -52,8 +53,10 @@ export async function GET() {
         .map((team) => ({
           name: team?.namaTim || team?.name || 'Unknown Team',
           logo: team?.logoTim || team?.logo || '/logo.webp',
+          createdAt: team?.waktuRegis || team?.createdAt || new Date(0).toISOString(),
         }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+        // 🕒 URUTKAN BERDASARKAN WAKTU PENDAFTARAN (Awal ke Terbaru)
+        .sort((a, b) => new Date(a.createdAt!).getTime() - new Date(b.createdAt!).getTime());
     }
 
     const currentState = await kv.get<RouletteState>(KV_KEY_ROULETTE);
