@@ -4,37 +4,12 @@ import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { v2 as cloudinary } from 'cloudinary';
 
-// Konfigurasi Cloudinary (Otomatis membaca env CLOUDINARY_URL / credentials jika ada)
+// Konfigurasi Cloudinary
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-// 🗜️ Fungsi Kompresi URL Cloudinary
-function getOptimizedUrl(originalUrl: string): string {
-  try {
-    if (originalUrl.includes('res.cloudinary.com')) {
-      // Ambil Public ID dari URL Cloudinary
-      const parts = originalUrl.split('/upload/');
-      if (parts.length === 2) {
-        // Hapus prefix transformasi lama jika ada
-        const pathAfterUpload = parts[1].replace(/^v\d+\//, '').replace(/^[a-z]_[^/]+\//, '');
-        return cloudinary.url(pathAfterUpload, {
-          width: 128,
-          height: 128,
-          crop: 'fill',
-          quality: 'auto',
-          format: 'png',
-          secure: true,
-        });
-      }
-    }
-  } catch (e) {
-    console.warn("Gagal konversi URL Cloudinary, menggunakan URL asli:", e);
-  }
-  return originalUrl;
-}
 
 export async function GET() {
   try {
@@ -90,25 +65,37 @@ export async function GET() {
       }
 
       try {
-        // 🚀 Optimasi URL dengan Cloudinary SDK
-        const targetUrl = getOptimizedUrl(team.logo);
+        // 🚀 1. UPLOAD OTOMATIS KE CLOUDINARY + KOMPRESI & RESIZE ON-THE-FLY
+        // Cloudinary akan otomatis terima gambar besar, kompres, crop kotak 128x128, dan ubah jadi PNG kecil
+        const uploadResult = await cloudinary.uploader.upload(team.logo, {
+          folder: 'discord_emojis_temp',
+          width: 128,
+          height: 128,
+          crop: 'fill',
+          fetch_format: 'auto',
+          quality: 'auto',
+        });
 
-        const imageRes = await fetch(targetUrl);
-        if (!imageRes.ok) throw new Error("Gagal download gambar logo.");
+        const optimizedUrl = uploadResult.secure_url;
+
+        // 2. Download hasil gambar yang sudah dikecilkan oleh Cloudinary
+        const imageRes = await fetch(optimizedUrl);
+        if (!imageRes.ok) throw new Error("Gagal download gambar teroptimasi.");
         
         const contentType = imageRes.headers.get("content-type") || "image/png";
         const arrayBuffer = await imageRes.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
-        // Cek Batas Ukuran File Discord (256 KB)
+        // 3. Pastikan benar-benar di bawah 256 KB
         if (buffer.length > 256 * 1024) {
           failedCount++;
-          details.push(`❌ Gagal ${team.name}: Ukuran file terlalu besar (${Math.round(buffer.length / 1024)} KB > 256 KB).`);
+          details.push(`❌ Gagal ${team.name}: Ukuran masih terlalu besar (${Math.round(buffer.length / 1024)} KB).`);
           continue;
         }
 
         const base64Image = `data:${contentType};base64,${buffer.toString('base64')}`;
 
+        // 4. Kirim ke Discord API
         const res = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/emojis`, 'POST', {
           name: validName,
           image: base64Image,
@@ -138,4 +125,4 @@ export async function GET() {
     console.error("API Error create-emojis:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
-            }
+}
