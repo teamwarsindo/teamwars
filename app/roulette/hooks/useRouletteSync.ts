@@ -14,29 +14,39 @@ export function useRouletteSync(isAdmin: boolean, isSpinning: boolean) {
 
   const lastSpinTimeRef = useRef<number | null>(null);
 
-  const fetchState = async (
-    onRemoteSpin?: (spinData: any) => void
-  ) => {
+  const fetchState = async (onRemoteSpin?: (spinData: any) => void) => {
     try {
       const res = await fetch("/api/roulette-state");
       const data = await res.json();
       if (!data) return;
 
-      setMasterTeams(data.masterTeams || []);
-      if (!isAdmin && data.selectedTargetGroup) setManualGroup(data.selectedTargetGroup);
+      const fetchedMaster = data.masterTeams || [];
+      setMasterTeams(fetchedMaster);
+
+      if (!isAdmin && data.selectedTargetGroup) {
+        setManualGroup(data.selectedTargetGroup);
+      }
 
       if (!isSpinning) {
-        const allocatedNames = new Set([
-          ...(data.groupA || []).map((t: TeamItem) => t.name),
-          ...(data.groupB || []).map((t: TeamItem) => t.name),
-        ]);
-        const syncedRemaining = (data.remainingTeams || []).filter(
-          (t: TeamItem) => !allocatedNames.has(t.name)
-        );
+        const fetchedGroupA = data.groupA || [];
+        const fetchedGroupB = data.groupB || [];
 
-        setRemainingTeams(syncedRemaining);
-        setGroupA(data.groupA || []);
-        setGroupB(data.groupB || []);
+        // Jika groupA & groupB kosong (setelah reset), kembalikan sisa tim = masterTeams
+        if (fetchedGroupA.length === 0 && fetchedGroupB.length === 0) {
+          setRemainingTeams(data.remainingTeams || fetchedMaster);
+        } else {
+          const allocatedNames = new Set([
+            ...fetchedGroupA.map((t: TeamItem) => t.name),
+            ...fetchedGroupB.map((t: TeamItem) => t.name),
+          ]);
+          const syncedRemaining = (data.remainingTeams || []).filter(
+            (t: TeamItem) => !allocatedNames.has(t.name)
+          );
+          setRemainingTeams(syncedRemaining);
+        }
+
+        setGroupA(fetchedGroupA);
+        setGroupB(fetchedGroupB);
         if (!isAdmin) setCelebrationWinner(data.celebrationWinner || null);
       }
 
@@ -86,4 +96,4 @@ export function useRouletteSync(isAdmin: boolean, isSpinning: boolean) {
     fetchState,
     saveStateToKV,
   };
-        }
+    }
