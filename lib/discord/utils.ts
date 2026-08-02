@@ -17,9 +17,21 @@ export async function discordAPI(endpoint: string, method: string, body?: any) {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    if (!res.ok) throw new Error(`[${res.status}] ${await res.text()}`);
+    // Handle Rate Limit (Discord HTTP 429)
+    if (res.status === 429) {
+      const retryData = await res.json().catch(() => ({ retry_after: 1 }));
+      console.warn(`⚠️ Rate limited oleh Discord. Menunggu ${retryData.retry_after} detik...`);
+      await new Promise((resolve) => setTimeout(resolve, (retryData.retry_after || 1) * 1000));
+      return discordAPI(endpoint, method, body); // Coba ulang
+    }
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`❌ Discord API Error [${res.status}] ${method} ${endpoint}:`, errorText);
+      return null; // Return null agar backend tidak crash
+    }
     
-    // Perbaikan: jika bodynya kosong (204 No Content), jangan di-parse json
+    // Jika 204 No Content (Sukses Hapus Pesan)
     if (res.status === 204) return true; 
     return await res.json();
   } catch (err) {
@@ -48,7 +60,6 @@ export function getFooterText(createdAt?: string, updatedAt?: string) {
   const formatTanggal = (dateRaw: string | Date) => {
     const d = new Date(dateRaw);
     
-    // Format tanggal: "20 Jul 2026" (Bahasa Inggris)
     const dateStr = d.toLocaleDateString("en-GB", {
       timeZone: "Asia/Jakarta",
       day: "numeric",
@@ -56,7 +67,6 @@ export function getFooterText(createdAt?: string, updatedAt?: string) {
       year: "numeric"
     });
 
-    // Format jam 24 jam: "17:46"
     const timeStr = d.toLocaleTimeString("en-GB", {
       timeZone: "Asia/Jakarta",
       hour: "2-digit",
@@ -74,8 +84,7 @@ export function getFooterText(createdAt?: string, updatedAt?: string) {
     : `Registered: ${waktuBuat}`;
 }
 
-// ✨ Helper Baru untuk warna
 export function hexToDecimal(hexString: string, fallbackColor = 11146056): number {
   if (!hexString) return fallbackColor;
   return parseInt(hexString.replace('#', ''), 16) || fallbackColor;
-}
+      }
