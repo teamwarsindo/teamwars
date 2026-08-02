@@ -44,7 +44,7 @@ function makeEphemeralResponse(content: string) {
 }
 
 /**
- * 🚀 Inisialisasi awal pengiriman pesan (OTOMATIS RESET DATA LEANG)
+ * 🚀 Inisialisasi awal pengiriman pesan (OTOMATIS RESET DATA LELANG)
  */
 export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   const isClosed = overrideStatus ? overrideStatus === 'closed' : !isBidOpen();
@@ -194,9 +194,43 @@ export async function processBidSubmission(interaction: any) {
 
   await kv.set(KV_BID_KEY, data);
 
-  // Sync / Update Tampilan Embed di Discord
+  // 1. Sync / Update Tampilan Embed Utama di Discord Channel Bidding
   await syncBidMessages();
 
-  return makeEphemeralResponse(`✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`);
+  // 🟢 2. NOTIFIKASI PING REALT-TIME KE CHANNEL LOG ADMIN (CH_LOG)
+  try {
+    const token = process.env.DISCORD_BOT_TOKEN;
+    const adminRoleId = DISCORD_CONFIG.ROLE_ADMIN;
+    const logChannelId = DISCORD_CONFIG.CH_LOG;
+
+    if (token && logChannelId) {
+      await fetch(`https://discord.com/api/v10/channels/${logChannelId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bot ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: `<@&${adminRoleId}> 🚨 **BIDDING BARU MASUK!**`,
+          embeds: [
+            {
+              title: `💸 Penawaran Baru — Group ${groupTarget}`,
+              color: 0x57F287, // Warna Hijau Neon
+              fields: [
+                { name: "👤 Penawar", value: `**${displayName}** (\`@${user.username}\`)`, inline: true },
+                { name: "💰 Nominal Bid", value: `**${formatRupiah(amountInput)}**`, inline: true },
+                { name: "🏷️ Nama Divisi", value: `*"${nameA}"*`, inline: false },
+              ],
+              footer: { text: "Team Wars Indonesia • Real-time Admin Alert" },
+              timestamp: new Date().toISOString()
+            }
+          ]
+        })
+      });
     }
-  
+  } catch (err) {
+    console.error("Gagal mengirim notifikasi bid ke CH_LOG:", err);
+  }
+
+  return makeEphemeralResponse(`✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`);
+          }
