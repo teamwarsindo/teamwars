@@ -41,14 +41,13 @@ export function TournamentView({
     fetchTournamentData();
   }, []);
 
-  // PERBAIKAN: Tombol Paksa Reset Jadwal ke KV
   const handleForceResetSchedules = async () => {
     const res = await Swal.fire({
       title: "REGENERATE JADWAL DEFAULT?",
-      text: "Sistem akan menghapus jadwal lama dan membuat ulang jadwal Group A & B mulai Rabu, 5 Agustus 2026 (Rabu-Sabtu, 2 Match/Hari).",
+      text: "Sistem akan membuat ulang jadwal Group A & B (Rabu-Sabtu jam 20:00 WIB, 1 Match/Minggu per tim).",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Ya, Buat Ulang Sekarang",
+      confirmButtonText: "Ya, Reset Jadwal",
       confirmButtonColor: "#0284c7",
     });
 
@@ -66,7 +65,55 @@ export function TournamentView({
     await fetchTournamentData();
     setIsLoading(false);
 
-    Swal.fire("Berhasil!", "Jadwal Group A & B telah berhasil dibuat ulang.", "success");
+    Swal.fire("Berhasil!", "Jadwal Round-Robin telah berhasil dibuat ulang.", "success");
+  };
+
+  const handleEditMatch = async (match: MatchScheduleItem) => {
+    const formattedDate = match.matchDate ? new Date(match.matchDate).toISOString().slice(0, 16) : "";
+
+    const { value: formValues } = await Swal.fire({
+      title: `SETTINGS MATCH`,
+      html: `
+        <div className="flex flex-col gap-3 text-left text-xs">
+          <p className="font-bold text-center text-sky-400">${match.teamAName} VS ${match.teamBName}</p>
+          <div>
+            <label className="font-semibold text-[10px] text-muted-foreground">Waktu Match / Reschedule:</label>
+            <input id="swal-date" type="datetime-local" defaultValue="${formattedDate}" class="swal2-input !m-0 !w-full !mt-1" />
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            <div>
+              <label className="font-semibold text-[10px]">${match.teamAName}:</label>
+              <input id="swal-scoreA" type="number" min="0" max="10" defaultValue="${match.scoreA}" class="swal2-input !m-0 !w-full" />
+            </div>
+            <div>
+              <label className="font-semibold text-[10px]">${match.teamBName}:</label>
+              <input id="swal-scoreB" type="number" min="0" max="10" defaultValue="${match.scoreB}" class="swal2-input !m-0 !w-full" />
+            </div>
+          </div>
+        </div>
+      `,
+      focusConfirm: false,
+      background: "#171717",
+      color: "#fff",
+      showCancelButton: true,
+      confirmButtonText: "Simpan",
+      preConfirm: () => {
+        return {
+          matchDate: new Date((document.getElementById("swal-date") as HTMLInputElement).value).toISOString(),
+          scoreA: Number((document.getElementById("swal-scoreA") as HTMLInputElement).value),
+          scoreB: Number((document.getElementById("swal-scoreB") as HTMLInputElement).value),
+        };
+      },
+    });
+
+    if (formValues) {
+      await fetch("/api/tournament", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "UPDATE_MATCH", matchId: match.id, ...formValues }),
+      });
+      fetchTournamentData();
+    }
   };
 
   if (isLoading) {
@@ -77,7 +124,9 @@ export function TournamentView({
   const filteredSchedules = schedules.filter((m) => {
     const matchGroup = selectedGroupFilter === "ALL" || m.groupName === selectedGroupFilter;
     if (!selectedDateFilter) return matchGroup;
-    const mDate = new Date(m.matchDate).toLocaleDateString("sv-SE");
+    
+    // Bandingkan Tanggal Lokal WIB
+    const mDate = new Date(m.matchDate).toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
     return matchGroup && mDate === selectedDateFilter;
   });
 
@@ -87,7 +136,7 @@ export function TournamentView({
   return (
     <div className="w-full flex flex-col gap-5">
       
-      {/* KOTAK TAB NAVIGATION */}
+      {/* 🔲 KOTAK TAB NAVIGATION (MOBILE FRIENDLY GRID) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
         {[
           { key: "SCHEDULE", label: "Schedule" },
@@ -109,7 +158,7 @@ export function TournamentView({
         ))}
       </div>
 
-      {/* SCHEDULE TAB */}
+      {/* 📅 SCHEDULE TAB */}
       {activeTab === "SCHEDULE" && (
         <div className="flex flex-col gap-4">
           
@@ -148,7 +197,7 @@ export function TournamentView({
             </div>
           </div>
 
-          {/* TOMBOL REGENERATE KHUSUS ADMIN / PERBAIKAN */}
+          {/* TOMBOL RESET ADMIN */}
           {isAdmin && (
             <button
               onClick={handleForceResetSchedules}
@@ -167,15 +216,20 @@ export function TournamentView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredSchedules.map((match) => {
                 const dateObj = new Date(match.matchDate);
+                
+                // Format Hari & Tanggal WIB
                 const dateFormatted = dateObj.toLocaleDateString("id-ID", {
                   weekday: "short",
                   day: "numeric",
                   month: "short",
                   timeZone: "Asia/Jakarta",
                 });
+
+                // Format Jam 20:00 WIB
                 const timeFormatted = dateObj.toLocaleTimeString("id-ID", {
                   hour: "2-digit",
                   minute: "2-digit",
+                  hour12: false,
                   timeZone: "Asia/Jakarta",
                 }) + " WIB";
 
@@ -205,6 +259,15 @@ export function TournamentView({
                         <img src={match.teamBLogo} alt="" className="h-7 w-7 object-contain shrink-0" />
                       </div>
                     </div>
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleEditMatch(match)}
+                        className="mt-2 w-full rounded-lg border border-primary/30 bg-primary/10 py-1 text-[10px] font-bold uppercase text-primary cursor-pointer"
+                      >
+                        ⚙️ Edit Match
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -213,7 +276,7 @@ export function TournamentView({
         </div>
       )}
 
-      {/* GROUP STANDING */}
+      {/* 📊 GROUP STANDING */}
       {activeTab === "GROUP_STANDING" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <StandingTable title="Group A Standing" data={groupAStandings} />
@@ -221,12 +284,12 @@ export function TournamentView({
         </div>
       )}
 
-      {/* GLOBAL STANDING */}
+      {/* 🌍 GLOBAL STANDING (16 TIM) */}
       {activeTab === "GLOBAL_STANDING" && (
         <StandingTable title="Global Wildcard Standings (16 Tim)" data={standings} isGlobal />
       )}
 
-      {/* PLAYOFF BRACKET */}
+      {/* 🏆 PLAYOFF VISUAL BRACKET TREE */}
       {activeTab === "PLAYOFF" && (
         <div className="flex flex-col gap-6 rounded-3xl border border-border bg-card p-6 overflow-x-auto">
           <h3 className="text-xs font-black uppercase text-primary border-b border-border pb-2">
@@ -250,7 +313,7 @@ export function TournamentView({
 
             <div className="flex flex-col justify-around gap-20 my-auto">
               <span className="font-extrabold text-[10px] text-muted-foreground uppercase">Semi-Final</span>
-              <BracketCard p1="Winner QF #1" p2="Winner QF #2" />
+              <BracketCard p1="Winner SF #1" p2="Winner SF #2" />
             </div>
 
             <div className="flex flex-col justify-center my-auto">
@@ -322,4 +385,5 @@ function StandingTable({ title, data, isGlobal }: { title: string; data: TeamSta
       </div>
     </div>
   );
-                    }
+                }
+    
