@@ -11,27 +11,26 @@ export async function GET() {
     let schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
     const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
 
-    const groupA = rouletteState.groupA || [];
-    const groupB = rouletteState.groupB || [];
+    const rawGroupA = rouletteState.groupA || [];
+    const rawGroupB = rouletteState.groupB || [];
 
-    // Jika jadwal kosong atau tombol reset dipencet, regenerasi jadwal dengan penanggalan pasti
+    const groupA = rawGroupA.map((t: any) => ({ ...t, groupName: 'Group A' }));
+    const groupB = rawGroupB.map((t: any) => ({ ...t, groupName: 'Group B' }));
+
+    // Regenerasi jika kosong atau belum terpetakan Group B
     if (schedules.length === 0 && (groupA.length > 0 || groupB.length > 0)) {
       schedules = generateDefaultSchedules(groupA, groupB);
       await kv.set(KV_KEY_SCHEDULES, schedules);
     }
 
-    // Pastikan masterTeams memuat groupName asli tiap tim
-    const groupATeams = groupA.map((t: any) => ({ ...t, groupName: 'Group A' }));
-    const groupBTeams = groupB.map((t: any) => ({ ...t, groupName: 'Group B' }));
-    const masterTeams = [...groupATeams, ...groupBTeams];
-
+    const masterTeams = [...groupA, ...groupB];
     const standings = calculateStandings(schedules, masterTeams);
 
     return NextResponse.json({
       schedules,
       standings,
-      groupA: groupATeams,
-      groupB: groupBTeams,
+      groupA,
+      groupB,
       masterTeams,
     });
   } catch (error) {
@@ -43,7 +42,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { action, matchId, matchDate, scoreA, scoreB, referee, streamer, caster, streamLink, rosterA, rosterB, gameLogs } = body;
+    const { action, matchId, matchDate, scoreA, scoreB, referee, streamer, rosterA, rosterB, gameLogs } = body;
 
     let schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
@@ -57,21 +56,22 @@ export async function POST(req: Request) {
             scoreB: scoreB ?? match.scoreB,
             referee: referee ?? match.referee,
             streamer: streamer ?? match.streamer,
-            caster: caster ?? match.caster,
-            streamLink: streamLink ?? match.streamLink,
             isFinished: (scoreA >= 10 || scoreB >= 10),
           };
         }
         return match;
       });
+      await kv.set(KV_KEY_SCHEDULES, schedules);
     }
 
-    if (action === 'REGENERATE_SCHEDULES') {
+    if (action === 'RESET_SCHEDULES') {
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
-      schedules = generateDefaultSchedules(rouletteState.groupA || [], rouletteState.groupB || []);
+      const gA = (rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: 'Group A' }));
+      const gB = (rouletteState.groupB || []).map((t: any) => ({ ...t, groupName: 'Group B' }));
+      schedules = generateDefaultSchedules(gA, gB);
+      await kv.set(KV_KEY_SCHEDULES, schedules);
     }
 
-    await kv.set(KV_KEY_SCHEDULES, schedules);
     return NextResponse.json({ success: true, schedules });
   } catch (error) {
     console.error('Error POST Tournament State:', error);
@@ -80,80 +80,74 @@ export async function POST(req: Request) {
 }
 
 /**
- * Generator Jadwal 8 Match/Minggu
- * Masing-masing 2 Match per hari (Rabu, Kamis, Jumat, Sabtu) jam 20.00 & 21.30 WIB
- * Diisi secara bergantian adil untuk Group A & Group B
+ * Generator Jadwal Presisi:
+ * Mulai Minggu 3 Agustus 2026.
+ * Match dimainkan Rabu, Kamis, Jumat, Sabtu (2 Match/Hari @ 20:00 & 21:30 WIB)
  */
 function generateDefaultSchedules(groupA: any[], groupB: any[]): MatchScheduleItem[] {
   const schedules: MatchScheduleItem[] = [];
   let idCounter = 1;
 
-  // Pasangan Match Group A & B
-  const rawGroupAMatches: [any, any][] = [];
+  const matchesA: { pair: [any, any]; groupName: "Group A" | "Group B" }[] = [];
   for (let i = 0; i < groupA.length; i++) {
     for (let j = i + 1; j < groupA.length; j++) {
-      rawGroupAMatches.push([groupA[i], groupA[j]]);
+      matchesA.push({ pair: [groupA[i], groupA[j]], groupName: "Group A" });
     }
   }
 
-  const rawGroupBMatches: [any, any][] = [];
+  const matchesB: { pair: [any, any]; groupName: "Group A" | "Group B" }[] = [];
   for (let i = 0; i < groupB.length; i++) {
     for (let j = i + 1; j < groupB.length; j++) {
-      rawGroupBMatches.push([groupB[i], groupB[j]]);
+      matchesB.push({ pair: [groupB[i], groupB[j]], groupName: "Group B" });
     }
   }
 
-  // Gabungkan pertandingan selang-seling Group A & Group B
-  const allMatches: { pair: [any, any]; groupName: "Group A" | "Group B" }[] = [];
-  const maxLen = Math.max(rawGroupAMatches.length, rawGroupBMatches.length);
-
-  for (let i = 0; i < maxLen; i++) {
-    if (i < rawGroupAMatches.length) allMatches.push({ pair: rawGroupAMatches[i], groupName: "Group A" });
-    if (i < rawGroupBMatches.length) allMatches.push({ pair: rawGroupBMatches[i], groupName: "Group B" });
+  // Interleave / Gabungkan bergantian A & B
+  const allMatches = [];
+  const max = Math.max(matchesA.length, matchesB.length);
+  for (let i = 0; i < max; i++) {
+    if (i < matchesA.length) allMatches.push(matchesA[i]);
+    if (i < matchesB.length) allMatches.push(matchesB[i]);
   }
 
-  // Mulai Tanggal: Senin 3 Agustus 2026 (Diatur match pertamanya pada Rabu 5 Ags / Senin 3 Ags)
+  // Mulai dari Senin 3 Agustus 2026
   let currentDate = new Date("2026-08-03T20:00:00+07:00");
-  let matchCountOnCurrentDay = 0;
+  let dailyCount = 0;
 
-  allMatches.forEach((item) => {
-    // Lewati Minggu, Senin, Selasa -> Match hanya Rabu (3), Kamis (4), Jumat (5), Sabtu (6)
-    while ([0, 1, 2].includes(currentDate.getDay())) {
+  allMatches.forEach((m) => {
+    // Cari hari Rabu (3), Kamis (4), Jumat (5), atau Sabtu (6)
+    while (![3, 4, 5, 6].includes(currentDate.getDay())) {
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // Jam match: Match 1 = 20:00 WIB, Match 2 = 21:30 WIB
     const matchTime = new Date(currentDate);
-    if (matchCountOnCurrentDay === 1) {
-      matchTime.setHours(21, 30, 0, 0);
+    if (dailyCount === 1) {
+      matchTime.setHours(21, 30, 0, 0); // Slot 2
     } else {
-      matchTime.setHours(20, 0, 0, 0);
+      matchTime.setHours(20, 0, 0, 0);  // Slot 1
     }
 
     schedules.push({
       id: `match-${idCounter++}`,
       matchDate: matchTime.toISOString(),
       stage: "GROUP_STAGE",
-      groupName: item.groupName,
-      teamAId: item.pair[0].name,
-      teamAName: item.pair[0].name,
-      teamALogo: item.pair[0].logo || "/logo.webp",
-      teamBId: item.pair[1].name,
-      teamBName: item.pair[1].name,
-      teamBLogo: item.pair[1].logo || "/logo.webp",
+      groupName: m.groupName,
+      teamAId: m.pair[0].name,
+      teamAName: m.pair[0].name,
+      teamALogo: m.pair[0].logo || "/logo.webp",
+      teamBId: m.pair[1].name,
+      teamBName: m.pair[1].name,
+      teamBLogo: m.pair[1].logo || "/logo.webp",
       scoreA: 0,
       scoreB: 0,
       isFinished: false,
       referee: "vG®D WHY",
       streamer: "Alroy_Yuan",
-      caster: "Valdo",
-      streamPlatform: "Youtube",
     });
 
-    matchCountOnCurrentDay++;
-    // 2 match per hari selesai, lanjut ke hari berikutnya
-    if (matchCountOnCurrentDay >= 2) {
-      matchCountOnCurrentDay = 0;
+    dailyCount++;
+    if (dailyCount >= 2) {
+      dailyCount = 0;
       currentDate.setDate(currentDate.getDate() + 1);
     }
   });
