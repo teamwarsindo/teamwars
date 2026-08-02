@@ -18,7 +18,12 @@ export function TournamentView({
   selectedDateFilter: string;
   setSelectedDateFilter: (v: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"SCHEDULE" | "GROUP_STANDING" | "GLOBAL_STANDING" | "PLAYOFF">("SCHEDULE");
+  // 🎯 3 BUTTON UTAMA TOURNAMENT CENTER
+  const [activeMainTab, setActiveMainTab] = useState<"SCHEDULE" | "STANDING" | "PLAYOFF">("SCHEDULE");
+  
+  // 🎯 SUB TAB UNTUK STANDING
+  const [activeStandingSubTab, setActiveStandingSubTab] = useState<"GROUP_A" | "GROUP_B" | "GLOBAL">("GROUP_A");
+
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [standings, setStandings] = useState<TeamStandingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -101,19 +106,19 @@ export function TournamentView({
 
   return (
     <div className="w-full flex flex-col gap-5">
-      {/* KOTAK TAB */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
+      
+      {/* 🔲 3 BUTTON UTAMA TURNAMEN */}
+      <div className="grid grid-cols-3 gap-2 w-full">
         {[
           { key: "SCHEDULE", label: "Schedule" },
-          { key: "GROUP_STANDING", label: "Group Standing" },
-          { key: "GLOBAL_STANDING", label: "Global Standing" },
+          { key: "STANDING", label: "Standing" },
           { key: "PLAYOFF", label: "Playoff Bracket" },
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
-            className={`rounded-xl py-3 px-2 text-center text-xs font-extrabold uppercase border transition-all cursor-pointer ${
-              activeTab === tab.key ? "bg-primary text-primary-foreground border-primary shadow-md" : "bg-card text-muted-foreground border-border"
+            onClick={() => setActiveMainTab(tab.key as any)}
+            className={`rounded-xl py-3 px-2 text-center text-xs font-black uppercase tracking-wider border transition-all cursor-pointer ${
+              activeMainTab === tab.key ? "bg-primary text-primary-foreground border-primary shadow-md" : "bg-card text-muted-foreground border-border hover:text-foreground"
             }`}
           >
             {tab.label}
@@ -121,8 +126,8 @@ export function TournamentView({
         ))}
       </div>
 
-      {/* SCHEDULE TAB */}
-      {activeTab === "SCHEDULE" && (
+      {/* 📅 1. SCHEDULE TAB */}
+      {activeMainTab === "SCHEDULE" && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3">
             <div className="grid grid-cols-3 gap-2 w-full">
@@ -205,17 +210,52 @@ export function TournamentView({
         </div>
       )}
 
-      {/* STANDING & BRACKET VIEWS */}
-      {activeTab === "GROUP_STANDING" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <StandingTable title="Group A Standing" data={standings.filter((s) => s.groupName === "Group A")} />
-          <StandingTable title="Group B Standing" data={standings.filter((s) => s.groupName === "Group B")} />
+      {/* 📊 2. STANDING TAB (TERDIRI DARI GROUP A, GROUP B, GLOBAL) */}
+      {activeMainTab === "STANDING" && (
+        <div className="flex flex-col gap-4">
+          {/* Sub Tab Standing */}
+          <div className="grid grid-cols-3 gap-2 w-full rounded-2xl border border-border bg-card p-1.5">
+            <button
+              onClick={() => setActiveStandingSubTab("GROUP_A")}
+              className={`rounded-xl py-2 text-xs font-bold uppercase transition ${
+                activeStandingSubTab === "GROUP_A" ? "bg-sky-600 text-white" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Group A
+            </button>
+            <button
+              onClick={() => setActiveStandingSubTab("GROUP_B")}
+              className={`rounded-xl py-2 text-xs font-bold uppercase transition ${
+                activeStandingSubTab === "GROUP_B" ? "bg-amber-600 text-white" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Group B
+            </button>
+            <button
+              onClick={() => setActiveStandingSubTab("GLOBAL")}
+              className={`rounded-xl py-2 text-xs font-bold uppercase transition ${
+                activeStandingSubTab === "GLOBAL" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Global Standing
+            </button>
+          </div>
+
+          {/* Tabel Standing Terpilih */}
+          {activeStandingSubTab === "GROUP_A" && (
+            <StandingTable title="Standing Group A" data={standings.filter((s) => s.groupName === "Group A")} />
+          )}
+          {activeStandingSubTab === "GROUP_B" && (
+            <StandingTable title="Standing Group B" data={standings.filter((s) => s.groupName === "Group B")} />
+          )}
+          {activeStandingSubTab === "GLOBAL" && (
+            <StandingTable title="Global Wildcard Standings (16 Tim)" data={standings} isGlobal />
+          )}
         </div>
       )}
 
-      {activeTab === "GLOBAL_STANDING" && <StandingTable title="Global Wildcard Standings (16 Tim)" data={standings} isGlobal />}
-
-      {activeTab === "PLAYOFF" && (
+      {/* 🏆 3. PLAYOFF BRACKET TAB */}
+      {activeMainTab === "PLAYOFF" && (
         <div className="flex flex-col gap-6 rounded-3xl border border-border bg-card p-6 overflow-x-auto">
           <h3 className="text-xs font-black uppercase text-primary border-b border-border pb-2">🏆 PLAYOFF BRACKET SCHEME</h3>
           <div className="min-w-[700px] grid grid-cols-4 gap-4 text-xs">
@@ -245,7 +285,7 @@ export function TournamentView({
         </div>
       )}
 
-      {/* MODAL POPUP */}
+      {/* MODAL POPUP MATCH REPORT */}
       {activeReportMatch && (
         <MatchReportModal
           match={activeReportMatch}
@@ -267,31 +307,34 @@ function BracketCard({ p1, p2 }: { p1: string; p2: string }) {
   );
 }
 
+// TABEL STANDING PERSIS GAMBAR REFERENSI (RANK, TEAMS, MATCH W-L, RD, SET WINS, POINTS)
 function StandingTable({ title, data, isGlobal }: { title: string; data: TeamStandingItem[]; isGlobal?: boolean }) {
   return (
     <div className="flex flex-col rounded-2xl border border-border bg-card p-4">
       <h3 className="mb-3 text-xs font-black uppercase tracking-widest text-primary border-b border-border pb-2">{title}</h3>
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+        <table className="w-full text-left text-xs min-w-[450px]">
           <thead>
             <tr className="border-b border-border text-[10px] text-muted-foreground uppercase">
               <th className="py-2 px-1">Rank</th>
               <th className="py-2 px-2">Teams</th>
-              <th className="py-2 px-1 text-center">W-L</th>
+              <th className="py-2 px-1 text-center">Match W-L</th>
               <th className="py-2 px-1 text-center">RD</th>
-              <th className="py-2 px-1 text-center">Points</th>
+              <th className="py-2 px-1 text-center">Set Wins</th>
+              <th className="py-2 px-1 text-center font-bold text-sky-400">Points</th>
             </tr>
           </thead>
           <tbody>
             {data.map((team, idx) => (
               <tr key={team.teamId} className={`hover:bg-muted/20 ${idx === 3 && isGlobal ? "border-b-2 border-amber-500 bg-amber-500/5" : "border-b border-border/40"}`}>
                 <td className="py-2.5 px-1 font-extrabold">{idx + 1}</td>
-                <td className="py-2.5 px-2 flex items-center gap-2 min-w-[120px]">
+                <td className="py-2.5 px-2 flex items-center gap-2">
                   <img src={team.teamLogo} alt="" className="h-5 w-5 object-contain shrink-0" />
                   <span className="font-bold truncate">{team.teamName}</span>
                 </td>
                 <td className="py-2.5 px-1 text-center font-semibold">{team.matchWins}-{team.matchLosses}</td>
                 <td className="py-2.5 px-1 text-center text-muted-foreground">{team.roundDifference}</td>
+                <td className="py-2.5 px-1 text-center font-semibold">{team.setWins}</td>
                 <td className="py-2.5 px-1 text-center font-black text-sky-400">{team.points}</td>
               </tr>
             ))}
@@ -300,4 +343,5 @@ function StandingTable({ title, data, isGlobal }: { title: string; data: TeamSta
       </div>
     </div>
   );
-}
+    }
+                          
