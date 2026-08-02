@@ -41,52 +41,32 @@ export function TournamentView({
     fetchTournamentData();
   }, []);
 
-  const handleEditMatch = async (match: MatchScheduleItem) => {
-    const formattedDate = match.matchDate ? new Date(match.matchDate).toISOString().slice(0, 16) : "";
-
-    const { value: formValues } = await Swal.fire({
-      title: `SETTINGS MATCH`,
-      html: `
-        <div className="flex flex-col gap-3 text-left text-xs">
-          <p className="font-bold text-center text-sky-400">${match.teamAName} VS ${match.teamBName}</p>
-          <div>
-            <label className="font-semibold text-[10px] text-muted-foreground">Waktu Match / Reschedule:</label>
-            <input id="swal-date" type="datetime-local" defaultValue="${formattedDate}" class="swal2-input !m-0 !w-full !mt-1" />
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-1">
-            <div>
-              <label className="font-semibold text-[10px]">${match.teamAName}:</label>
-              <input id="swal-scoreA" type="number" min="0" max="10" defaultValue="${match.scoreA}" class="swal2-input !m-0 !w-full" />
-            </div>
-            <div>
-              <label className="font-semibold text-[10px]">${match.teamBName}:</label>
-              <input id="swal-scoreB" type="number" min="0" max="10" defaultValue="${match.scoreB}" class="swal2-input !m-0 !w-full" />
-            </div>
-          </div>
-        </div>
-      `,
-      focusConfirm: false,
-      background: "#171717",
-      color: "#fff",
+  // PERBAIKAN: Tombol Paksa Reset Jadwal ke KV
+  const handleForceResetSchedules = async () => {
+    const res = await Swal.fire({
+      title: "REGENERATE JADWAL DEFAULT?",
+      text: "Sistem akan menghapus jadwal lama dan membuat ulang jadwal Group A & B mulai Rabu, 5 Agustus 2026 (Rabu-Sabtu, 2 Match/Hari).",
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Simpan",
-      preConfirm: () => {
-        return {
-          matchDate: new Date((document.getElementById("swal-date") as HTMLInputElement).value).toISOString(),
-          scoreA: Number((document.getElementById("swal-scoreA") as HTMLInputElement).value),
-          scoreB: Number((document.getElementById("swal-scoreB") as HTMLInputElement).value),
-        };
-      },
+      confirmButtonText: "Ya, Buat Ulang Sekarang",
+      confirmButtonColor: "#0284c7",
     });
 
-    if (formValues) {
-      await fetch("/api/tournament", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "UPDATE_MATCH", matchId: match.id, ...formValues }),
-      });
-      fetchTournamentData();
-    }
+    if (!res.isConfirmed) return;
+
+    setIsLoading(true);
+    await fetch("/api/tournament", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "FORCE_RESET_SCHEDULES" }),
+    });
+
+    setSelectedDateFilter("");
+    setSelectedGroupFilter("ALL");
+    await fetchTournamentData();
+    setIsLoading(false);
+
+    Swal.fire("Berhasil!", "Jadwal Group A & B telah berhasil dibuat ulang.", "success");
   };
 
   if (isLoading) {
@@ -107,7 +87,7 @@ export function TournamentView({
   return (
     <div className="w-full flex flex-col gap-5">
       
-      {/* 🔲 KOTAK TAB NAVIGATION (MOBILE FRIENDLY GRID) */}
+      {/* KOTAK TAB NAVIGATION */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
         {[
           { key: "SCHEDULE", label: "Schedule" },
@@ -118,7 +98,7 @@ export function TournamentView({
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key as any)}
-            className={`rounded-xl py-3 px-2 text-center text-xs font-extrabold uppercase tracking-wider border transition-all cursor-pointer ${
+            className={`rounded-xl py-3 px-2 text-center text-xs font-extrabold uppercase border transition-all cursor-pointer ${
               activeTab === tab.key
                 ? "bg-primary text-primary-foreground border-primary shadow-md"
                 : "bg-card text-muted-foreground border-border hover:text-foreground"
@@ -129,7 +109,7 @@ export function TournamentView({
         ))}
       </div>
 
-      {/* 📅 SCHEDULE TAB */}
+      {/* SCHEDULE TAB */}
       {activeTab === "SCHEDULE" && (
         <div className="flex flex-col gap-4">
           
@@ -140,7 +120,7 @@ export function TournamentView({
                 <button
                   key={g}
                   onClick={() => setSelectedGroupFilter(g)}
-                  className={`rounded-lg py-2 px-3 text-[10px] font-bold uppercase transition ${
+                  className={`rounded-lg py-2 px-3 text-[10px] font-bold uppercase transition cursor-pointer ${
                     selectedGroupFilter === g ? "bg-primary text-white" : "bg-muted text-muted-foreground"
                   }`}
                 >
@@ -150,23 +130,33 @@ export function TournamentView({
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-              <span className="text-[10px] font-bold text-muted-foreground">📅 Filter Tanggal:</span>
+              <span className="text-[10px] font-bold text-muted-foreground">📅 Tanggal:</span>
               <input
                 type="date"
                 value={selectedDateFilter}
                 onChange={(e) => setSelectedDateFilter(e.target.value)}
-                className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground"
+                className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground cursor-pointer"
               />
               {selectedDateFilter && (
                 <button
                   onClick={() => setSelectedDateFilter("")}
-                  className="rounded-lg bg-rose-500/20 px-2 py-1.5 text-[10px] font-bold text-rose-400"
+                  className="rounded-lg bg-rose-500/20 px-2 py-1.5 text-[10px] font-bold text-rose-400 cursor-pointer"
                 >
                   Reset
                 </button>
               )}
             </div>
           </div>
+
+          {/* TOMBOL REGENERATE KHUSUS ADMIN / PERBAIKAN */}
+          {isAdmin && (
+            <button
+              onClick={handleForceResetSchedules}
+              className="w-full rounded-xl border border-sky-500/40 bg-sky-500/10 py-2.5 text-xs font-bold text-sky-400 hover:bg-sky-500/20 transition cursor-pointer"
+            >
+              🔄 Buat Ulang Jadwal Default (Rabu-Sabtu 20:00 WIB)
+            </button>
+          )}
 
           {/* LIST MATCH */}
           {filteredSchedules.length === 0 ? (
@@ -215,15 +205,6 @@ export function TournamentView({
                         <img src={match.teamBLogo} alt="" className="h-7 w-7 object-contain shrink-0" />
                       </div>
                     </div>
-
-                    {isAdmin && (
-                      <button
-                        onClick={() => handleEditMatch(match)}
-                        className="mt-2 w-full rounded-lg border border-primary/30 bg-primary/10 py-1 text-[10px] font-bold uppercase text-primary"
-                      >
-                        ⚙️ Edit Match
-                      </button>
-                    )}
                   </div>
                 );
               })}
@@ -232,7 +213,7 @@ export function TournamentView({
         </div>
       )}
 
-      {/* 📊 GROUP STANDING */}
+      {/* GROUP STANDING */}
       {activeTab === "GROUP_STANDING" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <StandingTable title="Group A Standing" data={groupAStandings} />
@@ -240,12 +221,12 @@ export function TournamentView({
         </div>
       )}
 
-      {/* 🌍 GLOBAL STANDING (16 TIM LENGKAP) */}
+      {/* GLOBAL STANDING */}
       {activeTab === "GLOBAL_STANDING" && (
         <StandingTable title="Global Wildcard Standings (16 Tim)" data={standings} isGlobal />
       )}
 
-      {/* 🏆 PLAYOFF VISUAL BRACKET TREE */}
+      {/* PLAYOFF BRACKET */}
       {activeTab === "PLAYOFF" && (
         <div className="flex flex-col gap-6 rounded-3xl border border-border bg-card p-6 overflow-x-auto">
           <h3 className="text-xs font-black uppercase text-primary border-b border-border pb-2">
@@ -253,7 +234,6 @@ export function TournamentView({
           </h3>
           
           <div className="min-w-[700px] grid grid-cols-4 gap-4 text-xs">
-            {/* Round 1 */}
             <div className="flex flex-col justify-around gap-6">
               <span className="font-extrabold text-[10px] text-muted-foreground uppercase">Round One</span>
               <BracketCard p1="Top 1 Group A" p2="Wildcard Seed 8" />
@@ -262,20 +242,17 @@ export function TournamentView({
               <BracketCard p1="Top 2 Group A" p2="Wildcard Seed 5" />
             </div>
 
-            {/* Quarter-Final */}
             <div className="flex flex-col justify-around gap-12 my-auto">
               <span className="font-extrabold text-[10px] text-muted-foreground uppercase">Quarter-Final</span>
               <BracketCard p1="Winner R1 #1" p2="Winner R1 #2" />
               <BracketCard p1="Winner R1 #3" p2="Winner R1 #4" />
             </div>
 
-            {/* Semi-Final */}
             <div className="flex flex-col justify-around gap-20 my-auto">
               <span className="font-extrabold text-[10px] text-muted-foreground uppercase">Semi-Final</span>
               <BracketCard p1="Winner QF #1" p2="Winner QF #2" />
             </div>
 
-            {/* Grand Final */}
             <div className="flex flex-col justify-center my-auto">
               <span className="font-extrabold text-[10px] text-amber-400 uppercase mb-2">Grand Final</span>
               <div className="rounded-2xl border-2 border-amber-500/50 bg-amber-950/20 p-4 text-center">
@@ -345,5 +322,4 @@ function StandingTable({ title, data, isGlobal }: { title: string; data: TeamSta
       </div>
     </div>
   );
-    }
-                              
+                    }
