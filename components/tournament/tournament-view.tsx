@@ -82,12 +82,12 @@ export function TournamentView({
 
   return (
     <div className="w-full flex flex-col gap-5">
-      {/* 3 Main Buttons */}
+      {/* 3 Main Buttons Konsisten Naming */}
       <div className="grid grid-cols-3 gap-2 w-full">
         {[
-          { key: "SCHEDULE", label: "Schedule" },
-          { key: "STANDING", label: "Standing" },
-          { key: "PLAYOFF", label: "Playoff Bracket" },
+          { key: "SCHEDULE", label: "Group Stage" },
+          { key: "STANDING", label: "Standing Group" },
+          { key: "PLAYOFF", label: "Playoff Stage" },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -131,4 +131,4 @@ export function TournamentView({
       )}
     </div>
   );
-                          }
+      }
