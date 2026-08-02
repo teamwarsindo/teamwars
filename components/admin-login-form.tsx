@@ -34,13 +34,12 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
         throw new Error(data.error || "Login gagal");
       }
 
-      // 🟢 Jika login sukses:
+      // 🟢 JIKA LOGIN BERHASIL:
       if (onSuccess) {
         onSuccess();
       } else {
-        // Redirect langsung ke /admin/dashboard & refresh state
-        router.push("/admin/dashboard");
-        router.refresh();
+        // 🚀 Tetap di URL saat ini (misal: /roulette?admin=true) & reload penuh agar Server Component membaca Cookie Admin baru
+        window.location.reload();
       }
     } catch (err: any) {
       setError(err.message || "Username atau password salah");
