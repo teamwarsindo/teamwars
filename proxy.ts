@@ -20,13 +20,12 @@ function handleAdminRoutes(req: NextRequest) {
   }
 
   // 🟢 B. Jika membuka `/admin/dashboard` tapi BELUM punya cookie session
-  // Biarkan LEWAT (jangan di-redirect) karena halaman /admin/dashboard kamu yang memuat form login-nya
+  // Biarkan LEWAT karena halaman /admin/dashboard memuat form login-nya
   if (pathname.startsWith('/admin/dashboard')) {
     return null; 
   }
 
   // 🟢 C. Untuk rute sub-admin lainnya (misal: /admin/settings, /admin/users, dll)
-  // Jika BELUM login, paksa lempar ke `/admin/dashboard`
   if (pathname.startsWith('/admin/') && !sessionToken) {
     return NextResponse.redirect(new URL('/admin/dashboard', req.url));
   }
@@ -62,11 +61,9 @@ function handleRegistration(req: NextRequest) {
 // 3. FUNGSI UTAMA PROXY / MIDDLEWARE
 // ==========================================
 export function proxy(request: NextRequest) {
-  // Hubungkan Logika Admin Session
   const adminRedirect = handleAdminRoutes(request);
   if (adminRedirect) return adminRedirect;
 
-  // Hubungkan Logika Registrasi
   const registrationLogic = handleRegistration(request);
   if (registrationLogic) return registrationLogic;
 
@@ -74,7 +71,7 @@ export function proxy(request: NextRequest) {
 }
 
 // ==========================================
-// 4. MATCHER CONFIG (Agar Middleware Bekerja)
+// 4. MATCHER CONFIG
 // ==========================================
 export const config = {
   matcher: [
