@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { MatchScheduleItem, TeamStandingItem } from "@/lib/types/tournament";
+import { ScheduleTab } from "./schedule-tab";
+import { StandingTab } from "./standing-tab";
+import { PlayoffTab } from "./playoff-tab";
 import { MatchReportModal } from "./match-report-modal";
 import Swal from "sweetalert2";
 
@@ -18,18 +21,10 @@ export function TournamentView({
   selectedDateFilter: string;
   setSelectedDateFilter: (v: string) => void;
 }) {
-  // 🎯 3 BUTTON UTAMA TOURNAMENT CENTER
   const [activeMainTab, setActiveMainTab] = useState<"SCHEDULE" | "STANDING" | "PLAYOFF">("SCHEDULE");
-  
-  // 🎯 SUB TAB UNTUK STANDING
-  const [activeStandingSubTab, setActiveStandingSubTab] = useState<"GROUP_A" | "GROUP_B" | "GLOBAL">("GROUP_A");
-
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [standings, setStandings] = useState<TeamStandingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
-  const [selectedWeekFilter, setSelectedWeekFilter] = useState<string>("ALL");
   const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
 
   const fetchTournamentData = async () => {
@@ -68,8 +63,6 @@ export function TournamentView({
     });
     setSelectedDateFilter("");
     setSelectedGroupFilter("ALL");
-    setSelectedTeamFilter("ALL");
-    setSelectedWeekFilter("ALL");
     await fetchTournamentData();
     setIsLoading(false);
   };
@@ -87,27 +80,9 @@ export function TournamentView({
   const allTeamNames = Array.from(new Set(standings.map((s) => s.teamName)));
   const allWeeks = Array.from(new Set(schedulesWithWeek.map((m) => m.weekNumber))).sort((a, b) => a - b);
 
-  const filteredSchedules = schedulesWithWeek.filter((m) => {
-    const matchGroup = selectedGroupFilter === "ALL" || m.groupName === selectedGroupFilter;
-    const matchTeam = selectedTeamFilter === "ALL" || m.teamAName === selectedTeamFilter || m.teamBName === selectedTeamFilter;
-    const matchWeek = selectedWeekFilter === "ALL" || String(m.weekNumber) === selectedWeekFilter;
-
-    if (!selectedDateFilter) return matchGroup && matchTeam && matchWeek;
-    const mDate = new Date(m.matchDate).toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
-    return matchGroup && matchTeam && matchWeek && mDate === selectedDateFilter;
-  });
-
-  const groupedSchedulesByWeek = filteredSchedules.reduce((acc, match) => {
-    const weekKey = `Week ${match.weekNumber}`;
-    if (!acc[weekKey]) acc[weekKey] = [];
-    acc[weekKey].push(match);
-    return acc;
-  }, {} as Record<string, typeof filteredSchedules>);
-
   return (
     <div className="w-full flex flex-col gap-5">
-      
-      {/* 🔲 3 BUTTON UTAMA TURNAMEN */}
+      {/* 3 Main Buttons */}
       <div className="grid grid-cols-3 gap-2 w-full">
         {[
           { key: "SCHEDULE", label: "Schedule" },
@@ -126,166 +101,27 @@ export function TournamentView({
         ))}
       </div>
 
-      {/* 📅 1. SCHEDULE TAB */}
+      {/* Render Active Tab */}
       {activeMainTab === "SCHEDULE" && (
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3">
-            <div className="grid grid-cols-3 gap-2 w-full">
-              {(["ALL", "Group A", "Group B"] as const).map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setSelectedGroupFilter(g)}
-                  className={`rounded-lg py-2 px-3 text-[10px] font-bold uppercase cursor-pointer ${
-                    selectedGroupFilter === g ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {g === "ALL" ? "Semua Grup" : g}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <select value={selectedTeamFilter} onChange={(e) => setSelectedTeamFilter(e.target.value)} className="rounded-lg border border-border bg-background p-1.5 text-xs">
-                <option value="ALL">Semua Tim</option>
-                {allTeamNames.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-
-              <select value={selectedWeekFilter} onChange={(e) => setSelectedWeekFilter(e.target.value)} className="rounded-lg border border-border bg-background p-1.5 text-xs">
-                <option value="ALL">Semua Week</option>
-                {allWeeks.map((w) => <option key={w} value={String(w)}>Week {w}</option>)}
-              </select>
-
-              <input type="date" value={selectedDateFilter} onChange={(e) => setSelectedDateFilter(e.target.value)} className="rounded-lg border border-border bg-background p-1.5 text-xs" />
-            </div>
-          </div>
-
-          {isAdmin && (
-            <button onClick={handleForceResetSchedules} className="w-full rounded-xl border border-sky-500/40 bg-sky-500/10 py-2 text-xs font-bold text-sky-400">
-              🔄 Buat Ulang Jadwal Default (Rabu-Sabtu 20:00 WIB)
-            </button>
-          )}
-
-          {Object.keys(groupedSchedulesByWeek).length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border p-8 text-center text-xs font-bold text-muted-foreground">
-              ⚠️ Tidak ada jadwal pertandingan pada filter ini.
-            </div>
-          ) : (
-            Object.entries(groupedSchedulesByWeek).map(([weekTitle, matchGroup]) => (
-              <div key={weekTitle} className="flex flex-col gap-3">
-                <div className="flex items-center gap-2 border-b border-primary/30 pb-1">
-                  <span className="text-xs font-black uppercase text-primary">{weekTitle}</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {matchGroup.map((match) => (
-                    <div
-                      key={match.id}
-                      onClick={() => setActiveReportMatch(match)}
-                      className="flex flex-col justify-between rounded-2xl border border-border bg-card p-4 shadow-sm hover:border-primary/50 cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between border-b border-border/50 pb-2 mb-2 text-[10px]">
-                        <span className={`font-bold ${match.groupName === "Group A" ? "text-sky-400" : "text-amber-400"}`}>{match.groupName}</span>
-                        <span className="font-semibold text-primary">{new Date(match.matchDate).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Jakarta" })} - 20.00 WIB</span>
-                      </div>
-
-                      <div className="flex items-center justify-between my-2 gap-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <img src={match.teamALogo} alt="" className="h-7 w-7 object-contain shrink-0" />
-                          <span className="text-xs font-bold truncate">{match.teamAName}</span>
-                        </div>
-                        <div className="flex items-center gap-1 px-3 py-1 rounded-xl bg-background border border-border font-black text-sm">
-                          <span>{match.scoreA}</span><span>-</span><span>{match.scoreB}</span>
-                        </div>
-                        <div className="flex items-center justify-end gap-2 flex-1 min-w-0">
-                          <span className="text-xs font-bold text-right truncate">{match.teamBName}</span>
-                          <img src={match.teamBLogo} alt="" className="h-7 w-7 object-contain shrink-0" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        <ScheduleTab
+          schedules={schedulesWithWeek}
+          allTeamNames={allTeamNames}
+          allWeeks={allWeeks}
+          isAdmin={isAdmin}
+          onResetSchedules={handleForceResetSchedules}
+          onSelectMatch={(m) => setActiveReportMatch(m)}
+          selectedGroupFilter={selectedGroupFilter}
+          setSelectedGroupFilter={setSelectedGroupFilter}
+          selectedDateFilter={selectedDateFilter}
+          setSelectedDateFilter={setSelectedDateFilter}
+        />
       )}
 
-      {/* 📊 2. STANDING TAB (TERDIRI DARI GROUP A, GROUP B, GLOBAL) */}
-      {activeMainTab === "STANDING" && (
-        <div className="flex flex-col gap-4">
-          {/* Sub Tab Standing */}
-          <div className="grid grid-cols-3 gap-2 w-full rounded-2xl border border-border bg-card p-1.5">
-            <button
-              onClick={() => setActiveStandingSubTab("GROUP_A")}
-              className={`rounded-xl py-2 text-xs font-bold uppercase transition ${
-                activeStandingSubTab === "GROUP_A" ? "bg-sky-600 text-white" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Group A
-            </button>
-            <button
-              onClick={() => setActiveStandingSubTab("GROUP_B")}
-              className={`rounded-xl py-2 text-xs font-bold uppercase transition ${
-                activeStandingSubTab === "GROUP_B" ? "bg-amber-600 text-white" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Group B
-            </button>
-            <button
-              onClick={() => setActiveStandingSubTab("GLOBAL")}
-              className={`rounded-xl py-2 text-xs font-bold uppercase transition ${
-                activeStandingSubTab === "GLOBAL" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Global Standing
-            </button>
-          </div>
+      {activeMainTab === "STANDING" && <StandingTab standings={standings} />}
 
-          {/* Tabel Standing Terpilih */}
-          {activeStandingSubTab === "GROUP_A" && (
-            <StandingTable title="Standing Group A" data={standings.filter((s) => s.groupName === "Group A")} />
-          )}
-          {activeStandingSubTab === "GROUP_B" && (
-            <StandingTable title="Standing Group B" data={standings.filter((s) => s.groupName === "Group B")} />
-          )}
-          {activeStandingSubTab === "GLOBAL" && (
-            <StandingTable title="Global Wildcard Standings (16 Tim)" data={standings} isGlobal />
-          )}
-        </div>
-      )}
+      {activeMainTab === "PLAYOFF" && <PlayoffTab />}
 
-      {/* 🏆 3. PLAYOFF BRACKET TAB */}
-      {activeMainTab === "PLAYOFF" && (
-        <div className="flex flex-col gap-6 rounded-3xl border border-border bg-card p-6 overflow-x-auto">
-          <h3 className="text-xs font-black uppercase text-primary border-b border-border pb-2">🏆 PLAYOFF BRACKET SCHEME</h3>
-          <div className="min-w-[700px] grid grid-cols-4 gap-4 text-xs">
-            <div className="flex flex-col justify-around gap-6">
-              <span className="font-extrabold text-[10px] text-muted-foreground uppercase">Round One</span>
-              <BracketCard p1="Top 1 Group A" p2="Wildcard Seed 8" />
-              <BracketCard p1="Top 2 Group B" p2="Wildcard Seed 7" />
-              <BracketCard p1="Top 1 Group B" p2="Wildcard Seed 6" />
-              <BracketCard p1="Top 2 Group A" p2="Wildcard Seed 5" />
-            </div>
-            <div className="flex flex-col justify-around gap-12 my-auto">
-              <span className="font-extrabold text-[10px] text-muted-foreground uppercase">Quarter-Final</span>
-              <BracketCard p1="Winner R1 #1" p2="Winner R1 #2" />
-              <BracketCard p1="Winner R1 #3" p2="Winner R1 #4" />
-            </div>
-            <div className="flex flex-col justify-around gap-20 my-auto">
-              <span className="font-extrabold text-[10px] text-muted-foreground uppercase">Semi-Final</span>
-              <BracketCard p1="Winner SF #1" p2="Winner SF #2" />
-            </div>
-            <div className="flex flex-col justify-center my-auto">
-              <span className="font-extrabold text-[10px] text-amber-400 uppercase mb-2">Grand Final</span>
-              <div className="rounded-2xl border-2 border-amber-500/50 bg-amber-950/20 p-4 text-center">
-                <p className="font-extrabold text-amber-400">GRAND FINAL</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL POPUP MATCH REPORT */}
+      {/* Modal Popup */}
       {activeReportMatch && (
         <MatchReportModal
           match={activeReportMatch}
@@ -295,53 +131,4 @@ export function TournamentView({
       )}
     </div>
   );
-}
-
-function BracketCard({ p1, p2 }: { p1: string; p2: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-background p-2.5 flex flex-col gap-1.5 shadow-sm">
-      <div className="flex items-center justify-between font-bold text-[11px]"><span className="truncate">{p1}</span><span className="text-sky-400">0</span></div>
-      <div className="border-t border-border/40" />
-      <div className="flex items-center justify-between font-bold text-[11px]"><span className="truncate">{p2}</span><span className="text-sky-400">0</span></div>
-    </div>
-  );
-}
-
-// TABEL STANDING PERSIS GAMBAR REFERENSI (RANK, TEAMS, MATCH W-L, RD, SET WINS, POINTS)
-function StandingTable({ title, data, isGlobal }: { title: string; data: TeamStandingItem[]; isGlobal?: boolean }) {
-  return (
-    <div className="flex flex-col rounded-2xl border border-border bg-card p-4">
-      <h3 className="mb-3 text-xs font-black uppercase tracking-widest text-primary border-b border-border pb-2">{title}</h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs min-w-[450px]">
-          <thead>
-            <tr className="border-b border-border text-[10px] text-muted-foreground uppercase">
-              <th className="py-2 px-1">Rank</th>
-              <th className="py-2 px-2">Teams</th>
-              <th className="py-2 px-1 text-center">Match W-L</th>
-              <th className="py-2 px-1 text-center">RD</th>
-              <th className="py-2 px-1 text-center">Set Wins</th>
-              <th className="py-2 px-1 text-center font-bold text-sky-400">Points</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((team, idx) => (
-              <tr key={team.teamId} className={`hover:bg-muted/20 ${idx === 3 && isGlobal ? "border-b-2 border-amber-500 bg-amber-500/5" : "border-b border-border/40"}`}>
-                <td className="py-2.5 px-1 font-extrabold">{idx + 1}</td>
-                <td className="py-2.5 px-2 flex items-center gap-2">
-                  <img src={team.teamLogo} alt="" className="h-5 w-5 object-contain shrink-0" />
-                  <span className="font-bold truncate">{team.teamName}</span>
-                </td>
-                <td className="py-2.5 px-1 text-center font-semibold">{team.matchWins}-{team.matchLosses}</td>
-                <td className="py-2.5 px-1 text-center text-muted-foreground">{team.roundDifference}</td>
-                <td className="py-2.5 px-1 text-center font-semibold">{team.setWins}</td>
-                <td className="py-2.5 px-1 text-center font-black text-sky-400">{team.points}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-    }
-                          
+                          }
