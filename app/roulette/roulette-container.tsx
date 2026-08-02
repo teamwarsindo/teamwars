@@ -255,7 +255,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const handleReset = async () => {
     const result = await Swal.fire({
       title: "RESET PENGUNDIAN?",
-      html: "Apakah kamu yakin ingin mengosongkan hasil Group A & Group B dan membersihkan log di Discord?",
+      html: "Apakah kamu yakin ingin mengosongkan hasil Group A & Group B?",
       icon: "warning",
       background: "#171717",
       color: "#fff",
@@ -281,7 +281,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     Swal.fire({
       title: "Berhasil Direset",
-      text: "Seluruh tim dikembalikan ke roda dan log di Discord telah dibersihkan.",
+      text: "Seluruh tim dikembalikan ke roda.",
       icon: "success",
       background: "#171717",
       color: "#fff",
@@ -313,45 +313,54 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         />
       )}
 
-      <div className="flex flex-1 flex-col items-center rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-md">
+      {/* Card Container Utama Roda Spin */}
+      <div className="relative flex w-full max-w-md flex-col items-center rounded-3xl border border-border bg-card/60 p-5 shadow-2xl backdrop-blur-md sm:p-7 mx-auto">
         
-        <div className="mb-4 text-center">
-          <span className="inline-block rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+        {/* Ambient Glow Background */}
+        <div className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-gradient-to-b from-primary/10 via-transparent to-primary/5 blur-xl" />
+
+        <div className="mb-5 text-center">
+          <span className="inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary shadow-sm">
             Alokasi Grup: <span className={currentTargetLabel.includes("A") ? "text-sky-400" : "text-amber-400"}>{currentTargetLabel}</span>
           </span>
         </div>
 
-        {masterTeams.length === 0 ? (
-          <div className="flex h-[360px] w-[360px] items-center justify-center rounded-full border border-dashed border-destructive/40 bg-muted/20 text-center p-6">
-            <p className="text-xs font-bold text-destructive">
-              ⚠️ Tidak ada data tim terdaftar.
-            </p>
-          </div>
-        ) : remainingTeams.length > 0 ? (
-          <RouletteWheel
-            teams={remainingTeams}
-            winningIndex={winningIndex}
-            isSpinning={isSpinning}
-            targetAngleServer={serverTargetAngle}
-            startTimeMs={spinStartTimeMs}
-            onSpinEnd={handleSpinEnd}
-          />
-        ) : (
-          <div className="flex h-[360px] w-[360px] items-center justify-center rounded-full border border-dashed border-primary/40 bg-muted/20 text-center p-6">
-            <p className="text-sm font-bold text-primary">🎉 PENGUNDIAN GRUP SELESAI!</p>
-          </div>
-        )}
+        {/* Wrapper Area Wheel / Canvas */}
+        <div className="relative flex aspect-square w-full max-w-[360px] items-center justify-center">
+          {masterTeams.length === 0 ? (
+            <div className="flex h-full w-full items-center justify-center rounded-full border-2 border-dashed border-destructive/40 bg-muted/20 p-6 text-center">
+              <p className="text-xs font-bold text-destructive">
+                ⚠️ Tidak ada data tim terdaftar.
+              </p>
+            </div>
+          ) : remainingTeams.length > 0 ? (
+            <RouletteWheel
+              teams={remainingTeams}
+              winningIndex={winningIndex}
+              isSpinning={isSpinning}
+              targetAngleServer={serverTargetAngle}
+              startTimeMs={spinStartTimeMs}
+              onSpinEnd={handleSpinEnd}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center rounded-full border-2 border-dashed border-primary/40 bg-card/80 p-6 text-center shadow-inner backdrop-blur-sm">
+              <p className="text-base font-extrabold text-primary tracking-wide">
+                🎉 PENGUNDIAN GRUP SELESAI!
+              </p>
+            </div>
+          )}
+        </div>
 
         {isAdmin ? (
-          <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
-            <div className="flex w-full items-center justify-between rounded-xl border border-border bg-background p-1">
+          <div className="mt-7 flex w-full flex-col gap-3">
+            <div className="flex w-full items-center justify-between rounded-xl border border-border bg-background/80 p-1 backdrop-blur-sm">
               <button
                 type="button"
                 onClick={() => handleSwitchGroup("GROUP_A")}
                 disabled={isSpinning || isGroupAFull || isDrawFinished}
                 className={`flex-1 rounded-lg py-2 text-[10px] font-bold uppercase transition disabled:opacity-30 disabled:cursor-not-allowed ${
                   manualGroup === "GROUP_A"
-                    ? "bg-sky-600 text-white shadow"
+                    ? "bg-sky-600 text-white shadow-md"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -363,7 +372,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
                 disabled={isSpinning || isGroupBFull || isDrawFinished}
                 className={`flex-1 rounded-lg py-2 text-[10px] font-bold uppercase transition disabled:opacity-30 disabled:cursor-not-allowed ${
                   manualGroup === "GROUP_B"
-                    ? "bg-amber-600 text-white shadow"
+                    ? "bg-amber-600 text-white shadow-md"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -374,20 +383,20 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
             <button
               onClick={handleStartSpin}
               disabled={isSpinning || isDrawFinished || masterTeams.length === 0}
-              className="w-full rounded-xl bg-primary py-3 text-xs font-extrabold uppercase tracking-widest text-primary-foreground shadow-md transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              className="w-full rounded-xl bg-primary py-3.5 text-xs font-extrabold uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
               {isSpinning ? "MEMUTAR PENGUNDIAN..." : isDrawFinished ? "PENGUNDIAN SELESAI" : "🎯 MULAI PENGUNDIAN"}
             </button>
             <button
               onClick={handleReset}
               disabled={isSpinning}
-              className="w-full rounded-xl border border-destructive/30 bg-destructive/10 py-2 text-[10px] font-bold uppercase tracking-wider text-destructive hover:bg-destructive/20 cursor-pointer disabled:opacity-50"
+              className="w-full rounded-xl border border-destructive/30 bg-destructive/10 py-2.5 text-[10px] font-bold uppercase tracking-wider text-destructive hover:bg-destructive/20 cursor-pointer disabled:opacity-50 transition"
             >
               🔄 RESET PENGUNDIAN
             </button>
           </div>
         ) : (
-          <div className="mt-6 flex flex-col items-center gap-2">
+          <div className="mt-7 flex flex-col items-center gap-2">
             <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/20 px-4 py-2 text-xs font-bold text-emerald-400">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -411,4 +420,5 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     </div>
   );
-            }
+                                 }
+          
