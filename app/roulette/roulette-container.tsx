@@ -32,76 +32,56 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const isDrawFinished = remainingTeams.length === 0 && masterTeams.length > 0;
 
   useEffect(() => {
-    if (celebrationWinner) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
+    document.body.style.overflow = celebrationWinner ? "hidden" : "unset";
+    return () => { document.body.style.overflow = "unset"; };
   }, [celebrationWinner]);
 
   useEffect(() => {
-    if (isGroupAFull && !isGroupBFull) {
-      setManualGroup("GROUP_B");
-    } else if (isGroupBFull && !isGroupAFull) {
-      setManualGroup("GROUP_A");
-    }
+    if (isGroupAFull && !isGroupBFull) setManualGroup("GROUP_B");
+    else if (isGroupBFull && !isGroupAFull) setManualGroup("GROUP_A");
   }, [groupA.length, groupB.length, quotaA, quotaB, isGroupAFull, isGroupBFull]);
 
   const fetchState = async () => {
     try {
       const res = await fetch("/api/roulette-state");
       const data = await res.json();
-      
-      if (data) {
-        const fetchedMaster: TeamItem[] = data.masterTeams || [];
-        const fetchedGroupA: TeamItem[] = data.groupA || [];
-        const fetchedGroupB: TeamItem[] = data.groupB || [];
+      if (!data) return;
 
-        setMasterTeams(fetchedMaster);
-        
-        if (!isAdmin && data.selectedTargetGroup) {
-          setManualGroup(data.selectedTargetGroup);
-        }
+      const fetchedMaster: TeamItem[] = data.masterTeams || [];
+      const fetchedGroupA: TeamItem[] = data.groupA || [];
+      const fetchedGroupB: TeamItem[] = data.groupB || [];
 
-        if (!isSpinning) {
-          const allocatedNames = new Set([
-            ...fetchedGroupA.map((t) => t.name),
-            ...fetchedGroupB.map((t) => t.name),
-          ]);
+      setMasterTeams(fetchedMaster);
+      if (!isAdmin && data.selectedTargetGroup) setManualGroup(data.selectedTargetGroup);
 
-          const syncedRemaining = (data.remainingTeams && data.remainingTeams.length > 0)
-            ? data.remainingTeams.filter((t: TeamItem) => !allocatedNames.has(t.name))
-            : fetchedMaster.filter((t: TeamItem) => !allocatedNames.has(t.name));
+      if (!isSpinning) {
+        const allocatedNames = new Set([
+          ...fetchedGroupA.map((t) => t.name),
+          ...fetchedGroupB.map((t) => t.name),
+        ]);
 
-          setRemainingTeams(syncedRemaining);
-          setGroupA(fetchedGroupA);
-          setGroupB(fetchedGroupB);
-        }
+        const syncedRemaining = (data.remainingTeams && data.remainingTeams.length > 0)
+          ? data.remainingTeams.filter((t: TeamItem) => !allocatedNames.has(t.name))
+          : fetchedMaster.filter((t: TeamItem) => !allocatedNames.has(t.name));
 
-        if (!isAdmin && !isSpinning) {
-          setCelebrationWinner(data.celebrationWinner || null);
-        }
+        setRemainingTeams(syncedRemaining);
+        setGroupA(fetchedGroupA);
+        setGroupB(fetchedGroupB);
+      }
 
-        if (!isAdmin && data.spinEvent) {
-          const spinId = data.spinEvent.startTime;
+      if (!isAdmin && !isSpinning) setCelebrationWinner(data.celebrationWinner || null);
 
-          if (spinId !== lastSpinTimeRef.current) {
-            const now = Date.now();
-            const elapsed = now - data.spinEvent.startTime;
-
-            if (elapsed < data.spinEvent.durationMs) {
-              lastSpinTimeRef.current = spinId;
-              setWinningIndex(data.spinEvent.winningIndex);
-              setServerTargetAngle(data.spinEvent.targetAngle);
-              setCelebrationWinner(null);
-
-              const localStartMs = performance.now() - elapsed;
-              setSpinStartTimeMs(localStartMs);
-              setIsSpinning(true);
-            }
+      if (!isAdmin && data.spinEvent) {
+        const spinId = data.spinEvent.startTime;
+        if (spinId !== lastSpinTimeRef.current) {
+          const elapsed = Date.now() - data.spinEvent.startTime;
+          if (elapsed < data.spinEvent.durationMs) {
+            lastSpinTimeRef.current = spinId;
+            setWinningIndex(data.spinEvent.winningIndex);
+            setServerTargetAngle(data.spinEvent.targetAngle);
+            setCelebrationWinner(null);
+            setSpinStartTimeMs(performance.now() - elapsed);
+            setIsSpinning(true);
           }
         }
       }
@@ -112,15 +92,10 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  useEffect(() => {
-    fetchState();
-  }, []);
+  useEffect(() => { fetchState(); }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchState();
-    }, 1000);
-
+    const interval = setInterval(() => { fetchState(); }, 1000);
     return () => clearInterval(interval);
   }, [isSpinning, isAdmin]);
 
@@ -150,9 +125,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
   const handleSwitchGroup = (group: "GROUP_A" | "GROUP_B") => {
     if (isSpinning || isDrawFinished) return;
-    if (group === "GROUP_A" && isGroupAFull) return;
-    if (group === "GROUP_B" && isGroupBFull) return;
-
+    if ((group === "GROUP_A" && isGroupAFull) || (group === "GROUP_B" && isGroupBFull)) return;
     setManualGroup(group);
     saveStateToKV(remainingTeams, groupA, groupB, celebrationWinner, null, null, group);
   };
@@ -162,17 +135,11 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
     let activeGroup = manualGroup;
     if (activeGroup === "GROUP_A" && isGroupAFull) {
-      if (isGroupBFull) {
-        Swal.fire({ icon: "error", title: "Kuota Penuh", text: "Seluruh grup A dan B sudah penuh!" });
-        return;
-      }
+      if (isGroupBFull) return Swal.fire({ icon: "error", title: "Kuota Penuh", text: "Seluruh grup A dan B sudah penuh!" });
       activeGroup = "GROUP_B";
       setManualGroup("GROUP_B");
     } else if (activeGroup === "GROUP_B" && isGroupBFull) {
-      if (isGroupAFull) {
-        Swal.fire({ icon: "error", title: "Kuota Penuh", text: "Seluruh grup A dan B sudah penuh!" });
-        return;
-      }
+      if (isGroupAFull) return Swal.fire({ icon: "error", title: "Kuota Penuh", text: "Seluruh grup A dan B sudah penuh!" });
       activeGroup = "GROUP_A";
       setManualGroup("GROUP_A");
     }
@@ -204,7 +171,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
 
   const handleSpinEnd = () => {
     if (winningIndex === null) return;
-
     const selectedTeam = remainingTeams[winningIndex];
     if (!selectedTeam) return;
 
@@ -215,18 +181,14 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     const activeGroup = manualGroup;
     const groupName: "Group A" | "Group B" = activeGroup === "GROUP_A" ? "Group A" : "Group B";
 
-    if (activeGroup === "GROUP_A") {
-      newGroupA.push(selectedTeam);
-    } else {
-      newGroupB.push(selectedTeam);
-    }
+    if (activeGroup === "GROUP_A") newGroupA.push(selectedTeam);
+    else newGroupB.push(selectedTeam);
 
     const slotNum = activeGroup === "GROUP_A" ? newGroupA.length : newGroupB.length;
 
     setRemainingTeams(newRemaining);
     setGroupA(newGroupA);
     setGroupB(newGroupB);
-    
     setIsSpinning(false);
     setWinningIndex(null);
     setCelebrationWinner(selectedTeam);
@@ -242,13 +204,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
       };
 
       saveStateToKV(newRemaining, newGroupA, newGroupB, selectedTeam, null, newLogItem, activeGroup);
-    }
-  };
-
-  const handleCloseCelebration = () => {
-    setCelebrationWinner(null);
-    if (isAdmin) {
-      saveStateToKV(remainingTeams, groupA, groupB, null, null, null, manualGroup);
     }
   };
 
@@ -294,44 +249,40 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   if (isLoading) {
     return (
       <div className="flex h-[360px] w-full items-center justify-center rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-md">
-        <p className="animate-pulse text-xs font-semibold text-primary">
-          ⏳ Memuat Data Pengundian dari Server...
-        </p>
+        <p className="animate-pulse text-xs font-semibold text-primary">⏳ Memuat Data Pengundian...</p>
       </div>
     );
   }
 
   return (
     <div className="relative flex w-full max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-between">
-      
       {celebrationWinner && (
         <RouletteCelebrationModal
           celebrationWinner={celebrationWinner}
           groupA={groupA}
           isAdmin={isAdmin}
-          onClose={handleCloseCelebration}
+          onClose={() => {
+            setCelebrationWinner(null);
+            if (isAdmin) saveStateToKV(remainingTeams, groupA, groupB, null, null, null, manualGroup);
+          }}
         />
       )}
 
-      {/* Card Container Utama Roda Spin */}
-      <div className="relative flex w-full max-w-md flex-col items-center rounded-3xl border border-border bg-card/60 p-5 shadow-2xl backdrop-blur-md sm:p-7 mx-auto">
-        
-        {/* Ambient Glow Background */}
+      {/* Main Wheel Card */}
+      <div className="relative flex w-full max-w-md flex-col items-center rounded-3xl border border-border bg-card/70 p-6 shadow-2xl backdrop-blur-md sm:p-8 mx-auto">
         <div className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-gradient-to-b from-primary/10 via-transparent to-primary/5 blur-xl" />
 
-        <div className="mb-5 text-center">
+        <div className="mb-6 text-center">
           <span className="inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary shadow-sm">
             Alokasi Grup: <span className={currentTargetLabel.includes("A") ? "text-sky-400" : "text-amber-400"}>{currentTargetLabel}</span>
           </span>
         </div>
 
-        {/* Wrapper Area Wheel / Canvas */}
+        {/* Dynamic Display */}
         <div className="relative flex aspect-square w-full max-w-[360px] items-center justify-center">
           {masterTeams.length === 0 ? (
-            <div className="flex h-full w-full items-center justify-center rounded-full border-2 border-dashed border-destructive/40 bg-muted/20 p-6 text-center">
-              <p className="text-xs font-bold text-destructive">
-                ⚠️ Tidak ada data tim terdaftar.
-              </p>
+            <div className="flex h-full w-full items-center justify-center rounded-full border-2 border-dashed border-destructive/40 bg-card p-6 text-center">
+              <p className="text-xs font-bold text-destructive">⚠️ Tidak ada data tim terdaftar.</p>
             </div>
           ) : remainingTeams.length > 0 ? (
             <RouletteWheel
@@ -343,25 +294,30 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
               onSpinEnd={handleSpinEnd}
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-full border-2 border-dashed border-primary/40 bg-card/80 p-6 text-center shadow-inner backdrop-blur-sm">
-              <p className="text-base font-extrabold text-primary tracking-wide">
-                🎉 PENGUNDIAN GRUP SELESAI!
-              </p>
+            /* 🔥 TAMPILAN FINISH SOLID SAMA UKURAN DENGAN RODA */
+            <div className="relative flex aspect-square w-full items-center justify-center rounded-full border-4 border-primary/30 bg-card p-6 text-center shadow-2xl backdrop-blur-md">
+              <div className="pointer-events-none absolute inset-3 rounded-full border border-primary/20 bg-primary/5 animate-pulse" />
+              <div className="z-10 flex flex-col items-center">
+                <span className="mb-1 text-3xl">🎉</span>
+                <h3 className="text-base font-extrabold uppercase tracking-wider text-primary">Pengundian Selesai</h3>
+                <p className="mt-1 text-[11px] text-muted-foreground max-w-[200px]">
+                  Seluruh tim berhasil dialokasikan ke Group A & Group B
+                </p>
+              </div>
             </div>
           )}
         </div>
 
+        {/* Action Control Panel */}
         {isAdmin ? (
           <div className="mt-7 flex w-full flex-col gap-3">
-            <div className="flex w-full items-center justify-between rounded-xl border border-border bg-background/80 p-1 backdrop-blur-sm">
+            <div className="flex w-full items-center justify-between rounded-xl border border-border bg-background p-1">
               <button
                 type="button"
                 onClick={() => handleSwitchGroup("GROUP_A")}
                 disabled={isSpinning || isGroupAFull || isDrawFinished}
                 className={`flex-1 rounded-lg py-2 text-[10px] font-bold uppercase transition disabled:opacity-30 disabled:cursor-not-allowed ${
-                  manualGroup === "GROUP_A"
-                    ? "bg-sky-600 text-white shadow-md"
-                    : "text-muted-foreground hover:text-foreground"
+                  manualGroup === "GROUP_A" ? "bg-sky-600 text-white shadow" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Group A {isGroupAFull ? "(Full)" : ""}
@@ -371,9 +327,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
                 onClick={() => handleSwitchGroup("GROUP_B")}
                 disabled={isSpinning || isGroupBFull || isDrawFinished}
                 className={`flex-1 rounded-lg py-2 text-[10px] font-bold uppercase transition disabled:opacity-30 disabled:cursor-not-allowed ${
-                  manualGroup === "GROUP_B"
-                    ? "bg-amber-600 text-white shadow-md"
-                    : "text-muted-foreground hover:text-foreground"
+                  manualGroup === "GROUP_B" ? "bg-amber-600 text-white shadow" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Group B {isGroupBFull ? "(Full)" : ""}
@@ -383,10 +337,11 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
             <button
               onClick={handleStartSpin}
               disabled={isSpinning || isDrawFinished || masterTeams.length === 0}
-              className="w-full rounded-xl bg-primary py-3.5 text-xs font-extrabold uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              className="w-full rounded-xl bg-primary py-3.5 text-xs font-extrabold uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
               {isSpinning ? "MEMUTAR PENGUNDIAN..." : isDrawFinished ? "PENGUNDIAN SELESAI" : "🎯 MULAI PENGUNDIAN"}
             </button>
+
             <button
               onClick={handleReset}
               disabled={isSpinning}
@@ -411,14 +366,8 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
-      <RouletteGroupList
-        groupA={groupA}
-        groupB={groupB}
-        quotaA={quotaA}
-        quotaB={quotaB}
-      />
-
+      <RouletteGroupList groupA={groupA} groupB={groupB} quotaA={quotaA} quotaB={quotaB} />
     </div>
   );
                                  }
-          
+    
