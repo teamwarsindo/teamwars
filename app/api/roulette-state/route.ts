@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { buildRouletteLogEmbed, buildRouletteResetEmbed } from '@/lib/discord/messages/roulette';
+import { buildRouletteLogEmbed } from '@/lib/discord/messages/roulette';
 
 const KV_KEY_ROULETTE = 'twi:roulette_state';
 const KV_KEY_LOGS = 'twi:roulette_logs';
@@ -95,7 +95,6 @@ export async function POST(req: Request) {
     const currentState = (await kv.get<RouletteState>(KV_KEY_ROULETTE)) || ({} as RouletteState);
     let currentResetMsgId = currentState.resetMessageId || null;
     
-    // Hapus pesan "Reset Draw" jika roda mulai diputar
     if (spinEvent && currentResetMsgId) {
       await discordAPI(
         `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${currentResetMsgId}`,
@@ -150,7 +149,7 @@ export async function DELETE() {
     const currentState = await kv.get<RouletteState>(KV_KEY_ROULETTE);
     const existingLogs = (await kv.get<LogItem[]>(KV_KEY_LOGS)) || [];
 
-    // 1. Kumpulkan seluruh ID pesan yang perlu dihapus
+    // 1. Kumpulkan seluruh ID pesan yang perlu dihapus dari Discord
     const rawIds: string[] = [];
 
     for (const log of existingLogs) {
@@ -163,7 +162,6 @@ export async function DELETE() {
       rawIds.push(currentState.resetMessageId);
     }
 
-    // Hapus duplikasi ID
     const uniqueMessageIds = Array.from(new Set(rawIds));
 
     // 2. Eksekusi Hapus Pesan ke Discord
@@ -174,16 +172,14 @@ export async function DELETE() {
           'DELETE'
         );
       } else {
-        // Coba metode Bulk Delete dulu
         const bulkSuccess = await discordAPI(
           `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/bulk-delete`,
           'POST',
           { messages: uniqueMessageIds }
         );
 
-        // 🔄 FALLBACK SAKTI: Jika Bulk Delete ditolak Discord, hapus paralel satu per satu!
+        // Fallback jika Bulk Delete gagal
         if (!bulkSuccess) {
-          console.warn("⚠️ Bulk Delete gagal/ditolak. Menjalankan Fallback Hapus Paralel...");
           await Promise.allSettled(
             uniqueMessageIds.map((msgId) =>
               discordAPI(
@@ -196,24 +192,14 @@ export async function DELETE() {
       }
     }
 
-    // 3. Kirim 1 PESAN RESET DRAW BARU ke Discord
-    const resetEmbedPayload = buildRouletteResetEmbed();
-    const resDiscord = await discordAPI(
-      `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages`,
-      'POST',
-      resetEmbedPayload
-    );
-
-    const newResetMsgId = resDiscord?.id || null;
-
-    // 4. Bersihkan/Reset State di KV Redis
+    // 3. Bersihkan/Reset State di KV Redis (TANPA KIRIM PESAN BARU)
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams: [],
       groupA: [],
       groupB: [],
       selectedTargetGroup: "GROUP_A",
       celebrationWinner: null,
-      resetMessageId: newResetMsgId,
+      resetMessageId: null,
       spinEvent: null,
     });
 
@@ -225,4 +211,3 @@ export async function DELETE() {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
   }
-        
