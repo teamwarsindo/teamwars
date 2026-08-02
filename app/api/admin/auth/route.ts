@@ -1,5 +1,4 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { userAgent } from 'next/server';
 import { discordAPI } from '@/lib/discord/utils'; 
@@ -49,8 +48,10 @@ export async function POST(request: NextRequest) {
 
     // --- 1. JIKA LOGIN BERHASIL ---
     if (isUserCorrect && isPwdCorrect) {
-      const cookieStore = await cookies();
-      cookieStore.set('admin_session', 'authenticated', {
+      const response = NextResponse.json({ success: true });
+
+      // 🟢 Set Cookie via Response Header dengan Path '/' (Durasi 1 Jam)
+      response.cookies.set('admin_session', 'authenticated', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString()
       });
 
-      return NextResponse.json({ success: true });
+      return response;
     }
 
     // --- 2. JIKA LOGIN GAGAL ---
@@ -94,20 +95,16 @@ export async function POST(request: NextRequest) {
     await kv.lpush('admin:login_logs', logFailed);
     await kv.ltrim('admin:login_logs', 0, 99);
 
-    // Susun Fields Discord: BAGIAN YANG BENAR TIDAK DICANTUMKAN!
     const failedFields = [];
 
-    // Hanya tampilkan Username Dicoba jika Username-nya SALAH
     if (!isUserCorrect) {
       failedFields.push({ name: "🕵️‍♂️ Username Dicoba", value: `\`${inputUser || '-'}\``, inline: true });
     }
 
-    // Hanya tampilkan Password Dicoba jika Password-nya SALAH
     if (!isPwdCorrect) {
       failedFields.push({ name: "🔑 Password Dicoba", value: `\`${password || '-'}\``, inline: true });
     }
 
-    // Tambahkan Info Perangkat & Jaringan
     failedFields.push(
       { name: "📱 Device", value: `${deviceType} (${osName})`, inline: true },
       { name: "🌐 Browser", value: browserName, inline: true },
@@ -115,7 +112,6 @@ export async function POST(request: NextRequest) {
       { name: "📡 IP Address", value: `||${ip}||`, inline: true }
     );
 
-    // Kirim Notif Discord (Embed Merah)
     await sendDiscordLog({
       title: "🚨 Peringatan: Percobaan Login Gagal!",
       description: `Seseorang mencoba mengakses panel Admin Dashboard.\n**Status Kegagalan:** \`${errorMessage}\``,
@@ -139,8 +135,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  const cookieStore = await cookies();
-  cookieStore.delete('admin_session');
-  return NextResponse.json({ success: true });
+  const response = NextResponse.json({ success: true });
+  response.cookies.delete('admin_session');
+  return response;
       }
-        
