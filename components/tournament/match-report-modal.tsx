@@ -27,13 +27,13 @@ export function MatchReportModal({
           ✕
         </button>
 
-        {/* TOP BANNER TITLE */}
+        {/* Header Title */}
         <div className="mb-4 text-center border-b border-sky-500/30 pb-2">
           <h2 className="text-base font-black tracking-widest text-sky-400 uppercase">MATCH REPORT</h2>
           <p className="text-[10px] text-slate-400">{match.groupName} • WEEK {weekNumber}</p>
         </div>
 
-        {/* METADATA BAR (Persis Gambar Referensi) */}
+        {/* Metadata Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-xl bg-slate-900/80 p-2.5 text-[10px] text-center border border-slate-800 mb-4">
           <div>
             <span className="text-slate-400 block">Stream Platform</span>
@@ -59,9 +59,8 @@ export function MatchReportModal({
           </div>
         </div>
 
-        {/* TEAM HEADER & ROSTER BAR */}
+        {/* Team Header & Roster */}
         <div className="grid grid-cols-2 gap-4 mb-4">
-          {/* TEAM A */}
           <div className="flex flex-col items-center bg-slate-900/50 p-3 rounded-xl border border-slate-800">
             <img src={match.teamALogo} alt="" className="h-10 w-10 object-contain mb-1" />
             <h3 className="font-extrabold text-sm text-sky-400 text-center">{match.teamAName}</h3>
@@ -73,7 +72,6 @@ export function MatchReportModal({
             </div>
           </div>
 
-          {/* TEAM B */}
           <div className="flex flex-col items-center bg-slate-900/50 p-3 rounded-xl border border-slate-800">
             <img src={match.teamBLogo} alt="" className="h-10 w-10 object-contain mb-1" />
             <h3 className="font-extrabold text-sm text-sky-400 text-center">{match.teamBName}</h3>
@@ -86,7 +84,7 @@ export function MatchReportModal({
           </div>
         </div>
 
-        {/* GAME LOGS TABLE (FORMAT MATCH REPORT TWI) */}
+        {/* Table Logs */}
         <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 p-2">
           {gameLogs.length === 0 ? (
             <p className="text-center text-xs text-slate-400 py-8">
@@ -129,7 +127,7 @@ export function MatchReportModal({
           )}
         </div>
 
-        {/* FINAL SCORE FOOTER */}
+        {/* Footer Score */}
         <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-900 p-3 border border-slate-800">
           <div className="flex items-center gap-2">
             <span className={`text-xl font-black ${match.scoreA > match.scoreB ? "text-emerald-400" : "text-rose-500"}`}>
@@ -153,4 +151,4 @@ export function MatchReportModal({
       </div>
     </div>
   );
-          }
+                              }
