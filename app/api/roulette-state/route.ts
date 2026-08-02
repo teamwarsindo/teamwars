@@ -151,32 +151,37 @@ export async function DELETE() {
     const existingLogs = (await kv.get<LogItem[]>(KV_KEY_LOGS)) || [];
 
     // 1. Kumpulkan seluruh ID pesan yang perlu dihapus dari Discord
-    const deletePromises: Promise<any>[] = [];
+    const messageIdsToDelete: string[] = [];
 
     for (const log of existingLogs) {
       if (log.discordMessageId) {
-        deletePromises.push(
-          discordAPI(
-            `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${log.discordMessageId}`,
-            'DELETE'
-          )
-        );
+        messageIdsToDelete.push(log.discordMessageId);
       }
     }
 
     if (currentState?.resetMessageId) {
-      deletePromises.push(
-        discordAPI(
-          `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${currentState.resetMessageId}`,
-          'DELETE'
-        )
-      );
+      messageIdsToDelete.push(currentState.resetMessageId);
     }
 
-    // Jalankan semua penghapusan secara paralel tanpa menghentikan eksekusi jika 1 pesan gagal
-    await Promise.allSettled(deletePromises);
+    // 2. Eksekusi BULK DELETE ke Discord API sekaligus
+    if (messageIdsToDelete.length > 0) {
+      if (messageIdsToDelete.length === 1) {
+        // Jika hanya ada 1 pesan
+        await discordAPI(
+          `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${messageIdsToDelete[0]}`,
+          'DELETE'
+        ).catch(() => null);
+      } else {
+        // Jika banyak pesan (16, 20, dst), hapus sekaligus dalam 1 request!
+        await discordAPI(
+          `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/bulk-delete`,
+          'POST',
+          { messages: messageIdsToDelete }
+        ).catch((err) => console.error('Gagal Bulk Delete Discord:', err));
+      }
+    }
 
-    // 2. Kirim 1 PESAN RESET DRAW BARU
+    // 3. Kirim 1 PESAN RESET DRAW BARU ke Discord
     const resetEmbedPayload = buildRouletteResetEmbed();
     const resDiscord = await discordAPI(
       `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages`,
@@ -186,7 +191,7 @@ export async function DELETE() {
 
     const newResetMsgId = resDiscord?.id || null;
 
-    // 3. Bersihkan KV State
+    // 4. Bersihkan State di KV Redis
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams: [],
       groupA: [],
@@ -204,5 +209,4 @@ export async function DELETE() {
     console.error('Error DELETE Roulette State:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-        }
-    
+                                                                     }
