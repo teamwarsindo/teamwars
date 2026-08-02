@@ -22,6 +22,13 @@ export function TournamentView({
   const [standings, setStandings] = useState<TeamStandingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 🔹 State Filter Tambahan: Filter Tim & Filter Week
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
+  const [selectedWeekFilter, setSelectedWeekFilter] = useState<string>("ALL");
+
+  // 🔹 State Modal Match Report
+  const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
+
   const fetchTournamentData = async () => {
     try {
       const res = await fetch("/api/tournament");
@@ -62,73 +69,57 @@ export function TournamentView({
 
     setSelectedDateFilter("");
     setSelectedGroupFilter("ALL");
+    setSelectedTeamFilter("ALL");
+    setSelectedWeekFilter("ALL");
     await fetchTournamentData();
     setIsLoading(false);
 
     Swal.fire("Berhasil!", "Jadwal Round-Robin telah berhasil dibuat ulang.", "success");
   };
 
-  const handleEditMatch = async (match: MatchScheduleItem) => {
-    const formattedDate = match.matchDate ? new Date(match.matchDate).toISOString().slice(0, 16) : "";
-
-    const { value: formValues } = await Swal.fire({
-      title: `SETTINGS MATCH`,
-      html: `
-        <div className="flex flex-col gap-3 text-left text-xs">
-          <p className="font-bold text-center text-sky-400">${match.teamAName} VS ${match.teamBName}</p>
-          <div>
-            <label className="font-semibold text-[10px] text-muted-foreground">Waktu Match / Reschedule:</label>
-            <input id="swal-date" type="datetime-local" defaultValue="${formattedDate}" class="swal2-input !m-0 !w-full !mt-1" />
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-1">
-            <div>
-              <label className="font-semibold text-[10px]">${match.teamAName}:</label>
-              <input id="swal-scoreA" type="number" min="0" max="10" defaultValue="${match.scoreA}" class="swal2-input !m-0 !w-full" />
-            </div>
-            <div>
-              <label className="font-semibold text-[10px]">${match.teamBName}:</label>
-              <input id="swal-scoreB" type="number" min="0" max="10" defaultValue="${match.scoreB}" class="swal2-input !m-0 !w-full" />
-            </div>
-          </div>
-        </div>
-      `,
-      focusConfirm: false,
-      background: "#171717",
-      color: "#fff",
-      showCancelButton: true,
-      confirmButtonText: "Simpan",
-      preConfirm: () => {
-        return {
-          matchDate: new Date((document.getElementById("swal-date") as HTMLInputElement).value).toISOString(),
-          scoreA: Number((document.getElementById("swal-scoreA") as HTMLInputElement).value),
-          scoreB: Number((document.getElementById("swal-scoreB") as HTMLInputElement).value),
-        };
-      },
-    });
-
-    if (formValues) {
-      await fetch("/api/tournament", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "UPDATE_MATCH", matchId: match.id, ...formValues }),
-      });
-      fetchTournamentData();
-    }
-  };
-
   if (isLoading) {
     return <div className="p-8 text-center text-xs font-bold text-primary animate-pulse">⏳ Memuat Data Turnamen...</div>;
   }
 
-  // Filter Match
-  const filteredSchedules = schedules.filter((m) => {
+  // 🎯 Logika Penentuan Week (Rabu-Sabtu dianggap 1 Week)
+  const getMatchWeekNumber = (dateString: string) => {
+    const startDate = new Date("2026-08-05T00:00:00+07:00").getTime();
+    const matchDate = new Date(dateString).getTime();
+    const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
+    return Math.max(1, Math.floor(diffDays / 7) + 1);
+  };
+
+  // Attach Week Number ke setiap match
+  const schedulesWithWeek = schedules.map((m) => ({
+    ...m,
+    weekNumber: getMatchWeekNumber(m.matchDate),
+  }));
+
+  // Daftar Semua Tim dari Standings untuk Filter Tim
+  const allTeamNames = Array.from(new Set(standings.map((s) => s.teamName)));
+  
+  // Daftar Semua Week yang ada
+  const allWeeks = Array.from(new Set(schedulesWithWeek.map((m) => m.weekNumber))).sort((a, b) => a - b);
+
+  // 🔍 Filtering Match
+  const filteredSchedules = schedulesWithWeek.filter((m) => {
     const matchGroup = selectedGroupFilter === "ALL" || m.groupName === selectedGroupFilter;
-    if (!selectedDateFilter) return matchGroup;
+    const matchTeam = selectedTeamFilter === "ALL" || m.teamAName === selectedTeamFilter || m.teamBName === selectedTeamFilter;
+    const matchWeek = selectedWeekFilter === "ALL" || String(m.weekNumber) === selectedWeekFilter;
+
+    if (!selectedDateFilter) return matchGroup && matchTeam && matchWeek;
     
-    // Bandingkan Tanggal Lokal WIB
     const mDate = new Date(m.matchDate).toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
-    return matchGroup && mDate === selectedDateFilter;
+    return matchGroup && matchTeam && matchWeek && mDate === selectedDateFilter;
   });
+
+  // 🗂️ Pengelompokan Match Berdasarkan Week
+  const groupedSchedulesByWeek = filteredSchedules.reduce((acc, match) => {
+    const weekKey = `Week ${match.weekNumber}`;
+    if (!acc[weekKey]) acc[weekKey] = [];
+    acc[weekKey].push(match);
+    return acc;
+  }, {} as Record<string, typeof filteredSchedules>);
 
   const groupAStandings = standings.filter((s) => s.groupName === "Group A");
   const groupBStandings = standings.filter((s) => s.groupName === "Group B");
@@ -136,7 +127,7 @@ export function TournamentView({
   return (
     <div className="w-full flex flex-col gap-5">
       
-      {/* 🔲 KOTAK TAB NAVIGATION (MOBILE FRIENDLY GRID) */}
+      {/* 🔲 KOTAK TAB NAVIGATION */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
         {[
           { key: "SCHEDULE", label: "Schedule" },
@@ -162,9 +153,10 @@ export function TournamentView({
       {activeTab === "SCHEDULE" && (
         <div className="flex flex-col gap-4">
           
-          {/* FILTER CONTROL BAR */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3">
-            <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
+          {/* FILTER CONTROL PANEL */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3">
+            {/* Filter Grup */}
+            <div className="grid grid-cols-3 gap-2 w-full">
               {(["ALL", "Group A", "Group B"] as const).map((g) => (
                 <button
                   key={g}
@@ -173,27 +165,67 @@ export function TournamentView({
                     selectedGroupFilter === g ? "bg-primary text-white" : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {g === "ALL" ? "Semua" : g}
+                  {g === "ALL" ? "Semua Grup" : g}
                 </button>
               ))}
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-              <span className="text-[10px] font-bold text-muted-foreground">📅 Tanggal:</span>
-              <input
-                type="date"
-                value={selectedDateFilter}
-                onChange={(e) => setSelectedDateFilter(e.target.value)}
-                className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground cursor-pointer"
-              />
-              {selectedDateFilter && (
-                <button
-                  onClick={() => setSelectedDateFilter("")}
-                  className="rounded-lg bg-rose-500/20 px-2 py-1.5 text-[10px] font-bold text-rose-400 cursor-pointer"
+            {/* Filter Dropdown: Tim, Week, & Tanggal */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {/* Filter Tim */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-muted-foreground">🛡️ Filter Tim:</span>
+                <select
+                  value={selectedTeamFilter}
+                  onChange={(e) => setSelectedTeamFilter(e.target.value)}
+                  className="rounded-lg border border-border bg-background p-1.5 text-xs text-foreground cursor-pointer"
                 >
-                  Reset
-                </button>
-              )}
+                  <option value="ALL">Semua Tim</option>
+                  {allTeamNames.map((team) => (
+                    <option key={team} value={team}>{team}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filter Week */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-muted-foreground">🏆 Filter Week:</span>
+                <select
+                  value={selectedWeekFilter}
+                  onChange={(e) => setSelectedWeekFilter(e.target.value)}
+                  className="rounded-lg border border-border bg-background p-1.5 text-xs text-foreground cursor-pointer"
+                >
+                  <option value="ALL">Semua Week</option>
+                  {allWeeks.map((w) => (
+                    <option key={w} value={String(w)}>Week {w}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filter Tanggal */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-muted-foreground">📅 Filter Tanggal:</span>
+                <div className="flex gap-1">
+                  <input
+                    type="date"
+                    value={selectedDateFilter}
+                    onChange={(e) => setSelectedDateFilter(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background p-1.5 text-xs text-foreground cursor-pointer"
+                  />
+                  {(selectedDateFilter || selectedTeamFilter !== "ALL" || selectedWeekFilter !== "ALL") && (
+                    <button
+                      onClick={() => {
+                        setSelectedDateFilter("");
+                        setSelectedTeamFilter("ALL");
+                        setSelectedWeekFilter("ALL");
+                      }}
+                      className="rounded-lg bg-rose-500/20 px-2 py-1.5 text-[10px] font-bold text-rose-400 cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -207,71 +239,78 @@ export function TournamentView({
             </button>
           )}
 
-          {/* LIST MATCH */}
-          {filteredSchedules.length === 0 ? (
+          {/* LIST MATCH GROUPED BY WEEK */}
+          {Object.keys(groupedSchedulesByWeek).length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border p-8 text-center text-xs font-bold text-muted-foreground">
               ⚠️ Tidak ada jadwal pertandingan pada filter ini.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {filteredSchedules.map((match) => {
-                const dateObj = new Date(match.matchDate);
-                
-                // Format Hari & Tanggal WIB
-                const dateFormatted = dateObj.toLocaleDateString("id-ID", {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                  timeZone: "Asia/Jakarta",
-                });
+            Object.entries(groupedSchedulesByWeek).map(([weekTitle, matchGroup]) => (
+              <div key={weekTitle} className="flex flex-col gap-3">
+                {/* Header Week */}
+                <div className="flex items-center gap-2 border-b border-primary/30 pb-1 mt-2">
+                  <span className="text-xs font-black uppercase text-primary tracking-wider">{weekTitle}</span>
+                  <span className="text-[10px] text-muted-foreground">({matchGroup.length} Match)</span>
+                </div>
 
-                // Format Jam 20:00 WIB
-                const timeFormatted = dateObj.toLocaleTimeString("id-ID", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: false,
-                  timeZone: "Asia/Jakarta",
-                }) + " WIB";
+                {/* Grid Match Card */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {matchGroup.map((match) => {
+                    const dateObj = new Date(match.matchDate);
+                    const dateFormatted = dateObj.toLocaleDateString("id-ID", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                      timeZone: "Asia/Jakarta",
+                    });
+                    const timeFormatted = dateObj.toLocaleTimeString("id-ID", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                      timeZone: "Asia/Jakarta",
+                    }) + " WIB";
 
-                return (
-                  <div key={match.id} className="flex flex-col justify-between rounded-2xl border border-border bg-card p-4 shadow-sm">
-                    <div className="flex items-center justify-between border-b border-border/50 pb-2 mb-2 text-[10px]">
-                      <span className={`font-bold ${match.groupName === "Group A" ? "text-sky-400" : "text-amber-400"}`}>
-                        {match.groupName}
-                      </span>
-                      <span className="font-semibold text-primary">{dateFormatted} - {timeFormatted}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between my-2 gap-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <img src={match.teamALogo} alt="" className="h-7 w-7 object-contain shrink-0" />
-                        <span className="text-xs font-bold truncate">{match.teamAName}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1 px-3 py-1 rounded-xl bg-background border border-border font-black text-sm shrink-0">
-                        <span className={match.scoreA >= 10 ? "text-emerald-400" : ""}>{match.scoreA}</span>
-                        <span className="text-muted-foreground text-xs">-</span>
-                        <span className={match.scoreB >= 10 ? "text-emerald-400" : ""}>{match.scoreB}</span>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-2 flex-1 min-w-0">
-                        <span className="text-xs font-bold text-right truncate">{match.teamBName}</span>
-                        <img src={match.teamBLogo} alt="" className="h-7 w-7 object-contain shrink-0" />
-                      </div>
-                    </div>
-
-                    {isAdmin && (
-                      <button
-                        onClick={() => handleEditMatch(match)}
-                        className="mt-2 w-full rounded-lg border border-primary/30 bg-primary/10 py-1 text-[10px] font-bold uppercase text-primary cursor-pointer"
+                    return (
+                      <div
+                        key={match.id}
+                        onClick={() => setActiveReportMatch(match)} // 👈 KLIk UNTUK BUKA MODAL MATCH REPORT
+                        className="flex flex-col justify-between rounded-2xl border border-border bg-card p-4 shadow-sm hover:border-primary/50 transition cursor-pointer group"
                       >
-                        ⚙️ Edit Match
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                        <div className="flex items-center justify-between border-b border-border/50 pb-2 mb-2 text-[10px]">
+                          <span className={`font-bold ${match.groupName === "Group A" ? "text-sky-400" : "text-amber-400"}`}>
+                            {match.groupName}
+                          </span>
+                          <span className="font-semibold text-primary">{dateFormatted} - {timeFormatted}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between my-2 gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <img src={match.teamALogo} alt="" className="h-7 w-7 object-contain shrink-0" />
+                            <span className="text-xs font-bold truncate group-hover:text-primary transition">{match.teamAName}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1 px-3 py-1 rounded-xl bg-background border border-border font-black text-sm shrink-0">
+                            <span className={match.scoreA >= 10 ? "text-emerald-400" : ""}>{match.scoreA}</span>
+                            <span className="text-muted-foreground text-xs">-</span>
+                            <span className={match.scoreB >= 10 ? "text-emerald-400" : ""}>{match.scoreB}</span>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 flex-1 min-w-0">
+                            <span className="text-xs font-bold text-right truncate group-hover:text-primary transition">{match.teamBName}</span>
+                            <img src={match.teamBLogo} alt="" className="h-7 w-7 object-contain shrink-0" />
+                          </div>
+                        </div>
+
+                        <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground pt-1.5 border-t border-border/30">
+                          <span>Judge: {match.referee || "TBA"}</span>
+                          <span className="text-sky-400 font-semibold group-hover:underline">📋 Lihat Match Report →</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
           )}
         </div>
       )}
@@ -284,12 +323,12 @@ export function TournamentView({
         </div>
       )}
 
-      {/* 🌍 GLOBAL STANDING (16 TIM) */}
+      {/* 🌍 GLOBAL STANDING */}
       {activeTab === "GLOBAL_STANDING" && (
         <StandingTable title="Global Wildcard Standings (16 Tim)" data={standings} isGlobal />
       )}
 
-      {/* 🏆 PLAYOFF VISUAL BRACKET TREE */}
+      {/* 🏆 PLAYOFF BRACKET */}
       {activeTab === "PLAYOFF" && (
         <div className="flex flex-col gap-6 rounded-3xl border border-border bg-card p-6 overflow-x-auto">
           <h3 className="text-xs font-black uppercase text-primary border-b border-border pb-2">
@@ -327,63 +366,62 @@ export function TournamentView({
         </div>
       )}
 
-    </div>
-  );
-}
+      {/* 📋 POP-UP MODAL MATCH REPORT (DI-KLIK DARI CARDS JADWAL) */}
+      {activeReportMatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-2xl rounded-3xl border border-border bg-card p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+            
+            {/* Close Button */}
+            <button
+              onClick={() => setActiveReportMatch(null)}
+              className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              ✕
+            </button>
 
-function BracketCard({ p1, p2 }: { p1: string; p2: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-background p-2.5 flex flex-col gap-1.5 shadow-sm">
-      <div className="flex items-center justify-between font-bold text-[11px]">
-        <span className="truncate">{p1}</span>
-        <span className="text-sky-400">0</span>
-      </div>
-      <div className="border-t border-border/40" />
-      <div className="flex items-center justify-between font-bold text-[11px]">
-        <span className="truncate">{p2}</span>
-        <span className="text-sky-400">0</span>
-      </div>
-    </div>
-  );
-}
+            {/* Header Info Match Report */}
+            <div className="flex flex-col gap-3 border-b border-border pb-4 mb-4 text-center">
+              <span className="text-xs font-bold text-sky-400 uppercase">
+                {activeReportMatch.groupName} • Week {getMatchWeekNumber(activeReportMatch.matchDate)}
+              </span>
+              
+              <div className="flex items-center justify-around my-2">
+                <div className="flex flex-col items-center gap-1 w-1/3">
+                  <img src={activeReportMatch.teamALogo} alt="" className="h-12 w-12 object-contain" />
+                  <span className="font-black text-xs sm:text-sm text-center">{activeReportMatch.teamAName}</span>
+                </div>
 
-function StandingTable({ title, data, isGlobal }: { title: string; data: TeamStandingItem[]; isGlobal?: boolean }) {
-  return (
-    <div className="flex flex-col rounded-2xl border border-border bg-card p-4">
-      <h3 className="mb-3 text-xs font-black uppercase tracking-widest text-primary border-b border-border pb-2">{title}</h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="border-b border-border text-[10px] text-muted-foreground uppercase">
-              <th className="py-2 px-1">Rank</th>
-              <th className="py-2 px-2">Teams</th>
-              <th className="py-2 px-1 text-center">W-L</th>
-              <th className="py-2 px-1 text-center">RD</th>
-              <th className="py-2 px-1 text-center">Set Wins</th>
-              <th className="py-2 px-1 text-center font-bold text-primary">Points</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((team, idx) => (
-              <tr
-                key={team.teamId}
-                className={`hover:bg-muted/20 ${idx === 3 && isGlobal ? "border-b-2 border-amber-500 bg-amber-500/5" : "border-b border-border/40"}`}
-              >
-                <td className="py-2.5 px-1 font-extrabold">{idx + 1}</td>
-                <td className="py-2.5 px-2 flex items-center gap-2 min-w-[120px]">
-                  <img src={team.teamLogo} alt="" className="h-5 w-5 object-contain shrink-0" />
-                  <span className="font-bold truncate">{team.teamName}</span>
-                </td>
-                <td className="py-2.5 px-1 text-center font-semibold">{team.matchWins}-{team.matchLosses}</td>
-                <td className="py-2.5 px-1 text-center text-muted-foreground">{team.roundDifference}</td>
-                <td className="py-2.5 px-1 text-center">{team.setWins}</td>
-                <td className="py-2.5 px-1 text-center font-black text-sky-400">{team.points}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-                }
-    
+                <div className="flex flex-col items-center gap-1">
+                  <div className="text-3xl font-black text-sky-400">
+                    {activeReportMatch.scoreA} - {activeReportMatch.scoreB}
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase">Race To 10 Wins</span>
+                </div>
+
+                <div className="flex flex-col items-center gap-1 w-1/3">
+                  <img src={activeReportMatch.teamBLogo} alt="" className="h-12 w-12 object-contain" />
+                  <span className="font-black text-xs sm:text-sm text-center">{activeReportMatch.teamBName}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground pt-2 border-t border-border/40">
+                <span>Judge: <strong className="text-foreground">{activeReportMatch.referee || "vG®D WHY"}</strong></span>
+                <span>Streamer: <strong className="text-foreground">{activeReportMatch.streamer || "Alroy_Yuan"}</strong></span>
+              </div>
+            </div>
+
+            {/* Log Per Pertandingan Game KOF */}
+            <div className="flex flex-col gap-2">
+              <h4 className="text-xs font-black uppercase text-primary border-b border-border/40 pb-1">
+                🎮 Game Detail Logs
+              </h4>
+
+              {!activeReportMatch.gameLogs || activeReportMatch.gameLogs.length === 0 ? (
+                <p className="text-center text-xs text-muted-foreground py-6">
+                  Pertandingan ini belum dimainkan atau laporan log belum di-input oleh Analyst.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bo    
