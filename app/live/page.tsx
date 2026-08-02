@@ -1,4 +1,4 @@
-import LiveStreamPlayer from './components/-live-stream-player';
+import LiveStreamPlayer from './components/live-stream-player';
 
 export default function ViewerPage() {
   return (
