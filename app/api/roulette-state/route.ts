@@ -150,34 +150,49 @@ export async function DELETE() {
     const currentState = await kv.get<RouletteState>(KV_KEY_ROULETTE);
     const existingLogs = (await kv.get<LogItem[]>(KV_KEY_LOGS)) || [];
 
-    // 1. Kumpulkan seluruh ID pesan yang perlu dihapus dari Discord
-    const messageIdsToDelete: string[] = [];
+    // 1. Kumpulkan seluruh ID pesan yang perlu dihapus
+    const rawIds: string[] = [];
 
     for (const log of existingLogs) {
       if (log.discordMessageId) {
-        messageIdsToDelete.push(log.discordMessageId);
+        rawIds.push(log.discordMessageId);
       }
     }
 
     if (currentState?.resetMessageId) {
-      messageIdsToDelete.push(currentState.resetMessageId);
+      rawIds.push(currentState.resetMessageId);
     }
 
-    // 2. Eksekusi BULK DELETE ke Discord API sekaligus
-    if (messageIdsToDelete.length > 0) {
-      if (messageIdsToDelete.length === 1) {
-        // Jika hanya ada 1 pesan
+    // Hapus duplikasi ID
+    const uniqueMessageIds = Array.from(new Set(rawIds));
+
+    // 2. Eksekusi Hapus Pesan ke Discord
+    if (uniqueMessageIds.length > 0) {
+      if (uniqueMessageIds.length === 1) {
         await discordAPI(
-          `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${messageIdsToDelete[0]}`,
+          `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${uniqueMessageIds[0]}`,
           'DELETE'
-        ).catch(() => null);
+        );
       } else {
-        // Jika banyak pesan (16, 20, dst), hapus sekaligus dalam 1 request!
-        await discordAPI(
+        // Coba metode Bulk Delete dulu
+        const bulkSuccess = await discordAPI(
           `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/bulk-delete`,
           'POST',
-          { messages: messageIdsToDelete }
-        ).catch((err) => console.error('Gagal Bulk Delete Discord:', err));
+          { messages: uniqueMessageIds }
+        );
+
+        // 🔄 FALLBACK SAKTI: Jika Bulk Delete ditolak Discord, hapus paralel satu per satu!
+        if (!bulkSuccess) {
+          console.warn("⚠️ Bulk Delete gagal/ditolak. Menjalankan Fallback Hapus Paralel...");
+          await Promise.allSettled(
+            uniqueMessageIds.map((msgId) =>
+              discordAPI(
+                `/channels/${DISCORD_CONFIG.CH_SHUFFLE}/messages/${msgId}`,
+                'DELETE'
+              )
+            )
+          );
+        }
       }
     }
 
@@ -191,7 +206,7 @@ export async function DELETE() {
 
     const newResetMsgId = resDiscord?.id || null;
 
-    // 4. Bersihkan State di KV Redis
+    // 4. Bersihkan/Reset State di KV Redis
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams: [],
       groupA: [],
@@ -209,4 +224,5 @@ export async function DELETE() {
     console.error('Error DELETE Roulette State:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-                                                                     }
+  }
+        
