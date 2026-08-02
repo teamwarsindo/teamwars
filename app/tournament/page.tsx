@@ -14,12 +14,15 @@ function TournamentContent() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <TopBar title="Season 7 — Official Stage" />
+      {/* 1. TOP BAR WITH CUSTOM TITLE */}
+      <TopBar title="Official Schedule" />
 
+      {/* 2. HERO HEADER (Didesain Tanpa Detail / Deskripsi) */}
       <div className="px-4">
-        <HeroHeader showDetails={true} />
+        <HeroHeader showDetails={false} />
       </div>
 
+      {/* 3. MAIN CONTENT */}
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-12">
         <TournamentView
           isAdmin={isAdmin}
@@ -41,4 +44,4 @@ export default function TournamentLandingPage() {
       <TournamentContent />
     </Suspense>
   );
-}
+    }
