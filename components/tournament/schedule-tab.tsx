@@ -32,6 +32,21 @@ export function ScheduleTab({
   const sortedTeams = [...allTeamNames].sort((a, b) => a.localeCompare(b));
   const sortedWeeks = [...allWeeks].sort((a, b) => a - b);
 
+  // Status apakah ada filter yang sedang aktif
+  const isFilterActive =
+    selectedGroupFilter !== "ALL" ||
+    selectedTeamFilter !== "ALL" ||
+    selectedWeekFilter !== "ALL" ||
+    selectedDateFilter !== "";
+
+  // Reset Semua Filter
+  const handleResetFilters = () => {
+    setSelectedGroupFilter("ALL");
+    setSelectedTeamFilter("ALL");
+    setSelectedWeekFilter("ALL");
+    setSelectedDateFilter("");
+  };
+
   const filteredSchedules = schedules.filter((m) => {
     const matchGroup = selectedGroupFilter === "ALL" || m.groupName === selectedGroupFilter;
     const matchTeam = selectedTeamFilter === "ALL" || m.teamAName === selectedTeamFilter || m.teamBName === selectedTeamFilter;
@@ -49,12 +64,21 @@ export function ScheduleTab({
     return acc;
   }, {} as Record<string, typeof filteredSchedules>);
 
+  // Format Tampilan Tanggal di Button (Misal: 05/08/2026 atau "Tanggal")
+  const displayDateText = selectedDateFilter
+    ? new Date(selectedDateFilter).toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "Tanggal";
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Filter Bar */}
+      {/* Control Panel Filter */}
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm">
         
-        {/* Sub Group Buttons */}
+        {/* Filter Grup */}
         <div className="grid grid-cols-3 gap-2 w-full">
           {[
             { key: "Group A", label: "Group A" },
@@ -65,7 +89,9 @@ export function ScheduleTab({
               key={g.key}
               onClick={() => setSelectedGroupFilter(g.key as any)}
               className={`rounded-xl py-2 px-3 text-[10px] font-extrabold uppercase transition cursor-pointer ${
-                selectedGroupFilter === g.key ? "bg-primary text-primary-foreground shadow-md" : "bg-muted text-muted-foreground hover:text-foreground"
+                selectedGroupFilter === g.key
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
               {g.label}
@@ -73,8 +99,8 @@ export function ScheduleTab({
           ))}
         </div>
 
-        {/* Dropdown Filters Native UI */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {/* Dropdown Tim & Week */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {/* Dropdown Tim (A-Z) */}
           <select
             value={selectedTeamFilter}
@@ -98,29 +124,47 @@ export function ScheduleTab({
               <option key={w} value={String(w)}>Week {w}</option>
             ))}
           </select>
+        </div>
 
-          {/* Date Picker Input Native */}
-          <div className="flex gap-1">
+        {/* Baris Tanggal & Tombol Reset Filter */}
+        <div className="flex items-center gap-2 w-full">
+          {/* Custom Date Picker Trigger Bar */}
+          <div className="relative flex-1">
+            <div className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium transition cursor-pointer ${
+              selectedDateFilter 
+                ? "border-primary bg-primary/10 text-primary font-bold" 
+                : "border-border bg-background text-foreground"
+            }`}>
+              <div className="flex items-center gap-2">
+                <span>📅</span>
+                <span>{displayDateText}</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground">▼</span>
+            </div>
+
+            {/* Hidden Input Date Native */}
             <input
               type="date"
               value={selectedDateFilter}
               onChange={(e) => setSelectedDateFilter(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
-            {(selectedDateFilter || selectedTeamFilter !== "ALL" || selectedWeekFilter !== "ALL") && (
-              <button
-                onClick={() => {
-                  setSelectedDateFilter("");
-                  setSelectedTeamFilter("ALL");
-                  setSelectedWeekFilter("ALL");
-                }}
-                className="rounded-xl bg-rose-500/20 px-3 py-2 text-[10px] font-bold text-rose-400 hover:bg-rose-500/30 transition cursor-pointer shrink-0"
-              >
-                Reset
-              </button>
-            )}
           </div>
+
+          {/* Tombol Reset Filter (Disabled / Active State) */}
+          <button
+            disabled={!isFilterActive}
+            onClick={handleResetFilters}
+            className={`rounded-xl px-4 py-2 text-xs font-bold transition shrink-0 ${
+              isFilterActive
+                ? "bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30 cursor-pointer shadow-sm"
+                : "bg-muted/40 text-muted-foreground/40 border border-border/40 cursor-not-allowed opacity-50"
+            }`}
+          >
+            Reset Filter
+          </button>
         </div>
+
       </div>
 
       {isAdmin && (
