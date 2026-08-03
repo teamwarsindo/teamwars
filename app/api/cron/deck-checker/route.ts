@@ -57,7 +57,7 @@ export async function GET(req: Request) {
       const guildId = channelInfo?.guild_id;
       const teamName = normalizeChannelName(rawChannelName);
 
-      // 2. Fetch Guild Members untuk matching teks nama jika perlu
+      // 2. Fetch Guild Members
       let guildMembers: any[] = [];
       if (guildId) {
         try {
@@ -102,13 +102,27 @@ export async function GET(req: Request) {
           // Abaikan gambar yang dikirim setelah Kick-Off (20:00 WIB)
           if (msgTotalMinutes >= matchKickoffMinutes) continue;
 
-          // 🟢 DETEKSI PEMILIK DECK SANGAT PRESISI
-          let targetUsers: any[] = (msg.mentions || []).filter((u: any) => !u.bot);
+          // 🟢 DETEKSI PESAN DI-EDIT (Extract ID User dari Regex Tag <@123456789>)
+          const targetUserIds = new Set<string>();
+          const content = msg.content || '';
 
-          // Jika tidak ada mention tag, cari nama via teks
-          if (targetUsers.length === 0 && msg.content && guildMembers.length > 0) {
-            const contentLower = msg.content.toLowerCase();
+          // 1. Regex Match untuk Mention Discord Format <@ID> atau <@!ID>
+          const mentionRegex = /<@!?(\d+)>/g;
+          let match;
+          while ((match = mentionRegex.exec(content)) !== null) {
+            targetUserIds.add(match[1]);
+          }
 
+          // 2. Fallback ke msg.mentions bawaan API jika ada
+          if (Array.isArray(msg.mentions)) {
+            msg.mentions.forEach((u: any) => {
+              if (!u.bot) targetUserIds.add(u.id);
+            });
+          }
+
+          // 3. Text Name Matching jika tidak ada tag ID sama sekali
+          if (targetUserIds.size === 0 && content && guildMembers.length > 0) {
+            const contentLower = content.toLowerCase();
             for (const member of guildMembers) {
               if (member.user?.bot) continue;
               const nick = (member.nick || '').toLowerCase();
@@ -121,32 +135,29 @@ export async function GET(req: Request) {
                 (username && username.length >= 3 && contentLower.includes(username));
 
               if (isMatch) {
-                targetUsers.push(member.user);
+                targetUserIds.add(member.user.id);
               }
             }
           }
 
-          // Fallback: Jika tidak ada tag/nama dalam pesan, milik si pengirim (author)
-          if (targetUsers.length === 0) {
-            targetUsers = [msg.author];
+          // 4. Default ke si pengirim pesan (author) jika tidak ada tag/nama sama sekali
+          if (targetUserIds.size === 0) {
+            targetUserIds.add(msg.author.id);
           }
 
-          // Alokasikan gambar ke masing-masing target user secara proporsional
           const imageUrls = imageAttachments.map((att: any) => att.url as string);
+          const userIdsArray = Array.from(targetUserIds);
 
-          for (const targetUser of targetUsers) {
-            const userId = targetUser.id;
+          for (const userId of userIdsArray) {
+            // Cari data user dari guild members / msg author
+            let targetUser = msg.author;
+            const memberData = guildMembers.find((m: any) => m.user?.id === userId);
+            if (memberData?.user) {
+              targetUser = memberData.user;
+            }
 
             // Cari Display Name Presisi
-            let displayName = targetUser.global_name || targetUser.username;
-            if (guildId) {
-              const memberData = guildMembers.find((m: any) => m.user?.id === userId);
-              if (memberData?.nick) {
-                displayName = memberData.nick;
-              } else if (memberData?.user?.global_name) {
-                displayName = memberData.user.global_name;
-              }
-            }
+            let displayName = memberData?.nick || targetUser.global_name || targetUser.username;
 
             const currentData = playerSubmissions.get(userId) || {
               username: displayName,
@@ -160,7 +171,7 @@ export async function GET(req: Request) {
 
             currentData.username = displayName;
 
-            // 🟢 HANYA TAMBAHKAN GAMBAR BARU JIKA DIBATASI MAKSIMAL 2 DECK PER USER
+            // 🟢 CAP MAKSIMAL 2 DECK PER PEMAIN
             for (const url of imageUrls) {
               if (currentData.deckCount < TARGET_DECK_PER_PLAYER) {
                 currentData.images.push(url);
@@ -324,5 +335,4 @@ export async function GET(req: Request) {
     console.error('Error Cron Deck Checker:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-            }
-                                                      
+                   }
