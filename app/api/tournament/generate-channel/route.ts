@@ -12,9 +12,19 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
+// Helper Generator Random Token jika token match masih kosong
+function generateRandomToken(length = 16): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 export async function POST(req: Request) {
   try {
-    const { matchId, matchIds } = await req.json();
+    const { matchId, matchIds, weekName } = await req.json();
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const targetMatchIds: string[] = matchIds || (matchId ? [matchId] : []);
@@ -24,10 +34,21 @@ export async function POST(req: Request) {
     }
 
     const results = [];
+    const isSync = !matchIds;
+    let isScheduleUpdated = false;
 
     for (const mId of targetMatchIds) {
-      const match = schedules.find((m) => m.id === mId);
-      if (!match) continue;
+      const matchIndex = schedules.findIndex((m) => m.id === mId);
+      if (matchIndex === -1) continue;
+
+      const match = schedules[matchIndex];
+
+      // 🟢 AUTO-GENERATE TOKEN JIKA MASIH KOSONG (TANPA MENGUBAH JADWAL)
+      if (!match.refereeToken) {
+        match.refereeToken = generateRandomToken(16);
+        schedules[matchIndex] = match;
+        isScheduleUpdated = true;
+      }
 
       const [teamA, teamB] = await Promise.all([
         kv.hgetall(`teams:${getTeamSlug(match.teamAName)}`),
@@ -41,6 +62,7 @@ export async function POST(req: Request) {
         matchId: match.id,
         teamAName: match.teamAName,
         teamBName: match.teamBName,
+        weekName: weekName || 'Week 1',
         matchDateIso: match.matchDate,
         refereeName: match.referee,
         refereeDiscordId: match.refereeDiscordId,
@@ -49,7 +71,7 @@ export async function POST(req: Request) {
         streamLink: match.streamLink,
         roleAId,
         roleBId,
-        isSync: !matchIds, // isSync = true jika dipanggil per-match
+        isSync,
       });
 
       results.push({ matchId: mId, success: !!channelId, channelId });
@@ -57,6 +79,11 @@ export async function POST(req: Request) {
       if (targetMatchIds.length > 1) {
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
+    }
+
+    // 💾 Simpan kembali ke Redis jika ada token baru yang dibuat
+    if (isScheduleUpdated) {
+      await kv.set('twi:schedules', schedules);
     }
 
     return NextResponse.json({ success: true, totalProcessed: results.length, results });
