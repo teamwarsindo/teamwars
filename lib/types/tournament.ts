@@ -50,15 +50,15 @@ export interface MatchScheduleItem {
   
   // Data Administrasi Match & Lock Wasit
   referee?: string;
-  refereeDiscordId?: string;       // 🟢 ID Discord Wasit (Untuk Auth Bot)
-  refereeDiscordUsername?: string; // 🟢 Username Discord Wasit
-  refereeToken?: string;           // 🟢 Passcode / Token Khusus Match
+  refereeDiscordId?: string;       // ID Discord Wasit (Untuk Auth Bot)
+  refereeDiscordUsername?: string; // Username Discord Wasit
+  refereeToken?: string;           // Passcode / Token Khusus Link Wasit
   streamer?: string;
   caster?: string;
   streamPlatform?: "Youtube" | "Twitch" | "TikTok" | "Other";
   streamLink?: string;
 
-  // Skor Akhir
+  // Skor Akhir (Quick Score / Sync dari Analyst)
   scoreA: number; // 0 - 10
   scoreB: number; // 0 - 10
   isFinished: boolean;
