@@ -43,8 +43,9 @@ export function TournamentView({
       }
     } catch (err) {
       console.error("Error fetching tournament:", err);
-    } font-bold;
-    setIsLoading(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -83,7 +84,7 @@ export function TournamentView({
     }
   };
 
-  // 🟢 FUNGSI SIMPAN MATCH LOGS & SKOR KE KV DARI MODAL
+  // FUNGSI SIMPAN MATCH LOGS & SKOR KE KV DARI MODAL
   const handleSaveMatch = async (updatedMatch: MatchScheduleItem) => {
     try {
       const res = await fetch("/api/tournament", {
@@ -99,7 +100,7 @@ export function TournamentView({
       });
 
       if (res.ok) {
-        await fetchTournamentData(); // Refresh jadwal & standings di background
+        await fetchTournamentData(); // Refresh jadwal & standings
       }
     } catch (err) {
       console.error("Gagal menyimpan match report:", err);
@@ -170,7 +171,7 @@ export function TournamentView({
           match={activeReportMatch}
           weekNumber={getMatchWeekNumber(activeReportMatch.matchDate)}
           onClose={() => setActiveReportMatch(null)}
-          onSaveMatch={handleSaveMatch} // 👈 Pass handler simpan ke modal
+          onSaveMatch={handleSaveMatch}
         />
       )}
     </div>
