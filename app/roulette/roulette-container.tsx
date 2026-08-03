@@ -255,7 +255,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   }
 
   return (
-    <div className="relative flex w-full max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-between">
+    <div className="relative flex w-full max-w-6xl flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:justify-between">
       {celebrationWinner && (
         <RouletteCelebrationModal
           celebrationWinner={celebrationWinner}
@@ -269,7 +269,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
       )}
 
       {/* Main Wheel Card */}
-      <div className="relative flex w-full max-w-md flex-col items-center rounded-3xl border border-border bg-card/70 p-6 shadow-2xl backdrop-blur-md sm:p-8 mx-auto">
+      <div className="relative flex w-full max-w-md flex-col items-center justify-between rounded-3xl border border-border bg-card/70 p-6 shadow-2xl backdrop-blur-md sm:p-8 mx-auto lg:mx-0">
         <div className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-gradient-to-b from-primary/10 via-transparent to-primary/5 blur-xl" />
 
         <div className="mb-6 text-center">
@@ -369,5 +369,4 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
       <RouletteGroupList groupA={groupA} groupB={groupB} quotaA={quotaA} quotaB={quotaB} />
     </div>
   );
-                                 }
-    
+}

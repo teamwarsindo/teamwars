@@ -18,14 +18,14 @@ export function RouletteGroupList({
   return (
     <div className="grid w-full flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
       {/* GROUP A */}
-      <div className="rounded-2xl border border-sky-500/20 bg-sky-950/10 p-5 backdrop-blur-md">
+      <div className="flex h-full flex-col justify-between rounded-2xl border border-sky-500/20 bg-sky-950/10 p-5 backdrop-blur-md">
         <div className="mb-3 flex items-center justify-between border-b border-sky-500/20 pb-2">
           <h3 className="font-extrabold text-sky-400">GROUP A</h3>
           <span className="text-[10px] font-bold text-muted-foreground">
             {groupA.length} / {quotaA} TIM
           </span>
         </div>
-        <ul className="space-y-2">
+        <ul className="flex flex-1 flex-col justify-between space-y-2">
           {Array.from({ length: quotaA || 1 }).map((_, i) => (
             <li
               key={i}
@@ -59,14 +59,14 @@ export function RouletteGroupList({
       </div>
 
       {/* GROUP B */}
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-950/10 p-5 backdrop-blur-md">
+      <div className="flex h-full flex-col justify-between rounded-2xl border border-amber-500/20 bg-amber-950/10 p-5 backdrop-blur-md">
         <div className="mb-3 flex items-center justify-between border-b border-amber-500/20 pb-2">
           <h3 className="font-extrabold text-amber-400">GROUP B</h3>
           <span className="text-[10px] font-bold text-muted-foreground">
             {groupB.length} / {quotaB} TIM
           </span>
         </div>
-        <ul className="space-y-2">
+        <ul className="flex flex-1 flex-col justify-between space-y-2">
           {Array.from({ length: Math.max(quotaB, 1) }).map((_, i) => (
             <li
               key={i}
@@ -100,5 +100,4 @@ export function RouletteGroupList({
       </div>
     </div>
   );
-              }
-                  
+}

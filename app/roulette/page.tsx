@@ -39,7 +39,7 @@ export default async function RoulettePage({
           </Suspense>
         ) : (
           <>
-            <section className="mb-6 max-w-xl rounded-xl border border-primary/20 bg-muted/40 p-3.5 text-center backdrop-blur-sm">
+            <section className="mb-6 w-full max-w-6xl rounded-xl border border-primary/20 bg-muted/40 p-3.5 text-center backdrop-blur-sm">
               <h2 className="text-xs font-bold uppercase tracking-wider text-primary">
                 ⚙️ System Random: Math.random()
               </h2>
