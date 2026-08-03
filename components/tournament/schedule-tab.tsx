@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MatchScheduleItem } from "@/lib/types/tournament";
 
 export function ScheduleTab({
@@ -28,18 +28,17 @@ export function ScheduleTab({
 }) {
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<string>("ALL");
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const sortedTeams = [...allTeamNames].sort((a, b) => a.localeCompare(b));
   const sortedWeeks = [...allWeeks].sort((a, b) => a - b);
 
-  // Status apakah ada filter yang sedang aktif
   const isFilterActive =
     selectedGroupFilter !== "ALL" ||
     selectedTeamFilter !== "ALL" ||
     selectedWeekFilter !== "ALL" ||
     selectedDateFilter !== "";
 
-  // Reset Semua Filter
   const handleResetFilters = () => {
     setSelectedGroupFilter("ALL");
     setSelectedTeamFilter("ALL");
@@ -64,7 +63,6 @@ export function ScheduleTab({
     return acc;
   }, {} as Record<string, typeof filteredSchedules>);
 
-  // Format Tampilan Tanggal di Button (Misal: 05/08/2026 atau "Tanggal")
   const displayDateText = selectedDateFilter
     ? new Date(selectedDateFilter).toLocaleDateString("id-ID", {
         day: "2-digit",
@@ -72,6 +70,16 @@ export function ScheduleTab({
         year: "numeric",
       })
     : "Tanggal";
+
+  const handleOpenDatePicker = () => {
+    if (dateInputRef.current) {
+      if ("showPicker" in dateInputRef.current) {
+        dateInputRef.current.showPicker();
+      } else {
+        dateInputRef.current.click();
+      }
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -101,7 +109,6 @@ export function ScheduleTab({
 
         {/* Dropdown Tim & Week */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {/* Dropdown Tim (A-Z) */}
           <select
             value={selectedTeamFilter}
             onChange={(e) => setSelectedTeamFilter(e.target.value)}
@@ -113,7 +120,6 @@ export function ScheduleTab({
             ))}
           </select>
 
-          {/* Dropdown Week */}
           <select
             value={selectedWeekFilter}
             onChange={(e) => setSelectedWeekFilter(e.target.value)}
@@ -126,32 +132,34 @@ export function ScheduleTab({
           </select>
         </div>
 
-        {/* Baris Tanggal & Tombol Reset Filter */}
+        {/* Baris Input Tanggal & Reset Filter */}
         <div className="flex items-center gap-2 w-full">
-          {/* Custom Date Picker Trigger Bar */}
-          <div className="relative flex-1">
-            <div className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium transition cursor-pointer ${
+          
+          {/* Custom Date Input (Pasti Bisa Dipencet) */}
+          <div
+            onClick={handleOpenDatePicker}
+            className={`relative flex-1 flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium transition cursor-pointer ${
               selectedDateFilter 
                 ? "border-primary bg-primary/10 text-primary font-bold" 
-                : "border-border bg-background text-foreground"
-            }`}>
-              <div className="flex items-center gap-2">
-                <span>📅</span>
-                <span>{displayDateText}</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground">▼</span>
+                : "border-border bg-background text-foreground hover:border-primary/50"
+            }`}
+          >
+            <div className="flex items-center gap-2 pointer-events-none">
+              <span>📅</span>
+              <span>{displayDateText}</span>
             </div>
+            <span className="text-[10px] text-muted-foreground pointer-events-none">▼</span>
 
-            {/* Hidden Input Date Native */}
             <input
+              ref={dateInputRef}
               type="date"
               value={selectedDateFilter}
               onChange={(e) => setSelectedDateFilter(e.target.value)}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
             />
           </div>
 
-          {/* Tombol Reset Filter (Disabled / Active State) */}
+          {/* Tombol Reset Filter */}
           <button
             disabled={!isFilterActive}
             onClick={handleResetFilters}
@@ -167,11 +175,14 @@ export function ScheduleTab({
 
       </div>
 
-      {isAdmin && (
-        <button onClick={onResetSchedules} className="w-full rounded-xl border border-sky-500/40 bg-sky-500/10 py-2 text-xs font-bold text-sky-400 cursor-pointer">
-          🔄 Buat Ulang Jadwal Default (Rabu-Sabtu 20:00 WIB)
-        </button>
-      )}
+      {/* 🔄 TOMBOL SYNC TIM DARI ROULETTE */}
+      <button
+        onClick={onResetSchedules}
+        className="w-full rounded-xl border border-sky-500/40 bg-sky-500/10 py-2.5 text-xs font-bold text-sky-400 hover:bg-sky-500/20 transition cursor-pointer flex items-center justify-center gap-2"
+      >
+        <span>🔄</span>
+        <span>Sync Tim Terbaru Dari Roulette & Generate Jadwal</span>
+      </button>
 
       {/* Match List Grouped by Week */}
       {Object.keys(groupedSchedulesByWeek).length === 0 ? (
