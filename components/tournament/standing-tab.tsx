@@ -11,7 +11,6 @@ export function StandingTab({ standings }: { standings: TeamStandingItem[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Sub Tab Buttons */}
       <div className="grid grid-cols-3 gap-2 w-full rounded-2xl border border-border bg-card p-1.5">
         <button
           onClick={() => setActiveSubTab("GROUP_A")}
@@ -39,7 +38,6 @@ export function StandingTab({ standings }: { standings: TeamStandingItem[] }) {
         </button>
       </div>
 
-      {/* Tabel Sub Tab */}
       {activeSubTab === "GROUP_A" && <StandingTable title="Group A Standing" data={groupAData} />}
       {activeSubTab === "GROUP_B" && <StandingTable title="Group B Standing" data={groupBData} />}
       {activeSubTab === "GLOBAL" && <StandingTable title="Global Standing" data={standings} />}
@@ -47,7 +45,6 @@ export function StandingTab({ standings }: { standings: TeamStandingItem[] }) {
   );
 }
 
-// Tabel Standings Rata Kiri untuk Nama Tim, Sisanya Rata Tengah
 function StandingTable({ title, data }: { title: string; data: TeamStandingItem[] }) {
   return (
     <div className="flex flex-col rounded-2xl border border-border bg-card p-4 shadow-sm">
