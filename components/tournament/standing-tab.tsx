@@ -1,82 +1,94 @@
 "use client";
 
 import { useState } from "react";
-import { TeamStandingItem } from "@/lib/types/tournament";
+import { TeamStanding } from "@/lib/types/tournament";
 
-export function StandingTab({ standings }: { standings: TeamStandingItem[] }) {
+export function StandingTab({ standings }: { standings: TeamStanding[] }) {
   const [activeSubTab, setActiveSubTab] = useState<"GROUP_A" | "GROUP_B" | "GLOBAL">("GROUP_A");
 
-  const groupAData = standings.filter((s) => s.groupName === "Group A");
-  const groupBData = standings.filter((s) => s.groupName === "Group B");
+  const filteredStandings = standings.filter((s) => {
+    if (activeSubTab === "GROUP_A") return s.groupName === "Group A";
+    if (activeSubTab === "GROUP_B") return s.groupName === "Group B";
+    return true;
+  });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-3 gap-2 w-full rounded-2xl border border-border bg-card p-1.5">
+    <div className="w-full space-y-6">
+      <div className="flex w-full items-center justify-center rounded-2xl border border-border bg-card/60 p-1.5 backdrop-blur-md max-w-md mx-auto">
         <button
           onClick={() => setActiveSubTab("GROUP_A")}
-          className={`rounded-xl py-2 text-xs font-bold uppercase transition cursor-pointer ${
-            activeSubTab === "GROUP_A" ? "bg-sky-600 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`flex-1 rounded-xl py-2.5 text-xs font-bold uppercase transition ${
+            activeSubTab === "GROUP_A"
+              ? "bg-sky-600 text-white shadow-md"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Group A
         </button>
         <button
           onClick={() => setActiveSubTab("GROUP_B")}
-          className={`rounded-xl py-2 text-xs font-bold uppercase transition cursor-pointer ${
-            activeSubTab === "GROUP_B" ? "bg-amber-600 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`flex-1 rounded-xl py-2.5 text-xs font-bold uppercase transition ${
+            activeSubTab === "GROUP_B"
+              ? "bg-amber-600 text-white shadow-md"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Group B
         </button>
         <button
           onClick={() => setActiveSubTab("GLOBAL")}
-          className={`rounded-xl py-2 text-xs font-bold uppercase transition cursor-pointer ${
-            activeSubTab === "GLOBAL" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`flex-1 rounded-xl py-2.5 text-xs font-bold uppercase transition ${
+            activeSubTab === "GLOBAL"
+              ? "bg-primary text-primary-foreground shadow-md"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Global Standing
+          Global
         </button>
       </div>
 
-      {activeSubTab === "GROUP_A" && <StandingTable title="Group A Standing" data={groupAData} />}
-      {activeSubTab === "GROUP_B" && <StandingTable title="Group B Standing" data={groupBData} />}
-      {activeSubTab === "GLOBAL" && <StandingTable title="Global Standing" data={standings} />}
-    </div>
-  );
-}
-
-function StandingTable({ title, data }: { title: string; data: TeamStandingItem[] }) {
-  return (
-    <div className="flex flex-col rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-3 text-xs font-black uppercase tracking-widest text-primary border-b border-border pb-2 text-center">
-        {title}
-      </h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs min-w-[450px]">
-          <thead>
-            <tr className="border-b border-border text-[10px] text-muted-foreground uppercase">
-              <th className="py-2 px-1 text-center w-12">Rank</th>
-              <th className="py-2 px-3 text-left">Teams</th>
-              <th className="py-2 px-1 text-center">Match W-L</th>
-              <th className="py-2 px-1 text-center">RD</th>
-              <th className="py-2 px-1 text-center">Set Wins</th>
-              <th className="py-2 px-1 text-center font-bold text-sky-400">Points</th>
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card/80 shadow-xl">
+        <table className="w-full min-w-[700px] text-left text-xs">
+          <thead className="border-b border-border/80 bg-muted/50 text-muted-foreground uppercase tracking-wider font-bold">
+            <tr>
+              <th className="px-4 py-3 text-center w-12">#</th>
+              <th className="px-4 py-3 min-w-[200px]">Team</th>
+              <th className="px-4 py-3 text-center">Group</th>
+              <th className="px-4 py-3 text-center">Played</th>
+              <th className="px-4 py-3 text-center text-emerald-500">Win</th>
+              <th className="px-4 py-3 text-center text-rose-500">Lose</th>
+              <th className="px-4 py-3 text-center font-extrabold text-primary">Points</th>
+              <th className="px-4 py-3 text-center">Diff</th>
             </tr>
           </thead>
-          <tbody>
-            {data.map((team, idx) => (
-              <tr key={team.teamId} className="border-b border-border/40 hover:bg-muted/20">
-                <td className="py-2.5 px-1 font-extrabold text-center">{idx + 1}</td>
-                <td className="py-2.5 px-3 text-left">
-                  <div className="flex items-center gap-2">
-                    <img src={team.teamLogo} alt="" className="h-5 w-5 object-contain shrink-0" />
-                    <span className="font-bold truncate text-foreground">{team.teamName}</span>
+          <tbody className="divide-y divide-border/60">
+            {filteredStandings.map((row, idx) => (
+              <tr key={row.teamId} className="hover:bg-muted/30 transition">
+                <td className="px-4 py-3 text-center font-bold text-muted-foreground">
+                  {idx + 1}
+                </td>
+                <td className="px-4 py-3 font-extrabold text-foreground">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={row.teamLogo}
+                      alt={row.teamName}
+                      className="h-8 w-8 rounded-lg object-cover border border-border"
+                    />
+                    <span>{row.teamName}</span>
                   </div>
                 </td>
-                <td className="py-2.5 px-1 text-center font-semibold">{team.matchWins}-{team.matchLosses}</td>
-                <td className="py-2.5 px-1 text-center text-muted-foreground">{team.roundDifference}</td>
-                <td className="py-2.5 px-1 text-center font-semibold">{team.setWins}</td>
-                <td className="py-2.5 px-1 text-center font-black text-sky-400">{team.points}</td>
+                <td className="px-4 py-3 text-center">
+                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase text-primary">
+                    {row.groupName}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-center font-semibold">{row.played}</td>
+                <td className="px-4 py-3 text-center font-bold text-emerald-500">{row.win}</td>
+                <td className="px-4 py-3 text-center font-bold text-rose-500">{row.lose}</td>
+                <td className="px-4 py-3 text-center font-black text-sm text-primary">{row.points}</td>
+                <td className="px-4 py-3 text-center font-mono font-bold text-muted-foreground">
+                  {row.matchDiff > 0 ? `+${row.matchDiff}` : row.matchDiff}
+                </td>
               </tr>
             ))}
           </tbody>
