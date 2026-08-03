@@ -12,7 +12,6 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
-// Helper Generator Random Token jika token match masih kosong
 function generateRandomToken(length = 16): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
@@ -24,7 +23,35 @@ function generateRandomToken(length = 16): string {
 
 export async function POST(req: Request) {
   try {
-    const { matchId, matchIds, weekName } = await req.json();
+    const url = new URL(req.url);
+    const isTestingQuery = url.searchParams.get('testing') === 'true';
+
+    const body = await req.json().catch(() => ({}));
+    const { matchId, matchIds, weekName, testing: isTestingBody } = body;
+
+    // 🧪 MODE TESTING ACTIVE JIKA ?testing=true DI URL ATAU BODY
+    const isTesting = isTestingQuery || !!isTestingBody;
+
+    // JIKA MODE TESTING & TIDAK ADA MATCH ID, GUNAKAN DUMMY TEST MATCH
+    if (isTesting && !matchId && (!matchIds || matchIds.length === 0)) {
+      const testChannelId = await createMatchDiscordChannel({
+        matchId: 'match-test',
+        teamAName: 'Testing Team Alpha',
+        teamBName: 'Testing Team Beta',
+        weekName: 'Week Test',
+        matchDateIso: new Date().toISOString(),
+        refereeName: 'Admin Tester',
+        streamerName: 'Caster Tester',
+        isTesting: true,
+      });
+
+      return NextResponse.json({
+        success: true,
+        mode: 'TESTING',
+        message: 'Berhasil membuat channel ⚔️-match-test dengan data dummy!',
+        channelId: testChannelId,
+      });
+    }
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const targetMatchIds: string[] = matchIds || (matchId ? [matchId] : []);
@@ -43,7 +70,6 @@ export async function POST(req: Request) {
 
       const match = schedules[matchIndex];
 
-      // 🟢 AUTO-GENERATE TOKEN JIKA MASIH KOSONG (TANPA MENGUBAH JADWAL)
       if (!match.refereeToken) {
         match.refereeToken = generateRandomToken(16);
         schedules[matchIndex] = match;
@@ -72,6 +98,7 @@ export async function POST(req: Request) {
         roleAId,
         roleBId,
         isSync,
+        isTesting, // 👈 Teruskan parameter testing
       });
 
       results.push({ matchId: mId, success: !!channelId, channelId });
@@ -81,12 +108,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // 💾 Simpan kembali ke Redis jika ada token baru yang dibuat
     if (isScheduleUpdated) {
       await kv.set('twi:schedules', schedules);
     }
 
-    return NextResponse.json({ success: true, totalProcessed: results.length, results });
+    return NextResponse.json({ success: true, mode: isTesting ? 'TESTING' : 'PRODUCTION', totalProcessed: results.length, results });
   } catch (error) {
     console.error('Error generate channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
