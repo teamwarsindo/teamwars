@@ -49,6 +49,7 @@ export async function POST(req: Request) {
         streamLink: match.streamLink,
         roleAId,
         roleBId,
+        isSync: !matchIds, // isSync = true jika dipanggil per-match
       });
 
       results.push({ matchId: mId, success: !!channelId, channelId });
