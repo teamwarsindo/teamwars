@@ -4,6 +4,16 @@ import { useState, useEffect, useMemo } from 'react';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import Swal from 'sweetalert2';
 
+// 🟢 HELPER: Menghitung Senin Awal Minggu (00:00:00 WIB)
+function getMondayOfWeek(d: Date): Date {
+  const date = new Date(d);
+  const day = date.getDay(); // 0 = Minggu, 1 = Senin, ...
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Atur agar Senin = Hari ke-1
+  const monday = new Date(date.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
 // Helper Konversi ISO UTC -> YYYY-MM-DDTHH:mm khusus WIB
 function formatISOToWIBInput(isoString: string): string {
   if (!isoString) return '';
@@ -55,38 +65,56 @@ export function ScheduleAdminTab() {
     fetchSchedules();
   }, []);
 
-  // Filter Grouping Per Week berdasarkan urutan tanggal
-  const weekOptions = useMemo(() => {
-    if (schedules.length === 0) return [];
+  // 🟢 1. PENETAPAN NOMOR WEEK PRESISI (SENIN - MINGGU) DI ADMIN
+  const schedulesWithWeek = useMemo(() => {
+    if (!schedules || schedules.length === 0) return [];
 
-    const sorted = [...schedules].sort(
+    const sortedByDate = [...schedules].sort(
       (a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
     );
-    const startDate = new Date(sorted[0].matchDate).getTime();
 
-    const weeksMap = new Map<number, MatchScheduleItem[]>();
-    sorted.forEach((m) => {
-      const diffDays = Math.floor((new Date(m.matchDate).getTime() - startDate) / (1000 * 60 * 60 * 24));
-      const weekNum = Math.floor(diffDays / 7) + 1;
+    const tournamentStartMonday = getMondayOfWeek(new Date(sortedByDate[0].matchDate));
 
+    return schedules.map((m) => {
+      const matchMonday = getMondayOfWeek(new Date(m.matchDate));
+      const diffInTime = matchMonday.getTime() - tournamentStartMonday.getTime();
+      const diffInDays = Math.round(diffInTime / (1000 * 3600 * 24));
+      const weekNumber = Math.floor(diffInDays / 7) + 1;
+
+      return {
+        ...m,
+        calculatedWeekNumber: weekNumber,
+      };
+    });
+  }, [schedules]);
+
+  // Filter Grouping Dropdown Per Week
+  const weekOptions = useMemo(() => {
+    if (schedulesWithWeek.length === 0) return [];
+
+    const weeksMap = new Map<number, typeof schedulesWithWeek>();
+    schedulesWithWeek.forEach((m) => {
+      const weekNum = m.calculatedWeekNumber;
       if (!weeksMap.has(weekNum)) weeksMap.set(weekNum, []);
       weeksMap.get(weekNum)?.push(m);
     });
 
-    return Array.from(weeksMap.entries()).map(([weekNum, matches]) => ({
-      weekNum: `Week ${weekNum}`,
-      weekNumber: weekNum,
-      matches,
-    }));
-  }, [schedules]);
+    return Array.from(weeksMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([weekNum, matches]) => ({
+        weekNum: `Week ${weekNum}`,
+        weekNumber: weekNum,
+        matches,
+      }));
+  }, [schedulesWithWeek]);
 
   // Filter Schedule yang tampil
   const filteredSchedules = useMemo(() => {
-    if (selectedWeek === 'ALL') return schedules;
+    if (selectedWeek === 'ALL') return schedulesWithWeek;
     const weekNum = parseInt(selectedWeek.replace('Week ', ''), 10);
     const targetWeek = weekOptions.find((w) => w.weekNumber === weekNum);
-    return targetWeek ? targetWeek.matches : schedules;
-  }, [schedules, selectedWeek, weekOptions]);
+    return targetWeek ? targetWeek.matches : schedulesWithWeek;
+  }, [schedulesWithWeek, selectedWeek, weekOptions]);
 
   const handleSaveMatchSchedule = async (updated: MatchScheduleItem) => {
     try {
@@ -118,8 +146,8 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 🔄 SYNC SINGLE MATCH (Update Embed & Re-Assign Roles/Access)
-  const handleSyncSingleMatch = async (match: MatchScheduleItem) => {
+  // 🔄 SYNC SINGLE MATCH (Tanpa Ping Role)
+  const handleSyncSingleMatch = async (match: MatchScheduleItem & { calculatedWeekNumber?: number }) => {
     Swal.fire({
       title: 'Syncing Match...',
       text: `Memperbarui data & role untuk ${match.teamAName} vs ${match.teamBName}`,
@@ -130,7 +158,10 @@ export function ScheduleAdminTab() {
       const res = await fetch('/api/tournament/generate-channel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: match.id }),
+        body: JSON.stringify({
+          matchId: match.id,
+          weekName: `Week ${match.calculatedWeekNumber || 1}`,
+        }),
       });
 
       const data = await res.json();
@@ -145,7 +176,7 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 🚀 GENERATE ALL CHANNELS PER WEEK (Infrastructure Batch Generation)
+  // 🚀 GENERATE ALL CHANNELS PER WEEK (Dengan Ping Role Pertamkali)
   const handleGenerateAllWeekChannels = async () => {
     const targetMatchIds = filteredSchedules.map((m) => m.id);
 
@@ -176,7 +207,10 @@ export function ScheduleAdminTab() {
       const res = await fetch('/api/tournament/generate-channel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchIds: targetMatchIds }),
+        body: JSON.stringify({
+          matchIds: targetMatchIds,
+          weekName: selectedWeek === 'ALL' ? 'Week 1' : selectedWeek,
+        }),
       });
 
       const data = await res.json();
@@ -213,7 +247,7 @@ export function ScheduleAdminTab() {
 
   return (
     <div className="space-y-4">
-      {/* HEADER, FILTER PER WEEK & BATCH GENERATE BUTTON */}
+      {/* HEADER & FILTER PER WEEK */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <h2 className="text-lg font-extrabold text-foreground">Manajemen Schedule Pertandingan</h2>
@@ -254,7 +288,9 @@ export function ScheduleAdminTab() {
           return (
             <div key={m.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
               <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-2 text-xs">
-                <span className="font-extrabold text-primary uppercase">{m.groupName} • {m.id}</span>
+                <span className="font-extrabold text-primary uppercase">
+                  {m.groupName} • {m.id} • Week {m.calculatedWeekNumber}
+                </span>
                 <span className="text-muted-foreground font-semibold">
                   {new Date(m.matchDate).toLocaleDateString('id-ID', {
                     weekday: 'short',
@@ -380,7 +416,6 @@ export function ScheduleAdminTab() {
                       📋 Copy Link Wasit
                     </button>
 
-                    {/* 🔄 TOMBOL RE-SYNC MATCH INDIVIDUAL */}
                     <button
                       onClick={() => handleSyncSingleMatch(m)}
                       className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold shadow-sm cursor-pointer"
@@ -396,4 +431,5 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-}
+    }
+      
