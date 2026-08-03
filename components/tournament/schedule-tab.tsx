@@ -134,8 +134,6 @@ export function ScheduleTab({
 
         {/* Baris Input Tanggal & Reset Filter */}
         <div className="flex items-center gap-2 w-full">
-          
-          {/* Custom Date Input (Pasti Bisa Dipencet) */}
           <div
             onClick={handleOpenDatePicker}
             className={`relative flex-1 flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium transition cursor-pointer ${
@@ -159,7 +157,6 @@ export function ScheduleTab({
             />
           </div>
 
-          {/* Tombol Reset Filter */}
           <button
             disabled={!isFilterActive}
             onClick={handleResetFilters}
@@ -175,14 +172,15 @@ export function ScheduleTab({
 
       </div>
 
-      {/* 🔄 TOMBOL SYNC TIM DARI ROULETTE */}
-      <button
-        onClick={onResetSchedules}
-        className="w-full rounded-xl border border-sky-500/40 bg-sky-500/10 py-2.5 text-xs font-bold text-sky-400 hover:bg-sky-500/20 transition cursor-pointer flex items-center justify-center gap-2"
-      >
-        <span>🔄</span>
-        <span>Sync Tim Terbaru Dari Roulette & Generate Jadwal</span>
-      </button>
+      {isAdmin && (
+        <button
+          onClick={onResetSchedules}
+          className="w-full rounded-xl border border-sky-500/40 bg-sky-500/10 py-2.5 text-xs font-bold text-sky-400 hover:bg-sky-500/20 transition cursor-pointer flex items-center justify-center gap-2"
+        >
+          <span>🔄</span>
+          <span>Sync Tim Terbaru Dari Roulette & Generate Jadwal</span>
+        </button>
+      )}
 
       {/* Match List Grouped by Week */}
       {Object.keys(groupedSchedulesByWeek).length === 0 ? (
