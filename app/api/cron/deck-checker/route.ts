@@ -51,13 +51,11 @@ export async function GET(req: Request) {
     const results = [];
 
     for (const channelId of TRACKED_CHANNEL_IDS) {
-      // 1. Fetch Detail Channel
       const channelInfo = await discordAPI(`/channels/${channelId}`, 'GET');
       const rawChannelName = channelInfo?.name || 'Unknown Channel';
       const guildId = channelInfo?.guild_id;
       const teamName = normalizeChannelName(rawChannelName);
 
-      // 2. Fetch Guild Members
       let guildMembers: any[] = [];
       if (guildId) {
         try {
@@ -65,7 +63,6 @@ export async function GET(req: Request) {
         } catch (e) {}
       }
 
-      // 3. Fetch 100 Pesan Terakhir
       const messages = await discordAPI(`/channels/${channelId}/messages?limit=100`, 'GET');
 
       if (!Array.isArray(messages)) {
@@ -83,105 +80,115 @@ export async function GET(req: Request) {
       for (const msg of reversedMessages) {
         if (msg.author.bot) continue;
 
+        // 🟢 HANYA PROSES PESAN YANG PUNYA GAMBAR
         const imageAttachments = (msg.attachments || []).filter(
           (att: any) => att.content_type && att.content_type.startsWith('image/')
         );
 
-        if (imageAttachments.length > 0) {
-          const msgDate = new Date(msg.timestamp);
-          const msgFormatter = new Intl.DateTimeFormat('id-ID', options);
-          const msgParts = msgFormatter.formatToParts(msgDate);
-          let msgHour = 0;
-          let msgMinute = 0;
-          msgParts.forEach((p) => {
-            if (p.type === 'hour') msgHour = parseInt(p.value, 10);
-            if (p.type === 'minute') msgMinute = parseInt(p.value, 10);
+        if (imageAttachments.length === 0) continue;
+
+        const msgDate = new Date(msg.timestamp);
+        const msgFormatter = new Intl.DateTimeFormat('id-ID', options);
+        const msgParts = msgFormatter.formatToParts(msgDate);
+        let msgHour = 0;
+        let msgMinute = 0;
+        msgParts.forEach((p) => {
+          if (p.type === 'hour') msgHour = parseInt(p.value, 10);
+          if (p.type === 'minute') msgMinute = parseInt(p.value, 10);
+        });
+        const msgTotalMinutes = msgHour * 60 + msgMinute;
+
+        if (msgTotalMinutes >= matchKickoffMinutes) continue;
+
+        // 🛑 CARI MENTION KHUSUS DI PESAN GAMBAR INI SAJA
+        const targetUserIds: string[] = [];
+        const content = msg.content || '';
+
+        // 1. Tag Mention Official (<@ID>)
+        const mentionRegex = /<@!?(\d+)>/g;
+        let match;
+        while ((match = mentionRegex.exec(content)) !== null) {
+          if (!targetUserIds.includes(match[1])) {
+            targetUserIds.push(match[1]);
+          }
+        }
+
+        // 2. Mention dari API jika Regex terlewat
+        if (Array.isArray(msg.mentions)) {
+          msg.mentions.forEach((u: any) => {
+            if (!u.bot && !targetUserIds.includes(u.id)) {
+              targetUserIds.push(u.id);
+            }
           });
-          const msgTotalMinutes = msgHour * 60 + msgMinute;
+        }
 
-          // Abaikan gambar yang dikirim setelah Kick-Off (20:00 WIB)
-          if (msgTotalMinutes >= matchKickoffMinutes) continue;
+        // 3. Match Nama Teks jika tidak ada Tag Mention sama sekali
+        if (targetUserIds.length === 0 && content && guildMembers.length > 0) {
+          const contentLower = content.toLowerCase();
+          for (const member of guildMembers) {
+            if (member.user?.bot) continue;
+            const nick = (member.nick || '').toLowerCase();
+            const globalName = (member.user?.global_name || '').toLowerCase();
+            const username = (member.user?.username || '').toLowerCase();
 
-          // 🟢 DETEKSI PESAN DI-EDIT (Extract ID User dari Regex Tag <@123456789>)
-          const targetUserIds = new Set<string>();
-          const content = msg.content || '';
+            const isMatch =
+              (nick && nick.length >= 3 && contentLower.includes(nick)) ||
+              (globalName && globalName.length >= 3 && contentLower.includes(globalName)) ||
+              (username && username.length >= 3 && contentLower.includes(username));
 
-          // 1. Regex Match untuk Mention Discord Format <@ID> atau <@!ID>
-          const mentionRegex = /<@!?(\d+)>/g;
-          let match;
-          while ((match = mentionRegex.exec(content)) !== null) {
-            targetUserIds.add(match[1]);
-          }
-
-          // 2. Fallback ke msg.mentions bawaan API jika ada
-          if (Array.isArray(msg.mentions)) {
-            msg.mentions.forEach((u: any) => {
-              if (!u.bot) targetUserIds.add(u.id);
-            });
-          }
-
-          // 3. Text Name Matching jika tidak ada tag ID sama sekali
-          if (targetUserIds.size === 0 && content && guildMembers.length > 0) {
-            const contentLower = content.toLowerCase();
-            for (const member of guildMembers) {
-              if (member.user?.bot) continue;
-              const nick = (member.nick || '').toLowerCase();
-              const globalName = (member.user?.global_name || '').toLowerCase();
-              const username = (member.user?.username || '').toLowerCase();
-
-              const isMatch =
-                (nick && nick.length >= 3 && contentLower.includes(nick)) ||
-                (globalName && globalName.length >= 3 && contentLower.includes(globalName)) ||
-                (username && username.length >= 3 && contentLower.includes(username));
-
-              if (isMatch) {
-                targetUserIds.add(member.user.id);
-              }
+            if (isMatch && !targetUserIds.includes(member.user.id)) {
+              targetUserIds.push(member.user.id);
             }
           }
+        }
 
-          // 4. Default ke si pengirim pesan (author) jika tidak ada tag/nama sama sekali
-          if (targetUserIds.size === 0) {
-            targetUserIds.add(msg.author.id);
+        // 4. Jika tidak ada siapapun yang di-mention di pesan gambar ini, baru berikan ke Author (Pengirim)
+        if (targetUserIds.length === 0) {
+          targetUserIds.push(msg.author.id);
+        }
+
+        // 🟢 BAGIKAN GAMBAR SECARA PRESISI (2 Gambar per Target User)
+        const imageUrls = imageAttachments.map((att: any) => att.url as string);
+        let imageIndex = 0;
+
+        for (const userId of targetUserIds) {
+          if (imageIndex >= imageUrls.length) break;
+
+          let targetUser = msg.author;
+          const memberData = guildMembers.find((m: any) => m.user?.id === userId);
+          if (memberData?.user) {
+            targetUser = memberData.user;
           }
 
-          const imageUrls = imageAttachments.map((att: any) => att.url as string);
-          const userIdsArray = Array.from(targetUserIds);
+          let displayName = memberData?.nick || targetUser.global_name || targetUser.username;
 
-          for (const userId of userIdsArray) {
-            // Cari data user dari guild members / msg author
-            let targetUser = msg.author;
-            const memberData = guildMembers.find((m: any) => m.user?.id === userId);
-            if (memberData?.user) {
-              targetUser = memberData.user;
-            }
+          const currentData = playerSubmissions.get(userId) || {
+            username: displayName,
+            deckCount: 0,
+            avatar: targetUser.avatar
+              ? `https://cdn.discordapp.com/avatars/${userId}/${targetUser.avatar}.png`
+              : '/logo.webp',
+            images: [] as string[],
+            submittedAt: msg.timestamp,
+          };
 
-            // Cari Display Name Presisi
-            let displayName = memberData?.nick || targetUser.global_name || targetUser.username;
+          currentData.username = displayName;
 
-            const currentData = playerSubmissions.get(userId) || {
-              username: displayName,
-              deckCount: 0,
-              avatar: targetUser.avatar
-                ? `https://cdn.discordapp.com/avatars/${userId}/${targetUser.avatar}.png`
-                : '/logo.webp',
-              images: [] as string[],
-              submittedAt: msg.timestamp,
-            };
-
-            currentData.username = displayName;
-
-            // 🟢 CAP MAKSIMAL 2 DECK PER PEMAIN
-            for (const url of imageUrls) {
-              if (currentData.deckCount < TARGET_DECK_PER_PLAYER) {
-                currentData.images.push(url);
-                currentData.deckCount += 1;
-              }
-            }
-
-            currentData.submittedAt = msg.timestamp;
-            playerSubmissions.set(userId, currentData);
+          // Ambil maksimal 2 gambar untuk user ini
+          let addedForThisUser = 0;
+          while (
+            imageIndex < imageUrls.length &&
+            currentData.deckCount < TARGET_DECK_PER_PLAYER &&
+            addedForThisUser < TARGET_DECK_PER_PLAYER
+          ) {
+            currentData.images.push(imageUrls[imageIndex]);
+            currentData.deckCount += 1;
+            addedForThisUser += 1;
+            imageIndex += 1;
           }
+
+          currentData.submittedAt = msg.timestamp;
+          playerSubmissions.set(userId, currentData);
         }
       }
 
@@ -224,7 +231,6 @@ export async function GET(req: Request) {
       const uncollectedDecks = TARGET_TOTAL_DECKS - totalDecksCollected;
       const remainingControlTime = Math.max(0, INITIAL_CONTROL_TIME_MINUTES - totalPenaltyMinutes);
 
-      // Header Status
       let statusHeader =
         `⏱️ **Deadline:** 19:00 WIB | **Kick-Off:** 20:00 WIB\n` +
         `⏳ **Waktu Kontrol Awal Tim:** ${INITIAL_CONTROL_TIME_MINUTES} Menit\n\n`;
@@ -254,7 +260,6 @@ export async function GET(req: Request) {
       let penaltyFieldText = penaltyList.length > 0 ? penaltyList.join('\n') : null;
       const isTeamComplete = totalDecksCollected >= TARGET_TOTAL_DECKS && totalPlayersSubmitted >= TARGET_PLAYERS;
 
-      // 4. Simpan Rekap Data ke Vercel KV
       const kvData = {
         channelId,
         teamName,
@@ -275,7 +280,6 @@ export async function GET(req: Request) {
 
       await kv.set(`deck_rekap:${channelId}`, kvData);
 
-      // 5. Construct Embed Message
       const embedFields = [
         {
           name: 'Detail Pemain',
@@ -306,7 +310,6 @@ export async function GET(req: Request) {
         timestamp: new Date().toISOString(),
       };
 
-      // 6. Hapus Pesan Lama & Kirim Pesan Baru di Paling Bawah Channel
       const oldMsgId = await kv.get<string>(`msg_rekap:${channelId}`);
       if (oldMsgId) {
         await discordAPI(`/channels/${channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
@@ -335,4 +338,4 @@ export async function GET(req: Request) {
     console.error('Error Cron Deck Checker:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-                   }
+}
