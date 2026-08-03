@@ -7,8 +7,8 @@ import Swal from 'sweetalert2';
 // 🟢 HELPER: Menghitung Senin Awal Minggu (00:00:00 WIB)
 function getMondayOfWeek(d: Date): Date {
   const date = new Date(d);
-  const day = date.getDay(); // 0 = Minggu, 1 = Senin, ...
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Atur agar Senin = Hari ke-1
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(date.setDate(diff));
   monday.setHours(0, 0, 0, 0);
   return monday;
@@ -65,7 +65,7 @@ export function ScheduleAdminTab() {
     fetchSchedules();
   }, []);
 
-  // 🟢 1. PENETAPAN NOMOR WEEK PRESISI (SENIN - MINGGU) DI ADMIN
+  // 🟢 CALCULATE NOMOR WEEK (SENIN - MINGGU)
   const schedulesWithWeek = useMemo(() => {
     if (!schedules || schedules.length === 0) return [];
 
@@ -88,7 +88,6 @@ export function ScheduleAdminTab() {
     });
   }, [schedules]);
 
-  // Filter Grouping Dropdown Per Week
   const weekOptions = useMemo(() => {
     if (schedulesWithWeek.length === 0) return [];
 
@@ -108,7 +107,6 @@ export function ScheduleAdminTab() {
       }));
   }, [schedulesWithWeek]);
 
-  // Filter Schedule yang tampil
   const filteredSchedules = useMemo(() => {
     if (selectedWeek === 'ALL') return schedulesWithWeek;
     const weekNum = parseInt(selectedWeek.replace('Week ', ''), 10);
@@ -176,7 +174,7 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 🚀 GENERATE ALL CHANNELS PER WEEK (Dengan Ping Role Pertamkali)
+  // 🚀 GENERATE ALL CHANNELS PER WEEK
   const handleGenerateAllWeekChannels = async () => {
     const targetMatchIds = filteredSchedules.map((m) => m.id);
 
@@ -229,6 +227,38 @@ export function ScheduleAdminTab() {
     }
   };
 
+  // 🧪 HANDLER TOMBOL DISCORD TESTING
+  const handleRunDiscordTest = async () => {
+    Swal.fire({
+      title: 'Testing Discord Channel...',
+      text: 'Membuat channel sandbox ⚔️-match-test di Discord...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const res = await fetch('/api/tournament/generate-channel?testing=true', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        Swal.fire(
+          'Testing Berhasil!',
+          'Channel ⚔️-match-test berhasil dibuat dan dikirim ke Discord!',
+          'success'
+        );
+      } else {
+        Swal.fire('Gagal Testing', data.error || 'Gagal membuat channel test', 'error');
+      }
+    } catch {
+      Swal.fire('Error', 'Gagal terhubung ke server', 'error');
+    }
+  };
+
   const handleCopyMagicLink = (match: MatchScheduleItem) => {
     const magicUrl = `${window.location.origin}/tournament/match-input/${match.id}?token=${match.refereeToken || ''}`;
     navigator.clipboard.writeText(magicUrl);
@@ -247,7 +277,7 @@ export function ScheduleAdminTab() {
 
   return (
     <div className="space-y-4">
-      {/* HEADER & FILTER PER WEEK */}
+      {/* HEADER & FILTER PER WEEK + TOMBOL TESTING */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <h2 className="text-lg font-extrabold text-foreground">Manajemen Schedule Pertandingan</h2>
@@ -270,6 +300,16 @@ export function ScheduleAdminTab() {
             ))}
           </select>
 
+          {/* 🧪 TOMBOL TESTING DISCORD */}
+          <button
+            onClick={handleRunDiscordTest}
+            className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1"
+            title="Uji coba pengiriman Embed & Tombol Match Report ke channel ⚔️-match-test"
+          >
+            <span>🧪 Test Discord Embed</span>
+          </button>
+
+          {/* 🚀 TOMBOL GENERATE BATCH */}
           <button
             onClick={handleGenerateAllWeekChannels}
             className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5"
@@ -431,5 +471,5 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-    }
-      
+          }
+        
