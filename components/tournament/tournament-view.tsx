@@ -1,12 +1,17 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { MatchScheduleItem, TeamStandingItem } from "@/lib/types/tournament";
-import { ScheduleTab } from "./schedule-tab";
-import { StandingTab } from "./standing-tab";
-import { PlayoffTab } from "./playoff-tab";
-import { MatchReportModal } from "./match-report-modal";
-import Swal from "sweetalert2";
+import { useState, useEffect } from 'react';
+import { MatchScheduleItem } from '@/lib/types/tournament';
+import { MatchReportModal } from './match-report-modal';
+import { Calendar, Trophy, Eye, Filter, RefreshCw } from 'lucide-react';
+
+interface TournamentViewProps {
+  isAdmin: boolean;
+  selectedGroupFilter: 'ALL' | 'Group A' | 'Group B';
+  setSelectedGroupFilter: (val: 'ALL' | 'Group A' | 'Group B') => void;
+  selectedDateFilter: string;
+  setSelectedDateFilter: (val: string) => void;
+}
 
 export function TournamentView({
   isAdmin,
@@ -14,136 +19,164 @@ export function TournamentView({
   setSelectedGroupFilter,
   selectedDateFilter,
   setSelectedDateFilter,
-}: {
-  isAdmin: boolean;
-  selectedGroupFilter: "ALL" | "Group A" | "Group B";
-  setSelectedGroupFilter: (v: "ALL" | "Group A" | "Group B") => void;
-  selectedDateFilter: string;
-  setSelectedDateFilter: (v: string) => void;
-}) {
-  const [activeMainTab, setActiveMainTab] = useState<"SCHEDULE" | "STANDING" | "PLAYOFF">("SCHEDULE");
+}: TournamentViewProps) {
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
-  const [standings, setStandings] = useState<TeamStandingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<MatchScheduleItem | null>(null);
 
-  const fetchTournamentData = async () => {
+  const fetchSchedules = async () => {
+    setIsLoading(true);
     try {
-      const res = await fetch("/api/tournament");
+      const res = await fetch('/api/tournament');
       const data = await res.json();
-      if (data) {
-        setSchedules(data.schedules || []);
-        setStandings(data.standings || []);
+      if (data && Array.isArray(data.schedules)) {
+        setSchedules(data.schedules);
       }
     } catch (err) {
-      console.error("Error fetching tournament:", err);
+      console.error('Gagal fetch jadwal:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchTournamentData();
+    fetchSchedules();
   }, []);
 
-  const handleForceResetSchedules = async () => {
-    const res = await Swal.fire({
-      title: "SYNC DATA ROULETTE & GENERATE JADWAL?",
-      text: "Sistem akan mengambil daftar tim Group A & B terbaru dari Roulette dan menyusun ulang jadwal pertandingan secara otomatis.",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Ya, Sync Sekarang",
-      confirmButtonColor: "#0284c7",
-    });
+  const filteredSchedules = schedules.filter((m) => {
+    const matchGroup = selectedGroupFilter === 'ALL' ? true : m.groupName === selectedGroupFilter;
+    const matchDate = !selectedDateFilter ? true : m.matchDate.startsWith(selectedDateFilter);
+    return matchGroup && matchDate;
+  });
 
-    if (!res.isConfirmed) return;
-    setIsLoading(true);
-
-    try {
-      await fetch("/api/tournament", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "SYNC_ROULETTE" }),
-      });
-
-      setSelectedDateFilter("");
-      setSelectedGroupFilter("ALL");
-      await fetchTournamentData();
-
-      Swal.fire("Berhasil!", "Jadwal dan Standing berhasil disinkronisasi dengan data Roulette terbaru.", "success");
-    } catch (err) {
-      Swal.fire("Gagal!", "Terjadi kesalahan saat menyinkronkan data.", "error");
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSavedMatch = (updatedMatch: MatchScheduleItem) => {
+    setSchedules((prev) => prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m)));
   };
-
-  if (isLoading) {
-    return <div className="p-8 text-center text-xs font-bold text-primary animate-pulse">⏳ Memuat Data Turnamen...</div>;
-  }
-
-  const getMatchWeekNumber = (dateString: string) => {
-    const startDate = new Date("2026-08-05T00:00:00+07:00").getTime();
-    const matchDate = new Date(dateString).getTime();
-    const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
-    return Math.max(1, Math.floor(diffDays / 7) + 1);
-  };
-
-  const schedulesWithWeek = schedules.map((m) => ({ ...m, weekNumber: getMatchWeekNumber(m.matchDate) }));
-  const allTeamNames = Array.from(new Set(standings.map((s) => s.teamName)));
-  const allWeeks = Array.from(new Set(schedulesWithWeek.map((m) => m.weekNumber))).sort((a, b) => a - b);
 
   return (
-    <div className="w-full flex flex-col gap-5">
-      {/* 3 Main Buttons Konsisten */}
-      <div className="grid grid-cols-3 gap-2 w-full">
-        {[
-          { key: "SCHEDULE", label: "Group Stage" },
-          { key: "STANDING", label: "Standing Group" },
-          { key: "PLAYOFF", label: "Playoff Stage" },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveMainTab(tab.key as any)}
-            className={`rounded-xl py-3 px-2 text-center text-xs font-black uppercase tracking-wider border transition-all cursor-pointer ${
-              activeMainTab === tab.key
-                ? "bg-primary text-primary-foreground border-primary shadow-md"
-                : "bg-card text-muted-foreground border-border hover:text-foreground"
-            }`}
+    <div className="w-full space-y-6">
+      {/* FILTER BAR INOVATIF */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card/60 p-4 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-primary" />
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Filter Jadwal</span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={selectedGroupFilter}
+            onChange={(e) => setSelectedGroupFilter(e.target.value as any)}
+            className="rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground outline-none"
           >
-            {tab.label}
+            <option value="ALL">Semua Grup (A & B)</option>
+            <option value="Group A">Group A</option>
+            <option value="Group B">Group B</option>
+          </select>
+
+          <input
+            type="date"
+            value={selectedDateFilter}
+            onChange={(e) => setSelectedDateFilter(e.target.value)}
+            className="rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground outline-none"
+          />
+
+          <button
+            onClick={fetchSchedules}
+            className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold hover:bg-muted"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* View Tab Aktif */}
-      {activeMainTab === "SCHEDULE" && (
-        <ScheduleTab
-          schedules={schedulesWithWeek}
-          allTeamNames={allTeamNames}
-          allWeeks={allWeeks}
-          isAdmin={isAdmin}
-          onResetSchedules={handleForceResetSchedules}
-          onSelectMatch={(m) => setActiveReportMatch(m)}
-          selectedGroupFilter={selectedGroupFilter}
-          setSelectedGroupFilter={setSelectedGroupFilter}
-          selectedDateFilter={selectedDateFilter}
-          setSelectedDateFilter={setSelectedDateFilter}
-        />
+      {/* DAFTAR JADWAL PERTANDINGAN */}
+      {isLoading ? (
+        <div className="flex h-48 w-full items-center justify-center rounded-2xl border border-border bg-card/40">
+          <p className="animate-pulse text-xs font-bold text-primary">⏳ Memuat Jadwal & Skor Pertandingan...</p>
+        </div>
+      ) : filteredSchedules.length === 0 ? (
+        <div className="flex h-48 w-full items-center justify-center rounded-2xl border border-dashed border-border bg-card/20">
+          <p className="text-xs font-semibold text-muted-foreground">Jadwal pertandingan tidak ditemukan untuk filter ini.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {filteredSchedules.map((match) => (
+            <div
+              key={match.id}
+              className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card/80 p-5 shadow-lg transition hover:border-primary/50"
+            >
+              <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-3">
+                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase text-primary">
+                  {match.groupName} — Week {match.weekNumber || 1}
+                </span>
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
+                  <Calendar className="h-3 w-3" />
+                  {formatScheduleDate(match.matchDate)}
+                </span>
+              </div>
+
+              {/* TIM A VS TIM B WITH SCORE */}
+              <div className="my-2 flex items-center justify-between gap-3">
+                <div className="flex flex-1 items-center gap-3">
+                  <img src={match.teamALogo} alt={match.teamAName} className="h-10 w-10 rounded-xl object-cover border border-border" />
+                  <span className="font-extrabold text-sm text-foreground truncate max-w-[120px]">{match.teamAName}</span>
+                </div>
+
+                <div className="flex items-center gap-2 rounded-xl bg-background border border-border px-4 py-1.5 font-black text-base text-primary">
+                  <span>{match.scoreA}</span>
+                  <span className="text-muted-foreground">:</span>
+                  <span>{match.scoreB}</span>
+                </div>
+
+                <div className="flex flex-1 items-center justify-end gap-3 text-right">
+                  <span className="font-extrabold text-sm text-foreground truncate max-w-[120px]">{match.teamBName}</span>
+                  <img src={match.teamBLogo} alt={match.teamBName} className="h-10 w-10 rounded-xl object-cover border border-border" />
+                </div>
+              </div>
+
+              {/* ACTION FOOTER */}
+              <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                <span className="text-[10px] text-muted-foreground">
+                  Ref: <strong className="text-foreground">{match.referee}</strong>
+                </span>
+
+                <button
+                  onClick={() => setSelectedMatch(match)}
+                  className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-primary-foreground transition"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  {isAdmin ? 'Edit / Match Report' : 'Lihat Match Report'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      {activeMainTab === "STANDING" && <StandingTab standings={standings} />}
-
-      {activeMainTab === "PLAYOFF" && <PlayoffTab />}
-
-      {/* Modal Popup Match Report */}
-      {activeReportMatch && (
-        <MatchReportModal
-          match={activeReportMatch}
-          weekNumber={getMatchWeekNumber(activeReportMatch.matchDate)}
-          onClose={() => setActiveReportMatch(null)}
-        />
-      )}
+      {/* MODAL MATCH REPORT EKSKLUSIF */}
+      <MatchReportModal
+        match={selectedMatch}
+        isAdmin={isAdmin}
+        onClose={() => setSelectedMatch(null)}
+        onSaved={handleSavedMatch}
+      />
     </div>
   );
+}
+
+function formatScheduleDate(isoStr: string): string {
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }) + ' WIB';
+  } catch {
+    return isoStr;
+  }
 }
