@@ -215,6 +215,14 @@ export function AdminTable({
     );
   };
 
+  // 2. 🟢 PERBAIKAN: Fungsi sensor email rapi yang benar-benar memvalidasi dan memotong string
+  const maskEmail = (email: string) => {
+    if (!email || !email.includes('@')) return '••••••••••••';
+    const [name, domain] = email.split('@');
+    if (name.length <= 2) return `${name}••••@${domain}`;
+    return `${name.slice(0, 2)}••••@${domain}`;
+  };
+
   // 3. Fungsi untuk menyalakan/mematikan visibilitas email
   const toggleEmail = (teamId: string) => {
     setVisibleEmails((prev) => ({
@@ -285,7 +293,6 @@ export function AdminTable({
                   <td className="px-4 py-3 font-bold text-white whitespace-normal break-words max-w-[200px]">
                     {team.namaTim}
                   </td>
-                  {/* 👇 BAGIAN EMAIL YANG DIUBAH 👇 */}
                   <td className="px-4 py-3 text-neutral-400">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs">
