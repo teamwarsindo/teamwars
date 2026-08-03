@@ -215,14 +215,6 @@ export function AdminTable({
     );
   };
 
-  // 2. Fungsi cerdas untuk menyensor email
-  const maskEmail = (email: string) => {
-    if (!email) return '••••••••••••';
-  
-    // Langsung kembalikan titik/bintang secara penuh tanpa peduli panjang aslinya
-    return '••••••••••••••••'; 
-  };
-
   // 3. Fungsi untuk menyalakan/mematikan visibilitas email
   const toggleEmail = (teamId: string) => {
     setVisibleEmails((prev) => ({
