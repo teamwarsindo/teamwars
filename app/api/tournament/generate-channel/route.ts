@@ -14,42 +14,53 @@ function getTeamSlug(teamName: string) {
 
 export async function POST(req: Request) {
   try {
-    const { matchId } = await req.json();
+    const { matchId, matchIds } = await req.json();
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const match = schedules.find((m) => m.id === matchId);
+    const targetMatchIds: string[] = matchIds || (matchId ? [matchId] : []);
 
-    if (!match) {
-      return NextResponse.json({ error: 'Match tidak ditemukan' }, { status: 404 });
+    if (targetMatchIds.length === 0) {
+      return NextResponse.json({ error: 'Tidak ada match yang dipilih' }, { status: 400 });
     }
 
-    // Ambil Role ID Tim A & Tim B dari Redis KV
-    const [teamA, teamB] = await Promise.all([
-      kv.hgetall(`teams:${getTeamSlug(match.teamAName)}`),
-      kv.hgetall(`teams:${getTeamSlug(match.teamBName)}`),
-    ]);
+    const results = [];
 
-    const roleAId = (teamA as any)?.discordRoleId;
-    const roleBId = (teamB as any)?.discordRoleId;
+    for (const mId of targetMatchIds) {
+      const match = schedules.find((m) => m.id === mId);
+      if (!match) continue;
 
-    // Panggil helper pembuatan channel match dengan User ID Wasit & Streamer
-    const channelId = await createMatchDiscordChannel({
-      matchId: match.id,
-      teamAName: match.teamAName,
-      teamBName: match.teamBName,
-      roleAId,
-      roleBId,
-      refereeDiscordId: match.refereeDiscordId,
-      streamerDiscordId: match.caster, // Caster/Streamer ID
-    });
+      const [teamA, teamB] = await Promise.all([
+        kv.hgetall(`teams:${getTeamSlug(match.teamAName)}`),
+        kv.hgetall(`teams:${getTeamSlug(match.teamBName)}`),
+      ]);
 
-    if (!channelId) {
-      return NextResponse.json({ error: 'Gagal membuat channel Discord' }, { status: 500 });
+      const roleAId = (teamA as any)?.discordRoleId;
+      const roleBId = (teamB as any)?.discordRoleId;
+
+      const channelId = await createMatchDiscordChannel({
+        matchId: match.id,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        matchDateIso: match.matchDate,
+        refereeName: match.referee,
+        refereeDiscordId: match.refereeDiscordId,
+        streamerName: match.streamer,
+        streamerDiscordId: match.caster,
+        streamLink: match.streamLink,
+        roleAId,
+        roleBId,
+      });
+
+      results.push({ matchId: mId, success: !!channelId, channelId });
+
+      if (targetMatchIds.length > 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
     }
 
-    return NextResponse.json({ success: true, channelId });
+    return NextResponse.json({ success: true, totalProcessed: results.length, results });
   } catch (error) {
     console.error('Error generate channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-        }
+}
