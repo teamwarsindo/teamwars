@@ -38,7 +38,6 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
   useEffect(() => {
     if (!match) return;
 
-    // 1. Ambil Master Data dari server
     fetch('/api/admin/master-data')
       .then((r) => r.json())
       .then((d) => {
@@ -46,7 +45,6 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
       })
       .catch(() => {});
 
-    // 2. Ambil Roster asli tim dari KV
     const fetchTeamRoster = async (teamName: string, setRosterList: (names: string[]) => void) => {
       try {
         const slug = teamName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
@@ -67,7 +65,6 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
     fetchTeamRoster(match.teamAName, setRosterListA);
     fetchTeamRoster(match.teamBName, setRosterListB);
 
-    // 3. Isi State jika sudah pernah ada report
     if (match.report) {
       setStreamPlatform(match.report.streamPlatform || 'Youtube');
       setStreamer(match.report.streamer || 'Alroy_Yuan');
@@ -79,7 +76,6 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
     } else {
       setDateStr(formatIndoDate(match.matchDate));
       setReferee(match.referee || 'vG®D WHY');
-      // Siapkan 19 Game Rows kosong standar (format 10-10 max)
       const initialGames: MatchReportRow[] = Array.from({ length: 19 }, (_, idx) => ({
         id: `g-${idx + 1}`,
         playerA: rosterListA[0] || 'Player A1',
@@ -97,7 +93,7 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
 
   if (!match) return null;
 
-  // 🎯 ATURAN: Maksimal W adalah 10, dianggap tim itu menang match
+  // ATURAN: Maksimal W adalah 10 untuk menentukan tim pemenang
   const rawScoreA = games.filter((g) => g.resultA === 'W').length;
   const rawScoreB = games.filter((g) => g.resultB === 'W').length;
   const calcScoreA = Math.min(10, rawScoreA);
@@ -175,7 +171,6 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-md animate-in fade-in">
       <div className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-sky-800 bg-[#0A192F] shadow-2xl text-white">
-        {/* TOP BAR JUDUL REPORT */}
         <div className="flex items-center justify-between border-b border-sky-800/80 bg-[#0F2D54] px-6 py-4">
           <div className="flex items-center gap-2">
             <Trophy className="h-6 w-6 text-yellow-400" />
@@ -187,7 +182,7 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-          {/* INFO BROADCAST & REFEREE HEADER (Tanpa Caster) */}
+          {/* INFO BROADCAST & REFEREE HEADER */}
           <div className="grid grid-cols-2 gap-3 rounded-xl border border-sky-800 bg-[#0D2444] p-4 text-xs sm:grid-cols-4">
             <div>
               <span className="block font-semibold text-sky-400">Stream Platform</span>
@@ -233,7 +228,6 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
 
           {/* VS ROSTER BANNER */}
           <div className="grid grid-cols-1 items-center gap-6 rounded-2xl border border-sky-800 bg-[#0E284A] p-6 sm:grid-cols-3">
-            {/* ROSTER A (5 Pemain) */}
             <div className="flex flex-col items-center text-center">
               <div className="h-16 w-16 overflow-hidden rounded-xl bg-neutral-900 border border-sky-600 mb-2">
                 <img src={match.teamALogo} alt={match.teamAName} className="h-full w-full object-cover" />
@@ -249,12 +243,10 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
               </div>
             </div>
 
-            {/* VS CENTER */}
             <div className="flex flex-col items-center justify-center">
               <span className="text-3xl font-black italic text-white/40">VS</span>
             </div>
 
-            {/* ROSTER B (5 Pemain) */}
             <div className="flex flex-col items-center text-center">
               <div className="h-16 w-16 overflow-hidden rounded-xl bg-neutral-900 border border-sky-600 mb-2">
                 <img src={match.teamBLogo} alt={match.teamBName} className="h-full w-full object-cover" />
@@ -271,7 +263,7 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
             </div>
           </div>
 
-          {/* TABEL DUEL ROW (19 GAMES MAX) */}
+          {/* TABEL DUEL ROW */}
           <div className="overflow-x-auto rounded-xl border border-sky-800 bg-[#081528]">
             <table className="w-full min-w-[850px] text-center text-xs">
               <thead className="bg-[#0C2240] text-sky-300 uppercase tracking-wider font-extrabold">
@@ -292,7 +284,6 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
                     <td className="py-2 px-2 text-sky-200">{g.deckA}</td>
                     <td className="py-2 px-2 font-mono text-sky-400">{g.skillA}</td>
                     
-                    {/* RESULT COMBINED (W/L) */}
                     <td className="py-2 px-3">
                       {isAdmin ? (
                         <div className="inline-flex gap-1.5">
@@ -351,7 +342,6 @@ export function MatchReportModal({ match, isAdmin, onClose, onSaved }: MatchRepo
           </div>
         </div>
 
-        {/* FOOTER TOMBOL SIMPAN (KHUSUS ADMIN) */}
         {isAdmin && (
           <div className="flex items-center justify-end gap-3 border-t border-sky-800/80 bg-[#0C2240] px-6 py-4">
             <button
