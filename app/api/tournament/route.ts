@@ -211,14 +211,14 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
           teamAId: pairA[0].name,
           teamAName: pairA[0].name,
           teamALogo: pairA[0].logo || "/logo.webp",
-          teamBId: pairB ? pairA[1].name : pairA[1].name,
+          teamBId: pairA[1].name,
           teamBName: pairA[1].name,
           teamBLogo: pairA[1].logo || "/logo.webp",
           scoreA: 0,
           scoreB: 0,
           isFinished: false,
           referee: "vG®D WHY",
-          refereeToken: `REF-${mId.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`, // Auto Token per Match
+          refereeToken: `REF-${mId.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
           streamer: "Alroy_Yuan",
         });
       }
@@ -241,7 +241,7 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
           scoreB: 0,
           isFinished: false,
           referee: "vG®D WHY",
-          refereeToken: `REF-${mId.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`, // Auto Token per Match
+          refereeToken: `REF-${mId.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
           streamer: "Alroy_Yuan",
         });
       }
@@ -250,3 +250,4 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
 
   return schedules;
 }
+  
