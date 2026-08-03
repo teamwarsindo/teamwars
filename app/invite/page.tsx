@@ -19,23 +19,3 @@ export const metadata: Metadata = {
     ],
   },
 }
-
-export default function InvitePage() {
-  return (
-    // 2. HAPUS TAG HTML DAN BODY
-    <main className="flex h-screen items-center justify-center bg-slate-950 text-white">
-      {/* Trik Meta Refresh tetap bekerja tanpa harus dibungkus tag <head> */}
-      <meta httpEquiv="refresh" content={`0;url=${DISCORD_LINK}`} />
-      
-      <div className="text-center">
-        <h1 className="text-xl font-bold">Mengalihkan ke Discord...</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          Jika tidak dialihkan secara otomatis,{' '}
-          <a href={DISCORD_LINK} className="text-blue-400 underline hover:text-blue-300">
-            klik di sini
-          </a>.
-        </p>
-      </div>
-    </main>
-  )
-}
