@@ -80,6 +80,22 @@ export async function GET() {
         // 🚀 Terapkan kompresi URL otomatis (Ukuran turun dari ~2 MB jadi ~15 KB)
         const optimizedUrl = getOptimizedLogoUrl(team.logo);
         
+        // 🟢 PERBAIKAN: Fetch rapi tanpa menggunakan `var`
+        let arrayBuffer: ArrayBuffer;
+        let contentType = "image/png";
+
+        const imageRes = await fetch(optimizedUrl);
+        if (!imageRes.ok) {
+          // Fallback ke URL asli jika fetch Cloudinary terhalang
+          const fallbackRes = await fetch(team.logo);
+          if (!fallbackRes.ok) throw new Error(`Gagal download logo (${fallbackRes.statusText})`);
+          arrayBuffer = await fallbackRes.arrayBuffer();
+          contentType = fallbackRes.headers.get("content-type") || "image/png";
+        } else {
+          arrayBuffer = await imageRes.arrayBuffer();
+          contentType = imageRes.headers.get("content-type") || "image/png";
+        }
+
         const buffer = Buffer.from(arrayBuffer);
 
         // Pengecekan Batas Ukuran File Discord (256 KB)
@@ -121,5 +137,4 @@ export async function GET() {
     console.error("API Error create-emojis:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
-                   }
-      
+}
