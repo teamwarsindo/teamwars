@@ -34,7 +34,6 @@ export function RegistrationForm({
     editToken
   )
   const hasInitialized = useRef(false);
-  const hasAutoFilled = useRef(false);
 
   // 1. useEffect bawaan untuk Edit Mode
   useEffect(() => {
@@ -61,15 +60,7 @@ export function RegistrationForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, initialData]); 
 
-  // 2. Script Auto-Fill untuk Testing via URL
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !isEditMode && !hasAutoFilled.current) {
-      const params = new URLSearchParams(window.location.search);
-      
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode]);
-
-  // 3. Deteksi Perubahan Data Termasuk Logo & Bukti Transfer
+  // 2. Deteksi Perubahan Data Termasuk Logo & Bukti Transfer
   const hasChanges = useMemo(() => {
     if (!isEditMode || !initialData) return true; 
 
@@ -77,7 +68,6 @@ export function RegistrationForm({
     const nameChanged = team.namaTim.trim() !== (initialData.namaTim || "").trim();
     const colorChanged = team.hex.toLowerCase() !== (initialData.warna || "").toLowerCase();
 
-    // Cek perubahan URL logo & bukti transfer terhadap data awal
     const logoChanged = Boolean(team.logo?.url && team.logo.url !== initialData.logoTim);
     const buktiChanged = Boolean(team.bukti?.url && team.bukti.url !== initialData.buktiTransfer);
 
@@ -101,7 +91,6 @@ export function RegistrationForm({
   }, [team.email, team.namaTim, team.hex, team.logo, team.bukti, roster.players, isEditMode, initialData]);
 
   const handleSyncDiscord = async () => {
-    // Buat format slug tim persis seperti di backend
     const teamSlug = team.namaTim
       .trim()
       .toLowerCase()
