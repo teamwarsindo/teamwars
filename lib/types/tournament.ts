@@ -1,93 +1,72 @@
-export interface PlayerItem {
+export type TournamentStage = 'GROUP_STAGE' | 'PLAYOFFS' | 'FINALS';
+
+export type AdminRole = 'SUPER_ADMIN' | 'ROULETTE_ADMIN' | 'MATCH_ADMIN';
+
+export interface AdminUser {
+  username: string;
+  role: AdminRole;
+  createdAt: string;
+}
+
+export interface MasterData {
+  referees: string[];
+  streamers: string[];
+  decks: string[];
+  skills: string[];
+  streamPlatforms: string[];
+}
+
+export interface MatchReportRow {
   id: string;
-  name: string;
-  teamId: string;
+  playerA: string;
+  deckA: string;
+  skillA: string;
+  resultA: 'W' | 'L' | '-';
+  resultB: 'W' | 'L' | '-';
+  skillB: string;
+  deckB: string;
+  playerB: string;
 }
 
-export interface DeckSkillSelection {
-  deckName: string;
-  skillName: string;
-}
-
-export interface MatchPlayerConfig {
-  playerId: string;
-  playerName: string;
-  decks: [DeckSkillSelection, DeckSkillSelection]; // Tepat 2 Deck & Skill per pemain
-}
-
-export interface MatchRosterConfig {
-  teamId: string;
-  teamName: string;
-  teamLogo: string;
-  mainPlayers: MatchPlayerConfig[]; // 5 Pemain Utama
-  substitutePlayer?: MatchPlayerConfig; // 1 Pemain Cadangan (Opsional)
-}
-
-export interface GameDetailLog {
-  gameNumber: number;
-  teamAPlayerId: string;
-  teamAPlayerName: string;
-  teamADeck: string;
-  teamASkill: string;
-  teamBPlayerId: string;
-  teamBPlayerName: string;
-  teamBDeck: string;
-  teamBSkill: string;
-  winnerTeamId: string; // ID Tim Pemenang di Game ini
+export interface MatchReportData {
+  streamPlatform: string;
+  streamer: string;
+  referee: string;
+  matchDateFormatted: string;
+  rosterA: string[]; // 5 pemain terpilih
+  rosterB: string[]; // 5 pemain terpilih
+  games: MatchReportRow[];
 }
 
 export interface MatchScheduleItem {
   id: string;
-  matchDate: string; // ISO / Waktu WIB
-  stage: "GROUP_STAGE" | "PLAY_INS" | "QUARTER_FINALS" | "SEMI_FINALS" | "FINALS";
-  groupName?: "Group A" | "Group B";
+  matchDate: string; // ISO string
+  stage: TournamentStage;
+  groupName: 'Group A' | 'Group B' | 'Playoffs';
+  weekNumber: number;
   teamAId: string;
   teamAName: string;
   teamALogo: string;
   teamBId: string;
   teamBName: string;
   teamBLogo: string;
-  
-  // Data Administrasi Match
-  referee?: string;
-  streamer?: string;
-  caster?: string;
-  streamPlatform?: "Youtube" | "Twitch" | "TikTok" | "Other";
-  streamLink?: string;
-
-  // Skor Akhir (Quick Score / Sync dari Analyst)
-  scoreA: number; // 0 - 10
-  scoreB: number; // 0 - 10
+  scoreA: number;
+  scoreB: number;
   isFinished: boolean;
-
-  // Detail Match Analyst Report
-  rosterA?: MatchRosterConfig;
-  rosterB?: MatchRosterConfig;
-  gameLogs?: GameDetailLog[];
+  referee: string;
+  streamer: string;
+  report?: MatchReportData | null;
 }
 
-export interface TeamStandingItem {
+export interface TeamStanding {
+  rank: number;
   teamId: string;
   teamName: string;
   teamLogo: string;
-  groupName: "Group A" | "Group B";
-  matchPlayed: number;
-  matchWins: number;
-  matchLosses: number;
-  setWins: number;      // Total Game Individu Menang
-  setLosses: number;    // Total Game Individu Kalah
-  roundDifference: number; // setWins - setLosses
-  points: number;       // (matchWins * 10)
-}
-
-export interface PlayerPowerRankingItem {
-  playerId: string;
-  playerName: string;
-  teamName: string;
-  playedGames: number;
-  wins: number;
-  losses: number;
-  winRatePercentage: number;
-  wpm: number; // Wins Per Match
-  aggregateScore: number;
+  groupName: string;
+  played: number;
+  win: number;
+  lose: number;
+  points: number;
+  matchDiff: number;
 }
