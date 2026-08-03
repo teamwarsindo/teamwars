@@ -12,10 +12,7 @@ export function PlayoffTab() {
         </p>
       </div>
       
-      {/* BRACKET TREE CLEAN TANPA GARIS MANUAL */}
       <div className="min-w-[750px] grid grid-cols-4 gap-4 text-xs py-2 px-1">
-        
-        {/* ROUND 1 (PLAY-INS) */}
         <div className="flex flex-col justify-around gap-6">
           <span className="font-extrabold text-[10px] text-sky-400 uppercase tracking-widest border-b border-sky-500/30 pb-1 text-center">
             ROUND 1 (PLAY-INS)
@@ -26,7 +23,6 @@ export function PlayoffTab() {
           <BracketCard p1="Wildcard Seed 3" p2="Wildcard Seed 6" label="Play-Ins #4" />
         </div>
 
-        {/* QUARTER-FINAL */}
         <div className="flex flex-col justify-around gap-8 my-auto">
           <span className="font-extrabold text-[10px] text-amber-400 uppercase tracking-widest border-b border-amber-500/30 pb-1 text-center">
             QUARTER-FINAL
@@ -37,7 +33,6 @@ export function PlayoffTab() {
           <BracketCard p1="Top 2 Group A" p2="Winner Play-Ins #4" label="QF #4" isDirect />
         </div>
 
-        {/* SEMI-FINAL */}
         <div className="flex flex-col justify-around gap-16 my-auto">
           <span className="font-extrabold text-[10px] text-emerald-400 uppercase tracking-widest border-b border-emerald-500/30 pb-1 text-center">
             SEMI-FINAL
@@ -46,7 +41,6 @@ export function PlayoffTab() {
           <BracketCard p1="Winner QF #3" p2="Winner QF #4" label="SF #2" />
         </div>
 
-        {/* GRAND FINAL */}
         <div className="flex flex-col justify-center my-auto">
           <span className="font-extrabold text-[10px] text-purple-400 uppercase tracking-widest border-b border-purple-500/30 pb-1 mb-3 text-center">
             GRAND FINAL
@@ -59,7 +53,6 @@ export function PlayoffTab() {
             <p className="text-[11px] font-bold text-slate-200">Winner SF #2</p>
           </div>
         </div>
-
       </div>
     </div>
   );
