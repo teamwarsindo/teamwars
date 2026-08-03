@@ -48,14 +48,17 @@ export interface MatchScheduleItem {
   teamBName: string;
   teamBLogo: string;
   
-  // Data Administrasi Match
+  // Data Administrasi Match & Lock Wasit
   referee?: string;
+  refereeDiscordId?: string;       // 🟢 ID Discord Wasit (Untuk Auth Bot)
+  refereeDiscordUsername?: string; // 🟢 Username Discord Wasit
+  refereeToken?: string;           // 🟢 Passcode / Token Khusus Match
   streamer?: string;
   caster?: string;
   streamPlatform?: "Youtube" | "Twitch" | "TikTok" | "Other";
   streamLink?: string;
 
-  // Skor Akhir (Quick Score / Sync dari Analyst)
+  // Skor Akhir
   scoreA: number; // 0 - 10
   scoreB: number; // 0 - 10
   isFinished: boolean;
