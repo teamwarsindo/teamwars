@@ -57,11 +57,11 @@ export async function GET(req: Request) {
       const guildId = channelInfo?.guild_id;
       const teamName = normalizeChannelName(rawChannelName);
 
-      // 2. Fetch Guild Members untuk matching teks nama (jika tidak di-tag)
+      // 2. Fetch Guild Members untuk matching teks nama jika perlu
       let guildMembers: any[] = [];
       if (guildId) {
         try {
-          guildMembers = await discordAPI(`/guilds/${guildId}/members?limit=100`, 'GET') || [];
+          guildMembers = (await discordAPI(`/guilds/${guildId}/members?limit=100`, 'GET')) || [];
         } catch (e) {}
       }
 
@@ -102,10 +102,10 @@ export async function GET(req: Request) {
           // Abaikan gambar yang dikirim setelah Kick-Off (20:00 WIB)
           if (msgTotalMinutes >= matchKickoffMinutes) continue;
 
-          // 🟢 DETEKSI TARGET USER: Official Mention > Text Name Matching > Message Author
+          // 🟢 DETEKSI PEMILIK DECK SANGAT PRESISI
           let targetUsers: any[] = (msg.mentions || []).filter((u: any) => !u.bot);
 
-          // Jika tidak ada mention official (<@ID>), cari apakah ada nama member yang disebut di teks pesan
+          // Jika tidak ada mention tag, cari nama via teks
           if (targetUsers.length === 0 && msg.content && guildMembers.length > 0) {
             const contentLower = msg.content.toLowerCase();
 
@@ -115,8 +115,7 @@ export async function GET(req: Request) {
               const globalName = (member.user?.global_name || '').toLowerCase();
               const username = (member.user?.username || '').toLowerCase();
 
-              // Cek apakah ada nama nickname/global_name/username yang tertulis dalam teks pesan
-              const isMatch = 
+              const isMatch =
                 (nick && nick.length >= 3 && contentLower.includes(nick)) ||
                 (globalName && globalName.length >= 3 && contentLower.includes(globalName)) ||
                 (username && username.length >= 3 && contentLower.includes(username));
@@ -127,12 +126,13 @@ export async function GET(req: Request) {
             }
           }
 
-          // Jika tetap tidak ditemukan nama sama sekali, default ke si pengirim pesan (author)
+          // Fallback: Jika tidak ada tag/nama dalam pesan, milik si pengirim (author)
           if (targetUsers.length === 0) {
             targetUsers = [msg.author];
           }
 
-          const imagesPerUser = Math.max(1, Math.floor(imageAttachments.length / targetUsers.length));
+          // Alokasikan gambar ke masing-masing target user secara proporsional
+          const imageUrls = imageAttachments.map((att: any) => att.url as string);
 
           for (const targetUser of targetUsers) {
             const userId = targetUser.id;
@@ -140,14 +140,12 @@ export async function GET(req: Request) {
             // Cari Display Name Presisi
             let displayName = targetUser.global_name || targetUser.username;
             if (guildId) {
-              try {
-                const memberData = guildMembers.find((m: any) => m.user?.id === userId);
-                if (memberData?.nick) {
-                  displayName = memberData.nick;
-                } else if (memberData?.user?.global_name) {
-                  displayName = memberData.user.global_name;
-                }
-              } catch (err) {}
+              const memberData = guildMembers.find((m: any) => m.user?.id === userId);
+              if (memberData?.nick) {
+                displayName = memberData.nick;
+              } else if (memberData?.user?.global_name) {
+                displayName = memberData.user.global_name;
+              }
             }
 
             const currentData = playerSubmissions.get(userId) || {
@@ -162,11 +160,12 @@ export async function GET(req: Request) {
 
             currentData.username = displayName;
 
-            // 🟢 CAP MAKSIMAL 2 DECK PER PEMAIN
-            if (currentData.deckCount < TARGET_DECK_PER_PLAYER) {
-              const allowedToAdd = Math.min(imagesPerUser, TARGET_DECK_PER_PLAYER - currentData.deckCount);
-              currentData.deckCount += allowedToAdd;
-              currentData.images.push(...imageAttachments.map((att: any) => att.url as string).slice(0, allowedToAdd));
+            // 🟢 HANYA TAMBAHKAN GAMBAR BARU JIKA DIBATASI MAKSIMAL 2 DECK PER USER
+            for (const url of imageUrls) {
+              if (currentData.deckCount < TARGET_DECK_PER_PLAYER) {
+                currentData.images.push(url);
+                currentData.deckCount += 1;
+              }
             }
 
             currentData.submittedAt = msg.timestamp;
@@ -215,7 +214,7 @@ export async function GET(req: Request) {
       const remainingControlTime = Math.max(0, INITIAL_CONTROL_TIME_MINUTES - totalPenaltyMinutes);
 
       // Header Status
-      let statusHeader = 
+      let statusHeader =
         `⏱️ **Deadline:** 19:00 WIB | **Kick-Off:** 20:00 WIB\n` +
         `⏳ **Waktu Kontrol Awal Tim:** ${INITIAL_CONTROL_TIME_MINUTES} Menit\n\n`;
 
@@ -284,11 +283,12 @@ export async function GET(req: Request) {
 
       const summaryEmbed = {
         title: `📊 REKAP SUBMISSION DECK`,
-        color: isClosedMode && uncollectedDecks > 0 
-          ? hexToDecimal('#FF0000') 
-          : isTeamComplete 
-          ? hexToDecimal('#00FF00') 
-          : hexToDecimal('#FFA500'),
+        color:
+          isClosedMode && uncollectedDecks > 0
+            ? hexToDecimal('#FF0000')
+            : isTeamComplete
+            ? hexToDecimal('#00FF00')
+            : hexToDecimal('#FFA500'),
         description: statusHeader,
         fields: embedFields,
         footer: { text: 'Team Wars Indonesia' },
@@ -324,5 +324,5 @@ export async function GET(req: Request) {
     console.error('Error Cron Deck Checker:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-                  }
-        
+            }
+                                                      
