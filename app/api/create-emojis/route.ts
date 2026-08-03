@@ -79,18 +79,6 @@ export async function GET() {
       try {
         // 🚀 Terapkan kompresi URL otomatis (Ukuran turun dari ~2 MB jadi ~15 KB)
         const optimizedUrl = getOptimizedLogoUrl(team.logo);
-
-        const imageRes = await fetch(optimizedUrl);
-        if (!imageRes.ok) {
-          // Fallback ke URL asli jika fetch Cloudinary terhalang
-          const fallbackRes = await fetch(team.logo);
-          if (!fallbackRes.ok) throw new Error(`Gagal download logo (${fallbackRes.statusText})`);
-          var arrayBuffer = await fallbackRes.arrayBuffer();
-          var contentType = fallbackRes.headers.get("content-type") || "image/png";
-        } else {
-          var arrayBuffer = await imageRes.arrayBuffer();
-          var contentType = imageRes.headers.get("content-type") || "image/png";
-        }
         
         const buffer = Buffer.from(arrayBuffer);
 
