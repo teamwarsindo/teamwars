@@ -3,6 +3,7 @@ import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { buildRouletteLogEmbed } from '@/lib/discord/messages/roulette';
+import { hasAdminPermission } from '@/lib/auth-rbac';
 
 const KV_KEY_ROULETTE = 'twi:roulette_state';
 const KV_KEY_LOGS = 'twi:roulette_logs';
@@ -18,7 +19,7 @@ export interface LogItem {
   timestamp: string;
   teamName: string;
   teamLogo: string;
-  targetGroup: "Group A" | "Group B";
+  targetGroup: 'Group A' | 'Group B';
   slotNumber: number;
   discordMessageId?: string;
 }
@@ -27,7 +28,7 @@ export interface RouletteState {
   remainingTeams: TeamItem[];
   groupA: TeamItem[];
   groupB: TeamItem[];
-  selectedTargetGroup?: "GROUP_A" | "GROUP_B";
+  selectedTargetGroup?: 'GROUP_A' | 'GROUP_B';
   celebrationWinner?: TeamItem | null;
   resetMessageId?: string | null;
   spinEvent?: {
@@ -35,7 +36,7 @@ export interface RouletteState {
     targetAngle: number;
     startTime: number;
     durationMs: number;
-    targetGroup: "Group A" | "Group B";
+    targetGroup: 'Group A' | 'Group B';
   } | null;
 }
 
@@ -68,7 +69,7 @@ export async function GET() {
         remainingTeams: masterTeams,
         groupA: [],
         groupB: [],
-        selectedTargetGroup: "GROUP_A",
+        selectedTargetGroup: 'GROUP_A',
         logs,
         celebrationWinner: null,
         resetMessageId: null,
@@ -89,6 +90,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const isAuthorized = await hasAdminPermission(['SUPER_ADMIN', 'ROULETTE_ADMIN']);
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'Akses ditolak. Khusus Admin Roulette / Super Admin.' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { remainingTeams, groupA, groupB, selectedTargetGroup, celebrationWinner, spinEvent, newLog } = body;
 
@@ -103,18 +109,16 @@ export async function POST(req: Request) {
       currentResetMsgId = null;
     }
 
-    // 1. Simpan State Pengundian ke KV
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams,
       groupA,
       groupB,
-      selectedTargetGroup: selectedTargetGroup || "GROUP_A",
+      selectedTargetGroup: selectedTargetGroup || 'GROUP_A',
       celebrationWinner: celebrationWinner || null,
       resetMessageId: currentResetMsgId,
       spinEvent: spinEvent || null,
     });
 
-    // 2. Kirim Log Tim Terpilih Baru ke Discord
     if (newLog) {
       const embedPayload = buildRouletteLogEmbed({
         teamName: newLog.teamName,
@@ -146,25 +150,22 @@ export async function POST(req: Request) {
 
 export async function DELETE() {
   try {
+    const isAuthorized = await hasAdminPermission(['SUPER_ADMIN', 'ROULETTE_ADMIN']);
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'Akses ditolak. Khusus Admin Roulette / Super Admin.' }, { status: 403 });
+    }
+
     const currentState = await kv.get<RouletteState>(KV_KEY_ROULETTE);
     const existingLogs = (await kv.get<LogItem[]>(KV_KEY_LOGS)) || [];
 
-    // 1. Kumpulkan seluruh ID pesan yang perlu dihapus dari Discord
     const rawIds: string[] = [];
-
     for (const log of existingLogs) {
-      if (log.discordMessageId) {
-        rawIds.push(log.discordMessageId);
-      }
+      if (log.discordMessageId) rawIds.push(log.discordMessageId);
     }
-
-    if (currentState?.resetMessageId) {
-      rawIds.push(currentState.resetMessageId);
-    }
+    if (currentState?.resetMessageId) rawIds.push(currentState.resetMessageId);
 
     const uniqueMessageIds = Array.from(new Set(rawIds));
 
-    // 2. Eksekusi Hapus Pesan ke Discord
     if (uniqueMessageIds.length > 0) {
       if (uniqueMessageIds.length === 1) {
         await discordAPI(
@@ -178,7 +179,6 @@ export async function DELETE() {
           { messages: uniqueMessageIds }
         );
 
-        // Fallback jika Bulk Delete gagal
         if (!bulkSuccess) {
           await Promise.allSettled(
             uniqueMessageIds.map((msgId) =>
@@ -192,12 +192,11 @@ export async function DELETE() {
       }
     }
 
-    // 3. Bersihkan/Reset State di KV Redis (TANPA KIRIM PESAN BARU)
     await kv.set(KV_KEY_ROULETTE, {
       remainingTeams: [],
       groupA: [],
       groupB: [],
-      selectedTargetGroup: "GROUP_A",
+      selectedTargetGroup: 'GROUP_A',
       celebrationWinner: null,
       resetMessageId: null,
       spinEvent: null,
@@ -210,4 +209,4 @@ export async function DELETE() {
     console.error('Error DELETE Roulette State:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-  }
+}
