@@ -4,6 +4,33 @@ import { useState, useEffect } from 'react';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import Swal from 'sweetalert2';
 
+// Helper Konversi ISO -> WIB (YYYY-MM-DDTHH:mm)
+function formatISOToWIBInput(isoString: string): string {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+
+  const options = {
+    timeZone: "Asia/Jakarta",
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  } as const;
+  
+  const formatted = new Intl.DateTimeFormat('sv-SE', options).format(d);
+  return formatted.replace(' ', 'T');
+}
+
+// Helper Konversi Input WIB -> ISO UTC
+function formatWIBInputToISO(wibInputString: string): string {
+  if (!wibInputString) return new Date().toISOString();
+  const d = new Date(`${wibInputString}:00+07:00`);
+  return d.toISOString();
+}
+
 export function ScheduleAdminTab() {
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,7 +62,7 @@ export function ScheduleAdminTab() {
         body: JSON.stringify({
           action: 'UPDATE_MATCH_CONSOLE',
           matchId: updated.id,
-          token: 'tsaqif', // Admin Override Token
+          token: 'tsaqif',
           matchData: updated,
         }),
       });
@@ -58,7 +85,11 @@ export function ScheduleAdminTab() {
   };
 
   const handleGenerateDiscordChannel = async (match: MatchScheduleItem) => {
-    Swal.fire({ title: 'Generating Channel...', text: 'Membuat channel Discord & mengatur permission Wasit/Streamer', didOpen: () => Swal.showLoading() });
+    Swal.fire({
+      title: 'Generating Channel...',
+      text: 'Membuat channel Discord & mengatur permission Wasit/Streamer',
+      didOpen: () => Swal.showLoading(),
+    });
 
     try {
       const res = await fetch('/api/tournament/generate-channel', {
@@ -100,7 +131,7 @@ export function ScheduleAdminTab() {
       <div className="flex items-center justify-between border-b border-border pb-3">
         <div>
           <h2 className="text-lg font-extrabold text-foreground">Manajemen Schedule Pertandingan</h2>
-          <p className="text-xs text-muted-foreground">Kelola waktu, Wasit, Streamer, dan otomatisasi channel Discord match.</p>
+          <p className="text-xs text-muted-foreground">Kelola waktu (WIB), Wasit, Streamer, dan otomatisasi channel Discord match.</p>
         </div>
       </div>
 
@@ -114,11 +145,17 @@ export function ScheduleAdminTab() {
               <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-2 text-xs">
                 <span className="font-extrabold text-primary uppercase">{m.groupName} • {m.id}</span>
                 <span className="text-muted-foreground font-semibold">
-                  {new Date(m.matchDate).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} WIB
+                  {new Date(m.matchDate).toLocaleDateString('id-ID', {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'Asia/Jakarta'
+                  })} WIB
                 </span>
               </div>
 
-              {/* TEAM VS TEAM BANNER */}
               <div className="flex items-center justify-between my-2 font-black text-sm">
                 <div className="flex items-center gap-2">
                   <img src={m.teamALogo} alt="" className="h-6 w-6 object-contain" />
@@ -131,16 +168,22 @@ export function ScheduleAdminTab() {
                 </div>
               </div>
 
-              {/* FORM EDIT / READONLY */}
               {isEditing ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-muted/20 rounded-xl text-xs">
                   <div>
-                    <label className="block text-[10px] text-muted-foreground font-bold mb-1">TANGGAL & WAKTU (ISO/WIB)</label>
+                    <label className="block text-[10px] text-muted-foreground font-bold mb-1">
+                      TANGGAL & WAKTU (WIB)
+                    </label>
                     <input
                       type="datetime-local"
-                      value={currentData.matchDate ? new Date(currentData.matchDate).toISOString().slice(0, 16) : ''}
-                      onChange={(e) => setEditingMatch({ ...currentData, matchDate: new Date(e.target.value).toISOString() })}
-                      className="w-full rounded-lg bg-background border border-input p-2 font-medium"
+                      value={formatISOToWIBInput(currentData.matchDate)}
+                      onChange={(e) =>
+                        setEditingMatch({
+                          ...currentData,
+                          matchDate: formatWIBInputToISO(e.target.value),
+                        })
+                      }
+                      className="w-full rounded-lg bg-background border border-input p-2 font-semibold"
                     />
                   </div>
 
@@ -177,7 +220,7 @@ export function ScheduleAdminTab() {
                       <input
                         type="text"
                         placeholder="ID Discord Streamer"
-                        value={currentData.caster || ''} // Menggunakan field caster/streamer
+                        value={currentData.caster || ''}
                         onChange={(e) => setEditingMatch({ ...currentData, caster: e.target.value })}
                         className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium"
                       />
@@ -241,5 +284,4 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-  }
-          
+}
