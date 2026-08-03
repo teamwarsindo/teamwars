@@ -41,7 +41,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     else if (isGroupBFull && !isGroupAFull) setManualGroup("GROUP_A");
   }, [groupA.length, groupB.length, quotaA, quotaB, isGroupAFull, isGroupBFull]);
 
-  // Wrap dengan useCallback agar stabil
   const fetchState = useCallback(async () => {
     try {
       const res = await fetch("/api/roulette-state", { cache: "no-store" });
@@ -55,7 +54,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
       setMasterTeams(fetchedMaster);
       if (!isAdmin && data.selectedTargetGroup) setManualGroup(data.selectedTargetGroup);
 
-      // Selalu update grup & remaining jika tidak sedang animasi spin lokal
       const allocatedNames = new Set([
         ...fetchedGroupA.map((t) => t.name),
         ...fetchedGroupB.map((t) => t.name),
@@ -65,40 +63,33 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         ? data.remainingTeams.filter((t: TeamItem) => !allocatedNames.has(t.name))
         : fetchedMaster.filter((t: TeamItem) => !allocatedNames.has(t.name));
 
-      // 🟢 KUNCI FIX LIVE USER: Deteksi event spin dari Admin
+      // 🟢 DETEKSI EVENT SPIN UNTUK USER VIEW
       if (!isAdmin && data.spinEvent) {
         const spinId = data.spinEvent.startTime;
         
-        // Cek apakah ini spin event baru yang belum diputar di user
         if (spinId !== lastSpinTimeRef.current) {
           const now = Date.now();
           const elapsed = Math.max(0, now - data.spinEvent.startTime);
 
-          // Toleransi hingga durationMs + 2000ms untuk clock drift
           if (elapsed < data.spinEvent.durationMs + 2000) {
             lastSpinTimeRef.current = spinId;
-            
-            // Set data tim yang tersisa SEBELUM diputar agar indeksnya pas
             setRemainingTeams(syncedRemaining);
             setWinningIndex(data.spinEvent.winningIndex);
             setServerTargetAngle(data.spinEvent.targetAngle);
             setCelebrationWinner(null);
-            
-            // Hitung start time relatif untuk animasi Roda
             setSpinStartTimeMs(performance.now() - elapsed);
             setIsSpinning(true);
           }
         }
       }
 
-      // Sync state dasar jika roda sedang DIAM
+      // Sync state dasar jika tidak dalam animasi spin
       if (!lastSpinTimeRef.current && !isSpinning) {
         setRemainingTeams(syncedRemaining);
         setGroupA(fetchedGroupA);
         setGroupB(fetchedGroupB);
         if (!isAdmin) setCelebrationWinner(data.celebrationWinner || null);
       } else if (!isAdmin && !isSpinning) {
-        // Jika animasi baru selesai di user
         setGroupA(fetchedGroupA);
         setGroupB(fetchedGroupB);
         if (data.celebrationWinner) setCelebrationWinner(data.celebrationWinner);
@@ -115,7 +106,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     fetchState(); 
   }, [fetchState]);
 
-  // 🟢 POLLING INTERVAL TETAP JALAN TIAP 1 DETIK TANPA DIPUTUS DENGAN IS_SPINNING
+  // 🟢 Polling teratur tiap 1 detik
   useEffect(() => {
     const interval = setInterval(() => { 
       fetchState(); 
@@ -144,6 +135,14 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
         spinEvent: spinEventData,
         newLog: logData,
       }),
+    }).catch(() => null);
+  };
+
+  const syncTournamentSchedule = async () => {
+    await fetch("/api/tournament", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "SYNC_ROULETTE" }),
     }).catch(() => null);
   };
 
@@ -197,7 +196,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     if (winningIndex === null) return;
     const selectedTeam = remainingTeams[winningIndex];
     
-    // Reset spin lock ref di user
     lastSpinTimeRef.current = null;
     
     if (!selectedTeam) {
@@ -224,18 +222,20 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     setWinningIndex(null);
     setCelebrationWinner(selectedTeam);
 
-    if (isAdmin) {
-      const newLogItem = {
-        id: `${Date.now()}-${selectedTeam.name.replace(/\s+/g, '')}`,
-        timestamp: new Date().toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" }) + " WIB",
-        teamName: selectedTeam.name,
-        teamLogo: selectedTeam.logo,
-        targetGroup: groupName,
-        slotNumber: slotNum,
-      };
+    const newLogItem = {
+      id: `${Date.now()}-${selectedTeam.name.replace(/\s+/g, '')}`,
+      timestamp: new Date().toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" }) + " WIB",
+      teamName: selectedTeam.name,
+      teamLogo: selectedTeam.logo,
+      targetGroup: groupName,
+      slotNumber: slotNum,
+    };
 
-      saveStateToKV(newRemaining, newGroupA, newGroupB, selectedTeam, null, newLogItem, activeGroup);
-    }
+    // Save State & Kirim Log ke Discord
+    saveStateToKV(newRemaining, newGroupA, newGroupB, selectedTeam, null, newLogItem, activeGroup);
+    
+    // Auto sync ke jadwal turnamen setiap kali ada tim baru terpilih
+    syncTournamentSchedule();
   };
 
   const handleReset = async () => {
@@ -264,11 +264,12 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     lastSpinTimeRef.current = null;
 
     await fetch("/api/roulette-state", { method: "DELETE" }).catch(() => null);
+    await syncTournamentSchedule();
     setIsLoading(false);
 
     Swal.fire({
       title: "Berhasil Direset",
-      text: "Seluruh tim dikembalikan ke roda.",
+      text: "Seluruh tim dikembalikan ke roda dan jadwal telah di-reset.",
       icon: "success",
       background: "#171717",
       color: "#fff",
@@ -293,9 +294,13 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
           celebrationWinner={celebrationWinner}
           groupA={groupA}
           isAdmin={isAdmin}
-          onClose={() => {
+          onClose={async () => {
             setCelebrationWinner(null);
-            if (isAdmin) saveStateToKV(remainingTeams, groupA, groupB, null, null, null, manualGroup);
+            if (isAdmin) {
+              await saveStateToKV(remainingTeams, groupA, groupB, null, null, null, manualGroup);
+              // 🟢 AUTO SYNC KE JADWAL PAS POPUP DITUTUP ADMIN
+              await syncTournamentSchedule();
+            }
           }}
         />
       )}
