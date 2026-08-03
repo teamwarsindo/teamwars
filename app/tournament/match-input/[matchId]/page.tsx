@@ -5,6 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
 import Swal from "sweetalert2";
 
+import { ConsoleHeader } from "@/components/tournament/match-console/console-header";
+import { MetadataBlock } from "@/components/tournament/match-console/metadata-block";
+import { SmartPasteBlock } from "@/components/tournament/match-console/smart-paste-block";
+import { RosterLineupBlock } from "@/components/tournament/match-console/roster-lineup-block";
+import { GameLogsBlock } from "@/components/tournament/match-console/game-logs-block";
+
 export default function MatchInputConsolePage({ params }: { params: Promise<{ matchId: string }> }) {
   const resolvedParams = use(params);
   const matchId = resolvedParams.matchId;
@@ -18,12 +24,10 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Data Match & DB Roster dari Server
   const [match, setMatch] = useState<MatchScheduleItem | null>(null);
   const [dbRosterA, setDbRosterA] = useState<any[]>([]);
   const [dbRosterB, setDbRosterB] = useState<any[]>([]);
 
-  // State Form
   const [referee, setReferee] = useState("");
   const [streamer, setStreamer] = useState("");
   const [streamLink, setStreamLink] = useState("");
@@ -34,7 +38,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const [gameLogs, setGameLogs] = useState<GameDetailLog[]>([]);
   const [rawDiscordText, setRawDiscordText] = useState("");
 
-  // 1. FETCH DATA MATCH & SYNC LOCAL DRAFT
   useEffect(() => {
     const initData = async () => {
       try {
@@ -47,12 +50,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
           setDbRosterA(data.dbRosterA || []);
           setDbRosterB(data.dbRosterB || []);
 
-          // Validasi Token / Admin Override
-          const isValid =
-            adminParam === "tsaqif" ||
-            !m.refereeToken ||
-            urlToken === m.refereeToken;
-
+          const isValid = adminParam === "tsaqif" || !m.refereeToken || urlToken === m.refereeToken;
           if (!isValid) {
             setIsAuthorized(false);
             setIsLoading(false);
@@ -60,19 +58,18 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
           }
           setIsAuthorized(true);
 
-          // Cek apakah ada Local Draft
           const draftKey = `twi_draft_${matchId}`;
           const localDraft = localStorage.getItem(draftKey);
 
           if (localDraft) {
             try {
-              const parsedDraft = JSON.parse(localDraft);
-              setReferee(parsedDraft.referee || m.referee || "");
-              setStreamer(parsedDraft.streamer || m.streamer || "");
-              setStreamLink(parsedDraft.streamLink || m.streamLink || "");
-              setRosterLineupA(parsedDraft.rosterLineupA || []);
-              setRosterLineupB(parsedDraft.rosterLineupB || []);
-              setGameLogs(parsedDraft.gameLogs || m.gameLogs || []);
+              const parsed = JSON.parse(localDraft);
+              setReferee(parsed.referee || m.referee || "");
+              setStreamer(parsed.streamer || m.streamer || "");
+              setStreamLink(parsed.streamLink || m.streamLink || "");
+              setRosterLineupA(parsed.rosterLineupA || []);
+              setRosterLineupB(parsed.rosterLineupB || []);
+              setGameLogs(parsed.gameLogs || m.gameLogs || []);
             } catch {
               loadFromMatchData(m);
             }
@@ -95,99 +92,72 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
     setStreamer(m.streamer || "");
     setStreamLink(m.streamLink || "");
     setGameLogs(m.gameLogs || []);
-
-    if (m.rosterA?.mainPlayers) {
-      setRosterLineupA(m.rosterA.mainPlayers.map((p) => p.playerName));
-    }
-    if (m.rosterB?.mainPlayers) {
-      setRosterLineupB(m.rosterB.mainPlayers.map((p) => p.playerName));
-    }
+    if (m.rosterA?.mainPlayers) setRosterLineupA(m.rosterA.mainPlayers.map((p) => p.playerName));
+    if (m.rosterB?.mainPlayers) setRosterLineupB(m.rosterB.mainPlayers.map((p) => p.playerName));
   };
 
-  // 2. AUTO-SAVE DRAFT TO LOCALSTORAGE
   useEffect(() => {
     if (!matchId || !isAuthorized) return;
-    const draftKey = `twi_draft_${matchId}`;
-    const draftPayload = {
-      referee,
-      streamer,
-      streamLink,
-      rosterLineupA,
-      rosterLineupB,
-      gameLogs,
-      updatedAt: new Date().toISOString(),
-    };
-    localStorage.setItem(draftKey, JSON.stringify(draftPayload));
+    localStorage.setItem(
+      `twi_draft_${matchId}`,
+      JSON.stringify({ referee, streamer, streamLink, rosterLineupA, rosterLineupB, gameLogs })
+    );
   }, [referee, streamer, streamLink, rosterLineupA, rosterLineupB, gameLogs, matchId, isAuthorized]);
 
-  // List IGN Resmi dari DB KV
   const availableIgnA = dbRosterA.map((p) => p.ign || p.playerName || p.namaLengkap).filter(Boolean);
   const availableIgnB = dbRosterB.map((p) => p.ign || p.playerName || p.namaLengkap).filter(Boolean);
 
-  const activeListA = rosterLineupA.length > 0 ? rosterLineupA : (availableIgnA.length > 0 ? availableIgnA : ["Player A1", "Player A2", "Player A3", "Player A4", "Player A5"]);
-  const activeListB = rosterLineupB.length > 0 ? rosterLineupB : (availableIgnB.length > 0 ? availableIgnB : ["Player B1", "Player B2", "Player B3", "Player B4", "Player B5"]);
+  const activeListA = rosterLineupA.length > 0 ? rosterLineupA : (availableIgnA.length > 0 ? availableIgnA : ["Player A1"]);
+  const activeListB = rosterLineupB.length > 0 ? rosterLineupB : (availableIgnB.length > 0 ? availableIgnB : ["Player B1"]);
 
-  // Kalkulasi Skor
   const scoreA = Math.min(10, gameLogs.filter((g) => g.winnerTeamId === match?.teamAId).length);
   const scoreB = Math.min(10, gameLogs.filter((g) => g.winnerTeamId === match?.teamBId).length);
   const isReachMaxScore = scoreA >= 10 || scoreB >= 10;
 
-  // 3. PARSER SMART PASTE DISCORD LOG
   const handleParseDiscordText = () => {
     if (!rawDiscordText.trim() || !match) return;
 
     const lines = rawDiscordText.split("\n").map((l) => l.trim()).filter(Boolean);
-    const parsedLineupA: string[] = [];
-    const parsedLineupB: string[] = [];
+    const parsedA: string[] = [];
+    const parsedB: string[] = [];
     const newLogs: GameDetailLog[] = [];
 
-    let currentSection: "NONE" | "LINEUP_A" | "LINEUP_B" | "LOGS" = "NONE";
+    let currentSec: "NONE" | "LINEUP_A" | "LINEUP_B" | "LOGS" = "NONE";
 
     lines.forEach((line) => {
       if (line.toLowerCase().includes("line up") || line.toLowerCase().includes("lineup")) {
-        if (currentSection === "NONE") {
-          currentSection = "LINEUP_A";
-        } else if (currentSection === "LINEUP_A") {
-          currentSection = "LINEUP_B";
-        }
+        currentSec = currentSec === "NONE" ? "LINEUP_A" : "LINEUP_B";
         return;
       }
-
       if (line.startsWith("---") || line.startsWith("===")) {
-        if (currentSection === "LINEUP_B") currentSection = "LOGS";
+        if (currentSec === "LINEUP_B") currentSec = "LOGS";
         return;
       }
-
-      if (currentSection === "LINEUP_A" || currentSection === "LINEUP_B") {
-        const playerMatch = line.match(/^\d+\.\s*(.+)/);
-        if (playerMatch) {
-          const rawName = playerMatch[1].trim();
-          const targetDb = currentSection === "LINEUP_A" ? availableIgnA : availableIgnB;
-          const matchedName = targetDb.find(
+      if (currentSec === "LINEUP_A" || currentSec === "LINEUP_B") {
+        const pMatch = line.match(/^\d+\.\s*(.+)/);
+        if (pMatch) {
+          const rawName = pMatch[1].trim();
+          const targetDb = currentSec === "LINEUP_A" ? availableIgnA : availableIgnB;
+          const matched = targetDb.find(
             (ign) => ign.toLowerCase().replace(/[^a-z0-9]/g, "") === rawName.toLowerCase().replace(/[^a-z0-9]/g, "")
           ) || rawName;
-
-          if (currentSection === "LINEUP_A") parsedLineupA.push(matchedName);
-          else parsedLineupB.push(matchedName);
+          if (currentSec === "LINEUP_A") parsedA.push(matched);
+          else parsedB.push(matched);
         }
       }
-
-      if (currentSection === "LOGS" || line.includes(" - ")) {
-        const scoreMatch = line.match(/(.+?)\s+(\d+)\s*-\s*(\d+)\s+(.+)/);
-        if (scoreMatch) {
-          const [, sideA, valA, valB, sideB] = scoreMatch;
+      if (currentSec === "LOGS" || line.includes(" - ")) {
+        const sMatch = line.match(/(.+?)\s+(\d+)\s*-\s*(\d+)\s+(.+)/);
+        if (sMatch) {
+          const [, sideA, valA, , sideB] = sMatch;
           const numA = parseInt(valA, 10);
-
           const partsA = sideA.split(" ");
           const playerA = partsA[0];
           const deckA = partsA.slice(1).join(" ") || "Archetype A";
-
           const partsB = sideB.split(" ");
           const deckB = partsB.slice(0, -1).join(" ") || "Archetype B";
           const playerB = partsB[partsB.length - 1];
 
-          const prevScoreA = newLogs.filter((g) => g.winnerTeamId === match.teamAId).length;
-          const isAWin = numA > prevScoreA;
+          const isAWin = numA > newLogs.filter((g) => g.winnerTeamId === match.teamAId).length;
 
           newLogs.push({
             gameNumber: newLogs.length + 1,
@@ -205,25 +175,24 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       }
     });
 
-    if (parsedLineupA.length > 0) setRosterLineupA(parsedLineupA);
-    if (parsedLineupB.length > 0) setRosterLineupB(parsedLineupB);
+    if (parsedA.length > 0) setRosterLineupA(parsedA);
+    if (parsedB.length > 0) setRosterLineupB(parsedB);
     if (newLogs.length > 0) setGameLogs(newLogs);
 
     Swal.fire({
       icon: "success",
       title: "Smart Paste Berhasil!",
-      text: `Berhasil mengekstrak Roster & ${newLogs.length} Log Pertandingan dari Discord.`,
-      timer: 2000,
+      text: `Berhasil mengekstrak ${newLogs.length} Log Pertandingan.`,
+      timer: 1500,
       showConfirmButton: false,
     });
   };
 
-  // 4. API SAVE HANDLER
   const handleSaveToKV = async (partialData?: Partial<MatchScheduleItem>) => {
     if (!match) return;
     setIsSaving(true);
 
-    const payloadMatchData: Partial<MatchScheduleItem> = {
+    const payload: Partial<MatchScheduleItem> = {
       referee,
       streamer,
       streamLink,
@@ -237,10 +206,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         mainPlayers: activeListA.map((p) => ({
           playerId: p,
           playerName: p,
-          decks: [
-            { deckName: "-", skillName: "-" },
-            { deckName: "-", skillName: "-" },
-          ],
+          decks: [{ deckName: "-", skillName: "-" }, { deckName: "-", skillName: "-" }],
         })),
       },
       rosterB: {
@@ -250,10 +216,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         mainPlayers: activeListB.map((p) => ({
           playerId: p,
           playerName: p,
-          decks: [
-            { deckName: "-", skillName: "-" },
-            { deckName: "-", skillName: "-" },
-          ],
+          decks: [{ deckName: "-", skillName: "-" }, { deckName: "-", skillName: "-" }],
         })),
       },
       ...partialData,
@@ -267,19 +230,12 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
           action: "UPDATE_MATCH_CONSOLE",
           matchId,
           token: urlToken || adminParam,
-          matchData: payloadMatchData,
+          matchData: payload,
         }),
       });
 
       if (res.ok) {
-        Swal.fire({
-          icon: "success",
-          title: "Tersimpan ke KV!",
-          toast: true,
-          position: "top-end",
-          timer: 1500,
-          showConfirmButton: false,
-        });
+        Swal.fire({ icon: "success", title: "Tersimpan ke KV!", toast: true, position: "top-end", timer: 1500, showConfirmButton: false });
       } else {
         const err = await res.json();
         Swal.fire("Gagal Simpan", err.error || "Gagal menyimpan data", "error");
@@ -292,7 +248,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   };
 
   if (isLoading) {
-    return <div className="p-12 text-center text-xs font-bold text-sky-400 animate-pulse">⏳ Memuat Console Match Input...</div>;
+    return <div className="p-12 text-center text-xs font-bold text-sky-400 animate-pulse">⏳ Memuat Console...</div>;
   }
 
   if (!isAuthorized) {
@@ -301,17 +257,25 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         <div className="max-w-md rounded-2xl border border-rose-500/40 bg-rose-950/20 p-6 text-center shadow-2xl">
           <div className="text-4xl mb-2">🔒</div>
           <h2 className="text-lg font-black text-rose-400 uppercase">AKSES DITOLAK</h2>
-          <p className="my-2 text-xs text-slate-300">
-            Kamu tidak memiliki izin/token yang sah untuk menginput pertandingan ini.
-          </p>
-          <button
-            onClick={() => router.push("/tournament")}
-            className="mt-4 rounded-xl bg-sky-600 px-4 py-2 text-xs font-bold text-white hover:bg-sky-500 transition cursor-pointer"
-          >
+          <p className="my-2 text-xs text-slate-300">Kamu tidak memiliki token Wasit yang sah.</p>
+          <button onClick={() => router.push("/tournament")} className="mt-4 rounded-xl bg-sky-600 px-4 py-2 text-xs font-bold text-white hover:bg-sky-500">
             Kembali ke Jadwal
           </button>
         </div>
       </div>
     );
-                                }
-  
+  }
+
+  return (
+    <div className="min-h-screen bg-[#000d21] text-white p-3 sm:p-6 font-sans">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <ConsoleHeader match={match} isSaving={isSaving} onSave={() => handleSaveToKV()} onExit={() => router.push("/tournament")} />
+        <MetadataBlock referee={referee} setReferee={setReferee} streamer={streamer} setStreamer={setStreamer} streamLink={streamLink} setStreamLink={setStreamLink} onSave={() => handleSaveToKV({ referee, streamer, streamLink })} />
+        <SmartPasteBlock rawText={rawDiscordText} setRawText={setRawDiscordText} onParse={handleParseDiscordText} />
+        <RosterLineupBlock match={match} rosterA={rosterLineupA} setRosterA={setRosterLineupA} rosterB={rosterLineupB} setRosterB={setRosterLineupB} availableIgnA={availableIgnA} availableIgnB={availableIgnB} onSave={() => handleSaveToKV()} />
+        <GameLogsBlock match={match} gameLogs={gameLogs} setGameLogs={setGameLogs} scoreA={scoreA} scoreB={scoreB} isReachMaxScore={isReachMaxScore} activeListA={activeListA} activeListB={activeListB} onSave={() => handleSaveToKV()} />
+      </div>
+    </div>
+  );
+          }
+          
