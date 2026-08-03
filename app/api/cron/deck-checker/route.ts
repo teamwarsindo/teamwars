@@ -51,13 +51,21 @@ export async function GET(req: Request) {
     const results = [];
 
     for (const channelId of TRACKED_CHANNEL_IDS) {
-      // 1. Fetch Detail Channel untuk ambil nama tim & guild_id
+      // 1. Fetch Detail Channel
       const channelInfo = await discordAPI(`/channels/${channelId}`, 'GET');
       const rawChannelName = channelInfo?.name || 'Unknown Channel';
       const guildId = channelInfo?.guild_id;
       const teamName = normalizeChannelName(rawChannelName);
 
-      // 2. Fetch 100 Pesan Terakhir
+      // 2. Fetch Guild Members untuk matching teks nama (jika tidak di-tag)
+      let guildMembers: any[] = [];
+      if (guildId) {
+        try {
+          guildMembers = await discordAPI(`/guilds/${guildId}/members?limit=100`, 'GET') || [];
+        } catch (e) {}
+      }
+
+      // 3. Fetch 100 Pesan Terakhir
       const messages = await discordAPI(`/channels/${channelId}/messages?limit=100`, 'GET');
 
       if (!Array.isArray(messages)) {
@@ -94,41 +102,76 @@ export async function GET(req: Request) {
           // Abaikan gambar yang dikirim setelah Kick-Off (20:00 WIB)
           if (msgTotalMinutes >= matchKickoffMinutes) continue;
 
-          const userId = msg.author.id;
+          // 🟢 DETEKSI TARGET USER: Official Mention > Text Name Matching > Message Author
+          let targetUsers: any[] = (msg.mentions || []).filter((u: any) => !u.bot);
 
-          // 🟢 FITUR DISPLAY NAME PRESISI (Server Nickname > Global Display Name > Username)
-          let displayName = msg.member?.nick || msg.author.global_name || msg.author.username;
+          // Jika tidak ada mention official (<@ID>), cari apakah ada nama member yang disebut di teks pesan
+          if (targetUsers.length === 0 && msg.content && guildMembers.length > 0) {
+            const contentLower = msg.content.toLowerCase();
 
-          // Jika member.nick belum ada di payload message, coba fetch detail dari Guild Member API
-          if (!msg.member?.nick && guildId) {
-            try {
-              const guildMember = await discordAPI(`/guilds/${guildId}/members/${userId}`, 'GET');
-              if (guildMember?.nick) {
-                displayName = guildMember.nick;
-              } else if (guildMember?.user?.global_name) {
-                displayName = guildMember.user.global_name;
+            for (const member of guildMembers) {
+              if (member.user?.bot) continue;
+              const nick = (member.nick || '').toLowerCase();
+              const globalName = (member.user?.global_name || '').toLowerCase();
+              const username = (member.user?.username || '').toLowerCase();
+
+              // Cek apakah ada nama nickname/global_name/username yang tertulis dalam teks pesan
+              const isMatch = 
+                (nick && nick.length >= 3 && contentLower.includes(nick)) ||
+                (globalName && globalName.length >= 3 && contentLower.includes(globalName)) ||
+                (username && username.length >= 3 && contentLower.includes(username));
+
+              if (isMatch) {
+                targetUsers.push(member.user);
               }
-            } catch (err) {
-              // Fallback ke displayName awal jika fetch guild member gagal
             }
           }
 
-          const currentData = playerSubmissions.get(userId) || {
-            username: displayName,
-            deckCount: 0,
-            avatar: msg.author.avatar
-              ? `https://cdn.discordapp.com/avatars/${userId}/${msg.author.avatar}.png`
-              : '/logo.webp',
-            images: [] as string[],
-            submittedAt: msg.timestamp,
-          };
+          // Jika tetap tidak ditemukan nama sama sekali, default ke si pengirim pesan (author)
+          if (targetUsers.length === 0) {
+            targetUsers = [msg.author];
+          }
 
-          currentData.username = displayName;
-          currentData.deckCount += imageAttachments.length;
-          currentData.images.push(...imageAttachments.map((att: any) => att.url as string));
-          currentData.submittedAt = msg.timestamp;
+          const imagesPerUser = Math.max(1, Math.floor(imageAttachments.length / targetUsers.length));
 
-          playerSubmissions.set(userId, currentData);
+          for (const targetUser of targetUsers) {
+            const userId = targetUser.id;
+
+            // Cari Display Name Presisi
+            let displayName = targetUser.global_name || targetUser.username;
+            if (guildId) {
+              try {
+                const memberData = guildMembers.find((m: any) => m.user?.id === userId);
+                if (memberData?.nick) {
+                  displayName = memberData.nick;
+                } else if (memberData?.user?.global_name) {
+                  displayName = memberData.user.global_name;
+                }
+              } catch (err) {}
+            }
+
+            const currentData = playerSubmissions.get(userId) || {
+              username: displayName,
+              deckCount: 0,
+              avatar: targetUser.avatar
+                ? `https://cdn.discordapp.com/avatars/${userId}/${targetUser.avatar}.png`
+                : '/logo.webp',
+              images: [] as string[],
+              submittedAt: msg.timestamp,
+            };
+
+            currentData.username = displayName;
+
+            // 🟢 CAP MAKSIMAL 2 DECK PER PEMAIN
+            if (currentData.deckCount < TARGET_DECK_PER_PLAYER) {
+              const allowedToAdd = Math.min(imagesPerUser, TARGET_DECK_PER_PLAYER - currentData.deckCount);
+              currentData.deckCount += allowedToAdd;
+              currentData.images.push(...imageAttachments.map((att: any) => att.url as string).slice(0, allowedToAdd));
+            }
+
+            currentData.submittedAt = msg.timestamp;
+            playerSubmissions.set(userId, currentData);
+          }
         }
       }
 
@@ -201,7 +244,7 @@ export async function GET(req: Request) {
       let penaltyFieldText = penaltyList.length > 0 ? penaltyList.join('\n') : null;
       const isTeamComplete = totalDecksCollected >= TARGET_TOTAL_DECKS && totalPlayersSubmitted >= TARGET_PLAYERS;
 
-      // 3. Simpan Rekap Data ke Vercel KV (Lengkap dengan Display Name Baru)
+      // 4. Simpan Rekap Data ke Vercel KV
       const kvData = {
         channelId,
         teamName,
@@ -222,7 +265,7 @@ export async function GET(req: Request) {
 
       await kv.set(`deck_rekap:${channelId}`, kvData);
 
-      // 4. Construct Embed Message
+      // 5. Construct Embed Message
       const embedFields = [
         {
           name: 'Detail Pemain',
@@ -252,7 +295,7 @@ export async function GET(req: Request) {
         timestamp: new Date().toISOString(),
       };
 
-      // 5. Hapus Pesan Lama & Kirim Pesan Baru di Paling Bawah Channel
+      // 6. Hapus Pesan Lama & Kirim Pesan Baru di Paling Bawah Channel
       const oldMsgId = await kv.get<string>(`msg_rekap:${channelId}`);
       if (oldMsgId) {
         await discordAPI(`/channels/${channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
@@ -281,5 +324,5 @@ export async function GET(req: Request) {
     console.error('Error Cron Deck Checker:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-      }
+                  }
         
