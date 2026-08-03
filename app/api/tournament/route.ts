@@ -72,7 +72,6 @@ export async function POST(req: Request) {
           let calcScoreA = scoreA ?? match.scoreA;
           let calcScoreB = scoreB ?? match.scoreB;
 
-          // Hitung otomatis skor berdasarkan Match Report jikalau ada
           if (report && Array.isArray(report.games)) {
             calcScoreA = report.games.filter((g: any) => g.resultA === 'W').length;
             calcScoreB = report.games.filter((g: any) => g.resultB === 'W').length;
@@ -81,8 +80,8 @@ export async function POST(req: Request) {
           return {
             ...match,
             matchDate: matchDate ?? match.matchDate,
-            scoreA: calcScoreA,
-            scoreB: calcScoreB,
+            scoreA: Math.min(10, calcScoreA),
+            scoreB: Math.min(10, calcScoreB),
             isFinished: calcScoreA >= 10 || calcScoreB >= 10 || (report !== undefined && report !== null),
             report: report !== undefined ? report : match.report,
           };
@@ -100,10 +99,9 @@ export async function POST(req: Request) {
 }
 
 /**
- * 🏆 TWI SEASON 7 ROUND-ROBIN GENERATOR
- * - Week 1: Mulai 3 Ags 2026, Main Kamis - Minggu (6 - 9 Ags), 1 Match Group A + 1 Match Group B per hari (20:00 WIB).
- * - Week 2 dst: Main Rabu - Sabtu (20:00 WIB), 1 Match Group A + 1 Match Group B per hari.
- * - Berputar merata agar setiap tim mengalami hari pertandingan yang berbeda.
+ * TWI SEASON 7 ROUND-ROBIN GENERATOR
+ * - Week 1: Mulai 3 Ags 2026, Pertandingan Kamis - Minggu (6 - 9 Ags 2026), 1 Match Group A + 1 Match Group B per hari (20:00 WIB).
+ * - Week 2 dst: Pertandingan Rabu - Sabtu (20:00 WIB), 1 Match Group A + 1 Match Group B per hari.
  */
 function generateTWSeason7Schedules(groupA: any[], groupB: any[]): MatchScheduleItem[] {
   const schedules: MatchScheduleItem[] = [];
@@ -137,7 +135,6 @@ function generateTWSeason7Schedules(groupA: any[], groupB: any[]): MatchSchedule
   const roundsB = generateRounds(groupB);
   const totalWeeks = Math.max(roundsA.length, roundsB.length);
 
-  // Basis Week 1: Senin, 3 Agustus 2026
   const baseWeek1Monday = new Date('2026-08-03T13:00:00.000Z'); // 20:00 WIB
 
   for (let w = 0; w < totalWeeks; w++) {
@@ -145,10 +142,7 @@ function generateTWSeason7Schedules(groupA: any[], groupB: any[]): MatchSchedule
     const matchesA = roundsA[w] || [];
     const matchesB = roundsB[w] || [];
 
-    // Week 1 -> offset hari: Kamis(3), Jumat(4), Sabtu(5), Minggu(6)
-    // Week 2+ -> offset hari: Rabu(2), Kamis(3), Jumat(4), Sabtu(5)
     const dayOffsets = weekNumber === 1 ? [3, 4, 5, 6] : [2, 3, 4, 5];
-
     const maxDaily = Math.max(matchesA.length, matchesB.length);
 
     for (let d = 0; d < maxDaily; d++) {
