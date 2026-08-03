@@ -14,10 +14,6 @@ export async function GET(req: Request) {
       description: 'Kirim pengingat aturan submit deck di channel tim.',
     },
     {
-      name: 'prepare',
-      description: 'Kirim briefing in-game dan info Room ID di channel match.',
-    },
-    {
       name: 'info',
       description: 'Lihat informasi profil Discord kamu atau pemain lain',
       options: [
@@ -28,10 +24,6 @@ export async function GET(req: Request) {
           required: false,
         }
       ]
-    },
-    {
-      name: 'timer',
-      description: 'Tampilkan Panel Timer Kontrol Waktu Match TWI S7',
     },
     {
       name: 'cek-id',
