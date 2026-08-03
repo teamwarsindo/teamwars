@@ -18,8 +18,6 @@ export function MatchReportModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-2 sm:p-4 backdrop-blur-md">
       <div className="relative w-full max-w-3xl rounded-2xl border border-sky-500/40 bg-[#0f172a] p-4 sm:p-6 text-white shadow-2xl overflow-y-auto max-h-[95vh] text-xs">
-        
-        {/* Close Button */}
         <button
           onClick={onClose}
           className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full bg-slate-800 text-slate-300 hover:bg-rose-600 hover:text-white transition cursor-pointer"
@@ -27,13 +25,11 @@ export function MatchReportModal({
           ✕
         </button>
 
-        {/* Header Title */}
         <div className="mb-4 text-center border-b border-sky-500/30 pb-2">
           <h2 className="text-base font-black tracking-widest text-sky-400 uppercase">MATCH REPORT</h2>
           <p className="text-[10px] text-slate-400">{match.groupName} • WEEK {weekNumber}</p>
         </div>
 
-        {/* Metadata Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 rounded-xl bg-slate-900/80 p-2.5 text-[10px] text-center border border-slate-800 mb-4">
           <div>
             <span className="text-slate-400 block">Stream Platform</span>
@@ -59,7 +55,6 @@ export function MatchReportModal({
           </div>
         </div>
 
-        {/* Team Header & Roster */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="flex flex-col items-center bg-slate-900/50 p-3 rounded-xl border border-slate-800">
             <img src={match.teamALogo} alt="" className="h-10 w-10 object-contain mb-1" />
@@ -67,7 +62,7 @@ export function MatchReportModal({
             <div className="mt-2 text-[10px] text-slate-400 text-center">
               <span className="font-bold text-slate-300 block mb-0.5">Roster:</span>
               <p className="line-clamp-2">
-                {rosterA.length > 0 ? rosterA.map(p => p.playerName).join(", ") : "Main Players"}
+                {rosterA.length > 0 ? rosterA.map((p) => p.playerName).join(", ") : "Main Players"}
               </p>
             </div>
           </div>
@@ -78,13 +73,12 @@ export function MatchReportModal({
             <div className="mt-2 text-[10px] text-slate-400 text-center">
               <span className="font-bold text-slate-300 block mb-0.5">Roster:</span>
               <p className="line-clamp-2">
-                {rosterB.length > 0 ? rosterB.map(p => p.playerName).join(", ") : "Main Players"}
+                {rosterB.length > 0 ? rosterB.map((p) => p.playerName).join(", ") : "Main Players"}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Table Logs */}
         <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 p-2">
           {gameLogs.length === 0 ? (
             <p className="text-center text-xs text-slate-400 py-8">
@@ -127,7 +121,6 @@ export function MatchReportModal({
           )}
         </div>
 
-        {/* Footer Score */}
         <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-900 p-3 border border-slate-800">
           <div className="flex items-center gap-2">
             <span className={`text-xl font-black ${match.scoreA > match.scoreB ? "text-emerald-400" : "text-rose-500"}`}>
@@ -151,4 +144,4 @@ export function MatchReportModal({
       </div>
     </div>
   );
-                              }
+}
