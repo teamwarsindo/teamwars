@@ -10,7 +10,7 @@ const TRACKED_CHANNEL_IDS = [
 const TARGET_DECK_PER_PLAYER = 2;
 const TARGET_PLAYERS = 5;
 const TARGET_TOTAL_DECKS = 10;
-const INITIAL_CONTROL_TIME_MINUTES = 15; // Waktu Kontrol Awal 15 Menit
+const INITIAL_CONTROL_TIME_MINUTES = 15;
 
 function normalizeChannelName(rawName: string): string {
   return rawName
@@ -23,7 +23,6 @@ function normalizeChannelName(rawName: string): string {
 
 export async function GET(req: Request) {
   try {
-    // 🕒 1. Pengecekan Waktu WIB
     const now = new Date();
     const options: Intl.DateTimeFormatOptions = {
       timeZone: 'Asia/Jakarta',
@@ -43,8 +42,8 @@ export async function GET(req: Request) {
     });
 
     const currentTotalMinutes = currentHour * 60 + currentMinute;
-    const deadlineMinutes = 19 * 60; // 19:00 WIB (Deadline Pengumpulkan)
-    const matchKickoffMinutes = 20 * 60; // 20:00 WIB (Kick-Off / Close Submit)
+    const deadlineMinutes = 19 * 60; // 19:00 WIB
+    const matchKickoffMinutes = 20 * 60; // 20:00 WIB
 
     const isLateMode = currentTotalMinutes >= deadlineMinutes;
     const isClosedMode = currentTotalMinutes >= matchKickoffMinutes;
@@ -52,12 +51,12 @@ export async function GET(req: Request) {
     const results = [];
 
     for (const channelId of TRACKED_CHANNEL_IDS) {
-      // Fetch Detail Channel
+      // 1. Fetch Detail Channel
       const channelInfo = await discordAPI(`/channels/${channelId}`, 'GET');
       const rawChannelName = channelInfo?.name || 'Unknown Channel';
       const teamName = normalizeChannelName(rawChannelName);
 
-      // Fetch 100 Pesan Terakhir
+      // 2. Fetch 100 Pesan Terakhir
       const messages = await discordAPI(`/channels/${channelId}/messages?limit=100`, 'GET');
 
       if (!Array.isArray(messages)) {
@@ -123,7 +122,6 @@ export async function GET(req: Request) {
       playerSubmissions.forEach((data) => {
         totalDecksCollected += data.deckCount;
 
-        // Pengecekan Keterlambatan Kirim Pesan
         const msgDate = new Date(data.submittedAt);
         const msgFormatter = new Intl.DateTimeFormat('id-ID', options);
         const msgParts = msgFormatter.formatToParts(msgDate);
@@ -140,7 +138,6 @@ export async function GET(req: Request) {
 
         let statusTag = '';
         if (isPlayerLate) {
-          // Potong 2 menit per deck yang terlambat
           const penalty = data.deckCount * 2;
           totalPenaltyMinutes += penalty;
           statusTag = ` ⚠️ *(Terlambat)*`;
@@ -157,7 +154,7 @@ export async function GET(req: Request) {
       const uncollectedDecks = TARGET_TOTAL_DECKS - totalDecksCollected;
       const remainingControlTime = Math.max(0, INITIAL_CONTROL_TIME_MINUTES - totalPenaltyMinutes);
 
-      // 2. Status Teks Header (Info Awal Waktu Kontrol 15 Menit)
+      // Header Status
       let statusHeader = 
         `⏱️ **Deadline:** 19:00 WIB | **Kick-Off:** 20:00 WIB\n` +
         `⏳ **Waktu Kontrol Awal Tim:** ${INITIAL_CONTROL_TIME_MINUTES} Menit\n\n`;
@@ -174,7 +171,6 @@ export async function GET(req: Request) {
         `• Total Deck: **${totalDecksCollected} / ${TARGET_TOTAL_DECKS}**\n` +
         `• Total Pemain: **${totalPlayersSubmitted} / ${TARGET_PLAYERS}**\n`;
 
-      // 3. Detail Sanksi & Langsung Tampilkan Sisa Waktu Kontrol
       const penaltyList: string[] = [];
 
       if (totalPenaltyMinutes > 0) {
@@ -186,10 +182,9 @@ export async function GET(req: Request) {
       }
 
       let penaltyFieldText = penaltyList.length > 0 ? penaltyList.join('\n') : null;
-
       const isTeamComplete = totalDecksCollected >= TARGET_TOTAL_DECKS && totalPlayersSubmitted >= TARGET_PLAYERS;
 
-      // 4. Simpan ke Vercel KV
+      // 3. Simpan Rekap Data ke Vercel KV
       const kvData = {
         channelId,
         teamName,
@@ -210,7 +205,7 @@ export async function GET(req: Request) {
 
       await kv.set(`deck_rekap:${channelId}`, kvData);
 
-      // 5. Build Embed Discord
+      // 4. Construct Embed Message
       const embedFields = [
         {
           name: 'Detail Pemain',
@@ -240,19 +235,20 @@ export async function GET(req: Request) {
         timestamp: new Date().toISOString(),
       };
 
-      const rekapMsgId = await kv.get<string>(`msg_rekap:${channelId}`);
+      // 🟢 5. HAPUS PESAN LAMA & KIRIM PESAN BARU (Biar Selalu di Paling Bawah)
+      const oldMsgId = await kv.get<string>(`msg_rekap:${channelId}`);
+      if (oldMsgId) {
+        await discordAPI(`/channels/${channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
+        await kv.del(`msg_rekap:${channelId}`);
+      }
 
-      if (rekapMsgId) {
-        await discordAPI(`/channels/${channelId}/messages/${rekapMsgId}`, 'PATCH', {
-          embeds: [summaryEmbed],
-        }).catch(() => null);
-      } else {
-        const resRekap = await discordAPI(`/channels/${channelId}/messages`, 'POST', {
-          embeds: [summaryEmbed],
-        });
-        if (resRekap?.id) {
-          await kv.set(`msg_rekap:${channelId}`, resRekap.id);
-        }
+      // Kirim Pesan Baru di Paling Bawah Channel
+      const resRekap = await discordAPI(`/channels/${channelId}/messages`, 'POST', {
+        embeds: [summaryEmbed],
+      });
+
+      if (resRekap?.id) {
+        await kv.set(`msg_rekap:${channelId}`, resRekap.id);
       }
 
       results.push({
@@ -261,6 +257,7 @@ export async function GET(req: Request) {
         totalDecks: totalDecksCollected,
         isClosed: isClosedMode,
         remainingControlTime,
+        msgStatus: 'Re-created at bottom',
       });
     }
 
