@@ -14,7 +14,6 @@ export function useRegistrationFlow(
   isEditMode: boolean = false, 
   originalTeamName: string = "",
   editToken: string = ""
-//  isTester: boolean = false 
 ) {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
   const [submitAttempted, setSubmitAttempted] = useState(false)
