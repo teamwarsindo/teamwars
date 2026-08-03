@@ -17,8 +17,8 @@ export async function GET() {
     const groupA = rawGroupA.map((t: any) => ({ ...t, groupName: 'Group A' }));
     const groupB = rawGroupB.map((t: any) => ({ ...t, groupName: 'Group B' }));
 
-    // Auto-generate jika jadwal belum ada
-    if (schedules.length === 0) {
+    // Auto-generate jika jadwal belum ada dan kedua grup sudah terisi
+    if (schedules.length === 0 && (groupA.length > 0 || groupB.length > 0)) {
       schedules = generateChallongeRoundRobinSchedules(groupA, groupB);
       await kv.set(KV_KEY_SCHEDULES, schedules);
     }
@@ -112,15 +112,23 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   const roundsB = generateRounds(groupB);
   const totalRounds = Math.max(roundsA.length, roundsB.length);
 
-  const startWednesdayUTC = new Date("2026-08-05T13:00:00.000Z");
+  const startWednesdayUTC = new Date("2026-08-05T13:00:00.000Z"); // Normal (Rabu)
+  const startThursdayWeek1UTC = new Date("2026-08-06T13:00:00.000Z"); // 🟢 Khusus Week 1 (Kamis)
 
   for (let r = 0; r < totalRounds; r++) {
     const roundMatchesA = roundsA[r] || [];
     const roundMatchesB = roundsB[r] || [];
 
     for (let dayOffset = 0; dayOffset < 4; dayOffset++) {
-      const matchDate = new Date(startWednesdayUTC);
-      matchDate.setDate(matchDate.getDate() + (r * 7) + dayOffset);
+      // 🟢 GESER KHUSUS WEEK 1 (r === 0) KE KAMIS - MINGGU
+      let matchDate: Date;
+      if (r === 0) {
+        matchDate = new Date(startThursdayWeek1UTC);
+        matchDate.setDate(matchDate.getDate() + dayOffset); // Kamis, Jumat, Sabtu, Minggu
+      } else {
+        matchDate = new Date(startWednesdayUTC);
+        matchDate.setDate(matchDate.getDate() + (r * 7) + dayOffset); // Rabu, Kamis, Jumat, Sabtu
+      }
 
       if (dayOffset < roundMatchesA.length) {
         const pairA = roundMatchesA[dayOffset];
