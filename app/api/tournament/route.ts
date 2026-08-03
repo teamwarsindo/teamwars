@@ -42,7 +42,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { action, matchId, matchDate, scoreA, scoreB } = body;
+    const { action, matchId, matchDate, scoreA, scoreB, gameLogs } = body;
 
     let schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
@@ -57,6 +57,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, schedules });
     }
 
+    // 🟢 UPDATE SKOR, GAMELOGS & IS_FINISHED
     if (action === 'UPDATE_MATCH') {
       schedules = schedules.map((match) => {
         if (match.id === matchId) {
@@ -65,7 +66,8 @@ export async function POST(req: Request) {
             matchDate: matchDate ?? match.matchDate,
             scoreA: scoreA ?? match.scoreA,
             scoreB: scoreB ?? match.scoreB,
-            isFinished: scoreA >= 10 || scoreB >= 10,
+            gameLogs: gameLogs ?? match.gameLogs, // 👈 Menyimpan Game Logs ke KV
+            isFinished: (scoreA ?? match.scoreA) >= 10 || (scoreB ?? match.scoreB) >= 10,
           };
         }
         return match;
@@ -113,21 +115,20 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   const totalRounds = Math.max(roundsA.length, roundsB.length);
 
   const startWednesdayUTC = new Date("2026-08-05T13:00:00.000Z"); // Normal (Rabu)
-  const startThursdayWeek1UTC = new Date("2026-08-06T13:00:00.000Z"); // 🟢 Khusus Week 1 (Kamis)
+  const startThursdayWeek1UTC = new Date("2026-08-06T13:00:00.000Z"); // Khusus Week 1 (Kamis)
 
   for (let r = 0; r < totalRounds; r++) {
     const roundMatchesA = roundsA[r] || [];
     const roundMatchesB = roundsB[r] || [];
 
     for (let dayOffset = 0; dayOffset < 4; dayOffset++) {
-      // 🟢 GESER KHUSUS WEEK 1 (r === 0) KE KAMIS - MINGGU
       let matchDate: Date;
       if (r === 0) {
         matchDate = new Date(startThursdayWeek1UTC);
-        matchDate.setDate(matchDate.getDate() + dayOffset); // Kamis, Jumat, Sabtu, Minggu
+        matchDate.setDate(matchDate.getDate() + dayOffset);
       } else {
         matchDate = new Date(startWednesdayUTC);
-        matchDate.setDate(matchDate.getDate() + (r * 7) + dayOffset); // Rabu, Kamis, Jumat, Sabtu
+        matchDate.setDate(matchDate.getDate() + (r * 7) + dayOffset);
       }
 
       if (dayOffset < roundMatchesA.length) {

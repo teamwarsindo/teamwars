@@ -34,12 +34,17 @@ export function TournamentView({
       if (data) {
         setSchedules(data.schedules || []);
         setStandings(data.standings || []);
+
+        // Jika modal sedang terbuka, perbarui data match aktif yang sedang dilihat
+        if (activeReportMatch) {
+          const updatedActive = (data.schedules || []).find((m: MatchScheduleItem) => m.id === activeReportMatch.id);
+          if (updatedActive) setActiveReportMatch(updatedActive);
+        }
       }
     } catch (err) {
       console.error("Error fetching tournament:", err);
-    } finally {
-      setIsLoading(false);
-    }
+    } font-bold;
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -75,6 +80,29 @@ export function TournamentView({
       Swal.fire("Gagal!", "Terjadi kesalahan saat menyinkronkan data.", "error");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 🟢 FUNGSI SIMPAN MATCH LOGS & SKOR KE KV DARI MODAL
+  const handleSaveMatch = async (updatedMatch: MatchScheduleItem) => {
+    try {
+      const res = await fetch("/api/tournament", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_MATCH",
+          matchId: updatedMatch.id,
+          scoreA: updatedMatch.scoreA,
+          scoreB: updatedMatch.scoreB,
+          gameLogs: updatedMatch.gameLogs,
+        }),
+      });
+
+      if (res.ok) {
+        await fetchTournamentData(); // Refresh jadwal & standings di background
+      }
+    } catch (err) {
+      console.error("Gagal menyimpan match report:", err);
     }
   };
 
@@ -142,6 +170,7 @@ export function TournamentView({
           match={activeReportMatch}
           weekNumber={getMatchWeekNumber(activeReportMatch.matchDate)}
           onClose={() => setActiveReportMatch(null)}
+          onSaveMatch={handleSaveMatch} // 👈 Pass handler simpan ke modal
         />
       )}
     </div>
