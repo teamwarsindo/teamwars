@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MatchScheduleItem } from "@/lib/types/tournament";
 
 export function ScheduleTab({
@@ -28,10 +28,49 @@ export function ScheduleTab({
 }) {
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<string>("ALL");
+  const [hasFullAccess, setHasFullAccess] = useState<boolean>(false);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
+
+  // 🟢 1. DETEKSI PARAMETER URL ?admin=tsaqif
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const adminParam = searchParams.get("admin");
+      if (adminParam === "tsaqif" || isAdmin) {
+        setHasFullAccess(true);
+      }
+    }
+  }, [isAdmin]);
 
   const sortedTeams = [...allTeamNames].sort((a, b) => a.localeCompare(b));
   const sortedWeeks = [...allWeeks].sort((a, b) => a - b);
+
+  const now = new Date();
+
+  // 🟢 2. HELPER MEMERIKSA SIKLUS MINGGU (SENIN 00:00 WIB ADALAH AWAL BUKA WEEK)
+  const isWeekActiveByDate = (weekNum: number) => {
+    const weekMatches = schedules.filter((m) => m.weekNumber === weekNum);
+    if (weekMatches.length === 0) return true;
+
+    const earliestMatchDate = new Date(
+      Math.min(...weekMatches.map((m) => new Date(m.matchDate).getTime()))
+    );
+
+    // Dapatkan hari Senin terdekat dari pertandingan pertama minggu tersebut
+    const dayOfWeek = earliestMatchDate.getDay();
+    const diffToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+
+    const weekStartMonday = new Date(earliestMatchDate);
+    weekStartMonday.setDate(earliestMatchDate.getDate() + diffToMonday);
+    weekStartMonday.setHours(0, 0, 0, 0);
+
+    return now.getTime() >= weekStartMonday.getTime();
+  };
+
+  // Filter daftar week untuk dropdown: User biasa cuma melihat week yang sudah/sedang aktif
+  const visibleWeeksInDropdown = hasFullAccess
+    ? sortedWeeks
+    : sortedWeeks.filter((w) => isWeekActiveByDate(w));
 
   const isFilterActive =
     selectedGroupFilter !== "ALL" ||
@@ -46,14 +85,25 @@ export function ScheduleTab({
     setSelectedDateFilter("");
   };
 
+  // 🟢 3. STRICT FILTERING (TIDAK BISA KECOLEKAN MASA DEPAN UNTUK USER BIASA)
   const filteredSchedules = schedules.filter((m) => {
     const matchGroup = selectedGroupFilter === "ALL" || m.groupName === selectedGroupFilter;
-    const matchTeam = selectedTeamFilter === "ALL" || m.teamAName === selectedTeamFilter || m.teamBName === selectedTeamFilter;
-    const matchWeek = selectedWeekFilter === "ALL" || String(m.weekNumber) === selectedWeekFilter;
+    const matchTeam =
+      selectedTeamFilter === "ALL" ||
+      m.teamAName === selectedTeamFilter ||
+      m.teamBName === selectedTeamFilter;
+    const matchWeek =
+      selectedWeekFilter === "ALL" || String(m.weekNumber) === selectedWeekFilter;
 
-    if (!selectedDateFilter) return matchGroup && matchTeam && matchWeek;
-    const mDate = new Date(m.matchDate).toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
-    return matchGroup && matchTeam && matchWeek && mDate === selectedDateFilter;
+    // Batas Akses Week: Jika bukan Admin (?admin=tsaqif), kunci week masa depan
+    const isWeekAllowed = hasFullAccess || isWeekActiveByDate(m.weekNumber);
+
+    if (!selectedDateFilter) return matchGroup && matchTeam && matchWeek && isWeekAllowed;
+
+    const mDate = new Date(m.matchDate).toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Jakarta",
+    });
+    return matchGroup && matchTeam && matchWeek && isWeekAllowed && mDate === selectedDateFilter;
   });
 
   const groupedSchedulesByWeek = filteredSchedules.reduce((acc, match) => {
@@ -117,18 +167,23 @@ export function ScheduleTab({
           >
             <option value="ALL">Semua Tim</option>
             {sortedTeams.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>
+                {t}
+              </option>
             ))}
           </select>
 
+          {/* 🟢 DROPDOWN WEEK HANYA MENAMPILKAN WEEK BUKA/AKTIF UNTUK USER BIASA */}
           <select
             value={selectedWeekFilter}
             onChange={(e) => setSelectedWeekFilter(e.target.value)}
             className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
           >
-            <option value="ALL">Semua Week</option>
-            {sortedWeeks.map((w) => (
-              <option key={w} value={String(w)}>Week {w}</option>
+            <option value="ALL">Semua Week Aktif</option>
+            {visibleWeeksInDropdown.map((w) => (
+              <option key={w} value={String(w)}>
+                Week {w}
+              </option>
             ))}
           </select>
         </div>
@@ -138,8 +193,8 @@ export function ScheduleTab({
           <div
             onClick={handleOpenDatePicker}
             className={`relative flex-1 flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-medium transition cursor-pointer ${
-              selectedDateFilter 
-                ? "border-primary bg-primary/10 text-primary font-bold" 
+              selectedDateFilter
+                ? "border-primary bg-primary/10 text-primary font-bold"
                 : "border-border bg-background text-foreground hover:border-primary/50"
             }`}
           >
@@ -170,10 +225,10 @@ export function ScheduleTab({
             Reset Filter
           </button>
         </div>
-
       </div>
 
-      {isAdmin && (
+      {/* Tombol khusus Admin */}
+      {hasFullAccess && (
         <button
           onClick={onResetSchedules}
           className="w-full rounded-xl border border-sky-500/40 bg-sky-500/10 py-2.5 text-xs font-bold text-sky-400 hover:bg-sky-500/20 transition cursor-pointer flex items-center justify-center gap-2"
@@ -186,13 +241,15 @@ export function ScheduleTab({
       {/* Match List Grouped by Week */}
       {Object.keys(groupedSchedulesByWeek).length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-xs font-bold text-muted-foreground">
-          ⚠️ Tidak ada jadwal pertandingan pada filter ini.
+          ⚠️ Tidak ada jadwal pertandingan aktif pada filter ini.
         </div>
       ) : (
         Object.entries(groupedSchedulesByWeek).map(([weekTitle, matchGroup]) => (
           <div key={weekTitle} className="flex flex-col gap-3">
             <div className="flex items-center justify-center border-b border-primary/30 pb-1 mt-1">
-              <span className="text-xs font-black uppercase text-primary tracking-wider text-center">{weekTitle}</span>
+              <span className="text-xs font-black uppercase text-primary tracking-wider text-center">
+                {weekTitle}
+              </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -209,25 +266,49 @@ export function ScheduleTab({
                     }`}
                   >
                     <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-2 text-[10px]">
-                      <span className={`font-black uppercase tracking-wider ${isGroupA ? "text-sky-400" : "text-amber-400"}`}>
+                      <span
+                        className={`font-black uppercase tracking-wider ${
+                          isGroupA ? "text-sky-400" : "text-amber-400"
+                        }`}
+                      >
                         {match.groupName}
                       </span>
                       <span className="font-semibold text-primary">
-                        {new Date(match.matchDate).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Jakarta" })} - 20.00 WIB
+                        {new Date(match.matchDate).toLocaleDateString("id-ID", {
+                          weekday: "short",
+                          day: "numeric",
+                          month: "short",
+                          timeZone: "Asia/Jakarta",
+                        })}{" "}
+                        - 20.00 WIB
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between my-2 gap-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <img src={match.teamALogo} alt="" className="h-7 w-7 object-contain shrink-0" />
-                        <span className="text-xs font-bold truncate">{match.teamAName}</span>
+                        <img
+                          src={match.teamALogo}
+                          alt=""
+                          className="h-7 w-7 object-contain shrink-0"
+                        />
+                        <span className="text-xs font-bold truncate">
+                          {match.teamAName}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1 px-3 py-1 rounded-xl bg-background/80 border border-border font-black text-sm shrink-0">
-                        <span>{match.scoreA}</span><span>-</span><span>{match.scoreB}</span>
+                        <span>{match.scoreA}</span>
+                        <span>-</span>
+                        <span>{match.scoreB}</span>
                       </div>
                       <div className="flex items-center justify-end gap-2 flex-1 min-w-0">
-                        <span className="text-xs font-bold text-right truncate">{match.teamBName}</span>
-                        <img src={match.teamBLogo} alt="" className="h-7 w-7 object-contain shrink-0" />
+                        <span className="text-xs font-bold text-right truncate">
+                          {match.teamBName}
+                        </span>
+                        <img
+                          src={match.teamBLogo}
+                          alt=""
+                          className="h-7 w-7 object-contain shrink-0"
+                        />
                       </div>
                     </div>
                   </div>

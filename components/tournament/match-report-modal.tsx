@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchScheduleItem } from "@/lib/types/tournament";
+import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
 
 export function MatchReportModal({
   match,
@@ -11,7 +11,7 @@ export function MatchReportModal({
   weekNumber: number;
   onClose: () => void;
 }) {
-  const gameLogs = match.gameLogs || [];
+  const gameLogs: GameDetailLog[] = match.gameLogs || [];
   const rosterA = match.rosterA?.mainPlayers || [];
   const rosterB = match.rosterB?.mainPlayers || [];
 
@@ -30,11 +30,13 @@ export function MatchReportModal({
           ✕
         </button>
 
-        {/* 1. TOP INFO BAR */}
+        {/* 1. TOP INFO BAR (Membaca Streamer, Referee & Tanggal dari Jadwal) */}
         <div className="grid grid-cols-3 items-center border-b border-[#0088ff] pb-2 text-center text-xs font-semibold text-sky-100">
           <div>
             <div className="font-extrabold text-white text-sm">{match.streamer || "Nousagi"}</div>
-            <div className="text-[10px] text-sky-200 opacity-80">{match.streamPlatformUrl || "youtube.com/Nousagi"}</div>
+            <div className="text-[10px] text-sky-200 opacity-80">
+              {match.streamLink ? match.streamLink.replace(/^https?:\/\//, '') : (match.streamPlatform || "youtube.com/Nousagi")}
+            </div>
           </div>
           <div>
             <div className="text-[10px] uppercase text-sky-200 tracking-wider">Referee</div>
@@ -59,20 +61,33 @@ export function MatchReportModal({
           Match Report
         </h2>
 
-        {/* 2. MATCHUP HEADER (LOGO & TEAM NAME) */}
+        {/* 2. MATCHUP HEADER (Membaca Nama & Logo Tim Langsung dari Jadwal) */}
         <div className="grid grid-cols-3 items-center bg-[#003c80] p-3 rounded-t-xl border-t border-x border-[#0088ff]">
           <div className="flex items-center gap-3">
-            <img src={match.teamALogo} alt="" className="h-14 w-14 object-contain drop-shadow" />
+            <img 
+              src={match.teamALogo || "/logo.webp"} 
+              alt={match.teamAName} 
+              className="h-14 w-14 object-contain drop-shadow" 
+            />
             <h3 className="text-lg font-black text-white">{match.teamAName}</h3>
           </div>
 
+          {/* LOGO TEAM WARS INDONESIA DI TENGAH */}
           <div className="flex justify-center">
-            <img src="/logo-dc.png" alt="Team Wars" className="h-10 object-contain drop-shadow" />
+            <img 
+              src="/logo.webp" 
+              alt="Team Wars Indonesia" 
+              className="h-12 w-auto object-contain drop-shadow-[0_2px_8px_rgba(0,153,255,0.6)]" 
+            />
           </div>
 
           <div className="flex items-center justify-end gap-3 text-right">
             <h3 className="text-lg font-black text-white">{match.teamBName}</h3>
-            <img src={match.teamBLogo} alt="" className="h-14 w-14 object-contain drop-shadow" />
+            <img 
+              src={match.teamBLogo || "/logo.webp"} 
+              alt={match.teamBName} 
+              className="h-14 w-14 object-contain drop-shadow" 
+            />
           </div>
         </div>
 
@@ -115,22 +130,19 @@ export function MatchReportModal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#005bb8]">
-                {gameLogs.map((log, idx) => {
+                {gameLogs.map((log: GameDetailLog, idx: number) => {
                   const isAWin = log.winnerTeamId === match.teamAId;
-                  // Efek highlight khusus untuk deck/player tertentu seperti gambar
-                  const isHighlightA = log.isHighlightA; 
-                  const isHighlightB = log.isHighlightB;
 
                   return (
                     <tr key={idx} className="hover:bg-[#004d9e] transition font-medium text-[11px]">
                       {/* TEAM A */}
-                      <td className={`py-1.5 px-2 ${isHighlightA ? "text-[#ff9900] font-bold" : "text-white"}`}>
+                      <td className="py-1.5 px-2 text-white font-semibold">
                         {log.teamAPlayerName}
                       </td>
-                      <td className={`py-1.5 px-2 ${isHighlightA ? "text-[#ff9900]" : "text-sky-100"}`}>
+                      <td className="py-1.5 px-2 text-sky-100">
                         {log.teamASkill}
                       </td>
-                      <td className={`py-1.5 px-2 ${isHighlightA ? "text-[#ff9900]" : "text-sky-100"}`}>
+                      <td className="py-1.5 px-2 text-sky-100">
                         {log.teamADeck}
                       </td>
 
@@ -146,13 +158,13 @@ export function MatchReportModal({
                       </td>
 
                       {/* TEAM B */}
-                      <td className={`py-1.5 px-2 ${isHighlightB ? "text-[#ff9900]" : "text-sky-100"}`}>
+                      <td className="py-1.5 px-2 text-sky-100">
                         {log.teamBDeck}
                       </td>
-                      <td className={`py-1.5 px-2 ${isHighlightB ? "text-[#ff9900]" : "text-sky-100"}`}>
+                      <td className="py-1.5 px-2 text-sky-100">
                         {log.teamBSkill}
                       </td>
-                      <td className={`py-1.5 px-2 ${isHighlightB ? "text-[#ff9900] font-bold" : "text-white"}`}>
+                      <td className="py-1.5 px-2 text-white font-semibold">
                         {log.teamBPlayerName}
                       </td>
                     </tr>
@@ -163,7 +175,7 @@ export function MatchReportModal({
           )}
         </div>
 
-        {/* 5. FOOTER RESULT SCORE */}
+        {/* 5. FOOTER RESULT SCORE (Membaca Skor & Nama Tim dari Jadwal) */}
         <div className="grid grid-cols-3 items-center rounded-b-xl border border-[#0088ff] bg-[#00336e] p-3 text-center">
           <div className="text-3xl font-black text-[#00ff66]">
             {isWinA ? "W" : "L"}
