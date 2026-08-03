@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
 
-// Cukup daftarkan Channel ID saja
 const TRACKED_CHANNEL_IDS = [
   '1532355472764440576',
   '1532355753535471827',
@@ -12,30 +11,28 @@ const TARGET_DECK_PER_PLAYER = 2;
 const TARGET_PLAYERS = 5;
 const TARGET_TOTAL_DECKS = 10;
 
-// 🟢 Helper Function: Normalisasi Nama Channel (e.g. "all-star-camp" -> "All Star Camp")
 function normalizeChannelName(rawName: string): string {
   return rawName
-    .replace(/[-_]/g, ' ') // Ganti dash (-) dan underscore (_) dengan spasi
+    .replace(/[-_]/g, ' ')
     .split(' ')
     .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()) // Capital depan
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
 }
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const force = searchParams.get('force') === 'true';
 
     const results = [];
 
     for (const channelId of TRACKED_CHANNEL_IDS) {
-      // 1. Ambil Detail Info Channel dari Discord API untuk Mendapatkan Nama Channel
+      // 1. Ambil Detail Info Channel
       const channelInfo = await discordAPI(`/channels/${channelId}`, 'GET');
       const rawChannelName = channelInfo?.name || 'Unknown Channel';
-      const teamName = normalizeChannelName(rawChannelName); // 👈 Hasil Normalisasi
+      const teamName = normalizeChannelName(rawChannelName);
 
-      // 2. Fetch 100 Pesan Terakhir dari Channel
+      // 2. Fetch 100 Pesan Terakhir
       const messages = await discordAPI(`/channels/${channelId}/messages?limit=100`, 'GET');
 
       if (!Array.isArray(messages)) {
@@ -48,29 +45,35 @@ export async function GET(req: Request) {
         { username: string; deckCount: number; avatar: string; images: string[] }
       >();
 
-      // Urutkan dari pesan lama ke baru
       const reversedMessages = [...messages].reverse();
 
       for (const msg of reversedMessages) {
         if (msg.author.bot) continue;
 
-        // Ambil attachment berjenis gambar
         const imageAttachments = (msg.attachments || []).filter(
           (att: any) => att.content_type && att.content_type.startsWith('image/')
         );
 
         if (imageAttachments.length > 0) {
           const userId = msg.author.id;
-          const username = msg.author.global_name || msg.author.username;
+
+          // 🟢 AMBIL DISPLAY NAME (Server Nickname > Global Display Name > Username)
+          const displayName =
+            msg.member?.nick ||
+            msg.author.global_name ||
+            msg.author.username;
 
           const currentData = playerSubmissions.get(userId) || {
-            username,
+            username: displayName,
             deckCount: 0,
             avatar: msg.author.avatar
               ? `https://cdn.discordapp.com/avatars/${userId}/${msg.author.avatar}.png`
               : '/logo.webp',
             images: [] as string[],
           };
+
+          // Update nama jika ada nickname terbaru
+          currentData.username = displayName;
 
           currentData.deckCount += imageAttachments.length;
           currentData.images.push(...imageAttachments.map((att: any) => att.url as string));
@@ -98,10 +101,10 @@ export async function GET(req: Request) {
         ...val,
       }));
 
-      // 3. Simpan Data ke Vercel KV dengan Nama Tim yang Sudah Dinormalisasi
+      // 3. Simpan ke Vercel KV
       const kvData = {
         channelId,
-        teamName, // 👈 Contoh: "All Star Camp"
+        teamName,
         totalDecks: totalDecksCollected,
         totalPlayers: totalPlayersSubmitted,
         isComplete: isTeamComplete,
@@ -111,17 +114,17 @@ export async function GET(req: Request) {
 
       await kv.set(`deck_rekap:${channelId}`, kvData);
 
-      // 4. Kirim/Update Message Embed di Discord
+      // 4. EMBED DISCORD - DIPERSINGKAT & LEBIH RAPI
       const summaryEmbed = {
-        title: `📊 REKAP SUBMISSION DECK — ${teamName.toUpperCase()}`,
+        title: `📊 REKAP SUBMISSION DECK`, // 🟢 Judul Singkat
         color: isTeamComplete ? hexToDecimal('#00FF00') : hexToDecimal('#FFA500'),
         description: 
           `**Status Terkini:**\n` +
-          `• Total Deck Terkumpul: **${totalDecksCollected} / ${TARGET_TOTAL_DECKS} Deck**\n` +
-          `• Pemain Sudah Kirim: **${totalPlayersSubmitted} / ${TARGET_PLAYERS} Pemain**\n\n` +
+          `• Total Deck: **${totalDecksCollected} / ${TARGET_TOTAL_DECKS}**\n` +
+          `• Total Pemain: **${totalPlayersSubmitted} / ${TARGET_PLAYERS}**\n\n` +
           `**Detail Pemain:**\n` +
-          (playerDetailsList.length > 0 ? playerDetailsList.join('\n') : '_Belum ada pemain yang mengirim gambar._'),
-        footer: { text: 'Auto-Updated via TWI Cron System (Setiap 15 Menit)' },
+          (playerDetailsList.length > 0 ? playerDetailsList.join('\n') : '_Belum ada yang mengirim deck._'),
+        footer: { text: 'Team Wars Indonesia' }, // 🟢 Footer Minimalis
         timestamp: new Date().toISOString(),
       };
 
@@ -153,5 +156,5 @@ export async function GET(req: Request) {
     console.error('Error Cron Deck Checker:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-                                                                       }
-                              
+}
+  
