@@ -28,7 +28,7 @@ export function ScheduleTab({
 }) {
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<string>("ALL");
-  const dateInputRef = useRef<HTMLInputElement>(null);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
 
   const sortedTeams = [...allTeamNames].sort((a, b) => a.localeCompare(b));
   const sortedWeeks = [...allWeeks].sort((a, b) => a - b);
@@ -72,11 +72,12 @@ export function ScheduleTab({
     : "Tanggal";
 
   const handleOpenDatePicker = () => {
-    if (dateInputRef.current) {
-      if ("showPicker" in dateInputRef.current) {
-        dateInputRef.current.showPicker();
+    const input = dateInputRef.current;
+    if (input) {
+      if ("showPicker" in input && typeof (input as any).showPicker === "function") {
+        (input as any).showPicker();
       } else {
-        dateInputRef.current.click();
+        input.click();
       }
     }
   };
