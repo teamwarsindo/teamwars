@@ -6,8 +6,21 @@ import { calculateStandings } from '@/lib/tournament/calculator';
 const KV_KEY_SCHEDULES = 'twi:schedules';
 const KV_KEY_ROULETTE = 'twi:roulette_state';
 
-export async function GET() {
+// Helper untuk mengubah nama tim menjadi slug Redis
+function getTeamSlug(teamName: string) {
+  return teamName
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+}
+
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const matchId = searchParams.get('matchId');
+
     let schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
     const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
 
@@ -17,10 +30,42 @@ export async function GET() {
     const groupA = rawGroupA.map((t: any) => ({ ...t, groupName: 'Group A' }));
     const groupB = rawGroupB.map((t: any) => ({ ...t, groupName: 'Group B' }));
 
-    // Auto-generate jika jadwal belum ada dan kedua grup sudah terisi
+    // Auto-generate jika jadwal belum ada
     if (schedules.length === 0 && (groupA.length > 0 || groupB.length > 0)) {
       schedules = generateChallongeRoundRobinSchedules(groupA, groupB);
       await kv.set(KV_KEY_SCHEDULES, schedules);
+    }
+
+    // JIKA ADA REQUEST DETAIL MATCH TERTENTU (Untuk Match Input Console)
+    if (matchId) {
+      const match = schedules.find((m) => m.id === matchId);
+      if (!match) {
+        return NextResponse.json({ error: 'Match tidak ditemukan' }, { status: 404 });
+      }
+
+      // Ambil Data Roster Resmi dari Redis KV untuk Tim A & Tim B
+      const slugA = getTeamSlug(match.teamAName);
+      const slugB = getTeamSlug(match.teamBName);
+
+      const [teamDataA, teamDataB] = await Promise.all([
+        kv.hgetall(`teams:${slugA}`),
+        kv.hgetall(`teams:${slugB}`),
+      ]);
+
+      const parsePlayers = (raw: any) => {
+        if (!raw || !raw.players) return [];
+        try {
+          return typeof raw.players === 'string' ? JSON.parse(raw.players) : raw.players;
+        } catch {
+          return [];
+        }
+      };
+
+      return NextResponse.json({
+        match,
+        dbRosterA: parsePlayers(teamDataA),
+        dbRosterB: parsePlayers(teamDataB),
+      });
     }
 
     const masterTeams = [...groupA, ...groupB];
@@ -42,11 +87,11 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { action, matchId, matchDate, scoreA, scoreB, gameLogs } = body;
+    const { action, matchId, token, matchData } = body;
 
     let schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
-    // 🟢 PAKSA SYNC TIM DARI ROULETTE & REGENERATE JADWAL
+    // 🟢 1. SYNC ROULETTE & RESET JADWAL
     if (action === 'SYNC_ROULETTE' || action === 'FORCE_RESET_SCHEDULES') {
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
       const gA = (rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: 'Group A' }));
@@ -57,25 +102,49 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, schedules });
     }
 
-    // 🟢 UPDATE SKOR, GAMELOGS & IS_FINISHED
-    if (action === 'UPDATE_MATCH') {
-      schedules = schedules.map((match) => {
-        if (match.id === matchId) {
-          return {
-            ...match,
-            matchDate: matchDate ?? match.matchDate,
-            scoreA: scoreA ?? match.scoreA,
-            scoreB: scoreB ?? match.scoreB,
-            gameLogs: gameLogs ?? match.gameLogs, // 👈 Menyimpan Game Logs ke KV
-            isFinished: (scoreA ?? match.scoreA) >= 10 || (scoreB ?? match.scoreB) >= 10,
-          };
-        }
-        return match;
-      });
+    // 🟢 2. UPDATE MATCH DATA (HANYA JIKA TOKEN WASIT / ADMIN TS AQIF VALID)
+    if (action === 'UPDATE_MATCH_CONSOLE') {
+      const targetIndex = schedules.findIndex((m) => m.id === matchId);
+      if (targetIndex === -1) {
+        return NextResponse.json({ error: 'Match tidak ditemukan' }, { status: 404 });
+      }
+
+      const existingMatch = schedules[targetIndex];
+
+      // Auth Check: Token Match atau Override Admin
+      const isValidToken =
+        token === 'tsaqif' ||
+        (existingMatch.refereeToken && existingMatch.refereeToken === token);
+
+      if (!isValidToken && existingMatch.refereeToken) {
+        return NextResponse.json(
+          { error: 'Akses ditolak. Token Wasit tidak valid!' },
+          { status: 403 }
+        );
+      }
+
+      // Hitung skor otomatis jika ada gameLogs
+      const gameLogs = matchData.gameLogs || existingMatch.gameLogs || [];
+      const scoreA = Math.min(10, gameLogs.filter((g: any) => g.winnerTeamId === existingMatch.teamAId).length);
+      const scoreB = Math.min(10, gameLogs.filter((g: any) => g.winnerTeamId === existingMatch.teamBId).length);
+
+      // Merge data pertandingan
+      const updatedMatch: MatchScheduleItem = {
+        ...existingMatch,
+        ...matchData,
+        scoreA: gameLogs.length > 0 ? scoreA : (matchData.scoreA ?? existingMatch.scoreA),
+        scoreB: gameLogs.length > 0 ? scoreB : (matchData.scoreB ?? existingMatch.scoreB),
+        gameLogs,
+        isFinished: scoreA >= 10 || scoreB >= 10,
+      };
+
+      schedules[targetIndex] = updatedMatch;
       await kv.set(KV_KEY_SCHEDULES, schedules);
+
+      return NextResponse.json({ success: true, updatedMatch });
     }
 
-    return NextResponse.json({ success: true, schedules });
+    return NextResponse.json({ error: 'Action tidak dikenal' }, { status: 400 });
   } catch (error) {
     console.error('Error POST Tournament State:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
@@ -114,8 +183,8 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   const roundsB = generateRounds(groupB);
   const totalRounds = Math.max(roundsA.length, roundsB.length);
 
-  const startWednesdayUTC = new Date("2026-08-05T13:00:00.000Z"); // Normal (Rabu)
-  const startThursdayWeek1UTC = new Date("2026-08-06T13:00:00.000Z"); // Khusus Week 1 (Kamis)
+  const startWednesdayUTC = new Date("2026-08-05T13:00:00.000Z");
+  const startThursdayWeek1UTC = new Date("2026-08-06T13:00:00.000Z");
 
   for (let r = 0; r < totalRounds; r++) {
     const roundMatchesA = roundsA[r] || [];
@@ -133,29 +202,32 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
 
       if (dayOffset < roundMatchesA.length) {
         const pairA = roundMatchesA[dayOffset];
+        const mId = `match-${idCounter++}`;
         schedules.push({
-          id: `match-${idCounter++}`,
+          id: mId,
           matchDate: matchDate.toISOString(),
           stage: "GROUP_STAGE",
           groupName: "Group A",
           teamAId: pairA[0].name,
           teamAName: pairA[0].name,
           teamALogo: pairA[0].logo || "/logo.webp",
-          teamBId: pairA[1].name,
+          teamBId: pairB ? pairA[1].name : pairA[1].name,
           teamBName: pairA[1].name,
           teamBLogo: pairA[1].logo || "/logo.webp",
           scoreA: 0,
           scoreB: 0,
           isFinished: false,
           referee: "vG®D WHY",
+          refereeToken: `REF-${mId.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`, // Auto Token per Match
           streamer: "Alroy_Yuan",
         });
       }
 
       if (dayOffset < roundMatchesB.length) {
         const pairB = roundMatchesB[dayOffset];
+        const mId = `match-${idCounter++}`;
         schedules.push({
-          id: `match-${idCounter++}`,
+          id: mId,
           matchDate: matchDate.toISOString(),
           stage: "GROUP_STAGE",
           groupName: "Group B",
@@ -169,6 +241,7 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
           scoreB: 0,
           isFinished: false,
           referee: "vG®D WHY",
+          refereeToken: `REF-${mId.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`, // Auto Token per Match
           streamer: "Alroy_Yuan",
         });
       }
