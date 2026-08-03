@@ -1,6 +1,4 @@
-// Sisipkan di bagian handling Button Interactions (body.type === 3) pada app/api/discord/route.ts:
-
-if (customId.startsWith('btn_edit_match_')) {import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { verifySignature } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
@@ -153,46 +151,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-      }
-                                             
-  const matchId = customId.replace('btn_edit_match_', '');
-  const userId = body.member?.user?.id;
-  const userRoles: string[] = body.member?.roles || [];
-
-  // Fetch data match dari KV untuk cek Wasit terdaftar
-  const schedules = (await kv.get<any[]>('twi:schedules')) || [];
-  const match = schedules.find((m) => m.id === matchId);
-
-  if (!match) {
-    return NextResponse.json({
-      type: 4,
-      data: { content: '❌ Data match tidak ditemukan.', flags: 64 },
-    });
-  }
-
-  const isAdmin = userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
-  const isAssignedReferee = match.refereeDiscordId && match.refereeDiscordId === userId;
-
-  // VERIFIKASI KEAMANAN (HANYA ADMIN / WASIT MATCH TERKAIT)
-  if (!isAdmin && !isAssignedReferee) {
-    return NextResponse.json({
-      type: 4,
-      data: {
-        content: '⚠️ **Akses Ditolak!** Tombol ini hanya bisa diakses oleh Wasit yang bertugas di match ini atau Admin Tournament.',
-        flags: 64, // Ephemeral (Hanya terlihat oleh pemicu)
-      },
-    });
-  }
-
-  // JIKA VALID -> KIRIMKAN MAGIC LINK EPHEMERAL
-  const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://teamwars.web.id';
-  const magicUrl = `${hostUrl}/tournament/match-input/${match.id}?token=${match.refereeToken || ''}`;
-
-  return NextResponse.json({
-    type: 4,
-    data: {
-      content: `🔒 **Akses Input Match Diberikan**\nSilakan klik link berikut untuk membuka Referee Console:\n🔗 ${magicUrl}\n\n*(Jangan bagikan link ini kepada orang lain!)*`,
-      flags: 64,
-    },
-  });
 }
