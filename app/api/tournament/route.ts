@@ -17,10 +17,8 @@ export async function GET() {
     const groupA = rawGroupA.map((t: any) => ({ ...t, groupName: 'Group A' }));
     const groupB = rawGroupB.map((t: any) => ({ ...t, groupName: 'Group B' }));
 
-    // Jika jadwal belum ada ATAU Group B belum terpetakan, regenerate jadwal default!
-    const isInvalidSchedules = schedules.length === 0 || !schedules.some((s) => s.groupName === 'Group B');
-
-    if (isInvalidSchedules) {
+    // Auto-generate jika jadwal belum ada
+    if (schedules.length === 0) {
       schedules = generateChallongeRoundRobinSchedules(groupA, groupB);
       await kv.set(KV_KEY_SCHEDULES, schedules);
     }
@@ -48,7 +46,8 @@ export async function POST(req: Request) {
 
     let schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
-    if (action === 'FORCE_RESET_SCHEDULES') {
+    // 🟢 PAKSA SYNC TIM DARI ROULETTE & REGENERATE JADWAL
+    if (action === 'SYNC_ROULETTE' || action === 'FORCE_RESET_SCHEDULES') {
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
       const gA = (rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: 'Group A' }));
       const gB = (rouletteState.groupB || []).map((t: any) => ({ ...t, groupName: 'Group B' }));
@@ -81,20 +80,14 @@ export async function POST(req: Request) {
   }
 }
 
-/**
- * 🏆 GENERATOR ROUND-ROBIN CHALLONGE (1 MINGGU = 1 ROUND)
- * - 1 Round (Minggu) = 4 Match Group A + 4 Match Group B (Tepat 1x main per tim).
- * - Jadwal: Rabu, Kamis, Jumat, Sabtu (Masing-masing 1 Match Group A & 1 Match Group B @ 20:00 WIB).
- * - Menggunakan UTC String "13:00:00.000Z" yang setara dengan "20:00:00 WIB" agar pas di WIB.
- */
 function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): MatchScheduleItem[] {
   const schedules: MatchScheduleItem[] = [];
   let idCounter = 1;
 
-  // Algoritma Polygon untuk Pembagian Round-Robin Murni
   const generateRounds = (teams: any[]) => {
     const roundsList: [any, any][][] = [];
     const list = [...teams];
+    if (list.length < 2) return roundsList;
     if (list.length % 2 !== 0) list.push({ name: "BYE", dummy: true });
 
     const numRounds = list.length - 1;
@@ -105,7 +98,7 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
       for (let i = 0; i < half; i++) {
         const team1 = list[i];
         const team2 = list[list.length - 1 - i];
-        if (!team1.dummy && !team2.dummy) {
+        if (team1 && team2 && !team1.dummy && !team2.dummy) {
           roundMatches.push([team1, team2]);
         }
       }
@@ -119,19 +112,16 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   const roundsB = generateRounds(groupB);
   const totalRounds = Math.max(roundsA.length, roundsB.length);
 
-  // Tanggal Mulai: Rabu, 5 Agustus 2026 Jam 20:00 WIB (13:00 UTC)
   const startWednesdayUTC = new Date("2026-08-05T13:00:00.000Z");
 
   for (let r = 0; r < totalRounds; r++) {
     const roundMatchesA = roundsA[r] || [];
     const roundMatchesB = roundsB[r] || [];
 
-    // 4 Hari Tanding: Rabu (0), Kamis (1), Jumat (2), Sabtu (3)
     for (let dayOffset = 0; dayOffset < 4; dayOffset++) {
       const matchDate = new Date(startWednesdayUTC);
       matchDate.setDate(matchDate.getDate() + (r * 7) + dayOffset);
 
-      // Match 1 Hari Ini: Group A (Jam 20:00 WIB)
       if (dayOffset < roundMatchesA.length) {
         const pairA = roundMatchesA[dayOffset];
         schedules.push({
@@ -148,12 +138,11 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
           scoreA: 0,
           scoreB: 0,
           isFinished: false,
-          referee: "-",
-          streamer: "-",
+          referee: "vG®D WHY",
+          streamer: "Alroy_Yuan",
         });
       }
 
-      // Match 2 Hari Ini: Group B (Jam 20:00 WIB)
       if (dayOffset < roundMatchesB.length) {
         const pairB = roundMatchesB[dayOffset];
         schedules.push({
@@ -170,8 +159,8 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
           scoreA: 0,
           scoreB: 0,
           isFinished: false,
-          referee: "-",
-          streamer: "-",
+          referee: "vG®D WHY",
+          streamer: "Alroy_Yuan",
         });
       }
     }
