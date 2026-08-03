@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { TeamItem } from "@/app/api/roulette-state/route";
 
 interface RouletteCelebrationModalProps {
@@ -15,7 +16,27 @@ export function RouletteCelebrationModal({
   isAdmin,
   onClose,
 }: RouletteCelebrationModalProps) {
+  const [isUpdating, setIsUpdating] = useState(false);
   const isGroupA = groupA.some((t) => t.name === celebrationWinner.name);
+
+  // 🟢 Handler untuk trigger API sync jadwal lalu tutup modal
+  const handleContinue = async () => {
+    try {
+      setIsUpdating(true);
+      await fetch("/api/tournament", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "SYNC_ROULETTE" }),
+      });
+    } catch (error) {
+      console.error("Gagal update jadwal:", error);
+    } finally {
+      setIsUpdating(false);
+      onClose(); // Lanjutkan/Tutup modal setelah API selesai dipanggil
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-4">
@@ -53,10 +74,11 @@ export function RouletteCelebrationModal({
 
         {isAdmin ? (
           <button
-            onClick={onClose}
-            className="w-full rounded-xl bg-primary py-3 text-xs font-bold uppercase tracking-widest text-primary-foreground hover:opacity-90 shadow-lg transition cursor-pointer"
+            onClick={handleContinue}
+            disabled={isUpdating}
+            className="w-full rounded-xl bg-primary py-3 text-xs font-bold uppercase tracking-widest text-primary-foreground hover:opacity-90 shadow-lg transition cursor-pointer disabled:opacity-50"
           >
-            LANJUTKAN PENGUNDIAN ➔
+            {isUpdating ? "MENGUPDATE JADWAL..." : "LANJUTKAN PENGUNDIAN ➔"}
           </button>
         ) : (
           <div className="rounded-xl bg-muted/50 p-3 text-xs font-medium text-muted-foreground animate-pulse">
@@ -66,4 +88,4 @@ export function RouletteCelebrationModal({
       </div>
     </div>
   );
-        }
+}
