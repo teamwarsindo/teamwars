@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { RouletteWheel } from "./roulette-wheel";
 import { RouletteCelebrationModal } from "./roulette-celebration-modal";
 import { RouletteGroupList } from "./roulette-group-list";
@@ -41,9 +41,10 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     else if (isGroupBFull && !isGroupAFull) setManualGroup("GROUP_A");
   }, [groupA.length, groupB.length, quotaA, quotaB, isGroupAFull, isGroupBFull]);
 
-  const fetchState = async () => {
+  // Wrap dengan useCallback agar stabil
+  const fetchState = useCallback(async () => {
     try {
-      const res = await fetch("/api/roulette-state");
+      const res = await fetch("/api/roulette-state", { cache: "no-store" });
       const data = await res.json();
       if (!data) return;
 
@@ -54,50 +55,73 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
       setMasterTeams(fetchedMaster);
       if (!isAdmin && data.selectedTargetGroup) setManualGroup(data.selectedTargetGroup);
 
-      if (!isSpinning) {
-        const allocatedNames = new Set([
-          ...fetchedGroupA.map((t) => t.name),
-          ...fetchedGroupB.map((t) => t.name),
-        ]);
+      // Selalu update grup & remaining jika tidak sedang animasi spin lokal
+      const allocatedNames = new Set([
+        ...fetchedGroupA.map((t) => t.name),
+        ...fetchedGroupB.map((t) => t.name),
+      ]);
 
-        const syncedRemaining = (data.remainingTeams && data.remainingTeams.length > 0)
-          ? data.remainingTeams.filter((t: TeamItem) => !allocatedNames.has(t.name))
-          : fetchedMaster.filter((t: TeamItem) => !allocatedNames.has(t.name));
+      const syncedRemaining = (data.remainingTeams && data.remainingTeams.length > 0)
+        ? data.remainingTeams.filter((t: TeamItem) => !allocatedNames.has(t.name))
+        : fetchedMaster.filter((t: TeamItem) => !allocatedNames.has(t.name));
 
-        setRemainingTeams(syncedRemaining);
-        setGroupA(fetchedGroupA);
-        setGroupB(fetchedGroupB);
-      }
-
-      if (!isAdmin && !isSpinning) setCelebrationWinner(data.celebrationWinner || null);
-
+      // 🟢 KUNCI FIX LIVE USER: Deteksi event spin dari Admin
       if (!isAdmin && data.spinEvent) {
         const spinId = data.spinEvent.startTime;
+        
+        // Cek apakah ini spin event baru yang belum diputar di user
         if (spinId !== lastSpinTimeRef.current) {
-          const elapsed = Date.now() - data.spinEvent.startTime;
-          if (elapsed < data.spinEvent.durationMs) {
+          const now = Date.now();
+          const elapsed = Math.max(0, now - data.spinEvent.startTime);
+
+          // Toleransi hingga durationMs + 2000ms untuk clock drift
+          if (elapsed < data.spinEvent.durationMs + 2000) {
             lastSpinTimeRef.current = spinId;
+            
+            // Set data tim yang tersisa SEBELUM diputar agar indeksnya pas
+            setRemainingTeams(syncedRemaining);
             setWinningIndex(data.spinEvent.winningIndex);
             setServerTargetAngle(data.spinEvent.targetAngle);
             setCelebrationWinner(null);
+            
+            // Hitung start time relatif untuk animasi Roda
             setSpinStartTimeMs(performance.now() - elapsed);
             setIsSpinning(true);
           }
         }
       }
+
+      // Sync state dasar jika roda sedang DIAM
+      if (!lastSpinTimeRef.current && !isSpinning) {
+        setRemainingTeams(syncedRemaining);
+        setGroupA(fetchedGroupA);
+        setGroupB(fetchedGroupB);
+        if (!isAdmin) setCelebrationWinner(data.celebrationWinner || null);
+      } else if (!isAdmin && !isSpinning) {
+        // Jika animasi baru selesai di user
+        setGroupA(fetchedGroupA);
+        setGroupB(fetchedGroupB);
+        if (data.celebrationWinner) setCelebrationWinner(data.celebrationWinner);
+      }
+
     } catch (err) {
       console.error("Error fetching state:", err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isAdmin, isSpinning]);
 
-  useEffect(() => { fetchState(); }, []);
+  useEffect(() => { 
+    fetchState(); 
+  }, [fetchState]);
 
+  // 🟢 POLLING INTERVAL TETAP JALAN TIAP 1 DETIK TANPA DIPUTUS DENGAN IS_SPINNING
   useEffect(() => {
-    const interval = setInterval(() => { fetchState(); }, 1000);
+    const interval = setInterval(() => { 
+      fetchState(); 
+    }, 1000);
     return () => clearInterval(interval);
-  }, [isSpinning, isAdmin]);
+  }, [fetchState]);
 
   const saveStateToKV = async (
     newRemaining: TeamItem[],
@@ -172,7 +196,14 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
   const handleSpinEnd = () => {
     if (winningIndex === null) return;
     const selectedTeam = remainingTeams[winningIndex];
-    if (!selectedTeam) return;
+    
+    // Reset spin lock ref di user
+    lastSpinTimeRef.current = null;
+    
+    if (!selectedTeam) {
+      setIsSpinning(false);
+      return;
+    }
 
     const newRemaining = remainingTeams.filter((_, idx) => idx !== winningIndex);
     let newGroupA = [...groupA];
@@ -230,6 +261,7 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
     setCelebrationWinner(null);
     setIsSpinning(false);
     setManualGroup("GROUP_A");
+    lastSpinTimeRef.current = null;
 
     await fetch("/api/roulette-state", { method: "DELETE" }).catch(() => null);
     setIsLoading(false);
@@ -294,7 +326,6 @@ export function RouletteContainer({ isAdmin }: { isAdmin: boolean }) {
               onSpinEnd={handleSpinEnd}
             />
           ) : (
-            /* 🔥 TAMPILAN FINISH SOLID SAMA UKURAN DENGAN RODA */
             <div className="relative flex aspect-square w-full items-center justify-center rounded-full border-4 border-primary/30 bg-card p-6 text-center shadow-2xl backdrop-blur-md">
               <div className="pointer-events-none absolute inset-3 rounded-full border border-primary/20 bg-primary/5 animate-pulse" />
               <div className="z-10 flex flex-col items-center">
