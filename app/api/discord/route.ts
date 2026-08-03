@@ -2,21 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { verifySignature } from '@/lib/discord/utils';
 
-// Slash Commands
+// Slash Commands Bersih (Tanpa prepare & timer tester)
 import { handleReminder } from '@/lib/discord/commands/reminder';
-import { handlePrepare } from '@/lib/discord/commands/prepare';
 import { handleInfo } from '@/lib/discord/commands/info';
-import { handleTimerCommand } from '@/lib/discord/commands/timer';
 import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
 import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
-import { handleCancelBid } from '@/lib/discord/commands/cancel-bid'; // 👈 TAMBAHAN: Handler Batal Bid Admin
+import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
 
-// Button Handlers
+// Button Handlers Bersih
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
 import { handleBtRole } from '@/lib/discord/buttons/btRole';
 import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
-import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 
 // Bidding Module
 import { getBidModal } from '@/lib/discord/buttons/bidding';
@@ -44,13 +41,11 @@ export async function POST(req: NextRequest) {
     if (body.type === 2) {
       const commandName = body.data.name;
       if (commandName === 'reminder') return await handleReminder(body);
-      if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body); 
-      if (commandName === 'timer') return await handleTimerCommand(body);
       if (commandName === 'cek-id') return await handleCekId(body);
       if (commandName === 'blacklist') return await handleBlacklistCommand(body);
       if (commandName === 'cek-roster') return await handleCekRoster(body);
-      if (commandName === 'cancel-bid') return await handleCancelBid(body); // 👈 TAMBAHAN: Route ke Cancel Bid
+      if (commandName === 'cancel-bid') return await handleCancelBid(body);
     }
 
     // 🔘 Button Interactions (Type 3)
@@ -60,9 +55,6 @@ export async function POST(req: NextRequest) {
       if (customId === 'bt_verified') return await handleBtVerified(body);
       if (customId === 'bt_role') return await handleBtRole(body);
       if (customId === 'btn_edit_team') return await handleBtEditTeam(body);
-      if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') {
-        return await handleBtTimer(body);
-      }
 
       // 📜 Tombol Lihat Seluruh Log
       if (customId === 'btn_view_full_log') {
@@ -72,7 +64,6 @@ export async function POST(req: NextRequest) {
       // 🏆 Tombol Bid Group A / B
       if (customId.startsWith('btn_bid_')) {
         const groupTarget = customId.replace('btn_bid_', '');
-
         const data = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null };
 
         const currentA = data.groupA?.amount || 0;
