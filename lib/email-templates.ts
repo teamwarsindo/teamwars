@@ -1,0 +1,284 @@
+// Helper untuk Proper Case
+function toProperCase(str: string) {
+  return str.replace(
+    /\w\S*/g,
+    (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
+  );
+}
+
+// Helper untuk waktu WIB
+function getWIBTime() {
+  return new Date().toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    dateStyle: "long",
+    timeStyle: "medium"
+  }) + " WIB";
+}
+
+// ==========================================
+// TEMPLATE 1: EMAIL PENDAFTARAN AWAL (PENDING)
+// ==========================================
+export function getPesertaTemplate(data: { 
+  namaTim: string; 
+  warna: string; 
+  ketua: any; 
+  wakil: any; 
+  totalRoster: number;
+  logoTim: string;
+  buktiTransfer: string;
+  players: any[];
+}) {
+
+  const submitTime = getWIBTime();
+
+  // Logika Sorting Roster: Ketua (1) -> Wakil Ketua (2) -> Anggota (3)
+  const roleWeights: Record<string, number> = { "Ketua": 1, "Wakil Ketua": 2, "Anggota": 3 };
+  const sortedPlayers = [...data.players].sort((a, b) => {
+    const weightA = roleWeights[a.role] || 99;
+    const weightB = roleWeights[b.role] || 99;
+    return weightA - weightB;
+  });
+
+  return `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background-color: #121212; color: #ffffff; border-radius: 10px; overflow: hidden; border: 2px solid ${data.warna};">
+      
+      <div style="background-color: #000000; padding: 30px 20px; text-align: center; border-bottom: 2px solid ${data.warna};">
+        <h1 style="margin: 0; color: #ffffff; font-size: 24px; letter-spacing: 2px;">TEAM WARS INDONESIA</h1>
+        <p style="margin: 5px 0 0 0; color: #aaaaaa; font-size: 14px;">SEASON 7 REGISTRATION</p>
+      </div>
+      
+      <div style="padding: 30px 20px;">
+        
+        <div style="background-color: rgba(255, 193, 7, 0.1); border: 1px solid #ffc107; color: #ffc107; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 25px; font-weight: bold; letter-spacing: 1px; font-size: 14px;">
+          ⏳ STATUS: PENDING (Menunggu Konfirmasi Tim Finance)
+        </div>
+
+        <h2 style="margin-top: 0; color: #ffffff; font-size: 20px;">Halo, ${toProperCase(data.ketua.namaLengkap)}!</h2>
+        <p style="color: #cccccc; line-height: 1.6; font-size: 15px;">
+          Pendaftaran tim <strong>${data.namaTim}</strong> telah berhasil kami terima pada <strong>${submitTime}</strong>.
+        </p>
+        
+        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #333; border-left: 4px solid ${data.warna};">
+          <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Aset Visual & Pembayaran</h3>
+          
+          <div style="text-align: center; margin-top: 15px; margin-bottom: 15px;">
+            <span style="display: block; color: #aaaaaa; font-size: 12px; margin-bottom: 5px; font-weight: bold;">KODE WARNA TIM</span>
+            <div style="display: inline-block; background-color: ${data.warna}; padding: 5px 15px; border-radius: 4px; color: #fff; text-shadow: 1px 1px 2px #000; font-weight: bold; font-family: monospace; border: 1px solid rgba(255,255,255,0.2);">
+              ${data.warna}
+            </div>
+          </div>
+
+          <table style="width: 100%; margin-top: 15px; table-layout: fixed;">
+            <tr>
+              <td style="text-align: center; width: 50%; padding-right: 5px;">
+                <span style="display: block; color: #aaaaaa; font-size: 12px; margin-bottom: 8px; font-weight: bold;">LOGO TIM</span>
+                <img src="${data.logoTim}" alt="Logo Tim" style="max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; background-color: #000; border: 1px solid #444;" />
+              </td>
+              <td style="text-align: center; width: 50%; padding-left: 5px;">
+                <span style="display: block; color: #aaaaaa; font-size: 12px; margin-bottom: 8px; font-weight: bold;">BUKTI TRANSFER</span>
+                <img src="${data.buktiTransfer}" alt="Bukti Transfer" style="max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain; border: 1px solid #444;" />
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #333; border-left: 4px solid ${data.warna};">
+          <h3 style="margin-top: 0; margin-bottom: 20px; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">Roster Lengkap (${data.totalRoster} Pemain)</h3>
+          
+          ${sortedPlayers.map(p => `
+            <div style="background-color: #292929; border-radius: 8px; padding: 15px; margin-bottom: 12px; border-left: 3px solid #555555;">
+              <div style="margin-bottom: 10px;">
+                <span style="background-color: ${p.role !== 'Anggota' ? data.warna + '33' : '#444444'}; color: ${p.role !== 'Anggota' ? data.warna : '#cccccc'}; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; border: 1px solid ${p.role !== 'Anggota' ? data.warna + '4D' : '#555555'};">
+                  ${p.role}
+                </span>
+              </div>
+              <div style="font-size: 14px; line-height: 1.8;">
+                <strong style="color: #ffffff; font-size: 16px;">${p.namaLengkap}</strong><br>
+                <span style="color: #aaaaaa;">IGN:</span> <span style="color: #ffffff; font-weight: bold;">${p.ign}</span><br>
+                <span style="color: #aaaaaa;">Duel ID:</span> <span style="color: #4facfe; font-family: monospace;">${p.idDuelLinks || p.duelId}</span><br>
+                <span style="color: #aaaaaa;">Discord:</span> <span style="color: #cccccc;">@${p.discord}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <p style="color: #cccccc; line-height: 1.6; font-size: 14px; text-align: center; margin-top: 30px;">
+          Harap tunggu konfirmasi dari tim Finance kami. Jika pembayaran valid, instruksi selanjutnya dan akses ke channel Discord khusus tim kalian akan segera dikirimkan.
+        </p>
+      </div>
+      
+      <div style="background-color: #0a0a0a; padding: 20px; text-align: center; border-top: 2px solid ${data.warna};">
+        <p style="margin: 0; color: #666666; font-size: 12px; line-height: 1.8;">
+          Sistem Registrasi TWI Season 7<br>
+          <strong style="color: #888888;">&copy; 2026 Team Wars Indonesia. All rights reserved.</strong>
+        </p>
+      </div>
+
+    </div>
+  `;
+}
+
+// ==========================================
+// TEMPLATE 2: EMAIL APPROVAL LUNAS & LINK EDIT
+// ==========================================
+export function getApprovalTemplate(data: {
+  namaTim: string;
+  warna: string;
+  namaKetua: string;
+  waktuKonfirmasi: string;
+  editToken: string;
+}) {
+  return `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background-color: #121212; color: #ffffff; border-radius: 10px; overflow: hidden; border: 2px solid ${data.warna};">
+      
+      <!-- HEADER -->
+      <div style="background-color: #000000; padding: 30px 20px; text-align: center; border-bottom: 2px solid ${data.warna};">
+        <h1 style="margin: 0; color: #ffffff; font-size: 24px; letter-spacing: 2px;">TEAM WARS INDONESIA</h1>
+        <p style="margin: 5px 0 0 0; color: #aaaaaa; font-size: 14px;">SEASON 7 REGISTRATION</p>
+      </div>
+      
+      <div style="padding: 30px 20px;">
+        
+        <!-- BANNER STATUS VALID -->
+        <div style="background-color: rgba(76, 175, 80, 0.1); border: 1px solid #4CAF50; color: #4CAF50; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 25px; font-weight: bold; letter-spacing: 1px; font-size: 14px;">
+          ✅ STATUS: APPROVED (Pendaftaran Sah & Valid)
+        </div>
+
+        <!-- GREETING & BODY PESAN -->
+        <h2 style="margin-top: 0; color: #ffffff; font-size: 20px;">Halo, ${toProperCase(data.namaKetua)}!</h2>
+        <p style="color: #cccccc; line-height: 1.6; font-size: 15px;">
+          Pembayaran atas pendaftaran tim <strong>${data.namaTim}</strong> telah berhasil kami verifikasi pada <strong>${data.waktuKonfirmasi}</strong>.
+        </p>
+
+        <!-- INSTRUKSI WAJIB DISCORD -->
+        <div style="background-color: #1e1e1e; padding: 20px; border: 1px solid #333; border-left: 4px solid ${data.warna}; margin: 25px 0; border-radius: 6px;">
+          <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; margin-bottom: 10px;">Langkah Selanjutnya: Wajib Join Discord!</h3>
+          <p style="margin: 0 0 15px 0; color: #cccccc; line-height: 1.6; font-size: 14px;">
+            Harap segera bergabung ke server Discord Team Wars Indonesia untuk mendapatkan <strong>Role Tim</strong> dan akses penuh ke <em>channel</em> khusus tim Anda.
+          </p>
+          
+          <div style="margin-bottom: 15px; text-align: center; background-color: #000; padding: 15px; border-radius: 6px; border: 1px solid #333;">
+            <a href="https://teamwars.web.id/invite" style="background-color: #5865F2; color: #ffffff; padding: 10px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-size: 14px; letter-spacing: 1px; border: 1px solid #4752C4;">JOIN DISCORD TWI SEKARANG</a>
+            <p style="margin: 10px 0 0 0; color: #888888; font-size: 12px;">Atau gunakan link: <a href="https://teamwars.web.id/invite" style="color: #4facfe;">https://teamwars.web.id/invite</a></p>
+          </div>
+          
+          <p style="margin: 0; color: #cccccc; line-height: 1.6; font-size: 13px;">
+            Setelah berhasil bergabung, silakan <em>tag</em> <strong>@Admin Discord</strong> atau hubungi Admin kami via Direct Message (<a href="https://discordapp.com/users/tsaqif.mtz" style="color: #4facfe; text-decoration: none; font-weight: bold;">@tsaqif.mtz</a>) untuk melakukan klaim <em>role</em>.
+          </p>
+        </div>
+
+        <!-- LINK EDIT TOKEN -->
+        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #333; border-left: 4px solid ${data.warna};">
+          <h3 style="margin-top: 0; color: #ffffff; font-size: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">⚙️ Manajemen Roster Tim</h3>
+          <p style="color: #cccccc; font-size: 13px; line-height: 1.6;">
+            Sebagai pengingat, kuota maksimal untuk satu tim adalah <strong>10 pemain</strong> (termasuk Ketua dan Wakil). Anda diberikan akses khusus untuk mengubah data pemain, menambah roster, atau memperbaiki kesalahan penulisan (<em>typo</em>) secara mandiri.
+          </p>
+          
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="https://teamwars.web.id/edit-team/${data.editToken}" style="background-color: #5865F2; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px; letter-spacing: 1px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); border: 1px solid #4752C4;">
+              ✏️ KLIK DISINI UNTUK MENGEDIT ROSTER TIM
+            </a>
+            <p style="margin: 12px 0 0 0; color: #888888; font-size: 11px;">Link ini bersifat rahasia. Jangan bagikan kepada pihak selain manajemen tim Anda.</p>
+          </div>
+          
+          <p style="color: #ff6b6b; font-size: 13px; line-height: 1.6; margin-bottom: 0;">
+            ⚠️ <strong>PERINGATAN KERAS:</strong> Akses tautan ini akan dikunci otomatis saat waktu pendaftaran turnamen ditutup.
+          </p>
+        </div>
+
+      </div>
+      
+      <!-- FOOTER -->
+      <div style="background-color: #0a0a0a; padding: 20px; text-align: center; border-top: 2px solid ${data.warna};">
+        <p style="margin: 0; color: #666666; font-size: 12px; line-height: 1.8;">
+          Sistem Registrasi TWI Season 7<br>
+          <strong style="color: #888888;">&copy; 2026 Team Wars Indonesia. All rights reserved.</strong>
+        </p>
+      </div>
+
+    </div>
+  `;
+}
+
+// ==========================================
+// TEMPLATE 3: EMAIL CLOSING REMINDER (PENUTUPAN)
+// ==========================================
+export function getClosingReminderTemplate(data: {
+  namaTim: string;
+  warna: string;
+  namaKetua: string;
+  editToken: string;
+  sisaWaktuText: string; // Contoh: "2 Hari 5 Jam 30 Menit"
+}) {
+  return `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; background-color: #121212; color: #ffffff; border-radius: 10px; overflow: hidden; border: 2px solid ${data.warna};">
+      
+      <!-- HEADER -->
+      <div style="background-color: #000000; padding: 30px 20px; text-align: center; border-bottom: 2px solid ${data.warna};">
+        <h1 style="margin: 0; color: #ffffff; font-size: 24px; letter-spacing: 2px;">TEAM WARS INDONESIA</h1>
+        <p style="margin: 5px 0 0 0; color: #aaaaaa; font-size: 14px;">SEASON 7 REGISTRATION</p>
+      </div>
+      
+      <div style="padding: 30px 20px;">
+        
+        <!-- BANNER STATUS PERINGATAN -->
+        <div style="background-color: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #f87171; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 25px; font-weight: bold; letter-spacing: 1px; font-size: 14px;">
+          ⚠️ PERINGATAN: PENDAFTARAN AKAN SEGERA DITUTUP!
+        </div>
+
+        <!-- GREETING & BODY PESAN -->
+        <h2 style="margin-top: 0; color: #ffffff; font-size: 20px;">Halo, ${toProperCase(data.namaKetua)}!</h2>
+        <p style="color: #cccccc; line-height: 1.6; font-size: 15px;">
+          Gerbang pendaftaran <strong>Team Wars Indonesia Season 7</strong> akan segera dikunci. Harap pastikan seluruh data tim <strong>${data.namaTim}</strong> sudah siap tempur sebelum waktu habis.
+        </p>
+
+        <!-- COUNTDOWN BOX -->
+        <div style="background-color: #000000; border: 1px solid #ef4444; border-radius: 8px; padding: 20px; text-align: center; margin: 25px 0;">
+          <span style="display: block; color: #aaaaaa; font-size: 12px; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">SISA WAKTU PENDAFTARAN</span>
+          <div style="color: #ef4444; font-size: 24px; font-weight: bold; font-family: monospace; letter-spacing: 1px;">
+            ⏳ ${data.sisaWaktuText}
+          </div>
+        </div>
+
+        <!-- INSTRUKSI PENGECEKAN DATA -->
+        <div style="background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #333; border-left: 4px solid ${data.warna};">
+          <h3 style="margin-top: 0; color: #ffffff; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px;">🔍 Harap Cek Kembali Data Roster Anda:</h3>
+          <ul style="color: #cccccc; font-size: 14px; line-height: 1.8; margin: 15px 0; padding-left: 20px;">
+            <li>Pastikan tidak ada kesalahan penulisan (<em>typo</em>) pada <strong>IGN</strong> dan <strong>Duel Links ID</strong>.</li>
+            <li>Periksa kelengkapan akun <strong>Discord</strong> seluruh anggota roster.</li>
+            <li>Anda masih dapat <strong>menambah atau mengurangi</strong> pemain (maksimal 10 pemain).</li>
+          </ul>
+          
+          <div style="text-align: center; margin: 25px 0 10px 0;">
+            <a href="https://teamwars.web.id/edit-team/${data.editToken}" style="background-color: #5865F2; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px; letter-spacing: 1px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); border: 1px solid #4752C4;">
+              ✏️ PERIKSA / EDIT DATA ROSTER TIM
+            </a>
+            <p style="margin: 12px 0 0 0; color: #888888; font-size: 11px;">Akses tautan ini akan dikunci otomatis saat waktu pendaftaran habis.</p>
+          </div>
+        </div>
+
+        <!-- INFORMASI PERUBAHAN IDENTITAS -->
+        <div style="background-color: rgba(255, 193, 7, 0.08); border: 1px solid #ffc107; padding: 15px; border-radius: 6px; margin: 25px 0;">
+          <p style="margin: 0; color: #ffc107; font-size: 13px; line-height: 1.6;">
+            📢 <strong>PERUBAHAN IDENTITAS UTAMA:</strong> Jika ada perubahan pada <strong>Ketua Tim, Wakil Ketua, Nama Tim, atau Logo</strong>, Anda tidak bisa mengubahnya sendiri via form. Harap segera hubungi Admin Discord (<a href="https://discordapp.com/users/tsaqif.mtz" style="color: #4facfe; text-decoration: underline;">@tsaqif.mtz</a>) atau <strong>balas (reply) email ini secara langsung</strong>.
+          </p>
+        </div>
+
+        <p style="color: #aaaaaa; line-height: 1.6; font-size: 14px; text-align: center; margin-top: 30px;">
+          Sampai jumpa di arena pertandingan TWI Season 7! ⚔️
+        </p>
+
+      </div>
+      
+      <!-- FOOTER -->
+      <div style="background-color: #0a0a0a; padding: 20px; text-align: center; border-top: 2px solid ${data.warna};">
+        <p style="margin: 0; color: #666666; font-size: 12px; line-height: 1.8;">
+          Sistem Registrasi TWI Season 7<br>
+          <strong style="color: #888888;">&copy; 2026 Team Wars Indonesia. All rights reserved.</strong>
+        </p>
+      </div>
+
+    </div>
+  `;
+}
+
