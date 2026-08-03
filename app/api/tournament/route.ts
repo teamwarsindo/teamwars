@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import { calculateStandings } from '@/lib/tournament/calculator';
+import { hasAdminPermission } from '@/lib/auth-rbac';
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
 const KV_KEY_ROULETTE = 'twi:roulette_state';
@@ -17,9 +18,8 @@ export async function GET() {
     const groupA = rawGroupA.map((t: any) => ({ ...t, groupName: 'Group A' }));
     const groupB = rawGroupB.map((t: any) => ({ ...t, groupName: 'Group B' }));
 
-    // Auto-generate jika jadwal belum ada
-    if (schedules.length === 0) {
-      schedules = generateChallongeRoundRobinSchedules(groupA, groupB);
+    if (schedules.length === 0 && (groupA.length > 0 || groupB.length > 0)) {
+      schedules = generateTWSeason7Schedules(groupA, groupB);
       await kv.set(KV_KEY_SCHEDULES, schedules);
     }
 
@@ -41,31 +41,50 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const isAuthorized = await hasAdminPermission(['SUPER_ADMIN', 'MATCH_ADMIN']);
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'Akses ditolak. Khusus Admin Match / Super Admin.' }, { status: 403 });
+    }
+
     const body = await req.json();
-    const { action, matchId, matchDate, scoreA, scoreB } = body;
+    const { action, matchId, matchDate, scoreA, scoreB, report, updatedSchedules } = body;
 
     let schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
-    // 🟢 PAKSA SYNC TIM DARI ROULETTE & REGENERATE JADWAL
     if (action === 'SYNC_ROULETTE' || action === 'FORCE_RESET_SCHEDULES') {
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
       const gA = (rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: 'Group A' }));
       const gB = (rouletteState.groupB || []).map((t: any) => ({ ...t, groupName: 'Group B' }));
 
-      schedules = generateChallongeRoundRobinSchedules(gA, gB);
+      schedules = generateTWSeason7Schedules(gA, gB);
       await kv.set(KV_KEY_SCHEDULES, schedules);
       return NextResponse.json({ success: true, schedules });
+    }
+
+    if (action === 'SAVE_FULL_SCHEDULES' && Array.isArray(updatedSchedules)) {
+      await kv.set(KV_KEY_SCHEDULES, updatedSchedules);
+      return NextResponse.json({ success: true, schedules: updatedSchedules });
     }
 
     if (action === 'UPDATE_MATCH') {
       schedules = schedules.map((match) => {
         if (match.id === matchId) {
+          let calcScoreA = scoreA ?? match.scoreA;
+          let calcScoreB = scoreB ?? match.scoreB;
+
+          // Hitung otomatis skor berdasarkan Match Report jikalau ada
+          if (report && Array.isArray(report.games)) {
+            calcScoreA = report.games.filter((g: any) => g.resultA === 'W').length;
+            calcScoreB = report.games.filter((g: any) => g.resultB === 'W').length;
+          }
+
           return {
             ...match,
             matchDate: matchDate ?? match.matchDate,
-            scoreA: scoreA ?? match.scoreA,
-            scoreB: scoreB ?? match.scoreB,
-            isFinished: scoreA >= 10 || scoreB >= 10,
+            scoreA: calcScoreA,
+            scoreB: calcScoreB,
+            isFinished: calcScoreA >= 10 || calcScoreB >= 10 || (report !== undefined && report !== null),
+            report: report !== undefined ? report : match.report,
           };
         }
         return match;
@@ -80,7 +99,13 @@ export async function POST(req: Request) {
   }
 }
 
-function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): MatchScheduleItem[] {
+/**
+ * 🏆 TWI SEASON 7 ROUND-ROBIN GENERATOR
+ * - Week 1: Mulai 3 Ags 2026, Main Kamis - Minggu (6 - 9 Ags), 1 Match Group A + 1 Match Group B per hari (20:00 WIB).
+ * - Week 2 dst: Main Rabu - Sabtu (20:00 WIB), 1 Match Group A + 1 Match Group B per hari.
+ * - Berputar merata agar setiap tim mengalami hari pertandingan yang berbeda.
+ */
+function generateTWSeason7Schedules(groupA: any[], groupB: any[]): MatchScheduleItem[] {
   const schedules: MatchScheduleItem[] = [];
   let idCounter = 1;
 
@@ -88,7 +113,7 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
     const roundsList: [any, any][][] = [];
     const list = [...teams];
     if (list.length < 2) return roundsList;
-    if (list.length % 2 !== 0) list.push({ name: "BYE", dummy: true });
+    if (list.length % 2 !== 0) list.push({ name: 'BYE', dummy: true });
 
     const numRounds = list.length - 1;
     const half = list.length / 2;
@@ -110,61 +135,76 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
 
   const roundsA = generateRounds(groupA);
   const roundsB = generateRounds(groupB);
-  const totalRounds = Math.max(roundsA.length, roundsB.length);
+  const totalWeeks = Math.max(roundsA.length, roundsB.length);
 
-  const startWednesdayUTC = new Date("2026-08-05T13:00:00.000Z");
+  // Basis Week 1: Senin, 3 Agustus 2026
+  const baseWeek1Monday = new Date('2026-08-03T13:00:00.000Z'); // 20:00 WIB
 
-  for (let r = 0; r < totalRounds; r++) {
-    const roundMatchesA = roundsA[r] || [];
-    const roundMatchesB = roundsB[r] || [];
+  for (let w = 0; w < totalWeeks; w++) {
+    const weekNumber = w + 1;
+    const matchesA = roundsA[w] || [];
+    const matchesB = roundsB[w] || [];
 
-    for (let dayOffset = 0; dayOffset < 4; dayOffset++) {
-      const matchDate = new Date(startWednesdayUTC);
-      matchDate.setDate(matchDate.getDate() + (r * 7) + dayOffset);
+    // Week 1 -> offset hari: Kamis(3), Jumat(4), Sabtu(5), Minggu(6)
+    // Week 2+ -> offset hari: Rabu(2), Kamis(3), Jumat(4), Sabtu(5)
+    const dayOffsets = weekNumber === 1 ? [3, 4, 5, 6] : [2, 3, 4, 5];
 
-      if (dayOffset < roundMatchesA.length) {
-        const pairA = roundMatchesA[dayOffset];
+    const maxDaily = Math.max(matchesA.length, matchesB.length);
+
+    for (let d = 0; d < maxDaily; d++) {
+      const dayIndex = dayOffsets[d % dayOffsets.length];
+      const matchDate = new Date(baseWeek1Monday);
+      matchDate.setDate(matchDate.getDate() + w * 7 + dayIndex);
+
+      if (d < matchesA.length) {
+        const pairA = matchesA[d];
         schedules.push({
           id: `match-${idCounter++}`,
           matchDate: matchDate.toISOString(),
-          stage: "GROUP_STAGE",
-          groupName: "Group A",
+          stage: 'GROUP_STAGE',
+          groupName: 'Group A',
+          weekNumber,
           teamAId: pairA[0].name,
           teamAName: pairA[0].name,
-          teamALogo: pairA[0].logo || "/logo.webp",
+          teamALogo: pairA[0].logo || '/logo.webp',
           teamBId: pairA[1].name,
-          teamBName: pairA[1].name,
-          teamBLogo: pairA[1].logo || "/logo.webp",
+          teamBName: pairBNameOrFallback(pairA[1]),
+          teamBLogo: pairA[1].logo || '/logo.webp',
           scoreA: 0,
           scoreB: 0,
           isFinished: false,
-          referee: "vG®D WHY",
-          streamer: "Alroy_Yuan",
+          referee: 'vG®D WHY',
+          streamer: 'Alroy_Yuan',
         });
       }
 
-      if (dayOffset < roundMatchesB.length) {
-        const pairB = roundMatchesB[dayOffset];
+      if (d < matchesB.length) {
+        const pairB = matchesB[d];
         schedules.push({
           id: `match-${idCounter++}`,
           matchDate: matchDate.toISOString(),
-          stage: "GROUP_STAGE",
-          groupName: "Group B",
+          stage: 'GROUP_STAGE',
+          groupName: 'Group B',
+          weekNumber,
           teamAId: pairB[0].name,
           teamAName: pairB[0].name,
-          teamALogo: pairB[0].logo || "/logo.webp",
+          teamALogo: pairB[0].logo || '/logo.webp',
           teamBId: pairB[1].name,
-          teamBName: pairB[1].name,
-          teamBLogo: pairB[1].logo || "/logo.webp",
+          teamBName: pairBNameOrFallback(pairB[1]),
+          teamBLogo: pairB[1].logo || '/logo.webp',
           scoreA: 0,
           scoreB: 0,
           isFinished: false,
-          referee: "vG®D WHY",
-          streamer: "Alroy_Yuan",
+          referee: 'vG®D WHY',
+          streamer: 'Alroy_Yuan',
         });
       }
     }
   }
 
   return schedules;
+}
+
+function pairBNameOrFallback(teamObj: any): string {
+  return teamObj?.name || 'BYE';
 }
