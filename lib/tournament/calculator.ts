@@ -1,4 +1,4 @@
-import { MatchScheduleItem, TeamStandingItem, PlayerPowerRankingItem } from "@/lib/types/tournament";
+import { MatchScheduleItem, TeamStanding, PlayerPowerRankingItem } from "@/lib/types/tournament";
 
 /**
  * 🏆 Kalkulasi Standings Tim (Group Stage & Global Wildcard)
