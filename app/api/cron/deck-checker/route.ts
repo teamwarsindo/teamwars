@@ -51,9 +51,10 @@ export async function GET(req: Request) {
     const results = [];
 
     for (const channelId of TRACKED_CHANNEL_IDS) {
-      // 1. Fetch Detail Channel
+      // 1. Fetch Detail Channel untuk ambil nama tim & guild_id
       const channelInfo = await discordAPI(`/channels/${channelId}`, 'GET');
       const rawChannelName = channelInfo?.name || 'Unknown Channel';
+      const guildId = channelInfo?.guild_id;
       const teamName = normalizeChannelName(rawChannelName);
 
       // 2. Fetch 100 Pesan Terakhir
@@ -94,7 +95,23 @@ export async function GET(req: Request) {
           if (msgTotalMinutes >= matchKickoffMinutes) continue;
 
           const userId = msg.author.id;
-          const displayName = msg.member?.nick || msg.author.global_name || msg.author.username;
+
+          // 🟢 FITUR DISPLAY NAME PRESISI (Server Nickname > Global Display Name > Username)
+          let displayName = msg.member?.nick || msg.author.global_name || msg.author.username;
+
+          // Jika member.nick belum ada di payload message, coba fetch detail dari Guild Member API
+          if (!msg.member?.nick && guildId) {
+            try {
+              const guildMember = await discordAPI(`/guilds/${guildId}/members/${userId}`, 'GET');
+              if (guildMember?.nick) {
+                displayName = guildMember.nick;
+              } else if (guildMember?.user?.global_name) {
+                displayName = guildMember.user.global_name;
+              }
+            } catch (err) {
+              // Fallback ke displayName awal jika fetch guild member gagal
+            }
+          }
 
           const currentData = playerSubmissions.get(userId) || {
             username: displayName,
@@ -184,7 +201,7 @@ export async function GET(req: Request) {
       let penaltyFieldText = penaltyList.length > 0 ? penaltyList.join('\n') : null;
       const isTeamComplete = totalDecksCollected >= TARGET_TOTAL_DECKS && totalPlayersSubmitted >= TARGET_PLAYERS;
 
-      // 3. Simpan Rekap Data ke Vercel KV
+      // 3. Simpan Rekap Data ke Vercel KV (Lengkap dengan Display Name Baru)
       const kvData = {
         channelId,
         teamName,
@@ -235,14 +252,13 @@ export async function GET(req: Request) {
         timestamp: new Date().toISOString(),
       };
 
-      // 🟢 5. HAPUS PESAN LAMA & KIRIM PESAN BARU (Biar Selalu di Paling Bawah)
+      // 5. Hapus Pesan Lama & Kirim Pesan Baru di Paling Bawah Channel
       const oldMsgId = await kv.get<string>(`msg_rekap:${channelId}`);
       if (oldMsgId) {
         await discordAPI(`/channels/${channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
         await kv.del(`msg_rekap:${channelId}`);
       }
 
-      // Kirim Pesan Baru di Paling Bawah Channel
       const resRekap = await discordAPI(`/channels/${channelId}/messages`, 'POST', {
         embeds: [summaryEmbed],
       });
@@ -257,7 +273,6 @@ export async function GET(req: Request) {
         totalDecks: totalDecksCollected,
         isClosed: isClosedMode,
         remainingControlTime,
-        msgStatus: 'Re-created at bottom',
       });
     }
 
@@ -266,4 +281,5 @@ export async function GET(req: Request) {
     console.error('Error Cron Deck Checker:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+      }
+        
