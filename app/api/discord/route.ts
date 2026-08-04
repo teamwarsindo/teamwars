@@ -1,154 +1,198 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { verifySignature } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { createMatchDiscordChannel } from '@/lib/discord/channels';
+import { revalidatePath } from 'next/cache';
 
-// Slash Commands
-import { handleReminder } from '@/lib/discord/commands/reminder';
-import { handlePrepare } from '@/lib/discord/commands/prepare';
-import { handleInfo } from '@/lib/discord/commands/info';
-import { handleTimerCommand } from '@/lib/discord/commands/timer';
-import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
-import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
-import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
-import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
+// Helper Validasi Slot Hari (Rabu-Minggu & Maks 3 Match/Hari)
+function validateRescheduleSlot(targetDateStr: string, schedules: any[], currentMatchId: string) {
+  const targetDate = new Date(targetDateStr);
+  const dayOfWeek = targetDate.getDay(); // 0 = Minggu, 3 = Rabu, 4 = Kamis, 5 = Jumat, 6 = Sabtu
 
-// Button Handlers
-import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
-import { handleBtRole } from '@/lib/discord/buttons/btRole';
-import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
-import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
+  const allowedDays = [0, 3, 4, 5, 6];
+  if (!allowedDays.includes(dayOfWeek)) {
+    return { valid: false, reason: 'Reschedule hanya diperbolehkan untuk hari Rabu s/d Minggu!' };
+  }
 
-// Bidding Module
-import { getBidModal } from '@/lib/discord/buttons/bidding';
-import { processBidSubmission, handleViewFullLog, KV_BID_KEY, BidStore } from '@/lib/discord/bidding';
+  // Hitung jumlah match di tanggal tersebut (selain match yang sedang di-reschedule)
+  const targetDateISO = targetDate.toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
+  const matchCount = schedules.filter((m) => {
+    if (m.id === currentMatchId) return false;
+    const mDateISO = new Date(m.matchDate).toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
+    return mDateISO === targetDateISO;
+  }).length;
 
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
-export const revalidate = 0;
+  if (matchCount >= 3) {
+    return { valid: false, reason: 'Kuota pertandingan di hari tersebut sudah penuh (Maksimal 3 Match/Hari)!' };
+  }
 
-export async function POST(req: NextRequest) {
+  return { valid: true };
+}
+
+export async function POST(req: Request) {
   try {
-    const rawBody = await req.text();
-    const signature = req.headers.get('x-signature-ed25519');
-    const timestamp = req.headers.get('x-signature-timestamp');
+    const body = await req.json();
 
-    if (!verifySignature(rawBody, signature, timestamp)) {
-      return new NextResponse('Akses Ditolak', { status: 401 });
-    }
-
-    const body = JSON.parse(rawBody);
-
-    // ⚡ Ping Interaction (Type 1)
-    if (body.type === 1) return NextResponse.json({ type: 1 });
-
-    // ⚡ Slash Commands (Type 2)
-    if (body.type === 2) {
-      const commandName = body.data.name;
-      if (commandName === 'reminder') return await handleReminder(body);
-      if (commandName === 'prepare') return await handlePrepare(body);
-      if (commandName === 'info') return await handleInfo(body); 
-      if (commandName === 'timer') return await handleTimerCommand(body);
-      if (commandName === 'cek-id') return await handleCekId(body);
-      if (commandName === 'blacklist') return await handleBlacklistCommand(body);
-      if (commandName === 'cek-roster') return await handleCekRoster(body);
-      if (commandName === 'cancel-bid') return await handleCancelBid(body);
-    }
-
-    // 🔘 Button Interactions (Type 3)
+    // 🟢 INTERACTION HANDLER (Button / Components)
     if (body.type === 3) {
-      const customId = body.data.custom_id;
+      const customId: string = body.data?.custom_id || '';
+      const userId: string = body.member?.user?.id || '';
+      const userRoles: string[] = body.member?.roles || [];
+      const isAdmin = userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
 
-      if (customId === 'bt_verified') return await handleBtVerified(body);
-      if (customId === 'bt_role') return await handleBtRole(body);
-      if (customId === 'btn_edit_team') return await handleBtEditTeam(body);
-      if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') {
-        return await handleBtTimer(body);
-      }
-
-      // 📜 Tombol Lihat Seluruh Log
-      if (customId === 'btn_view_full_log') {
-        return await handleViewFullLog();
-      }
-
-      // 📝 Tombol "Edit Match Report" di Channel Match Discord
+      // ==========================================
+      // 1. EDIT MATCH REPORT (MAGIC LINK WASIT)
+      // ==========================================
       if (customId.startsWith('btn_edit_match_')) {
         const matchId = customId.replace('btn_edit_match_', '');
-        const userId = body.member?.user?.id;
-        const userRoles: string[] = body.member?.roles || [];
+        const isTesting = matchId === 'match-test';
 
-        // Ambil data jadwal dari KV Redis
-        const schedules = (await kv.get<any[]>('twi:schedules')) || [];
-        const match = schedules.find((m) => m.id === matchId);
+        let token = 'test-token-123';
+        let matchName = 'Testing Team Alpha vs Testing Team Beta';
 
-        if (!match) {
-          return NextResponse.json({
-            type: 4,
-            data: {
-              content: '❌ Data pertandingan tidak ditemukan di database.',
-              flags: 64, // Ephemeral (Hanya terlihat oleh user penekan tombol)
-            },
-          });
+        if (!isTesting) {
+          const schedules = (await kv.get<any[]>('twi:schedules')) || [];
+          const match = schedules.find((m) => m.id === matchId);
+
+          if (!match) {
+            return NextResponse.json({
+              type: 4,
+              data: { content: '❌ Data pertandingan tidak ditemukan.', flags: 64 },
+            });
+          }
+
+          const isReferee = match.refereeDiscordId && match.refereeDiscordId === userId;
+          if (!isAdmin && !isReferee) {
+            return NextResponse.json({
+              type: 4,
+              data: {
+                content: '⚠️ **Akses Ditolak!** Tombol ini khusus Wasit bertugas atau Admin.',
+                flags: 64,
+              },
+            });
+          }
+
+          token = match.refereeToken || '';
+          matchName = `${match.teamAName} vs ${match.teamBName}`;
         }
 
-        const isAdmin = userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
-        const isAssignedReferee = match.refereeDiscordId && match.refereeDiscordId === userId;
-
-        // 🛡️ VERIFIKASI HAK AKSES (HANYA ADMIN / WASIT TERDAFTAR ON MATCH)
-        if (!isAdmin && !isAssignedReferee) {
-          return NextResponse.json({
-            type: 4,
-            data: {
-              content: '⚠️ **Akses Ditolak!** Tombol ini hanya dapat diakses oleh Wasit yang bertugas di match ini atau Admin Tournament.',
-              flags: 64, // Ephemeral
-            },
-          });
-        }
-
-        // 🔑 JIKA VERIFIKASI BERHASIL -> KIRIM MAGIC LINK PERTANDINGAN
         const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://teamwars.web.id';
-        const magicUrl = `${hostUrl}/tournament/match-input/${match.id}?token=${match.refereeToken || ''}`;
+        const magicUrl = `${hostUrl}/tournament/match-input/${matchId}?token=${token}`;
 
         return NextResponse.json({
           type: 4,
           data: {
-            content: `🔒 **Akses Referee Console Diberikan**\n\nMatch: **${match.teamAName} vs ${match.teamBName}**\nSilakan klik link berikut untuk membuka halaman input laporan pertandingan:\n🔗 ${magicUrl}\n\n*(Sifat link ini rahasia, jangan bagikan kepada pemain/orang lain)*`,
-            flags: 64, // Ephemeral
+            content: `🔒 **Akses Match Report Console (${matchName})**\n\nSilakan klik link berikut untuk mengisi skor & statistik pertandingan:\n🔗 ${magicUrl}\n\n*(Link ini bersifat rahasia khusus Wasit/Admin)*${isTesting ? '\n\n🧪 **[SANDBOX MODE ACTIVE]**' : ''}`,
+            flags: 64, // Ephemeral (Pesan Rahasia)
           },
         });
       }
 
-      // 🏆 Tombol Bid Group A / B
-      if (customId.startsWith('btn_bid_')) {
-        const groupTarget = customId.replace('btn_bid_', '');
+      // ==========================================
+      // 2. REQUEST RESCHEDULE
+      // ==========================================
+      if (customId.startsWith('btn_request_reschedule_')) {
+        const matchId = customId.replace('btn_request_reschedule_', '');
+        const isTesting = matchId === 'match-test';
 
-        const data = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null };
+        return NextResponse.json({
+          type: 4,
+          data: {
+            content: `📅 **Ketentuan Reschedule Pertandingan**\n\n` +
+              `1. Diskusikan dan sepakati jadwal baru bersama tim lawan.\n` +
+              `2. Jadwal yang diperbolehkan: **Hari Rabu s/d Minggu** (Maksimal **3 Match/Hari**).\n` +
+              `3. Jika sudah menemukan kesepakatan fix, silakan laporkan ke **Admin Tournament** untuk pembaruan resmi di Website & Discord.${isTesting ? '\n\n🧪 **[SANDBOX MODE ACTIVE]**' : ''}`,
+            flags: 64,
+          },
+        });
+      }
 
-        const currentA = data.groupA?.amount || 0;
-        const currentB = data.groupB?.amount || 0;
+      // ==========================================
+      // 3. CONFIRM/APPROVE RESCHEDULE (UPDATE JADWAL WEB)
+      // ==========================================
+      if (customId.startsWith('btn_confirm_reschedule_')) {
+        // Format Custom ID: btn_confirm_reschedule_[MATCH_ID]_[NEW_ISO_DATE]
+        const parts = customId.split('_');
+        const matchId = parts[2];
+        const newDateIso = parts[3];
+        const isTesting = matchId === 'match-test';
 
-        const minAmountA = currentA === 0 ? 110000 : currentA + 10000;
-        const minAmountB = currentB === 0 ? 110000 : currentB + 10000;
+        if (isTesting) {
+          return NextResponse.json({
+            type: 4,
+            data: {
+              content: `🎉 **[TESTING RESCHEDULE SUCCESS]** Simulasi persetujuan jadwal baru berhasil! Jadwal diperbarui ke: **${new Date(newDateIso).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB**. (Data KV Redis resmi tidak disentuh).`,
+              flags: 64,
+            },
+          });
+        }
 
-        const minAmount = groupTarget === "A" ? minAmountA : minAmountB;
+        // --- PRODUCTION RESCHEDULE FLOW ---
+        const schedules = (await kv.get<any[]>('twi:schedules')) || [];
+        const matchIndex = schedules.findIndex((m) => m.id === matchId);
 
-        return NextResponse.json(getBidModal(groupTarget, minAmount));
+        if (matchIndex === -1) {
+          return NextResponse.json({
+            type: 4,
+            data: { content: '❌ Data pertandingan tidak ditemukan di KV Redis.', flags: 64 },
+          });
+        }
+
+        // Validasi Slot Hari & Kuota
+        const slotValidation = validateRescheduleSlot(newDateIso, schedules, matchId);
+        if (!slotValidation.valid) {
+          return NextResponse.json({
+            type: 4,
+            data: { content: `⚠️ **Reschedule Gagal:** ${slotValidation.reason}`, flags: 64 },
+          });
+        }
+
+        // 🟢 1. UPDATE DATA JADWAL DI DATABASE KV REDIS
+        schedules[matchIndex].matchDate = newDateIso;
+        await kv.set('twi:schedules', schedules);
+
+        // 🟢 2. REVALIDATE PATH SUPAYA TAMPILAN JADWAL DI WEB PUBLIK & ADMIN LANGSUNG BERUBAH
+        revalidatePath('/tournament');
+        revalidatePath('/admin/dashboard');
+
+        // 🟢 3. SYNC/UPDATE EMBED DISCORD DENGAN JADWAL BARU
+        const match = schedules[matchIndex];
+        await createMatchDiscordChannel({
+          matchId: match.id,
+          teamAName: match.teamAName,
+          teamBName: match.teamBName,
+          weekName: `Week ${match.calculatedWeekNumber || 1}`,
+          matchDateIso: match.matchDate,
+          refereeName: match.referee,
+          refereeDiscordId: match.refereeDiscordId,
+          streamerName: match.streamer,
+          streamerDiscordId: match.caster,
+          streamLink: match.streamLink,
+          isSync: true, // Re-sync embed tanpa ping role ulang
+        });
+
+        const formattedDateWIB = new Date(newDateIso).toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Asia/Jakarta',
+        });
+
+        return NextResponse.json({
+          type: 4,
+          data: {
+            content: `🎉 **Reschedule Disetujui & Resmi Berubah!**\nJadwal **${match.teamAName} vs ${match.teamBName}** telah diperbarui di Website & Discord menjadi:\n📅 **${formattedDateWIB} WIB**.`,
+          },
+        });
       }
     }
 
-    // 📝 Modal Submit Interactions (Type 5)
-    if (body.type === 5) {
-      const customId = body.data.custom_id;
-
-      if (customId.startsWith('modal_bid_')) {
-        return await processBidSubmission(body);
-      }
-    }
-
-    return new NextResponse('Unknown Interaction', { status: 400 });
-
-  } catch (error) {
-    console.error('Error Webhook DC:', error);
-    return new NextResponse('Internal Error', { status: 500 });
+    return NextResponse.json({ type: 1 }); // PING / PONG Discord Webhook
+  } catch (err) {
+    console.error('Discord Webhook Error:', err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
-}
+        }
