@@ -1,7 +1,49 @@
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
 
-// Helper Fallback Singkatan jika kodeTim di KV kosong
+// 🟢 CREATION: Text Channel Tim Pendaftaran
+export async function createDiscordChannel(teamName: string, roleId: string) {
+  const guildId = DISCORD_CONFIG.GUILD_ID; 
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
+
+  if (!guildId || !roleId) return null;
+
+  const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
+    name: teamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+    type: 0, 
+    parent_id: parentCategoryId,
+    permission_overwrites: [
+      { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
+      { id: roleId, type: 0, allow: "3072", deny: "139280" },
+      { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }
+    ]
+  });
+
+  return data?.id || null;
+}
+
+// 🟢 CREATION: Voice Channel Tim Pendaftaran
+export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
+  const guildId = DISCORD_CONFIG.GUILD_ID; 
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
+
+  if (!guildId || !roleId) return null;
+
+  const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
+    name: teamName, 
+    type: 2, 
+    parent_id: parentCategoryId,
+    permission_overwrites: [
+      { id: guildId, type: 0, deny: "1049600" },
+      { id: roleId, type: 0, allow: "1049600" },
+      { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "1049616" }
+    ]
+  });
+
+  return data?.id || null;
+}
+
+// 🟢 HELPER: Fallback singkatan jika kodeTim belum diset di Redis
 function getFallbackAbbreviation(teamName: string): string {
   const words = teamName.trim().split(/\s+/);
   if (words.length > 1) {
@@ -10,12 +52,13 @@ function getFallbackAbbreviation(teamName: string): string {
   return teamName.substring(0, 4).toLowerCase();
 }
 
+// 🟢 GENERATE / SYNC MATCH DISCORD CHANNEL & EMBED
 export async function createMatchDiscordChannel(params: {
   matchId: string;
   teamAName: string;
   teamBName: string;
-  kodeTimA?: string; // 👈 Properti baru dari Redis
-  kodeTimB?: string; // 👈 Properti baru dari Redis
+  kodeTimA?: string;
+  kodeTimB?: string;
   weekName?: string;
   roleAId?: string;
   roleBId?: string;
@@ -32,14 +75,13 @@ export async function createMatchDiscordChannel(params: {
 
   if (!guildId) return null;
 
-  // Utamakan kodeTim dari KV Redis, jika tidak ada baru gunakan Fallback
   const abbrA = params.kodeTimA || getFallbackAbbreviation(params.teamAName);
   const abbrB = params.kodeTimB || getFallbackAbbreviation(params.teamBName);
 
   const cleanMatchNum = params.matchId.replace('match-', '');
   const targetChannelName = `⚔️-m${cleanMatchNum}-${abbrA}-${abbrB}`;
 
-  // 1. Cek apakah channel sudah ada (Cegah Duplikat)
+  // 1. Cek Apakah Channel Sudah Ada
   const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
   let channelId: string | null = null;
 
@@ -52,10 +94,10 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 2. Permission Overwrites (Role Tim TETAP MASUK tapi View Channel = DENY)
+  // 2. Permission Overwrites (Deny @everyone & Role Tim Terkait)
   const permission_overwrites: any[] = [
-    { id: guildId, type: 0, deny: "1024" }, // Deny @everyone
-    { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }, // Bot Full Access
+    { id: guildId, type: 0, deny: "1024" },
+    { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" },
   ];
 
   if (params.roleAId) {
@@ -83,7 +125,7 @@ export async function createMatchDiscordChannel(params: {
 
   if (!channelId) return null;
 
-  // 4. Bersihkan pesan bot lama
+  // 4. Bersihkan Pesan Bot Lama
   const existingMessages = await discordAPI(`/channels/${channelId}/messages?limit=10`, 'GET');
   if (Array.isArray(existingMessages)) {
     for (const msg of existingMessages) {
@@ -157,4 +199,28 @@ export async function createMatchDiscordChannel(params: {
   await discordAPI(`/channels/${channelId}/messages`, 'POST', embedPayload);
 
   return channelId;
+}
+
+// 🟢 DELETE MATCH DISCORD CHANNEL
+export async function deleteMatchDiscordChannel(matchId: string, teamAName: string, teamBName: string) {
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+  const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
+
+  if (!guildId) return false;
+
+  const cleanMatchNum = matchId.replace('match-', '');
+  const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
+
+  if (Array.isArray(allGuildChannels)) {
+    const existingChannel = allGuildChannels.find(
+      (ch: any) => ch.parent_id === parentCategoryId && ch.name.includes(`-m${cleanMatchNum}-`)
+    );
+
+    if (existingChannel) {
+      await discordAPI(`/channels/${existingChannel.id}`, 'DELETE');
+      return true;
+    }
+  }
+
+  return false;
 }
