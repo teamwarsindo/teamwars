@@ -101,11 +101,4 @@ export async function sendOrUpdateOpeningEmbed(params: {
   }).catch(() => null);
 
   const newMsgId = res?.id || null;
-
-  // 9. AUTO-PIN PESAN BARU DI CHANNEL MATCH
-  if (newMsgId) {
-    await discordAPI(`/channels/${params.channelId}/pins/${newMsgId}`, 'PUT').catch(() => null);
-  }
-
-  return newMsgId;
 }
