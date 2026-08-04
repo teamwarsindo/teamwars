@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
     const match = schedules[matchIndex];
 
-    // Ambil Data Role Tim A & B untuk Revoke Role Wasit
+    // Ambil Data Role Tim A & B dari KV untuk keperluan revoke role Wasit
     const [teamA, teamB] = await Promise.all([
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamAName)}`),
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamBName)}`),
@@ -39,7 +39,8 @@ export async function POST(req: Request) {
     const roleAId = teamA?.discordRoleId;
     const roleBId = teamB?.discordRoleId;
 
-    // 1. EXECUTE HAPUS CHANNEL MATCH DISCORD & CABUT ROLE WASIT
+    // 1. EXECUTE HAPUS CHANNEL DISCORD & REVOKE ROLE WASIT
+    // Seluruh error Discord API (404 Unknown Channel / Unknown Member) di-catch di fungsi ini agar tidak menghentikan alur
     await deleteMatchDiscordChannel({
       matchId: match.id,
       savedChannelId: (match as any).discordChannelId,
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
       roleBId,
     });
 
-    // 2. HERSIHKAN RECORD DISCORD DARI REDIS (Set to null)
+    // 2. HERSIHKAN RECORD DISCORD DI KV REDIS (Pasti Dieksekusi)
     (match as any).discordChannelId = null;
     (match as any).openingMsgId = null;
 
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Channel match ${match.id} berhasil dihapus dari Discord dan ID Redis telah dibersihkan!`,
+      message: `Pembersihan berhasil! Record Discord pada match ${match.id} di KV Redis dan perizinan terkait telah dibersihkan.`,
     });
   } catch (error) {
     console.error('Error Delete Match Channel:', error);
