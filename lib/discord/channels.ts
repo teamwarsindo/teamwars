@@ -1,16 +1,26 @@
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
+import { sendOrUpdateOpeningEmbed } from './messages/opening';
+import { sendOrUpdateStreamerEmbed } from './messages/streamer';
+
+function getFallbackAbbreviation(teamName: string): string {
+  const words = teamName.trim().split(/\s+/);
+  if (words.length > 1) {
+    return words.map((w) => w[0]).join('').toLowerCase();
+  }
+  return teamName.substring(0, 4).toLowerCase();
+}
 
 // 🟢 CREATION: Text Channel Tim Pendaftaran
 export async function createDiscordChannel(teamName: string, roleId: string) {
-  const guildId = DISCORD_CONFIG.GUILD_ID; 
-  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID;
 
   if (!guildId || !roleId) return null;
 
   const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
     name: teamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-    type: 0, 
+    type: 0,
     parent_id: parentCategoryId,
     permission_overwrites: [
       { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
@@ -24,14 +34,14 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
 
 // 🟢 CREATION: Voice Channel Tim Pendaftaran
 export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
-  const guildId = DISCORD_CONFIG.GUILD_ID; 
-  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID;
 
   if (!guildId || !roleId) return null;
 
   const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
-    name: teamName, 
-    type: 2, 
+    name: teamName,
+    type: 2,
     parent_id: parentCategoryId,
     permission_overwrites: [
       { id: guildId, type: 0, deny: "1049600" },
@@ -43,16 +53,7 @@ export async function createDiscordVoiceChannel(teamName: string, roleId: string
   return data?.id || null;
 }
 
-// 🟢 HELPER: Fallback singkatan jika kodeTim belum diset di Redis
-function getFallbackAbbreviation(teamName: string): string {
-  const words = teamName.trim().split(/\s+/);
-  if (words.length > 1) {
-    return words.map((w) => w[0]).join('').toLowerCase();
-  }
-  return teamName.substring(0, 4).toLowerCase();
-}
-
-// 🟢 GENERATE / SYNC MATCH DISCORD CHANNEL & EMBED
+// 🟢 GENERATE / SYNC MATCH DISCORD CHANNEL & EMBEDS
 export async function createMatchDiscordChannel(params: {
   matchId: string;
   teamAName: string;
@@ -68,12 +69,13 @@ export async function createMatchDiscordChannel(params: {
   streamerDiscordId?: string;
   streamLink?: string;
   matchDateIso?: string;
-  isSync?: boolean;
-}) {
+  openingMsgId?: string;
+  streamerMsgId?: string;
+}): Promise<{ channelId: string | null; openingMsgId?: string | null; streamerMsgId?: string | null }> {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
 
-  if (!guildId) return null;
+  if (!guildId) return { channelId: null };
 
   const abbrA = params.kodeTimA || getFallbackAbbreviation(params.teamAName);
   const abbrB = params.kodeTimB || getFallbackAbbreviation(params.teamBName);
@@ -94,21 +96,43 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 2. Permission Overwrites (Deny @everyone & Role Tim Terkait)
+  // 2. OTOMATISASI ROLE WASIT KE CAMP TIM (JIKA REFEREE DISCORD ID SUDAH ADA)
+  if (params.refereeDiscordId) {
+    if (params.roleAId) {
+      await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleAId}`, 'PUT').catch(() => null);
+    }
+    if (params.roleBId) {
+      await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleBId}`, 'PUT').catch(() => null);
+    }
+  }
+
+  // 🔒 PERMISSION OVERWRITES MATRIX:
+  // Tim: View(1024) + Send(2048) + History(65536) + Attach Files/Images(524288) = "592896"
+  // Tim DENY: Mention Everyone(131072) + Manage Messages(8192) = "139264"
+  const TEAM_ALLOW_FLAGS = "592896";
+  const TEAM_DENY_FLAGS = "139264";
+
+  // Admin / Bot / Wasit / Streamer: FULL ACCESS = "805306368"
+  const FULL_ALLOW_FLAGS = "805306368";
+
   const permission_overwrites: any[] = [
-    { id: guildId, type: 0, deny: "1024" },
-    { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" },
+    { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
+    { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: FULL_ALLOW_FLAGS },
   ];
 
   if (params.roleAId) {
-    permission_overwrites.push({ id: params.roleAId, type: 0, deny: "1024" });
+    permission_overwrites.push({ id: params.roleAId, type: 0, allow: TEAM_ALLOW_FLAGS, deny: TEAM_DENY_FLAGS });
   }
   if (params.roleBId) {
-    permission_overwrites.push({ id: params.roleBId, type: 0, deny: "1024" });
+    permission_overwrites.push({ id: params.roleBId, type: 0, allow: TEAM_ALLOW_FLAGS, deny: TEAM_DENY_FLAGS });
   }
 
-  if (params.refereeDiscordId) permission_overwrites.push({ id: params.refereeDiscordId, type: 1, allow: "3072" });
-  if (params.streamerDiscordId) permission_overwrites.push({ id: params.streamerDiscordId, type: 1, allow: "3072" });
+  if (params.refereeDiscordId) {
+    permission_overwrites.push({ id: params.refereeDiscordId, type: 1, allow: FULL_ALLOW_FLAGS });
+  }
+  if (params.streamerDiscordId) {
+    permission_overwrites.push({ id: params.streamerDiscordId, type: 1, allow: FULL_ALLOW_FLAGS });
+  }
 
   // 3. Create / Update Channel
   if (!channelId) {
@@ -123,86 +147,48 @@ export async function createMatchDiscordChannel(params: {
     await discordAPI(`/channels/${channelId}`, 'PATCH', { permission_overwrites }).catch(() => null);
   }
 
-  if (!channelId) return null;
+  if (!channelId) return { channelId: null };
 
-  // 4. Bersihkan Pesan Bot Lama
-  const existingMessages = await discordAPI(`/channels/${channelId}/messages?limit=10`, 'GET');
-  if (Array.isArray(existingMessages)) {
-    for (const msg of existingMessages) {
-      if (msg.author?.id === DISCORD_CONFIG.BOT_ROLE_ID || msg.embeds?.length > 0) {
-        await discordAPI(`/channels/${channelId}/messages/${msg.id}`, 'DELETE').catch(() => null);
-      }
-    }
-  }
+  // 4. Send / Update Opening Embed di Channel Match
+  const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
+    channelId,
+    matchId: params.matchId,
+    teamAName: params.teamAName,
+    teamBName: params.teamBName,
+    weekName: params.weekName,
+    matchDateIso: params.matchDateIso,
+    refereeName: params.refereeName,
+    refereeDiscordId: params.refereeDiscordId,
+    streamerName: params.streamerName,
+    streamerDiscordId: params.streamerDiscordId,
+    streamLink: params.streamLink,
+    existingMsgId: params.openingMsgId,
+  });
 
-  // 5. Format Dynamic Teks
-  const formattedWIB = params.matchDateIso
-    ? new Date(params.matchDateIso).toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Asia/Jakarta',
-      }) + ' WIB'
-    : 'Jadwal Belum Ditentukan';
+  // 5. Send / Update Streamer Embed di Channel Streamer
+  const newStreamerMsgId = await sendOrUpdateStreamerEmbed({
+    matchChannelId: channelId,
+    matchId: params.matchId,
+    teamAName: params.teamAName,
+    teamBName: params.teamBName,
+    matchDateIso: params.matchDateIso,
+    refereeName: params.refereeName,
+    refereeDiscordId: params.refereeDiscordId,
+    streamerName: params.streamerName,
+    streamerDiscordId: params.streamerDiscordId,
+    streamLink: params.streamLink,
+    existingMsgId: params.streamerMsgId,
+  });
 
-  const refereeDisplay = params.refereeDiscordId 
-    ? `<@${params.refereeDiscordId}> (${params.refereeName || 'Wasit'})` 
-    : (params.refereeName && params.refereeName.trim() !== '' ? params.refereeName : 'Belum Ditugaskan');
-
-  const streamerDisplay = params.streamerDiscordId 
-    ? `<@${params.streamerDiscordId}> (${params.streamerName || 'Streamer'})` 
-    : (params.streamerName && params.streamerName.trim() !== '' ? params.streamerName : 'Belum Ditugaskan');
-
-  // 6. Embed Payload
-  const embedPayload: any = {
-    embeds: [
-      {
-        title: `🏆 Group Stage - ${params.weekName || 'Week 1'}`,
-        color: 0x00d2ff,
-        description: `**${params.teamAName}** VS **${params.teamBName}**\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
-        fields: [
-          { name: '📅 Jadwal Pertandingan', value: formattedWIB, inline: false },
-          { name: '⚖️ Wasit Bertugas', value: refereeDisplay, inline: true },
-          { name: '🎥 Streamer', value: streamerDisplay, inline: true },
-          { name: '📺 Live Stream', value: params.streamLink ? `[Nonton Live Streaming](${params.streamLink})` : '-', inline: false },
-          { name: '📢 Informasi Reschedule', value: 'Diskusikan jadwal baru bersama tim lawan. Klik tombol **Ajukan Reschedule** di bawah jika ingin mengajukan perubahan waktu.', inline: false },
-        ],
-        footer: { text: 'Team Wars Indonesia Season 7' },
-      },
-    ],
-    components: [
-      {
-        type: 1,
-        components: [
-          {
-            type: 2,
-            style: 1,
-            label: 'Edit Match Report',
-            custom_id: `btn_edit_match_${params.matchId}`,
-            emoji: { name: '📝' },
-          },
-          {
-            type: 2,
-            style: 2,
-            label: 'Ajukan Reschedule',
-            custom_id: `btn_request_reschedule_${params.matchId}`,
-            emoji: { name: '📅' },
-          },
-        ],
-      },
-    ],
+  return {
+    channelId,
+    openingMsgId: newOpeningMsgId || params.openingMsgId,
+    streamerMsgId: newStreamerMsgId || params.streamerMsgId,
   };
-
-  await discordAPI(`/channels/${channelId}/messages`, 'POST', embedPayload);
-
-  return channelId;
 }
 
 // 🟢 DELETE MATCH DISCORD CHANNEL
-export async function deleteMatchDiscordChannel(matchId: string, teamAName: string, teamBName: string) {
+export async function deleteMatchDiscordChannel(matchId: string): Promise<boolean> {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
 

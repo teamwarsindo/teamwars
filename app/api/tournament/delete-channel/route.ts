@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Data match tidak ditemukan di Redis' }, { status: 404 });
     }
 
-    const deleted = await deleteMatchDiscordChannel(match.id, match.teamAName, match.teamBName);
+    const deleted = await deleteMatchDiscordChannel(match.id);
 
     if (deleted) {
       return NextResponse.json({ success: true, message: `Channel Discord untuk ${match.id} berhasil dihapus!` });

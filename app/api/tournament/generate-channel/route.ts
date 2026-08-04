@@ -34,7 +34,6 @@ export async function POST(req: Request) {
     }
 
     const results = [];
-    const isSync = !matchIds;
     let isScheduleUpdated = false;
 
     for (const mId of targetMatchIds) {
@@ -45,7 +44,6 @@ export async function POST(req: Request) {
 
       if (!match.refereeToken) {
         match.refereeToken = generateRandomToken(16);
-        schedules[matchIndex] = match;
         isScheduleUpdated = true;
       }
 
@@ -57,10 +55,10 @@ export async function POST(req: Request) {
 
       const roleAId = teamA?.discordRoleId;
       const roleBId = teamB?.discordRoleId;
-      const kodeTimA = teamA?.kodeTim; // 👈 Baca field kodeTim
-      const kodeTimB = teamB?.kodeTim; // 👈 Baca field kodeTim
+      const kodeTimA = teamA?.kodeTim;
+      const kodeTimB = teamB?.kodeTim;
 
-      const channelId = await createMatchDiscordChannel({
+      const syncResult = await createMatchDiscordChannel({
         matchId: match.id,
         teamAName: match.teamAName,
         teamBName: match.teamBName,
@@ -71,17 +69,25 @@ export async function POST(req: Request) {
         refereeName: match.referee,
         refereeDiscordId: match.refereeDiscordId,
         streamerName: match.streamer,
-        streamerDiscordId: match.caster,
+        streamerDiscordId: (match as any).caster || match.streamer,
         streamLink: match.streamLink,
         roleAId,
         roleBId,
-        isSync,
+        openingMsgId: (match as any).openingMsgId,
+        streamerMsgId: (match as any).streamerMsgId,
       });
 
-      results.push({ matchId: mId, success: !!channelId, channelId });
+      if (syncResult.channelId) {
+        if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
+        if (syncResult.streamerMsgId) (match as any).streamerMsgId = syncResult.streamerMsgId;
+        schedules[matchIndex] = match;
+        isScheduleUpdated = true;
+      }
+
+      results.push({ matchId: mId, success: !!syncResult.channelId, channelId: syncResult.channelId });
 
       if (targetMatchIds.length > 1) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 400));
       }
     }
 
