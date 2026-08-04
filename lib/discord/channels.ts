@@ -1,7 +1,49 @@
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
 
-// Helper: Singkatan nama tim (misal: "Final Chapter" -> "fc")
+// 🟢 CREATION: Text Channel Tim
+export async function createDiscordChannel(teamName: string, roleId: string) {
+  const guildId = DISCORD_CONFIG.GUILD_ID; 
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
+
+  if (!guildId || !roleId) return null;
+
+  const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
+    name: teamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+    type: 0, 
+    parent_id: parentCategoryId,
+    permission_overwrites: [
+      { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
+      { id: roleId, type: 0, allow: "3072", deny: "139280" },
+      { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }
+    ]
+  });
+
+  return data?.id || null;
+}
+
+// 🟢 CREATION: Voice Channel Tim
+export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
+  const guildId = DISCORD_CONFIG.GUILD_ID; 
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
+
+  if (!guildId || !roleId) return null;
+
+  const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
+    name: teamName, 
+    type: 2, 
+    parent_id: parentCategoryId,
+    permission_overwrites: [
+      { id: guildId, type: 0, deny: "1049600" },
+      { id: roleId, type: 0, allow: "1049600" },
+      { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "1049616" }
+    ]
+  });
+
+  return data?.id || null;
+}
+
+// 🟢 HELPER: Singkatan nama tim (misal: "Final Chapter" -> "fc")
 function getTeamAbbreviation(teamName: string): string {
   const words = teamName.trim().split(/\s+/);
   if (words.length > 1) {
@@ -10,14 +52,19 @@ function getTeamAbbreviation(teamName: string): string {
   return teamName.substring(0, 4).toLowerCase();
 }
 
-// Helper: Berikan Role Tim ke Wasit jika diperlukan
+// 🟢 HELPER: Berikan Role Tim A & Tim B ke User Wasit
 export async function assignTeamRolesToReferee(guildId: string, refereeUserId?: string, roleAId?: string, roleBId?: string) {
   if (!refereeUserId || !guildId) return;
-  if (roleAId) await discordAPI(`/guilds/${guildId}/members/${refereeUserId}/roles/${roleAId}`, 'PUT').catch(() => null);
-  if (roleBId) await discordAPI(`/guilds/${guildId}/members/${refereeUserId}/roles/${roleBId}`, 'PUT').catch(() => null);
+
+  if (roleAId) {
+    await discordAPI(`/guilds/${guildId}/members/${refereeUserId}/roles/${roleAId}`, 'PUT').catch(() => null);
+  }
+  if (roleBId) {
+    await discordAPI(`/guilds/${guildId}/members/${refereeUserId}/roles/${roleBId}`, 'PUT').catch(() => null);
+  }
 }
 
-// 🟢 GENERATE / SYNC MATCH CHANNEL & EMBED (PRODUCTION MODE)
+// 🟢 GENERATE / SYNC MATCH DISCORD CHANNEL & EMBED (PRODUCTION MODE)
 export async function createMatchDiscordChannel(params: {
   matchId: string;
   teamAName: string;
@@ -42,7 +89,7 @@ export async function createMatchDiscordChannel(params: {
   const cleanMatchNum = params.matchId.replace('match-', '');
   const targetChannelName = `⚔️-m${cleanMatchNum}-${getTeamAbbreviation(params.teamAName)}-${getTeamAbbreviation(params.teamBName)}`;
 
-  // 1. CEK DULU APAKAH CHANNEL SUDAH ADA DI DISCORD (PENCEGAHAN DUPLIKAT)
+  // 1. CEK DULU APAKAH CHANNEL SUDAH ADA DI DISCORD (PENCEGAHAN DUPLIKAT!)
   const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
   let channelId: string | null = null;
 
@@ -52,7 +99,7 @@ export async function createMatchDiscordChannel(params: {
     );
 
     if (existingChannel) {
-      channelId = existingChannel.id; // Gunakan channel yang sudah ada
+      channelId = existingChannel.id; // Gunakan channel lama yang sudah ada
     }
   }
 
@@ -70,7 +117,7 @@ export async function createMatchDiscordChannel(params: {
     permission_overwrites.push({ id: params.roleBId, type: 0, deny: "1024" });
   }
 
-  // Izinkan Wasit & Streamer jika Discord ID diisi
+  // Izinkan Wasit & Streamer jika Discord ID terisi
   if (params.refereeDiscordId) {
     permission_overwrites.push({ id: params.refereeDiscordId, type: 1, allow: "3072" });
   }
@@ -78,7 +125,7 @@ export async function createMatchDiscordChannel(params: {
     permission_overwrites.push({ id: params.streamerDiscordId, type: 1, allow: "3072" });
   }
 
-  // 3. JIKA CHANNEL BELUM ADA, BUAT BARU
+  // 3. JIKA CHANNEL BELUM ADA, BUAT BARU. JIKA SUDAH ADA, UPDATE PERMISSION
   if (!channelId) {
     const createdData = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
       name: targetChannelName,
@@ -89,13 +136,18 @@ export async function createMatchDiscordChannel(params: {
 
     channelId = createdData?.id || null;
   } else {
-    // Update permission pada channel yang sudah ada
+    // Update permission channel lama agar tetap terkunci
     await discordAPI(`/channels/${channelId}`, 'PATCH', { permission_overwrites }).catch(() => null);
   }
 
   if (!channelId) return null;
 
-  // 4. BERSUHKAN PESAN BOT LAMA DI CHANNEL
+  // Assign Role Tim ke Wasit jika diisi
+  if (params.refereeDiscordId) {
+    await assignTeamRolesToReferee(guildId, params.refereeDiscordId, params.roleAId, params.roleBId);
+  }
+
+  // 4. BERSIHKAN PESAN BOT LAMA DI CHANNEL
   const existingMessages = await discordAPI(`/channels/${channelId}/messages?limit=10`, 'GET');
   if (Array.isArray(existingMessages)) {
     for (const msg of existingMessages) {
@@ -105,7 +157,7 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 5. PENENTUAN NOTIFIKASI MENTION/PING
+  // 5. PENENTUAN NOTIFIKASI MENTION/PING (Hanya saat Generate, tidak saat Sync)
   let contentText: string | undefined = undefined;
   if (!params.isSync) {
     const roleMentions = [
@@ -177,7 +229,7 @@ export async function createMatchDiscordChannel(params: {
   return channelId;
 }
 
-// 🟢 DELETE MATCH DISCORD CHANNEL (API HAPUS CHANNEL MATCH)
+// 🟢 DELETE MATCH DISCORD CHANNEL (Fungsi Hapus Channel dari Discord)
 export async function deleteMatchDiscordChannel(matchId: string, teamAName: string, teamBName: string) {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
