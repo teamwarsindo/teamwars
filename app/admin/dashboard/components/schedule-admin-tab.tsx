@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { MatchScheduleItem } from '@/lib/types/tournament';
+import { SandboxTestCard } from './sandbox-test-card';
 import Swal from 'sweetalert2';
 
-// 🟢 HELPER: Menghitung Senin Awal Minggu (00:00:00 WIB)
 function getMondayOfWeek(d: Date): Date {
   const date = new Date(d);
   const day = date.getDay();
@@ -14,31 +14,17 @@ function getMondayOfWeek(d: Date): Date {
   return monday;
 }
 
-// Helper Konversi ISO UTC -> YYYY-MM-DDTHH:mm khusus WIB
 function formatISOToWIBInput(isoString: string): string {
   if (!isoString) return '';
   const d = new Date(isoString);
   if (isNaN(d.getTime())) return '';
-
-  const options = {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  } as const;
-
-  const formatted = new Intl.DateTimeFormat('sv-SE', options).format(d);
-  return formatted.replace(' ', 'T');
+  const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false } as const;
+  return new Intl.DateTimeFormat('sv-SE', options).format(d).replace(' ', 'T');
 }
 
-// Helper Konversi Input WIB -> ISO UTC
 function formatWIBInputToISO(wibInputString: string): string {
   if (!wibInputString) return new Date().toISOString();
-  const d = new Date(`${wibInputString}:00+07:00`);
-  return d.toISOString();
+  return new Date(`${wibInputString}:00+07:00`).toISOString();
 }
 
 export function ScheduleAdminTab() {
@@ -51,9 +37,7 @@ export function ScheduleAdminTab() {
     try {
       const res = await fetch('/api/tournament');
       const data = await res.json();
-      if (data && data.schedules) {
-        setSchedules(data.schedules);
-      }
+      if (data && data.schedules) setSchedules(data.schedules);
     } catch (err) {
       console.error('Error fetching schedules:', err);
     } finally {
@@ -61,57 +45,37 @@ export function ScheduleAdminTab() {
     }
   };
 
-  useEffect(() => {
-    fetchSchedules();
-  }, []);
+  useEffect(() => { fetchSchedules(); }, []);
 
-  // 🟢 CALCULATE NOMOR WEEK (SENIN - MINGGU)
   const schedulesWithWeek = useMemo(() => {
     if (!schedules || schedules.length === 0) return [];
-
-    const sortedByDate = [...schedules].sort(
-      (a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
-    );
-
+    const sortedByDate = [...schedules].sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
     const tournamentStartMonday = getMondayOfWeek(new Date(sortedByDate[0].matchDate));
 
     return schedules.map((m) => {
       const matchMonday = getMondayOfWeek(new Date(m.matchDate));
-      const diffInTime = matchMonday.getTime() - tournamentStartMonday.getTime();
-      const diffInDays = Math.round(diffInTime / (1000 * 3600 * 24));
-      const weekNumber = Math.floor(diffInDays / 7) + 1;
-
-      return {
-        ...m,
-        calculatedWeekNumber: weekNumber,
-      };
+      const diffInDays = Math.round((matchMonday.getTime() - tournamentStartMonday.getTime()) / (1000 * 3600 * 24));
+      return { ...m, calculatedWeekNumber: Math.floor(diffInDays / 7) + 1 };
     });
   }, [schedules]);
 
   const weekOptions = useMemo(() => {
     if (schedulesWithWeek.length === 0) return [];
-
     const weeksMap = new Map<number, typeof schedulesWithWeek>();
     schedulesWithWeek.forEach((m) => {
       const weekNum = m.calculatedWeekNumber;
       if (!weeksMap.has(weekNum)) weeksMap.set(weekNum, []);
       weeksMap.get(weekNum)?.push(m);
     });
-
-    return Array.from(weeksMap.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([weekNum, matches]) => ({
-        weekNum: `Week ${weekNum}`,
-        weekNumber: weekNum,
-        matches,
-      }));
+    return Array.from(weeksMap.entries()).sort(([a], [b]) => a - b).map(([weekNum, matches]) => ({
+      weekNum: `Week ${weekNum}`, weekNumber: weekNum, matches,
+    }));
   }, [schedulesWithWeek]);
 
   const filteredSchedules = useMemo(() => {
     if (selectedWeek === 'ALL') return schedulesWithWeek;
     const weekNum = parseInt(selectedWeek.replace('Week ', ''), 10);
-    const targetWeek = weekOptions.find((w) => w.weekNumber === weekNum);
-    return targetWeek ? targetWeek.matches : schedulesWithWeek;
+    return weekOptions.find((w) => w.weekNumber === weekNum)?.matches || schedulesWithWeek;
   }, [schedulesWithWeek, selectedWeek, weekOptions]);
 
   const handleSaveMatchSchedule = async (updated: MatchScheduleItem) => {
@@ -119,53 +83,29 @@ export function ScheduleAdminTab() {
       const res = await fetch('/api/tournament', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'UPDATE_MATCH_CONSOLE',
-          matchId: updated.id,
-          token: 'tsaqif',
-          matchData: updated,
-        }),
+        body: JSON.stringify({ action: 'UPDATE_MATCH_CONSOLE', matchId: updated.id, token: 'tsaqif', matchData: updated }),
       });
-
       if (res.ok) {
         await fetchSchedules();
         setEditingMatch(null);
-        Swal.fire({
-          icon: 'success',
-          title: 'Jadwal Berhasil Disimpan!',
-          toast: true,
-          position: 'top-end',
-          timer: 1500,
-          showConfirmButton: false,
-        });
+        Swal.fire({ icon: 'success', title: 'Jadwal Berhasil Disimpan!', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
       }
     } catch {
       Swal.fire('Error', 'Gagal menyimpan perubahan jadwal', 'error');
     }
   };
 
-  // 🔄 SYNC SINGLE MATCH (Tanpa Ping Role)
   const handleSyncSingleMatch = async (match: MatchScheduleItem & { calculatedWeekNumber?: number }) => {
-    Swal.fire({
-      title: 'Syncing Match...',
-      text: `Memperbarui data & role untuk ${match.teamAName} vs ${match.teamBName}`,
-      didOpen: () => Swal.showLoading(),
-    });
-
+    Swal.fire({ title: 'Syncing Match...', text: `Memperbarui data & role untuk ${match.teamAName} vs ${match.teamBName}`, didOpen: () => Swal.showLoading() });
     try {
       const res = await fetch('/api/tournament/generate-channel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matchId: match.id,
-          weekName: `Week ${match.calculatedWeekNumber || 1}`,
-        }),
+        body: JSON.stringify({ matchId: match.id, weekName: `Week ${match.calculatedWeekNumber || 1}` }),
       });
-
       const data = await res.json();
-
       if (res.ok && data.success) {
-        Swal.fire('Berhasil!', `Match berhasil di-sync ke Discord!`, 'success');
+        Swal.fire('Berhasil!', 'Match berhasil di-sync ke Discord!', 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal melakukan sync match', 'error');
       }
@@ -174,51 +114,29 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 🚀 GENERATE ALL CHANNELS PER WEEK
   const handleGenerateAllWeekChannels = async () => {
     const targetMatchIds = filteredSchedules.map((m) => m.id);
-
     if (targetMatchIds.length === 0) {
       Swal.fire('Info', 'Tidak ada match untuk di-generate', 'info');
       return;
     }
-
     const confirm = await Swal.fire({
       title: `Generate ALL Channel (${selectedWeek === 'ALL' ? 'Semua Match' : selectedWeek})?`,
       text: `Sistem akan membuat ${targetMatchIds.length} channel Discord otomatis untuk minggu ini.`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Ya, Generate Sekarang!',
-      cancelButtonText: 'Batal',
+      icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Generate!', cancelButtonText: 'Batal',
     });
-
     if (!confirm.isConfirmed) return;
 
-    Swal.fire({
-      title: 'Batch Generating Channels...',
-      text: `Memproses ${targetMatchIds.length} channel match. Harap tunggu sebentar...`,
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
-
+    Swal.fire({ title: 'Batch Generating Channels...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
       const res = await fetch('/api/tournament/generate-channel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matchIds: targetMatchIds,
-          weekName: selectedWeek === 'ALL' ? 'Week 1' : selectedWeek,
-        }),
+        body: JSON.stringify({ matchIds: targetMatchIds, weekName: selectedWeek === 'ALL' ? 'Week 1' : selectedWeek }),
       });
-
       const data = await res.json();
-
       if (res.ok && data.success) {
-        Swal.fire(
-          'Selesai!',
-          `Berhasil membuat ${data.totalProcessed} channel Discord untuk ${selectedWeek}!`,
-          'success'
-        );
+        Swal.fire('Selesai!', `Berhasil membuat ${data.totalProcessed} channel Discord!`, 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal generate channel batch', 'error');
       }
@@ -227,48 +145,10 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 🧪 HANDLER TOMBOL DISCORD TESTING
-  const handleRunDiscordTest = async () => {
-    Swal.fire({
-      title: 'Testing Discord Channel...',
-      text: 'Membuat channel sandbox ⚔️-match-test di Discord...',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
-
-    try {
-      const res = await fetch('/api/tournament/generate-channel?testing=true', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        Swal.fire(
-          'Testing Berhasil!',
-          'Channel ⚔️-match-test berhasil dibuat dan dikirim ke Discord!',
-          'success'
-        );
-      } else {
-        Swal.fire('Gagal Testing', data.error || 'Gagal membuat channel test', 'error');
-      }
-    } catch {
-      Swal.fire('Error', 'Gagal terhubung ke server', 'error');
-    }
-  };
-
   const handleCopyMagicLink = (match: MatchScheduleItem) => {
     const magicUrl = `${window.location.origin}/tournament/match-input/${match.id}?token=${match.refereeToken || ''}`;
     navigator.clipboard.writeText(magicUrl);
-    Swal.fire({
-      icon: 'success',
-      title: 'Magic Link Wasit Disalin!',
-      text: magicUrl,
-      timer: 2000,
-      showConfirmButton: false,
-    });
+    Swal.fire({ icon: 'success', title: 'Magic Link Wasit Disalin!', text: magicUrl, timer: 2000, showConfirmButton: false });
   };
 
   if (isLoading) {
@@ -277,15 +157,11 @@ export function ScheduleAdminTab() {
 
   return (
     <div className="space-y-4">
-      {/* HEADER & FILTER PER WEEK + TOMBOL TESTING */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <h2 className="text-lg font-extrabold text-foreground">Manajemen Schedule Pertandingan</h2>
-          <p className="text-xs text-muted-foreground">
-            Kelola waktu (WIB), Wasit, Streamer, dan otomatisasi channel Discord match.
-          </p>
+          <p className="text-xs text-muted-foreground">Kelola waktu (WIB), Wasit, Streamer, dan otomatisasi channel Discord match.</p>
         </div>
-
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <select
             value={selectedWeek}
@@ -294,22 +170,9 @@ export function ScheduleAdminTab() {
           >
             <option value="ALL">Semua Minggu ({schedules.length} Match)</option>
             {weekOptions.map((w) => (
-              <option key={w.weekNum} value={w.weekNum}>
-                {w.weekNum} ({w.matches.length} Match)
-              </option>
+              <option key={w.weekNum} value={w.weekNum}>{w.weekNum} ({w.matches.length} Match)</option>
             ))}
           </select>
-
-          {/* 🧪 TOMBOL TESTING DISCORD */}
-          <button
-            onClick={handleRunDiscordTest}
-            className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1"
-            title="Uji coba pengiriman Embed & Tombol Match Report ke channel ⚔️-match-test"
-          >
-            <span>🧪 Test Discord Embed</span>
-          </button>
-
-          {/* 🚀 TOMBOL GENERATE BATCH */}
           <button
             onClick={handleGenerateAllWeekChannels}
             className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5"
@@ -319,7 +182,10 @@ export function ScheduleAdminTab() {
         </div>
       </div>
 
-      {/* LIST KARTU MATCH SCHEDULE */}
+      {/* 🧪 KARTU SANDBOX TESTING */}
+      <SandboxTestCard />
+
+      {/* LIST KARTU MATCH RESMI */}
       <div className="grid grid-cols-1 gap-4">
         {filteredSchedules.map((m) => {
           const isEditing = editingMatch?.id === m.id;
@@ -328,18 +194,9 @@ export function ScheduleAdminTab() {
           return (
             <div key={m.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
               <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-2 text-xs">
-                <span className="font-extrabold text-primary uppercase">
-                  {m.groupName} • {m.id} • Week {m.calculatedWeekNumber}
-                </span>
+                <span className="font-extrabold text-primary uppercase">{m.groupName} • {m.id} • Week {m.calculatedWeekNumber}</span>
                 <span className="text-muted-foreground font-semibold">
-                  {new Date(m.matchDate).toLocaleDateString('id-ID', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    timeZone: 'Asia/Jakarta',
-                  })} WIB
+                  {new Date(m.matchDate).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} WIB
                 </span>
               </div>
 
@@ -358,80 +215,35 @@ export function ScheduleAdminTab() {
               {isEditing ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-muted/20 rounded-xl text-xs">
                   <div>
-                    <label className="block text-[10px] text-muted-foreground font-bold mb-1">
-                      TANGGAL & WAKTU (WIB)
-                    </label>
+                    <label className="block text-[10px] text-muted-foreground font-bold mb-1">TANGGAL & WAKTU (WIB)</label>
                     <input
                       type="datetime-local"
                       value={formatISOToWIBInput(currentData.matchDate)}
-                      onChange={(e) =>
-                        setEditingMatch({
-                          ...currentData,
-                          matchDate: formatWIBInputToISO(e.target.value),
-                        })
-                      }
+                      onChange={(e) => setEditingMatch({ ...currentData, matchDate: formatWIBInputToISO(e.target.value) })}
                       className="w-full rounded-lg bg-background border border-input p-2 font-semibold"
                     />
                   </div>
-
                   <div>
                     <label className="block text-[10px] text-muted-foreground font-bold mb-1">WASIT (NAMA & DISCORD ID)</label>
                     <div className="flex gap-1">
-                      <input
-                        type="text"
-                        placeholder="Nama Wasit"
-                        value={currentData.referee || ''}
-                        onChange={(e) => setEditingMatch({ ...currentData, referee: e.target.value })}
-                        className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium"
-                      />
-                      <input
-                        type="text"
-                        placeholder="ID Discord Wasit"
-                        value={currentData.refereeDiscordId || ''}
-                        onChange={(e) => setEditingMatch({ ...currentData, refereeDiscordId: e.target.value })}
-                        className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium"
-                      />
+                      <input type="text" placeholder="Nama" value={currentData.referee || ''} onChange={(e) => setEditingMatch({ ...currentData, referee: e.target.value })} className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium" />
+                      <input type="text" placeholder="ID" value={currentData.refereeDiscordId || ''} onChange={(e) => setEditingMatch({ ...currentData, refereeDiscordId: e.target.value })} className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium" />
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-[10px] text-muted-foreground font-bold mb-1">STREAMER (NAMA & DISCORD ID)</label>
                     <div className="flex gap-1">
-                      <input
-                        type="text"
-                        placeholder="Nama Streamer"
-                        value={currentData.streamer || ''}
-                        onChange={(e) => setEditingMatch({ ...currentData, streamer: e.target.value })}
-                        className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium"
-                      />
-                      <input
-                        type="text"
-                        placeholder="ID Discord Streamer"
-                        value={currentData.caster || ''}
-                        onChange={(e) => setEditingMatch({ ...currentData, caster: e.target.value })}
-                        className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium"
-                      />
+                      <input type="text" placeholder="Nama" value={currentData.streamer || ''} onChange={(e) => setEditingMatch({ ...currentData, streamer: e.target.value })} className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium" />
+                      <input type="text" placeholder="ID" value={currentData.caster || ''} onChange={(e) => setEditingMatch({ ...currentData, caster: e.target.value })} className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium" />
                     </div>
                   </div>
-
                   <div className="sm:col-span-2 lg:col-span-3">
                     <label className="block text-[10px] text-muted-foreground font-bold mb-1">YOUTUBE / STREAM LINK</label>
-                    <input
-                      type="text"
-                      placeholder="https://youtube.com/..."
-                      value={currentData.streamLink || ''}
-                      onChange={(e) => setEditingMatch({ ...currentData, streamLink: e.target.value })}
-                      className="w-full rounded-lg bg-background border border-input p-2 font-medium"
-                    />
+                    <input type="text" placeholder="https://youtube.com/..." value={currentData.streamLink || ''} onChange={(e) => setEditingMatch({ ...currentData, streamLink: e.target.value })} className="w-full rounded-lg bg-background border border-input p-2 font-medium" />
                   </div>
-
                   <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-2 mt-2">
-                    <button onClick={() => setEditingMatch(null)} className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold hover:bg-muted cursor-pointer">
-                      Batal
-                    </button>
-                    <button onClick={() => handleSaveMatchSchedule(currentData)} className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-black hover:bg-emerald-500 cursor-pointer">
-                      💾 Simpan Perubahan
-                    </button>
+                    <button onClick={() => setEditingMatch(null)} className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold hover:bg-muted cursor-pointer">Batal</button>
+                    <button onClick={() => handleSaveMatchSchedule(currentData)} className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-black hover:bg-emerald-500 cursor-pointer">💾 Simpan</button>
                   </div>
                 </div>
               ) : (
@@ -440,28 +252,10 @@ export function ScheduleAdminTab() {
                     <span><b>Wasit:</b> {m.referee || '-'}</span>
                     <span><b>Streamer:</b> {m.streamer || '-'}</span>
                   </div>
-
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setEditingMatch(m)}
-                      className="px-3 py-1 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-400 text-[11px] font-bold hover:bg-sky-500/20 cursor-pointer"
-                    >
-                      ✏️ Edit Schedule
-                    </button>
-
-                    <button
-                      onClick={() => handleCopyMagicLink(m)}
-                      className="px-3 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-400 text-[11px] font-bold hover:bg-amber-500/20 cursor-pointer"
-                    >
-                      📋 Copy Link Wasit
-                    </button>
-
-                    <button
-                      onClick={() => handleSyncSingleMatch(m)}
-                      className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold shadow-sm cursor-pointer"
-                    >
-                      🔄 Sync Match
-                    </button>
+                    <button onClick={() => setEditingMatch(m)} className="px-3 py-1 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-400 text-[11px] font-bold hover:bg-sky-500/20 cursor-pointer">✏️ Edit</button>
+                    <button onClick={() => handleCopyMagicLink(m)} className="px-3 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-400 text-[11px] font-bold hover:bg-amber-500/20 cursor-pointer">📋 Copy Link</button>
+                    <button onClick={() => handleSyncSingleMatch(m)} className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold shadow-sm cursor-pointer">🔄 Sync</button>
                   </div>
                 </div>
               )}
@@ -471,5 +265,4 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-          }
-        
+    }
