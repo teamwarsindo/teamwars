@@ -60,7 +60,7 @@ export async function createDiscordVoiceChannel(teamName: string, roleId: string
   return data?.id || null;
 }
 
-// 🌐 BATCH CREATE CHANNELS (Digunakan saat Batch Action Admin)
+// 🌐 BATCH CREATE CHANNELS
 export async function createDiscordChannels(matches: any[]): Promise<Record<string, string>> {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const createdChannelMap: Record<string, string> = {};
@@ -150,7 +150,7 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // Permission Overwrites Dasar (Deny Everyone, Allow Bot/Admin/Wasit/Streamer)
+  // Permission Overwrites (Deny Everyone, Allow Bot/Admin/Wasit/Streamer/Tim)
   const permissionOverwrites: any[] = [
     {
       id: guildId, // @everyone
@@ -159,11 +159,20 @@ export async function createMatchDiscordChannel(params: {
     },
   ];
 
+  // 🔑 PENTING: TAMBAHKAN IZIN BOT DISCORD AGAR TIDAK TERKENA ERROR 50001 (Missing Access)
+  if (isValidSnowflake(DISCORD_CONFIG.BOT_ROLE_ID)) {
+    permissionOverwrites.push({
+      id: DISCORD_CONFIG.BOT_ROLE_ID,
+      type: 0,
+      allow: '1049616', // View Channel + Send Messages + Embed Links + Read History
+    });
+  }
+
   if (isValidSnowflake(DISCORD_CONFIG.ROLE_REFEREE)) {
     permissionOverwrites.push({
       id: DISCORD_CONFIG.ROLE_REFEREE,
       type: 0,
-      allow: '66560', // View Channel + Send Messages
+      allow: '66560',
     });
   }
 
@@ -225,7 +234,7 @@ export async function createMatchDiscordChannel(params: {
     return { channelId: null, openingMsgId: null };
   }
 
-  // 2. ASSIGN ROLE TIM KE WASIT MATCH (Jika Wasit Di-set)
+  // 2. ASSIGN ROLE TIM KE WASIT MATCH
   const isRefereeIdValid = isValidSnowflake(params.refereeDiscordId);
   if (isRefereeIdValid) {
     const refereeId = params.refereeDiscordId!;
@@ -290,12 +299,10 @@ export async function deleteMatchDiscordChannel(params: {
 
   if (!guildId) return false;
 
-  // 1. HAPUS PESAN DI CHANNEL SCHEDULE (JIKA ADA)
   if (scheduleChannelId && params.scheduleMsgId) {
     await discordAPI(`/channels/${scheduleChannelId}/messages/${params.scheduleMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // 2. HAPUS CHANNEL MATCH DISCORD
   let targetChannelId = params.savedChannelId || null;
 
   if (!targetChannelId) {
@@ -318,7 +325,6 @@ export async function deleteMatchDiscordChannel(params: {
     await discordAPI(`/channels/${targetChannelId}`, 'DELETE').catch(() => null);
   }
 
-  // 3. CABUT ROLE TIM DARI AKUN WASIT
   if (isValidSnowflake(params.refereeDiscordId)) {
     if (isValidSnowflake(params.roleAId)) {
       await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleAId}`, 'DELETE').catch(() => null);
