@@ -18,12 +18,12 @@ export async function sendOrUpdateOpeningEmbed(params: {
 }): Promise<string | null> {
   const isFirstTime = !params.existingMsgId;
 
-  // 1. Hapus pesan opening lama jika ID-nya tercatat di Redis
+  // 1. Hapus pesan lama berdasar ID yang tersimpan di KV Redis jika ada
   if (params.existingMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // 2. Format Teks Tanggal WIB
+  // 2. Format Waktu WIB
   const formattedWIB = params.matchDateIso
     ? new Date(params.matchDateIso).toLocaleDateString('id-ID', {
         weekday: 'long',
@@ -53,10 +53,11 @@ export async function sendOrUpdateOpeningEmbed(params: {
     ? `[Nonton Live Streaming](${params.streamLink})`
     : 'Belum tersedia';
 
-  // 4. Content Teks Tag Role Tim (Hanya dikirim pertama kali channel terbuat)
+  // 4. Tag Role Tim A & Tim B
   const roleATag = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
   const roleBTag = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
 
+  // Content (tag role) HANYA dikirim pada saat pembuatan PERTAMA KALI
   const pingContent = isFirstTime ? `${roleATag} ${roleBTag}` : undefined;
 
   // 5. Info Reschedule Format Poin Singkat
@@ -66,7 +67,7 @@ export async function sendOrUpdateOpeningEmbed(params: {
     "• **Batas Harian:** Maksimal 3 match per hari.\n" +
     "• **Konfirmasi:** Wajib lapor ke **Admin Discord**.";
 
-  // 6. Draft Embed Payload
+  // 6. Payload Embed
   const embedPayload: any = {
     content: pingContent,
     embeds: [
@@ -86,7 +87,6 @@ export async function sendOrUpdateOpeningEmbed(params: {
     ],
   };
 
-  // 7. Kirim Pesan Baru
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', embedPayload);
   return res?.id || null;
 }
