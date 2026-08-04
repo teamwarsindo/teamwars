@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     }
 
     const results = [];
-    const isSync = !matchIds; // True jika klik "Sync Match" individual
+    const isSync = !matchIds;
     let isScheduleUpdated = false;
 
     for (const mId of targetMatchIds) {
@@ -43,26 +43,29 @@ export async function POST(req: Request) {
 
       const match = schedules[matchIndex];
 
-      // AUTO-GENERATE REFEREE TOKEN JIKA KOSONG (KONSISTEN)
       if (!match.refereeToken) {
         match.refereeToken = generateRandomToken(16);
         schedules[matchIndex] = match;
         isScheduleUpdated = true;
       }
 
+      // Ambil Hash Data Tim A & Tim B dari Upstash Redis
       const [teamA, teamB] = await Promise.all([
-        kv.hgetall(`teams:${getTeamSlug(match.teamAName)}`),
-        kv.hgetall(`teams:${getTeamSlug(match.teamBName)}`),
+        kv.hgetall<any>(`teams:${getTeamSlug(match.teamAName)}`),
+        kv.hgetall<any>(`teams:${getTeamSlug(match.teamBName)}`),
       ]);
 
-      const roleAId = (teamA as any)?.discordRoleId;
-      const roleBId = (teamB as any)?.discordRoleId;
+      const roleAId = teamA?.discordRoleId;
+      const roleBId = teamB?.discordRoleId;
+      const kodeTimA = teamA?.kodeTim; // 👈 Baca field kodeTim
+      const kodeTimB = teamB?.kodeTim; // 👈 Baca field kodeTim
 
-      // Create / Sync Channel dengan Role Permission DENY (Dikunci Total)
       const channelId = await createMatchDiscordChannel({
         matchId: match.id,
         teamAName: match.teamAName,
         teamBName: match.teamBName,
+        kodeTimA,
+        kodeTimB,
         weekName: weekName || `Week ${(match as any).calculatedWeekNumber || 1}`,
         matchDateIso: match.matchDate,
         refereeName: match.referee,
@@ -82,7 +85,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Simpan ke Redis jika ada token baru yang dibuat
     if (isScheduleUpdated) {
       await kv.set('twi:schedules', schedules);
     }
