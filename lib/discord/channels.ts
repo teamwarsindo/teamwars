@@ -28,7 +28,7 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
     type: 0,
     parent_id: parentCategoryId,
     permission_overwrites: [
-      { id: guildId, type: 0, deny: "1024" },
+      { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
       { id: roleId, type: 0, allow: "3072", deny: "139280" },
       { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }
     ]
@@ -102,7 +102,7 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 2. OTOMATISASI ROLE WASIT KE CAMP TIM (HANYA JIKA WASIT PAKE SNOWFLAKE ID VALID)
+  // 2. OTOMATISASI ROLE WASIT KE CAMP TIM (JIKA WASIT PAKAI DISCORD ID VALID)
   const isRefereeIdValid = isValidSnowflake(params.refereeDiscordId);
   if (isRefereeIdValid && params.refereeDiscordId) {
     if (isValidSnowflake(params.roleAId)) {
@@ -113,30 +113,28 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 🔒 PERMISSION OVERWRITES MATRIX:
-  const TEAM_ALLOW_FLAGS = "592896";
-  const TEAM_DENY_FLAGS = "139264";
-  const FULL_ALLOW_FLAGS = "805306368";
-
+  // 🔒 PERMISSION OVERWRITES MATRIX (DISAMAKAN PERSIS DENGAN REGISTRASI TIM):
   const permission_overwrites: any[] = [
-    { id: guildId, type: 0, deny: "1024" },
-    { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: FULL_ALLOW_FLAGS },
+    { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
+    { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" },
   ];
 
+  // Role Tim A & Tim B (Disamakan persis dengan permission registrasi tim)
   if (isValidSnowflake(params.roleAId)) {
-    permission_overwrites.push({ id: params.roleAId!, type: 0, allow: TEAM_ALLOW_FLAGS, deny: TEAM_DENY_FLAGS });
+    permission_overwrites.push({ id: params.roleAId!, type: 0, allow: "3072", deny: "139280" });
   }
   if (isValidSnowflake(params.roleBId)) {
-    permission_overwrites.push({ id: params.roleBId!, type: 0, allow: TEAM_ALLOW_FLAGS, deny: TEAM_DENY_FLAGS });
+    permission_overwrites.push({ id: params.roleBId!, type: 0, allow: "3072", deny: "139280" });
   }
 
+  // Wasit & Streamer
   if (isRefereeIdValid) {
-    permission_overwrites.push({ id: params.refereeDiscordId!, type: 1, allow: FULL_ALLOW_FLAGS });
+    permission_overwrites.push({ id: params.refereeDiscordId!, type: 1, allow: "3072" });
   }
 
   const isStreamerIdValid = isValidSnowflake(params.streamerDiscordId);
   if (isStreamerIdValid) {
-    permission_overwrites.push({ id: params.streamerDiscordId!, type: 1, allow: FULL_ALLOW_FLAGS });
+    permission_overwrites.push({ id: params.streamerDiscordId!, type: 1, allow: "3072" });
   }
 
   // 3. Create / Update Channel
