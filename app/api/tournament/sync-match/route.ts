@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       match.refereeToken = generateRandomToken(16);
     }
 
-    // 1. Ambil Data Tim A & Tim B dari Upstash KV Redis
+    // 1. Ambil Data Tim A & Tim B (Mengambil discordRoleId) dari Upstash KV Redis
     const [teamA, teamB] = await Promise.all([
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamAName)}`),
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamBName)}`),
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     const kodeTimA = teamA?.kodeTim;
     const kodeTimB = teamB?.kodeTim;
 
-    // 2. PROSES SYNC CHANNEL MATCH & EMBED OPENING
+    // 2. PROSES SYNC DISCORD CHANNEL & EMBED Pertandingan
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
       teamAName: match.teamAName,
@@ -82,26 +82,24 @@ export async function POST(req: Request) {
       await kv.set('twi:schedules', schedules);
     }
 
-    // 3. UPDATE / PATCH REKAP EMBED DI CHANNEL STREAMER
-    const allMatchesInWeek = schedules.map((m) => ({
-      matchId: m.id,
-      groupName: m.groupName,
-      teamAName: m.teamAName,
-      teamBName: m.teamBName,
-      matchChannelId: (m as any).discordChannelId,
-      matchDateIso: m.matchDate,
-      refereeName: m.referee,
-      refereeDiscordId: m.refereeDiscordId,
-      streamerName: m.streamer,
-      streamerDiscordId: (m as any).caster,
-      streamLink: m.streamLink,
-    }));
-
+    // 3. SYNC EMBED KE CHANNEL STREAMER (Murni untuk Single Match Terkait)
     const existingStreamerMsgIds = (await kv.get<Record<string, string>>('twi:streamer_msg_ids')) || {};
 
     const updatedStreamerMsgIds = await sendOrUpdateStreamerSummaryEmbed({
       weekName: weekName || `Week ${(match as any).calculatedWeekNumber || 1}`,
-      matches: allMatchesInWeek,
+      matches: [{
+        matchId: match.id,
+        groupName: match.groupName,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        matchChannelId: syncResult.channelId || (match as any).discordChannelId,
+        matchDateIso: match.matchDate,
+        refereeName: match.referee,
+        refereeDiscordId: match.refereeDiscordId,
+        streamerName: match.streamer,
+        streamerDiscordId: (match as any).caster,
+        streamLink: match.streamLink,
+      }],
       existingMsgIds: existingStreamerMsgIds,
     });
 
@@ -116,4 +114,4 @@ export async function POST(req: Request) {
     console.error('Error Sync Single Match:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-      }
+}
