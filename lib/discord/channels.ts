@@ -71,6 +71,7 @@ export async function createMatchDiscordChannel(params: {
   matchDateIso?: string;
   openingMsgId?: string;
   streamerMsgId?: string;
+  isSync?: boolean; // 👈 Tambahkan baris ini agar TypeScript tidak komplain
 }): Promise<{ channelId: string | null; openingMsgId?: string | null; streamerMsgId?: string | null }> {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;

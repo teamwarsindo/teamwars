@@ -122,7 +122,6 @@ export async function POST(req: Request) {
             streamerName: match.streamer,
             streamerDiscordId: match.caster,
             streamLink: match.streamLink,
-            isSync: true,
           });
 
           return NextResponse.json({
