@@ -5,20 +5,25 @@ import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { revalidatePath } from 'next/cache';
 import nacl from 'tweetnacl';
 
-// Helper Verifikasi Signature menggunakan tweetnacl
+// Helper Verifikasi Signature ED25519 Standar Discord (Menggunakan Uint8Array)
 function verifyDiscordSignature(rawBody: string, signature: string | null, timestamp: string | null, publicKey: string | undefined): boolean {
   if (!signature || !timestamp || !publicKey) return false;
 
   try {
-    return nacl.sign.detached.verify(
-      Buffer.from(timestamp + rawBody),
-      Buffer.from(signature, 'hex'),
-      Buffer.from(publicKey, 'hex')
-    );
+    const signatureBuffer = HexToUint8Array(signature);
+    const publicKeyBuffer = HexToUint8Array(publicKey);
+    const messageBuffer = new TextEncoder().encode(timestamp + rawBody);
+
+    return nacl.sign.detached.verify(messageBuffer, signatureBuffer, publicKeyBuffer);
   } catch (e) {
-    console.error('Signature verification error:', e);
+    console.error('Signature verification exception:', e);
     return false;
   }
+}
+
+// Helper konversi String Hex ke Uint8Array
+function HexToUint8Array(hexString: string): Uint8Array {
+  return new Uint8Array(hexString.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)));
 }
 
 function validateRescheduleSlot(targetDateStr: string, schedules: any[], currentMatchId: string) {
