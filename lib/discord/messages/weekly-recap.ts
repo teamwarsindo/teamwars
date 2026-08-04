@@ -29,8 +29,10 @@ export async function sendOrUpdateWeeklyRecapEmbed(params: {
       statusText = `\`${day.count} / 3 Match\` 🟢 *(Tersedia ${remainingMatches} Match)*`;
     }
 
-    // Pastikan nama field dipotong maks 25 karakter agar tidak ditolak Discord API
-    const fieldName = `📅 ${day.dateFormatted}`.slice(0, 25);
+    // 🟢 AMAN: Potong tanggal maksimal 20 karakter sebelum digabung dengan emoji.
+    // Total string dijamin < 23 karakter (batas Discord API 25).
+    const cleanDate = (day.dateFormatted || '').trim().slice(0, 20);
+    const fieldName = `📅 ${cleanDate}`;
 
     return {
       name: fieldName,
