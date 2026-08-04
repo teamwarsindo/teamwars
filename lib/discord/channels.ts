@@ -86,6 +86,8 @@ export async function createMatchDiscordChannel(params: {
   teamBName: string;
   kodeTimA?: string;
   kodeTimB?: string;
+  emojiAId?: string;
+  emojiBId?: string;
   weekName?: string;
   roleAId?: string;
   roleBId?: string;
@@ -164,7 +166,7 @@ export async function createMatchDiscordChannel(params: {
       channelId = null;
     }
   } else {
-    // JIKA CHANNEL SUDAH ADA ➔ Cek ketersediaan permission overwrite (Tambahkan hanya jika belum ada)
+    // JIKA CHANNEL SUDAH ADA ➔ Cek permission overwrite (Tambahkan jika belum ada)
     if (isValidSnowflake(params.roleAId)) {
       const hasA = await channelHasOverwrite(channelId, params.roleAId!);
       if (!hasA) {
@@ -223,6 +225,10 @@ export async function createMatchDiscordChannel(params: {
     matchId: params.matchId,
     teamAName: params.teamAName,
     teamBName: params.teamBName,
+    kodeTimA: abbrA,
+    kodeTimB: abbrB,
+    emojiAId: params.emojiAId,
+    emojiBId: params.emojiBId,
     roleAId: params.roleAId,
     roleBId: params.roleBId,
     weekName: params.weekName,
@@ -254,7 +260,7 @@ export async function deleteMatchDiscordChannel(params: {
 
   if (!guildId) return false;
 
-  // 1. HAPUS CHANNEL MATCH (Dibungkus try-catch senyap agar tidak crash jika channel sudah terhapus)
+  // 1. HAPUS CHANNEL MATCH (Catch senyap jika channel sudah terhapus)
   let targetChannelId = params.savedChannelId || null;
 
   if (!targetChannelId) {
@@ -277,7 +283,7 @@ export async function deleteMatchDiscordChannel(params: {
     await discordAPI(`/channels/${targetChannelId}`, 'DELETE').catch(() => null);
   }
 
-  // 2. CABUT ROLE TIM DARI AKUN WASIT (Dibungkus try-catch senyap jika user/role sudah tidak ada)
+  // 2. CABUT ROLE TIM DARI AKUN WASIT (Catch senyap jika user/role tidak ada)
   if (isValidSnowflake(params.refereeDiscordId)) {
     if (isValidSnowflake(params.roleAId)) {
       await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleAId}`, 'DELETE').catch(() => null);
@@ -288,5 +294,4 @@ export async function deleteMatchDiscordChannel(params: {
   }
 
   return true;
-        }
-        
+}

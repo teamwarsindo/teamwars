@@ -5,6 +5,10 @@ export async function sendOrUpdateOpeningEmbed(params: {
   matchId: string;
   teamAName: string;
   teamBName: string;
+  kodeTimA?: string;
+  kodeTimB?: string;
+  emojiAId?: string;
+  emojiBId?: string;
   roleAId?: string;
   roleBId?: string;
   weekName?: string;
@@ -39,7 +43,11 @@ export async function sendOrUpdateOpeningEmbed(params: {
       }) + ' WIB'
     : 'Belum tersedia';
 
-  // 3. Format Penampilan Referee, Streamer, & Stream Link
+  // 3. Format Emoji & Tampilan Tim
+  const emojiATag = params.emojiAId && params.kodeTimA ? `<:${params.kodeTimA}:${params.emojiAId}> ` : '';
+  const emojiBTag = params.emojiBId && params.kodeTimB ? `<:${params.kodeTimB}:${params.emojiBId}> ` : '';
+
+  // 4. Format Penampilan Referee, Streamer, & Stream Link
   const refereeDisplay = params.refereeDiscordId
     ? `<@${params.refereeDiscordId}>`
     : params.refereeName && params.refereeName.trim() !== ''
@@ -56,28 +64,27 @@ export async function sendOrUpdateOpeningEmbed(params: {
     ? `[Nonton Live Streaming](${params.streamLink})`
     : 'Belum tersedia';
 
-  // 4. Tag Role Tim A & Tim B
+  // 5. Tag Role Tim A & Tim B
   const roleATag = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
   const roleBTag = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
 
-  // Tag Role dikirim jika isFirstTime
   const pingContent = isFirstTime ? `${roleATag} ${roleBTag}` : undefined;
 
-  // 5. Info Reschedule Format Poin Singkat
+  // 6. Info Reschedule Format Poin Singkat
   const rescheduleInfoText = 
     "• **Persetujuan:** Kedua tim wajib setuju.\n" +
     "• **Hari Tanding:** Rabu s.d. Minggu.\n" +
     "• **Batas Harian:** Maksimal 3 match per hari.\n" +
     "• **Konfirmasi:** Wajib lapor ke **Admin Discord**.";
 
-  // 6. Payload Embed
+  // 7. Payload Embed
   const embedPayload: any = {
     content: pingContent,
     embeds: [
       {
         title: `🏆 Group Stage - ${params.weekName || 'Week 1'}`,
         color: 0x00d2ff,
-        description: `**${params.teamAName}** VS **${params.teamBName}**\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
+        description: `${emojiATag}**${params.teamAName}** VS ${emojiBTag}**${params.teamBName}**\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
         fields: [
           { name: '📅 Jadwal Pertandingan', value: formattedWIB, inline: false },
           { name: '⚖️ Referee', value: refereeDisplay, inline: true },
@@ -92,4 +99,4 @@ export async function sendOrUpdateOpeningEmbed(params: {
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', embedPayload).catch(() => null);
   return res?.id || null;
-                                                                   }
+}

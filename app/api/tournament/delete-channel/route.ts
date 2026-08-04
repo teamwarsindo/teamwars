@@ -30,7 +30,6 @@ export async function POST(req: Request) {
 
     const match = schedules[matchIndex];
 
-    // Ambil Data Role Tim A & B dari KV untuk keperluan revoke role Wasit
     const [teamA, teamB] = await Promise.all([
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamAName)}`),
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamBName)}`),
@@ -40,7 +39,7 @@ export async function POST(req: Request) {
     const roleBId = teamB?.discordRoleId;
 
     // 1. EXECUTE HAPUS CHANNEL DISCORD & REVOKE ROLE WASIT
-    // Seluruh error Discord API (404 Unknown Channel / Unknown Member) di-catch di fungsi ini agar tidak menghentikan alur
+    // Catch senyap jika channel atau role di Discord sudah tidak ada
     await deleteMatchDiscordChannel({
       matchId: match.id,
       savedChannelId: (match as any).discordChannelId,

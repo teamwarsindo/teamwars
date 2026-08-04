@@ -8,6 +8,10 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
     groupName?: string;
     teamAName: string;
     teamBName: string;
+    kodeTimA?: string;
+    kodeTimB?: string;
+    emojiAId?: string;
+    emojiBId?: string;
     matchChannelId?: string;
     matchDateIso?: string;
     refereeName?: string;
@@ -38,7 +42,11 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
       }) + ' WIB'
     : 'Belum tersedia';
 
-  // 2. Format Tampilan Referee, Streamer, & Live Stream
+  // 2. Format Emoji & Tampilan Tim
+  const emojiATag = currentMatch.emojiAId && currentMatch.kodeTimA ? `<:${currentMatch.kodeTimA}:${currentMatch.emojiAId}> ` : '';
+  const emojiBTag = currentMatch.emojiBId && currentMatch.kodeTimB ? `<:${currentMatch.kodeTimB}:${currentMatch.emojiBId}> ` : '';
+
+  // 3. Format Tampilan Referee, Streamer, & Live Stream
   const refereeDisplay = currentMatch.refereeDiscordId
     ? `<@${currentMatch.refereeDiscordId}>`
     : currentMatch.refereeName && currentMatch.refereeName.trim() !== ''
@@ -57,16 +65,16 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
 
   const matchChannelDisplay = currentMatch.matchChannelId ? `<#${currentMatch.matchChannelId}>` : 'Belum tersedia';
 
-  // 3. Teks Ketentuan Tugas Profesional
+  // 4. Teks Ketentuan Tugas Profesional
   const streamerRulesText = 
     "• **Penyesuaian Jadwal:** Waktu bertanding dapat berubah sesuai kesepakatan resmi kedua tim.\n" +
     "• **Klaim Tugas:** Wajib melakukan konfirmasi dan klaim match melalui **Admin Discord**.";
 
-  // 4. Draft Embed Payload (Struktur disamakan persis dengan Channel Match)
+  // 5. Payload Embed
   const embedObject = {
     title: `🏆 Group Stage - ${params.weekName || 'Week 1'}`,
     color: 0xf1c40f,
-    description: `**${currentMatch.teamAName}** VS **${currentMatch.teamBName}**\n\nSilakan cek detail jadwal pertandingan di bawah dan koordinasikan klaim match.`,
+    description: `${emojiATag}**${currentMatch.teamAName}** VS ${emojiBTag}**${currentMatch.teamBName}**\n\nSilakan cek detail jadwal pertandingan di bawah dan koordinasikan klaim match.`,
     fields: [
       { name: '📅 Jadwal Pertandingan', value: formattedWIB, inline: false },
       { name: '📍 Channel Match', value: matchChannelDisplay, inline: false },
@@ -81,7 +89,7 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
   const currentMatchKey = `match_${currentMatch.matchId}`;
   const existingMsgId = updatedMsgIds[currentMatchKey];
 
-  // 5. Kirim atau Update Embed via Discord API
+  // 6. Kirim atau Update Embed via Discord API
   if (existingMsgId) {
     const editRes = await discordAPI(`/channels/${targetChannelId}/messages/${existingMsgId}`, 'PATCH', {
       embeds: [embedObject],

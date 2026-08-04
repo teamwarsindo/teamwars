@@ -5,16 +5,22 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
 
-// 🗜️ Fungsi Pembantu: Mengompresi URL logo menggunakan Cloudinary CDN Transformation
+function getTeamSlug(teamName: string) {
+  return teamName
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+}
+
 function getOptimizedLogoUrl(originalUrl: string): string {
   if (!originalUrl || !originalUrl.startsWith('http')) return originalUrl;
 
-  // Jika URL sudah merupakan URL Cloudinary murni
   if (originalUrl.includes('res.cloudinary.com') && originalUrl.includes('/upload/')) {
     return originalUrl.replace('/upload/', '/upload/w_128,h_128,c_fill,q_auto,f_png/');
   }
 
-  // Jika URL berformat lain atau URL masking, manfaatkan Fetch URL Cloudinary untuk kompresi otomatis
   if (CLOUD_NAME) {
     const encodedUrl = encodeURIComponent(originalUrl);
     return `https://res.cloudinary.com/${CLOUD_NAME}/image/fetch/w_128,h_128,c_fill,q_auto,f_png/${encodedUrl}`;
@@ -37,8 +43,11 @@ export async function GET() {
     const teams = rawTeams
       .filter((team): team is Record<string, any> => Boolean(team))
       .map((team) => ({
+        slug: getTeamSlug(team?.namaTim || team?.name || ''),
         name: team?.namaTim || team?.name || 'Unknown Team',
+        kodeTim: team?.kodeTim || team?.name?.substring(0, 4).toLowerCase() || 'team',
         logo: team?.logoTim || team?.logo || '',
+        existingEmojiId: team?.emojiId || null,
       }));
 
     let existingEmojis: any[] = [];
@@ -48,9 +57,12 @@ export async function GET() {
       console.warn("Gagal mengambil daftar emoji eksisting:", e);
     }
 
-    const existingNames = new Set(
-      Array.isArray(existingEmojis) ? existingEmojis.map((e) => e.name) : []
-    );
+    const existingEmojiMap = new Map<string, string>();
+    if (Array.isArray(existingEmojis)) {
+      existingEmojis.forEach((e) => {
+        if (e.name && e.id) existingEmojiMap.set(e.name, e.id);
+      });
+    }
 
     let successCount = 0;
     let failedCount = 0;
@@ -63,38 +75,44 @@ export async function GET() {
         continue;
       }
 
-      const rawEmojiName = team.name
-        .replace(/[^a-zA-Z0-9]/g, '_')
-        .replace(/_+/g, '_')
-        .toLowerCase();
+      // Gunakan kodeTim sebagai identifier nama emoji di Discord
+      const validName = team.kodeTim.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32);
 
-      const validName = (rawEmojiName.length < 2 ? `t_${rawEmojiName}` : rawEmojiName).slice(0, 32);
-
-      if (existingNames.has(validName)) {
+      // 🔄 JIKA EMOJI SUDAH ADA DI DISCORD ➔ Tangkap ID-nya dan pastikan tersimpan di Redis
+      if (existingEmojiMap.has(validName)) {
+        const foundEmojiId = existingEmojiMap.get(validName)!;
+        
+        // Update Redis jika emojiId belum tersimpan
+        if (!team.existingEmojiId) {
+          await kv.hset(`teams:${team.slug}`, { emojiId: foundEmojiId });
+          details.push(`ℹ️ Skipped ${team.name}: Emoji :${validName}: sudah ada di Discord. (ID ${foundEmojiId} berhasil ditautkan ke Redis)`);
+        } else {
+          details.push(`ℹ️ Skipped ${team.name}: Emoji :${validName}: sudah ada di Discord & Redis.`);
+        }
+        
         failedCount++;
-        details.push(`ℹ️ Skipped ${team.name}: Emoji :${validName}: sudah ada di Discord.`);
         continue;
       }
 
       try {
-        // 🚀 Terapkan kompresi URL otomatis (Ukuran turun dari ~2 MB jadi ~15 KB)
         const optimizedUrl = getOptimizedLogoUrl(team.logo);
 
         const imageRes = await fetch(optimizedUrl);
+        let arrayBuffer: ArrayBuffer;
+        let contentType: string;
+
         if (!imageRes.ok) {
-          // Fallback ke URL asli jika fetch Cloudinary terhalang
           const fallbackRes = await fetch(team.logo);
           if (!fallbackRes.ok) throw new Error(`Gagal download logo (${fallbackRes.statusText})`);
-          var arrayBuffer = await fallbackRes.arrayBuffer();
-          var contentType = fallbackRes.headers.get("content-type") || "image/png";
+          arrayBuffer = await fallbackRes.arrayBuffer();
+          contentType = fallbackRes.headers.get("content-type") || "image/png";
         } else {
-          var arrayBuffer = await imageRes.arrayBuffer();
-          var contentType = imageRes.headers.get("content-type") || "image/png";
+          arrayBuffer = await imageRes.arrayBuffer();
+          contentType = imageRes.headers.get("content-type") || "image/png";
         }
-        
+
         const buffer = Buffer.from(arrayBuffer);
 
-        // Pengecekan Batas Ukuran File Discord (256 KB)
         if (buffer.length > 256 * 1024) {
           failedCount++;
           details.push(`❌ Gagal ${team.name}: File masih kebesaran (${Math.round(buffer.length / 1024)} KB > 256 KB).`);
@@ -103,15 +121,18 @@ export async function GET() {
 
         const base64Image = `data:${contentType};base64,${buffer.toString('base64')}`;
 
-        // Kirim request ke Discord API
+        // 🚀 POST Request Buat Emoji ke Discord API
         const res = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/emojis`, 'POST', {
           name: validName,
           image: base64Image,
         });
 
+        // 📌 TANGKAP ID EMOJI & SIMPAN KE KV REDIS
         if (res && res.id) {
+          await kv.hset(`teams:${team.slug}`, { emojiId: res.id });
+
           successCount++;
-          details.push(`✅ Berhasil: :${validName}: untuk ${team.name}`);
+          details.push(`✅ Berhasil: :${validName}: (ID: ${res.id}) tersimpan ke Redis untuk ${team.name}`);
         } else {
           failedCount++;
           const errorMsg = res?.message || (res ? JSON.stringify(res) : "Response kosong dari Discord");
@@ -133,5 +154,4 @@ export async function GET() {
     console.error("API Error create-emojis:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
-                   }
-      
+}

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       match.refereeToken = generateRandomToken(16);
     }
 
-    // 1. Ambil Data Tim A & Tim B (Mengambil discordRoleId) dari Upstash KV Redis
+    // 1. Ambil Data Tim A & Tim B dari Upstash KV Redis (Role, Kode, Emoji)
     const [teamA, teamB] = await Promise.all([
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamAName)}`),
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamBName)}`),
@@ -54,14 +54,18 @@ export async function POST(req: Request) {
     const roleBId = teamB?.discordRoleId;
     const kodeTimA = teamA?.kodeTim;
     const kodeTimB = teamB?.kodeTim;
+    const emojiAId = teamA?.emojiId;
+    const emojiBId = teamB?.emojiId;
 
-    // 2. PROSES SYNC DISCORD CHANNEL & EMBED Pertandingan
+    // 2. PROSES SYNC DISCORD CHANNEL & EMBED MATCH
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
       kodeTimA,
       kodeTimB,
+      emojiAId,
+      emojiBId,
       weekName: weekName || `Week ${(match as any).calculatedWeekNumber || 1}`,
       matchDateIso: match.matchDate,
       refereeName: match.referee,
@@ -82,7 +86,7 @@ export async function POST(req: Request) {
       await kv.set('twi:schedules', schedules);
     }
 
-    // 3. SYNC EMBED KE CHANNEL STREAMER (Murni untuk Single Match Terkait)
+    // 3. SYNC EMBED KE CHANNEL STREAMER (Single Match Terkait)
     const existingStreamerMsgIds = (await kv.get<Record<string, string>>('twi:streamer_msg_ids')) || {};
 
     const updatedStreamerMsgIds = await sendOrUpdateStreamerSummaryEmbed({
@@ -92,12 +96,16 @@ export async function POST(req: Request) {
         groupName: match.groupName,
         teamAName: match.teamAName,
         teamBName: match.teamBName,
+        kodeTimA,
+        kodeTimB,
+        emojiAId,
+        emojiBId,
         matchChannelId: syncResult.channelId || (match as any).discordChannelId,
         matchDateIso: match.matchDate,
         refereeName: match.referee,
         refereeDiscordId: match.refereeDiscordId,
         streamerName: match.streamer,
-        streamerDiscordId: (match as any).caster,
+        streamerDiscordId: (match as any).caster || match.streamer,
         streamLink: match.streamLink,
       }],
       existingMsgIds: existingStreamerMsgIds,
