@@ -11,6 +11,11 @@ function getFallbackAbbreviation(teamName: string): string {
   return teamName.substring(0, 4).toLowerCase();
 }
 
+function isValidSnowflake(id?: string): boolean {
+  if (!id) return false;
+  return /^\d{17,20}$/.test(id.trim());
+}
+
 // 🟢 CREATION: Text Channel Tim Pendaftaran
 export async function createDiscordChannel(teamName: string, roleId: string) {
   const guildId = DISCORD_CONFIG.GUILD_ID;
@@ -23,7 +28,7 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
     type: 0,
     parent_id: parentCategoryId,
     permission_overwrites: [
-      { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
+      { id: guildId, type: 0, deny: "1024" },
       { id: roleId, type: 0, allow: "3072", deny: "139280" },
       { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }
     ]
@@ -71,7 +76,7 @@ export async function createMatchDiscordChannel(params: {
   matchDateIso?: string;
   openingMsgId?: string;
   streamerMsgId?: string;
-  isSync?: boolean; // 👈 Tambahkan baris ini agar TypeScript tidak komplain
+  isSync?: boolean;
 }): Promise<{ channelId: string | null; openingMsgId?: string | null; streamerMsgId?: string | null }> {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
@@ -97,42 +102,41 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 2. OTOMATISASI ROLE WASIT KE CAMP TIM (JIKA REFEREE DISCORD ID SUDAH ADA)
-  if (params.refereeDiscordId) {
-    if (params.roleAId) {
+  // 2. OTOMATISASI ROLE WASIT KE CAMP TIM (HANYA JIKA WASIT PAKE SNOWFLAKE ID VALID)
+  const isRefereeIdValid = isValidSnowflake(params.refereeDiscordId);
+  if (isRefereeIdValid && params.refereeDiscordId) {
+    if (isValidSnowflake(params.roleAId)) {
       await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleAId}`, 'PUT').catch(() => null);
     }
-    if (params.roleBId) {
+    if (isValidSnowflake(params.roleBId)) {
       await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleBId}`, 'PUT').catch(() => null);
     }
   }
 
   // 🔒 PERMISSION OVERWRITES MATRIX:
-  // Tim: View(1024) + Send(2048) + History(65536) + Attach Files/Images(524288) = "592896"
-  // Tim DENY: Mention Everyone(131072) + Manage Messages(8192) = "139264"
   const TEAM_ALLOW_FLAGS = "592896";
   const TEAM_DENY_FLAGS = "139264";
-
-  // Admin / Bot / Wasit / Streamer: FULL ACCESS = "805306368"
   const FULL_ALLOW_FLAGS = "805306368";
 
   const permission_overwrites: any[] = [
-    { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
+    { id: guildId, type: 0, deny: "1024" },
     { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: FULL_ALLOW_FLAGS },
   ];
 
-  if (params.roleAId) {
-    permission_overwrites.push({ id: params.roleAId, type: 0, allow: TEAM_ALLOW_FLAGS, deny: TEAM_DENY_FLAGS });
+  if (isValidSnowflake(params.roleAId)) {
+    permission_overwrites.push({ id: params.roleAId!, type: 0, allow: TEAM_ALLOW_FLAGS, deny: TEAM_DENY_FLAGS });
   }
-  if (params.roleBId) {
-    permission_overwrites.push({ id: params.roleBId, type: 0, allow: TEAM_ALLOW_FLAGS, deny: TEAM_DENY_FLAGS });
+  if (isValidSnowflake(params.roleBId)) {
+    permission_overwrites.push({ id: params.roleBId!, type: 0, allow: TEAM_ALLOW_FLAGS, deny: TEAM_DENY_FLAGS });
   }
 
-  if (params.refereeDiscordId) {
-    permission_overwrites.push({ id: params.refereeDiscordId, type: 1, allow: FULL_ALLOW_FLAGS });
+  if (isRefereeIdValid) {
+    permission_overwrites.push({ id: params.refereeDiscordId!, type: 1, allow: FULL_ALLOW_FLAGS });
   }
-  if (params.streamerDiscordId) {
-    permission_overwrites.push({ id: params.streamerDiscordId, type: 1, allow: FULL_ALLOW_FLAGS });
+
+  const isStreamerIdValid = isValidSnowflake(params.streamerDiscordId);
+  if (isStreamerIdValid) {
+    permission_overwrites.push({ id: params.streamerDiscordId!, type: 1, allow: FULL_ALLOW_FLAGS });
   }
 
   // 3. Create / Update Channel
@@ -159,9 +163,9 @@ export async function createMatchDiscordChannel(params: {
     weekName: params.weekName,
     matchDateIso: params.matchDateIso,
     refereeName: params.refereeName,
-    refereeDiscordId: params.refereeDiscordId,
+    refereeDiscordId: isRefereeIdValid ? params.refereeDiscordId : undefined,
     streamerName: params.streamerName,
-    streamerDiscordId: params.streamerDiscordId,
+    streamerDiscordId: isStreamerIdValid ? params.streamerDiscordId : undefined,
     streamLink: params.streamLink,
     existingMsgId: params.openingMsgId,
   });
@@ -174,9 +178,9 @@ export async function createMatchDiscordChannel(params: {
     teamBName: params.teamBName,
     matchDateIso: params.matchDateIso,
     refereeName: params.refereeName,
-    refereeDiscordId: params.refereeDiscordId,
+    refereeDiscordId: isRefereeIdValid ? params.refereeDiscordId : undefined,
     streamerName: params.streamerName,
-    streamerDiscordId: params.streamerDiscordId,
+    streamerDiscordId: isStreamerIdValid ? params.streamerDiscordId : undefined,
     streamLink: params.streamLink,
     existingMsgId: params.streamerMsgId,
   });
