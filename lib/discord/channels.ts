@@ -150,7 +150,7 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // Permission Overwrites (Deny Everyone, Allow Bot/Admin/Wasit/Streamer/Tim)
+  // Permission Overwrites (Deny Everyone, Allow Bot, Role Tim A, Role Tim B, & Streamer)
   const permissionOverwrites: any[] = [
     {
       id: guildId, // @everyone
@@ -159,7 +159,7 @@ export async function createMatchDiscordChannel(params: {
     },
   ];
 
-  // 🔑 PENTING: TAMBAHKAN IZIN BOT DISCORD AGAR TIDAK TERKENA ERROR 50001 (Missing Access)
+  // A. Bot Access
   if (isValidSnowflake(DISCORD_CONFIG.BOT_ROLE_ID)) {
     permissionOverwrites.push({
       id: DISCORD_CONFIG.BOT_ROLE_ID,
@@ -168,22 +168,7 @@ export async function createMatchDiscordChannel(params: {
     });
   }
 
-  if (isValidSnowflake(DISCORD_CONFIG.ROLE_REFEREE)) {
-    permissionOverwrites.push({
-      id: DISCORD_CONFIG.ROLE_REFEREE,
-      type: 0,
-      allow: '66560',
-    });
-  }
-
-  if (isValidSnowflake(DISCORD_CONFIG.ROLE_STREAMER)) {
-    permissionOverwrites.push({
-      id: DISCORD_CONFIG.ROLE_STREAMER,
-      type: 0,
-      allow: '66560',
-    });
-  }
-
+  // B. Role Tim A & Tim B (Akses Utama Channel Match)
   if (isValidSnowflake(params.roleAId)) {
     permissionOverwrites.push({
       id: params.roleAId,
@@ -199,6 +184,19 @@ export async function createMatchDiscordChannel(params: {
       allow: '66560',
     });
   }
+
+  // C. Streamer Personal (User Overwrite)
+  const isStreamerIdValid = isValidSnowflake(params.streamerDiscordId);
+  if (isStreamerIdValid) {
+    permissionOverwrites.push({
+      id: params.streamerDiscordId,
+      type: 1, // 1 = User Overwrite
+      allow: '66560',
+    });
+  }
+
+  // NOTE: Wasit TIDAK dimasukkan ke permissionOverwrites channel.
+  // Wasit otomatis mendapat akses channel karena diberi Role Tim A & Role Tim B.
 
   if (!channelId) {
     // BUAT CHANNEL MATCH BARU
@@ -234,7 +232,7 @@ export async function createMatchDiscordChannel(params: {
     return { channelId: null, openingMsgId: null };
   }
 
-  // 2. ASSIGN ROLE TIM KE WASIT MATCH
+  // 2. ASSIGN ROLE TIM A & TIM B KE AKUN WASIT
   const isRefereeIdValid = isValidSnowflake(params.refereeDiscordId);
   if (isRefereeIdValid) {
     const refereeId = params.refereeDiscordId!;
@@ -252,8 +250,6 @@ export async function createMatchDiscordChannel(params: {
       console.warn('Gagal assign role tim ke referee:', e);
     }
   }
-
-  const isStreamerIdValid = isValidSnowflake(params.streamerDiscordId);
 
   // 3. EMBED CHANNEL MATCH (OPENING EMBED + AUTO-PIN)
   const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
