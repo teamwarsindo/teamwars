@@ -16,11 +16,14 @@ export async function sendOrUpdateOpeningEmbed(params: {
   streamLink?: string;
   existingMsgId?: string;
 }): Promise<string | null> {
-  const isFirstTime = !params.existingMsgId;
+  let isFirstTime = !params.existingMsgId;
 
-  // 1. Hapus pesan lama berdasar ID yang tersimpan di KV Redis jika ada
+  // 1. Jika ada ID pesan lama, coba hapus. Jika 404 (pesan hilang), anggap isFirstTime = true
   if (params.existingMsgId) {
-    await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
+    const deleteRes = await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
+    if (!deleteRes) {
+      isFirstTime = true;
+    }
   }
 
   // 2. Format Waktu WIB
@@ -57,7 +60,7 @@ export async function sendOrUpdateOpeningEmbed(params: {
   const roleATag = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
   const roleBTag = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
 
-  // Content (tag role) HANYA dikirim pada saat pembuatan PERTAMA KALI
+  // Tag Role dikirim jika isFirstTime
   const pingContent = isFirstTime ? `${roleATag} ${roleBTag}` : undefined;
 
   // 5. Info Reschedule Format Poin Singkat
@@ -87,6 +90,6 @@ export async function sendOrUpdateOpeningEmbed(params: {
     ],
   };
 
-  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', embedPayload);
+  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', embedPayload).catch(() => null);
   return res?.id || null;
-}
+                                                                   }
