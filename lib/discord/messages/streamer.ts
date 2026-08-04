@@ -23,7 +23,7 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
 
   if (!targetChannelId || params.matches.length === 0) return updatedMsgIds;
 
-  // Susun daftar field pertandingan (Seragam dengan embed channel match)
+  // Susun daftar field pertandingan untuk match terkait
   const fields = params.matches.map((m) => {
     const cleanMatchNum = m.matchId.replace('match-', '');
     const formattedWIB = m.matchDateIso
@@ -77,17 +77,18 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
     title: `📢 PILAH JADWAL MATCH - ${params.weekName.toUpperCase()}`,
     color: 0xf1c40f,
     description: `Halo Referee & Streamer! Silakan cek jadwal pertandingan **${params.weekName}** di bawah dan klaim match yang ingin kamu tangani.`,
-    fields: fields.slice(0, 25), // Limit maksimal 25 field di Discord Embed
+    fields: fields.slice(0, 25),
     footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  const mainMsgId = updatedMsgIds['main_summary'];
+  const currentMatchKey = `match_${params.matches[0].matchId}`;
+  const existingMsgId = updatedMsgIds[currentMatchKey];
 
   // Jika embed SUDAH ADA ➔ Gunakan PATCH untuk edit tanpa tag ulang
-  if (mainMsgId) {
-    const editRes = await discordAPI(`/channels/${targetChannelId}/messages/${mainMsgId}`, 'PATCH', {
+  if (existingMsgId) {
+    const editRes = await discordAPI(`/channels/${targetChannelId}/messages/${existingMsgId}`, 'PATCH', {
       embeds: [embedObject],
-    });
+    }).catch(() => null);
 
     if (!editRes) {
       // Fallback jika pesan di Discord terhapus manual
@@ -95,8 +96,8 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
       const newRes = await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', {
         content: pingContent,
         embeds: [embedObject],
-      });
-      if (newRes?.id) updatedMsgIds['main_summary'] = newRes.id;
+      }).catch(() => null);
+      if (newRes?.id) updatedMsgIds[currentMatchKey] = newRes.id;
     }
   } else {
     // Jika PERTAMA KALI ➔ Gunakan POST dengan tag role Referee & Streamer
@@ -104,9 +105,9 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
     const newRes = await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', {
       content: pingContent,
       embeds: [embedObject],
-    });
-    if (newRes?.id) updatedMsgIds['main_summary'] = newRes.id;
+    }).catch(() => null);
+    if (newRes?.id) updatedMsgIds[currentMatchKey] = newRes.id;
   }
 
   return updatedMsgIds;
-      }
+        }
