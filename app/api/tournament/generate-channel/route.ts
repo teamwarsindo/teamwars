@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 
       const match = schedules[matchIndex];
 
-      // Auto-generate Referee Token jika belum terisi (tanpa mengubah jadwal)
+      // Auto-generate Referee Token jika belum terisi
       if (!match.refereeToken) {
         match.refereeToken = generateRandomToken(16);
         schedules[matchIndex] = match;
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
         matchId: match.id,
         teamAName: match.teamAName,
         teamBName: match.teamBName,
-        weekName: weekName || `Week ${match.calculatedWeekNumber || 1}`,
+        weekName: weekName || `Week ${(match as any).calculatedWeekNumber || 1}`,
         matchDateIso: match.matchDate,
         refereeName: match.referee,
         refereeDiscordId: match.refereeDiscordId,
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Simpan ke Redis hanya jika ada token baru yang dibuat
+    // Simpan ke Redis jika ada token baru
     if (isScheduleUpdated) {
       await kv.set('twi:schedules', schedules);
     }
@@ -127,4 +127,4 @@ export async function POST(req: Request) {
     console.error('Error Sync/Generate channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+        }
