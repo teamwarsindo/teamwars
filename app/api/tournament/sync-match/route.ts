@@ -32,22 +32,25 @@ export async function POST(req: Request) {
 
     const match = schedules[matchIndex];
 
-    // 1. Ambil Data Tim & Custom Emojis
+    // 1. CARI DATA TIM (DENGAN FALLBACK KEY REDIS)
+    const slugA = getTeamSlug(match.teamAName);
+    const slugB = getTeamSlug(match.teamBName);
+
     const [teamA, teamB] = await Promise.all([
-      kv.hgetall<any>(`teams:${getTeamSlug(match.teamAName)}`),
-      kv.hgetall<any>(`teams:${getTeamSlug(match.teamBName)}`),
+      kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
+      kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
     ]);
 
     const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || '';
     const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || '';
-    const emojiAId = teamA?.discordEmojiId || '';
-    const emojiBId = teamB?.discordEmojiId || '';
-    const roleAId = teamA?.discordRoleId || '';
-    const roleBId = teamB?.discordRoleId || '';
+    const emojiAId = teamA?.discordEmojiId || teamA?.emojiId || '';
+    const emojiBId = teamB?.discordEmojiId || teamB?.emojiId || '';
+    const roleAId = teamA?.discordRoleId || teamA?.roleId || '';
+    const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
 
-    const calculatedWeek = match.weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
+    const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
 
-    // 2. CREATE / SYNC DISCORD MATCH CHANNEL & OPENING EMBED UNTUK MATCH INI
+    // 2. CREATE / SYNC CHANNEL MATCH
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
       groupName: match.groupName,
@@ -70,16 +73,12 @@ export async function POST(req: Request) {
       openingMsgId: (match as any).openingMsgId,
     });
 
-    if (syncResult.channelId) {
-      (match as any).discordChannelId = syncResult.channelId;
-    }
-    if (syncResult.openingMsgId) {
-      (match as any).openingMsgId = syncResult.openingMsgId;
-    }
+    if (syncResult.channelId) (match as any).discordChannelId = syncResult.channelId;
+    if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
 
-    // 3. HITUNG JUMLAH MATCH PER HARI DI WEEK YANG SAMA
+    // 3. HITUNG JUMLAH MATCH PER HARI (FORMAT RINGKAS TANPA TAHUN AGAR < 25 CHARS)
     const weekMatches = schedules.filter((m) => {
-      const mWeek = m.weekName || `Week ${(m as any).calculatedWeekNumber || 1}`;
+      const mWeek = (m as any).weekName || `Week ${(m as any).calculatedWeekNumber || 1}`;
       return mWeek === calculatedWeek;
     });
 
@@ -92,8 +91,7 @@ export async function POST(req: Request) {
       const dateFormatted = d.toLocaleDateString('id-ID', {
         weekday: 'long',
         day: 'numeric',
-        month: 'short',
-        year: 'numeric',
+        month: 'short', // Contoh: "Rabu, 5 Agu"
         timeZone: 'Asia/Jakarta',
       });
 
@@ -107,11 +105,11 @@ export async function POST(req: Request) {
       .sort()
       .map((k) => dateMap[k]);
 
-    // 4. 📢 BROADCAST WEEKLY RECAP KE SEMUA CHANNEL MATCH PADA WEEK INI
-    for (const m of schedules) {
-      const mWeek = m.weekName || `Week ${(m as any).calculatedWeekNumber || 1}`;
-      
-      // Jika match ada di week yang sama DAN channel Discord-nya sudah ada
+    // 4. BROADCAST WEEKLY RECAP KE SEMUA CHANNEL MATCH
+    for (let i = 0; i < schedules.length; i++) {
+      const m = schedules[i];
+      const mWeek = (m as any).weekName || `Week ${(m as any).calculatedWeekNumber || 1}`;
+
       if (mWeek === calculatedWeek && (m as any).discordChannelId) {
         const newRecapMsgId = await sendOrUpdateWeeklyRecapEmbed({
           channelId: (m as any).discordChannelId,
@@ -121,12 +119,12 @@ export async function POST(req: Request) {
         });
 
         if (newRecapMsgId) {
-          (m as any).recapMsgId = newRecapMsgId;
+          (schedules[i] as any).recapMsgId = newRecapMsgId;
         }
       }
     }
 
-    // 5. SEND / UPDATE SCHEDULE EMBED DI CHANNEL JADWAL PUBLIK
+    // 5. UPDATE SCHEDULE EMBED DI CHANNEL PUBLIK (DENGAN EMOJI)
     const scheduleMsgId = await sendOrUpdateScheduleEmbed({
       groupName: match.groupName,
       weekName: calculatedWeek,
@@ -144,17 +142,14 @@ export async function POST(req: Request) {
       (match as any).scheduleMsgId = scheduleMsgId;
     }
 
-    // 6. SIMPAN SEMUA UPDATE ID KE KV REDIS
+    // 6. SIMPAN RECAP ID & SCHEDULE ID KE KV REDIS
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      message: `Match ${match.id} berhasil di-sync dan Weekly Recap disebarkan ke seluruh channel ${calculatedWeek}!`,
+      message: `Match ${match.id} berhasil di-sync!`,
       channelId: (match as any).discordChannelId,
-      openingMsgId: (match as any).openingMsgId,
-      recapMsgId: (match as any).recapMsgId,
-      scheduleMsgId: (match as any).scheduleMsgId,
     });
   } catch (error) {
     console.error('Error Syncing Discord Channel:', error);

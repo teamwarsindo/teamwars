@@ -4,7 +4,7 @@ export async function sendOrUpdateWeeklyRecapEmbed(params: {
   channelId: string;
   weekName: string;
   dailyMatchCounts: Array<{
-    dateFormatted: string; // Contoh: "Rabu, 5 Agu 2026"
+    dateFormatted: string; // Contoh: "Rabu, 5 Agu"
     count: number;          // Jumlah match terdaftar (0 - 3)
   }>;
   existingRecapMsgId?: string;
@@ -29,8 +29,11 @@ export async function sendOrUpdateWeeklyRecapEmbed(params: {
       statusText = `\`${day.count} / 3 Match\` 🟢 *(Tersedia ${remainingMatches} Match)*`;
     }
 
+    // Pastikan nama field dipotong maks 25 karakter agar tidak ditolak Discord API
+    const fieldName = `📅 ${day.dateFormatted}`.slice(0, 25);
+
     return {
-      name: `📅 ${day.dateFormatted}`,
+      name: fieldName,
       value: statusText,
       inline: false,
     };

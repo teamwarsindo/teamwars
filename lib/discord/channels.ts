@@ -150,7 +150,7 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // Permission Overwrites (Deny Everyone, Allow Bot, Role Tim A, Role Tim B, & Streamer)
+  // Permission Overwrites (Privat: Everyone Deny, Bot Allow, Role Tim A & Tim B Allow, Streamer Personal Allow)
   const permissionOverwrites: any[] = [
     {
       id: guildId, // @everyone
@@ -168,7 +168,7 @@ export async function createMatchDiscordChannel(params: {
     });
   }
 
-  // B. Role Tim A & Tim B (Akses Utama Channel Match)
+  // B. Role Tim A & Tim B
   if (isValidSnowflake(params.roleAId)) {
     permissionOverwrites.push({
       id: params.roleAId,
@@ -185,7 +185,7 @@ export async function createMatchDiscordChannel(params: {
     });
   }
 
-  // C. Streamer Personal (User Overwrite)
+  // C. Streamer Personal (User ID)
   const isStreamerIdValid = isValidSnowflake(params.streamerDiscordId);
   if (isStreamerIdValid) {
     permissionOverwrites.push({
@@ -194,9 +194,6 @@ export async function createMatchDiscordChannel(params: {
       allow: '66560',
     });
   }
-
-  // NOTE: Wasit TIDAK dimasukkan ke permissionOverwrites channel.
-  // Wasit otomatis mendapat akses channel karena diberi Role Tim A & Role Tim B.
 
   if (!channelId) {
     // BUAT CHANNEL MATCH BARU
@@ -232,7 +229,7 @@ export async function createMatchDiscordChannel(params: {
     return { channelId: null, openingMsgId: null };
   }
 
-  // 2. ASSIGN ROLE TIM A & TIM B KE AKUN WASIT
+  // 2. ASSIGN ROLE TIM A & TIM B KE AKUN WASIT (Agar Wasit otomatis bisa mengelola channel match)
   const isRefereeIdValid = isValidSnowflake(params.refereeDiscordId);
   if (isRefereeIdValid) {
     const refereeId = params.refereeDiscordId!;
@@ -251,7 +248,7 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 3. EMBED CHANNEL MATCH (OPENING EMBED + AUTO-PIN)
+  // 3. EMBED OPENING (PASTIKAN emojiAId & emojiBId TERKIRIM)
   const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
     channelId,
     matchId: params.matchId,
