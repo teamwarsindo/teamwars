@@ -78,8 +78,8 @@ export async function createMatchDiscordChannel(params: {
   streamerDiscordId?: string;
   streamLink?: string;
   matchDateIso?: string;
-  isSync?: boolean;    // True jika klik Sync Match per-item (tanpa ping role)
-  isTesting?: boolean; // True jika mode testing active
+  isSync?: boolean;    // True jika Sync Match (tanpa ping role)
+  isTesting?: boolean; // True jika Mode Testing Sandbox
 }) {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
@@ -110,7 +110,7 @@ export async function createMatchDiscordChannel(params: {
     if (params.roleAId) permission_overwrites.push({ id: params.roleAId, type: 0, allow: "3072" });
     if (params.roleBId) permission_overwrites.push({ id: params.roleBId, type: 0, allow: "3072" });
   } else {
-    // Di mode testing, berikan akses channel ke Role Admin
+    // Mode testing: Berikan akses ke Role Admin
     if (DISCORD_CONFIG.ROLE_ADMIN) {
       permission_overwrites.push({ id: DISCORD_CONFIG.ROLE_ADMIN, type: 0, allow: "3072" });
     }
@@ -162,7 +162,6 @@ export async function createMatchDiscordChannel(params: {
       ? `<@&${DISCORD_CONFIG.ROLE_ADMIN}> 🧪 **[TESTING MODE]** Pesan ujicoba match channel!`
       : `🧪 **[TESTING MODE]** Pesan ujicoba match channel!`;
   } else if (!params.isSync) {
-    // Ping Role Tim A & B hanya dikirim saat BUKAN Sync
     const roleMentions = [
       params.roleAId ? `<@&${params.roleAId}>` : teamA,
       params.roleBId ? `<@&${params.roleBId}>` : teamB,
@@ -182,7 +181,7 @@ export async function createMatchDiscordChannel(params: {
           { name: '⚖️ Wasit Bertugas', value: params.refereeDiscordId ? `<@${params.refereeDiscordId}> (${params.refereeName || 'Wasit Test'})` : (params.refereeName || 'Wasit Test'), inline: true },
           { name: '🎥 Streamer', value: params.streamerDiscordId ? `<@${params.streamerDiscordId}> (${params.streamerName || 'Streamer Test'})` : (params.streamerName || 'Streamer Test'), inline: true },
           { name: '📺 Live Stream', value: params.streamLink ? `[Nonton Streaming](${params.streamLink})` : '[Link Streaming Test](https://youtube.com)', inline: false },
-          { name: '📢 Informasi Reschedule', value: 'Jika ingin mengajukan perubahan jadwal (Reschedule), harap langsung menghubungi **Admin Tournament**.', inline: false },
+          { name: '📢 Informasi Reschedule', value: 'Diskusikan jadwal baru bersama tim lawan. Jika sudah sepakat, segera konfirmasi ke **Admin Tournament** untuk pembaruan resmi.', inline: false },
         ],
         footer: { text: 'Team Wars Indonesia Season 7' },
       },
@@ -198,6 +197,13 @@ export async function createMatchDiscordChannel(params: {
             custom_id: `btn_edit_match_${params.matchId}`,
             emoji: { name: '📝' },
           },
+          {
+            type: 2, // Button
+            style: 2, // Secondary (Gray)
+            label: 'Ajukan Reschedule',
+            custom_id: `btn_request_reschedule_${params.matchId}`,
+            emoji: { name: '📅' },
+          },
         ],
       },
     ],
@@ -211,4 +217,4 @@ export async function createMatchDiscordChannel(params: {
   await discordAPI(`/channels/${channelId}/messages`, 'POST', embedPayload);
 
   return channelId;
-     }
+}
