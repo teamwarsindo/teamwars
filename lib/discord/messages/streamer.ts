@@ -23,75 +23,71 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
 
   if (!targetChannelId || params.matches.length === 0) return updatedMsgIds;
 
-  // Susun daftar field pertandingan untuk match terkait
-  const fields = params.matches.map((m) => {
-    const cleanMatchNum = m.matchId.replace('match-', '');
-    const formattedWIB = m.matchDateIso
-      ? new Date(m.matchDateIso).toLocaleDateString('id-ID', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'Asia/Jakarta',
-        }) + ' WIB'
-      : 'Belum tersedia';
+  const currentMatch = params.matches[0];
 
-    const refereeDisplay = m.refereeDiscordId
-      ? `<@${m.refereeDiscordId}>`
-      : m.refereeName && m.refereeName.trim() !== ''
-      ? m.refereeName
-      : 'Belum tersedia';
+  // 1. Format Tanggal WIB
+  const formattedWIB = currentMatch.matchDateIso
+    ? new Date(currentMatch.matchDateIso).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta',
+      }) + ' WIB'
+    : 'Belum tersedia';
 
-    const streamerDisplay = m.streamerDiscordId
-      ? `<@${m.streamerDiscordId}>`
-      : m.streamerName && m.streamerName.trim() !== ''
-      ? m.streamerName
-      : 'Belum tersedia';
+  // 2. Format Tampilan Referee, Streamer, & Live Stream
+  const refereeDisplay = currentMatch.refereeDiscordId
+    ? `<@${currentMatch.refereeDiscordId}>`
+    : currentMatch.refereeName && currentMatch.refereeName.trim() !== ''
+    ? currentMatch.refereeName
+    : 'Belum tersedia';
 
-    const streamLinkDisplay = m.streamLink && m.streamLink.trim() !== ''
-      ? `[Nonton Live Streaming](${m.streamLink})`
-      : 'Belum tersedia';
+  const streamerDisplay = currentMatch.streamerDiscordId
+    ? `<@${currentMatch.streamerDiscordId}>`
+    : currentMatch.streamerName && currentMatch.streamerName.trim() !== ''
+    ? currentMatch.streamerName
+    : 'Belum tersedia';
 
-    const matchChannelDisplay = m.matchChannelId ? `<#${m.matchChannelId}>` : 'Belum tersedia';
+  const streamLinkDisplay = currentMatch.streamLink && currentMatch.streamLink.trim() !== ''
+    ? `[Nonton Live Streaming](${currentMatch.streamLink})`
+    : 'Belum tersedia';
 
-    const streamerRules = 
-      "• Jadwal bisa berubah sesuaikan kesepakatan kedua tim\n" +
-      "• Klaim jadwal ke Admin Discord";
+  const matchChannelDisplay = currentMatch.matchChannelId ? `<#${currentMatch.matchChannelId}>` : 'Belum tersedia';
 
-    return {
-      name: `⚔️ M${cleanMatchNum}: ${m.teamAName} VS ${m.teamBName}`,
-      value: 
-        `📅 **Jadwal Pertandingan:** ${formattedWIB}\n` +
-        `📍 **Channel Match:** ${matchChannelDisplay}\n` +
-        `⚖️ **Referee:** ${refereeDisplay}\n` +
-        `🎥 **Streamer:** ${streamerDisplay}\n` +
-        `📺 **Live Stream:** ${streamLinkDisplay}\n` +
-        `📌 **Catatan Streamer:**\n${streamerRules}`,
-      inline: false,
-    };
-  });
+  // 3. Teks Ketentuan Tugas Profesional
+  const streamerRulesText = 
+    "• **Penyesuaian Jadwal:** Waktu bertanding dapat berubah sesuai kesepakatan resmi kedua tim.\n" +
+    "• **Klaim Tugas:** Wajib melakukan konfirmasi dan klaim match melalui **Admin Discord**.";
 
+  // 4. Draft Embed Payload (Struktur disamakan persis dengan Channel Match)
   const embedObject = {
-    title: `📢 PILAH JADWAL MATCH - ${params.weekName.toUpperCase()}`,
+    title: `🏆 Group Stage - ${params.weekName || 'Week 1'}`,
     color: 0xf1c40f,
-    description: `Halo Referee & Streamer! Silakan cek jadwal pertandingan **${params.weekName}** di bawah dan klaim match yang ingin kamu tangani.`,
-    fields: fields.slice(0, 25),
+    description: `**${currentMatch.teamAName}** VS **${currentMatch.teamBName}**\n\nSilakan cek detail jadwal pertandingan di bawah dan koordinasikan klaim match.`,
+    fields: [
+      { name: '📅 Jadwal Pertandingan', value: formattedWIB, inline: false },
+      { name: '📍 Channel Match', value: matchChannelDisplay, inline: false },
+      { name: '⚖️ Referee', value: refereeDisplay, inline: true },
+      { name: '🎥 Streamer', value: streamerDisplay, inline: true },
+      { name: '📺 Live Stream', value: streamLinkDisplay, inline: false },
+      { name: '📢 Ketentuan Tugas & Jadwal', value: streamerRulesText, inline: false },
+    ],
     footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  const currentMatchKey = `match_${params.matches[0].matchId}`;
+  const currentMatchKey = `match_${currentMatch.matchId}`;
   const existingMsgId = updatedMsgIds[currentMatchKey];
 
-  // Jika embed SUDAH ADA ➔ Gunakan PATCH untuk edit tanpa tag ulang
+  // 5. Kirim atau Update Embed via Discord API
   if (existingMsgId) {
     const editRes = await discordAPI(`/channels/${targetChannelId}/messages/${existingMsgId}`, 'PATCH', {
       embeds: [embedObject],
     }).catch(() => null);
 
     if (!editRes) {
-      // Fallback jika pesan di Discord terhapus manual
       const pingContent = `<@&${DISCORD_CONFIG.ROLE_REFEREE}> <@&${DISCORD_CONFIG.ROLE_STREAMER}>`;
       const newRes = await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', {
         content: pingContent,
@@ -100,7 +96,6 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
       if (newRes?.id) updatedMsgIds[currentMatchKey] = newRes.id;
     }
   } else {
-    // Jika PERTAMA KALI ➔ Gunakan POST dengan tag role Referee & Streamer
     const pingContent = `<@&${DISCORD_CONFIG.ROLE_REFEREE}> <@&${DISCORD_CONFIG.ROLE_STREAMER}>`;
     const newRes = await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', {
       content: pingContent,
@@ -110,4 +105,4 @@ export async function sendOrUpdateStreamerSummaryEmbed(params: {
   }
 
   return updatedMsgIds;
-        }
+}
