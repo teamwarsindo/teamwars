@@ -21,84 +21,71 @@ export async function sendOrUpdateOpeningEmbed(params: {
   streamLink?: string;
   existingMsgId?: string;
 }): Promise<string | null> {
-  const isFirstTime = !params.existingMsgId;
+  // 🟢 Guard Clause: return null jika channelId tidak valid
+  if (!params.channelId) return null;
 
   // 1. Jika ada ID pesan lama, HAPUS PESAN LAMA terlebih dahulu
   if (params.existingMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // 2. Format Waktu WIB
-  const formattedWIB = params.matchDateIso
-    ? new Date(params.matchDateIso).toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Asia/Jakarta',
-      }) + ' WIB'
-    : 'Belum tersedia';
+  // 2. Format Emoji & Tag Role
+  const emojiA = params.emojiAId ? `<:teamA:${params.emojiAId}>` : '';
+  const emojiB = params.emojiBId ? `<:teamB:${params.emojiBId}>` : '';
+  const tagRoleA = params.roleAId ? `<@&${params.roleAId}>` : params.teamAName;
+  const tagRoleB = params.roleBId ? `<@&${params.roleBId}>` : params.teamBName;
+  const tagReferee = params.refereeDiscordId ? `<@${params.refereeDiscordId}>` : (params.refereeName || 'TBA');
+  const tagStreamer = params.streamerDiscordId ? `<@${params.streamerDiscordId}>` : (params.streamerName || 'TBA');
 
-  // 3. Format Emoji & Tampilan Tim
-  const emojiATag = params.emojiAId && params.kodeTimA ? `<:${params.kodeTimA}:${params.emojiAId}> ` : '';
-  const emojiBTag = params.emojiBId && params.kodeTimB ? `<:${params.kodeTimB}:${params.emojiBId}> ` : '';
+  // 3. Format Tanggal Pertandingan
+  let formattedDate = 'TBA';
+  if (params.matchDateIso) {
+    const d = new Date(params.matchDateIso);
+    formattedDate = d.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta',
+    }) + ' WIB';
+  }
 
-  // 4. Format Penampilan Referee, Streamer, & Stream Link
-  const refereeDisplay = params.refereeDiscordId
-    ? `<@${params.refereeDiscordId}>`
-    : params.refereeName && params.refereeName.trim() !== ''
-    ? params.refereeName
-    : 'Belum tersedia';
-
-  const streamerDisplay = params.streamerDiscordId
-    ? `<@${params.streamerDiscordId}>`
-    : params.streamerName && params.streamerName.trim() !== ''
-    ? params.streamerName
-    : 'Belum tersedia';
-
-  const streamLinkDisplay = params.streamLink && params.streamLink.trim() !== ''
-    ? `[Nonton Live Streaming](${params.streamLink})`
-    : 'Belum tersedia';
-
-  // 5. Tag Role Tim A & Tim B (Hanya saat First Time)
-  const roleATag = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
-  const roleBTag = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
-
-  const pingContent = isFirstTime ? `${roleATag} ${roleBTag}` : undefined;
-
-  // 6. Title Menggunakan groupName (Contoh: "🏆 Group A - Week 1" atau fallback "🏆 Group Stage - Week 1")
-  const stageTitle = params.groupName
-    ? `🏆 ${params.groupName} - ${params.weekName || 'Week 1'}`
-    : `🏆 Group Stage - ${params.weekName || 'Week 1'}`;
-
-  // 7. Info Reschedule
-  const rescheduleInfoText = 
-    "• **Persetujuan:** Kedua tim wajib setuju.\n" +
-    "• **Hari Tanding:** Rabu s.d. Minggu.\n" +
-    "• **Batas Harian:** Maksimal 3 match per hari.\n" +
-    "• **Konfirmasi:** Wajib lapor ke **Admin Discord**.";
-
-  // 8. Kirim PESAN BARU via POST
-  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
-    content: pingContent,
-    embeds: [
+  // 4. Payload Embed Opening
+  const embedObject = {
+    title: `⚔️ ${params.groupName || 'GROUP STAGE'} - ${params.weekName || 'Week 1'}`,
+    description: `Match pertandingan antara **${params.teamAName}** vs **${params.teamBName}**`,
+    color: 0x3498db, // Warna Biru / Blue
+    fields: [
       {
-        title: stageTitle,
-        color: 0x00d2ff,
-        description: `${emojiATag}**${params.teamAName}** VS ${emojiBTag}**${params.teamBName}**\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
-        fields: [
-          { name: '📅 Jadwal Pertandingan', value: formattedWIB, inline: false },
-          { name: '⚖️ Referee', value: refereeDisplay, inline: true },
-          { name: '🎥 Streamer', value: streamerDisplay, inline: true },
-          { name: '📺 Live Stream', value: streamLinkDisplay, inline: false },
-          { name: '📢 Ketentuan Reschedule', value: rescheduleInfoText, inline: false },
-        ],
-        footer: { text: 'Team Wars Indonesia Season 7' },
+        name: '👥 Tim Bertanding',
+        value: `${emojiA} ${tagRoleA}\n**VS**\n${emojiB} ${tagRoleB}`,
+        inline: true,
+      },
+      {
+        name: '📅 Jadwal tanding',
+        value: `\`${formattedDate}\``,
+        inline: true,
+      },
+      {
+        name: '📋 Petugas Match',
+        value: `Wasit: ${tagReferee}\nStreamer: ${tagStreamer}`,
+        inline: false,
       },
     ],
+    footer: { text: 'Team Wars Indonesia Season 7' },
+  };
+
+  // 5. Content Pesan Teks (Ping kedua Tim)
+  const messageContent = `📢 **Match Opening Notice!**\nPerhatian untuk ${tagRoleA} dan ${tagRoleB}, harap bersiap sesuai jadwal.`;
+
+  // 6. Kirim Pesan Ke Discord API
+  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
+    content: messageContent,
+    embeds: [embedObject],
   }).catch(() => null);
 
-  const newMsgId = res?.id || null;
-}
+  // 🟢 Pastikan selalu mengembalikan ID pesan atau null
+  return res?.id || null;
+    }
