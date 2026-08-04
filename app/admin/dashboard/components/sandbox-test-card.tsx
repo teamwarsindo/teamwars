@@ -8,8 +8,11 @@ export function SandboxTestCard() {
   // State khusus Sandbox Match Dummy
   const [testMatch, setTestMatch] = useState<MatchScheduleItem>({
     id: 'match-test',
+    stage: 'Group Stage',
     groupName: 'Group A',
+    teamAId: 'team-test-a',
     teamAName: 'Testing Team Alpha',
+    teamBId: 'team-test-b',
     teamBName: 'Testing Team Beta',
     teamALogo: '/logo-placeholder.png',
     teamBLogo: '/logo-placeholder.png',
@@ -21,9 +24,9 @@ export function SandboxTestCard() {
     streamer: 'Streamer Tester',
     caster: '987654321',
     streamLink: 'https://youtube.com',
-    refereeToken: '', // Awalnya kosong/no-token untuk testing
+    refereeToken: '',
+    isFinished: false,
   });
-
   const [isEditing, setIsEditing] = useState(false);
 
   // 1. GENERATE CHANNEL TEST (DENGAN TAG ROLE)
