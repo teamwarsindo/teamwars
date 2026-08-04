@@ -4,59 +4,51 @@ export async function sendOrUpdateWeeklyRecapEmbed(params: {
   channelId: string;
   weekName: string;
   dailyMatchCounts: Array<{
-    dateFormatted: string;
-    count: number;
+    dateFormatted: string; // Contoh: "Kamis, 6 Agu"
+    count: number;          // Jumlah match terdaftar (0 - 3)
   }>;
   existingRecapMsgId?: string;
 }): Promise<string | null> {
   if (!params.channelId) return null;
 
-  // 1. Jika data match kosong, jangan kirim request yang merusak embed
   if (!params.dailyMatchCounts || params.dailyMatchCounts.length === 0) {
-    console.warn('⚠️ dailyMatchCounts kosong, batal mengirim Weekly Recap.');
     return null;
   }
 
-  // 2. Hapus pesan rekap lama jika ada
+  // 1. Hapus pesan rekap lama jika ada
   if (params.existingRecapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingRecapMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // 3. Format Status Warna & Keterangan Pertandingan (DENGAN HARD LIMIT KARAKTER)
+  // 2. Format Status Warna & Keterangan Pertandingan Ringkas (Aman dari limit Discord API)
   const fields = params.dailyMatchCounts.map((day, idx) => {
     let statusText = '';
     
     if (day.count >= 3) {
-      statusText = `\`${day.count} / 3 Match\` 🔴 *(Penuh)*`;
+      statusText = `🔴 ${day.count}/3 Match (Penuh)`;
     } else if (day.count === 2) {
-      statusText = `\`${day.count} / 3 Match\` 🟡 *(Tersedia 1 Match)*`;
+      statusText = `🟡 ${day.count}/3 Match (Sisa 1)`;
     } else {
-      const remainingMatches = 3 - day.count;
-      statusText = `\`${day.count} / 3 Match\` 🟢 *(Tersedia ${remainingMatches} Match)*`;
+      const remaining = 3 - day.count;
+      statusText = `🟢 ${day.count}/3 Match (Sisa ${remaining})`;
     }
 
-    // Pastikan string yang di-slice adalah String murni dan TIDAK KOSONG
     const rawDateStr = typeof day.dateFormatted === 'string' && day.dateFormatted.trim() !== '' 
       ? day.dateFormatted.trim() 
       : `Hari ${idx + 1}`;
 
-    // Potong string tanggal maksimal 15 karakter
-    const safeDate = rawDateStr.slice(0, 15);
-    
-    // Gabung dengan Emoji (Hasil akhir dijamin 100% di bawah 20 karakter)
-    const fieldName = `📅 ${safeDate}`;
-
-    // LOG UNTUK DEBUGGING (Bisa dicek di console server jika masih error)
-    console.log(`[WeeklyRecap Field ${idx}] Name: "${fieldName}" (Len: ${fieldName.length}), Value: "${statusText}"`);
+    // Pastikan panjang string tidak melebihi batas 25 karakter Discord API
+    const safeName = `📅 ${rawDateStr}`.slice(0, 20);
+    const safeValue = statusText.slice(0, 25);
 
     return {
-      name: String(fieldName),
-      value: String(statusText),
+      name: safeName,
+      value: safeValue,
       inline: false,
     };
   });
 
-  // 4. Payload Embed
+  // 3. Payload Embed Rekap
   const embedObject = {
     title: `📊 Rekap Jadwal Pertandingan - ${params.weekName}`,
     color: 0x9b59b6, // Warna Ungu / Purple
@@ -65,13 +57,13 @@ export async function sendOrUpdateWeeklyRecapEmbed(params: {
     footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  // 5. Kirim pesan embed baru tanpa ping
+  // 4. Kirim pesan embed baru tanpa ping
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
     embeds: [embedObject],
   }).catch((err) => {
-    console.error('❌ Error Detail sendOrUpdateWeeklyRecapEmbed:', JSON.stringify(err));
+    console.error('❌ Error Weekly Recap Discord API:', err);
     return null;
   });
 
   return res?.id || null;
-}
+    }
