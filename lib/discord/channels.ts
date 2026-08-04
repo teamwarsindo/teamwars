@@ -18,6 +18,84 @@ function isValidSnowflake(id?: string): boolean {
   return !!id && /^\d{17,20}$/.test(id);
 }
 
+// 🟢 CREATION: Text Channel Tim Pendaftaran
+export async function createDiscordChannel(teamName: string, roleId: string) {
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID;
+
+  if (!guildId || !roleId) return null;
+
+  const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
+    name: teamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+    type: 0,
+    parent_id: parentCategoryId,
+    permission_overwrites: [
+      { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
+      { id: roleId, type: 0, allow: "3072", deny: "139280" },
+      { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }
+    ]
+  });
+
+  return data?.id || null;
+}
+
+// 🟢 CREATION: Voice Channel Tim Pendaftaran
+export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID;
+
+  if (!guildId || !roleId) return null;
+
+  const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
+    name: teamName,
+    type: 2,
+    parent_id: parentCategoryId,
+    permission_overwrites: [
+      { id: guildId, type: 0, deny: "1049600" },
+      { id: roleId, type: 0, allow: "1049600" },
+      { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "1049616" }
+    ]
+  });
+
+  return data?.id || null;
+}
+
+// 🌐 BATCH CREATE CHANNELS (Digunakan saat Batch Action Admin)
+export async function createDiscordChannels(matches: any[]): Promise<Record<string, string>> {
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+  const createdChannelMap: Record<string, string> = {};
+
+  if (!guildId || !Array.isArray(matches)) return createdChannelMap;
+
+  for (const match of matches) {
+    try {
+      const res = await createMatchDiscordChannel({
+        matchId: match.id,
+        groupName: match.groupName,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        weekName: match.weekName,
+        matchDateIso: match.matchDate,
+        refereeName: match.referee,
+        refereeDiscordId: match.refereeDiscordId,
+        streamerName: match.streamer,
+        streamerDiscordId: match.caster || match.streamer,
+        streamLink: match.streamLink,
+        savedChannelId: match.discordChannelId,
+        openingMsgId: match.openingMsgId,
+      });
+
+      if (res.channelId) {
+        createdChannelMap[match.id] = res.channelId;
+      }
+    } catch (err) {
+      console.error(`Gagal membuat channel untuk match ${match.id}:`, err);
+    }
+  }
+
+  return createdChannelMap;
+}
+
 // 🟢 GENERATE / SYNC SINGLE MATCH DISCORD CHANNEL & EMBED
 export async function createMatchDiscordChannel(params: {
   matchId: string;
@@ -147,7 +225,7 @@ export async function createMatchDiscordChannel(params: {
     return { channelId: null, openingMsgId: null };
   }
 
-  // 2. TANGSUNG ASSIGN ROLE TIM KE WASIT MATCH (Jika Wasit Di-set)
+  // 2. ASSIGN ROLE TIM KE WASIT MATCH (Jika Wasit Di-set)
   const isRefereeIdValid = isValidSnowflake(params.refereeDiscordId);
   if (isRefereeIdValid) {
     const refereeId = params.refereeDiscordId!;
