@@ -94,17 +94,18 @@ export function ScheduleAdminTab() {
     }
   };
 
+  // 🟢 SINGLE MATCH SYNC (Dipanggil saat klik tombol "Sync" per match)
   const handleSyncSingleMatch = async (match: MatchScheduleItem & { calculatedWeekNumber?: number }) => {
-    Swal.fire({ title: 'Syncing Match...', text: `Memperbarui data & Embed di Discord untuk ${match.teamAName} vs ${match.teamBName}`, didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'Syncing Match...', text: `Memperbarui channel & embed di Discord untuk ${match.teamAName} vs ${match.teamBName}`, didOpen: () => Swal.showLoading() });
     try {
-      const res = await fetch('/api/tournament/generate-channel', {
+      const res = await fetch('/api/tournament/sync-match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId: match.id, weekName: `Week ${match.calculatedWeekNumber || 1}` }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        await fetchSchedules(); // Refresh Token di UI
+        await fetchSchedules(); // Refresh data dari Redis
         Swal.fire('Berhasil!', 'Match berhasil di-sync ke Discord!', 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal melakukan sync match', 'error');
@@ -114,42 +115,11 @@ export function ScheduleAdminTab() {
     }
   };
 
-  const handleGenerateAllWeekChannels = async () => {
-    const targetMatchIds = filteredSchedules.map((m) => m.id);
-    if (targetMatchIds.length === 0) {
-      Swal.fire('Info', 'Tidak ada match untuk di-generate', 'info');
-      return;
-    }
-    const confirm = await Swal.fire({
-      title: `Generate ALL Channel (${selectedWeek === 'ALL' ? 'Semua Match' : selectedWeek})?`,
-      text: `Sistem akan membuat/menyesuaikan ${targetMatchIds.length} channel Discord otomatis.`,
-      icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Generate!', cancelButtonText: 'Batal',
-    });
-    if (!confirm.isConfirmed) return;
-
-    Swal.fire({ title: 'Batch Generating Channels...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    try {
-      const res = await fetch('/api/tournament/sync-match', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchIds: targetMatchIds, weekName: selectedWeek === 'ALL' ? 'Week 1' : selectedWeek }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        await fetchSchedules(); // Refresh State
-        Swal.fire('Selesai!', `Berhasil membuat/memperbarui ${data.totalProcessed} channel Discord!`, 'success');
-      } else {
-        Swal.fire('Gagal', data.error || 'Gagal generate channel batch', 'error');
-      }
-    } catch {
-      Swal.fire('Error', 'Terjadi kesalahan server saat batch generate', 'error');
-    }
-  };
-
+  // 🔴 DELETE MATCH CHANNEL
   const handleDeleteChannel = async (match: MatchScheduleItem) => {
     const confirm = await Swal.fire({
       title: `Hapus Channel Discord ${match.id}?`,
-      text: `Channel ⚔️-m${match.id.replace('match-', '')}-... akan dihapus permanen dari server Discord.`,
+      text: `Channel ⚔️-m${match.id.replace('match-', '')}-... akan dihapus dari server Discord dan role tim pada Wasit akan dicabut.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Ya, Hapus Channel!',
@@ -169,6 +139,7 @@ export function ScheduleAdminTab() {
 
       const data = await res.json();
       if (res.ok && data.success) {
+        await fetchSchedules(); // Refresh data dari Redis
         Swal.fire('Berhasil!', data.message, 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal menghapus channel', 'error');
@@ -180,7 +151,7 @@ export function ScheduleAdminTab() {
 
   const handleCopyMagicLink = (match: MatchScheduleItem) => {
     if (!match.refereeToken) {
-      Swal.fire('Token Kosong', 'Klik tombol "Sync" atau "Generate" terlebih dahulu untuk meng-generate token wasit.', 'warning');
+      Swal.fire('Token Kosong', 'Klik tombol "Sync" terlebih dahulu untuk meng-generate token wasit.', 'warning');
       return;
     }
     const magicUrl = `${window.location.origin}/tournament/match-input/${match.id}?token=${match.refereeToken}`;
@@ -199,7 +170,7 @@ export function ScheduleAdminTab() {
           <h2 className="text-lg font-extrabold text-foreground">Manajemen Schedule Pertandingan</h2>
           <p className="text-xs text-muted-foreground">Kelola waktu (WIB), Wasit, Streamer, dan otomatisasi channel Discord match.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <select
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(e.target.value)}
@@ -210,12 +181,6 @@ export function ScheduleAdminTab() {
               <option key={w.weekNum} value={w.weekNum}>{w.weekNum} ({w.matches.length} Match)</option>
             ))}
           </select>
-          <button
-            onClick={handleGenerateAllWeekChannels}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5"
-          >
-            <span>🚀 Generate All Channels ({selectedWeek})</span>
-          </button>
         </div>
       </div>
 
@@ -300,4 +265,4 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-}
+          }
