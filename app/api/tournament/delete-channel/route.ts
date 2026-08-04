@@ -51,6 +51,7 @@ export async function POST(req: Request) {
     // 2. HERSIHKAN RECORD DISCORD DI KV REDIS (Pasti Dieksekusi)
     (match as any).discordChannelId = null;
     (match as any).openingMsgId = null;
+    (match as any).scheduleMsgId = null;
 
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);

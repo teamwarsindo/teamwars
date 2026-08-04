@@ -3,6 +3,7 @@ import { discordAPI } from '../utils';
 export async function sendOrUpdateOpeningEmbed(params: {
   channelId: string;
   matchId: string;
+  groupName?: string;
   teamAName: string;
   teamBName: string;
   kodeTimA?: string;
@@ -61,25 +62,30 @@ export async function sendOrUpdateOpeningEmbed(params: {
     ? `[Nonton Live Streaming](${params.streamLink})`
     : 'Belum tersedia';
 
-  // 5. Tag Role Tim A & Tim B (HANYA DITAG JIKA SAMA SEKALI BELUM PERNAH ADA PESAN / FIRST TIME)
+  // 5. Tag Role Tim A & Tim B (Hanya saat First Time)
   const roleATag = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
   const roleBTag = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
 
   const pingContent = isFirstTime ? `${roleATag} ${roleBTag}` : undefined;
 
-  // 6. Info Reschedule Format Poin Singkat
+  // 6. Title Menggunakan groupName (Contoh: "🏆 Group A - Week 1" atau fallback "🏆 Group Stage - Week 1")
+  const stageTitle = params.groupName
+    ? `🏆 ${params.groupName} - ${params.weekName || 'Week 1'}`
+    : `🏆 Group Stage - ${params.weekName || 'Week 1'}`;
+
+  // 7. Info Reschedule
   const rescheduleInfoText = 
     "• **Persetujuan:** Kedua tim wajib setuju.\n" +
     "• **Hari Tanding:** Rabu s.d. Minggu.\n" +
     "• **Batas Harian:** Maksimal 3 match per hari.\n" +
     "• **Konfirmasi:** Wajib lapor ke **Admin Discord**.";
 
-  // 7. Kirim PESAN BARU via POST
+  // 8. Kirim PESAN BARU via POST
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
     content: pingContent,
     embeds: [
       {
-        title: `🏆 Group Stage - ${params.weekName || 'Week 1'}`,
+        title: stageTitle,
         color: 0x00d2ff,
         description: `${emojiATag}**${params.teamAName}** VS ${emojiBTag}**${params.teamBName}**\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
         fields: [
@@ -96,7 +102,7 @@ export async function sendOrUpdateOpeningEmbed(params: {
 
   const newMsgId = res?.id || null;
 
-  // 8. AUTO-PIN PESAN BARU DI CHANNEL MATCH
+  // 9. AUTO-PIN PESAN BARU DI CHANNEL MATCH
   if (newMsgId) {
     await discordAPI(`/channels/${params.channelId}/pins/${newMsgId}`, 'PUT').catch(() => null);
   }

@@ -3,6 +3,7 @@ import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { sendOrUpdateStreamerSummaryEmbed } from '@/lib/discord/messages/streamer';
+import { sendOrUpdateScheduleEmbed } from '@/lib/discord/messages/schedule';
 
 function getTeamSlug(teamName: string) {
   return teamName
@@ -57,16 +58,19 @@ export async function POST(req: Request) {
     const emojiAId = teamA?.emojiId;
     const emojiBId = teamB?.emojiId;
 
-    // 2. PROSES SYNC DISCORD CHANNEL & EMBED MATCH
+    const calculatedWeek = weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
+
+    // 2. PROSES SYNC DISCORD CHANNEL & EMBED MATCH (OPENING)
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
+      groupName: match.groupName, // 👈 Teruskan groupName
       teamAName: match.teamAName,
       teamBName: match.teamBName,
       kodeTimA,
       kodeTimB,
       emojiAId,
       emojiBId,
-      weekName: weekName || `Week ${(match as any).calculatedWeekNumber || 1}`,
+      weekName: calculatedWeek,
       matchDateIso: match.matchDate,
       refereeName: match.referee,
       refereeDiscordId: match.refereeDiscordId,
@@ -82,18 +86,16 @@ export async function POST(req: Request) {
     if (syncResult.channelId) {
       (match as any).discordChannelId = syncResult.channelId;
       if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
-      schedules[matchIndex] = match;
-      await kv.set('twi:schedules', schedules);
     }
 
-    // 3. SYNC EMBED KE CHANNEL STREAMER (Single Match Terkait)
+    // 3. SYNC EMBED KE CHANNEL STREAMER
     const existingStreamerMsgIds = (await kv.get<Record<string, string>>('twi:streamer_msg_ids')) || {};
 
     const updatedStreamerMsgIds = await sendOrUpdateStreamerSummaryEmbed({
-      weekName: weekName || `Week ${(match as any).calculatedWeekNumber || 1}`,
+      weekName: calculatedWeek,
       matches: [{
         matchId: match.id,
-        groupName: match.groupName,
+        groupName: match.groupName, // 👈 Teruskan groupName
         teamAName: match.teamAName,
         teamBName: match.teamBName,
         kodeTimA,
@@ -113,10 +115,33 @@ export async function POST(req: Request) {
 
     await kv.set('twi:streamer_msg_ids', updatedStreamerMsgIds);
 
+    // 4. SYNC EMBED KE CHANNEL SCHEDULE PUBLIK (#schedule)
+    const scheduleMsgId = await sendOrUpdateScheduleEmbed({
+      groupName: match.groupName, // 👈 Teruskan groupName
+      weekName: calculatedWeek,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      kodeTimA,
+      kodeTimB,
+      emojiAId,
+      emojiBId,
+      matchDateIso: match.matchDate,
+      existingMsgId: (match as any).scheduleMsgId,
+    });
+
+    if (scheduleMsgId) {
+      (match as any).scheduleMsgId = scheduleMsgId;
+    }
+
+    // 5. SIMPAN PERUBAHAN RECORD MATCH KE REDIS
+    schedules[matchIndex] = match;
+    await kv.set('twi:schedules', schedules);
+
     return NextResponse.json({
       success: true,
       matchId: match.id,
       channelId: syncResult.channelId,
+      scheduleMsgId,
     });
   } catch (error) {
     console.error('Error Sync Single Match:', error);
