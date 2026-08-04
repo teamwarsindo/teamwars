@@ -82,6 +82,7 @@ export async function createDiscordVoiceChannel(teamName: string, roleId: string
 // 🟢 GENERATE / SYNC SINGLE MATCH DISCORD CHANNEL & EMBED
 export async function createMatchDiscordChannel(params: {
   matchId: string;
+  groupName?: string; // 👈 Tambahkan ini
   teamAName: string;
   teamBName: string;
   kodeTimA?: string;
@@ -223,6 +224,7 @@ export async function createMatchDiscordChannel(params: {
   const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
     channelId,
     matchId: params.matchId,
+    groupName: params.groupName, // 👈 Teruskan groupName ke embed
     teamAName: params.teamAName,
     teamBName: params.teamBName,
     kodeTimA: abbrA,
