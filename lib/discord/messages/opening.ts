@@ -1,3 +1,4 @@
+//Kicau Mania
 import { discordAPI } from '../utils';
 
 export async function sendOrUpdateOpeningEmbed(params: {
