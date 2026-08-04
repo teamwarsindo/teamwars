@@ -1,7 +1,6 @@
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
 import { sendOrUpdateOpeningEmbed } from './messages/opening';
-import { sendOrUpdateStreamerEmbed } from './messages/streamer';
 
 function getFallbackAbbreviation(teamName: string): string {
   const words = teamName.trim().split(/\s+/);
@@ -28,7 +27,7 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
     type: 0,
     parent_id: parentCategoryId,
     permission_overwrites: [
-      { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
+      { id: guildId, type: 0, deny: "1024" },
       { id: roleId, type: 0, allow: "3072", deny: "139280" },
       { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }
     ]
@@ -102,7 +101,7 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 2. OTOMATISASI ROLE WASIT KE CAMP TIM (JIKA WASIT PAKAI DISCORD ID VALID)
+  // 2. OTOMATISASI ROLE REFEREE KE CAMP TIM
   const isRefereeIdValid = isValidSnowflake(params.refereeDiscordId);
   if (isRefereeIdValid && params.refereeDiscordId) {
     if (isValidSnowflake(params.roleAId)) {
@@ -113,13 +112,12 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 🔒 PERMISSION OVERWRITES MATRIX (DISAMAKAN PERSIS DENGAN REGISTRASI TIM):
+  // 🔒 PERMISSION OVERWRITES MATRIX (Disamakan persis dengan registrasi tim)
   const permission_overwrites: any[] = [
-    { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
+    { id: guildId, type: 0, deny: "1024" },
     { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" },
   ];
 
-  // Role Tim A & Tim B (Disamakan persis dengan permission registrasi tim)
   if (isValidSnowflake(params.roleAId)) {
     permission_overwrites.push({ id: params.roleAId!, type: 0, allow: "3072", deny: "139280" });
   }
@@ -127,7 +125,6 @@ export async function createMatchDiscordChannel(params: {
     permission_overwrites.push({ id: params.roleBId!, type: 0, allow: "3072", deny: "139280" });
   }
 
-  // Wasit & Streamer
   if (isRefereeIdValid) {
     permission_overwrites.push({ id: params.refereeDiscordId!, type: 1, allow: "3072" });
   }
@@ -158,6 +155,8 @@ export async function createMatchDiscordChannel(params: {
     matchId: params.matchId,
     teamAName: params.teamAName,
     teamBName: params.teamBName,
+    roleAId: params.roleAId,
+    roleBId: params.roleBId,
     weekName: params.weekName,
     matchDateIso: params.matchDateIso,
     refereeName: params.refereeName,
@@ -168,25 +167,10 @@ export async function createMatchDiscordChannel(params: {
     existingMsgId: params.openingMsgId,
   });
 
-  // 5. Send / Update Streamer Embed di Channel Streamer
-  const newStreamerMsgId = await sendOrUpdateStreamerEmbed({
-    matchChannelId: channelId,
-    matchId: params.matchId,
-    teamAName: params.teamAName,
-    teamBName: params.teamBName,
-    matchDateIso: params.matchDateIso,
-    refereeName: params.refereeName,
-    refereeDiscordId: isRefereeIdValid ? params.refereeDiscordId : undefined,
-    streamerName: params.streamerName,
-    streamerDiscordId: isStreamerIdValid ? params.streamerDiscordId : undefined,
-    streamLink: params.streamLink,
-    existingMsgId: params.streamerMsgId,
-  });
-
   return {
     channelId,
     openingMsgId: newOpeningMsgId || params.openingMsgId,
-    streamerMsgId: newStreamerMsgId || params.streamerMsgId,
+    streamerMsgId: params.streamerMsgId,
   };
 }
 

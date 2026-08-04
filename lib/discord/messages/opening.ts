@@ -5,6 +5,8 @@ export async function sendOrUpdateOpeningEmbed(params: {
   matchId: string;
   teamAName: string;
   teamBName: string;
+  roleAId?: string;
+  roleBId?: string;
   weekName?: string;
   matchDateIso?: string;
   refereeName?: string;
@@ -14,7 +16,9 @@ export async function sendOrUpdateOpeningEmbed(params: {
   streamLink?: string;
   existingMsgId?: string;
 }): Promise<string | null> {
-  // 1. Hapus pesan opening lama jika ID-nya tercatat
+  const isFirstTime = !params.existingMsgId;
+
+  // 1. Hapus pesan opening lama jika ID-nya tercatat di Redis
   if (params.existingMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
   }
@@ -30,27 +34,41 @@ export async function sendOrUpdateOpeningEmbed(params: {
         minute: '2-digit',
         timeZone: 'Asia/Jakarta',
       }) + ' WIB'
-    : 'Jadwal Belum Ditentukan';
+    : 'Belum tersedia';
 
-  // 3. Format Penampilan Wasit, Streamer, & Stream Link
+  // 3. Format Penampilan Referee, Streamer, & Stream Link
   const refereeDisplay = params.refereeDiscordId
-    ? `<@${params.refereeDiscordId}> (${params.refereeName || 'Wasit'})`
+    ? `<@${params.refereeDiscordId}>`
     : params.refereeName && params.refereeName.trim() !== ''
     ? params.refereeName
-    : 'Belum Ditugaskan';
+    : 'Belum tersedia';
 
   const streamerDisplay = params.streamerDiscordId
-    ? `<@${params.streamerDiscordId}> (${params.streamerName || 'Streamer'})`
+    ? `<@${params.streamerDiscordId}>`
     : params.streamerName && params.streamerName.trim() !== ''
     ? params.streamerName
-    : 'Belum Ditugaskan';
+    : 'Belum tersedia';
 
   const streamLinkDisplay = params.streamLink && params.streamLink.trim() !== ''
     ? `[Nonton Live Streaming](${params.streamLink})`
-    : '-';
+    : 'Belum tersedia';
 
-  // 4. Draft Embed Payload (Murni Info, Tanpa Tombol & Tanpa Tag)
-  const embedPayload = {
+  // 4. Content Teks Tag Role Tim (Hanya dikirim pertama kali channel terbuat)
+  const roleATag = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
+  const roleBTag = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
+
+  const pingContent = isFirstTime ? `${roleATag} ${roleBTag}` : undefined;
+
+  // 5. Info Reschedule Format Poin Singkat
+  const rescheduleInfoText = 
+    "• **Persetujuan:** Kedua tim wajib setuju.\n" +
+    "• **Hari Tanding:** Rabu s.d. Minggu.\n" +
+    "• **Batas Harian:** Maksimal 3 match per hari.\n" +
+    "• **Konfirmasi:** Wajib lapor ke **Admin Discord**.";
+
+  // 6. Draft Embed Payload
+  const embedPayload: any = {
+    content: pingContent,
     embeds: [
       {
         title: `🏆 Group Stage - ${params.weekName || 'Week 1'}`,
@@ -58,22 +76,17 @@ export async function sendOrUpdateOpeningEmbed(params: {
         description: `**${params.teamAName}** VS **${params.teamBName}**\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
         fields: [
           { name: '📅 Jadwal Pertandingan', value: formattedWIB, inline: false },
-          { name: '⚖️ Wasit Bertugas', value: refereeDisplay, inline: true },
+          { name: '⚖️ Referee', value: refereeDisplay, inline: true },
           { name: '🎥 Streamer', value: streamerDisplay, inline: true },
           { name: '📺 Live Stream', value: streamLinkDisplay, inline: false },
-          {
-            name: '📢 Informasi Reschedule',
-            value:
-              'Reschedule pertandingan diperbolehkan dengan syarat **kedua tim wajib setuju**. Pertandingan reschedule **hanya bisa dilaksanakan pada hari Rabu s.d. Minggu**, dengan batas maksimal **3 match per hari**. Setelah menemukan kesepakatan waktu baru, harap konfirmasikan ke **Admin Discord**.',
-            inline: false,
-          },
+          { name: '📢 Ketentuan Reschedule', value: rescheduleInfoText, inline: false },
         ],
         footer: { text: 'Team Wars Indonesia Season 7' },
       },
     ],
   };
 
-  // 5. Kirim Pesan Baru
+  // 7. Kirim Pesan Baru
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', embedPayload);
   return res?.id || null;
 }

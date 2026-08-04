@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
+import { sendOrUpdateStreamerSummaryEmbed } from '@/lib/discord/messages/streamer';
 
 function getTeamSlug(teamName: string) {
   return teamName
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
     }
 
     const results = [];
+    const summaryMatchesData = [];
     let isScheduleUpdated = false;
 
     for (const mId of targetMatchIds) {
@@ -47,7 +49,6 @@ export async function POST(req: Request) {
         isScheduleUpdated = true;
       }
 
-      // Ambil Hash Data Tim A & Tim B dari Upstash Redis
       const [teamA, teamB] = await Promise.all([
         kv.hgetall<any>(`teams:${getTeamSlug(match.teamAName)}`),
         kv.hgetall<any>(`teams:${getTeamSlug(match.teamBName)}`),
@@ -79,17 +80,36 @@ export async function POST(req: Request) {
 
       if (syncResult.channelId) {
         if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
-        if (syncResult.streamerMsgId) (match as any).streamerMsgId = syncResult.streamerMsgId;
         schedules[matchIndex] = match;
         isScheduleUpdated = true;
       }
 
       results.push({ matchId: mId, success: !!syncResult.channelId, channelId: syncResult.channelId });
 
+      summaryMatchesData.push({
+        matchId: match.id,
+        groupName: match.groupName,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        matchChannelId: syncResult.channelId || undefined,
+        matchDateIso: match.matchDate,
+        refereeName: match.referee,
+        refereeDiscordId: match.refereeDiscordId,
+        streamerName: match.streamer,
+        streamerDiscordId: (match as any).caster,
+        streamLink: match.streamLink,
+      });
+
       if (targetMatchIds.length > 1) {
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
     }
+
+    // KIRIM 2 EMBED REKAP STREAMER PER GROUP STAGE UNTUK MINGGU INI
+    await sendOrUpdateStreamerSummaryEmbed({
+      weekName: weekName || 'Week 1',
+      matches: summaryMatchesData,
+    });
 
     if (isScheduleUpdated) {
       await kv.set('twi:schedules', schedules);

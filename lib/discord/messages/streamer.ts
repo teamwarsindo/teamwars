@@ -1,79 +1,98 @@
 import { DISCORD_CONFIG } from '../config';
 import { discordAPI } from '../utils';
 
-export async function sendOrUpdateStreamerEmbed(params: {
-  matchChannelId: string;
-  matchId: string;
-  teamAName: string;
-  teamBName: string;
-  matchDateIso?: string;
-  refereeName?: string;
-  refereeDiscordId?: string;
-  streamerName?: string;
-  streamerDiscordId?: string;
-  streamLink?: string;
-  existingMsgId?: string;
-}): Promise<string | null> {
+export async function sendOrUpdateStreamerSummaryEmbed(params: {
+  weekName: string;
+  matches: Array<{
+    matchId: string;
+    groupName?: string;
+    teamAName: string;
+    teamBName: string;
+    matchChannelId?: string;
+    matchDateIso?: string;
+    refereeName?: string;
+    refereeDiscordId?: string;
+    streamerName?: string;
+    streamerDiscordId?: string;
+    streamLink?: string;
+  }>;
+}): Promise<boolean> {
   const targetChannelId = DISCORD_CONFIG.CH_STREAMER;
-  if (!targetChannelId) return null;
+  if (!targetChannelId || params.matches.length === 0) return false;
 
-  const formattedWIB = params.matchDateIso
-    ? new Date(params.matchDateIso).toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Asia/Jakarta',
-      }) + ' WIB'
-    : 'Jadwal Belum Ditentukan';
+  // 1. Kelompokkan Match Berdasarkan Group Name (Group A, Group B, dst.)
+  const groupedMatches = params.matches.reduce((acc, m) => {
+    const groupKey = m.groupName || 'Group Stage';
+    if (!acc[groupKey]) acc[groupKey] = [];
+    acc[groupKey].push(m);
+    return acc;
+  }, {} as Record<string, typeof params.matches>);
 
-  const refereeDisplay = params.refereeDiscordId
-    ? `<@${params.refereeDiscordId}>`
-    : params.refereeName && params.refereeName.trim() !== ''
-    ? params.refereeName
-    : '⏳ *Membutuhkan Wasit*';
+  // 2. Loop & Kirim 1 Pesan Embed Per Group Stage
+  for (const [groupName, matchesList] of Object.entries(groupedMatches)) {
+    const fields = matchesList.map((m) => {
+      const cleanMatchNum = m.matchId.replace('match-', '');
+      const formattedWIB = m.matchDateIso
+        ? new Date(m.matchDateIso).toLocaleDateString('id-ID', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Jakarta',
+          }) + ' WIB'
+        : 'Belum tersedia';
 
-  const streamerDisplay = params.streamerDiscordId
-    ? `<@${params.streamerDiscordId}>`
-    : params.streamerName && params.streamerName.trim() !== ''
-    ? params.streamerName
-    : '⏳ *Membutuhkan Streamer*';
+      const refereeDisplay = m.refereeDiscordId
+        ? `<@${m.refereeDiscordId}>`
+        : m.refereeName && m.refereeName.trim() !== ''
+        ? m.refereeName
+        : 'Belum tersedia';
 
-  const streamLinkDisplay = params.streamLink && params.streamLink.trim() !== ''
-    ? `[Link Streaming](${params.streamLink})`
-    : '-';
+      const streamerDisplay = m.streamerDiscordId
+        ? `<@${m.streamerDiscordId}>`
+        : m.streamerName && m.streamerName.trim() !== ''
+        ? m.streamerName
+        : 'Belum tersedia';
 
-  const embedObject = {
-    title: '🎮 PENUGASAN WASIT & STREAMER',
-    color: 0xf1c40f,
-    description: `**${params.teamAName}** VS **${params.teamBName}**`,
-    fields: [
-      { name: '📍 Channel Match', value: `<#${params.matchChannelId}>`, inline: false },
-      { name: '📅 Waktu Pertandingan', value: formattedWIB, inline: false },
-      { name: '⚖️ Wasit', value: refereeDisplay, inline: true },
-      { name: '🎥 Streamer', value: streamerDisplay, inline: true },
-      { name: '📺 Live Stream', value: streamLinkDisplay, inline: false },
-    ],
-    footer: { text: `Match ID: ${params.matchId} • TWI Season 7` },
-  };
+      const streamLinkDisplay = m.streamLink && m.streamLink.trim() !== ''
+        ? `[Nonton Live Streaming](${m.streamLink})`
+        : 'Belum tersedia';
 
-  // 🔄 JIKA SUDAH ADA PESAN LAMA: EDIT PESAN (TANPA PING ROLE RE-TAG)
-  if (params.existingMsgId) {
-    const editPayload = { embeds: [embedObject] };
-    const updated = await discordAPI(`/channels/${targetChannelId}/messages/${params.existingMsgId}`, 'PATCH', editPayload);
-    if (updated) return params.existingMsgId;
+      const matchChannelDisplay = m.matchChannelId ? `<#${m.matchChannelId}>` : 'Belum tersedia';
+
+      return {
+        name: `⚔️ M${cleanMatchNum}: ${m.teamAName} VS ${m.teamBName}`,
+        value: 
+          `📅 **Jadwal Pertandingan:** ${formattedWIB}\n` +
+          `📍 **Channel Match:** ${matchChannelDisplay}\n` +
+          `⚖️ **Referee:** ${refereeDisplay}\n` +
+          `🎥 **Streamer:** ${streamerDisplay}\n` +
+          `📺 **Live Stream:** ${streamLinkDisplay}`,
+        inline: false,
+      };
+    });
+
+    const embedObject = {
+      title: `📢 PILAH JADWAL MATCH - ${groupName.toUpperCase()} (${params.weekName})`,
+      color: 0xf1c40f,
+      description: `Halo Referee & Streamer! Silakan cek jadwal **${groupName}** di bawah dan pilih match yang ingin kamu tangani.`,
+      fields: fields.slice(0, 25),
+      footer: { text: 'Team Wars Indonesia Season 7' },
+    };
+
+    const pingContent = `<@&${DISCORD_CONFIG.ROLE_REFEREE}> <@&${DISCORD_CONFIG.ROLE_CREATIVE}>`;
+
+    // Kirim pesan per group stage
+    await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', {
+      content: pingContent,
+      embeds: [embedObject],
+    });
+
+    // Jeda antar group 300ms
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
-  // 🟢 JIKA BUAT BARU: KIRIM BESERTA TAG ROLE RELEVANT
-  const pingContent = `<@&${DISCORD_CONFIG.ROLE_REFEREE}> 📢 **JADWAL MATCH BARU DIBUKA!** Silakan cek penugasan match berikut:`;
-
-  const newPayload = {
-    content: pingContent,
-    embeds: [embedObject],
-  };
-
-  const res = await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', newPayload);
-  return res?.id || null;
+  return true;
 }
