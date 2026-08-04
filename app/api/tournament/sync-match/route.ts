@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
-import { sendOrUpdateStreamerSummaryEmbed } from '@/lib/discord/messages/streamer';
 import { sendOrUpdateScheduleEmbed } from '@/lib/discord/messages/schedule';
+import { sendOrUpdateWeeklyRecapEmbed } from '@/lib/discord/messages/weekly-recap';
 
 function getTeamSlug(teamName: string) {
   return teamName
@@ -14,19 +14,10 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
-function generateRandomToken(length = 16): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { matchId, weekName } = body;
+    const { matchId } = body;
 
     if (!matchId) {
       return NextResponse.json({ error: 'Match ID wajib diisi' }, { status: 400 });
@@ -41,29 +32,25 @@ export async function POST(req: Request) {
 
     const match = schedules[matchIndex];
 
-    if (!match.refereeToken) {
-      match.refereeToken = generateRandomToken(16);
-    }
-
-    // 1. Ambil Data Tim A & Tim B dari Upstash KV Redis (Role, Kode, Emoji)
+    // 1. Ambil Data Tim & Custom Emojis
     const [teamA, teamB] = await Promise.all([
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamAName)}`),
       kv.hgetall<any>(`teams:${getTeamSlug(match.teamBName)}`),
     ]);
 
-    const roleAId = teamA?.discordRoleId;
-    const roleBId = teamB?.discordRoleId;
-    const kodeTimA = teamA?.kodeTim;
-    const kodeTimB = teamB?.kodeTim;
-    const emojiAId = teamA?.emojiId;
-    const emojiBId = teamB?.emojiId;
+    const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || '';
+    const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || '';
+    const emojiAId = teamA?.discordEmojiId || '';
+    const emojiBId = teamB?.discordEmojiId || '';
+    const roleAId = teamA?.discordRoleId || '';
+    const roleBId = teamB?.discordRoleId || '';
 
-    const calculatedWeek = weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
+    const calculatedWeek = match.weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
 
-    // 2. PROSES SYNC DISCORD CHANNEL & EMBED MATCH (OPENING)
+    // 2. CREATE / SYNC DISCORD MATCH CHANNEL & OPENING EMBED UNTUK MATCH INI
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
-      groupName: match.groupName, // 👈 Teruskan groupName
+      groupName: match.groupName,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
       kodeTimA,
@@ -71,53 +58,77 @@ export async function POST(req: Request) {
       emojiAId,
       emojiBId,
       weekName: calculatedWeek,
-      matchDateIso: match.matchDate,
-      refereeName: match.referee,
-      refereeDiscordId: match.refereeDiscordId,
-      streamerName: match.streamer,
-      streamerDiscordId: (match as any).caster || match.streamer,
-      streamLink: match.streamLink,
       roleAId,
       roleBId,
+      refereeName: match.referee,
+      refereeDiscordId: match.refereeDiscordId,
+      streamerName: match.caster || match.streamer,
+      streamerDiscordId: match.streamerDiscordId || match.casterDiscordId,
+      streamLink: match.streamLink,
+      matchDateIso: match.matchDate,
       savedChannelId: (match as any).discordChannelId,
       openingMsgId: (match as any).openingMsgId,
     });
 
     if (syncResult.channelId) {
       (match as any).discordChannelId = syncResult.channelId;
-      if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
+    }
+    if (syncResult.openingMsgId) {
+      (match as any).openingMsgId = syncResult.openingMsgId;
     }
 
-    // 3. SYNC EMBED KE CHANNEL STREAMER
-    const existingStreamerMsgIds = (await kv.get<Record<string, string>>('twi:streamer_msg_ids')) || {};
-
-    const updatedStreamerMsgIds = await sendOrUpdateStreamerSummaryEmbed({
-      weekName: calculatedWeek,
-      matches: [{
-        matchId: match.id,
-        groupName: match.groupName, // 👈 Teruskan groupName
-        teamAName: match.teamAName,
-        teamBName: match.teamBName,
-        kodeTimA,
-        kodeTimB,
-        emojiAId,
-        emojiBId,
-        matchChannelId: syncResult.channelId || (match as any).discordChannelId,
-        matchDateIso: match.matchDate,
-        refereeName: match.referee,
-        refereeDiscordId: match.refereeDiscordId,
-        streamerName: match.streamer,
-        streamerDiscordId: (match as any).caster || match.streamer,
-        streamLink: match.streamLink,
-      }],
-      existingMsgIds: existingStreamerMsgIds,
+    // 3. HITUNG JUMLAH MATCH PER HARI DI WEEK YANG SAMA
+    const weekMatches = schedules.filter((m) => {
+      const mWeek = m.weekName || `Week ${(m as any).calculatedWeekNumber || 1}`;
+      return mWeek === calculatedWeek;
     });
 
-    await kv.set('twi:streamer_msg_ids', updatedStreamerMsgIds);
+    const dateMap: Record<string, { dateFormatted: string; count: number }> = {};
 
-    // 4. SYNC EMBED KE CHANNEL SCHEDULE PUBLIK (#schedule)
+    weekMatches.forEach((m) => {
+      if (!m.matchDate) return;
+      const d = new Date(m.matchDate);
+      const keyIso = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
+      const dateFormatted = d.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta',
+      });
+
+      if (!dateMap[keyIso]) {
+        dateMap[keyIso] = { dateFormatted, count: 0 };
+      }
+      dateMap[keyIso].count += 1;
+    });
+
+    const dailyMatchCounts = Object.keys(dateMap)
+      .sort()
+      .map((k) => dateMap[k]);
+
+    // 4. 📢 BROADCAST WEEKLY RECAP KE SEMUA CHANNEL MATCH PADA WEEK INI
+    for (const m of schedules) {
+      const mWeek = m.weekName || `Week ${(m as any).calculatedWeekNumber || 1}`;
+      
+      // Jika match ada di week yang sama DAN channel Discord-nya sudah ada
+      if (mWeek === calculatedWeek && (m as any).discordChannelId) {
+        const newRecapMsgId = await sendOrUpdateWeeklyRecapEmbed({
+          channelId: (m as any).discordChannelId,
+          weekName: calculatedWeek,
+          dailyMatchCounts,
+          existingRecapMsgId: (m as any).recapMsgId,
+        });
+
+        if (newRecapMsgId) {
+          (m as any).recapMsgId = newRecapMsgId;
+        }
+      }
+    }
+
+    // 5. SEND / UPDATE SCHEDULE EMBED DI CHANNEL JADWAL PUBLIK
     const scheduleMsgId = await sendOrUpdateScheduleEmbed({
-      groupName: match.groupName, // 👈 Teruskan groupName
+      groupName: match.groupName,
       weekName: calculatedWeek,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
@@ -133,18 +144,20 @@ export async function POST(req: Request) {
       (match as any).scheduleMsgId = scheduleMsgId;
     }
 
-    // 5. SIMPAN PERUBAHAN RECORD MATCH KE REDIS
+    // 6. SIMPAN SEMUA UPDATE ID KE KV REDIS
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      matchId: match.id,
-      channelId: syncResult.channelId,
-      scheduleMsgId,
+      message: `Match ${match.id} berhasil di-sync dan Weekly Recap disebarkan ke seluruh channel ${calculatedWeek}!`,
+      channelId: (match as any).discordChannelId,
+      openingMsgId: (match as any).openingMsgId,
+      recapMsgId: (match as any).recapMsgId,
+      scheduleMsgId: (match as any).scheduleMsgId,
     });
   } catch (error) {
-    console.error('Error Sync Single Match:', error);
+    console.error('Error Syncing Discord Channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
