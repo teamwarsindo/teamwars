@@ -1,49 +1,7 @@
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
 
-// 🟢 CREATION: Text Channel Tim
-export async function createDiscordChannel(teamName: string, roleId: string) {
-  const guildId = DISCORD_CONFIG.GUILD_ID; 
-  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
-
-  if (!guildId || !roleId) return null;
-
-  const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
-    name: teamName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-    type: 0, 
-    parent_id: parentCategoryId,
-    permission_overwrites: [
-      { id: guildId, type: 0, deny: "1024" }, // Hide dari @everyone
-      { id: roleId, type: 0, allow: "3072", deny: "139280" },
-      { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }
-    ]
-  });
-
-  return data?.id || null;
-}
-
-// 🟢 CREATION: Voice Channel Tim
-export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
-  const guildId = DISCORD_CONFIG.GUILD_ID; 
-  const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID; 
-
-  if (!guildId || !roleId) return null;
-
-  const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
-    name: teamName, 
-    type: 2, 
-    parent_id: parentCategoryId,
-    permission_overwrites: [
-      { id: guildId, type: 0, deny: "1049600" },
-      { id: roleId, type: 0, allow: "1049600" },
-      { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "1049616" }
-    ]
-  });
-
-  return data?.id || null;
-}
-
-// 🟢 HELPER: Singkatan nama tim (misal: "UX Dino Rampage" -> "uxdr")
+// Helper: Singkatan nama tim (misal: "Final Chapter" -> "fc")
 function getTeamAbbreviation(teamName: string): string {
   const words = teamName.trim().split(/\s+/);
   if (words.length > 1) {
@@ -52,19 +10,14 @@ function getTeamAbbreviation(teamName: string): string {
   return teamName.substring(0, 4).toLowerCase();
 }
 
-// 🟢 HELPER: Berikan Role Tim A & Tim B ke User Wasit
+// Helper: Berikan Role Tim ke Wasit jika diperlukan
 export async function assignTeamRolesToReferee(guildId: string, refereeUserId?: string, roleAId?: string, roleBId?: string) {
   if (!refereeUserId || !guildId) return;
-
-  if (roleAId) {
-    await discordAPI(`/guilds/${guildId}/members/${refereeUserId}/roles/${roleAId}`, 'PUT').catch(() => null);
-  }
-  if (roleBId) {
-    await discordAPI(`/guilds/${guildId}/members/${refereeUserId}/roles/${roleBId}`, 'PUT').catch(() => null);
-  }
+  if (roleAId) await discordAPI(`/guilds/${guildId}/members/${refereeUserId}/roles/${roleAId}`, 'PUT').catch(() => null);
+  if (roleBId) await discordAPI(`/guilds/${guildId}/members/${refereeUserId}/roles/${roleBId}`, 'PUT').catch(() => null);
 }
 
-// 🟢 GENERATE / SYNC MATCH CHANNEL & EMBED (SUPPORT TESTING MODE)
+// 🟢 GENERATE / SYNC MATCH CHANNEL & EMBED (PRODUCTION MODE)
 export async function createMatchDiscordChannel(params: {
   matchId: string;
   teamAName: string;
@@ -78,62 +31,72 @@ export async function createMatchDiscordChannel(params: {
   streamerDiscordId?: string;
   streamLink?: string;
   matchDateIso?: string;
-  isSync?: boolean;    // True jika Sync Match (tanpa ping role)
-  isTesting?: boolean; // True jika Mode Testing Sandbox
+  isSync?: boolean; // True = Tanpa Mention Role
 }) {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
 
   if (!guildId) return null;
 
-  const isTesting = !!params.isTesting;
+  // Nama channel standar produksi: ⚔️-m1-fc-ds
+  const cleanMatchNum = params.matchId.replace('match-', '');
+  const targetChannelName = `⚔️-m${cleanMatchNum}-${getTeamAbbreviation(params.teamAName)}-${getTeamAbbreviation(params.teamBName)}`;
 
-  // 1. Penentuan Nama Channel
-  const channelName = isTesting
-    ? `⚔️-match-test`
-    : `⚔️-${params.matchId.replace("match-", "m")}-${getTeamAbbreviation(params.teamAName)}-${getTeamAbbreviation(params.teamBName)}`;
+  // 1. CEK DULU APAKAH CHANNEL SUDAH ADA DI DISCORD (PENCEGAHAN DUPLIKAT)
+  const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
+  let channelId: string | null = null;
 
-  // 2. Data Fallback / Dummy jika Mode Testing
-  const teamA = isTesting ? 'Testing Team Alpha' : params.teamAName;
-  const teamB = isTesting ? 'Testing Team Beta' : params.teamBName;
-  const currentWeek = isTesting ? 'Week Test' : (params.weekName || 'Week 1');
+  if (Array.isArray(allGuildChannels)) {
+    const existingChannel = allGuildChannels.find(
+      (ch: any) => ch.parent_id === parentCategoryId && ch.name === targetChannelName
+    );
 
-  // 3. System Permission Overwrites
-  const permission_overwrites: any[] = [
-    { id: guildId, type: 0, deny: "1024" }, // Lock dari @everyone
-    { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }, // Bot Full Access
-  ];
-
-  if (!isTesting) {
-    if (params.refereeDiscordId) permission_overwrites.push({ id: params.refereeDiscordId, type: 1, allow: "3072" });
-    if (params.streamerDiscordId) permission_overwrites.push({ id: params.streamerDiscordId, type: 1, allow: "3072" });
-    if (params.roleAId) permission_overwrites.push({ id: params.roleAId, type: 0, allow: "3072" });
-    if (params.roleBId) permission_overwrites.push({ id: params.roleBId, type: 0, allow: "3072" });
-  } else {
-    // Mode testing: Berikan akses ke Role Admin
-    if (DISCORD_CONFIG.ROLE_ADMIN) {
-      permission_overwrites.push({ id: DISCORD_CONFIG.ROLE_ADMIN, type: 0, allow: "3072" });
+    if (existingChannel) {
+      channelId = existingChannel.id; // Gunakan channel yang sudah ada
     }
   }
 
-  // 4. Request Discord API: Create / Get Channel
-  const data = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
-    name: channelName,
-    type: 0,
-    parent_id: parentCategoryId,
-    permission_overwrites,
-  });
+  // 2. PERMISSION OVERWRITES: DENY @everyone & DENY ROLE TIM TERKAIT (KUNCI TOTAL)
+  const permission_overwrites: any[] = [
+    { id: guildId, type: 0, deny: "1024" }, // Deny View Channel @everyone
+    { id: DISCORD_CONFIG.BOT_ROLE_ID, type: 0, allow: "142352" }, // Bot Full Access
+  ];
 
-  const channelId = data?.id;
-  if (!channelId) return null;
-
-  // 5. Assign Role Tim ke Wasit (Hanya saat produksi)
-  if (!isTesting && params.refereeDiscordId) {
-    await assignTeamRolesToReferee(guildId, params.refereeDiscordId, params.roleAId, params.roleBId);
+  // Kunci akses untuk Role Tim A dan Role Tim B (Deny View)
+  if (params.roleAId) {
+    permission_overwrites.push({ id: params.roleAId, type: 0, deny: "1024" });
+  }
+  if (params.roleBId) {
+    permission_overwrites.push({ id: params.roleBId, type: 0, deny: "1024" });
   }
 
-  // 6. Bersihkan Pesan Bot Lama (saat Sync / Re-generate)
-  const existingMessages = await discordAPI(`/channels/${channelId}/messages?limit=5`, 'GET');
+  // Izinkan Wasit & Streamer jika Discord ID diisi
+  if (params.refereeDiscordId) {
+    permission_overwrites.push({ id: params.refereeDiscordId, type: 1, allow: "3072" });
+  }
+  if (params.streamerDiscordId) {
+    permission_overwrites.push({ id: params.streamerDiscordId, type: 1, allow: "3072" });
+  }
+
+  // 3. JIKA CHANNEL BELUM ADA, BUAT BARU
+  if (!channelId) {
+    const createdData = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
+      name: targetChannelName,
+      type: 0,
+      parent_id: parentCategoryId,
+      permission_overwrites,
+    });
+
+    channelId = createdData?.id || null;
+  } else {
+    // Update permission pada channel yang sudah ada
+    await discordAPI(`/channels/${channelId}`, 'PATCH', { permission_overwrites }).catch(() => null);
+  }
+
+  if (!channelId) return null;
+
+  // 4. BERSUHKAN PESAN BOT LAMA DI CHANNEL
+  const existingMessages = await discordAPI(`/channels/${channelId}/messages?limit=10`, 'GET');
   if (Array.isArray(existingMessages)) {
     for (const msg of existingMessages) {
       if (msg.author?.id === DISCORD_CONFIG.BOT_ROLE_ID || msg.embeds?.length > 0) {
@@ -142,7 +105,17 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 7. Format Waktu WIB
+  // 5. PENENTUAN NOTIFIKASI MENTION/PING
+  let contentText: string | undefined = undefined;
+  if (!params.isSync) {
+    const roleMentions = [
+      params.roleAId ? `<@&${params.roleAId}>` : params.teamAName,
+      params.roleBId ? `<@&${params.roleBId}>` : params.teamBName,
+    ].join(' ');
+    contentText = `${roleMentions} ⚔️ Match kalian telah disiapkan!`;
+  }
+
+  // 6. FORMAT EMBED & ACTION BUTTONS
   const formattedWIB = params.matchDateIso
     ? new Date(params.matchDateIso).toLocaleDateString('id-ID', {
         weekday: 'long',
@@ -153,52 +126,37 @@ export async function createMatchDiscordChannel(params: {
         minute: '2-digit',
         timeZone: 'Asia/Jakarta',
       }) + ' WIB'
-    : 'Kamis, 6 Agustus 2026 — 20.00 WIB (Testing)';
+    : 'Jadwal Belum Ditentukan';
 
-  // 8. Logika Ping Notifikasi di Luar Embed
-  let contentText: string | undefined = undefined;
-  if (isTesting) {
-    contentText = DISCORD_CONFIG.ROLE_ADMIN
-      ? `<@&${DISCORD_CONFIG.ROLE_ADMIN}> 🧪 **[TESTING MODE]** Pesan ujicoba match channel!`
-      : `🧪 **[TESTING MODE]** Pesan ujicoba match channel!`;
-  } else if (!params.isSync) {
-    const roleMentions = [
-      params.roleAId ? `<@&${params.roleAId}>` : teamA,
-      params.roleBId ? `<@&${params.roleBId}>` : teamB,
-    ].join(' ');
-    contentText = `${roleMentions} ⚔️ Match kalian telah disiapkan!`;
-  }
-
-  // 9. Payload Embed + Button Action Row
   const embedPayload: any = {
     embeds: [
       {
-        title: `🏆 Group Stage - ${currentWeek}`,
-        color: isTesting ? 0xffaa00 : 0x00d2ff, // Oranye saat Testing, Biru saat Produksi
-        description: `**${teamA}** VS **${teamB}**\n\nHallo! ${isTesting ? 'Ini adalah simulasi pengiriman pesan match di channel test.' : 'Selamat bertanding di channel khusus pertandingan kalian.'}`,
+        title: `🏆 Group Stage - ${params.weekName || 'Week 1'}`,
+        color: 0x00d2ff,
+        description: `**${params.teamAName}** VS **${params.teamBName}**\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
         fields: [
           { name: '📅 Jadwal Pertandingan', value: formattedWIB, inline: false },
-          { name: '⚖️ Wasit Bertugas', value: params.refereeDiscordId ? `<@${params.refereeDiscordId}> (${params.refereeName || 'Wasit Test'})` : (params.refereeName || 'Wasit Test'), inline: true },
-          { name: '🎥 Streamer', value: params.streamerDiscordId ? `<@${params.streamerDiscordId}> (${params.streamerName || 'Streamer Test'})` : (params.streamerName || 'Streamer Test'), inline: true },
-          { name: '📺 Live Stream', value: params.streamLink ? `[Nonton Streaming](${params.streamLink})` : '[Link Streaming Test](https://youtube.com)', inline: false },
-          { name: '📢 Informasi Reschedule', value: 'Diskusikan jadwal baru bersama tim lawan. Jika sudah sepakat, segera konfirmasi ke **Admin Tournament** untuk pembaruan resmi.', inline: false },
+          { name: '⚖️ Wasit Bertugas', value: params.refereeDiscordId ? `<@${params.refereeDiscordId}> (${params.refereeName || 'Wasit'})` : (params.refereeName || '-'), inline: true },
+          { name: '🎥 Streamer', value: params.streamerDiscordId ? `<@${params.streamerDiscordId}> (${params.streamerName || 'Streamer'})` : (params.streamerName || '-'), inline: true },
+          { name: '📺 Live Stream', value: params.streamLink ? `[Nonton Streaming](${params.streamLink})` : '-', inline: false },
+          { name: '📢 Informasi Reschedule', value: 'Diskusikan jadwal baru bersama tim lawan. Klik tombol **Ajukan Reschedule** di bawah untuk konfirmasi persetujuan.', inline: false },
         ],
         footer: { text: 'Team Wars Indonesia Season 7' },
       },
     ],
     components: [
       {
-        type: 1, // Action Row
+        type: 1,
         components: [
           {
-            type: 2, // Button
+            type: 2,
             style: 1, // Primary (Blue)
             label: 'Edit Match Report',
             custom_id: `btn_edit_match_${params.matchId}`,
             emoji: { name: '📝' },
           },
           {
-            type: 2, // Button
+            type: 2,
             style: 2, // Secondary (Gray)
             label: 'Ajukan Reschedule',
             custom_id: `btn_request_reschedule_${params.matchId}`,
@@ -213,8 +171,33 @@ export async function createMatchDiscordChannel(params: {
     embedPayload.content = contentText;
   }
 
-  // 10. Send Final Message to Discord Channel
+  // Kirim Embed Ke Channel
   await discordAPI(`/channels/${channelId}/messages`, 'POST', embedPayload);
 
   return channelId;
+}
+
+// 🟢 DELETE MATCH DISCORD CHANNEL (API HAPUS CHANNEL MATCH)
+export async function deleteMatchDiscordChannel(matchId: string, teamAName: string, teamBName: string) {
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+  const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
+
+  if (!guildId) return false;
+
+  const cleanMatchNum = matchId.replace('match-', '');
+  const targetChannelName = `⚔️-m${cleanMatchNum}-${getTeamAbbreviation(teamAName)}-${getTeamAbbreviation(teamBName)}`;
+
+  const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
+  if (Array.isArray(allGuildChannels)) {
+    const existingChannel = allGuildChannels.find(
+      (ch: any) => ch.parent_id === parentCategoryId && ch.name === targetChannelName
+    );
+
+    if (existingChannel) {
+      await discordAPI(`/channels/${existingChannel.id}`, 'DELETE');
+      return true;
+    }
+  }
+
+  return false;
 }

@@ -23,38 +23,9 @@ function generateRandomToken(length = 16): string {
 
 export async function POST(req: Request) {
   try {
-    const url = new URL(req.url);
-    const isTestingQuery = url.searchParams.get('testing') === 'true';
-
     const body = await req.json().catch(() => ({}));
-    const { matchId, matchIds, weekName, testing: isTestingBody } = body;
+    const { matchId, matchIds, weekName } = body;
 
-    const isTesting = isTestingQuery || !!isTestingBody;
-
-    // 🧪 1. SKENARIO TESTING MODE (Channel Sandbox: ⚔️-match-test)
-    if (isTesting) {
-      const testChannelId = await createMatchDiscordChannel({
-        matchId: 'match-test',
-        teamAName: 'Testing Team Alpha',
-        teamBName: 'Testing Team Beta',
-        weekName: weekName || 'Week Test',
-        matchDateIso: new Date().toISOString(),
-        refereeName: 'Admin Tester',
-        streamerName: 'Caster Tester',
-        streamLink: 'https://youtube.com',
-        isSync: true,      // Tanpa ping role saat testing/sync
-        isTesting: true,   // Pakai channel ⚔️-match-test
-      });
-
-      return NextResponse.json({
-        success: true,
-        mode: 'TESTING',
-        message: 'Berhasil membuat/memperbarui channel ⚔️-match-test di Discord!',
-        channelId: testChannelId,
-      });
-    }
-
-    // 🟢 2. SKENARIO PRODUCTION MODE (KV REDIS READ/WRITE)
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const targetMatchIds: string[] = matchIds || (matchId ? [matchId] : []);
 
@@ -63,7 +34,7 @@ export async function POST(req: Request) {
     }
 
     const results = [];
-    const isSync = !matchIds; // True jika klik tombol "Sync Match" individual
+    const isSync = !matchIds; // True jika klik "Sync Match" individual
     let isScheduleUpdated = false;
 
     for (const mId of targetMatchIds) {
@@ -72,7 +43,7 @@ export async function POST(req: Request) {
 
       const match = schedules[matchIndex];
 
-      // Auto-generate Referee Token jika belum terisi
+      // AUTO-GENERATE REFEREE TOKEN JIKA KOSONG (KONSISTEN)
       if (!match.refereeToken) {
         match.refereeToken = generateRandomToken(16);
         schedules[matchIndex] = match;
@@ -87,7 +58,7 @@ export async function POST(req: Request) {
       const roleAId = (teamA as any)?.discordRoleId;
       const roleBId = (teamB as any)?.discordRoleId;
 
-      // Buat / Update Channel di Discord
+      // Create / Sync Channel dengan Role Permission DENY (Dikunci Total)
       const channelId = await createMatchDiscordChannel({
         matchId: match.id,
         teamAName: match.teamAName,
@@ -102,24 +73,22 @@ export async function POST(req: Request) {
         roleAId,
         roleBId,
         isSync,
-        isTesting: false,
       });
 
       results.push({ matchId: mId, success: !!channelId, channelId });
 
       if (targetMatchIds.length > 1) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
     }
 
-    // Simpan ke Redis jika ada token baru
+    // Simpan ke Redis jika ada token baru yang dibuat
     if (isScheduleUpdated) {
       await kv.set('twi:schedules', schedules);
     }
 
     return NextResponse.json({
       success: true,
-      mode: 'PRODUCTION',
       totalProcessed: results.length,
       results,
     });
@@ -127,4 +96,4 @@ export async function POST(req: Request) {
     console.error('Error Sync/Generate channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-        }
+}

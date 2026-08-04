@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { MatchScheduleItem } from '@/lib/types/tournament';
-import { SandboxTestCard } from './sandbox-test-card';
 import Swal from 'sweetalert2';
 
 function getMondayOfWeek(d: Date): Date {
@@ -96,7 +95,7 @@ export function ScheduleAdminTab() {
   };
 
   const handleSyncSingleMatch = async (match: MatchScheduleItem & { calculatedWeekNumber?: number }) => {
-    Swal.fire({ title: 'Syncing Match...', text: `Memperbarui data & role untuk ${match.teamAName} vs ${match.teamBName}`, didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'Syncing Match...', text: `Memperbarui data & Embed di Discord untuk ${match.teamAName} vs ${match.teamBName}`, didOpen: () => Swal.showLoading() });
     try {
       const res = await fetch('/api/tournament/generate-channel', {
         method: 'POST',
@@ -105,6 +104,7 @@ export function ScheduleAdminTab() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        await fetchSchedules(); // Refresh Token di UI
         Swal.fire('Berhasil!', 'Match berhasil di-sync ke Discord!', 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal melakukan sync match', 'error');
@@ -122,7 +122,7 @@ export function ScheduleAdminTab() {
     }
     const confirm = await Swal.fire({
       title: `Generate ALL Channel (${selectedWeek === 'ALL' ? 'Semua Match' : selectedWeek})?`,
-      text: `Sistem akan membuat ${targetMatchIds.length} channel Discord otomatis untuk minggu ini.`,
+      text: `Sistem akan membuat/menyesuaikan ${targetMatchIds.length} channel Discord otomatis.`,
       icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Generate!', cancelButtonText: 'Batal',
     });
     if (!confirm.isConfirmed) return;
@@ -136,7 +136,8 @@ export function ScheduleAdminTab() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        Swal.fire('Selesai!', `Berhasil membuat ${data.totalProcessed} channel Discord!`, 'success');
+        await fetchSchedules(); // Refresh State
+        Swal.fire('Selesai!', `Berhasil membuat/memperbarui ${data.totalProcessed} channel Discord!`, 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal generate channel batch', 'error');
       }
@@ -145,8 +146,44 @@ export function ScheduleAdminTab() {
     }
   };
 
+  const handleDeleteChannel = async (match: MatchScheduleItem) => {
+    const confirm = await Swal.fire({
+      title: `Hapus Channel Discord ${match.id}?`,
+      text: `Channel ⚔️-m${match.id.replace('match-', '')}-... akan dihapus permanen dari server Discord.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Hapus Channel!',
+      cancelButtonText: 'Batal',
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    Swal.fire({ title: 'Deleting Channel...', didOpen: () => Swal.showLoading() });
+
+    try {
+      const res = await fetch('/api/tournament/delete-channel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: match.id }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        Swal.fire('Berhasil!', data.message, 'success');
+      } else {
+        Swal.fire('Gagal', data.error || 'Gagal menghapus channel', 'error');
+      }
+    } catch {
+      Swal.fire('Error', 'Gagal terhubung ke server', 'error');
+    }
+  };
+
   const handleCopyMagicLink = (match: MatchScheduleItem) => {
-    const magicUrl = `${window.location.origin}/tournament/match-input/${match.id}?token=${match.refereeToken || ''}`;
+    if (!match.refereeToken) {
+      Swal.fire('Token Kosong', 'Klik tombol "Sync" atau "Generate" terlebih dahulu untuk meng-generate token wasit.', 'warning');
+      return;
+    }
+    const magicUrl = `${window.location.origin}/tournament/match-input/${match.id}?token=${match.refereeToken}`;
     navigator.clipboard.writeText(magicUrl);
     Swal.fire({ icon: 'success', title: 'Magic Link Wasit Disalin!', text: magicUrl, timer: 2000, showConfirmButton: false });
   };
@@ -181,9 +218,6 @@ export function ScheduleAdminTab() {
           </button>
         </div>
       </div>
-
-      {/* 🧪 KARTU SANDBOX TESTING */}
-      <SandboxTestCard />
 
       {/* LIST KARTU MATCH RESMI */}
       <div className="grid grid-cols-1 gap-4">
@@ -256,6 +290,7 @@ export function ScheduleAdminTab() {
                     <button onClick={() => setEditingMatch(m)} className="px-3 py-1 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-400 text-[11px] font-bold hover:bg-sky-500/20 cursor-pointer">✏️ Edit</button>
                     <button onClick={() => handleCopyMagicLink(m)} className="px-3 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-400 text-[11px] font-bold hover:bg-amber-500/20 cursor-pointer">📋 Copy Link</button>
                     <button onClick={() => handleSyncSingleMatch(m)} className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold shadow-sm cursor-pointer">🔄 Sync</button>
+                    <button onClick={() => handleDeleteChannel(m)} className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold shadow-sm cursor-pointer">🗑️ Delete Channel</button>
                   </div>
                 </div>
               )}
@@ -265,4 +300,4 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-    }
+}
