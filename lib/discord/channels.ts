@@ -17,16 +17,24 @@ function isValidSnowflake(id?: string): boolean {
 
 // Helper: Cek apakah member Discord sudah memiliki Role tertentu
 async function memberHasRole(guildId: string, userId: string, roleId: string): Promise<boolean> {
-  const member = await discordAPI(`/guilds/${guildId}/members/${userId}`, 'GET');
-  if (!member || !Array.isArray(member.roles)) return false;
-  return member.roles.includes(roleId);
+  try {
+    const member = await discordAPI(`/guilds/${guildId}/members/${userId}`, 'GET');
+    if (!member || !Array.isArray(member.roles)) return false;
+    return member.roles.includes(roleId);
+  } catch {
+    return false;
+  }
 }
 
 // Helper: Cek apakah target (Role/User) sudah ada di Overwrite Permission Channel Match
 async function channelHasOverwrite(channelId: string, targetId: string): Promise<boolean> {
-  const channel = await discordAPI(`/channels/${channelId}`, 'GET');
-  if (!channel || !Array.isArray(channel.permission_overwrites)) return false;
-  return channel.permission_overwrites.some((ow: any) => ow.id === targetId);
+  try {
+    const channel = await discordAPI(`/channels/${channelId}`, 'GET');
+    if (!channel || !Array.isArray(channel.permission_overwrites)) return false;
+    return channel.permission_overwrites.some((ow: any) => ow.id === targetId);
+  } catch {
+    return false;
+  }
 }
 
 // 🟢 CREATION: Text Channel Tim Pendaftaran
@@ -105,12 +113,16 @@ export async function createMatchDiscordChannel(params: {
 
   // 1. PENGECEKAN CHANNEL MATCH
   if (!channelId) {
-    const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
-    if (Array.isArray(allGuildChannels)) {
-      const existingChannel = allGuildChannels.find(
-        (ch: any) => ch.parent_id === parentCategoryId && ch.name === targetChannelName
-      );
-      if (existingChannel) channelId = existingChannel.id;
+    try {
+      const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
+      if (Array.isArray(allGuildChannels)) {
+        const existingChannel = allGuildChannels.find(
+          (ch: any) => ch.parent_id === parentCategoryId && ch.name === targetChannelName
+        );
+        if (existingChannel) channelId = existingChannel.id;
+      }
+    } catch {
+      channelId = null;
     }
   }
 
@@ -139,14 +151,18 @@ export async function createMatchDiscordChannel(params: {
       permission_overwrites.push({ id: params.streamerDiscordId!, type: 1, allow: "3072" });
     }
 
-    const createdData = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
-      name: targetChannelName,
-      type: 0,
-      parent_id: parentCategoryId,
-      permission_overwrites,
-    });
+    try {
+      const createdData = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
+        name: targetChannelName,
+        type: 0,
+        parent_id: parentCategoryId,
+        permission_overwrites,
+      });
 
-    channelId = createdData?.id || null;
+      channelId = createdData?.id || null;
+    } catch {
+      channelId = null;
+    }
   } else {
     // JIKA CHANNEL SUDAH ADA ➔ Cek ketersediaan permission overwrite (Tambahkan hanya jika belum ada)
     if (isValidSnowflake(params.roleAId)) {
@@ -238,18 +254,22 @@ export async function deleteMatchDiscordChannel(params: {
 
   if (!guildId) return false;
 
-  // 1. HAPUS CHANNEL MATCH (Bukan Channel Tim/Camp!)
+  // 1. HAPUS CHANNEL MATCH (Dibungkus try-catch senyap agar tidak crash jika channel sudah terhapus)
   let targetChannelId = params.savedChannelId || null;
 
   if (!targetChannelId) {
-    const cleanMatchNum = params.matchId.replace('match-', '');
-    const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
+    try {
+      const cleanMatchNum = params.matchId.replace('match-', '');
+      const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
 
-    if (Array.isArray(allGuildChannels)) {
-      const existingChannel = allGuildChannels.find(
-        (ch: any) => ch.parent_id === parentCategoryId && ch.name.includes(`-m${cleanMatchNum}-`)
-      );
-      if (existingChannel) targetChannelId = existingChannel.id;
+      if (Array.isArray(allGuildChannels)) {
+        const existingChannel = allGuildChannels.find(
+          (ch: any) => ch.parent_id === parentCategoryId && ch.name.includes(`-m${cleanMatchNum}-`)
+        );
+        if (existingChannel) targetChannelId = existingChannel.id;
+      }
+    } catch {
+      targetChannelId = null;
     }
   }
 
@@ -257,7 +277,7 @@ export async function deleteMatchDiscordChannel(params: {
     await discordAPI(`/channels/${targetChannelId}`, 'DELETE').catch(() => null);
   }
 
-  // 2. CABUT ROLE TIM DARI AKUN WASIT (User role deletion, channel tim TETAP AMAN)
+  // 2. CABUT ROLE TIM DARI AKUN WASIT (Dibungkus try-catch senyap jika user/role sudah tidak ada)
   if (isValidSnowflake(params.refereeDiscordId)) {
     if (isValidSnowflake(params.roleAId)) {
       await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleAId}`, 'DELETE').catch(() => null);
@@ -268,5 +288,5 @@ export async function deleteMatchDiscordChannel(params: {
   }
 
   return true;
-}
-  
+        }
+        
