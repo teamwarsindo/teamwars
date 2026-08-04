@@ -23,8 +23,9 @@ export const DISCORD_CONFIG = {
   CH_CHAM: '1532355753535471827',
   CH_SHUFFLE: '1532943369658171614',
 
-  // Channel khusus testing/wasit
+  // Channel khusus panitia
   CH_REFEREE: '610153245955850240',
+  CH_STREAMER: '1533672191927783595',
 
   // Pusat CCTV (Tim Daftar & Klaim Role)
   CH_LOG: '1525775643168735344',
