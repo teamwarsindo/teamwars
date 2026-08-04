@@ -129,7 +129,7 @@ export function ScheduleAdminTab() {
 
     Swal.fire({ title: 'Batch Generating Channels...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-      const res = await fetch('/api/tournament/generate-channel', {
+      const res = await fetch('/api/tournament/sync-match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchIds: targetMatchIds, weekName: selectedWeek === 'ALL' ? 'Week 1' : selectedWeek }),
