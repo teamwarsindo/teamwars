@@ -31,6 +31,7 @@ export function ScheduleAdminTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingMatch, setEditingMatch] = useState<MatchScheduleItem | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<string>('ALL');
+  const [isRecapLoading, setIsRecapLoading] = useState(false);
 
   const fetchSchedules = async () => {
     try {
@@ -94,7 +95,7 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 🟢 SINGLE MATCH SYNC (Dipanggil saat klik tombol "Sync" per match)
+  // 🟢 SINGLE MATCH SYNC
   const handleSyncSingleMatch = async (match: MatchScheduleItem & { calculatedWeekNumber?: number }) => {
     Swal.fire({ title: 'Syncing Match...', text: `Memperbarui channel & embed di Discord untuk ${match.teamAName} vs ${match.teamBName}`, didOpen: () => Swal.showLoading() });
     try {
@@ -105,13 +106,55 @@ export function ScheduleAdminTab() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        await fetchSchedules(); // Refresh data dari Redis
+        await fetchSchedules();
         Swal.fire('Berhasil!', 'Match berhasil di-sync ke Discord!', 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal melakukan sync match', 'error');
       }
     } catch {
       Swal.fire('Error', 'Gagal menghubungi server', 'error');
+    }
+  };
+
+  // 📊 BROADCAST WEEKLY RECAP (Menembak ke /api/tournament/weekly-recap)
+  const handleBroadcastRecap = async () => {
+    if (selectedWeek === 'ALL') {
+      Swal.fire('Pilih Minggu', 'Silakan pilih minggu spesifik pada filter sebelum mengirim Weekly Recap.', 'warning');
+      return;
+    }
+
+    const confirm = await Swal.fire({
+      title: `Broadcast Weekly Recap ${selectedWeek}?`,
+      text: `Embed Weekly Recap akan dikirimkan ke seluruh channel match pada ${selectedWeek}.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Broadcast!',
+      cancelButtonText: 'Batal',
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    setIsRecapLoading(true);
+    Swal.fire({ title: `Broadcasting ${selectedWeek}...`, text: 'Mengirimkan Weekly Recap...', didOpen: () => Swal.showLoading() });
+
+    try {
+      const res = await fetch('/api/tournament/weekly-recap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetWeek: selectedWeek }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await fetchSchedules();
+        Swal.fire('Berhasil!', data.message || `Weekly Recap ${selectedWeek} berhasil disebarkan!`, 'success');
+      } else {
+        Swal.fire('Gagal', data.error || 'Gagal menyebarkan Weekly Recap', 'error');
+      }
+    } catch {
+      Swal.fire('Error', 'Terjadi kesalahan koneksi', 'error');
+    } finally {
+      setIsRecapLoading(false);
     }
   };
 
@@ -139,7 +182,7 @@ export function ScheduleAdminTab() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        await fetchSchedules(); // Refresh data dari Redis
+        await fetchSchedules();
         Swal.fire('Berhasil!', data.message, 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal menghapus channel', 'error');
@@ -170,7 +213,9 @@ export function ScheduleAdminTab() {
           <h2 className="text-lg font-extrabold text-foreground">Manajemen Schedule Pertandingan</h2>
           <p className="text-xs text-muted-foreground">Kelola waktu (WIB), Wasit, Streamer, dan otomatisasi channel Discord match.</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        
+        {/* DROPDOWN FILTER & TOMBOL WEEKLY RECAP */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <select
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(e.target.value)}
@@ -181,6 +226,17 @@ export function ScheduleAdminTab() {
               <option key={w.weekNum} value={w.weekNum}>{w.weekNum} ({w.matches.length} Match)</option>
             ))}
           </select>
+
+          {/* 📊 TOMBOL BROADCAST WEEKLY RECAP */}
+          {selectedWeek !== 'ALL' && (
+            <button
+              onClick={handleBroadcastRecap}
+              disabled={isRecapLoading}
+              className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold shadow-sm disabled:opacity-50 transition cursor-pointer flex items-center gap-1.5"
+            >
+              📊 {isRecapLoading ? 'Broadcasting...' : `Broadcast Weekly Recap (${selectedWeek})`}
+            </button>
+          )}
         </div>
       </div>
 
@@ -265,4 +321,5 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-          }
+  }
+        
