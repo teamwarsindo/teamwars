@@ -29,30 +29,32 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { matchId, matchIds, weekName, testing: isTestingBody } = body;
 
-    // 🧪 MODE TESTING ACTIVE JIKA ?testing=true DI URL ATAU BODY
     const isTesting = isTestingQuery || !!isTestingBody;
 
-    // JIKA MODE TESTING & TIDAK ADA MATCH ID, GUNAKAN DUMMY TEST MATCH
-    if (isTesting && !matchId && (!matchIds || matchIds.length === 0)) {
+    // 🧪 1. SKENARIO TESTING MODE (Channel Sandbox: ⚔️-match-test)
+    if (isTesting) {
       const testChannelId = await createMatchDiscordChannel({
         matchId: 'match-test',
         teamAName: 'Testing Team Alpha',
         teamBName: 'Testing Team Beta',
-        weekName: 'Week Test',
+        weekName: weekName || 'Week Test',
         matchDateIso: new Date().toISOString(),
         refereeName: 'Admin Tester',
         streamerName: 'Caster Tester',
-        isTesting: true,
+        streamLink: 'https://youtube.com',
+        isSync: true,      // Tanpa ping role saat testing/sync
+        isTesting: true,   // Pakai channel ⚔️-match-test
       });
 
       return NextResponse.json({
         success: true,
         mode: 'TESTING',
-        message: 'Berhasil membuat channel ⚔️-match-test dengan data dummy!',
+        message: 'Berhasil membuat/memperbarui channel ⚔️-match-test di Discord!',
         channelId: testChannelId,
       });
     }
 
+    // 🟢 2. SKENARIO PRODUCTION MODE (KV REDIS READ/WRITE)
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const targetMatchIds: string[] = matchIds || (matchId ? [matchId] : []);
 
@@ -61,7 +63,7 @@ export async function POST(req: Request) {
     }
 
     const results = [];
-    const isSync = !matchIds;
+    const isSync = !matchIds; // True jika klik tombol "Sync Match" individual
     let isScheduleUpdated = false;
 
     for (const mId of targetMatchIds) {
@@ -70,6 +72,7 @@ export async function POST(req: Request) {
 
       const match = schedules[matchIndex];
 
+      // Auto-generate Referee Token jika belum terisi (tanpa mengubah jadwal)
       if (!match.refereeToken) {
         match.refereeToken = generateRandomToken(16);
         schedules[matchIndex] = match;
@@ -84,11 +87,12 @@ export async function POST(req: Request) {
       const roleAId = (teamA as any)?.discordRoleId;
       const roleBId = (teamB as any)?.discordRoleId;
 
+      // Buat / Update Channel di Discord
       const channelId = await createMatchDiscordChannel({
         matchId: match.id,
         teamAName: match.teamAName,
         teamBName: match.teamBName,
-        weekName: weekName || 'Week 1',
+        weekName: weekName || `Week ${match.calculatedWeekNumber || 1}`,
         matchDateIso: match.matchDate,
         refereeName: match.referee,
         refereeDiscordId: match.refereeDiscordId,
@@ -98,7 +102,7 @@ export async function POST(req: Request) {
         roleAId,
         roleBId,
         isSync,
-        isTesting, // 👈 Teruskan parameter testing
+        isTesting: false,
       });
 
       results.push({ matchId: mId, success: !!channelId, channelId });
@@ -108,13 +112,19 @@ export async function POST(req: Request) {
       }
     }
 
+    // Simpan ke Redis hanya jika ada token baru yang dibuat
     if (isScheduleUpdated) {
       await kv.set('twi:schedules', schedules);
     }
 
-    return NextResponse.json({ success: true, mode: isTesting ? 'TESTING' : 'PRODUCTION', totalProcessed: results.length, results });
+    return NextResponse.json({
+      success: true,
+      mode: 'PRODUCTION',
+      totalProcessed: results.length,
+      results,
+    });
   } catch (error) {
-    console.error('Error generate channel:', error);
+    console.error('Error Sync/Generate channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
