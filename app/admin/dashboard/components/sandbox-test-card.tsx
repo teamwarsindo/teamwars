@@ -8,7 +8,7 @@ export function SandboxTestCard() {
   // State khusus Sandbox Match Dummy
   const [testMatch, setTestMatch] = useState<MatchScheduleItem>({
     id: 'match-test',
-    stage: 'Group Stage',
+    stage: 'GROUP_STAGE',
     groupName: 'Group A',
     teamAId: 'team-test-a',
     teamAName: 'Testing Team Alpha',
