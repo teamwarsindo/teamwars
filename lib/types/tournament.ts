@@ -36,6 +36,18 @@ export interface GameDetailLog {
   winnerTeamId: string; // ID Tim Pemenang di Game ini
 }
 
+export interface TeamItem {
+  id?: string;
+  name: string;
+  slug?: string;
+  kodeTim?: string;
+  abbreviation?: string;
+  logo?: string;
+  groupName?: string;
+  discordEmojiId?: string;
+  discordRoleId?: string;
+}
+
 export interface MatchScheduleItem {
   id: string;
   matchDate: string; // ISO / Waktu WIB
@@ -55,6 +67,8 @@ export interface MatchScheduleItem {
   refereeToken?: string;           // Passcode / Token Khusus Link Wasit
   streamer?: string;
   caster?: string;
+  streamerDiscordId?: string;
+  casterDiscordId?: string;
   streamPlatform?: "Youtube" | "Twitch" | "TikTok" | "Other";
   streamLink?: string;
 
@@ -67,6 +81,17 @@ export interface MatchScheduleItem {
   rosterA?: MatchRosterConfig;
   rosterB?: MatchRosterConfig;
   gameLogs?: GameDetailLog[];
+
+  // 🟢 WEEK INFORMATION
+  weekName?: string;                  // Contoh: "Week 1"
+  weekNumber?: number;                // Contoh: 1
+  calculatedWeekNumber?: number;      // Alternatif kalkulasi minggu
+
+  // 🟢 DISCORD AUTOMATION IDS (Penyimpanan ID Channel & Message Embed)
+  discordChannelId?: string;          // ID Text Channel Match
+  openingMsgId?: string;              // ID Pesan Embed Opening
+  recapMsgId?: string;                // ID Pesan Embed Weekly Recap
+  scheduleMsgId?: string;             // ID Pesan Embed Jadwal Publik (#schedule)
 }
 
 export interface TeamStandingItem {
@@ -81,6 +106,16 @@ export interface TeamStandingItem {
   setLosses: number;    // Total Game Individu Kalah
   roundDifference: number; // setWins - setLosses
   points: number;       // (matchWins * 10)
+}
+
+export interface StandingsItem {
+  teamName: string;
+  teamLogo?: string;
+  played: number;
+  won: number;
+  lost: number;
+  points: number;
+  matchDiff: number;
 }
 
 export interface PlayerPowerRankingItem {
