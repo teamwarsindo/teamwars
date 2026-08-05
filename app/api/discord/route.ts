@@ -5,38 +5,37 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { revalidatePath } from 'next/cache';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   try {
-    // 1. Ambil Header Signature dari Discord
     const signature = req.headers.get('x-signature-ed25519');
     const timestamp = req.headers.get('x-signature-timestamp');
     const publicKey = process.env.DISCORD_PUBLIC_KEY;
 
     if (!signature || !timestamp || !publicKey) {
-      console.error('❌ Missing Header / DISCORD_PUBLIC_KEY di Vercel Env!');
+      console.error('❌ Missing Header or DISCORD_PUBLIC_KEY in Vercel Env!');
       return new Response('Bad request signature', { status: 401 });
     }
 
-    // 2. Baca Raw Body (Tekstual)
+    // Read raw body cleanly from cloned request
     const rawBody = await req.text();
 
-    // 3. Verifikasi Signature Pakai Library Resmi Discord
     const isValidRequest = verifyKey(rawBody, signature, timestamp, publicKey);
 
     if (!isValidRequest) {
-      console.warn('⚠️ Request Discord ditolak: Signature Invalid!');
+      console.warn('⚠️ Request Discord rejected: Invalid signature!');
       return new Response('Invalid request signature', { status: 401 });
     }
 
-    // 4. Parse Body JSON
     const body = JSON.parse(rawBody);
 
-    // 5. PING TEST DARI DISCORD PORTAL (WAJIB HTTP 200 type 1)
+    // 1. DISCORD PING ACKNOWLEDGEMENT (Type 1)
     if (body.type === 1) {
       return NextResponse.json({ type: 1 });
     }
 
-    // 6. HANDLER INTERAKSI TOMBOL (Type 3)
+    // 2. BUTTON INTERACTION HANDLER (Type 3)
     if (body.type === 3) {
       const customId: string = body.data?.custom_id || '';
       const userId: string = body.member?.user?.id || '';
