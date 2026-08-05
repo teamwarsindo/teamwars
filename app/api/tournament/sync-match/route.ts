@@ -3,7 +3,6 @@ import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { sendOrUpdateScheduleEmbed } from '@/lib/discord/messages/schedule';
-import { sendOrUpdateWeeklyRecapEmbed } from '@/lib/discord/messages/weekly-recap';
 
 function getTeamSlug(teamName: string) {
   return teamName
@@ -32,7 +31,7 @@ export async function POST(req: Request) {
 
     const match = schedules[matchIndex];
 
-    // 1. CARI DATA TIM (DENGAN FALLBACK KEY REDIS)
+    // 1. CARI DATA TIM
     const slugA = getTeamSlug(match.teamAName);
     const slugB = getTeamSlug(match.teamBName);
 
@@ -50,7 +49,7 @@ export async function POST(req: Request) {
 
     const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
 
-    // 2. CREATE / SYNC CHANNEL MATCH
+    // 2. CREATE / SYNC CHANNEL MATCH & OPENING EMBED
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
       groupName: match.groupName,
@@ -76,55 +75,7 @@ export async function POST(req: Request) {
     if (syncResult.channelId) (match as any).discordChannelId = syncResult.channelId;
     if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
 
-    // 3. HITUNG JUMLAH MATCH PER HARI (FORMAT RINGKAS TANPA TAHUN AGAR < 25 CHARS)
-    const weekMatches = schedules.filter((m) => {
-      const mWeek = (m as any).weekName || `Week ${(m as any).calculatedWeekNumber || 1}`;
-      return mWeek === calculatedWeek;
-    });
-
-    const dateMap: Record<string, { dateFormatted: string; count: number }> = {};
-
-    weekMatches.forEach((m) => {
-      if (!m.matchDate) return;
-      const d = new Date(m.matchDate);
-      const keyIso = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
-      const dateFormatted = d.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'short', // Contoh: "Rabu, 5 Agu"
-        timeZone: 'Asia/Jakarta',
-      });
-
-      if (!dateMap[keyIso]) {
-        dateMap[keyIso] = { dateFormatted, count: 0 };
-      }
-      dateMap[keyIso].count += 1;
-    });
-
-    const dailyMatchCounts = Object.keys(dateMap)
-      .sort()
-      .map((k) => dateMap[k]);
-
-    // 4. BROADCAST WEEKLY RECAP KE SEMUA CHANNEL MATCH
-    for (let i = 0; i < schedules.length; i++) {
-      const m = schedules[i];
-      const mWeek = (m as any).weekName || `Week ${(m as any).calculatedWeekNumber || 1}`;
-
-      if (mWeek === calculatedWeek && (m as any).discordChannelId) {
-        const newRecapMsgId = await sendOrUpdateWeeklyRecapEmbed({
-          channelId: (m as any).discordChannelId,
-          weekName: calculatedWeek,
-          dailyMatchCounts,
-          existingRecapMsgId: (m as any).recapMsgId,
-        });
-
-        if (newRecapMsgId) {
-          (schedules[i] as any).recapMsgId = newRecapMsgId;
-        }
-      }
-    }
-
-    // 5. UPDATE SCHEDULE EMBED DI CHANNEL PUBLIK (DENGAN EMOJI)
+    // 3. UPDATE SCHEDULE EMBED DI CHANNEL PUBLIK (#schedule)
     const scheduleMsgId = await sendOrUpdateScheduleEmbed({
       groupName: match.groupName,
       weekName: calculatedWeek,
@@ -142,7 +93,7 @@ export async function POST(req: Request) {
       (match as any).scheduleMsgId = scheduleMsgId;
     }
 
-    // 6. SIMPAN RECAP ID & SCHEDULE ID KE KV REDIS
+    // 4. SIMPAN DATA KE KV REDIS (TANPA MENYENTUH RECAP ID)
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
