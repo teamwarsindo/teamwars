@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
     const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
 
-    // 2. CREATE / SYNC CHANNEL MATCH & OPENING EMBED (DI CHANNEL PRIVAT MATCH)
+    // 2. CREATE / SYNC CHANNEL MATCH & OPENING EMBED (CHANNEL PRIVAT)
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
       groupName: match.groupName,
@@ -76,8 +76,8 @@ export async function POST(req: Request) {
     if (syncResult.channelId) (match as any).discordChannelId = syncResult.channelId;
     if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
 
-    // 3. 🟢 UPDATE EMBED SUMMARY DI CHANNEL STREAMER (#ch-streamer)
-    const streamerMsgMap = (await kv.hgetall<Record<string, string>>('twi:streamer_msg_ids')) || {};
+    // 3. 🟢 UPDATE EMBED STREAMER (#ch-streamer) PAKAI KV.GET & KV.SET (STRING JSON)
+    const streamerMsgMap = (await kv.get<Record<string, string>>('twi:streamer_msg_ids')) || {};
 
     const updatedStreamerMsgIds = await sendOrUpdateStreamerSummaryEmbed({
       weekName: calculatedWeek,
@@ -103,8 +103,8 @@ export async function POST(req: Request) {
       existingMsgIds: streamerMsgMap,
     });
 
-    // Simpan kembali pembaruan ID pesan streamer ke Redis Hash 'twi:streamer_msg_ids'
-    await kv.hset('twi:streamer_msg_ids', updatedStreamerMsgIds);
+    // Simpan kembali data JSON String ke Redis key 'twi:streamer_msg_ids'
+    await kv.set('twi:streamer_msg_ids', updatedStreamerMsgIds);
 
     // 4. UPDATE SCHEDULE EMBED DI CHANNEL PUBLIK (#schedule)
     const scheduleMsgId = await sendOrUpdateScheduleEmbed({
@@ -124,17 +124,17 @@ export async function POST(req: Request) {
       (match as any).scheduleMsgId = scheduleMsgId;
     }
 
-    // 5. SIMPAN DATA UPDATED MATCH KE KV REDIS
+    // 5. SIMPAN DATA MATHER KE REDIS
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      message: `Match ${match.id} & Streamer Summary berhasil di-sync!`,
+      message: `Match ${match.id} berhasil di-sync!`,
       channelId: (match as any).discordChannelId,
     });
   } catch (error) {
     console.error('Error Syncing Discord Channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-        }
+                                             }
