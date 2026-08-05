@@ -2,16 +2,21 @@ import { DISCORD_CONFIG } from '@/lib/config';
 import { formatRupiah } from '@/lib/discord/messages/bidding';
 
 export function buildLogBidPayload(logs: Array<any>) {
-  // Menampilkan seluruh log riwayat tanpa dibatasi hanya 2 atau 10
+  const safeLogs = Array.isArray(logs) ? logs : [];
+
   const logList =
-    logs
+    safeLogs
       .map((log) => {
-        const displayName = log.displayName || log.username;
-        return `\`[${log.timestamp}]\` **${displayName}** bid **${formatRupiah(log.amount)}** ➔ **Group ${log.group}** (*"${log.name}"*)`;
+        const displayName = log.displayName || log.username || 'User';
+        const groupName = log.group || '-';
+        const divName = log.name || '';
+        const timeStr = log.timestamp || '';
+
+        return `\`[${timeStr}]\` **${displayName}** bid **${formatRupiah(Number(log.amount || 0))}** ➔ **Group ${groupName}** (*"${divName}"*)`;
       })
       .join('\n\n') || '_Belum ada riwayat bidding._';
 
-  const totalLogs = logs.length;
+  const totalLogs = safeLogs.length;
   const footerText = `Menampilkan ${totalLogs} riwayat bidding terupdate`;
 
   return {
@@ -43,7 +48,7 @@ export function buildLogBidPayload(logs: Array<any>) {
 export async function patchLogBidMessage(msgId: string, logs: Array<any>, token: string) {
   const payload = buildLogBidPayload(logs);
 
-  await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
+  const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bot ${token}`,
@@ -51,4 +56,6 @@ export async function patchLogBidMessage(msgId: string, logs: Array<any>, token:
     },
     body: JSON.stringify(payload),
   });
+
+  return res.ok;
 }
