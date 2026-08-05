@@ -18,27 +18,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing BOT TOKEN or Channel Config' }, { status: 500 });
     }
 
-    // 1. AMBIL DATA BIDDING TERBARU & LOG DARI REDIS (TIPE STRING)
-    const biddingData = (await kv.get<any>('twi_bidding_data')) || {};
-    const biddingLogs = (await kv.get<Array<any>>('twi_bidding_logs')) || (await kv.get<Array<any>>('twi:bidding_logs')) || [];
+    // 1. AMBIL DATA BIDDING UTUH DARI REDIS (KEY: twi_bidding_data)
+    let biddingData: any = await kv.get('twi_bidding_data');
+    if (typeof biddingData === 'string') {
+      try { biddingData = JSON.parse(biddingData); } catch {}
+    }
+    biddingData = biddingData || {};
 
     const groupA = biddingData?.groupA;
     const groupB = biddingData?.groupB;
+    
+    // Ambil array logs langsung dari dalam objek twi_bidding_data
+    const biddingLogs = Array.isArray(biddingData?.logs) ? biddingData.logs : [];
 
-    const valA = groupA && groupA.amount
+    const nameA = groupA?.name ? groupA.name : 'Belum ada';
+    const valA = groupA && (groupA.amount || groupA.amount === 0)
       ? `💰 **${formatRupiah(Number(groupA.amount))}** oleh <@${groupA.userId}>`
       : `💰 **Rp 0** oleh _Belum ada_`;
-    const nameA = groupA?.name ? groupA.name : 'Belum ada';
 
-    const valB = groupB && groupB.amount
+    const nameB = groupB?.name ? groupB.name : 'Belum ada';
+    const valB = groupB && (groupB.amount || groupB.amount === 0)
       ? `💰 **${formatRupiah(Number(groupB.amount))}** oleh <@${groupB.userId}>`
       : `💰 **Rp 0** oleh _Belum ada_`;
-    const nameB = groupB?.name ? groupB.name : 'Belum ada';
 
     // 2. PATCH PESAN ANNOUNCEMENT DI CHANNEL #NEWS
     const newsMsgId = (await kv.get<string>('twi_bid_announce_msg_id')) || (await kv.get<string>('twi:bid_announce_msg_id'));
-
     let newsPatched = false;
+
     if (newsMsgId) {
       const newsEmbed = {
         title: '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7',
@@ -93,13 +99,17 @@ export async function GET(req: NextRequest) {
     const logBidMsgId = (await kv.get<string>('twi_bid_msg_log_id')) || (await kv.get<string>('twi:bid_msg_log_id'));
     let logPatched = false;
     if (logBidMsgId) {
-      await patchLogBidMessage(logBidMsgId, biddingLogs, token);
-      logPatched = true;
+      logPatched = await patchLogBidMessage(logBidMsgId, biddingLogs, token);
     }
 
     return NextResponse.json({
       success: true,
-      message: '⚡ Murni PATCH 100%! Seluruh embed di News, Bid Utama, dan Log berhasil diperbarui tanpa membuat pesan baru.',
+      message: '⚡ Murni PATCH 100%! Seluruh embed di News, Bid Utama, dan Log berhasil diperbarui.',
+      data: {
+        groupA: { name: nameA, amount: groupA?.amount || 0 },
+        groupB: { name: nameB, amount: groupB?.amount || 0 },
+        totalLogs: biddingLogs.length,
+      },
       status: {
         newsPatched: newsPatched ? `Success (ID: ${newsMsgId})` : 'Failed / Msg ID Not Found',
         mainBidPatched: mainPatched ? `Success (ID: ${mainBidMsgId})` : 'Failed / Msg ID Not Found',
@@ -110,5 +120,4 @@ export async function GET(req: NextRequest) {
     console.error('Error Single-use Pure Patch API:', error);
     return NextResponse.json({ success: false, error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
-}
-  
+          }
