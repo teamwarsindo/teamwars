@@ -2,15 +2,15 @@ import { DISCORD_CONFIG } from '@/lib/config';
 import { formatRupiah } from '@/lib/discord/messages/bidding';
 
 export function buildLogBidPayload(logs: Array<any>) {
-  const logList = logs.slice(0, 10).map((log) => {
+  const logList = logs.slice(0, 2).map((log) => {
     const displayName = log.displayName || log.username;
     return `\`[${log.timestamp}]\` **${displayName}** bid **${formatRupiah(log.amount)}** ➔ **Group ${log.group}** (*"${log.name}"*)`;
   }).join("\n\n") || "_Belum ada riwayat bidding._";
 
   const totalLogs = logs.length;
-  const footerText = totalLogs > 10 
-    ? `Menampilkan 10 dari total ${totalLogs} riwayat. Klik tombol di bawah untuk melihat seluruh log.` 
-    : "Menampilkan 10 riwayat bidding terbaru";
+  const footerText = totalLogs > 2 
+    ? `Menampilkan 2 dari total ${totalLogs} riwayat. Klik tombol di bawah untuk melihat seluruh log.` 
+    : "Menampilkan 2 riwayat bidding terbaru";
 
   return {
     embeds: [
