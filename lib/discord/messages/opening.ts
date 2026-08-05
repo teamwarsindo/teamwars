@@ -1,4 +1,3 @@
-//Kicau Mania
 import { discordAPI } from '../utils';
 
 export async function sendOrUpdateOpeningEmbed(params: {
@@ -22,24 +21,33 @@ export async function sendOrUpdateOpeningEmbed(params: {
   streamLink?: string;
   existingMsgId?: string;
 }): Promise<string | null> {
-  // 🟢 Guard Clause: return null jika channelId tidak valid
   if (!params.channelId) return null;
 
-  // 1. Jika ada ID pesan lama, HAPUS PESAN LAMA terlebih dahulu
+  const isFirstTime = !params.existingMsgId;
+
+  // 1. Hapus pesan opening lama jika ini adalah update
   if (params.existingMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // 2. Format Emoji & Tag Role
+  // 2. Format Role & Emoji
   const emojiA = params.emojiAId ? `<:teamA:${params.emojiAId}>` : '';
   const emojiB = params.emojiBId ? `<:teamB:${params.emojiBId}>` : '';
   const tagRoleA = params.roleAId ? `<@&${params.roleAId}>` : params.teamAName;
   const tagRoleB = params.roleBId ? `<@&${params.roleBId}>` : params.teamBName;
-  const tagReferee = params.refereeDiscordId ? `<@${params.refereeDiscordId}>` : (params.refereeName || 'TBA');
-  const tagStreamer = params.streamerDiscordId ? `<@${params.streamerDiscordId}>` : (params.streamerName || 'TBA');
+  
+  const refereeText = params.refereeDiscordId 
+    ? `<@${params.refereeDiscordId}>` 
+    : (params.refereeName || 'Belum tersedia');
+    
+  const streamerText = params.streamerDiscordId 
+    ? `<@${params.streamerDiscordId}>` 
+    : (params.streamerName || 'Belum tersedia');
 
-  // 3. Format Tanggal Pertandingan
-  let formattedDate = 'TBA';
+  const streamLinkText = params.streamLink || 'Belum tersedia';
+
+  // 3. Format Tanggal
+  let formattedDate = 'Belum ditentukan';
   if (params.matchDateIso) {
     const d = new Date(params.matchDateIso);
     formattedDate = d.toLocaleDateString('id-ID', {
@@ -53,40 +61,48 @@ export async function sendOrUpdateOpeningEmbed(params: {
     }) + ' WIB';
   }
 
-  // 4. Payload Embed Opening
+  // 4. Payload Embed Opening Presis Seperti Format Asli (FPF Darkfall)
   const embedObject = {
-    title: `⚔️ ${params.groupName || 'GROUP STAGE'} - ${params.weekName || 'Week 1'}`,
-    description: `Match pertandingan antara **${params.teamAName}** vs **${params.teamBName}**`,
-    color: 0x3498db, // Warna Biru / Blue
+    title: `🏆 ${params.groupName || 'GROUP B'} - ${params.weekName || 'Week 1'}`,
+    description: `${emojiA} **${params.teamAName}** VS ${emojiB} **${params.teamBName}**\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
+    color: 0x00a8ff, // Warna Biru Muda TWI
     fields: [
       {
-        name: '👥 Tim Bertanding',
-        value: `${emojiA} ${tagRoleA}\n**VS**\n${emojiB} ${tagRoleB}`,
-        inline: true,
+        name: '📅 Jadwal Pertandingan',
+        value: formattedDate,
+        inline: false,
       },
       {
-        name: '📅 Jadwal tanding',
-        value: `\`${formattedDate}\``,
-        inline: true,
+        name: '⚖️ Referee',
+        value: refereeText,
+        inline: false,
       },
       {
-        name: '📋 Petugas Match',
-        value: `Wasit: ${tagReferee}\nStreamer: ${tagStreamer}`,
+        name: '🎥 Streamer',
+        value: streamerText,
+        inline: false,
+      },
+      {
+        name: '📺 Live Stream',
+        value: streamLinkText,
+        inline: false,
+      },
+      {
+        name: '📢 Ketentuan Reschedule',
+        value: '• **Persetujuan:** Kedua tim wajib setuju.\n• **Hari Tanding:** Rabu s.d. Minggu.\n• **Batas Harian:** Maksimal 3 match per hari.\n• **Konfirmasi:** Wajib lapor ke **Admin Discord**.',
         inline: false,
       },
     ],
     footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  // 5. Content Pesan Teks (Ping kedua Tim)
-  const messageContent = `📢 **Match Opening Notice!**\nPerhatian untuk ${tagRoleA} dan ${tagRoleB}, harap bersiap sesuai jadwal.`;
+  // 5. Kirim pesan (HANYA MENTION ROLE JIKA BARU PERTAMA KALI BUAT CHANNEL)
+  const payload: any = { embeds: [embedObject] };
+  if (isFirstTime) {
+    payload.content = `Perhatian ${tagRoleA} dan ${tagRoleB}!`;
+  }
 
-  // 6. Kirim Pesan Ke Discord API
-  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
-    content: messageContent,
-    embeds: [embedObject],
-  }).catch(() => null);
+  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', payload).catch(() => null);
 
-  // 🟢 Pastikan selalu mengembalikan ID pesan atau null
   return res?.id || null;
-    }
+}
