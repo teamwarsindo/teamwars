@@ -2,24 +2,26 @@ import { DISCORD_CONFIG } from '@/lib/config';
 import { formatRupiah } from '@/lib/discord/messages/bidding';
 
 export function buildLogBidPayload(logs: Array<any>) {
-  const logList = logs.slice(0, 2).map((log) => {
-    const displayName = log.displayName || log.username;
-    return `\`[${log.timestamp}]\` **${displayName}** bid **${formatRupiah(log.amount)}** ➔ **Group ${log.group}** (*"${log.name}"*)`;
-  }).join("\n\n") || "_Belum ada riwayat bidding._";
+  // Menampilkan seluruh log riwayat tanpa dibatasi hanya 2 atau 10
+  const logList =
+    logs
+      .map((log) => {
+        const displayName = log.displayName || log.username;
+        return `\`[${log.timestamp}]\` **${displayName}** bid **${formatRupiah(log.amount)}** ➔ **Group ${log.group}** (*"${log.name}"*)`;
+      })
+      .join('\n\n') || '_Belum ada riwayat bidding._';
 
   const totalLogs = logs.length;
-  const footerText = totalLogs > 2 
-    ? `Menampilkan 2 dari total ${totalLogs} riwayat. Klik tombol di bawah untuk melihat seluruh log.` 
-    : "Menampilkan 2 riwayat bidding terbaru";
+  const footerText = `Menampilkan ${totalLogs} riwayat bidding terupdate`;
 
   return {
     embeds: [
       {
-        title: "📜 LIVE LOG RIWAYAT BIDDING",
+        title: '📜 LIVE LOG RIWAYAT BIDDING',
         description: logList,
-        color: 0x2B2D31,
-        footer: { text: footerText }
-      }
+        color: 0x2b2d31,
+        footer: { text: footerText },
+      },
     ],
     components: [
       {
@@ -29,12 +31,12 @@ export function buildLogBidPayload(logs: Array<any>) {
             type: 2,
             style: 2, // Secondary (Grey)
             label: `Lihat Semua Log (${totalLogs})`,
-            custom_id: "btn_view_full_log",
-            emoji: { name: "📜" }
-          }
-        ]
-      }
-    ]
+            custom_id: 'btn_view_full_log',
+            emoji: { name: '📜' },
+          },
+        ],
+      },
+    ],
   };
 }
 
@@ -44,9 +46,9 @@ export async function patchLogBidMessage(msgId: string, logs: Array<any>, token:
   await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
     method: 'PATCH',
     headers: {
-      'Authorization': `Bot ${token}`,
+      Authorization: `Bot ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 }
