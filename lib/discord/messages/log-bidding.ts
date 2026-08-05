@@ -3,9 +3,13 @@ import { formatRupiah } from '@/lib/discord/messages/bidding';
 
 export function buildLogBidPayload(logs: Array<any>) {
   const safeLogs = Array.isArray(logs) ? logs : [];
+  const totalLogs = safeLogs.length;
+
+  // Hanya ambil 2 log teratas/terbaru
+  const top2Logs = safeLogs.slice(0, 2);
 
   const logList =
-    safeLogs
+    top2Logs
       .map((log) => {
         const displayName = log.displayName || log.username || 'User';
         const groupName = log.group || '-';
@@ -16,8 +20,9 @@ export function buildLogBidPayload(logs: Array<any>) {
       })
       .join('\n\n') || '_Belum ada riwayat bidding._';
 
-  const totalLogs = safeLogs.length;
-  const footerText = `Menampilkan ${totalLogs} riwayat bidding terupdate`;
+  const footerText = totalLogs > 2
+    ? `Menampilkan 2 dari total ${totalLogs} riwayat. Klik tombol di bawah untuk melihat seluruh log.`
+    : `Menampilkan ${totalLogs} riwayat bidding terupdate`;
 
   return {
     embeds: [
