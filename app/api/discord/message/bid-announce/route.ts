@@ -18,21 +18,29 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing BOT TOKEN or Channel Config' }, { status: 500 });
     }
 
-    // 1. AMBIL DATA BIDDING TERBARU DAN LOG DARI REDIS
-    const biddingData = (await kv.get<any>('twi:bidding_data')) || {};
-    const biddingLogs = (await kv.get<Array<any>>('twi:bidding_logs')) || [];
+    // 1. AMBIL DATA UTUH DARI REDIS (KEY: twi_bidding_data)
+    let biddingData: any = await kv.get('twi_bidding_data');
+    if (typeof biddingData === 'string') {
+      try { biddingData = JSON.parse(biddingData); } catch {}
+    }
+    biddingData = biddingData || {};
 
     const groupA = biddingData?.groupA;
     const groupB = biddingData?.groupB;
+    const biddingLogs = Array.isArray(biddingData?.logs) ? biddingData.logs : [];
 
-    const valA = groupA ? `💰 **${formatRupiah(groupA.amount)}** oleh <@${groupA.userId}>` : `💰 **Rp 0** oleh _Belum ada_`;
     const nameA = groupA?.name ? groupA.name : 'Belum ada';
+    const valA = groupA && (groupA.amount || groupA.amount === 0)
+      ? `💰 **${formatRupiah(Number(groupA.amount))}** oleh <@${groupA.userId}>`
+      : `💰 **Rp 0** oleh _Belum ada_`;
 
-    const valB = groupB ? `💰 **${formatRupiah(groupB.amount)}** oleh <@${groupB.userId}>` : `💰 **Rp 0** oleh _Belum ada_`;
     const nameB = groupB?.name ? groupB.name : 'Belum ada';
+    const valB = groupB && (groupB.amount || groupB.amount === 0)
+      ? `💰 **${formatRupiah(Number(groupB.amount))}** oleh <@${groupB.userId}>`
+      : `💰 **Rp 0** oleh _Belum ada_`;
 
     // 2. CEK DAN HAPUS PESAN ANNOUNCEMENT LAMA DI CHANNEL #NEWS
-    const oldNewsMsgId = await kv.get<string>('twi:bid_announce_msg_id');
+    const oldNewsMsgId = (await kv.get<string>('twi_bid_announce_msg_id')) || (await kv.get<string>('twi:bid_announce_msg_id'));
     if (oldNewsMsgId) {
       await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages/${oldNewsMsgId}`, {
         method: 'DELETE',
@@ -40,7 +48,7 @@ export async function GET(req: NextRequest) {
       }).catch(() => null);
     }
 
-    // 3. SUSUN EMBED PENGUMUMAN UNTUK #NEWS (MIRIP EMBED BIDDING UTAMA)
+    // 3. SUSUN EMBED PENGUMUMAN BARU UNTUK #NEWS
     const newsEmbed = {
       title: '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7',
       description: `Bidding nama resmi divisi masih terbuka! Silakan lakukan penawaran di <#${bidChannelId}>.`,
@@ -93,16 +101,17 @@ export async function GET(req: NextRequest) {
 
     // Simpan ID pesan pengumuman baru ke Redis
     if (newsData?.id) {
+      await kv.set('twi_bid_announce_msg_id', newsData.id);
       await kv.set('twi:bid_announce_msg_id', newsData.id);
     }
 
     // 5. EMBED UTAMA & LOG LEPAS UPDATE (#CH_BID)
-    const mainBidMsgId = await kv.get<string>('twi:bid_msg_main_id');
+    const mainBidMsgId = (await kv.get<string>('twi_bid_msg_main_id')) || (await kv.get<string>('twi:bid_msg_main_id'));
     if (mainBidMsgId) {
       await patchMainBidMessage(mainBidMsgId, biddingData, false, token);
     }
 
-    const logBidMsgId = await kv.get<string>('twi:bid_msg_log_id');
+    const logBidMsgId = (await kv.get<string>('twi_bid_msg_log_id')) || (await kv.get<string>('twi:bid_msg_log_id'));
     if (logBidMsgId) {
       await patchLogBidMessage(logBidMsgId, biddingLogs, token);
     }
@@ -116,4 +125,4 @@ export async function GET(req: NextRequest) {
     console.error('Error Bid Announce API:', error);
     return NextResponse.json({ success: false, error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
-}
+        }
