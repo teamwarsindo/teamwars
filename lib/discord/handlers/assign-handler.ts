@@ -13,7 +13,25 @@ function formatWIBShort(isoString: string): string {
   return `${day} • ${time} WIB`;
 }
 
-// 🟢 1. HANDLER AUTO-COMPLETE
+// Helper untuk menghapus matchId dari riwayat staf lama jika terjadi overwrite / ganti staf
+async function removeMatchFromOldStaff(
+  kvKey: 'staff:referees' | 'staff:streamers',
+  oldStaffDiscordId: string,
+  matchId: string
+) {
+  if (!oldStaffDiscordId) return;
+
+  const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
+  const index = staffList.findIndex((s) => s.discordId === oldStaffDiscordId);
+
+  if (index !== -1) {
+    const history = staffList[index].assignMatch || [];
+    staffList[index].assignMatch = history.filter((id) => id !== matchId);
+    await kv.set(kvKey, staffList);
+  }
+}
+
+// 🟢 1. HANDLER AUTO-COMPLETE (STAF & MATCH)
 export async function handleAssignAutocomplete(interaction: any) {
   const options = interaction.data?.options || [];
   const focusedOption = options.find((opt: any) => opt.focused);
@@ -78,16 +96,19 @@ export async function handleAssignAutocomplete(interaction: any) {
   return { type: 8, data: { choices: [] } };
 }
 
-// 🟢 2. HANDLER EKSEKUSI COMMAND /ASSIGN
+// 🟢 2. HANDLER EKSEKUSI SLASH COMMAND /ASSIGN
 export async function handleAssignCommand(interaction: any) {
   const member = interaction.member;
   const userRoles: string[] = member?.roles || [];
+  const permissions = BigInt(member?.permissions || '0');
 
-  // 🔒 GATEKEEPING: ROLE ADMIN ATAU ROLE CHIEF
-  const isAdmin = DISCORD_CONFIG.BOT_ROLE_ID && userRoles.includes(DISCORD_CONFIG.BOT_ROLE_ID);
-  const isChief = DISCORD_CONFIG.ROLE_CHIEF && userRoles.includes(DISCORD_CONFIG.ROLE_CHIEF);
+  // 🔒 GATEKEEPING PERMISSION & ROLE
+  const ADMINISTRATOR_PERMISSION = BigInt(0x8);
+  const isServerAdmin = (permissions & ADMINISTRATOR_PERMISSION) === ADMINISTRATOR_PERMISSION;
+  const isAdminRole = DISCORD_CONFIG.ROLE_ADMIN && userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
+  const isChiefRole = DISCORD_CONFIG.ROLE_CHIEF && userRoles.includes(DISCORD_CONFIG.ROLE_CHIEF);
 
-  if (!isAdmin && !isChief) {
+  if (!isServerAdmin && !isAdminRole && !isChiefRole) {
     return {
       type: 4,
       data: {
@@ -119,13 +140,55 @@ export async function handleAssignCommand(interaction: any) {
     };
   }
 
+  const match = schedules[matchIndex];
   const kvKey = assignType === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
   const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
   const targetStaff = staffList.find((s) => s.discordId === targetDiscordId);
   const staffName = targetStaff?.discordName || `<@${targetDiscordId}>`;
+  const roleTitle = assignType === 'REFEREE' ? 'Referee' : 'Streamer';
 
-  const match = schedules[matchIndex];
+  // 🚨 1. TOLAK JIKA SUDAH DI-ASSIGN DI MATCH INI (Mencegah Duplicate Log)
+  const currentAssignedId = assignType === 'REFEREE' 
+    ? match.refereeDiscordId 
+    : (match.streamerDiscordId || match.casterDiscordId);
 
+  if (currentAssignedId === targetDiscordId) {
+    return {
+      type: 4,
+      data: {
+        content: `⚠️ **Penugasan Ditolak!** **${staffName}** sudah terdaftar sebagai **${roleTitle}** di match **${match.id}** (${match.teamAName} vs ${match.teamBName}).`,
+        flags: 64,
+      },
+    };
+  }
+
+  // 🔍 2. DETEKSI BENTROK JADWAL (Mencegah 2 match di jam persis sama)
+  const targetMatchDate = match.matchDate;
+  const conflictingMatch = schedules.find((m) => {
+    if (m.id === match.id) return false;
+    const isAssigned = assignType === 'REFEREE'
+      ? m.refereeDiscordId === targetDiscordId
+      : (m.streamerDiscordId || m.casterDiscordId) === targetDiscordId;
+
+    return isAssigned && m.matchDate === targetMatchDate;
+  });
+
+  if (conflictingMatch) {
+    return {
+      type: 4,
+      data: {
+        content: `⚠️ **Bentrok Jadwal!** **${staffName}** sudah ditugaskan sebagai ${roleTitle} pada match lain (**${conflictingMatch.teamAName} vs ${conflictingMatch.teamBName}** - \`${conflictingMatch.id}\`) di jam yang sama!`,
+        flags: 64,
+      },
+    };
+  }
+
+  // 🧹 3. BERSIHKAN MATCH DARI STAF LAMA JIKA TERJADI RE-ASSIGN / OVERWRITE
+  if (currentAssignedId && currentAssignedId !== targetDiscordId) {
+    await removeMatchFromOldStaff(kvKey, currentAssignedId, match.id);
+  }
+
+  // 💾 4. UPDATE DATA MATCH BARU
   if (assignType === 'REFEREE') {
     match.referee = staffName;
     match.refereeDiscordId = targetDiscordId;
@@ -139,9 +202,9 @@ export async function handleAssignCommand(interaction: any) {
   schedules[matchIndex] = match;
   await kv.set('twi:schedules', schedules);
 
-  // TRIGGER SYNC MATCH INTERNAL VIA ENDPOINT API
+  // 📢 5. TRIGGER SYNC MATCH INTERNAL VIA ENDPOINT API
   try {
-    const origin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://www.teamwars.web.id';
     await fetch(`${origin}/api/tournament/sync-match`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -151,8 +214,6 @@ export async function handleAssignCommand(interaction: any) {
     console.error('Gagal mentrigger sync-match:', err);
   }
 
-  const roleTitle = assignType === 'REFEREE' ? '⚖️ Referee' : '🎥 Streamer';
-
   return {
     type: 4,
     data: {
@@ -160,5 +221,4 @@ export async function handleAssignCommand(interaction: any) {
       flags: 64,
     },
   };
-}
-  
+    }
