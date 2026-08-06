@@ -160,15 +160,13 @@ export async function POST(req: Request) {
 
     const activeWeek = await kv.get<number>('twi:active_schedule_week');
     let oldRecapMsgId: string | undefined;
-    let oldLastUpdatedMsgId: string | undefined;
 
     if (activeWeek && activeWeek !== targetWeekNum) {
-      const prevMsgIds = await kv.get<{ recapMsgId?: string; lastUpdatedMsgId?: string }>(`twi:schedule_msg_ids:${activeWeek}`);
+      const prevMsgIds = await kv.get<{ recapMsgId?: string }>(`twi:schedule_msg_ids:${activeWeek}`);
       oldRecapMsgId = prevMsgIds?.recapMsgId;
-      oldLastUpdatedMsgId = prevMsgIds?.lastUpdatedMsgId;
     }
 
-    const existingMsgIds = (await kv.get<{ recapMsgId?: string; groupAMsgId?: string; groupBMsgId?: string; lastUpdatedMsgId?: string }>(
+    const existingMsgIds = (await kv.get<{ recapMsgId?: string; groupAMsgId?: string; groupBMsgId?: string }>(
       `twi:schedule_msg_ids:${targetWeekNum}`
     )) || {};
 
@@ -181,7 +179,6 @@ export async function POST(req: Request) {
       groupBSchedules,
       existingMsgIds,
       oldRecapMsgId,
-      oldLastUpdatedMsgId,
     });
 
     await kv.set(`twi:schedule_msg_ids:${targetWeekNum}`, updatedMsgIds);
@@ -189,7 +186,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil update Rekap & Schedule Week ${targetWeekNum}!`,
+      message: `Berhasil update Schedule & Recap Week ${targetWeekNum}!`,
       channelId: targetChannelId,
       msgIds: updatedMsgIds,
     });
@@ -219,12 +216,11 @@ export async function DELETE(req: Request) {
     const activeWeek = await kv.get<number>('twi:active_schedule_week');
     const isDeletingActiveWeek = activeWeek === targetWeekNum;
 
-    const existingMsgIds = await kv.get<{ recapMsgId?: string; groupAMsgId?: string; groupBMsgId?: string; lastUpdatedMsgId?: string }>(
+    const existingMsgIds = await kv.get<{ recapMsgId?: string; groupAMsgId?: string; groupBMsgId?: string }>(
       `twi:schedule_msg_ids:${targetWeekNum}`
     );
 
     if (existingMsgIds) {
-      // Hapus Recap HANYA JIKA week ini adalah Week Aktif
       await deleteWeeklyScheduleAndRecap({
         channelId: targetChannelId,
         existingMsgIds,
@@ -242,4 +238,4 @@ export async function DELETE(req: Request) {
     console.error('Error Deleting Schedule & Recap Broadcast:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-        }
+}
