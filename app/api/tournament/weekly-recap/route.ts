@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { DISCORD_CONFIG } from '@/lib/config';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import {
   ScheduleMatch,
@@ -33,8 +33,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Data schedule kosong di Redis' }, { status: 404 });
     }
 
-    // Target Channel Khusus (CH_SCHEDULE)
-    const targetChannelId = DISCORD_CONFIG.CH_SCHEDULE || DISCORD_CONFIG.CH_BID;
+    // Target Channel Khusus (CH_SCHEDULE: '1533867924824133773')
+    const targetChannelId = DISCORD_CONFIG.CH_SCHEDULE;
     if (!targetChannelId) {
       return NextResponse.json({ error: 'Channel ID Schedule belum dikonfigurasi' }, { status: 500 });
     }
@@ -87,14 +87,14 @@ export async function POST(req: Request) {
           dateMap[dateKey].count += 1;
         }
 
-        // Ekstrak Tanggal & Jam (Pasti Terformat Presisi)
+        // Ekstrak Tanggal & Jam
         const dayName = d.toLocaleDateString('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' });
         const dateFormattedStr = `${dayName}, ${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })}`;
         const timeFormattedStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':') + ' WIB';
 
         const matchObj: ScheduleMatch = {
           dateStr: dateFormattedStr,
-          timeStr: timeFormattedStr, // Memasukkan Jam Pertandingan
+          timeStr: timeFormattedStr,
           team1Emoji: m.team1Emoji || m.teamAEmoji || '',
           team1Name: m.team1Name || m.teamAName || 'Team A',
           team2Emoji: m.team2Emoji || m.teamBEmoji || '',
@@ -144,5 +144,4 @@ export async function POST(req: Request) {
     console.error('Error PATCH Schedule & Recap:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-      }
-                        
+}
