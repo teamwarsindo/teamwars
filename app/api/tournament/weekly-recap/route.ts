@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
+import { DISCORD_CONFIG } from '@/lib/config';
 import { MatchScheduleItem } from '@/lib/types/tournament';
-import { sendOrUpdateWeeklyRecapEmbed } from '@/lib/discord/messages/weekly-recap';
+import {
+  ScheduleMatch,
+  sendOrUpdateWeeklyScheduleAndRecap,
+} from '@/lib/discord/messages/weekly-recap';
 
 // Helper menghitung Senin minggu berjalan
 function getMondayOfWeek(d: Date): Date {
@@ -22,12 +26,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Target Week spesifik wajib dipilih' }, { status: 400 });
     }
 
-    // Ambil angka dari string "Week 1" -> 1
     const targetWeekNum = parseInt(targetWeek.replace(/[^0-9]/g, ''), 10);
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     if (schedules.length === 0) {
       return NextResponse.json({ error: 'Data schedule kosong di Redis' }, { status: 404 });
+    }
+
+    // Target Channel Khusus (CH_SCHEDULE)
+    const targetChannelId = DISCORD_CONFIG.CH_SCHEDULE || DISCORD_CONFIG.CH_BID;
+    if (!targetChannelId) {
+      return NextResponse.json({ error: 'Channel ID Schedule belum dikonfigurasi' }, { status: 500 });
     }
 
     // 1. Hitung Senin Pertama Tournament
@@ -38,8 +47,7 @@ export async function POST(req: Request) {
     const targetMonday = new Date(tournamentStartMonday);
     targetMonday.setDate(tournamentStartMonday.getDate() + (targetWeekNum - 1) * 7);
 
-    // 3. INISIALISASI TEMPLATE SLOT FIXED RABU S.D. MINGGU (5 HARI)
-    // Offset hari dari Senin: Rabu (+2), Kamis (+3), Jumat (+4), Sabtu (+5), Minggu (+6)
+    // 3. TEMPLATE SLOT FIXED RABU S.D. MINGGU (5 HARI)
     const dayOffsets = [2, 3, 4, 5, 6];
     const dateMap: Record<string, { dateFormatted: string; count: number }> = {};
 
@@ -47,33 +55,30 @@ export async function POST(req: Request) {
       const dayDate = new Date(targetMonday);
       dayDate.setDate(targetMonday.getDate() + offset);
 
-      // YYYY-MM-DD berbasis WIB
       const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
       const [year, month, day] = new Intl.DateTimeFormat('sv-SE', options).format(dayDate).split('-');
       const dateKey = `${year}-${month}-${day}`;
 
-      const dateFormatted = dayDate.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'short',
-        timeZone: 'Asia/Jakarta',
-      });
+      const dayNameFormatted = dayDate.toLocaleDateString('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' });
+      const dayNumFormatted = dayDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' });
 
-      // Default count = 0
-      dateMap[dateKey] = { dateFormatted, count: 0 };
+      dateMap[dateKey] = { dateFormatted: `${dayNameFormatted}, ${dayNumFormatted}`, count: 0 };
     });
 
-    // 4. MAP SCHEDULES DENGAN KALKULASI NOMOR MINGGU MURNI & HITUNG KETERSEDIAAN
-    const schedulesWithCalculatedWeek = schedules.map((m) => {
-      if (!m.matchDate) return { ...m, calculatedNum: 0 };
+    const groupASchedules: Array<ScheduleMatch> = [];
+    const groupBSchedules: Array<ScheduleMatch> = [];
+
+    // 4. MAPPING DENGAN JAM LENGKAP PER MATCH
+    schedules.forEach((m: any) => {
+      if (!m.matchDate) return;
 
       const d = new Date(m.matchDate);
       const matchMonday = getMondayOfWeek(d);
       const diffInDays = Math.round((matchMonday.getTime() - tournamentStartMonday.getTime()) / (1000 * 3600 * 24));
       const calculatedNum = Math.floor(diffInDays / 7) + 1;
 
-      // Jika match berada pada target week, masukkan ke counter slot harinya
       if (calculatedNum === targetWeekNum) {
+        // Hitung slot ketersediaan hari
         const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
         const [year, month, day] = new Intl.DateTimeFormat('sv-SE', options).format(d).split('-');
         const dateKey = `${year}-${month}-${day}`;
@@ -81,47 +86,63 @@ export async function POST(req: Request) {
         if (dateMap[dateKey]) {
           dateMap[dateKey].count += 1;
         }
-      }
 
-      return { ...m, calculatedNum };
-    });
+        // Ekstrak Tanggal & Jam (Pasti Terformat Presisi)
+        const dayName = d.toLocaleDateString('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' });
+        const dateFormattedStr = `${dayName}, ${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' })}`;
+        const timeFormattedStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':') + ' WIB';
 
-    // Ekstrak urutan hari Rabu s.d. Minggu
-    const dailyMatchCounts = Object.values(dateMap);
+        const matchObj: ScheduleMatch = {
+          dateStr: dateFormattedStr,
+          timeStr: timeFormattedStr, // Memasukkan Jam Pertandingan
+          team1Emoji: m.team1Emoji || m.teamAEmoji || '',
+          team1Name: m.team1Name || m.teamAName || 'Team A',
+          team2Emoji: m.team2Emoji || m.teamBEmoji || '',
+          team2Name: m.team2Name || m.teamBName || 'Team B',
+        };
 
-    // 5. BROADCAST RECAP KE CHANNEL MATCH PADA WEEK TERPILIH
-    let updatedCount = 0;
-
-    for (let i = 0; i < schedules.length; i++) {
-      const m = schedulesWithCalculatedWeek[i];
-
-      // Kirim HANYA ke match yang nomor minggunya cocok dan sudah punya channel Discord
-      if (m.calculatedNum === targetWeekNum && m.discordChannelId) {
-        const newRecapMsgId = await sendOrUpdateWeeklyRecapEmbed({
-          channelId: m.discordChannelId,
-          weekName: `Week ${targetWeekNum}`,
-          dailyMatchCounts,
-          existingRecapMsgId: m.recapMsgId,
-        });
-
-        if (newRecapMsgId) {
-          schedules[i].recapMsgId = newRecapMsgId;
-          updatedCount++;
+        const groupName = (m.group || m.groupName || 'A').toUpperCase();
+        if (groupName.includes('B')) {
+          groupBSchedules.push(matchObj);
+        } else {
+          groupASchedules.push(matchObj);
         }
       }
-    }
+    });
 
-    // 6. Simpan update ID pesan recap ke Redis
-    await kv.set('twi:schedules', schedules);
+    const dailyMatchCounts = Object.values(dateMap);
+
+    // Ambil Simpanan ID Pesan Lama dari Redis
+    const existingMsgIds = (await kv.get<{ recapMsgId?: string; groupAMsgId?: string; groupBMsgId?: string }>(
+      `twi:schedule_msg_ids:${targetWeekNum}`
+    )) || {};
+
+    // 5. UPDATE MURNI DENGAN PATCH KE CHANNEL SCHEDULE
+    const updatedMsgIds = await sendOrUpdateWeeklyScheduleAndRecap({
+      channelId: targetChannelId,
+      weekName: `Week ${targetWeekNum}`,
+      dailyMatchCounts,
+      groupASchedules,
+      groupBSchedules,
+      existingMsgIds,
+    });
+
+    // 6. SIMPAN ID PESAN TERBARU KE REDIS
+    await kv.set(`twi:schedule_msg_ids:${targetWeekNum}`, updatedMsgIds);
 
     return NextResponse.json({
       success: true,
-      message: `Weekly Recap Week ${targetWeekNum} (Rabu - Minggu) berhasil disebarkan ke ${updatedCount} channel!`,
-      updatedCount,
-      dailyMatchCounts,
+      message: `Berhasil melakukan PATCH pada 3 pesan Jadwal & Rekap Week ${targetWeekNum}!`,
+      channelId: targetChannelId,
+      msgIds: updatedMsgIds,
+      summary: {
+        totalGroupA: groupASchedules.length,
+        totalGroupB: groupBSchedules.length,
+      },
     });
   } catch (error) {
-    console.error('Error broadcasting Weekly Recap:', error);
+    console.error('Error PATCH Schedule & Recap:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+      }
+                        
