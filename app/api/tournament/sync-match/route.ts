@@ -166,4 +166,5 @@ export async function POST(req: Request) {
     console.error('Error Syncing Discord Channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+    }
+          
