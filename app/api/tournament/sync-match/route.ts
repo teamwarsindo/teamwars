@@ -4,7 +4,6 @@ import { MatchScheduleItem } from '@/lib/types/tournament';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { sendOrUpdateScheduleEmbed } from '@/lib/discord/messages/schedule';
-import { sendOrUpdateStreamerSummaryEmbed } from '@/lib/discord/messages/streamer';
 import { sendOrUpdateRefereeAssignmentLog, sendOrUpdateStreamerAssignmentLog } from '@/lib/discord/messages/assignment-log';
 
 function getTeamSlug(teamName: string) {
@@ -78,34 +77,7 @@ export async function POST(req: Request) {
     if (syncResult.channelId) (match as any).discordChannelId = syncResult.channelId;
     if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
 
-    // 3. UPDATE EMBED STREAMER (#ch-streamer)
-    const streamerMsgMap = (await kv.get<Record<string, string>>('twi:streamer_msg_ids')) || {};
-    const updatedStreamerMsgIds = await sendOrUpdateStreamerSummaryEmbed({
-      weekName: calculatedWeek,
-      matches: [
-        {
-          matchId: match.id,
-          groupName: match.groupName,
-          teamAName: match.teamAName,
-          teamBName: match.teamBName,
-          kodeTimA,
-          kodeTimB,
-          emojiAId,
-          emojiBId,
-          matchChannelId: (match as any).discordChannelId,
-          matchDateIso: match.matchDate,
-          refereeName: match.referee,
-          refereeDiscordId: match.refereeDiscordId,
-          streamerName: match.streamer || match.caster,
-          streamerDiscordId: match.streamerDiscordId || match.casterDiscordId,
-          streamLink: match.streamLink,
-        },
-      ],
-      existingMsgIds: streamerMsgMap,
-    });
-    await kv.set('twi:streamer_msg_ids', updatedStreamerMsgIds);
-
-    // 4. UPDATE SCHEDULE EMBED (#schedule)
+    // 3. UPDATE SCHEDULE EMBED (#schedule)
     const scheduleMsgId = await sendOrUpdateScheduleEmbed({
       groupName: match.groupName,
       weekName: calculatedWeek,
@@ -120,7 +92,7 @@ export async function POST(req: Request) {
     });
     if (scheduleMsgId) (match as any).scheduleMsgId = scheduleMsgId;
 
-    // 5. 📢 LOG PENUGASAN REFEREE & STREAMER (#CH_ASSIGN)
+    // 4. 📢 LOG PENUGASAN REFEREE & STREAMER (#CH_ASSIGN)
     const chAssign = DISCORD_CONFIG.CH_ASSIGN;
     if (chAssign) {
       const currentStreamerId = match.streamerDiscordId || match.casterDiscordId;
@@ -181,7 +153,7 @@ export async function POST(req: Request) {
       (match as any).lastMatchDateIso = match.matchDate;
     }
 
-    // 6. SIMPAN DATA KE REDIS
+    // 5. SIMPAN DATA KE REDIS
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
@@ -194,4 +166,4 @@ export async function POST(req: Request) {
     console.error('Error Syncing Discord Channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-                                  }
+}
