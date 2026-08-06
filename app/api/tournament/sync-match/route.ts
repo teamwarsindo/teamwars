@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/lib/types/tournament';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { sendOrUpdateScheduleEmbed } from '@/lib/discord/messages/schedule';
 import { sendOrUpdateStreamerSummaryEmbed } from '@/lib/discord/messages/streamer';
+import { sendOrUpdateRefereeAssignmentLog, sendOrUpdateStreamerAssignmentLog } from '@/lib/discord/messages/assignment-log';
 
 function getTeamSlug(teamName: string) {
   return teamName
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
 
     const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
 
-    // 2. CREATE / SYNC CHANNEL MATCH & OPENING EMBED (CHANNEL PRIVAT)
+    // 2. CREATE / SYNC CHANNEL MATCH & OPENING EMBED
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
       groupName: match.groupName,
@@ -76,9 +78,8 @@ export async function POST(req: Request) {
     if (syncResult.channelId) (match as any).discordChannelId = syncResult.channelId;
     if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
 
-    // 3. 🟢 UPDATE EMBED STREAMER (#ch-streamer) PAKAI KV.GET & KV.SET (STRING JSON)
+    // 3. UPDATE EMBED STREAMER (#ch-streamer)
     const streamerMsgMap = (await kv.get<Record<string, string>>('twi:streamer_msg_ids')) || {};
-
     const updatedStreamerMsgIds = await sendOrUpdateStreamerSummaryEmbed({
       weekName: calculatedWeek,
       matches: [
@@ -102,11 +103,9 @@ export async function POST(req: Request) {
       ],
       existingMsgIds: streamerMsgMap,
     });
-
-    // Simpan kembali data JSON String ke Redis key 'twi:streamer_msg_ids'
     await kv.set('twi:streamer_msg_ids', updatedStreamerMsgIds);
 
-    // 4. UPDATE SCHEDULE EMBED DI CHANNEL PUBLIK (#schedule)
+    // 4. UPDATE SCHEDULE EMBED (#schedule)
     const scheduleMsgId = await sendOrUpdateScheduleEmbed({
       groupName: match.groupName,
       weekName: calculatedWeek,
@@ -119,12 +118,70 @@ export async function POST(req: Request) {
       matchDateIso: match.matchDate,
       existingMsgId: (match as any).scheduleMsgId,
     });
+    if (scheduleMsgId) (match as any).scheduleMsgId = scheduleMsgId;
 
-    if (scheduleMsgId) {
-      (match as any).scheduleMsgId = scheduleMsgId;
+    // 5. 📢 LOG PENUGASAN REFEREE & STREAMER (#CH_ASSIGN)
+    const chAssign = DISCORD_CONFIG.CH_ASSIGN;
+    if (chAssign) {
+      const currentStreamerId = match.streamerDiscordId || match.casterDiscordId;
+
+      // Check perubahan Referee / Tanggal
+      const refChanged = (match as any).lastRefereeDiscordId !== match.refereeDiscordId;
+      const dateChanged = (match as any).lastMatchDateIso !== match.matchDate;
+
+      if (match.refereeDiscordId && (refChanged || dateChanged || !(match as any).refereeLogMsgId)) {
+        const newRefLogId = await sendOrUpdateRefereeAssignmentLog({
+          channelId: chAssign,
+          matchId: match.id,
+          weekName: calculatedWeek,
+          groupName: match.groupName,
+          teamAName: match.teamAName,
+          teamBName: match.teamBName,
+          teamAEmoji: emojiAId && kodeTimA ? `<:${kodeTimA}:${emojiAId}>` : '',
+          teamBEmoji: emojiBId && kodeTimB ? `<:${kodeTimB}:${emojiBId}>` : '',
+          matchChannelId: (match as any).discordChannelId,
+          matchDateIso: match.matchDate,
+          staffName: match.referee,
+          staffDiscordId: match.refereeDiscordId,
+          existingMsgId: (match as any).refereeLogMsgId,
+        });
+
+        if (newRefLogId) {
+          (match as any).refereeLogMsgId = newRefLogId;
+          (match as any).lastRefereeDiscordId = match.refereeDiscordId;
+        }
+      }
+
+      // Check perubahan Streamer / Tanggal
+      const strChanged = (match as any).lastStreamerDiscordId !== currentStreamerId;
+
+      if (currentStreamerId && (strChanged || dateChanged || !(match as any).streamerLogMsgId)) {
+        const newStrLogId = await sendOrUpdateStreamerAssignmentLog({
+          channelId: chAssign,
+          matchId: match.id,
+          weekName: calculatedWeek,
+          groupName: match.groupName,
+          teamAName: match.teamAName,
+          teamBName: match.teamBName,
+          teamAEmoji: emojiAId && kodeTimA ? `<:${kodeTimA}:${emojiAId}>` : '',
+          teamBEmoji: emojiBId && kodeTimB ? `<:${kodeTimB}:${emojiBId}>` : '',
+          matchChannelId: (match as any).discordChannelId,
+          matchDateIso: match.matchDate,
+          staffName: match.streamer || match.caster,
+          staffDiscordId: currentStreamerId,
+          existingMsgId: (match as any).streamerLogMsgId,
+        });
+
+        if (newStrLogId) {
+          (match as any).streamerLogMsgId = newStrLogId;
+          (match as any).lastStreamerDiscordId = currentStreamerId;
+        }
+      }
+
+      (match as any).lastMatchDateIso = match.matchDate;
     }
 
-    // 5. SIMPAN DATA MATHER KE REDIS
+    // 6. SIMPAN DATA KE REDIS
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
@@ -137,4 +194,4 @@ export async function POST(req: Request) {
     console.error('Error Syncing Discord Channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-                                             }
+                                  }
