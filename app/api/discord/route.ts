@@ -5,7 +5,7 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { revalidatePath } from 'next/cache';
 
-// Slash Commands
+// Slash Commands Handlers
 import { handleReminder } from '@/lib/discord/commands/reminder';
 import { handlePrepare } from '@/lib/discord/commands/prepare';
 import { handleInfo } from '@/lib/discord/commands/info';
@@ -14,7 +14,11 @@ import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
 import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
-import { handleAssignAutocomplete, handleAssignCommand } from '@/lib/discord/handlers/assign-handler';
+
+// Assign & Unassign Handlers (Pecahan File Baru)
+import { handleAssignAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
+import { handleAssignCommand } from '@/lib/discord/handlers/assign-handler';
+import { handleUnassignCommand } from '@/lib/discord/handlers/unassign-handler';
 
 // Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
@@ -52,10 +56,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ⚡ Slash Commands (Type 2)
+    // ⚡ Slash Commands Execution (Type 2)
     if (body.type === 2) {
       const commandName = body.data.name;
       if (commandName === 'assign') return NextResponse.json(await handleAssignCommand(body));
+      if (commandName === 'unassign') return NextResponse.json(await handleUnassignCommand(body));
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body); 
@@ -198,7 +203,7 @@ export async function POST(req: NextRequest) {
 
     // 🔎 Autocomplete Interactions (Type 4)
     if (body.type === 4) {
-      if (body.data?.name === 'assign') {
+      if (body.data?.name === 'assign' || body.data?.name === 'unassign') {
         const autocompleteResponse = await handleAssignAutocomplete(body);
         return NextResponse.json(autocompleteResponse);
       }
@@ -219,4 +224,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-}
+    }
