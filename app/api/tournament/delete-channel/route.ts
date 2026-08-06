@@ -38,11 +38,10 @@ export async function POST(req: Request) {
     const roleAId = teamA?.discordRoleId;
     const roleBId = teamB?.discordRoleId;
 
-    // 1. EXECUTE HAPUS CHANNEL MATCH, PESAN SCHEDULE, & REVOKE ROLE WASIT
+    // 1. EXECUTE HAPUS CHANNEL MATCH & REVOKE ROLE WASIT
     await deleteMatchDiscordChannel({
       matchId: match.id,
       savedChannelId: (match as any).discordChannelId,
-      scheduleMsgId: (match as any).scheduleMsgId, // 👈 Teruskan ID pesan schedule untuk dihapus di Discord
       refereeDiscordId: match.refereeDiscordId,
       roleAId,
       roleBId,
@@ -51,14 +50,13 @@ export async function POST(req: Request) {
     // 2. BERSIHKAN RECORD DISCORD DI KV REDIS
     (match as any).discordChannelId = null;
     (match as any).openingMsgId = null;
-    (match as any).scheduleMsgId = null; // 👈 Bersihkan ID pesan schedule di Redis
 
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      message: `Pembersihan berhasil! Channel Match dan Pesan Schedule pada ${match.id} telah dihapus.`,
+      message: `Pembersihan berhasil! Channel Match ${match.id} telah dihapus dari Discord.`,
     });
   } catch (error) {
     console.error('Error Delete Match Channel:', error);
