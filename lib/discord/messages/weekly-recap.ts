@@ -125,9 +125,9 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
-  // Tag Admin & Baris Content Terpasang di Group A (Pesan 1)
+  // 🔤 CONTENT BESAR (# Header 1) DENGAN TAG ADMIN DI BARIS PALING BAWAH
   const adminMention = DISCORD_CONFIG.ROLE_ADMIN ? `<@&${DISCORD_CONFIG.ROLE_ADMIN}>` : '@Admin';
-  const groupAContent = `${adminMention} **Group Stage - ${params.weekName}**\n${params.weekDateRangeStr}`;
+  const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n🗓️ **${params.weekDateRangeStr}**\n\n${adminMention}`;
 
   // 📦 PAYLOAD PESAN 1: GROUP A
   const groupAPayload = {
@@ -219,4 +219,4 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId,
     recapMsgId,
   };
-  }
+}
