@@ -50,7 +50,6 @@ export function MatchReportModal({
   const displayScoreA = gameLogs.length > 0 ? calculatedScoreA : match.scoreA;
   const displayScoreB = gameLogs.length > 0 ? calculatedScoreB : match.scoreB;
 
-  // 🟢 LOGIKA STATUS WIN / LOSE / STRIP (-)
   const isDrawOrUnplayed = displayScoreA === displayScoreB;
   const isWinA = displayScoreA > displayScoreB;
   const isWinB = displayScoreB > displayScoreA;
@@ -167,25 +166,25 @@ export function MatchReportModal({
           onSaveRow={handleSaveRow}
         />
 
-        {/* 🟢 FOOTER SKOR AKHIR DENGAN STATUS WIN / LOSE / STRIP (-) */}
+        {/* 🟢 FOOTER DENGAN MARGIN & PROPORSI FLEKSIBEL AGAR TIDAK MEPET SCORE */}
         <div className="mt-3 grid grid-cols-12 items-center rounded-xl border border-[#00a2ff]/40 bg-[#002863] p-2 sm:p-3 text-center">
-          <div className="col-span-2 text-lg sm:text-3xl font-black">
+          <div className="col-span-2 text-base sm:text-3xl font-black">
             {renderStatusA()}
           </div>
 
-          <div className="col-span-8 flex items-center justify-center gap-2 sm:gap-4 text-[#ff9900]">
-            <span className="text-xs sm:text-lg font-black text-white truncate max-w-[120px] sm:max-w-none">
+          <div className="col-span-8 flex items-center justify-between px-2 sm:px-6 text-[#ff9900]">
+            <span className="text-xs sm:text-base font-black text-white truncate text-right flex-1 pr-2">
               {match.teamAName}
             </span>
-            <span className="text-xl sm:text-3xl font-black shrink-0">
+            <span className="text-lg sm:text-3xl font-black shrink-0 px-2 sm:px-4">
               {displayScoreA} - {displayScoreB}
             </span>
-            <span className="text-xs sm:text-lg font-black text-white truncate max-w-[120px] sm:max-w-none">
+            <span className="text-xs sm:text-base font-black text-white truncate text-left flex-1 pl-2">
               {match.teamBName}
             </span>
           </div>
 
-          <div className="col-span-2 text-lg sm:text-3xl font-black">
+          <div className="col-span-2 text-base sm:text-3xl font-black">
             {renderStatusB()}
           </div>
         </div>
