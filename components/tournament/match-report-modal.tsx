@@ -138,14 +138,22 @@ export function MatchReportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-2 sm:p-4 backdrop-blur-md">
-      <div className="relative w-full max-w-5xl rounded-2xl border-2 border-[#00a2ff] bg-[#004fb0] p-3 sm:p-5 text-white shadow-[0_0_60px_rgba(0,162,255,0.4)] overflow-y-auto max-h-[95vh] font-sans">
+    /* 🟢 KLIK DI OUTSIDE MODAL (BACKDROP) AKAN MENUTUP MODAL */
+    <div 
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-1.5 sm:p-4 backdrop-blur-md"
+    >
+      {/* stopPropagation agar klik di dalam isi modal tidak memicu onClose */}
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-5xl rounded-2xl border-2 border-[#00a2ff] bg-[#004fb0] p-2.5 sm:p-5 text-white shadow-[0_0_60px_rgba(0,162,255,0.4)] overflow-y-auto max-h-[96vh] font-sans"
+      >
         {/* Header */}
         <MatchReportHeader match={match} weekNumber={weekNumber} onClose={onClose} />
 
         {/* Title */}
-        <h2 className="my-2 text-center text-lg sm:text-2xl font-black tracking-widest text-[#ff9900] uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-          MATCH REPORT {isSaving && <span className="text-xs text-emerald-400 font-bold ml-2 animate-pulse">(Saving...)</span>}
+        <h2 className="my-1 sm:my-2 text-center text-sm sm:text-2xl font-black tracking-widest text-[#ff9900] uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+          MATCH REPORT {isSaving && <span className="text-[10px] text-emerald-400 font-bold ml-1 animate-pulse">(Saving...)</span>}
         </h2>
 
         {/* Matchup Header & Roster */}
@@ -166,25 +174,25 @@ export function MatchReportModal({
           onSaveRow={handleSaveRow}
         />
 
-        {/* 🟢 FOOTER DENGAN MARGIN & PROPORSI FLEKSIBEL AGAR TIDAK MEPET SCORE */}
-        <div className="mt-3 grid grid-cols-12 items-center rounded-xl border border-[#00a2ff]/40 bg-[#002863] p-2 sm:p-3 text-center">
-          <div className="col-span-2 text-base sm:text-3xl font-black">
+        {/* FOOTER SKOR AKHIR */}
+        <div className="mt-2 sm:mt-3 grid grid-cols-12 items-center rounded-xl border border-[#00a2ff]/40 bg-[#002863] p-1.5 sm:p-3 text-center">
+          <div className="col-span-2 text-xs sm:text-2xl font-black">
             {renderStatusA()}
           </div>
 
-          <div className="col-span-8 flex items-center justify-between px-2 sm:px-6 text-[#ff9900]">
-            <span className="text-xs sm:text-base font-black text-white truncate text-right flex-1 pr-2">
+          <div className="col-span-8 flex items-center justify-between px-1 sm:px-4 text-[#ff9900]">
+            <span className="text-[10px] sm:text-base font-black text-white truncate text-left flex-1 pr-1">
               {match.teamAName}
             </span>
-            <span className="text-lg sm:text-3xl font-black shrink-0 px-2 sm:px-4">
+            <span className="text-sm sm:text-2xl font-black shrink-0 px-1 sm:px-3">
               {displayScoreA} - {displayScoreB}
             </span>
-            <span className="text-xs sm:text-base font-black text-white truncate text-left flex-1 pl-2">
+            <span className="text-[10px] sm:text-base font-black text-white truncate text-right flex-1 pl-1">
               {match.teamBName}
             </span>
           </div>
 
-          <div className="col-span-2 text-base sm:text-3xl font-black">
+          <div className="col-span-2 text-xs sm:text-2xl font-black">
             {renderStatusB()}
           </div>
         </div>
@@ -192,4 +200,5 @@ export function MatchReportModal({
       </div>
     </div>
   );
-}
+      }
+      
