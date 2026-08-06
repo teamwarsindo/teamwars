@@ -9,6 +9,7 @@ export async function GET(req: Request) {
   // REGISTER SLASH COMMANDS (PUT Overwrite)
   // ==========================================
   const commands = [
+    // 🟢 1. ASSIGN COMMAND
     {
       name: 'assign',
       description: 'Tugaskan Referee atau Streamer ke Pertandingan (Chief/Admin)',
@@ -39,6 +40,8 @@ export async function GET(req: Request) {
         },
       ],
     },
+
+    // 🔴 2. UNASSIGN COMMAND
     {
       name: 'unassign',
       description: 'Cabut penugasan Referee atau Streamer dari Pertandingan (Chief/Admin)',
@@ -60,16 +63,32 @@ export async function GET(req: Request) {
             { name: '🎥 Streamer', value: 'STREAMER' },
           ],
         },
+        {
+          type: 3, // STRING
+          name: 'reason',
+          description: 'Alasan pencabutan penugasan',
+          required: true,
+          choices: [
+            { name: '✅ Match Selesai / Tugas Usai', value: 'COMPLETED' },
+            { name: '🔄 Ganti Staff / Halangan', value: 'REPLACED' },
+          ],
+        },
       ],
     },
+
+    // 📣 3. REMINDER COMMAND
     {
       name: 'reminder',
       description: 'Kirim pengingat aturan submit deck di channel tim.',
     },
+
+    // 📋 4. PREPARE COMMAND
     {
       name: 'prepare',
       description: 'Kirim briefing in-game dan info Room ID di channel match.',
     },
+
+    // ℹ️ 5. INFO COMMAND
     {
       name: 'info',
       description: 'Lihat informasi profil Discord kamu atau pemain lain',
@@ -79,13 +98,17 @@ export async function GET(req: Request) {
           name: 'target',
           description: 'Pilih user yang ingin dilihat infonya (kosongkan untuk diri sendiri)',
           required: false,
-        }
-      ]
+        },
+      ],
     },
+
+    // ⏱️ 6. TIMER COMMAND
     {
       name: 'timer',
       description: 'Tampilkan Panel Timer Kontrol Waktu Match TWI S7',
     },
+
+    // 🔍 7. CEK ID COMMAND
     {
       name: 'cek-id',
       description: 'Cek pemilik ID Game di database TWI',
@@ -108,6 +131,8 @@ export async function GET(req: Request) {
         },
       ],
     },
+
+    // ⛔ 8. BLACKLIST COMMAND
     {
       name: 'blacklist',
       description: '[ADMIN] Kelola ID Duel Links yang di-blacklist',
@@ -131,6 +156,8 @@ export async function GET(req: Request) {
         },
       ],
     },
+
+    // 👥 9. CEK ROSTER COMMAND
     {
       name: 'cek-roster',
       description: '[REFEREE] Cek roster tim berdasarkan Tag Role Tim Discord (Privat)',
@@ -149,6 +176,8 @@ export async function GET(req: Request) {
         },
       ],
     },
+
+    // 🚫 10. CANCEL BID COMMAND
     {
       name: 'cancel-bid',
       description: '[ADMIN] Batal/Anulir bid tertinggi group tertentu',
@@ -183,4 +212,4 @@ export async function GET(req: Request) {
   } else {
     return NextResponse.json({ error: '❌ Gagal mendaftarkan commands' }, { status: 500 });
   }
-}
+    }
