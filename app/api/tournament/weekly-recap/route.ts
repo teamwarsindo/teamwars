@@ -5,6 +5,7 @@ import { MatchScheduleItem } from '@/lib/types/tournament';
 import {
   ScheduleMatch,
   sendOrUpdateWeeklyScheduleAndRecap,
+  deleteWeeklyScheduleAndRecap,
 } from '@/lib/discord/messages/weekly-recap';
 
 function getMondayOfWeek(d: Date): Date {
@@ -46,18 +47,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Channel ID Schedule belum dikonfigurasi' }, { status: 500 });
     }
 
-    // 1. Hitung Senin Pertama Tournament
     const sortedByDate = [...schedules].sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
     const tournamentStartMonday = getMondayOfWeek(new Date(sortedByDate[0].matchDate));
 
-    // 2. Hitung Tanggal Senin & Minggu untuk Week Terpilih
     const targetMonday = new Date(tournamentStartMonday);
     targetMonday.setDate(tournamentStartMonday.getDate() + (targetWeekNum - 1) * 7);
 
     const targetSunday = new Date(targetMonday);
     targetSunday.setDate(targetMonday.getDate() + 6);
 
-    // Format Tanggal Rentang Minggu Ini (Tanpa Jam): "Senin, 03 Aug 2026 - Minggu, 09 Aug 2026"
     const startMonName = targetMonday.toLocaleDateString('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' });
     const startMonNum = targetMonday.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' });
     
@@ -66,7 +64,6 @@ export async function POST(req: Request) {
 
     const weekDateRangeStr = `${startMonName}, ${startMonNum} - ${endSunName}, ${endSunNum}`;
 
-    // 3. TEMPLATE SLOT RABU S.D. MINGGU
     const dayOffsets = [2, 3, 4, 5, 6];
     const dateMap: Record<string, { dateFormatted: string; count: number }> = {};
 
@@ -84,7 +81,6 @@ export async function POST(req: Request) {
       dateMap[dateKey] = { dateFormatted: `${dayNameFormatted}, ${dayNumFormatted}`, count: 0 };
     });
 
-    // 4. PREFETCH DATA EMOJI TIM DARI REDIS KV
     const targetMatches = schedules.filter((m: any) => {
       if (!m.matchDate) return false;
       const d = new Date(m.matchDate);
@@ -114,7 +110,6 @@ export async function POST(req: Request) {
     const groupASchedules: Array<ScheduleMatch> = [];
     const groupBSchedules: Array<ScheduleMatch> = [];
 
-    // 5. PROCESS MATCH & FORMATTING EMOJI TIM
     targetMatches.forEach((m: any) => {
       const d = new Date(m.matchDate);
       const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
@@ -163,11 +158,18 @@ export async function POST(req: Request) {
 
     const dailyMatchCounts = Object.values(dateMap);
 
+    const activeWeek = await kv.get<number>('twi:active_schedule_week');
+    let oldLastUpdatedMsgId: string | undefined;
+
+    if (activeWeek && activeWeek !== targetWeekNum) {
+      const prevMsgIds = await kv.get<{ lastUpdatedMsgId?: string }>(`twi:schedule_msg_ids:${activeWeek}`);
+      oldLastUpdatedMsgId = prevMsgIds?.lastUpdatedMsgId;
+    }
+
     const existingMsgIds = (await kv.get<{ recapMsgId?: string; groupAMsgId?: string; groupBMsgId?: string; lastUpdatedMsgId?: string }>(
       `twi:schedule_msg_ids:${targetWeekNum}`
     )) || {};
 
-    // 6. UPDATE 3 EMBED DENGAN PATCH & 1 LAST UPDATED EMBED DENGAN RE-POST
     const updatedMsgIds = await sendOrUpdateWeeklyScheduleAndRecap({
       channelId: targetChannelId,
       weekName: `Week ${targetWeekNum}`,
@@ -176,14 +178,15 @@ export async function POST(req: Request) {
       groupASchedules,
       groupBSchedules,
       existingMsgIds,
+      oldLastUpdatedMsgId,
     });
 
-    // 7. SIMPAN SEMUA ID PESAN KE REDIS
     await kv.set(`twi:schedule_msg_ids:${targetWeekNum}`, updatedMsgIds);
+    await kv.set('twi:active_schedule_week', targetWeekNum);
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil update Rekap & Schedule Week ${targetWeekNum}!`,
+      message: `Berhasil broadcast Rekap & Schedule Week ${targetWeekNum}!`,
       channelId: targetChannelId,
       msgIds: updatedMsgIds,
       summary: {
@@ -196,3 +199,51 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
+
+// 🔴 DELETE METHOD: HANYA HAPUS 3 EMBED UTAMA & BERSIHKAN RECAP ID DARI REDIS
+export async function DELETE(req: Request) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const { targetWeek } = body;
+
+    if (!targetWeek || targetWeek === 'ALL') {
+      return NextResponse.json({ error: 'Target Week spesifik wajib dipilih' }, { status: 400 });
+    }
+
+    const targetWeekNum = parseInt(targetWeek.replace(/[^0-9]/g, ''), 10);
+    const targetChannelId = DISCORD_CONFIG.CH_SCHEDULE;
+
+    if (!targetChannelId) {
+      return NextResponse.json({ error: 'Channel ID Schedule belum dikonfigurasi' }, { status: 500 });
+    }
+
+    const existingMsgIds = await kv.get<{ recapMsgId?: string; groupAMsgId?: string; groupBMsgId?: string; lastUpdatedMsgId?: string }>(
+      `twi:schedule_msg_ids:${targetWeekNum}`
+    );
+
+    if (existingMsgIds) {
+      // Hapus 3 embed (Recap, Group A, Group B) saja
+      await deleteWeeklyScheduleAndRecap({
+        channelId: targetChannelId,
+        existingMsgIds,
+      });
+
+      // Simpan kembali Redis dengan mempertahankan lastUpdatedMsgId jika masih ada
+      if (existingMsgIds.lastUpdatedMsgId) {
+        await kv.set(`twi:schedule_msg_ids:${targetWeekNum}`, {
+          lastUpdatedMsgId: existingMsgIds.lastUpdatedMsgId,
+        });
+      } else {
+        await kv.del(`twi:schedule_msg_ids:${targetWeekNum}`);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Berhasil menghapus 3 embed Schedule & Recap Week ${targetWeekNum} (Last Updated dipertahankan)!`,
+    });
+  } catch (error) {
+    console.error('Error Deleting Schedule & Recap Broadcast:', error);
+    return NextResponse.json({ error: String(error) }, { status: 500 });
+  }
+                       }
