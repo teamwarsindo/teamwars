@@ -29,9 +29,17 @@ export function MatchReportTable({
 }) {
   const rosterA = match.rosterA?.mainPlayers || [];
   const rosterB = match.rosterB?.mainPlayers || [];
-
   const playerNamesA = rosterA.map((p) => p.playerName);
   const playerNamesB = rosterB.map((p) => p.playerName);
+
+  // Helper Hitung Repeat Deck (Batas Maksimal 2x Per Tim)
+  const getDeckUsageCount = (teamId: string, deckName: string) => {
+    if (!deckName || deckName === "Archetype A" || deckName === "Archetype B") return 0;
+    return gameLogs.filter((g) => {
+      if (teamId === match.teamAId) return g.teamADeck?.toLowerCase() === deckName.toLowerCase();
+      return g.teamBDeck?.toLowerCase() === deckName.toLowerCase();
+    }).length;
+  };
 
   return (
     <div className="rounded-xl border border-sky-400/30 bg-[#002b5e] overflow-hidden">
@@ -50,10 +58,11 @@ export function MatchReportTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-center text-xs border-collapse min-w-[650px]">
+        <table className="w-full text-center text-xs border-collapse min-w-[550px]">
           <thead>
             <tr className="bg-[#003875] text-[10px] font-bold text-sky-200 border-b border-sky-400/30 uppercase">
-              <th className="py-2 px-1 w-10">Aksi</th>
+              {/* Kolom Akses Khusus Admin Mode */}
+              {isAdminMode && <th className="py-2 px-1 w-8">Edit</th>}
               <th className="py-2 px-2">Player A</th>
               <th className="py-2 px-2">Skill A</th>
               <th className="py-2 px-2">Deck A</th>
@@ -61,14 +70,14 @@ export function MatchReportTable({
               <th className="py-2 px-2">Deck B</th>
               <th className="py-2 px-2">Skill B</th>
               <th className="py-2 px-2">Player B</th>
-              <th className="py-2 px-1 w-10">Hapus</th>
+              {isAdminMode && <th className="py-2 px-1 w-8">Hapus</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-sky-500/20">
             {gameLogs.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-6 text-center text-xs font-medium text-sky-200/60 italic">
-                  Belum ada log pertandingan. {isAdminMode ? "Klik '+ Tambah Log' untuk mulai menginput." : ""}
+                <td colSpan={isAdminMode ? 9 : 7} className="py-6 text-center text-xs font-medium text-sky-200/60 italic">
+                  Belum ada log pertandingan.
                 </td>
               </tr>
             ) : (
@@ -76,31 +85,23 @@ export function MatchReportTable({
                 const isEditingThisRow = editingRowIndex === idx;
                 const isAWin = log.winnerTeamId === match.teamAId;
 
+                const repeatA = getDeckUsageCount(match.teamAId, log.teamADeck);
+                const repeatB = getDeckUsageCount(match.teamBId, log.teamBDeck);
+
                 return (
                   <tr key={idx} className="hover:bg-[#003875]/50 transition text-[11px]">
-                    <td className="py-1.5 px-1">
-                      {isAdminMode && (
-                        isEditingThisRow ? (
-                          <button
-                            onClick={onSaveRow}
-                            disabled={isSaving}
-                            className="p-1 rounded bg-emerald-500 text-white font-bold cursor-pointer hover:bg-emerald-400"
-                            title="Simpan"
-                          >
-                            💾
-                          </button>
+                    {/* EDIT (KHUSUS ADMIN) */}
+                    {isAdminMode && (
+                      <td className="py-1.5 px-1">
+                        {isEditingThisRow ? (
+                          <button onClick={onSaveRow} disabled={isSaving} className="p-1 rounded bg-emerald-500 text-white font-bold">💾</button>
                         ) : (
-                          <button
-                            onClick={() => setEditingRowIndex(idx)}
-                            className="p-1 rounded text-sky-300 hover:text-white font-bold cursor-pointer"
-                            title="Edit"
-                          >
-                            ✏️
-                          </button>
-                        )
-                      )}
-                    </td>
+                          <button onClick={() => setEditingRowIndex(idx)} className="p-1 rounded text-sky-300 font-bold">✏️</button>
+                        )}
+                      </td>
+                    )}
 
+                    {/* PLAYER A */}
                     <td className="py-1.5 px-2">
                       {isEditingThisRow ? (
                         <select
@@ -120,6 +121,7 @@ export function MatchReportTable({
                       )}
                     </td>
 
+                    {/* SKILL A */}
                     <td className="py-1.5 px-2">
                       {isEditingThisRow ? (
                         <input
@@ -133,6 +135,7 @@ export function MatchReportTable({
                       )}
                     </td>
 
+                    {/* DECK A + INDIKATOR REPEAT 2X */}
                     <td className="py-1.5 px-2">
                       {isEditingThisRow ? (
                         <input
@@ -142,10 +145,18 @@ export function MatchReportTable({
                           className="w-full rounded bg-[#001d3d] border border-sky-400 p-1 text-white text-[11px] text-center"
                         />
                       ) : (
-                        <span className="text-sky-100">{log.teamADeck}</span>
+                        <div className="flex flex-col items-center">
+                          <span className="text-sky-100">{log.teamADeck}</span>
+                          {repeatA > 1 && (
+                            <span className="text-[9px] font-bold px-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Repeat ({repeatA}/2)
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
 
+                    {/* HASIL GAME */}
                     <td className="py-1.5 px-2 font-black text-xs whitespace-nowrap">
                       {isEditingThisRow ? (
                         <div className="flex items-center justify-center gap-2">
@@ -177,6 +188,7 @@ export function MatchReportTable({
                       )}
                     </td>
 
+                    {/* DECK B + INDIKATOR REPEAT 2X */}
                     <td className="py-1.5 px-2">
                       {isEditingThisRow ? (
                         <input
@@ -186,10 +198,18 @@ export function MatchReportTable({
                           className="w-full rounded bg-[#001d3d] border border-sky-400 p-1 text-white text-[11px] text-center"
                         />
                       ) : (
-                        <span className="text-sky-100">{log.teamBDeck}</span>
+                        <div className="flex flex-col items-center">
+                          <span className="text-sky-100">{log.teamBDeck}</span>
+                          {repeatB > 1 && (
+                            <span className="text-[9px] font-bold px-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Repeat ({repeatB}/2)
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
 
+                    {/* SKILL B */}
                     <td className="py-1.5 px-2">
                       {isEditingThisRow ? (
                         <input
@@ -203,6 +223,7 @@ export function MatchReportTable({
                       )}
                     </td>
 
+                    {/* PLAYER B */}
                     <td className="py-1.5 px-2">
                       {isEditingThisRow ? (
                         <select
@@ -222,17 +243,12 @@ export function MatchReportTable({
                       )}
                     </td>
 
-                    <td className="py-1.5 px-1">
-                      {isAdminMode && (
-                        <button
-                          onClick={() => onRemoveLogRow(idx)}
-                          className="text-rose-400 hover:text-rose-200 font-bold px-1 cursor-pointer"
-                          title="Hapus"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </td>
+                    {/* HAPUS (KHUSUS ADMIN) */}
+                    {isAdminMode && (
+                      <td className="py-1.5 px-1">
+                        <button onClick={() => onRemoveLogRow(idx)} className="text-rose-400 font-bold px-1">✕</button>
+                      </td>
+                    )}
                   </tr>
                 );
               })
@@ -242,5 +258,4 @@ export function MatchReportTable({
       </div>
     </div>
   );
-    }
-                        
+              }
