@@ -15,6 +15,13 @@ export async function GET(req: Request) {
       options: [
         {
           type: 3, // STRING
+          name: 'match',
+          description: 'Pilih pertandingan pada Week Aktif',
+          required: true,
+          autocomplete: true,
+        },
+        {
+          type: 3, // STRING
           name: 'type',
           description: 'Pilih peran penugasan',
           required: true,
@@ -30,12 +37,28 @@ export async function GET(req: Request) {
           required: true,
           autocomplete: true,
         },
+      ],
+    },
+    {
+      name: 'unassign',
+      description: 'Cabut penugasan Referee atau Streamer dari Pertandingan (Chief/Admin)',
+      options: [
         {
           type: 3, // STRING
           name: 'match',
-          description: 'Pilih pertandingan pada Week Aktif',
+          description: 'Pilih pertandingan yang ingin dicabut stafnya',
           required: true,
           autocomplete: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'type',
+          description: 'Pilih peran yang ingin dicabut',
+          required: true,
+          choices: [
+            { name: '⚖️ Referee', value: 'REFEREE' },
+            { name: '🎥 Streamer', value: 'STREAMER' },
+          ],
         },
       ],
     },
