@@ -1,4 +1,5 @@
 import { discordAPI } from '../utils';
+import { DISCORD_CONFIG } from '../config';
 
 export interface ScheduleMatch {
   matchDateIso: string;
@@ -124,8 +125,11 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
-  // 📢 PRODUCTION TAG: GANTI KE @everyone
+  // 📢 CONTENT PESAN JADWAL: Tag @everyone
   const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n🗓️ **${params.weekDateRangeStr}**\n\n@everyone`;
+
+  // 📢 CONTENT PESAN REKAP: Tag Role Duelist
+  const duelistMention = DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : '@Duelist';
 
   // 📦 PAYLOAD PESAN 1: GROUP A
   const groupAPayload = {
@@ -152,8 +156,9 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     ],
   };
 
-  // 📦 PAYLOAD PESAN 3: SCHEDULE RECAP (LAST UPDATED DIGABUNG DI FOOTER)
+  // 📦 PAYLOAD PESAN 3: SCHEDULE RECAP (DILENGKAPI CONTENT TAG DUELIST)
   const recapPayload = {
+    content: duelistMention,
     embeds: [
       {
         title: `📊 Schedule Recap - ${params.weekName}`,
