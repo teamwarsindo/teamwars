@@ -4,6 +4,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import Swal from 'sweetalert2';
 
+interface StaffItem {
+  discordId: string;
+  discordName: string;
+}
+
 function getMondayOfWeek(d: Date): Date {
   const date = new Date(d);
   const day = date.getDay();
@@ -28,24 +33,60 @@ function formatWIBInputToISO(wibInputString: string): string {
 
 export function ScheduleAdminTab() {
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
+  const [refereeList, setRefereeList] = useState<StaffItem[]>([]);
+  const [streamerList, setStreamerList] = useState<StaffItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingMatch, setEditingMatch] = useState<MatchScheduleItem | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<string>('ALL');
   const [isRecapLoading, setIsRecapLoading] = useState(false);
+  const [isStaffRefreshing, setIsStaffRefreshing] = useState(false);
 
-  const fetchSchedules = async () => {
+  const fetchSchedulesAndStaff = async () => {
     try {
-      const res = await fetch('/api/tournament');
-      const data = await res.json();
-      if (data && data.schedules) setSchedules(data.schedules);
+      const [resSched, resStaff] = await Promise.all([
+        fetch('/api/tournament'),
+        fetch('/api/tournament/staff'),
+      ]);
+
+      const dataSched = await resSched.json();
+      const dataStaff = await resStaff.json();
+
+      if (dataSched && dataSched.schedules) setSchedules(dataSched.schedules);
+      if (dataStaff && dataStaff.success) {
+        setRefereeList(dataStaff.referees || []);
+        setStreamerList(dataStaff.streamers || []);
+      }
     } catch (err) {
-      console.error('Error fetching schedules:', err);
+      console.error('Error fetching schedules/staff:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => { fetchSchedules(); }, []);
+  useEffect(() => {
+    fetchSchedulesAndStaff();
+  }, []);
+
+  const handleRefreshStaffList = async () => {
+    setIsStaffRefreshing(true);
+    try {
+      const res = await fetch('/api/tournament/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'REFRESH_STAFF_ASSIGNMENTS' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRefereeList(data.referees || []);
+        setStreamerList(data.streamers || []);
+        Swal.fire({ icon: 'success', title: 'Daftar Staf Di-refresh!', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
+      }
+    } catch {
+      Swal.fire('Error', 'Gagal memuat ulang daftar staf', 'error');
+    } finally {
+      setIsStaffRefreshing(false);
+    }
+  };
 
   const schedulesWithWeek = useMemo(() => {
     if (!schedules || schedules.length === 0) return [];
@@ -86,7 +127,7 @@ export function ScheduleAdminTab() {
         body: JSON.stringify({ action: 'UPDATE_MATCH_CONSOLE', matchId: updated.id, token: 'tsaqif', matchData: updated }),
       });
       if (res.ok) {
-        await fetchSchedules();
+        await fetchSchedulesAndStaff();
         setEditingMatch(null);
         Swal.fire({ icon: 'success', title: 'Jadwal Berhasil Disimpan!', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
       }
@@ -95,7 +136,6 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 🟢 SINGLE MATCH SYNC
   const handleSyncSingleMatch = async (match: MatchScheduleItem & { calculatedWeekNumber?: number }) => {
     Swal.fire({ title: 'Syncing Match...', text: `Memperbarui channel & embed di Discord untuk ${match.teamAName} vs ${match.teamBName}`, didOpen: () => Swal.showLoading() });
     try {
@@ -106,7 +146,7 @@ export function ScheduleAdminTab() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        await fetchSchedules();
+        await fetchSchedulesAndStaff();
         Swal.fire('Berhasil!', 'Match berhasil di-sync ke Discord!', 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal melakukan sync match', 'error');
@@ -116,7 +156,6 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 📊 KELOLA BROADCAST WEEKLY RECAP (KIRIM & HAPUS)
   const handleBroadcastRecap = async () => {
     if (selectedWeek === 'ALL') {
       Swal.fire('Pilih Minggu', 'Silakan pilih minggu spesifik pada filter sebelum mengelola Weekly Recap.', 'warning');
@@ -132,11 +171,10 @@ export function ScheduleAdminTab() {
       confirmButtonText: 'Ya, Broadcast!',
       denyButtonText: '🗑️ Hapus Broadcast',
       cancelButtonText: 'Batal',
-      confirmButtonColor: '#9333ea', // Purple
-      denyButtonColor: '#e11d48',    // Rose / Red
+      confirmButtonColor: '#9333ea',
+      denyButtonColor: '#e11d48',
     });
 
-    // 🟢 1. EKSEKUSI BROADCAST / UPDATE (POST)
     if (result.isConfirmed) {
       setIsRecapLoading(true);
       Swal.fire({ title: `Broadcasting ${selectedWeek}...`, text: 'Mengirimkan Weekly Recap & Schedule...', didOpen: () => Swal.showLoading() });
@@ -150,7 +188,7 @@ export function ScheduleAdminTab() {
 
         const data = await res.json();
         if (res.ok && data.success) {
-          await fetchSchedules();
+          await fetchSchedulesAndStaff();
           Swal.fire('Berhasil!', data.message || `Weekly Recap ${selectedWeek} berhasil disebarkan!`, 'success');
         } else {
           Swal.fire('Gagal', data.error || 'Gagal menyebarkan Weekly Recap', 'error');
@@ -160,11 +198,9 @@ export function ScheduleAdminTab() {
       } finally {
         setIsRecapLoading(false);
       }
-    } 
-    // 🔴 2. EKSEKUSI HAPUS BROADCAST (DELETE)
-    else if (result.isDenied) {
+    } else if (result.isDenied) {
       setIsRecapLoading(true);
-      Swal.fire({ title: `Menghapus Broadcast ${selectedWeek}...`, text: 'Menghapus 3 embed utama dari Discord...', didOpen: () => Swal.showLoading() });
+      Swal.fire({ title: `Menghapus Broadcast ${selectedWeek}...`, text: 'Menghapus embed utama dari Discord...', didOpen: () => Swal.showLoading() });
 
       try {
         const res = await fetch('/api/tournament/weekly-recap', {
@@ -175,7 +211,7 @@ export function ScheduleAdminTab() {
 
         const data = await res.json();
         if (res.ok && data.success) {
-          await fetchSchedules();
+          await fetchSchedulesAndStaff();
           Swal.fire('Berhasil Dihapus!', data.message || `Broadcast ${selectedWeek} berhasil dihapus dari Discord!`, 'success');
         } else {
           Swal.fire('Gagal', data.error || 'Gagal menghapus broadcast', 'error');
@@ -188,11 +224,10 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 🔴 DELETE MATCH CHANNEL
   const handleDeleteChannel = async (match: MatchScheduleItem) => {
     const confirm = await Swal.fire({
       title: `Hapus Channel Discord ${match.id}?`,
-      text: `Channel ⚔️-m${match.id.replace('match-', '')}-... akan dihapus dari server Discord dan role tim pada Wasit akan dicabut.`,
+      text: `Channel akan dihapus dari server Discord.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Ya, Hapus Channel!',
@@ -212,7 +247,7 @@ export function ScheduleAdminTab() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        await fetchSchedules();
+        await fetchSchedulesAndStaff();
         Swal.fire('Berhasil!', data.message, 'success');
       } else {
         Swal.fire('Gagal', data.error || 'Gagal menghapus channel', 'error');
@@ -243,9 +278,17 @@ export function ScheduleAdminTab() {
           <h2 className="text-lg font-extrabold text-foreground">Manajemen Schedule Pertandingan</h2>
           <p className="text-xs text-muted-foreground">Kelola waktu (WIB), Wasit, Streamer, dan otomatisasi channel Discord match.</p>
         </div>
-        
-        {/* DROPDOWN FILTER & TOMBOL WEEKLY RECAP */}
+
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {/* 🔄 TOMBOL REFRESH LIST STAF */}
+          <button
+            onClick={handleRefreshStaffList}
+            disabled={isStaffRefreshing}
+            className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-extrabold shadow-sm disabled:opacity-50 transition cursor-pointer flex items-center gap-1.5"
+          >
+            🔄 {isStaffRefreshing ? 'Refreshing...' : 'Refresh Staf KV'}
+          </button>
+
           <select
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(e.target.value)}
@@ -257,7 +300,6 @@ export function ScheduleAdminTab() {
             ))}
           </select>
 
-          {/* 📊 TOMBOL BROADCAST WEEKLY RECAP */}
           {selectedWeek !== 'ALL' && (
             <button
               onClick={handleBroadcastRecap}
@@ -270,7 +312,6 @@ export function ScheduleAdminTab() {
         </div>
       </div>
 
-      {/* LIST KARTU MATCH RESMI */}
       <div className="grid grid-cols-1 gap-4">
         {filteredSchedules.map((m) => {
           const isEditing = editingMatch?.id === m.id;
@@ -308,20 +349,55 @@ export function ScheduleAdminTab() {
                       className="w-full rounded-lg bg-background border border-input p-2 font-semibold"
                     />
                   </div>
+
+                  {/* 🟢 DROPDOWN REFEREE */}
                   <div>
-                    <label className="block text-[10px] text-muted-foreground font-bold mb-1">WASIT (NAMA & DISCORD ID)</label>
-                    <div className="flex gap-1">
-                      <input type="text" placeholder="Nama" value={currentData.referee || ''} onChange={(e) => setEditingMatch({ ...currentData, referee: e.target.value })} className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium" />
-                      <input type="text" placeholder="ID" value={currentData.refereeDiscordId || ''} onChange={(e) => setEditingMatch({ ...currentData, refereeDiscordId: e.target.value })} className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium" />
-                    </div>
+                    <label className="block text-[10px] text-muted-foreground font-bold mb-1">WASIT / REFEREE</label>
+                    <select
+                      value={currentData.refereeDiscordId || ''}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        const selectedStaff = refereeList.find((r) => r.discordId === selectedId);
+                        setEditingMatch({
+                          ...currentData,
+                          refereeDiscordId: selectedId,
+                          referee: selectedStaff ? selectedStaff.discordName : '',
+                        });
+                      }}
+                      className="w-full rounded-lg bg-background border border-input p-2 font-semibold text-xs cursor-pointer"
+                    >
+                      <option value="">-- Belum Ada Wasit --</option>
+                      {refereeList.map((r) => (
+                        <option key={r.discordId} value={r.discordId}>{r.discordName}</option>
+                      ))}
+                    </select>
                   </div>
+
+                  {/* 🟢 DROPDOWN STREAMER */}
                   <div>
-                    <label className="block text-[10px] text-muted-foreground font-bold mb-1">STREAMER (NAMA & DISCORD ID)</label>
-                    <div className="flex gap-1">
-                      <input type="text" placeholder="Nama" value={currentData.streamer || ''} onChange={(e) => setEditingMatch({ ...currentData, streamer: e.target.value })} className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium" />
-                      <input type="text" placeholder="ID" value={currentData.caster || ''} onChange={(e) => setEditingMatch({ ...currentData, caster: e.target.value })} className="w-1/2 rounded-lg bg-background border border-input p-2 font-medium" />
-                    </div>
+                    <label className="block text-[10px] text-muted-foreground font-bold mb-1">STREAMER / CASTER</label>
+                    <select
+                      value={currentData.streamerDiscordId || currentData.casterDiscordId || ''}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        const selectedStaff = streamerList.find((s) => s.discordId === selectedId);
+                        setEditingMatch({
+                          ...currentData,
+                          streamerDiscordId: selectedId,
+                          casterDiscordId: selectedId,
+                          streamer: selectedStaff ? selectedStaff.discordName : '',
+                          caster: selectedStaff ? selectedStaff.discordName : '',
+                        });
+                      }}
+                      className="w-full rounded-lg bg-background border border-input p-2 font-semibold text-xs cursor-pointer"
+                    >
+                      <option value="">-- Belum Ada Streamer --</option>
+                      {streamerList.map((s) => (
+                        <option key={s.discordId} value={s.discordId}>{s.discordName}</option>
+                      ))}
+                    </select>
                   </div>
+
                   <div className="sm:col-span-2 lg:col-span-3">
                     <label className="block text-[10px] text-muted-foreground font-bold mb-1">YOUTUBE / STREAM LINK</label>
                     <input type="text" placeholder="https://youtube.com/..." value={currentData.streamLink || ''} onChange={(e) => setEditingMatch({ ...currentData, streamLink: e.target.value })} className="w-full rounded-lg bg-background border border-input p-2 font-medium" />
@@ -351,5 +427,5 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-        }
-               
+    }
+                        
