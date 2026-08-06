@@ -8,25 +8,49 @@ export interface StaffItem {
   discordName: string;
 }
 
-// Helper untuk fetch member Discord berdasarkan Role ID
-async function fetchGuildMembersByRole(roleId: string): Promise<StaffItem[]> {
+// Helper untuk mengambil SELURUH member server Discord (dengan paginasi lengkap)
+async function fetchAllGuildMembers(): Promise<any[]> {
   const guildId = DISCORD_CONFIG.GUILD_ID;
-  if (!guildId || !roleId) return [];
+  if (!guildId) return [];
 
-  // Fetch list member dari server Discord (limit 1000)
-  const members = await discordAPI(`/guilds/${guildId}/members?limit=1000`, 'GET').catch(() => []);
-  if (!Array.isArray(members)) return [];
+  let allMembers: any[] = [];
+  let lastId: string | null = null;
+  let hasMore = true;
 
-  // Filter member yang memiliki role target
+  // Loop hingga seluruh member server terkumpul
+  while (hasMore) {
+    const endpoint = `/guilds/${guildId}/members?limit=1000${lastId ? `&after=${lastId}` : ''}`;
+    const members = await discordAPI(endpoint, 'GET').catch(() => []);
+
+    if (!Array.isArray(members) || members.length === 0) {
+      hasMore = false;
+    } else {
+      allMembers = allMembers.concat(members);
+      lastId = members[members.length - 1].user.id;
+      
+      // Jika jumlah batch kurang dari 1000, berarti sudah mencapai akhir daftar member
+      if (members.length < 1000) {
+        hasMore = false;
+      }
+    }
+  }
+
+  return allMembers;
+}
+
+// Helper filter murni berdasarkan ketersediaan Role ID
+function filterMembersByRole(members: any[], roleId: string): StaffItem[] {
+  if (!roleId) return [];
+
   return members
-    .filter((m: any) => m.roles && m.roles.includes(roleId))
-    .map((m: any) => ({
+    .filter((m) => Array.isArray(m.roles) && m.roles.includes(roleId))
+    .map((m) => ({
       discordId: m.user.id,
       discordName: m.nick || m.user.global_name || m.user.username,
     }));
 }
 
-// GET: Ambil daftar staf dari KV untuk kebutuhan Dropdown Dashboard
+// GET: Ambil daftar staf dari KV untuk Dropdown Dashboard
 export async function GET() {
   try {
     const referees = (await kv.get<StaffItem[]>('staff:referees')) || [];
@@ -42,26 +66,27 @@ export async function GET() {
   }
 }
 
-// POST: Murni Refresh Data Staf dari Discord ke KV
+// POST: Refresh murni menarik seluruh pemegang Role Referee & Streamer dari Discord
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const { action } = body;
 
     if (action === 'REFRESH_STAFF_ASSIGNMENTS') {
-      // 1. Fetch user dari Discord yang punya role Referee & Streamer
-      const [fetchedReferees, fetchedStreamers] = await Promise.all([
-        fetchGuildMembersByRole(DISCORD_CONFIG.ROLE_REFEREE),
-        fetchGuildMembersByRole(DISCORD_CONFIG.ROLE_STREAMER),
-      ]);
+      // 1. Tarik seluruh member server tanpa terkecuali
+      const allMembers = await fetchAllGuildMembers();
 
-      // 2. Timpa / Update daftar master staf di KV Redis
+      // 2. Filter murni berdasarkan Role ID Referee & Streamer
+      const fetchedReferees = filterMembersByRole(allMembers, DISCORD_CONFIG.ROLE_REFEREE);
+      const fetchedStreamers = filterMembersByRole(allMembers, DISCORD_CONFIG.ROLE_STREAMER);
+
+      // 3. Simpan daftar lengkap ke Redis KV
       await kv.set('staff:referees', fetchedReferees);
       await kv.set('staff:streamers', fetchedStreamers);
 
       return NextResponse.json({
         success: true,
-        message: `Daftar staf berhasil diperbarui dari Discord! (${fetchedReferees.length} Referee, ${fetchedStreamers.length} Streamer)`,
+        message: `Daftar staf berhasil diperbarui! Ditemukan ${fetchedReferees.length} Referee & ${fetchedStreamers.length} Streamer dari total ${allMembers.length} member.`,
         referees: fetchedReferees,
         streamers: fetchedStreamers,
       });
