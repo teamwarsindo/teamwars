@@ -1,7 +1,13 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { StaffItem } from '@/app/api/tournament/staff/route';
+
+// Interface lokal dengan properti assignMatch opsional
+export interface StaffItem {
+  discordId: string;
+  discordName: string;
+  assignMatch?: string[];
+}
 
 function formatWIBShort(isoString: string): string {
   if (!isoString) return 'TBA';
@@ -26,7 +32,10 @@ async function removeMatchFromOldStaff(
 
   if (index !== -1) {
     const history = staffList[index].assignMatch || [];
-    staffList[index].assignMatch = history.filter((id) => id !== matchId);
+    staffList[index] = {
+      ...staffList[index],
+      assignMatch: history.filter((id) => id !== matchId),
+    };
     await kv.set(kvKey, staffList);
   }
 }
@@ -221,4 +230,4 @@ export async function handleAssignCommand(interaction: any) {
       flags: 64,
     },
   };
-    }
+}
