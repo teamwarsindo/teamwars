@@ -14,6 +14,7 @@ import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
 import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
+import { handleAssignAutocomplete, handleAssignCommand } from '@/lib/discord/handlers/assign-handler';
 
 // Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
     // ⚡ Slash Commands (Type 2)
     if (body.type === 2) {
       const commandName = body.data.name;
+      if (commandName === 'assign') return NextResponse.json(await handleAssignCommand(body));
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body); 
@@ -194,6 +196,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 🔎 Autocomplete Interactions (Type 4)
+    if (body.type === 4) {
+      if (body.data?.name === 'assign') {
+        const autocompleteResponse = await handleAssignAutocomplete(body);
+        return NextResponse.json(autocompleteResponse);
+      }
+    }
+
     // 📝 Modal Submit Interactions (Type 5)
     if (body.type === 5) {
       const customId = body.data.custom_id;
@@ -209,4 +219,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-        }
+}
