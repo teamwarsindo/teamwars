@@ -3,7 +3,6 @@ import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/lib/types/tournament';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
-import { sendOrUpdateScheduleEmbed } from '@/lib/discord/messages/schedule';
 import { sendOrUpdateRefereeAssignmentLog, sendOrUpdateStreamerAssignmentLog } from '@/lib/discord/messages/assignment-log';
 
 interface StaffItem {
@@ -88,7 +87,7 @@ export async function POST(req: Request) {
 
     const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
 
-    // 2. CREATE / SYNC CHANNEL MATCH & OPENING EMBED
+    // 2. CREATE / SYNC CHANNEL MATCH & OPENING EMBED (CHANNEL PRIVAT)
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
       groupName: match.groupName,
@@ -114,22 +113,7 @@ export async function POST(req: Request) {
     if (syncResult.channelId) (match as any).discordChannelId = syncResult.channelId;
     if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
 
-    // 3. UPDATE SCHEDULE EMBED (#schedule)
-    const scheduleMsgId = await sendOrUpdateScheduleEmbed({
-      groupName: match.groupName,
-      weekName: calculatedWeek,
-      teamAName: match.teamAName,
-      teamBName: match.teamBName,
-      kodeTimA,
-      kodeTimB,
-      emojiAId,
-      emojiBId,
-      matchDateIso: match.matchDate,
-      existingMsgId: (match as any).scheduleMsgId,
-    });
-    if (scheduleMsgId) (match as any).scheduleMsgId = scheduleMsgId;
-
-    // 4. 📢 LOG PENUGASAN REFEREE & STREAMER (#CH_ASSIGN)
+    // 3. 📢 LOG PENUGASAN REFEREE & STREAMER (#CH_ASSIGN)
     const chAssign = DISCORD_CONFIG.CH_ASSIGN;
     if (chAssign) {
       const currentStreamerId = match.streamerDiscordId || match.casterDiscordId;
@@ -190,7 +174,7 @@ export async function POST(req: Request) {
       (match as any).lastMatchDateIso = match.matchDate;
     }
 
-    // 5. 📊 REKAPAN: CATAT MATCH ID KE ASSIGN HISTORY STAF
+    // 4. 📊 REKAPAN: CATAT MATCH ID KE ASSIGN HISTORY STAF
     if (match.refereeDiscordId) {
       await updateStaffAssignHistory('staff:referees', match.refereeDiscordId, match.referee, match.id);
     }
@@ -199,13 +183,13 @@ export async function POST(req: Request) {
       await updateStaffAssignHistory('staff:streamers', streamerId, match.streamer || match.caster, match.id);
     }
 
-    // 6. SIMPAN DATA MATHER KE REDIS
+    // 5. SIMPAN DATA MATCH KE REDIS
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      message: `Match ${match.id} berhasil di-sync dan rekapan staf diperbarui!`,
+      message: `Match ${match.id} berhasil di-sync!`,
       channelId: (match as any).discordChannelId,
     });
   } catch (error) {
@@ -213,3 +197,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
+  
