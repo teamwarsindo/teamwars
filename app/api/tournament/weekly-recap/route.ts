@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     const weekDateRangeStr = `${startMonName}, ${startMonNum} - ${endSunName}, ${endSunNum}`;
 
     const dayOffsets = [2, 3, 4, 5, 6];
-    const dateMap: Record<string, { dateFormatted: string; count: number }> = {};
+    const dateMap: Record<string, { dateKey: string; dateFormatted: string; count: number }> = {};
 
     dayOffsets.forEach((offset) => {
       const dayDate = new Date(targetMonday);
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
       const dayNameFormatted = dayDate.toLocaleDateString('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' });
       const dayNumFormatted = dayDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' });
 
-      dateMap[dateKey] = { dateFormatted: `${dayNameFormatted}, ${dayNumFormatted}`, count: 0 };
+      dateMap[dateKey] = { dateKey, dateFormatted: `${dayNameFormatted}, ${dayNumFormatted}`, count: 0 };
     });
 
     const targetMatches = schedules.filter((m: any) => {
@@ -159,10 +159,12 @@ export async function POST(req: Request) {
     const dailyMatchCounts = Object.values(dateMap);
 
     const activeWeek = await kv.get<number>('twi:active_schedule_week');
+    let oldRecapMsgId: string | undefined;
     let oldLastUpdatedMsgId: string | undefined;
 
     if (activeWeek && activeWeek !== targetWeekNum) {
-      const prevMsgIds = await kv.get<{ lastUpdatedMsgId?: string }>(`twi:schedule_msg_ids:${activeWeek}`);
+      const prevMsgIds = await kv.get<{ recapMsgId?: string; lastUpdatedMsgId?: string }>(`twi:schedule_msg_ids:${activeWeek}`);
+      oldRecapMsgId = prevMsgIds?.recapMsgId;
       oldLastUpdatedMsgId = prevMsgIds?.lastUpdatedMsgId;
     }
 
@@ -178,6 +180,7 @@ export async function POST(req: Request) {
       groupASchedules,
       groupBSchedules,
       existingMsgIds,
+      oldRecapMsgId,
       oldLastUpdatedMsgId,
     });
 
@@ -186,13 +189,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil broadcast Rekap & Schedule Week ${targetWeekNum}!`,
+      message: `Berhasil update Rekap & Schedule Week ${targetWeekNum}!`,
       channelId: targetChannelId,
       msgIds: updatedMsgIds,
-      summary: {
-        totalGroupA: groupASchedules.length,
-        totalGroupB: groupBSchedules.length,
-      },
     });
   } catch (error) {
     console.error('Error Sync Schedule & Recap:', error);
@@ -200,7 +199,7 @@ export async function POST(req: Request) {
   }
 }
 
-// 🔴 DELETE METHOD: HANYA HAPUS 3 EMBED UTAMA & BERSIHKAN RECAP ID DARI REDIS
+// 🔴 DELETE METHOD DENGAN LOGIKA CEK WEEK AKTIF
 export async function DELETE(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -217,33 +216,30 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Channel ID Schedule belum dikonfigurasi' }, { status: 500 });
     }
 
+    const activeWeek = await kv.get<number>('twi:active_schedule_week');
+    const isDeletingActiveWeek = activeWeek === targetWeekNum;
+
     const existingMsgIds = await kv.get<{ recapMsgId?: string; groupAMsgId?: string; groupBMsgId?: string; lastUpdatedMsgId?: string }>(
       `twi:schedule_msg_ids:${targetWeekNum}`
     );
 
     if (existingMsgIds) {
-      // Hapus 3 embed (Recap, Group A, Group B) saja
+      // Hapus Recap HANYA JIKA week ini adalah Week Aktif
       await deleteWeeklyScheduleAndRecap({
         channelId: targetChannelId,
         existingMsgIds,
+        deleteRecapToo: isDeletingActiveWeek,
       });
 
-      // Simpan kembali Redis dengan mempertahankan lastUpdatedMsgId jika masih ada
-      if (existingMsgIds.lastUpdatedMsgId) {
-        await kv.set(`twi:schedule_msg_ids:${targetWeekNum}`, {
-          lastUpdatedMsgId: existingMsgIds.lastUpdatedMsgId,
-        });
-      } else {
-        await kv.del(`twi:schedule_msg_ids:${targetWeekNum}`);
-      }
+      await kv.del(`twi:schedule_msg_ids:${targetWeekNum}`);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil menghapus 3 embed Schedule & Recap Week ${targetWeekNum} (Last Updated dipertahankan)!`,
+      message: `Berhasil menghapus bagian Schedule Week ${targetWeekNum}${isDeletingActiveWeek ? ' (beserta Recap)' : ''}!`,
     });
   } catch (error) {
     console.error('Error Deleting Schedule & Recap Broadcast:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-                       }
+        }
