@@ -1,15 +1,17 @@
 import { discordAPI } from '../utils';
+import { DISCORD_CONFIG } from '../config';
 
 export interface ScheduleMatch {
+  matchDateIso: string;  // Untuk sorting kronologis
   dateStr: string;       // Contoh: "Rabu, 05 Aug 2026"
   timeStr: string;       // Contoh: "20:00 WIB"
-  team1Emoji?: string;   // Contoh: "<:fc:123456>" atau "🛡️"
+  team1Emoji?: string;   // Format Discord Emoji: "<:name:id>" atau "🛡️"
   team1Name: string;     // Contoh: "FC Team"
-  team2Emoji?: string;   // Contoh: "<:ds:123456>" atau "⚔️"
+  team2Emoji?: string;   // Format Discord Emoji: "<:name:id>" atau "⚔️"
   team2Name: string;     // Contoh: "DS Esports"
 }
 
-// Helper Format Footer (Last Updated: 06 Aug 2026 at 12:42 WIB)
+// Helper Format Timestamp (06 Aug 2026 at 13:15 WIB)
 function formatDiscordStyleTime(dateObj = new Date()): string {
   const day = dateObj.getDate().toString().padStart(2, '0');
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -23,10 +25,10 @@ function formatDiscordStyleTime(dateObj = new Date()): string {
 
 export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   channelId: string;
-  weekName: string; // Contoh: "Week 1"
+  weekName: string;
   dailyMatchCounts: Array<{
-    dateFormatted: string; // Contoh: "Rabu, 05 Aug 2026"
-    count: number;          // Jumlah match (0 - 3)
+    dateFormatted: string;
+    count: number;
   }>;
   groupASchedules: Array<ScheduleMatch>;
   groupBSchedules: Array<ScheduleMatch>;
@@ -34,13 +36,16 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     recapMsgId?: string;
     groupAMsgId?: string;
     groupBMsgId?: string;
+    lastUpdatedMsgId?: string;
   };
-}): Promise<{ recapMsgId: string | null; groupAMsgId: string | null; groupBMsgId: string | null }> {
-  if (!params.channelId) return { recapMsgId: null, groupAMsgId: null, groupBMsgId: null };
+}): Promise<{ recapMsgId: string | null; groupAMsgId: string | null; groupBMsgId: string | null; lastUpdatedMsgId: string | null }> {
+  if (!params.channelId) {
+    return { recapMsgId: null, groupAMsgId: null, groupBMsgId: null, lastUpdatedMsgId: null };
+  }
 
-  const footerText = `Last Updated: ${formatDiscordStyleTime()}`;
+  const defaultFooter = { text: 'Team Wars Indonesia Season 7' };
 
-  // Helper Pembuat Deskripsi Jadwal Group (Lengkap dengan Jam)
+  // Helper Pembuat Deskripsi Jadwal Group (Diurutkan berdasarkan Waktu)
   const buildGroupDescription = (schedules: Array<ScheduleMatch>): string => {
     let desc = 'Penyesuaian jadwal setelah permintaan reschedule\n\n';
 
@@ -49,17 +54,19 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
       return desc;
     }
 
-    const matchLines = schedules.map((m) => {
+    // Urutkan Kronologis
+    const sorted = [...schedules].sort((a, b) => new Date(a.matchDateIso).getTime() - new Date(b.matchDateIso).getTime());
+
+    const matchLines = sorted.map((m) => {
       const t1 = `${m.team1Emoji ? m.team1Emoji + ' ' : ''}**${m.team1Name}**`;
       const t2 = `${m.team2Emoji ? m.team2Emoji + ' ' : ''}**${m.team2Name}**`;
-      // Memastikan Tanggal + Jam Terpasang Presisi
       return `📅 **${m.dateStr} at ${m.timeStr}**\n${t1} vs ${t2}`;
     });
 
     return desc + matchLines.join('\n\n');
   };
 
-  // --- 1. REKAP MATCH FIELDS ---
+  // 1. REKAP MATCH FIELDS
   const recapFields = (params.dailyMatchCounts || []).map((day, idx) => {
     let statusText = '';
     if (day.count >= 3) {
@@ -79,15 +86,18 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
+  // Tag Admin Role di Content
+  const adminMention = DISCORD_CONFIG.ROLE_ADMIN ? `<@&${DISCORD_CONFIG.ROLE_ADMIN}>` : '@Admin';
+
   const recapPayload = {
-    content: '📢 **Pemberitahuan Rekap & Jadwal Pertandingan Minggu Ini**',
+    content: `📢 ${adminMention} **Pemberitahuan Rekap & Jadwal Pertandingan Minggu Ini**`,
     embeds: [
       {
         title: `📊 Schedule Recap - ${params.weekName}`,
         color: 0x9b59b6,
         description: 'Ketersediaan match per hari sebagai acuan reschedule.',
         fields: recapFields,
-        footer: { text: footerText },
+        footer: defaultFooter,
       },
     ],
   };
@@ -98,7 +108,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
         title: `📊 Schedule Group A - ${params.weekName}`,
         color: 0x3498db,
         description: buildGroupDescription(params.groupASchedules),
-        footer: { text: footerText },
+        footer: defaultFooter,
       },
     ],
   };
@@ -109,7 +119,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
         title: `📊 Schedule Group B - ${params.weekName}`,
         color: 0xe74c3c,
         description: buildGroupDescription(params.groupBSchedules),
-        footer: { text: footerText },
+        footer: defaultFooter,
       },
     ],
   };
@@ -118,7 +128,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   let groupAMsgId = params.existingMsgIds?.groupAMsgId || null;
   let groupBMsgId = params.existingMsgIds?.groupBMsgId || null;
 
-  // --- 2. EKSEKUSI MURNI PATCH (JIKA ID ADA) ATAU POST (JIKA PESAN BELUM ADA) ---
+  // 2. PATCH ATAU POST UNTUK 3 EMBED UTAMA
 
   // Pesan 1: Recap
   if (recapMsgId) {
@@ -132,7 +142,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     recapMsgId = postRes?.id || null;
   }
 
-  // Pesan 2: Schedule Group A
+  // Pesan 2: Group A
   if (groupAMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${groupAMsgId}`, 'PATCH', groupAPayload).catch(() => null);
     if (!patchRes) {
@@ -144,7 +154,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupAMsgId = postRes?.id || null;
   }
 
-  // Pesan 3: Schedule Group B
+  // Pesan 3: Group B
   if (groupBMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${groupBMsgId}`, 'PATCH', groupBPayload).catch(() => null);
     if (!patchRes) {
@@ -156,5 +166,26 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  return { recapMsgId, groupAMsgId, groupBMsgId };
-        }
+  // 3. PESAN KE-4: LAST UPDATED EMBED (HAPUS PESAN LAMA LALU KIRIM BARU)
+  if (params.existingMsgIds?.lastUpdatedMsgId) {
+    await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgIds.lastUpdatedMsgId}`, 'DELETE').catch(() => null);
+  }
+
+  const lastUpdatedPayload = {
+    embeds: [
+      {
+        description: `⏱️ **Last Updated:** ${formatDiscordStyleTime()}`,
+        color: 0x2b2d31,
+      },
+    ],
+  };
+
+  const lastUpdatedRes = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', lastUpdatedPayload).catch(() => null);
+
+  return {
+    recapMsgId,
+    groupAMsgId,
+    groupBMsgId,
+    lastUpdatedMsgId: lastUpdatedRes?.id || null,
+  };
+}
