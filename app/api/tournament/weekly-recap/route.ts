@@ -50,9 +50,21 @@ export async function POST(req: Request) {
     const sortedByDate = [...schedules].sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
     const tournamentStartMonday = getMondayOfWeek(new Date(sortedByDate[0].matchDate));
 
-    // 2. Hitung Tanggal Senin untuk Week Terpilih
+    // 2. Hitung Tanggal Senin & Minggu untuk Week Terpilih
     const targetMonday = new Date(tournamentStartMonday);
     targetMonday.setDate(tournamentStartMonday.getDate() + (targetWeekNum - 1) * 7);
+
+    const targetSunday = new Date(targetMonday);
+    targetSunday.setDate(targetMonday.getDate() + 6);
+
+    // Format Tanggal Rentang Minggu Ini (Tanpa Jam): "Senin, 03 Aug 2026 - Minggu, 09 Aug 2026"
+    const startMonName = targetMonday.toLocaleDateString('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' });
+    const startMonNum = targetMonday.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' });
+    
+    const endSunName = targetSunday.toLocaleDateString('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' });
+    const endSunNum = targetSunday.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' });
+
+    const weekDateRangeStr = `${startMonName}, ${startMonNum} - ${endSunName}, ${endSunNum}`;
 
     // 3. TEMPLATE SLOT RABU S.D. MINGGU
     const dayOffsets = [2, 3, 4, 5, 6];
@@ -159,6 +171,7 @@ export async function POST(req: Request) {
     const updatedMsgIds = await sendOrUpdateWeeklyScheduleAndRecap({
       channelId: targetChannelId,
       weekName: `Week ${targetWeekNum}`,
+      weekDateRangeStr,
       dailyMatchCounts,
       groupASchedules,
       groupBSchedules,
@@ -182,5 +195,4 @@ export async function POST(req: Request) {
     console.error('Error Sync Schedule & Recap:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-                                              }
-                            
+}
