@@ -11,7 +11,6 @@ export interface ScheduleMatch {
   team2Name: string;
 }
 
-// Helper Format Timestamp WIB Presisi (Asia/Jakarta)
 function formatDiscordStyleTimeWIB(dateObj = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -31,7 +30,7 @@ function formatDiscordStyleTimeWIB(dateObj = new Date()): string {
   return `${p.day} ${p.month} ${p.year} at ${p.hour}:${p.minute} WIB`;
 }
 
-// 🟢 PERBAIKAN: HAPUS HANYA 3 EMBED UTAMA (JANGAN HAPUS LAST UPDATED)
+// 🔴 DELETE KHUSUS BAGIAN WEEK
 export async function deleteWeeklyScheduleAndRecap(params: {
   channelId: string;
   existingMsgIds?: {
@@ -40,14 +39,20 @@ export async function deleteWeeklyScheduleAndRecap(params: {
     groupBMsgId?: string;
     lastUpdatedMsgId?: string;
   };
+  deleteRecapToo?: boolean; // True jika week ini memegang Recap aktif
 }) {
   if (!params.channelId || !params.existingMsgIds) return;
 
   const { recapMsgId, groupAMsgId, groupBMsgId } = params.existingMsgIds;
 
-  if (recapMsgId) await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
+  // Hapus Group A & Group B
   if (groupAMsgId) await discordAPI(`/channels/${params.channelId}/messages/${groupAMsgId}`, 'DELETE').catch(() => null);
   if (groupBMsgId) await discordAPI(`/channels/${params.channelId}/messages/${groupBMsgId}`, 'DELETE').catch(() => null);
+
+  // Hapus Recap HANYA jika flag deleteRecapToo bernilai true
+  if (params.deleteRecapToo && recapMsgId) {
+    await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
+  }
 }
 
 export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
@@ -55,6 +60,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   weekName: string;
   weekDateRangeStr: string;
   dailyMatchCounts: Array<{
+    dateKey: string;      // YYYY-MM-DD
     dateFormatted: string;
     count: number;
   }>;
@@ -66,7 +72,8 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId?: string;
     lastUpdatedMsgId?: string;
   };
-  oldLastUpdatedMsgId?: string;
+  oldRecapMsgId?: string;       // ID Recap dari week sebelumnya jika pindah week
+  oldLastUpdatedMsgId?: string; // ID Last Updated sebelumnya
 }): Promise<{ recapMsgId: string | null; groupAMsgId: string | null; groupBMsgId: string | null; lastUpdatedMsgId: string | null }> {
   if (!params.channelId) {
     return { recapMsgId: null, groupAMsgId: null, groupBMsgId: null, lastUpdatedMsgId: null };
@@ -74,6 +81,15 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
 
   const defaultFooter = { text: 'Team Wars Indonesia Season 7' };
 
+  // 1. FILTER TANGGAL SEKARANG (HAPUS YANG SUDAH LEWAT)
+  const nowWIB = new Date();
+  const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+  const [year, month, day] = new Intl.DateTimeFormat('sv-SE', options).format(nowWIB).split('-');
+  const todayKey = `${year}-${month}-${day}`;
+
+  const validDailyCounts = (params.dailyMatchCounts || []).filter((d) => d.dateKey >= todayKey);
+
+  // Helper Pembuat Deskripsi Group
   const buildGroupDescription = (schedules: Array<ScheduleMatch>): string => {
     let desc = 'Penyesuaian jadwal setelah permintaan reschedule\n\n';
 
@@ -93,19 +109,19 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     return desc + matchLines.join('\n\n');
   };
 
-  // 1. REKAP MATCH FIELDS
-  const recapFields = (params.dailyMatchCounts || []).map((day, idx) => {
+  // 2. BUILD FIELDS REKAP (TANGGAL LEWAT SUDAH TERFILTER)
+  const recapFields = validDailyCounts.map((dayItem, idx) => {
     let statusText = '';
-    if (day.count >= 3) {
-      statusText = `🔴 ${day.count}/3 Match (Penuh)`;
-    } else if (day.count === 2) {
-      statusText = `🟡 ${day.count}/3 Match (Sisa 1)`;
+    if (dayItem.count >= 3) {
+      statusText = `🔴 ${dayItem.count}/3 Match (Penuh)`;
+    } else if (dayItem.count === 2) {
+      statusText = `🟡 ${dayItem.count}/3 Match (Sisa 1)`;
     } else {
-      const remaining = 3 - day.count;
-      statusText = `🟢 ${day.count}/3 Match (Sisa ${remaining})`;
+      const remaining = 3 - dayItem.count;
+      statusText = `🟢 ${dayItem.count}/3 Match (Sisa ${remaining})`;
     }
 
-    const rawDateStr = day.dateFormatted?.trim() || `Hari ${idx + 1}`;
+    const rawDateStr = dayItem.dateFormatted?.trim() || `Hari ${idx + 1}`;
     return {
       name: `📅 ${rawDateStr}`.slice(0, 24),
       value: statusText.slice(0, 25),
@@ -151,11 +167,16 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     ],
   };
 
+  // CLEANUP PESAN REKAP MINGGU SEBELUMNYA JIKA PINTAH WEEK
+  if (params.oldRecapMsgId && params.oldRecapMsgId !== params.existingMsgIds?.recapMsgId) {
+    await discordAPI(`/channels/${params.channelId}/messages/${params.oldRecapMsgId}`, 'DELETE').catch(() => null);
+  }
+
   let recapMsgId = params.existingMsgIds?.recapMsgId || null;
   let groupAMsgId = params.existingMsgIds?.groupAMsgId || null;
   let groupBMsgId = params.existingMsgIds?.groupBMsgId || null;
 
-  // 2. PATCH ATAU POST UNTUK 3 EMBED UTAMA
+  // 3. EKSEKUSI PATCH / POST
   if (recapMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'PATCH', recapPayload).catch(() => null);
     if (!patchRes) {
@@ -189,16 +210,15 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // 3. CLEANUP PESAN LAST UPDATED LAMA JIKA ADA
+  // CLEANUP PESAN LAST UPDATED LAMA
   if (params.oldLastUpdatedMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.oldLastUpdatedMsgId}`, 'DELETE').catch(() => null);
   }
-
   if (params.existingMsgIds?.lastUpdatedMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgIds.lastUpdatedMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // 4. PESAN KE-4: LAST UPDATED EMBED
+  // 4. EMBED LAST UPDATED DENGAN JAM WIB
   const lastUpdatedPayload = {
     embeds: [
       {
@@ -216,4 +236,5 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId,
     lastUpdatedMsgId: lastUpdatedRes?.id || null,
   };
-                                           }
+  }
+      
