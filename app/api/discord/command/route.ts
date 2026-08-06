@@ -10,6 +10,36 @@ export async function GET(req: Request) {
   // ==========================================
   const commands = [
     {
+      name: 'assign',
+      description: 'Tugaskan Referee atau Streamer ke Pertandingan (Chief/Admin)',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'type',
+          description: 'Pilih peran penugasan',
+          required: true,
+          choices: [
+            { name: '⚖️ Referee', value: 'REFEREE' },
+            { name: '🎥 Streamer', value: 'STREAMER' },
+          ],
+        },
+        {
+          type: 3, // STRING
+          name: 'user',
+          description: 'Pilih nama staf (terfilter sesuai role)',
+          required: true,
+          autocomplete: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'match',
+          description: 'Pilih pertandingan pada Week Aktif',
+          required: true,
+          autocomplete: true,
+        },
+      ],
+    },
+    {
       name: 'reminder',
       description: 'Kirim pengingat aturan submit deck di channel tim.',
     },
