@@ -5,9 +5,9 @@ export interface ScheduleMatch {
   matchDateIso: string;  // Untuk sorting kronologis
   dateStr: string;       // Contoh: "Rabu, 05 Aug 2026"
   timeStr: string;       // Contoh: "20:00 WIB"
-  team1Emoji?: string;   // Format Discord Emoji: "<:name:id>" atau "🛡️"
+  team1Emoji?: string;   // Format Discord Emoji: "<:team:id>"
   team1Name: string;     // Contoh: "FC Team"
-  team2Emoji?: string;   // Format Discord Emoji: "<:name:id>" atau "⚔️"
+  team2Emoji?: string;   // Format Discord Emoji: "<:team:id>"
   team2Name: string;     // Contoh: "DS Esports"
 }
 
@@ -26,6 +26,7 @@ function formatDiscordStyleTime(dateObj = new Date()): string {
 export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   channelId: string;
   weekName: string;
+  weekDateRangeStr: string; // Contoh: "Senin, 03 Aug 2026 - Minggu, 09 Aug 2026"
   dailyMatchCounts: Array<{
     dateFormatted: string;
     count: number;
@@ -45,7 +46,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
 
   const defaultFooter = { text: 'Team Wars Indonesia Season 7' };
 
-  // Helper Pembuat Deskripsi Jadwal Group (Diurutkan berdasarkan Waktu)
+  // Helper Pembuat Deskripsi Jadwal Group (Urut Waktu & Format Dibalik Tanpa Emoji Tanggal)
   const buildGroupDescription = (schedules: Array<ScheduleMatch>): string => {
     let desc = 'Penyesuaian jadwal setelah permintaan reschedule\n\n';
 
@@ -60,7 +61,10 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     const matchLines = sorted.map((m) => {
       const t1 = `${m.team1Emoji ? m.team1Emoji + ' ' : ''}**${m.team1Name}**`;
       const t2 = `${m.team2Emoji ? m.team2Emoji + ' ' : ''}**${m.team2Name}**`;
-      return `📅 **${m.dateStr} at ${m.timeStr}**\n${t1} vs ${t2}`;
+      
+      // Baris 1: Tim bertanding
+      // Baris 2: Tanggal & jam tanding (tanpa emoji tanggal)
+      return `${t1} vs ${t2}\n${m.dateStr} at ${m.timeStr}`;
     });
 
     return desc + matchLines.join('\n\n');
@@ -86,11 +90,12 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
-  // Tag Admin Role di Content
+  // Tag Admin & Baris Content Sesuai Request
   const adminMention = DISCORD_CONFIG.ROLE_ADMIN ? `<@&${DISCORD_CONFIG.ROLE_ADMIN}>` : '@Admin';
+  const contentText = `${adminMention} **${params.weekName}**\n${params.weekDateRangeStr}`;
 
   const recapPayload = {
-    content: `📢 ${adminMention} **Pemberitahuan Rekap & Jadwal Pertandingan Minggu Ini**`,
+    content: contentText,
     embeds: [
       {
         title: `📊 Schedule Recap - ${params.weekName}`,
@@ -166,7 +171,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // 3. PESAN KE-4: LAST UPDATED EMBED (HAPUS PESAN LAMA LALU KIRIM BARU)
+  // 3. PESAN KE-4: LAST UPDATED EMBED (HAPUS LALU KIRIM BARU)
   if (params.existingMsgIds?.lastUpdatedMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgIds.lastUpdatedMsgId}`, 'DELETE').catch(() => null);
   }
