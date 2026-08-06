@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { MatchScheduleItem } from "@/lib/types/tournament";
 
 export function ScheduleTab({
@@ -56,7 +56,6 @@ export function ScheduleTab({
       Math.min(...weekMatches.map((m) => new Date(m.matchDate).getTime()))
     );
 
-    // Dapatkan hari Senin terdekat dari pertandingan pertama minggu tersebut
     const dayOfWeek = earliestMatchDate.getDay();
     const diffToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
 
@@ -67,7 +66,6 @@ export function ScheduleTab({
     return now.getTime() >= weekStartMonday.getTime();
   };
 
-  // Filter daftar week untuk dropdown: User biasa cuma melihat week yang sudah/sedang aktif
   const visibleWeeksInDropdown = hasFullAccess
     ? sortedWeeks
     : sortedWeeks.filter((w) => isWeekActiveByDate(w));
@@ -85,26 +83,37 @@ export function ScheduleTab({
     setSelectedDateFilter("");
   };
 
-  // 🟢 3. STRICT FILTERING (TIDAK BISA KECOLEKAN MASA DEPAN UNTUK USER BIASA)
-  const filteredSchedules = schedules.filter((m) => {
-    const matchGroup = selectedGroupFilter === "ALL" || m.groupName === selectedGroupFilter;
-    const matchTeam =
-      selectedTeamFilter === "ALL" ||
-      m.teamAName === selectedTeamFilter ||
-      m.teamBName === selectedTeamFilter;
-    const matchWeek =
-      selectedWeekFilter === "ALL" || String(m.weekNumber) === selectedWeekFilter;
+  // 🟢 3. STRICT FILTERING & SORTING OTOMATIS BERDASARKAN TANGGAL & JAM
+  const filteredSchedules = useMemo(() => {
+    const filtered = schedules.filter((m) => {
+      const matchGroup = selectedGroupFilter === "ALL" || m.groupName === selectedGroupFilter;
+      const matchTeam =
+        selectedTeamFilter === "ALL" ||
+        m.teamAName === selectedTeamFilter ||
+        m.teamBName === selectedTeamFilter;
+      const matchWeek =
+        selectedWeekFilter === "ALL" || String(m.weekNumber) === selectedWeekFilter;
 
-    // Batas Akses Week: Jika bukan Admin (?admin=tsaqif), kunci week masa depan
-    const isWeekAllowed = hasFullAccess || isWeekActiveByDate(m.weekNumber);
+      const isWeekAllowed = hasFullAccess || isWeekActiveByDate(m.weekNumber);
 
-    if (!selectedDateFilter) return matchGroup && matchTeam && matchWeek && isWeekAllowed;
+      if (!selectedDateFilter) return matchGroup && matchTeam && matchWeek && isWeekAllowed;
 
-    const mDate = new Date(m.matchDate).toLocaleDateString("sv-SE", {
-      timeZone: "Asia/Jakarta",
+      const mDate = new Date(m.matchDate).toLocaleDateString("sv-SE", {
+        timeZone: "Asia/Jakarta",
+      });
+      return matchGroup && matchTeam && matchWeek && isWeekAllowed && mDate === selectedDateFilter;
     });
-    return matchGroup && matchTeam && matchWeek && isWeekAllowed && mDate === selectedDateFilter;
-  });
+
+    // 🚀 URUTKAN BERDASARKAN WAKTU PERTANDINGAN (ASCENDING: TERAWAL S/D TERAKHIR)
+    return filtered.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+  }, [
+    schedules,
+    selectedGroupFilter,
+    selectedTeamFilter,
+    selectedWeekFilter,
+    selectedDateFilter,
+    hasFullAccess,
+  ]);
 
   const groupedSchedulesByWeek = filteredSchedules.reduce((acc, match) => {
     const weekKey = `Week ${match.weekNumber}`;
@@ -130,6 +139,29 @@ export function ScheduleTab({
         input.click();
       }
     }
+  };
+
+  // 🟢 HELPER RENDER FORMAT TANGGAL & JAM DINAMIS (WIB)
+  const formatMatchDateTime = (isoString: string) => {
+    if (!isoString) return "TBA";
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return "TBA";
+
+    const dateStr = d.toLocaleDateString("id-ID", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "Asia/Jakarta",
+    });
+
+    const timeStr = d.toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Jakarta",
+    }).replace(".", ":");
+
+    return `${dateStr} • ${timeStr} WIB`;
   };
 
   return (
@@ -173,7 +205,6 @@ export function ScheduleTab({
             ))}
           </select>
 
-          {/* 🟢 DROPDOWN WEEK HANYA MENAMPILKAN WEEK BUKA/AKTIF UNTUK USER BIASA */}
           <select
             value={selectedWeekFilter}
             onChange={(e) => setSelectedWeekFilter(e.target.value)}
@@ -265,6 +296,7 @@ export function ScheduleTab({
                         : "border-amber-500/40 bg-amber-950/10 hover:border-amber-400"
                     }`}
                   >
+                    {/* 🟢 TANGGAL & JAM DINAMIS */}
                     <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-2 text-[10px]">
                       <span
                         className={`font-black uppercase tracking-wider ${
@@ -274,13 +306,7 @@ export function ScheduleTab({
                         {match.groupName}
                       </span>
                       <span className="font-semibold text-primary">
-                        {new Date(match.matchDate).toLocaleDateString("id-ID", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                          timeZone: "Asia/Jakarta",
-                        })}{" "}
-                        - 20.00 WIB
+                        {formatMatchDateTime(match.matchDate)}
                       </span>
                     </div>
 
@@ -320,4 +346,4 @@ export function ScheduleTab({
       )}
     </div>
   );
-}
+      }
