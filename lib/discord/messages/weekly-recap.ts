@@ -2,31 +2,58 @@ import { discordAPI } from '../utils';
 import { DISCORD_CONFIG } from '../config';
 
 export interface ScheduleMatch {
-  matchDateIso: string;  // Untuk sorting kronologis
-  dateStr: string;       // Contoh: "Rabu, 05 Aug 2026"
-  timeStr: string;       // Contoh: "20:00 WIB"
-  team1Emoji?: string;   // Format Discord Emoji: "<:team:id>"
-  team1Name: string;     // Contoh: "FC Team"
-  team2Emoji?: string;   // Format Discord Emoji: "<:team:id>"
-  team2Name: string;     // Contoh: "DS Esports"
+  matchDateIso: string;
+  dateStr: string;
+  timeStr: string;
+  team1Emoji?: string;
+  team1Name: string;
+  team2Emoji?: string;
+  team2Name: string;
 }
 
-// Helper Format Timestamp (06 Aug 2026 at 13:15 WIB)
-function formatDiscordStyleTime(dateObj = new Date()): string {
-  const day = dateObj.getDate().toString().padStart(2, '0');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[dateObj.getMonth()];
-  const year = dateObj.getFullYear();
-  const hours = dateObj.getHours().toString().padStart(2, '0');
-  const minutes = dateObj.getMinutes().toString().padStart(2, '0');
+// Helper Format Timestamp WIB Presisi (Asia/Jakarta)
+function formatDiscordStyleTimeWIB(dateObj = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Jakarta',
+  }).formatToParts(dateObj);
 
-  return `${day} ${month} ${year} at ${hours}:${minutes} WIB`;
+  const p: Record<string, string> = {};
+  parts.forEach((part) => {
+    p[part.type] = part.value;
+  });
+
+  return `${p.day} ${p.month} ${p.year} at ${p.hour}:${p.minute} WIB`;
+}
+
+// 🟢 PERBAIKAN: HAPUS HANYA 3 EMBED UTAMA (JANGAN HAPUS LAST UPDATED)
+export async function deleteWeeklyScheduleAndRecap(params: {
+  channelId: string;
+  existingMsgIds?: {
+    recapMsgId?: string;
+    groupAMsgId?: string;
+    groupBMsgId?: string;
+    lastUpdatedMsgId?: string;
+  };
+}) {
+  if (!params.channelId || !params.existingMsgIds) return;
+
+  const { recapMsgId, groupAMsgId, groupBMsgId } = params.existingMsgIds;
+
+  if (recapMsgId) await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
+  if (groupAMsgId) await discordAPI(`/channels/${params.channelId}/messages/${groupAMsgId}`, 'DELETE').catch(() => null);
+  if (groupBMsgId) await discordAPI(`/channels/${params.channelId}/messages/${groupBMsgId}`, 'DELETE').catch(() => null);
 }
 
 export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   channelId: string;
   weekName: string;
-  weekDateRangeStr: string; // Contoh: "Senin, 03 Aug 2026 - Minggu, 09 Aug 2026"
+  weekDateRangeStr: string;
   dailyMatchCounts: Array<{
     dateFormatted: string;
     count: number;
@@ -39,6 +66,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId?: string;
     lastUpdatedMsgId?: string;
   };
+  oldLastUpdatedMsgId?: string;
 }): Promise<{ recapMsgId: string | null; groupAMsgId: string | null; groupBMsgId: string | null; lastUpdatedMsgId: string | null }> {
   if (!params.channelId) {
     return { recapMsgId: null, groupAMsgId: null, groupBMsgId: null, lastUpdatedMsgId: null };
@@ -46,7 +74,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
 
   const defaultFooter = { text: 'Team Wars Indonesia Season 7' };
 
-  // Helper Pembuat Deskripsi Jadwal Group (Urut Waktu & Format Dibalik Tanpa Emoji Tanggal)
   const buildGroupDescription = (schedules: Array<ScheduleMatch>): string => {
     let desc = 'Penyesuaian jadwal setelah permintaan reschedule\n\n';
 
@@ -55,15 +82,11 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
       return desc;
     }
 
-    // Urutkan Kronologis
     const sorted = [...schedules].sort((a, b) => new Date(a.matchDateIso).getTime() - new Date(b.matchDateIso).getTime());
 
     const matchLines = sorted.map((m) => {
       const t1 = `${m.team1Emoji ? m.team1Emoji + ' ' : ''}**${m.team1Name}**`;
       const t2 = `${m.team2Emoji ? m.team2Emoji + ' ' : ''}**${m.team2Name}**`;
-      
-      // Baris 1: Tim bertanding
-      // Baris 2: Tanggal & jam tanding (tanpa emoji tanggal)
       return `${t1} vs ${t2}\n${m.dateStr} at ${m.timeStr}`;
     });
 
@@ -90,7 +113,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
-  // Tag Admin & Baris Content Sesuai Request
   const adminMention = DISCORD_CONFIG.ROLE_ADMIN ? `<@&${DISCORD_CONFIG.ROLE_ADMIN}>` : '@Admin';
   const contentText = `${adminMention} **${params.weekName}**\n${params.weekDateRangeStr}`;
 
@@ -134,8 +156,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   let groupBMsgId = params.existingMsgIds?.groupBMsgId || null;
 
   // 2. PATCH ATAU POST UNTUK 3 EMBED UTAMA
-
-  // Pesan 1: Recap
   if (recapMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'PATCH', recapPayload).catch(() => null);
     if (!patchRes) {
@@ -147,7 +167,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     recapMsgId = postRes?.id || null;
   }
 
-  // Pesan 2: Group A
   if (groupAMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${groupAMsgId}`, 'PATCH', groupAPayload).catch(() => null);
     if (!patchRes) {
@@ -159,7 +178,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupAMsgId = postRes?.id || null;
   }
 
-  // Pesan 3: Group B
   if (groupBMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${groupBMsgId}`, 'PATCH', groupBPayload).catch(() => null);
     if (!patchRes) {
@@ -171,15 +189,20 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // 3. PESAN KE-4: LAST UPDATED EMBED (HAPUS LALU KIRIM BARU)
+  // 3. CLEANUP PESAN LAST UPDATED LAMA JIKA ADA
+  if (params.oldLastUpdatedMsgId) {
+    await discordAPI(`/channels/${params.channelId}/messages/${params.oldLastUpdatedMsgId}`, 'DELETE').catch(() => null);
+  }
+
   if (params.existingMsgIds?.lastUpdatedMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgIds.lastUpdatedMsgId}`, 'DELETE').catch(() => null);
   }
 
+  // 4. PESAN KE-4: LAST UPDATED EMBED
   const lastUpdatedPayload = {
     embeds: [
       {
-        description: `⏱️ **Last Updated:** ${formatDiscordStyleTime()}`,
+        description: `⏱️ **Last Updated:** ${formatDiscordStyleTimeWIB()}`,
         color: 0x2b2d31,
       },
     ],
@@ -193,4 +216,4 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId,
     lastUpdatedMsgId: lastUpdatedRes?.id || null,
   };
-}
+                                           }
