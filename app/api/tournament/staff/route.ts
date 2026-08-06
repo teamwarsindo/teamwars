@@ -19,17 +19,17 @@ async function fetchAllGuildMembers(): Promise<any[]> {
 
   // Loop hingga seluruh member server terkumpul
   while (hasMore) {
-    const endpoint = `/guilds/${guildId}/members?limit=1000${lastId ? `&after=${lastId}` : ''}`;
-    const members = await discordAPI(endpoint, 'GET').catch(() => []);
+    const endpointStr: string = `/guilds/${guildId}/members?limit=1000${lastId ? `&after=${lastId}` : ''}`;
+    const members: any = await discordAPI(endpointStr, 'GET').catch(() => []);
 
     if (!Array.isArray(members) || members.length === 0) {
       hasMore = false;
     } else {
       allMembers = allMembers.concat(members);
-      lastId = members[members.length - 1].user.id;
+      lastId = members[members.length - 1]?.user?.id || null;
       
       // Jika jumlah batch kurang dari 1000, berarti sudah mencapai akhir daftar member
-      if (members.length < 1000) {
+      if (members.length < 1000 || !lastId) {
         hasMore = false;
       }
     }
@@ -96,4 +96,4 @@ export async function POST(req: Request) {
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-      }
+        }
