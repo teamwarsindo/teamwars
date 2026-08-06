@@ -229,7 +229,7 @@ export async function createMatchDiscordChannel(params: {
     return { channelId: null, openingMsgId: null };
   }
 
-  // 2. ASSIGN ROLE TIM A & TIM B KE AKUN WASIT (Agar Wasit otomatis bisa mengelola channel match)
+  // 2. ASSIGN ROLE TIM A & TIM B KE AKUN WASIT
   const isRefereeIdValid = isValidSnowflake(params.refereeDiscordId);
   if (isRefereeIdValid) {
     const refereeId = params.refereeDiscordId!;
@@ -248,7 +248,7 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 3. EMBED OPENING (PASTIKAN emojiAId & emojiBId TERKIRIM)
+  // 3. EMBED OPENING (PRIVAT KHUSUS DI CHANNEL MATCH)
   const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
     channelId,
     matchId: params.matchId,
@@ -277,24 +277,18 @@ export async function createMatchDiscordChannel(params: {
   };
 }
 
-// 🔴 DELETE MATCH DISCORD CHANNEL & REVOKE WASIT ROLES & DELETE SCHEDULE MESSAGE
+// 🔴 DELETE MATCH DISCORD CHANNEL & REVOKE WASIT ROLES
 export async function deleteMatchDiscordChannel(params: {
   matchId: string;
   savedChannelId?: string;
   refereeDiscordId?: string;
   roleAId?: string;
   roleBId?: string;
-  scheduleMsgId?: string;
 }): Promise<boolean> {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
-  const scheduleChannelId = DISCORD_CONFIG.CH_SCHEDULE;
 
   if (!guildId) return false;
-
-  if (scheduleChannelId && params.scheduleMsgId) {
-    await discordAPI(`/channels/${scheduleChannelId}/messages/${params.scheduleMsgId}`, 'DELETE').catch(() => null);
-  }
 
   let targetChannelId = params.savedChannelId || null;
 
@@ -314,10 +308,12 @@ export async function deleteMatchDiscordChannel(params: {
     }
   }
 
+  // Hapus Channel Match
   if (targetChannelId) {
     await discordAPI(`/channels/${targetChannelId}`, 'DELETE').catch(() => null);
   }
 
+  // Revoke Role Tim dari Wasit
   if (isValidSnowflake(params.refereeDiscordId)) {
     if (isValidSnowflake(params.roleAId)) {
       await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleAId}`, 'DELETE').catch(() => null);
