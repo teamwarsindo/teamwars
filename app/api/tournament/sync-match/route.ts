@@ -4,6 +4,7 @@ import { MatchScheduleItem } from '@/lib/types/tournament';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { sendOrUpdateRefereeAssignmentLog, sendOrUpdateStreamerAssignmentLog } from '@/lib/discord/messages/assignment-log';
+import { discordAPI } from '@/lib/discord/utils';
 
 interface StaffItem {
   discordId: string;
@@ -20,11 +21,10 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
-// Helper untuk memperbarui riwayat match staf di Redis KV
-async function updateStaffAssignHistory(
+// Helper untuk menghapus matchId dari riwayat staf KV agar status lock terlepas
+async function removeStaffAssignHistory(
   kvKey: 'staff:referees' | 'staff:streamers',
   staffDiscordId?: string,
-  staffName?: string,
   matchId?: string
 ) {
   if (!staffDiscordId || !matchId) return;
@@ -34,27 +34,16 @@ async function updateStaffAssignHistory(
 
   if (index !== -1) {
     const currentStaff = staffList[index];
-    const history = currentStaff.assignMatch || [];
-    if (!history.includes(matchId)) {
-      history.push(matchId);
-    }
+    const history = (currentStaff.assignMatch || []).filter((id) => id !== matchId);
     staffList[index] = { ...currentStaff, assignMatch: history };
-  } else {
-    // Fallback jika staf belum ada di KV, tambahkan baru
-    staffList.push({
-      discordId: staffDiscordId,
-      discordName: staffName || 'Staff',
-      assignMatch: [matchId],
-    });
+    await kv.set(kvKey, staffList);
   }
-
-  await kv.set(kvKey, staffList);
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { matchId } = body;
+    const { matchId, action, unassignType, removedStaffId, reason } = body;
 
     if (!matchId) {
       return NextResponse.json({ error: 'Match ID wajib diisi' }, { status: 400 });
@@ -69,7 +58,7 @@ export async function POST(req: Request) {
 
     const match = schedules[matchIndex];
 
-    // 1. CARI DATA TIM
+    // 1. CARI DATA TIM & ROLE DISCORD
     const slugA = getTeamSlug(match.teamAName);
     const slugB = getTeamSlug(match.teamBName);
 
@@ -86,8 +75,53 @@ export async function POST(req: Request) {
     const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
 
     const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
+    const guildId = DISCORD_CONFIG.GUILD_ID;
 
-    // 2. CREATE / SYNC CHANNEL MATCH & OPENING EMBED (CHANNEL PRIVAT)
+    // =========================================================================
+    // 🔴 A. KHUSUS UNASSIGN: CABUT AKSES DISCORD & LEPAS LOCK STAF (DATA REDIS MATCH TETAP ADA)
+    // =========================================================================
+    if (action === 'UNASSIGN' && removedStaffId) {
+      // 1. Cabut Role Tim Wasit / Permission Streamer dari Server Discord
+      if (unassignType === 'REFEREE' && guildId) {
+        if (roleAId) await discordAPI(`/guilds/${guildId}/members/${removedStaffId}/roles/${roleAId}`, 'DELETE').catch(() => null);
+        if (roleBId) await discordAPI(`/guilds/${guildId}/members/${removedStaffId}/roles/${roleBId}`, 'DELETE').catch(() => null);
+        await removeStaffAssignHistory('staff:referees', removedStaffId, match.id);
+      }
+
+      if (unassignType === 'STREAMER' && (match as any).discordChannelId) {
+        await discordAPI(`/channels/${(match as any).discordChannelId}/permissions/${removedStaffId}`, 'DELETE').catch(() => null);
+        await removeStaffAssignHistory('staff:streamers', removedStaffId, match.id);
+      }
+
+      // 2. Patch Embed Log di #CH_ASSIGN
+      const chAssign = DISCORD_CONFIG.CH_ASSIGN;
+      const targetLogMsgId = unassignType === 'REFEREE' ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId;
+
+      if (chAssign && targetLogMsgId) {
+        const nowUnix = Math.floor(Date.now() / 1000);
+        const reasonText = reason === 'COMPLETED' ? '✅ MATCH SELESAI' : '⛔ PENUGASAN DICABUT / GANTI STAFF';
+
+        const existingMsg = await discordAPI(`/channels/${chAssign}/messages/${targetLogMsgId}`, 'GET').catch(() => null);
+        if (existingMsg && existingMsg.embeds && existingMsg.embeds[0]) {
+          const oldEmbed = existingMsg.embeds[0];
+          const updatedEmbed = {
+            ...oldEmbed,
+            title: `~~${oldEmbed.title}~~ [${reasonText}]`,
+            color: reason === 'COMPLETED' ? 0x10b981 : 0x6b7280,
+            footer: { text: `Team Wars Indonesia • Status Log Updated (<t:${nowUnix}:R>)` },
+          };
+
+          await discordAPI(`/channels/${chAssign}/messages/${targetLogMsgId}`, 'PATCH', {
+            content: `~~<@${removedStaffId}> ditugaskan sebagai **${unassignType}**!~~ (${reasonText})`,
+            embeds: [updatedEmbed],
+          }).catch(() => null);
+        }
+      }
+    }
+
+    // =========================================================================
+    // 🟢 B. RE-RENDER OPENING EMBED CHANNEL MATCH
+    // =========================================================================
     const syncResult = await createMatchDiscordChannel({
       matchId: match.id,
       groupName: match.groupName,
@@ -113,88 +147,17 @@ export async function POST(req: Request) {
     if (syncResult.channelId) (match as any).discordChannelId = syncResult.channelId;
     if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
 
-    // 3. 📢 LOG PENUGASAN REFEREE & STREAMER (#CH_ASSIGN)
-    const chAssign = DISCORD_CONFIG.CH_ASSIGN;
-    if (chAssign) {
-      const currentStreamerId = match.streamerDiscordId || match.casterDiscordId;
-
-      // Check perubahan Referee / Tanggal
-      const refChanged = (match as any).lastRefereeDiscordId !== match.refereeDiscordId;
-      const dateChanged = (match as any).lastMatchDateIso !== match.matchDate;
-
-      if (match.refereeDiscordId && (refChanged || dateChanged || !(match as any).refereeLogMsgId)) {
-        const newRefLogId = await sendOrUpdateRefereeAssignmentLog({
-          channelId: chAssign,
-          matchId: match.id,
-          weekName: calculatedWeek,
-          groupName: match.groupName,
-          teamAName: match.teamAName,
-          teamBName: match.teamBName,
-          teamAEmoji: emojiAId && kodeTimA ? `<:${kodeTimA}:${emojiAId}>` : '',
-          teamBEmoji: emojiBId && kodeTimB ? `<:${kodeTimB}:${emojiBId}>` : '',
-          matchChannelId: (match as any).discordChannelId,
-          matchDateIso: match.matchDate,
-          staffName: match.referee,
-          staffDiscordId: match.refereeDiscordId,
-          existingMsgId: (match as any).refereeLogMsgId,
-        });
-
-        if (newRefLogId) {
-          (match as any).refereeLogMsgId = newRefLogId;
-          (match as any).lastRefereeDiscordId = match.refereeDiscordId;
-        }
-      }
-
-      // Check perubahan Streamer / Tanggal
-      const strChanged = (match as any).lastStreamerDiscordId !== currentStreamerId;
-
-      if (currentStreamerId && (strChanged || dateChanged || !(match as any).streamerLogMsgId)) {
-        const newStrLogId = await sendOrUpdateStreamerAssignmentLog({
-          channelId: chAssign,
-          matchId: match.id,
-          weekName: calculatedWeek,
-          groupName: match.groupName,
-          teamAName: match.teamAName,
-          teamBName: match.teamBName,
-          teamAEmoji: emojiAId && kodeTimA ? `<:${kodeTimA}:${emojiAId}>` : '',
-          teamBEmoji: emojiBId && kodeTimB ? `<:${kodeTimB}:${emojiBId}>` : '',
-          matchChannelId: (match as any).discordChannelId,
-          matchDateIso: match.matchDate,
-          staffName: match.streamer || match.caster,
-          staffDiscordId: currentStreamerId,
-          existingMsgId: (match as any).streamerLogMsgId,
-        });
-
-        if (newStrLogId) {
-          (match as any).streamerLogMsgId = newStrLogId;
-          (match as any).lastStreamerDiscordId = currentStreamerId;
-        }
-      }
-
-      (match as any).lastMatchDateIso = match.matchDate;
-    }
-
-    // 4. 📊 REKAPAN: CATAT MATCH ID KE ASSIGN HISTORY STAF
-    if (match.refereeDiscordId) {
-      await updateStaffAssignHistory('staff:referees', match.refereeDiscordId, match.referee, match.id);
-    }
-    const streamerId = match.streamerDiscordId || match.casterDiscordId;
-    if (streamerId) {
-      await updateStaffAssignHistory('staff:streamers', streamerId, match.streamer || match.caster, match.id);
-    }
-
-    // 5. SIMPAN DATA MATCH KE REDIS
+    // SIMPAN DATA SCHEDULE KE REDIS (Field referee & streamer tetap aman!)
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      message: `Match ${match.id} berhasil di-sync!`,
+      message: `Sync Match ${match.id} berhasil diproses!`,
       channelId: (match as any).discordChannelId,
     });
   } catch (error) {
-    console.error('Error Syncing Discord Channel:', error);
+    console.error('Error Syncing Match:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
-  
+          }
