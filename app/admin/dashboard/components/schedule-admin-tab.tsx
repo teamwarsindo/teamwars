@@ -116,45 +116,75 @@ export function ScheduleAdminTab() {
     }
   };
 
-  // 📊 BROADCAST WEEKLY RECAP (Menembak ke /api/tournament/weekly-recap)
+  // 📊 KELOLA BROADCAST WEEKLY RECAP (KIRIM & HAPUS)
   const handleBroadcastRecap = async () => {
     if (selectedWeek === 'ALL') {
-      Swal.fire('Pilih Minggu', 'Silakan pilih minggu spesifik pada filter sebelum mengirim Weekly Recap.', 'warning');
+      Swal.fire('Pilih Minggu', 'Silakan pilih minggu spesifik pada filter sebelum mengelola Weekly Recap.', 'warning');
       return;
     }
 
-    const confirm = await Swal.fire({
-      title: `Broadcast Weekly Recap ${selectedWeek}?`,
-      text: `Embed Weekly Recap akan dikirimkan ke seluruh channel match pada ${selectedWeek}.`,
+    const result = await Swal.fire({
+      title: `Kelola Broadcast ${selectedWeek}?`,
+      text: `Pilih aksi untuk embed Weekly Recap & Schedule pada channel Discord khusus.`,
       icon: 'question',
       showCancelButton: true,
+      showDenyButton: true,
       confirmButtonText: 'Ya, Broadcast!',
+      denyButtonText: '🗑️ Hapus Broadcast',
       cancelButtonText: 'Batal',
+      confirmButtonColor: '#9333ea', // Purple
+      denyButtonColor: '#e11d48',    // Rose / Red
     });
 
-    if (!confirm.isConfirmed) return;
+    // 🟢 1. EKSEKUSI BROADCAST / UPDATE (POST)
+    if (result.isConfirmed) {
+      setIsRecapLoading(true);
+      Swal.fire({ title: `Broadcasting ${selectedWeek}...`, text: 'Mengirimkan Weekly Recap & Schedule...', didOpen: () => Swal.showLoading() });
 
-    setIsRecapLoading(true);
-    Swal.fire({ title: `Broadcasting ${selectedWeek}...`, text: 'Mengirimkan Weekly Recap...', didOpen: () => Swal.showLoading() });
+      try {
+        const res = await fetch('/api/tournament/weekly-recap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetWeek: selectedWeek }),
+        });
 
-    try {
-      const res = await fetch('/api/tournament/weekly-recap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetWeek: selectedWeek }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        await fetchSchedules();
-        Swal.fire('Berhasil!', data.message || `Weekly Recap ${selectedWeek} berhasil disebarkan!`, 'success');
-      } else {
-        Swal.fire('Gagal', data.error || 'Gagal menyebarkan Weekly Recap', 'error');
+        const data = await res.json();
+        if (res.ok && data.success) {
+          await fetchSchedules();
+          Swal.fire('Berhasil!', data.message || `Weekly Recap ${selectedWeek} berhasil disebarkan!`, 'success');
+        } else {
+          Swal.fire('Gagal', data.error || 'Gagal menyebarkan Weekly Recap', 'error');
+        }
+      } catch {
+        Swal.fire('Error', 'Terjadi kesalahan koneksi', 'error');
+      } finally {
+        setIsRecapLoading(false);
       }
-    } catch {
-      Swal.fire('Error', 'Terjadi kesalahan koneksi', 'error');
-    } finally {
-      setIsRecapLoading(false);
+    } 
+    // 🔴 2. EKSEKUSI HAPUS BROADCAST (DELETE)
+    else if (result.isDenied) {
+      setIsRecapLoading(true);
+      Swal.fire({ title: `Menghapus Broadcast ${selectedWeek}...`, text: 'Menghapus 3 embed utama dari Discord...', didOpen: () => Swal.showLoading() });
+
+      try {
+        const res = await fetch('/api/tournament/weekly-recap', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetWeek: selectedWeek }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          await fetchSchedules();
+          Swal.fire('Berhasil Dihapus!', data.message || `Broadcast ${selectedWeek} berhasil dihapus dari Discord!`, 'success');
+        } else {
+          Swal.fire('Gagal', data.error || 'Gagal menghapus broadcast', 'error');
+        }
+      } catch {
+        Swal.fire('Error', 'Terjadi kesalahan koneksi', 'error');
+      } finally {
+        setIsRecapLoading(false);
+      }
     }
   };
 
@@ -234,7 +264,7 @@ export function ScheduleAdminTab() {
               disabled={isRecapLoading}
               className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold shadow-sm disabled:opacity-50 transition cursor-pointer flex items-center gap-1.5"
             >
-              📊 {isRecapLoading ? 'Broadcasting...' : `Broadcast Weekly Recap (${selectedWeek})`}
+              📊 {isRecapLoading ? 'Processing...' : `Broadcast Weekly Recap (${selectedWeek})`}
             </button>
           )}
         </div>
@@ -321,5 +351,5 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-  }
-        
+        }
+               
