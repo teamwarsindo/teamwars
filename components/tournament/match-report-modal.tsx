@@ -50,6 +50,9 @@ export function MatchReportModal({
   const displayScoreA = gameLogs.length > 0 ? calculatedScoreA : match.scoreA;
   const displayScoreB = gameLogs.length > 0 ? calculatedScoreB : match.scoreB;
 
+  const isWinA = displayScoreA > displayScoreB;
+  const isWinB = displayScoreB > displayScoreA;
+
   const handleAddLogRow = () => {
     const defaultPlayerA = playerNamesA[0] || "Player A";
     const defaultPlayerB = playerNamesB[0] || "Player B";
@@ -117,15 +120,19 @@ export function MatchReportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-2 sm:p-4 backdrop-blur-md">
-      <div className="relative w-full max-w-5xl rounded-2xl border border-sky-400/50 bg-[#00448e] p-3 sm:p-5 text-white shadow-2xl overflow-y-auto max-h-[95vh] font-sans">
+      <div className="relative w-full max-w-5xl rounded-2xl border-2 border-[#0099ff] bg-[#0051a8] p-3 sm:p-5 text-white shadow-[0_0_50px_rgba(0,153,255,0.4)] overflow-y-auto max-h-[95vh] font-sans">
+        {/* Header */}
         <MatchReportHeader match={match} weekNumber={weekNumber} onClose={onClose} />
 
-        <h2 className="my-2 text-center text-lg sm:text-xl font-black tracking-widest text-[#ff9900] uppercase">
+        {/* Title */}
+        <h2 className="my-2 text-center text-lg sm:text-2xl font-black tracking-widest text-[#ff9900] uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
           MATCH REPORT {isSaving && <span className="text-xs text-emerald-400 font-bold ml-2 animate-pulse">(Saving...)</span>}
         </h2>
 
-        <MatchReportMatchup match={match} scoreA={displayScoreA} scoreB={displayScoreB} />
+        {/* Matchup Header & Roster */}
+        <MatchReportMatchup match={match} />
 
+        {/* Game Logs Table */}
         <MatchReportTable
           match={match}
           gameLogs={gameLogs}
@@ -139,7 +146,32 @@ export function MatchReportModal({
           onRemoveLogRow={handleRemoveLogRow}
           onSaveRow={handleSaveRow}
         />
+
+        {/* FOOTER HASIL SKOR AKHIR */}
+        <div className="mt-3 grid grid-cols-12 items-center rounded-xl border border-sky-400/40 bg-[#00336e] p-2 sm:p-3 text-center">
+          <div className="col-span-2 text-2xl sm:text-4xl font-black text-[#00ff66]">
+            {isWinA ? "W" : "L"}
+          </div>
+
+          <div className="col-span-8 flex items-center justify-center gap-2 sm:gap-4 text-[#ff9900]">
+            <span className="text-xs sm:text-lg font-black text-white truncate max-w-[120px] sm:max-w-none">
+              {match.teamAName}
+            </span>
+            <span className="text-xl sm:text-3xl font-black shrink-0">
+              {displayScoreA} - {displayScoreB}
+            </span>
+            <span className="text-xs sm:text-lg font-black text-white truncate max-w-[120px] sm:max-w-none">
+              {match.teamBName}
+            </span>
+          </div>
+
+          <div className="col-span-2 text-2xl sm:text-4xl font-black text-[#ff3333]">
+            {isWinB ? "W" : "L"}
+          </div>
+        </div>
+
       </div>
     </div>
   );
-      }
+    }
+      
