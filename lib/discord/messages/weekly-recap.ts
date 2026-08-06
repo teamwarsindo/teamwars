@@ -1,5 +1,4 @@
 import { discordAPI } from '../utils';
-import { DISCORD_CONFIG } from '../config';
 
 export interface ScheduleMatch {
   matchDateIso: string;
@@ -125,9 +124,8 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
-  // 🔤 CONTENT BESAR (# Header 1) DENGAN TAG ADMIN DI BARIS PALING BAWAH
-  const adminMention = DISCORD_CONFIG.ROLE_ADMIN ? `<@&${DISCORD_CONFIG.ROLE_ADMIN}>` : '@Admin';
-  const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n🗓️ **${params.weekDateRangeStr}**\n\n${adminMention}`;
+  // 📢 PRODUCTION TAG: GANTI KE @everyone
+  const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n🗓️ **${params.weekDateRangeStr}**\n\n@everyone`;
 
   // 📦 PAYLOAD PESAN 1: GROUP A
   const groupAPayload = {
