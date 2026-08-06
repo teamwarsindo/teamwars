@@ -50,8 +50,28 @@ export function MatchReportModal({
   const displayScoreA = gameLogs.length > 0 ? calculatedScoreA : match.scoreA;
   const displayScoreB = gameLogs.length > 0 ? calculatedScoreB : match.scoreB;
 
+  // 🟢 LOGIKA STATUS WIN / LOSE / STRIP (-)
+  const isDrawOrUnplayed = displayScoreA === displayScoreB;
   const isWinA = displayScoreA > displayScoreB;
   const isWinB = displayScoreB > displayScoreA;
+
+  const renderStatusA = () => {
+    if (isDrawOrUnplayed) return <span className="text-sky-300/60 font-bold">-</span>;
+    return isWinA ? (
+      <span className="text-[#00ff66] font-black">WIN</span>
+    ) : (
+      <span className="text-[#ff3333] font-black">LOSE</span>
+    );
+  };
+
+  const renderStatusB = () => {
+    if (isDrawOrUnplayed) return <span className="text-sky-300/60 font-bold">-</span>;
+    return isWinB ? (
+      <span className="text-[#00ff66] font-black">WIN</span>
+    ) : (
+      <span className="text-[#ff3333] font-black">LOSE</span>
+    );
+  };
 
   const handleAddLogRow = () => {
     const defaultPlayerA = playerNamesA[0] || "Player A";
@@ -120,7 +140,7 @@ export function MatchReportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-2 sm:p-4 backdrop-blur-md">
-      <div className="relative w-full max-w-5xl rounded-2xl border-2 border-[#0099ff] bg-[#0051a8] p-3 sm:p-5 text-white shadow-[0_0_50px_rgba(0,153,255,0.4)] overflow-y-auto max-h-[95vh] font-sans">
+      <div className="relative w-full max-w-5xl rounded-2xl border-2 border-[#00a2ff] bg-[#004fb0] p-3 sm:p-5 text-white shadow-[0_0_60px_rgba(0,162,255,0.4)] overflow-y-auto max-h-[95vh] font-sans">
         {/* Header */}
         <MatchReportHeader match={match} weekNumber={weekNumber} onClose={onClose} />
 
@@ -147,10 +167,10 @@ export function MatchReportModal({
           onSaveRow={handleSaveRow}
         />
 
-        {/* FOOTER HASIL SKOR AKHIR */}
-        <div className="mt-3 grid grid-cols-12 items-center rounded-xl border border-sky-400/40 bg-[#00336e] p-2 sm:p-3 text-center">
-          <div className="col-span-2 text-2xl sm:text-4xl font-black text-[#00ff66]">
-            {isWinA ? "W" : "L"}
+        {/* 🟢 FOOTER SKOR AKHIR DENGAN STATUS WIN / LOSE / STRIP (-) */}
+        <div className="mt-3 grid grid-cols-12 items-center rounded-xl border border-[#00a2ff]/40 bg-[#002863] p-2 sm:p-3 text-center">
+          <div className="col-span-2 text-lg sm:text-3xl font-black">
+            {renderStatusA()}
           </div>
 
           <div className="col-span-8 flex items-center justify-center gap-2 sm:gap-4 text-[#ff9900]">
@@ -165,13 +185,12 @@ export function MatchReportModal({
             </span>
           </div>
 
-          <div className="col-span-2 text-2xl sm:text-4xl font-black text-[#ff3333]">
-            {isWinB ? "W" : "L"}
+          <div className="col-span-2 text-lg sm:text-3xl font-black">
+            {renderStatusB()}
           </div>
         </div>
 
       </div>
     </div>
   );
-    }
-      
+}
