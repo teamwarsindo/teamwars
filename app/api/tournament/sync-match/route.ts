@@ -6,6 +6,12 @@ import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { sendOrUpdateScheduleEmbed } from '@/lib/discord/messages/schedule';
 import { sendOrUpdateRefereeAssignmentLog, sendOrUpdateStreamerAssignmentLog } from '@/lib/discord/messages/assignment-log';
 
+interface StaffItem {
+  discordId: string;
+  discordName: string;
+  assignMatch?: string[];
+}
+
 function getTeamSlug(teamName: string) {
   return teamName
     .toLowerCase()
@@ -13,6 +19,37 @@ function getTeamSlug(teamName: string) {
     .replace(/-+/g, '-')
     .replace(/^-+/, '')
     .replace(/-+$/, '');
+}
+
+// Helper untuk memperbarui riwayat match staf di Redis KV
+async function updateStaffAssignHistory(
+  kvKey: 'staff:referees' | 'staff:streamers',
+  staffDiscordId?: string,
+  staffName?: string,
+  matchId?: string
+) {
+  if (!staffDiscordId || !matchId) return;
+
+  const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
+  const index = staffList.findIndex((s) => s.discordId === staffDiscordId);
+
+  if (index !== -1) {
+    const currentStaff = staffList[index];
+    const history = currentStaff.assignMatch || [];
+    if (!history.includes(matchId)) {
+      history.push(matchId);
+    }
+    staffList[index] = { ...currentStaff, assignMatch: history };
+  } else {
+    // Fallback jika staf belum ada di KV, tambahkan baru
+    staffList.push({
+      discordId: staffDiscordId,
+      discordName: staffName || 'Staff',
+      assignMatch: [matchId],
+    });
+  }
+
+  await kv.set(kvKey, staffList);
 }
 
 export async function POST(req: Request) {
@@ -153,18 +190,26 @@ export async function POST(req: Request) {
       (match as any).lastMatchDateIso = match.matchDate;
     }
 
-    // 5. SIMPAN DATA KE REDIS
+    // 5. 📊 REKAPAN: CATAT MATCH ID KE ASSIGN HISTORY STAF
+    if (match.refereeDiscordId) {
+      await updateStaffAssignHistory('staff:referees', match.refereeDiscordId, match.referee, match.id);
+    }
+    const streamerId = match.streamerDiscordId || match.casterDiscordId;
+    if (streamerId) {
+      await updateStaffAssignHistory('staff:streamers', streamerId, match.streamer || match.caster, match.id);
+    }
+
+    // 6. SIMPAN DATA MATHER KE REDIS
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      message: `Match ${match.id} berhasil di-sync!`,
+      message: `Match ${match.id} berhasil di-sync dan rekapan staf diperbarui!`,
       channelId: (match as any).discordChannelId,
     });
   } catch (error) {
     console.error('Error Syncing Discord Channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-    }
-          
+}
