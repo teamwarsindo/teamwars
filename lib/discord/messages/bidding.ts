@@ -5,14 +5,12 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-// 🟢 HELPER HITUNG SISA WAKTU SINKRON DENGAN JEDA 1 DETIK (WIB / Asia/Jakarta)
-export async function getRemainingTimeText(): Promise<{ text: string; isClosed: boolean }> {
-  // Delay 1 detik untuk memberi napas eksekusi server agar waktu detik/ms sinkron
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
+// 🟢 HELPER HITUNG SISA WAKTU PRESISI (Toleran terhadap delay cronjob beberapa detik)
+export function getRemainingTimeText(): { text: string; isClosed: boolean } {
   // Target Bidding: Sabtu, 8 Agustus 2026, 20:00:00 WIB
   const targetTime = new Date('2026-08-08T20:00:00+07:00').getTime();
 
+  // Ambil waktu persis saat request di-hit di server
   const nowWibString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
   const nowWibMs = new Date(nowWibString).getTime();
 
@@ -22,11 +20,13 @@ export async function getRemainingTimeText(): Promise<{ text: string; isClosed: 
     return { text: '`Lelang Telah Resmi Ditutup`', isClosed: true };
   }
 
-  // Murni Math.floor tanpa pembulatan
+  // Pembulatan menit terdekat agar delay 5-13 detik dari cronjob tidak mengurangi angka menit
   const totalSeconds = Math.floor(diffMs / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const totalMinutes = Math.round(totalSeconds / 60);
+
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
 
   const parts: string[] = [];
   if (days > 0) parts.push(`${days} Hari`);
@@ -39,9 +39,9 @@ export async function getRemainingTimeText(): Promise<{ text: string; isClosed: 
   };
 }
 
-// 🟢 GENERATE DUA EMBED (MAIN & NEWS) DENGAN FIELD DIBALIK & ASYNC
-export async function buildBidEmbeds(data: any, forceClosed: boolean = false) {
-  const { text: remainingText, isClosed: timeIsClosed } = await getRemainingTimeText();
+// 🟢 GENERATE EMBED UTAMA & NEWS (SYNCHRONOUS MURNI)
+export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
+  const { text: remainingText, isClosed: timeIsClosed } = getRemainingTimeText();
   const isClosed = forceClosed || timeIsClosed;
 
   const groupA = data?.groupA;
@@ -56,9 +56,6 @@ export async function buildBidEmbeds(data: any, forceClosed: boolean = false) {
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameB = groupB?.name ? groupB.name : 'Belum ada';
 
-  // 🔄 FIELD DIBALIK:
-  // Name  ➔ Batas Bidding
-  // Value ➔ Sisa Waktu
   const commonFields = [
     {
       name: `GROUP A ➔ "${nameA}"`,
@@ -77,7 +74,6 @@ export async function buildBidEmbeds(data: any, forceClosed: boolean = false) {
     },
   ];
 
-  // 1. EMBED UTAMA (#CH_BID)
   const mainEmbed = {
     title: isClosed ? '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7 (DITUTUP)' : '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7',
     description: isClosed
@@ -88,7 +84,6 @@ export async function buildBidEmbeds(data: any, forceClosed: boolean = false) {
     footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  // 2. EMBED NEWS (#CH_NEWS)
   const newsEmbed = {
     ...mainEmbed,
     description: isClosed
@@ -108,9 +103,9 @@ export async function buildBidEmbeds(data: any, forceClosed: boolean = false) {
   return { mainEmbed, newsEmbed, isClosed };
 }
 
-// 🟢 PATCH UTAMA (#CH_BID)
+// 🟢 PATCH UTAMA
 export async function patchMainBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
-  const { mainEmbed, isClosed } = await buildBidEmbeds(data, forceClosed);
+  const { mainEmbed, isClosed } = buildBidEmbeds(data, forceClosed);
   const components = getBidButtons(isClosed);
 
   const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
@@ -125,9 +120,9 @@ export async function patchMainBidMessage(msgId: string, data: any, forceClosed:
   return res.ok;
 }
 
-// 🟢 PATCH NEWS (#CH_NEWS)
+// 🟢 PATCH NEWS
 export async function patchNewsBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
-  const { newsEmbed } = await buildBidEmbeds(data, forceClosed);
+  const { newsEmbed } = buildBidEmbeds(data, forceClosed);
 
   const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_NEWS}/messages/${msgId}`, {
     method: 'PATCH',
