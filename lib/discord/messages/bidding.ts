@@ -7,10 +7,10 @@ export function formatRupiah(amount: number): string {
 
 // 🟢 HELPER HITUNG SISA WAKTU MANUAL (WIB / UTC+7)
 export function getRemainingTimeText(): { text: string; isClosed: boolean } {
-  // Target: Sabtu, 8 Agustus 2026, 20:00:00 WIB (Setara 13:00:00 UTC)
-  const targetTime = new Date('2026-08-08T13:00:00.000Z').getTime();
-  const now = Date.now();
-  const diffMs = targetTime - now;
+  const targetDate = new Date('2026-08-08T20:00:00+07:00');
+  const now = new Date();
+  
+  const diffMs = targetDate.getTime() - now.getTime();
 
   if (diffMs <= 0) {
     return { text: '`Lelang Telah Resmi Ditutup`', isClosed: true };
@@ -27,7 +27,7 @@ export function getRemainingTimeText(): { text: string; isClosed: boolean } {
   parts.push(`${minutes} Menit`);
 
   return {
-    text: `**${parts.join(' ')}**`,
+    text: parts.join(' '),
     isClosed: false,
   };
 }
@@ -69,8 +69,8 @@ export function buildMainBidEmbed(data: any, forceClosed: boolean = false) {
         inline: false,
       },
       {
-        name: '⏳ Waktu Bidding',
-        value: `Sisa Waktu : ${remainingText}\nBatas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB`,
+        name: isClosed ? '⏳ Sisa Waktu : Ditutup' : `⏳ Sisa Waktu : ${remainingText}`,
+        value: 'Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
         inline: false,
       },
     ],
