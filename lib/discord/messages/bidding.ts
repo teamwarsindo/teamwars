@@ -33,7 +33,7 @@ export function getRemainingTimeText(): { text: string; isClosed: boolean } {
   };
 }
 
-// 🟢 1 FUNGSI UNTUK GENERATE DUA EMBED SEKALIGUS
+// 🟢 1 FUNGSI UNTUK GENERATE DUA EMBED SEKALIGUS (MAIN & NEWS)
 export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
   const { text: remainingText, isClosed: timeIsClosed } = getRemainingTimeText();
   const isClosed = forceClosed || timeIsClosed;
@@ -50,7 +50,6 @@ export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameB = groupB?.name ? groupB.name : 'Belum ada';
 
-  // Component fields bersama
   const commonFields = [
     {
       name: `GROUP A ➔ "${nameA}"`,
@@ -63,8 +62,8 @@ export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
       inline: false,
     },
     {
-      name: isClosed ? 'Sisa Waktu : Ditutup' : `Sisa Waktu : ${remainingText}`,
-      value: '⏳ Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
+      name: isClosed ? '⏳ Sisa Waktu : Ditutup' : `⏳ Sisa Waktu : ${remainingText}`,
+      value: 'Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
       inline: false,
     },
   ];
@@ -80,7 +79,7 @@ export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
     footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  // 2. EMBED NEWS (#CH_NEWS) -> Menambahkan field "Cara Bidding"
+  // 2. EMBED NEWS (#CH_NEWS)
   const newsEmbed = {
     ...mainEmbed,
     description: isClosed
