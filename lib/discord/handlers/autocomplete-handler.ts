@@ -29,20 +29,35 @@ export async function handleAutocomplete(interaction: any) {
     }
   }
 
-  // 🔍 AUTOCOMPLETE MATCH
+  // 🔍 AUTOCOMPLETE MATCH (Dengan Info Tanggal & Filter Match Aktif)
   if (focusedOpt?.name === 'match') {
     const query = (focusedOpt.value || '').toLowerCase();
 
     for (const m of schedules) {
-      const mName = `${m.teamAName} vs ${m.teamBName} (${m.id})`;
+      // 📅 Format Waktu Singkat
+      const matchDateStr = m.matchDate 
+        ? new Date(m.matchDate).toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Jakarta'
+          })
+        : 'Belum Ada Jadwal';
+
+      const weekLabel = (m as any).weekName || `Week ${(m as any).calculatedWeekNumber || 1}`;
+      const mName = `[${weekLabel}] ${m.teamAName} vs ${m.teamBName} (${matchDateStr})`;
+
       if (!mName.toLowerCase().includes(query)) continue;
 
       if (actionOpt === 'assign') {
         const isFilled = typeOpt === 'STREAMER' ? !!(m.streamerDiscordId || (m as any).casterDiscordId) : !!m.refereeDiscordId;
-        if (!isFilled) choices.push({ name: mName, value: m.id });
+        if (!isFilled) choices.push({ name: mName.slice(0, 100), value: m.id });
       } else if (actionOpt === 'reassign' || actionOpt === 'complete') {
         const hasStaff = !!(m.refereeDiscordId || m.streamerDiscordId || (m as any).casterDiscordId);
-        if (hasStaff) choices.push({ name: mName, value: m.id });
+        if (hasStaff) choices.push({ name: mName.slice(0, 100), value: m.id });
+      } else {
+        choices.push({ name: mName.slice(0, 100), value: m.id });
       }
 
       if (choices.length >= 25) break;
