@@ -5,9 +5,14 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-// 🟢 HELPER HITUNG SISA WAKTU PRESISI (WIB / Asia/Jakarta)
-export function getRemainingTimeText(): { text: string; isClosed: boolean } {
+// 🟢 HELPER HITUNG SISA WAKTU SINKRON DENGAN JEDA 1 DETIK (WIB / Asia/Jakarta)
+export async function getRemainingTimeText(): Promise<{ text: string; isClosed: boolean }> {
+  // Delay 1 detik untuk memberi napas eksekusi server agar waktu detik/ms sinkron
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  // Target Bidding: Sabtu, 8 Agustus 2026, 20:00:00 WIB
   const targetTime = new Date('2026-08-08T20:00:00+07:00').getTime();
+
   const nowWibString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
   const nowWibMs = new Date(nowWibString).getTime();
 
@@ -17,10 +22,11 @@ export function getRemainingTimeText(): { text: string; isClosed: boolean } {
     return { text: '`Lelang Telah Resmi Ditutup`', isClosed: true };
   }
 
-  const totalMinutes = Math.floor(diffMs / (1000 * 60));
-  const days = Math.floor(totalMinutes / (60 * 24));
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-  const minutes = totalMinutes % 60;
+  // Murni Math.floor tanpa pembulatan
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
 
   const parts: string[] = [];
   if (days > 0) parts.push(`${days} Hari`);
@@ -33,9 +39,9 @@ export function getRemainingTimeText(): { text: string; isClosed: boolean } {
   };
 }
 
-// 🟢 1 FUNGSI UNTUK GENERATE DUA EMBED SEKALIGUS (MAIN & NEWS)
-export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
-  const { text: remainingText, isClosed: timeIsClosed } = getRemainingTimeText();
+// 🟢 GENERATE DUA EMBED (MAIN & NEWS) DENGAN FIELD DIBALIK & ASYNC
+export async function buildBidEmbeds(data: any, forceClosed: boolean = false) {
+  const { text: remainingText, isClosed: timeIsClosed } = await getRemainingTimeText();
   const isClosed = forceClosed || timeIsClosed;
 
   const groupA = data?.groupA;
@@ -50,6 +56,9 @@ export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameB = groupB?.name ? groupB.name : 'Belum ada';
 
+  // 🔄 FIELD DIBALIK:
+  // Name  ➔ Batas Bidding
+  // Value ➔ Sisa Waktu
   const commonFields = [
     {
       name: `GROUP A ➔ "${nameA}"`,
@@ -62,8 +71,8 @@ export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
       inline: false,
     },
     {
-      name: 'Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
-      value: isClosed ? '⏳ Sisa Waktu : Ditutup' : `⏳ Sisa Waktu : ${remainingText}`,
+      name: '⏳ Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
+      value: isClosed ? '`Lelang Telah Resmi Ditutup`' : `Sisa Waktu : **${remainingText}**`,
       inline: false,
     },
   ];
@@ -101,7 +110,7 @@ export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
 
 // 🟢 PATCH UTAMA (#CH_BID)
 export async function patchMainBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
-  const { mainEmbed, isClosed } = buildBidEmbeds(data, forceClosed);
+  const { mainEmbed, isClosed } = await buildBidEmbeds(data, forceClosed);
   const components = getBidButtons(isClosed);
 
   const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
@@ -118,7 +127,7 @@ export async function patchMainBidMessage(msgId: string, data: any, forceClosed:
 
 // 🟢 PATCH NEWS (#CH_NEWS)
 export async function patchNewsBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
-  const { newsEmbed } = buildBidEmbeds(data, forceClosed);
+  const { newsEmbed } = await buildBidEmbeds(data, forceClosed);
 
   const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_NEWS}/messages/${msgId}`, {
     method: 'PATCH',
