@@ -74,7 +74,7 @@ export function buildMainBidEmbed(data: any, forceClosed: boolean = false) {
         inline: false,
       },
     ],
-    footer: { text: 'Team Wars Indonesia Season 7};
+    footer: { text: 'Team Wars Indonesia Season 7'};
 }
 
 export async function patchMainBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
