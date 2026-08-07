@@ -62,8 +62,8 @@ export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
       inline: false,
     },
     {
-      name: isClosed ? '⏳ Sisa Waktu : Ditutup' : `⏳ Sisa Waktu : ${remainingText}`,
-      value: 'Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
+      name: 'Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
+      value: isClosed ? '⏳ Sisa Waktu : Ditutup' : `⏳ Sisa Waktu : ${remainingText}`,
       inline: false,
     },
   ];
