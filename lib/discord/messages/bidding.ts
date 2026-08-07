@@ -27,7 +27,7 @@ export function getRemainingTimeText(): { text: string; isClosed: boolean } {
   parts.push(`${minutes} Menit`);
 
   return {
-    text: `⏳ **${parts.join(' ')} lagi**`,
+    text: `**${parts.join(' ')}**`,
     isClosed: false,
   };
 }
@@ -74,9 +74,7 @@ export function buildMainBidEmbed(data: any, forceClosed: boolean = false) {
         inline: false,
       },
     ],
-    footer: { text: 'Team Wars Indonesia Season 7 • Auto-updated Live System' },
-    timestamp: new Date().toISOString(),
-  };
+    footer: { text: 'Team Wars Indonesia Season 7};
 }
 
 export async function patchMainBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
