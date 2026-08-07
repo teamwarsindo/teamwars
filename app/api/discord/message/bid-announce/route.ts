@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/config';
-import { buildBidEmbeds, patchMainBidMessage, getRemainingTimeText } from '@/lib/discord/messages/bidding';
+import { buildBidEmbeds, patchMainBidMessage } from '@/lib/discord/messages/bidding';
 import { patchLogBidMessage } from '@/lib/discord/messages/log-bidding';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing BOT TOKEN or Channel Config' }, { status: 500 });
     }
 
-    // 1. AMBIL DATA LEUANG & LOGS DARI REDIS
+    // 1. AMBIL DATA LELANG & LOGS DARI REDIS
     let biddingData: any = await kv.get('twi_bidding_data');
     if (typeof biddingData === 'string') {
       try { biddingData = JSON.parse(biddingData); } catch {}
@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
 
     const biddingLogs = Array.isArray(biddingData?.logs) ? biddingData.logs : [];
 
-    // 2. GENERATE EMBED BERSAMA DARI LIB
-    const { mainEmbed, newsEmbed, isClosed } = buildBidEmbeds(biddingData);
+    // 2. GENERATE EMBED BERSAMA DARI LIB (Tambahkan await)
+    const { mainEmbed, newsEmbed, isClosed } = await buildBidEmbeds(biddingData);
 
     // 3. CEK ATURAN WAKTU UNTUK MODE POST (SABTU 07:00 & 19:00 WIB)
     const { searchParams } = new URL(req.url);
@@ -36,10 +36,9 @@ export async function GET(req: NextRequest) {
     const nowWibStr = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
     const nowWib = new Date(nowWibStr);
     
-    const dayName = nowWib.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Jakarta' }); // "Sat", "Fri", dll.
-    const currentHour = nowWib.getHours(); // 0 - 23
+    const dayName = nowWib.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Jakarta' });
+    const currentHour = nowWib.getHours();
 
-    // POST aktif jika: Sabtu jam 7 pagi (07:xx WIB) ATAU Sabtu jam 7 malam (19:xx WIB) ATAU dipaksa via ?forcePost=true
     const isPostScheduledHour = dayName === 'Sat' && (currentHour === 7 || currentHour === 19);
     const shouldPostNewMessage = isPostScheduledHour || forcePost;
 
@@ -48,7 +47,6 @@ export async function GET(req: NextRequest) {
 
     // 4. EKSEKUSI LOGIKA NEWS (#CH_NEWS)
     if (shouldPostNewMessage) {
-      // 🟢 MODE POST: Hapus pesan lama jika ada
       if (newsMsgId) {
         await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages/${newsMsgId}`, {
           method: 'DELETE',
@@ -56,7 +54,6 @@ export async function GET(req: NextRequest) {
         }).catch(() => null);
       }
 
-      // Kirim pesan news baru dengan @everyone
       const newsRes = await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages`, {
         method: 'POST',
         headers: {
@@ -79,7 +76,6 @@ export async function GET(req: NextRequest) {
         newsStatusAction = 'Failed to POST New Message';
       }
     } else {
-      // 🟢 MODE PATCH: Coba perbarui embed pesan lama
       let patchedOk = false;
       if (newsMsgId) {
         const resNews = await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages/${newsMsgId}`, {
@@ -93,7 +89,6 @@ export async function GET(req: NextRequest) {
         patchedOk = resNews.ok;
       }
 
-      // Fallback: Jika ID tidak ditemukan atau gagal di-PATCH (pesan hilang), posting baru
       if (!patchedOk) {
         const newsRes = await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages`, {
           method: 'POST',
