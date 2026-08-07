@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/config';
-import { formatRupiah, patchMainBidMessage } from '@/lib/discord/messages/bidding';
+import { buildBidEmbeds, patchMainBidMessage, getRemainingTimeText } from '@/lib/discord/messages/bidding';
 import { patchLogBidMessage } from '@/lib/discord/messages/log-bidding';
 
 export const dynamic = 'force-dynamic';
-
-// 🟢 PERBAIKAN TIMESTAMP: Sabtu, 8 Agustus 2026, 20:00:00 WIB (13:00 UTC)
-const BID_DEADLINE_TIMESTAMP = 1786069200;
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,117 +16,136 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing BOT TOKEN or Channel Config' }, { status: 500 });
     }
 
-    // 1. AMBIL DATA UTUH DARI REDIS
+    // 1. AMBIL DATA LEUANG & LOGS DARI REDIS
     let biddingData: any = await kv.get('twi_bidding_data');
     if (typeof biddingData === 'string') {
       try { biddingData = JSON.parse(biddingData); } catch {}
     }
     biddingData = biddingData || {};
 
-    const groupA = biddingData?.groupA;
-    const groupB = biddingData?.groupB;
     const biddingLogs = Array.isArray(biddingData?.logs) ? biddingData.logs : [];
 
-    const nameA = groupA?.name ? groupA.name : 'Belum ada';
-    const valA = groupA && (groupA.amount || groupA.amount === 0)
-      ? `💰 **${formatRupiah(Number(groupA.amount))}** oleh <@${groupA.userId}>`
-      : `💰 **Rp 0** oleh _Belum ada_`;
+    // 2. GENERATE EMBED BERSAMA DARI LIB
+    const { mainEmbed, newsEmbed, isClosed } = buildBidEmbeds(biddingData);
 
-    const nameB = groupB?.name ? groupB.name : 'Belum ada';
-    const valB = groupB && (groupB.amount || groupB.amount === 0)
-      ? `💰 **${formatRupiah(Number(groupB.amount))}** oleh <@${groupB.userId}>`
-      : `💰 **Rp 0** oleh _Belum ada_`;
+    // 3. CEK ATURAN WAKTU UNTUK MODE POST (SABTU 07:00 & 19:00 WIB)
+    const { searchParams } = new URL(req.url);
+    const forcePost = searchParams.get('forcePost') === 'true';
 
-    // 2. HAPUS PESAN ANNOUNCEMENT LAMA DI CHANNEL #NEWS
-    const oldNewsMsgId = (await kv.get<string>('twi_bid_announce_msg_id')) || (await kv.get<string>('twi:bid_announce_msg_id'));
-    if (oldNewsMsgId) {
-      await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages/${oldNewsMsgId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bot ${token}` },
-      }).catch(() => null);
+    // Konversi jam server saat ini ke komponen waktu Asia/Jakarta
+    const nowWibStr = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
+    const nowWib = new Date(nowWibStr);
+    
+    const dayName = nowWib.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Jakarta' }); // "Sat", "Fri", dll.
+    const currentHour = nowWib.getHours(); // 0 - 23
+
+    // POST aktif jika: Sabtu jam 7 pagi (07:xx WIB) ATAU Sabtu jam 7 malam (19:xx WIB) ATAU dipaksa via ?forcePost=true
+    const isPostScheduledHour = dayName === 'Sat' && (currentHour === 7 || currentHour === 19);
+    const shouldPostNewMessage = isPostScheduledHour || forcePost;
+
+    let newsMsgId = (await kv.get<string>('twi_bid_announce_msg_id')) || (await kv.get<string>('twi:bid_announce_msg_id'));
+    let newsStatusAction = '';
+
+    // 4. EKSEKUSI LOGIKA NEWS (#CH_NEWS)
+    if (shouldPostNewMessage) {
+      // 🟢 MODE POST: Hapus pesan lama jika ada
+      if (newsMsgId) {
+        await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages/${newsMsgId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bot ${token}` },
+        }).catch(() => null);
+      }
+
+      // Kirim pesan news baru dengan @everyone
+      const newsRes = await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bot ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: '@everyone',
+          embeds: [newsEmbed],
+        }),
+      });
+
+      const newsData = await newsRes.json().catch(() => ({}));
+      if (newsRes.ok && newsData?.id) {
+        newsMsgId = newsData.id;
+        await kv.set('twi_bid_announce_msg_id', newsData.id);
+        await kv.set('twi:bid_announce_msg_id', newsData.id);
+        newsStatusAction = `Posted New Message (ID: ${newsMsgId})`;
+      } else {
+        newsStatusAction = 'Failed to POST New Message';
+      }
+    } else {
+      // 🟢 MODE PATCH: Coba perbarui embed pesan lama
+      let patchedOk = false;
+      if (newsMsgId) {
+        const resNews = await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages/${newsMsgId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bot ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ embeds: [newsEmbed] }),
+        });
+        patchedOk = resNews.ok;
+      }
+
+      // Fallback: Jika ID tidak ditemukan atau gagal di-PATCH (pesan hilang), posting baru
+      if (!patchedOk) {
+        const newsRes = await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bot ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: '@everyone',
+            embeds: [newsEmbed],
+          }),
+        });
+
+        const newsData = await newsRes.json().catch(() => ({}));
+        if (newsRes.ok && newsData?.id) {
+          newsMsgId = newsData.id;
+          await kv.set('twi_bid_announce_msg_id', newsData.id);
+          await kv.set('twi:bid_announce_msg_id', newsData.id);
+          newsStatusAction = `Fallback Posted New Message (ID: ${newsMsgId})`;
+        } else {
+          newsStatusAction = 'Failed / News ID Not Found';
+        }
+      } else {
+        newsStatusAction = `Patched Existing Message (ID: ${newsMsgId})`;
+      }
     }
 
-    // 3. EMBED PENGUMUMAN BARU FOR #NEWS
-    const newsEmbed = {
-      title: '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7',
-      description: `Bidding nama resmi divisi masih terbuka! Silakan lakukan penawaran di <#${bidChannelId}>.`,
-      color: 0xfee75c,
-      fields: [
-        {
-          name: `🥇 GROUP A ➔ "${nameA}"`,
-          value: valA,
-          inline: false,
-        },
-        {
-          name: `🥇 GROUP B ➔ "${nameB}"`,
-          value: valB,
-          inline: false,
-        },
-        {
-          name: '⏳ Sisa Waktu Bidding:',
-          value: `<t:${BID_DEADLINE_TIMESTAMP}:R>\n*(Batas Akhir: Sabtu, 8 Agustus 2026, 20:00 WIB)*`,
-          inline: false,
-        },
-        {
-          name: '📌 Cara Bidding:',
-          value: `Klik tombol **\`[ Bid Group A ]\`** atau **\`[ Bid Group B ]\`** di <#${bidChannelId}> lalu isi nama divisi & nominal bid.`,
-          inline: false,
-        },
-      ],
-      footer: { text: 'Team Wars Indonesia Season 7' },
-      timestamp: new Date().toISOString(),
-    };
-
-    // 4. KIRIM PESAN BARU KE #NEWS
-    const newsRes = await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bot ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        content: '@everyone',
-        embeds: [newsEmbed],
-      }),
-    });
-
-    // 🟢 SAFE PARSING JSON RESPON DISCORD
-    const newsText = await newsRes.text();
-    let newsData: any = {};
-    try {
-      newsData = JSON.parse(newsText);
-    } catch {
-      console.error('Response bukan JSON:', newsText);
-    }
-
-    if (!newsRes.ok) {
-      console.error('Gagal kirim pengumuman bidding ke #news:', newsData);
-      return NextResponse.json({ success: false, error: newsData || newsText }, { status: newsRes.status });
-    }
-
-    if (newsData?.id) {
-      await kv.set('twi_bid_announce_msg_id', newsData.id);
-      await kv.set('twi:bid_announce_msg_id', newsData.id);
-    }
-
-    // 5. EMBED UTAMA & LOG UPDATE
+    // 5. UPDATE EMBED BID UTAMA & LOG (#CH_BID)
     const mainBidMsgId = (await kv.get<string>('twi_bid_msg_main_id')) || (await kv.get<string>('twi:bid_msg_main_id'));
+    let mainPatched = false;
     if (mainBidMsgId) {
-      await patchMainBidMessage(mainBidMsgId, biddingData, false, token).catch(() => null);
+      mainPatched = await patchMainBidMessage(mainBidMsgId, biddingData, isClosed, token);
     }
 
     const logBidMsgId = (await kv.get<string>('twi_bid_msg_log_id')) || (await kv.get<string>('twi:bid_msg_log_id'));
+    let logPatched = false;
     if (logBidMsgId) {
-      await patchLogBidMessage(logBidMsgId, biddingLogs, token).catch(() => null);
+      logPatched = await patchLogBidMessage(logBidMsgId, biddingLogs, token);
     }
 
     return NextResponse.json({
       success: true,
-      message: '✅ Pengumuman news berhasil diperbarui dan embed bidding/log ter-update!',
-      newsMessageId: newsData?.id,
+      message: '⚡ Unified Bid Announce API berhasil dijalankan!',
+      mode: shouldPostNewMessage ? 'POST (Schedule / Forced)' : 'PATCH (Routine)',
+      status: {
+        news: newsStatusAction,
+        mainBidPatched: mainPatched ? `Success (ID: ${mainBidMsgId})` : 'Failed / Msg ID Not Found',
+        logBidPatched: logPatched ? `Success (ID: ${logBidMsgId})` : 'Failed / Msg ID Not Found',
+      },
     });
   } catch (error: any) {
-    console.error('Error Bid Announce API:', error);
+    console.error('Error Unified Bid Announce API:', error);
     return NextResponse.json({ success: false, error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
-      }
+}
