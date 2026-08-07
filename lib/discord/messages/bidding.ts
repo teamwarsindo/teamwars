@@ -5,23 +5,48 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-// 🟢 FIX TIMESTAMP: Sabtu, 8 Agustus 2026, 20:00:00 WIB
-const BID_DEADLINE_TIMESTAMP = 1786069200;
+// 🟢 HELPER HITUNG SISA WAKTU MANUAL (WIB)
+export function getRemainingTimeText(): { text: string; isClosed: boolean } {
+  // Target: Sabtu, 8 Agustus 2026, 20:00:00 WIB (UTC+7) -> 13:00:00 UTC
+  const targetTime = new Date('2026-08-08T20:00:00+07:00').getTime();
+  const now = Date.now();
+  const diffMs = targetTime - now;
 
-export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
+  if (diffMs <= 0) {
+    return { text: '`Lelang Telah Resmi Ditutup`', isClosed: true };
+  }
+
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const days = Math.floor(totalSeconds / (3600 * 24));
+  const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} Hari`);
+  if (hours > 0) parts.push(`${hours} Jam`);
+  parts.push(`${minutes} Menit`);
+
+  return {
+    text: `⏳ **${parts.join(' ')} lagi**`,
+    isClosed: false,
+  };
+}
+
+export function buildMainBidEmbed(data: any, forceClosed: boolean = false) {
+  const { text: remainingText, isClosed: timeIsClosed } = getRemainingTimeText();
+  const isClosed = forceClosed || timeIsClosed;
+
   const statusTitle = isClosed ? '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7 (DITUTUP)' : '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7';
   const statusDesc = isClosed
     ? '❌ **Bidding telah resmi ditutup!** Terima kasih kepada seluruh peserta.'
     : 'Klik tombol di bawah untuk mengajukan penawaran nama divisi.';
 
-  // Format Group A
   const groupA = data?.groupA;
   const valA = groupA
     ? `💰 **${formatRupiah(groupA.amount)}** oleh <@${groupA.userId}>`
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameA = groupA?.name ? groupA.name : 'Belum ada';
 
-  // Format Group B
   const groupB = data?.groupB;
   const valB = groupB
     ? `💰 **${formatRupiah(groupB.amount)}** oleh <@${groupB.userId}>`
@@ -45,9 +70,7 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
       },
       {
         name: '⏳ Sisa Waktu Bidding:',
-        value: isClosed
-          ? '`Lelang Telah Selesai`'
-          : `<t:${BID_DEADLINE_TIMESTAMP}:R>\n*(Batas Akhir: Sabtu, 8 Agustus 2026, 20:00 WIB)*`,
+        value: `${remainingText}\n*(Batas Akhir: Sabtu, 8 Agustus 2026, 20:00 WIB)*`,
         inline: false,
       },
     ],
@@ -56,9 +79,10 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
   };
 }
 
-export async function patchMainBidMessage(msgId: string, data: any, isClosed: boolean, token: string) {
-  const embed = buildMainBidEmbed(data, isClosed);
-  const components = getBidButtons(isClosed);
+export async function patchMainBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
+  const embed = buildMainBidEmbed(data, forceClosed);
+  const { isClosed } = getRemainingTimeText();
+  const components = getBidButtons(forceClosed || isClosed);
 
   const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
     method: 'PATCH',
@@ -68,11 +92,6 @@ export async function patchMainBidMessage(msgId: string, data: any, isClosed: bo
     },
     body: JSON.stringify({ embeds: [embed], components }),
   });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    console.error('Gagal update pesan utama Bidding:', res.status, errText);
-  }
 
   return res.ok;
 }
