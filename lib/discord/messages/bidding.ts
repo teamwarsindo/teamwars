@@ -5,106 +5,59 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-// 🟢 HELPER HITUNG SISA WAKTU PRESISI (Toleran terhadap delay cronjob beberapa detik)
-export function getRemainingTimeText(): { text: string; isClosed: boolean } {
-  // Target Bidding: Sabtu, 8 Agustus 2026, 20:00:00 WIB
-  const targetTime = new Date('2026-08-08T20:00:00+07:00').getTime();
+// Timestamp Unix: Batas Bidding (Sabtu, 8 Agustus 2026 20:00:00 WIB = 1786107600)
+const BID_DEADLINE_TIMESTAMP = 1786107600;
 
-  // Ambil waktu persis saat request di-hit di server
-  const nowWibString = new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' });
-  const nowWibMs = new Date(nowWibString).getTime();
+export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
+  const statusTitle = isClosed ? '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7 (DITUTUP)' : '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7';
+  const statusDesc = isClosed
+    ? '❌ **Bidding telah resmi ditutup!** Terima kasih kepada seluruh peserta.'
+    : 'Klik tombol di bawah untuk mengajukan penawaran nama divisi.';
 
-  const diffMs = targetTime - nowWibMs;
-
-  if (diffMs <= 0) {
-    return { text: '`Lelang Telah Resmi Ditutup`', isClosed: true };
-  }
-
-  // Pembulatan menit terdekat agar delay 5-13 detik dari cronjob tidak mengurangi angka menit
-  const totalSeconds = Math.floor(diffMs / 1000);
-  const totalMinutes = Math.round(totalSeconds / 60);
-
-  const days = Math.floor(totalMinutes / (60 * 24));
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-  const minutes = totalMinutes % 60;
-
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days} Hari`);
-  if (hours > 0) parts.push(`${hours} Jam`);
-  parts.push(`${minutes} Menit`);
-
-  return {
-    text: parts.join(' '),
-    isClosed: false,
-  };
-}
-
-// 🟢 GENERATE EMBED UTAMA & NEWS (SYNCHRONOUS MURNI)
-export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
-  const { text: remainingText, isClosed: timeIsClosed } = getRemainingTimeText();
-  const isClosed = forceClosed || timeIsClosed;
-
+  // Format Group A
   const groupA = data?.groupA;
-  const valA = groupA && (groupA.amount || groupA.amount === 0)
-    ? `💰 **${formatRupiah(Number(groupA.amount))}** oleh <@${groupA.userId}>`
+  const valA = groupA
+    ? `💰 **${formatRupiah(groupA.amount)}** oleh <@${groupA.userId}>`
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameA = groupA?.name ? groupA.name : 'Belum ada';
 
+  // Format Group B
   const groupB = data?.groupB;
-  const valB = groupB && (groupB.amount || groupB.amount === 0)
-    ? `💰 **${formatRupiah(Number(groupB.amount))}** oleh <@${groupB.userId}>`
+  const valB = groupB
+    ? `💰 **${formatRupiah(groupB.amount)}** oleh <@${groupB.userId}>`
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameB = groupB?.name ? groupB.name : 'Belum ada';
 
-  const commonFields = [
-    {
-      name: `GROUP A ➔ "${nameA}"`,
-      value: valA,
-      inline: false,
-    },
-    {
-      name: `GROUP B ➔ "${nameB}"`,
-      value: valB,
-      inline: false,
-    },
-    {
-      name: 'Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
-      value: isClosed ? '`Lelang Telah Resmi Ditutup`' : `⏳ Sisa Waktu : **${remainingText}**`,
-      inline: false,
-    },
-  ];
-
-  const mainEmbed = {
-    title: isClosed ? '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7 (DITUTUP)' : '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7',
-    description: isClosed
-      ? '❌ **Bidding telah resmi ditutup!** Terima kasih kepada seluruh peserta.'
-      : 'Klik tombol di bawah untuk mengajukan penawaran nama divisi.',
+  return {
+    title: statusTitle,
+    description: statusDesc,
     color: isClosed ? 0xed4245 : 0xfee75c,
-    fields: commonFields,
-    footer: { text: 'Team Wars Indonesia Season 7' },
-  };
-
-  const newsEmbed = {
-    ...mainEmbed,
-    description: isClosed
-      ? '❌ **Bidding telah resmi ditutup!** Terima kasih kepada seluruh peserta.'
-      : `Bidding nama resmi divisi masih terbuka! Silakan lakukan penawaran di <#${DISCORD_CONFIG.CH_BID}>.`,
     fields: [
-      ...commonFields,
       {
-        name: '📌 Cara Bidding:',
-        value: `Klik tombol **\`[ Bid Group A ]\`** atau **\`[ Bid Group B ]\`** di <#${DISCORD_CONFIG.CH_BID}> lalu isi nama divisi & nominal bid.`,
+        name: `🥇 GROUP A ➔ "${nameA}"`,
+        value: valA,
+        inline: false,
+      },
+      {
+        name: `🥇 GROUP B ➔ "${nameB}"`,
+        value: valB,
+        inline: false,
+      },
+      {
+        name: '⏳ Sisa Waktu Bidding:',
+        value: isClosed
+          ? '`Lelang Telah Selesai`'
+          : `<t:${BID_DEADLINE_TIMESTAMP}:R>\n*(Batas Akhir: Sabtu, 8 Agustus 2026, 20:00 WIB)*`,
         inline: false,
       },
     ],
+    footer: { text: 'Team Wars Indonesia Season 7 • Auto-updated Live System' },
+    timestamp: new Date().toISOString(),
   };
-
-  return { mainEmbed, newsEmbed, isClosed };
 }
 
-// 🟢 PATCH UTAMA
-export async function patchMainBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
-  const { mainEmbed, isClosed } = buildBidEmbeds(data, forceClosed);
+export async function patchMainBidMessage(msgId: string, data: any, isClosed: boolean, token: string) {
+  const embed = buildMainBidEmbed(data, isClosed);
   const components = getBidButtons(isClosed);
 
   const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages/${msgId}`, {
@@ -113,24 +66,13 @@ export async function patchMainBidMessage(msgId: string, data: any, forceClosed:
       Authorization: `Bot ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ embeds: [mainEmbed], components }),
+    body: JSON.stringify({ embeds: [embed], components }),
   });
 
-  return res.ok;
-}
-
-// 🟢 PATCH NEWS
-export async function patchNewsBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
-  const { newsEmbed } = buildBidEmbeds(data, forceClosed);
-
-  const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_NEWS}/messages/${msgId}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bot ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ embeds: [newsEmbed] }),
-  });
+  if (!res.ok) {
+    const err = await res.json();
+    console.error('Gagal update pesan utama Bidding:', err);
+  }
 
   return res.ok;
 }

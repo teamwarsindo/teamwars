@@ -9,64 +9,86 @@ export async function GET(req: Request) {
   // REGISTER SLASH COMMANDS (PUT Overwrite)
   // ==========================================
   const commands = [
-    // 👑 1. STAFF COMMAND (Menggantikan assign & unassign)
+    // 🟢 1. ASSIGN COMMAND
     {
-      name: 'staff',
-      description: 'Kelola penugasan Wasit & Streamer (Chief/Admin)',
+      name: 'assign',
+      description: 'Tugaskan Referee atau Streamer ke Pertandingan (Chief/Admin)',
       options: [
         {
           type: 3, // STRING
-          name: 'action',
-          description: 'Pilih aksi penugasan',
+          name: 'match',
+          description: 'Pilih pertandingan pada Week Aktif',
           required: true,
-          choices: [
-            { name: '➕ Assign (Penugasan Awal)', value: 'assign' },
-            { name: '🔄 Reassign (Ganti Staff)', value: 'reassign' },
-            { name: '✅ Complete (Match Selesai)', value: 'complete' },
-            { name: '🔄 Update (Sync Master Staf KV)', value: 'update' },
-          ],
+          autocomplete: true,
         },
         {
           type: 3, // STRING
           name: 'type',
-          description: 'Pilih tipe staf',
-          required: false,
+          description: 'Pilih peran penugasan',
+          required: true,
           choices: [
             { name: '⚖️ Referee', value: 'REFEREE' },
             { name: '🎥 Streamer', value: 'STREAMER' },
-            { name: '👥 Both (Khusus Complete / Update)', value: 'BOTH' },
           ],
         },
         {
           type: 3, // STRING
           name: 'user',
-          description: 'Pilih staf (Terfilter otomatis)',
-          required: false,
-          autocomplete: true,
-        },
-        {
-          type: 3, // STRING
-          name: 'match',
-          description: 'Pilih pertandingan',
-          required: false,
+          description: 'Pilih nama staf (terfilter sesuai role)',
+          required: true,
           autocomplete: true,
         },
       ],
     },
 
-    // 📣 2. REMINDER COMMAND
+    // 🔴 2. UNASSIGN COMMAND
+    {
+      name: 'unassign',
+      description: 'Cabut penugasan Referee atau Streamer dari Pertandingan (Chief/Admin)',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'match',
+          description: 'Pilih pertandingan yang ingin dicabut stafnya',
+          required: true,
+          autocomplete: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'type',
+          description: 'Pilih peran yang ingin dicabut',
+          required: true,
+          choices: [
+            { name: '⚖️ Referee', value: 'REFEREE' },
+            { name: '🎥 Streamer', value: 'STREAMER' },
+          ],
+        },
+        {
+          type: 3, // STRING
+          name: 'reason',
+          description: 'Alasan pencabutan penugasan',
+          required: true,
+          choices: [
+            { name: '✅ Match Selesai / Tugas Usai', value: 'COMPLETED' },
+            { name: '🔄 Ganti Staff / Halangan', value: 'REPLACED' },
+          ],
+        },
+      ],
+    },
+
+    // 📣 3. REMINDER COMMAND
     {
       name: 'reminder',
       description: 'Kirim pengingat aturan submit deck di channel tim.',
     },
 
-    // 📋 3. PREPARE COMMAND
+    // 📋 4. PREPARE COMMAND
     {
       name: 'prepare',
       description: 'Kirim briefing in-game dan info Room ID di channel match.',
     },
 
-    // ℹ️ 4. INFO COMMAND
+    // ℹ️ 5. INFO COMMAND
     {
       name: 'info',
       description: 'Lihat informasi profil Discord kamu atau pemain lain',
@@ -80,13 +102,13 @@ export async function GET(req: Request) {
       ],
     },
 
-    // ⏱️ 5. TIMER COMMAND
+    // ⏱️ 6. TIMER COMMAND
     {
       name: 'timer',
       description: 'Tampilkan Panel Timer Kontrol Waktu Match TWI S7',
     },
 
-    // 🔍 6. CEK ID COMMAND
+    // 🔍 7. CEK ID COMMAND
     {
       name: 'cek-id',
       description: 'Cek pemilik ID Game di database TWI',
@@ -110,7 +132,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // ⛔ 7. BLACKLIST COMMAND
+    // ⛔ 8. BLACKLIST COMMAND
     {
       name: 'blacklist',
       description: '[ADMIN] Kelola ID Duel Links yang di-blacklist',
@@ -135,7 +157,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 👥 8. CEK ROSTER COMMAND
+    // 👥 9. CEK ROSTER COMMAND
     {
       name: 'cek-roster',
       description: '[REFEREE] Cek roster tim berdasarkan Tag Role Tim Discord (Privat)',
@@ -155,7 +177,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🚫 9. CANCEL BID COMMAND
+    // 🚫 10. CANCEL BID COMMAND
     {
       name: 'cancel-bid',
       description: '[ADMIN] Batal/Anulir bid tertinggi group tertentu',
@@ -190,4 +212,4 @@ export async function GET(req: Request) {
   } else {
     return NextResponse.json({ error: '❌ Gagal mendaftarkan commands' }, { status: 500 });
   }
-}
+    }

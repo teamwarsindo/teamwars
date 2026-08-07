@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG, BID_START_TARGET, BID_CLOSE_TARGET } from '@/lib/config';
 import { getBidButtons } from '@/lib/discord/buttons/bidding';
-import { buildBidEmbeds, patchMainBidMessage, formatRupiah } from '@/lib/discord/messages/bidding';
+import { buildMainBidEmbed, patchMainBidMessage, formatRupiah } from '@/lib/discord/messages/bidding';
 import { buildLogBidPayload, patchLogBidMessage } from '@/lib/discord/messages/log-bidding';
 
 export interface BidData {
@@ -49,11 +49,10 @@ function makeEphemeralResponse(content: string) {
 export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   const isClosed = overrideStatus ? overrideStatus === 'closed' : !isBidOpen();
 
-  // 🟢 RESET DATA: Selalu mulai dengan data bersih
+  // 🟢 RESET DATA: Selalu mulai dengan data bersih (Group A & B null, logs kosong)
   const initialData: BidStore = { groupA: null, groupB: null, logs: [] };
 
-  // Dapatkan mainEmbed dengan AWAIT
-  const { mainEmbed } = await buildBidEmbeds(initialData, isClosed);
+  const mainEmbed = buildMainBidEmbed(initialData, isClosed);
   const logPayload = buildLogBidPayload(initialData.logs);
   const components = getBidButtons(isClosed);
 
@@ -72,7 +71,7 @@ export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   });
   const msgLog: any = await resLog.json();
 
-  // Simpan ID pesan baru & Overwrite data lama di KV
+  // Simpan ID pesan baru & Timpa/Overwrite data lama di KV dengan data bersih
   await kv.set(KV_MSG_MAIN_KEY, msgMain.id);
   await kv.set(KV_MSG_LOG_KEY, msgLog.id);
   await kv.set(KV_BID_KEY, initialData); 
@@ -176,7 +175,7 @@ export async function processBidSubmission(interaction: any) {
   } else if (groupTarget === "B") {
     const minRequiredB = currentB === 0 ? 110000 : currentB + 10000;
     if (amountInput < minRequiredB) {
-      return makeEphemeralResponse(`❌ **Bid ditolak!** Group B saat meyakinkan saat ini **${formatRupiah(currentB === 0 ? 100000 : currentB)}**. Bid minimal kamu harus **${formatRupiah(minRequiredB)}**.`);
+      return makeEphemeralResponse(`❌ **Bid ditolak!** Group B saat ini **${formatRupiah(currentB === 0 ? 100000 : currentB)}**. Bid minimal kamu harus **${formatRupiah(minRequiredB)}**.`);
     }
   } 
 
@@ -195,10 +194,10 @@ export async function processBidSubmission(interaction: any) {
 
   await kv.set(KV_BID_KEY, data);
 
-  // 1. Sync / Update Tampilan Embed Utama
+  // 1. Sync / Update Tampilan Embed Utama di Discord Channel Bidding
   await syncBidMessages();
 
-  // 🟢 2. NOTIFIKASI PING REAL-TIME KE CHANNEL LOG ADMIN (CH_LOG)
+  // 🟢 2. NOTIFIKASI PING REALT-TIME KE CHANNEL LOG ADMIN (CH_LOG)
   try {
     const token = process.env.DISCORD_BOT_TOKEN;
     const adminRoleId = DISCORD_CONFIG.ROLE_ADMIN;
@@ -216,7 +215,7 @@ export async function processBidSubmission(interaction: any) {
           embeds: [
             {
               title: `💸 Penawaran Baru — Group ${groupTarget}`,
-              color: 0x57F287,
+              color: 0x57F287, // Warna Hijau Neon
               fields: [
                 { name: "👤 Penawar", value: `**${displayName}** (\`@${user.username}\`)`, inline: true },
                 { name: "💰 Nominal Bid", value: `**${formatRupiah(amountInput)}**`, inline: true },
@@ -234,4 +233,4 @@ export async function processBidSubmission(interaction: any) {
   }
 
   return makeEphemeralResponse(`✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`);
-}
+          }
