@@ -70,11 +70,12 @@ export function buildMainBidEmbed(data: any, forceClosed: boolean = false) {
       },
       {
         name: `⏳ Sisa Waktu : ${remainingText}`,
-        value: 'Batas BIdding : Sabtu, 8 Aug 2026, 20:00 WIB',
+        value: 'Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
         inline: false,
       },
     ],
-    footer: { text: 'Team Wars Indonesia Season 7'};
+    footer: { text: 'Team Wars Indonesia Season 7' },
+  };
 }
 
 export async function patchMainBidMessage(msgId: string, data: any, forceClosed: boolean, token: string) {
