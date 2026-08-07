@@ -1,121 +1,133 @@
-import { discordAPI } from '../utils';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { discordAPI } from '@/lib/discord/utils';
+import { MatchScheduleItem } from '@/lib/types/tournament';
 
-export interface AssignmentLogParams {
-  channelId: string;
-  matchId: string;
-  weekName?: string;
-  groupName?: string;
-  teamAName: string;
-  teamBName: string;
-  teamAEmoji?: string;
-  teamBEmoji?: string;
-  matchChannelId?: string;
-  matchDateIso?: string;
-  staffName?: string;
-  staffDiscordId?: string;
-  existingMsgId?: string | null;
-}
-
-function formatWIBDate(dateIso?: string): string {
-  if (!dateIso) return 'TBA';
-  const d = new Date(dateIso);
-  return d.toLocaleDateString('id-ID', {
+function formatMatchTime(isoString?: string): string {
+  if (!isoString) return 'TBA';
+  const date = new Date(isoString);
+  return date.toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
     weekday: 'short',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  }) + ' at ' + d.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
-    timeZone: 'Asia/Jakarta',
-  }).replace('.', ':') + ' WIB';
+  }) + ' WIB';
 }
 
-// ⚖️ LOG REFEREE
-export async function sendOrUpdateRefereeAssignmentLog(params: AssignmentLogParams): Promise<string | null> {
-  if (!params.channelId || !params.staffDiscordId) return null;
+// 🟢 1. KIRIM EMBED LOG ASSIGN BARU
+export async function sendAssignmentLog(params: {
+  match: MatchScheduleItem;
+  staffDiscordId: string;
+  roleType: 'REFEREE' | 'STREAMER';
+}): Promise<string | null> {
+  const { match, staffDiscordId, roleType } = params;
+  const chAssign = DISCORD_CONFIG.CH_ASSIGN;
+  if (!chAssign) return null;
 
-  const channelTag = params.matchChannelId ? `<#${params.matchChannelId}>` : '`Channel Belum Ada`';
-  const t1 = `${params.teamAEmoji ? params.teamAEmoji + ' ' : ''}**${params.teamAName}**`;
-  const t2 = `${params.teamBEmoji ? params.teamBEmoji + ' ' : ''}**${params.teamBName}**`;
+  const isRef = roleType === 'REFEREE';
+  const titleText = isRef ? '⚖️ Referee Assignment' : '🎥 Streamer Assignment';
+  const roleLabel = isRef ? 'Referee' : 'Streamer';
 
-  // 1. Edit Log Lama jika Dibatalkan / Diperbarui
-  if (params.existingMsgId) {
-    const cancelPayload = {
-      content: `~~⚖️ <@${params.staffDiscordId}>~~ ❌ **[PENUGASAN DIBATALKAN / DIBAHARUI]**`,
-      embeds: [
-        {
-          title: '⚖️ Referee Assignment - CANCELLED / UPDATED',
-          description: `${params.groupName || 'Group A'} • ${params.weekName || 'Week 1'}\n${t1} vs ${t2}\n\n⚠️ *Status: Penugasan atau jadwal ini telah diperbarui pada pesan log terbaru di bawah.*`,
-          color: 0x95a5a6, // Grey
-        },
-      ],
-    };
-    await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'PATCH', cancelPayload).catch(() => null);
-  }
-
-  // 2. Kirim Log Baru
-  const newPayload = {
-    content: `⚖️ <@${params.staffDiscordId}> ditugaskan sebagai **Referee**!`,
-    embeds: [
+  const embed = {
+    title: titleText,
+    description: `${match.groupName || 'Tournament'} • ${match.weekName || 'Week 1'}`,
+    color: isRef ? 0x3b82f6 : 0x9333ea,
+    fields: [
       {
-        title: '⚖️ Referee Assignment',
-        description: `${params.groupName || 'Group A'} • ${params.weekName || 'Week 1'}\n${t1} vs ${t2}`,
-        color: 0x3498db, // Blue
-        fields: [
-          { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
-          { name: '📌 Match Channel', value: channelTag, inline: false },
-        ],
-        footer: { text: 'Team Wars Indonesia Season 7' },
+        name: '⚔️ Matchup',
+        value: `**${match.teamAName}** vs **${match.teamBName}**`,
+        inline: false,
+      },
+      {
+        name: '📅 Waktu Pertandingan',
+        value: formatMatchTime(match.matchDate),
+        inline: false,
+      },
+      {
+        name: '📌 Match Channel',
+        value: (match as any).discordChannelId ? `<#${(match as any).discordChannelId}>` : '_Pending_',
+        inline: false,
       },
     ],
+    footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', newPayload).catch(() => null);
+  const content = `${isRef ? '⚖️' : '🎥'} <@${staffDiscordId}> ditugaskan sebagai **${roleLabel}**!`;
+
+  const res = await discordAPI(`/channels/${chAssign}/messages`, 'POST', {
+    content,
+    embeds: [embed],
+  }).catch(() => null);
+
   return res?.id || null;
 }
 
-// 🎥 LOG STREAMER
-export async function sendOrUpdateStreamerAssignmentLog(params: AssignmentLogParams): Promise<string | null> {
-  if (!params.channelId || !params.staffDiscordId) return null;
+// 🛑 2. REPLY LOG BERHALANGAN (REASSIGN)
+export async function sendReassignReplyNote(params: {
+  targetLogMsgId: string;
+  oldStaffDiscordId: string;
+  roleType: 'REFEREE' | 'STREAMER';
+}) {
+  const { targetLogMsgId, oldStaffDiscordId, roleType } = params;
+  const chAssign = DISCORD_CONFIG.CH_ASSIGN;
+  if (!chAssign || !targetLogMsgId) return;
 
-  const channelTag = params.matchChannelId ? `<#${params.matchChannelId}>` : '`Channel Belum Ada`';
-  const t1 = `${params.teamAEmoji ? params.teamAEmoji + ' ' : ''}**${params.teamAName}**`;
-  const t2 = `${params.teamBEmoji ? params.teamBEmoji + ' ' : ''}**${params.teamBName}**`;
+  const roleLabel = roleType === 'REFEREE' ? 'Referee' : 'Streamer';
+  const icon = roleType === 'REFEREE' ? '⚖️' : '🎥';
 
-  // 1. Edit Log Lama jika Dibatalkan / Diperbarui
-  if (params.existingMsgId) {
-    const cancelPayload = {
-      content: `~~🎥 <@${params.staffDiscordId}>~~ ❌ **[PENUGASAN DIBATALKAN / DIBAHARUI]**`,
+  await discordAPI(`/channels/${chAssign}/messages`, 'POST', {
+    content: `🛑 ${icon} <@${oldStaffDiscordId}> berhalangan bertugas sebagai **${roleLabel}**!`,
+    message_reference: { message_id: targetLogMsgId },
+  }).catch(() => null);
+}
+
+// ✅ 3. REPLY LOG TERIMA KASIH & UPDATE EMBED STATUS/SKOR (COMPLETE)
+export async function completeAssignmentLog(params: {
+  match: MatchScheduleItem;
+  targetLogMsgId: string;
+  staffDiscordId: string;
+  roleType: 'REFEREE' | 'STREAMER';
+}) {
+  const { match, targetLogMsgId, staffDiscordId, roleType } = params;
+  const chAssign = DISCORD_CONFIG.CH_ASSIGN;
+  if (!chAssign || !targetLogMsgId) return;
+
+  const isRef = roleType === 'REFEREE';
+  const roleLabel = isRef ? 'Referee' : 'Streamer';
+  const icon = isRef ? '⚖️' : '🎥';
+
+  await discordAPI(`/channels/${chAssign}/messages`, 'POST', {
+    content: `✅ Terima kasih ${icon} <@${staffDiscordId}> sudah bertugas sebagai **${roleLabel}**!`,
+    message_reference: { message_id: targetLogMsgId },
+  }).catch(() => null);
+
+  const existingMsg = await discordAPI(`/channels/${chAssign}/messages/${targetLogMsgId}`, 'GET').catch(() => null);
+  if (existingMsg && existingMsg.embeds && existingMsg.embeds[0]) {
+    const oldEmbed = existingMsg.embeds[0];
+    const scoreA = match.teamAScore ?? 0;
+    const scoreB = match.teamBScore ?? 0;
+
+    const updatedFields = oldEmbed.fields.map((f: any) => {
+      if (f.name.includes('Match Channel')) {
+        return {
+          name: '⏳ Status & Skor',
+          value: `\`✅ Selesai\` • **${scoreA} - ${scoreB}**`,
+          inline: false,
+        };
+      }
+      return f;
+    });
+
+    await discordAPI(`/channels/${chAssign}/messages/${targetLogMsgId}`, 'PATCH', {
       embeds: [
         {
-          title: '🎥 Streamer Assignment - CANCELLED / UPDATED',
-          description: `${params.groupName || 'Group A'} • ${params.weekName || 'Week 1'}\n${t1} vs ${t2}\n\n⚠️ *Status: Penugasan atau jadwal ini telah diperbarui pada pesan log terbaru di bawah.*`,
-          color: 0x95a5a6, // Grey
+          ...oldEmbed,
+          color: 0x10b981,
+          fields: updatedFields,
         },
       ],
-    };
-    await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'PATCH', cancelPayload).catch(() => null);
+    }).catch(() => null);
   }
-
-  // 2. Kirim Log Baru
-  const newPayload = {
-    content: `🎥 <@${params.staffDiscordId}> ditugaskan sebagai **Streamer**!`,
-    embeds: [
-      {
-        title: '🎥 Streamer Assignment',
-        description: `${params.groupName || 'Group A'} • ${params.weekName || 'Week 1'}\n${t1} vs ${t2}`,
-        color: 0xe74c3c, // Red
-        fields: [
-          { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
-          { name: '📌 Match Channel', value: channelTag, inline: false },
-        ],
-        footer: { text: 'Team Wars Indonesia Season 7' },
-      },
-    ],
-  };
-
-  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', newPayload).catch(() => null);
-  return res?.id || null;
 }

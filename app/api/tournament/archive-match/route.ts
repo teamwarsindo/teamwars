@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/lib/types/tournament';
-import { deleteMatchDiscordChannel } from '@/lib/discord/channels';
+import { archiveMatchDiscordChannel } from '@/lib/discord/channels';
 
 function getTeamSlug(teamName: string) {
   return teamName
@@ -30,36 +30,32 @@ export async function POST(req: Request) {
 
     const match = schedules[matchIndex];
 
+    const slugA = getTeamSlug(match.teamAName);
+    const slugB = getTeamSlug(match.teamBName);
+
     const [teamA, teamB] = await Promise.all([
-      kv.hgetall<any>(`teams:${getTeamSlug(match.teamAName)}`),
-      kv.hgetall<any>(`teams:${getTeamSlug(match.teamBName)}`),
+      kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
+      kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
     ]);
 
-    const roleAId = teamA?.discordRoleId;
-    const roleBId = teamB?.discordRoleId;
+    const roleAId = teamA?.discordRoleId || teamA?.roleId;
+    const roleBId = teamB?.discordRoleId || teamB?.roleId;
 
-    // 1. EXECUTE HAPUS CHANNEL MATCH & REVOKE ROLE WASIT
-    await deleteMatchDiscordChannel({
+    await archiveMatchDiscordChannel({
       matchId: match.id,
       savedChannelId: (match as any).discordChannelId,
       refereeDiscordId: match.refereeDiscordId,
+      streamerDiscordId: match.streamerDiscordId || (match as any).casterDiscordId,
       roleAId,
       roleBId,
     });
 
-    // 2. BERSIHKAN RECORD DISCORD DI KV REDIS
-    (match as any).discordChannelId = null;
-    (match as any).openingMsgId = null;
-
-    schedules[matchIndex] = match;
-    await kv.set('twi:schedules', schedules);
-
     return NextResponse.json({
       success: true,
-      message: `Pembersihan berhasil! Channel Match ${match.id} telah dihapus dari Discord.`,
+      message: `Match ${match.id} berhasil diarsip! Channel kini berstatus Read-Only.`,
     });
   } catch (error) {
-    console.error('Error Delete Match Channel:', error);
+    console.error('Error Archive Match Channel:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

@@ -15,10 +15,9 @@ import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
 
-// Assign & Unassign Handlers (Pecahan File Baru)
-import { handleAssignAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
-import { handleAssignCommand } from '@/lib/discord/handlers/assign-handler';
-import { handleUnassignCommand } from '@/lib/discord/handlers/unassign-handler';
+// Staff System Handlers
+import { handleStaffCommand } from '@/lib/discord/handlers/staff-handler';
+import { handleAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
 
 // Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const body = JSON.parse(rawBody);
 
-    // 2. PING TEST DARI DISCORD PORTAL (Type 1 - Wajib HTTP 200 JSON Eksplisit)
+    // 2. PING TEST DARI DISCORD PORTAL (Type 1)
     if (body.type === 1) {
       return new NextResponse(JSON.stringify({ type: 1 }), {
         status: 200,
@@ -59,8 +58,7 @@ export async function POST(req: NextRequest) {
     // ⚡ Slash Commands Execution (Type 2)
     if (body.type === 2) {
       const commandName = body.data.name;
-      if (commandName === 'assign') return NextResponse.json(await handleAssignCommand(body));
-      if (commandName === 'unassign') return NextResponse.json(await handleUnassignCommand(body));
+      if (commandName === 'staff') return NextResponse.json(await handleStaffCommand(body));
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body); 
@@ -203,8 +201,8 @@ export async function POST(req: NextRequest) {
 
     // 🔎 Autocomplete Interactions (Type 4)
     if (body.type === 4) {
-      if (body.data?.name === 'assign' || body.data?.name === 'unassign') {
-        const autocompleteResponse = await handleAssignAutocomplete(body);
+      if (body.data?.name === 'staff') {
+        const autocompleteResponse = await handleAutocomplete(body);
         return NextResponse.json(autocompleteResponse);
       }
     }
@@ -224,4 +222,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-    }
+}
