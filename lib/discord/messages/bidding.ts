@@ -70,7 +70,7 @@ export function buildMainBidEmbed(data: any, forceClosed: boolean = false) {
       },
       {
         name: `⏳ Sisa Waktu : ${remainingText}`,
-        value: 'Batas BIdding : Sabtu, 8 Agustus 2026, 20:00 WIB',
+        value: 'Batas BIdding : Sabtu, 8 Aug 2026, 20:00 WIB',
         inline: false,
       },
     ],
