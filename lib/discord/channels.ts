@@ -325,3 +325,24 @@ export async function deleteMatchDiscordChannel(params: {
 
   return true;
 }
+
+// 📦 ARCHIVE MATCH DISCORD CHANNEL
+export async function archiveMatchDiscordChannel(channelId: string): Promise<boolean> {
+  if (!channelId) return false;
+
+  try {
+    const guildId = DISCORD_CONFIG.GUILD_ID;
+    
+    // Kunci channel agar tidak bisa dipakai berkirim pesan lagi
+    await discordAPI(`/channels/${channelId}/permissions/${guildId}`, 'PUT', {
+      type: 0,
+      allow: '1024', // View Channel
+      deny: '2048',  // Send Messages
+    });
+
+    return true;
+  } catch (err) {
+    console.error(`Gagal mengarsipkan channel ${channelId}:`, err);
+    return false;
+  }
+}
