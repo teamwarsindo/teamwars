@@ -75,6 +75,8 @@ export interface MatchScheduleItem {
   // Skor Akhir (Quick Score / Sync dari Analyst)
   scoreA: number; // 0 - 10
   scoreB: number; // 0 - 10
+  teamAScore?: number; // Alias pendukung untuk Discord Logger / Notification
+  teamBScore?: number; // Alias pendukung untuk Discord Logger / Notification
   isFinished: boolean;
 
   // Detail Match Analyst Report
