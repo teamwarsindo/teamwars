@@ -6,7 +6,8 @@ import { patchLogBidMessage } from '@/lib/discord/messages/log-bidding';
 
 export const dynamic = 'force-dynamic';
 
-const BID_DEADLINE_TIMESTAMP = 1786107600; // Sabtu, 8 Agustus 2026, 20:00 WIB
+// 🟢 PERBAIKAN TIMESTAMP: Sabtu, 8 Agustus 2026, 20:00:00 WIB (13:00 UTC)
+const BID_DEADLINE_TIMESTAMP = 1786069200;
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing BOT TOKEN or Channel Config' }, { status: 500 });
     }
 
-    // 1. AMBIL DATA UTUH DARI REDIS (KEY: twi_bidding_data)
+    // 1. AMBIL DATA UTUH DARI REDIS
     let biddingData: any = await kv.get('twi_bidding_data');
     if (typeof biddingData === 'string') {
       try { biddingData = JSON.parse(biddingData); } catch {}
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
       ? `💰 **${formatRupiah(Number(groupB.amount))}** oleh <@${groupB.userId}>`
       : `💰 **Rp 0** oleh _Belum ada_`;
 
-    // 2. CEK DAN HAPUS PESAN ANNOUNCEMENT LAMA DI CHANNEL #NEWS
+    // 2. HAPUS PESAN ANNOUNCEMENT LAMA DI CHANNEL #NEWS
     const oldNewsMsgId = (await kv.get<string>('twi_bid_announce_msg_id')) || (await kv.get<string>('twi:bid_announce_msg_id'));
     if (oldNewsMsgId) {
       await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages/${oldNewsMsgId}`, {
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
       }).catch(() => null);
     }
 
-    // 3. SUSUN EMBED PENGUMUMAN BARU UNTUK #NEWS
+    // 3. EMBED PENGUMUMAN BARU FOR #NEWS
     const newsEmbed = {
       title: '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7',
       description: `Bidding nama resmi divisi masih terbuka! Silakan lakukan penawaran di <#${bidChannelId}>.`,
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest) {
       timestamp: new Date().toISOString(),
     };
 
-    // 4. KIRIM PESAN PENGUMUMAN BARU KE #NEWS
+    // 4. KIRIM PESAN BARU KE #NEWS
     const newsRes = await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages`, {
       method: 'POST',
       headers: {
@@ -92,37 +93,43 @@ export async function GET(req: NextRequest) {
       }),
     });
 
-    const newsData = await newsRes.json();
+    // 🟢 SAFE PARSING JSON RESPON DISCORD
+    const newsText = await newsRes.text();
+    let newsData: any = {};
+    try {
+      newsData = JSON.parse(newsText);
+    } catch {
+      console.error('Response bukan JSON:', newsText);
+    }
 
     if (!newsRes.ok) {
       console.error('Gagal kirim pengumuman bidding ke #news:', newsData);
-      return NextResponse.json({ success: false, error: newsData }, { status: newsRes.status });
+      return NextResponse.json({ success: false, error: newsData || newsText }, { status: newsRes.status });
     }
 
-    // Simpan ID pesan pengumuman baru ke Redis
     if (newsData?.id) {
       await kv.set('twi_bid_announce_msg_id', newsData.id);
       await kv.set('twi:bid_announce_msg_id', newsData.id);
     }
 
-    // 5. EMBED UTAMA & LOG LEPAS UPDATE (#CH_BID)
+    // 5. EMBED UTAMA & LOG UPDATE
     const mainBidMsgId = (await kv.get<string>('twi_bid_msg_main_id')) || (await kv.get<string>('twi:bid_msg_main_id'));
     if (mainBidMsgId) {
-      await patchMainBidMessage(mainBidMsgId, biddingData, false, token);
+      await patchMainBidMessage(mainBidMsgId, biddingData, false, token).catch(() => null);
     }
 
     const logBidMsgId = (await kv.get<string>('twi_bid_msg_log_id')) || (await kv.get<string>('twi:bid_msg_log_id'));
     if (logBidMsgId) {
-      await patchLogBidMessage(logBidMsgId, biddingLogs, token);
+      await patchLogBidMessage(logBidMsgId, biddingLogs, token).catch(() => null);
     }
 
     return NextResponse.json({
       success: true,
       message: '✅ Pengumuman news berhasil diperbarui dan embed bidding/log ter-update!',
-      newsMessageId: newsData.id,
+      newsMessageId: newsData?.id,
     });
   } catch (error: any) {
     console.error('Error Bid Announce API:', error);
     return NextResponse.json({ success: false, error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
-        }
+      }
