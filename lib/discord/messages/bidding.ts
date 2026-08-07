@@ -5,10 +5,10 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-// 🟢 HELPER HITUNG SISA WAKTU MANUAL (WIB)
+// 🟢 HELPER HITUNG SISA WAKTU MANUAL (WIB / UTC+7)
 export function getRemainingTimeText(): { text: string; isClosed: boolean } {
-  // Target: Sabtu, 8 Agustus 2026, 20:00:00 WIB (UTC+7) -> 13:00:00 UTC
-  const targetTime = new Date('2026-08-08T20:00:00+07:00').getTime();
+  // Target: Sabtu, 8 Agustus 2026, 20:00:00 WIB (Setara 13:00:00 UTC)
+  const targetTime = new Date('2026-08-08T13:00:00.000Z').getTime();
   const now = Date.now();
   const diffMs = targetTime - now;
 
@@ -17,8 +17,8 @@ export function getRemainingTimeText(): { text: string; isClosed: boolean } {
   }
 
   const totalSeconds = Math.floor(diffMs / 1000);
-  const days = Math.floor(totalSeconds / (3600 * 24));
-  const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
 
   const parts: string[] = [];
@@ -59,18 +59,18 @@ export function buildMainBidEmbed(data: any, forceClosed: boolean = false) {
     color: isClosed ? 0xed4245 : 0xfee75c,
     fields: [
       {
-        name: `🥇 GROUP A ➔ "${nameA}"`,
+        name: `GROUP A ➔ "${nameA}"`,
         value: valA,
         inline: false,
       },
       {
-        name: `🥇 GROUP B ➔ "${nameB}"`,
+        name: `GROUP B ➔ "${nameB}"`,
         value: valB,
         inline: false,
       },
       {
-        name: `⏳ Sisa Waktu : ${remainingText}`,
-        value: 'Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
+        name: '⏳ Waktu Bidding',
+        value: `Sisa Waktu : ${remainingText}\nBatas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB`,
         inline: false,
       },
     ],
