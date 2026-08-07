@@ -68,8 +68,8 @@ export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
       inline: false,
     },
     {
-      name: '⏳ Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
-      value: isClosed ? '`Lelang Telah Resmi Ditutup`' : `Sisa Waktu : **${remainingText}**`,
+      name: 'Batas Bidding : Sabtu, 8 Aug 2026, 20:00 WIB',
+      value: isClosed ? '`Lelang Telah Resmi Ditutup`' : `⏳ Sisa Waktu : **${remainingText}**`,
       inline: false,
     },
   ];
@@ -97,7 +97,6 @@ export function buildBidEmbeds(data: any, forceClosed: boolean = false) {
         inline: false,
       },
     ],
-    timestamp: new Date().toISOString(),
   };
 
   return { mainEmbed, newsEmbed, isClosed };
