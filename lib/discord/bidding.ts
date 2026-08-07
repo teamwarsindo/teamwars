@@ -49,11 +49,11 @@ function makeEphemeralResponse(content: string) {
 export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   const isClosed = overrideStatus ? overrideStatus === 'closed' : !isBidOpen();
 
-  // 🟢 RESET DATA: Selalu mulai dengan data bersih (Group A & B null, logs kosong)
+  // 🟢 RESET DATA: Selalu mulai dengan data bersih
   const initialData: BidStore = { groupA: null, groupB: null, logs: [] };
 
-  // Dapatkan mainEmbed menggunakan helper terpusat yang baru
-  const { mainEmbed } = buildBidEmbeds(initialData, isClosed);
+  // Dapatkan mainEmbed dengan AWAIT
+  const { mainEmbed } = await buildBidEmbeds(initialData, isClosed);
   const logPayload = buildLogBidPayload(initialData.logs);
   const components = getBidButtons(isClosed);
 
@@ -72,7 +72,7 @@ export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   });
   const msgLog: any = await resLog.json();
 
-  // Simpan ID pesan baru & Overwrite data lama di KV dengan data bersih
+  // Simpan ID pesan baru & Overwrite data lama di KV
   await kv.set(KV_MSG_MAIN_KEY, msgMain.id);
   await kv.set(KV_MSG_LOG_KEY, msgLog.id);
   await kv.set(KV_BID_KEY, initialData); 
@@ -176,7 +176,7 @@ export async function processBidSubmission(interaction: any) {
   } else if (groupTarget === "B") {
     const minRequiredB = currentB === 0 ? 110000 : currentB + 10000;
     if (amountInput < minRequiredB) {
-      return makeEphemeralResponse(`❌ **Bid ditolak!** Group B saat ini **${formatRupiah(currentB === 0 ? 100000 : currentB)}**. Bid minimal kamu harus **${formatRupiah(minRequiredB)}**.`);
+      return makeEphemeralResponse(`❌ **Bid ditolak!** Group B saat meyakinkan saat ini **${formatRupiah(currentB === 0 ? 100000 : currentB)}**. Bid minimal kamu harus **${formatRupiah(minRequiredB)}**.`);
     }
   } 
 
@@ -195,7 +195,7 @@ export async function processBidSubmission(interaction: any) {
 
   await kv.set(KV_BID_KEY, data);
 
-  // 1. Sync / Update Tampilan Embed Utama di Discord Channel Bidding
+  // 1. Sync / Update Tampilan Embed Utama
   await syncBidMessages();
 
   // 🟢 2. NOTIFIKASI PING REAL-TIME KE CHANNEL LOG ADMIN (CH_LOG)
