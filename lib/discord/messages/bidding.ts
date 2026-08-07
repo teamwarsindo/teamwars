@@ -5,8 +5,8 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-// Timestamp Unix: Batas Bidding (Sabtu, 8 Agustus 2026 20:00:00 WIB = 1786107600)
-const BID_DEADLINE_TIMESTAMP = 1786107600;
+// 🟢 FIX TIMESTAMP: Sabtu, 8 Agustus 2026, 20:00:00 WIB
+const BID_DEADLINE_TIMESTAMP = 1786069200;
 
 export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
   const statusTitle = isClosed ? '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7 (DITUTUP)' : '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7';
@@ -70,8 +70,8 @@ export async function patchMainBidMessage(msgId: string, data: any, isClosed: bo
   });
 
   if (!res.ok) {
-    const err = await res.json();
-    console.error('Gagal update pesan utama Bidding:', err);
+    const errText = await res.text().catch(() => '');
+    console.error('Gagal update pesan utama Bidding:', res.status, errText);
   }
 
   return res.ok;
