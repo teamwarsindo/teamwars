@@ -326,23 +326,61 @@ export async function deleteMatchDiscordChannel(params: {
   return true;
 }
 
-// 📦 ARCHIVE MATCH DISCORD CHANNEL
-export async function archiveMatchDiscordChannel(channelId: string): Promise<boolean> {
-  if (!channelId) return false;
+// 📦 ARCHIVE MATCH DISCORD CHANNEL & REVOKE ROLES
+export async function archiveMatchDiscordChannel(params: {
+  matchId: string;
+  savedChannelId?: string;
+  refereeDiscordId?: string;
+  streamerDiscordId?: string;
+  roleAId?: string;
+  roleBId?: string;
+}): Promise<boolean> {
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+  const parentCategoryId = DISCORD_CONFIG.CT_MATCH_ID;
 
-  try {
-    const guildId = DISCORD_CONFIG.GUILD_ID;
-    
-    // Kunci channel agar tidak bisa dipakai berkirim pesan lagi
-    await discordAPI(`/channels/${channelId}/permissions/${guildId}`, 'PUT', {
-      type: 0,
-      allow: '1024', // View Channel
-      deny: '2048',  // Send Messages
-    });
+  if (!guildId) return false;
 
-    return true;
-  } catch (err) {
-    console.error(`Gagal mengarsipkan channel ${channelId}:`, err);
-    return false;
+  let targetChannelId = params.savedChannelId || null;
+
+  // 1. CARI CHANNEL JIKA SAVED CHANNEL ID TIDAK TERSEDIA
+  if (!targetChannelId) {
+    try {
+      const cleanMatchNum = params.matchId.replace('match-', '');
+      const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
+
+      if (Array.isArray(allGuildChannels)) {
+        const existingChannel = allGuildChannels.find(
+          (ch: any) => ch.parent_id === parentCategoryId && ch.name.includes(`-m${cleanMatchNum}-`)
+        );
+        if (existingChannel) targetChannelId = existingChannel.id;
+      }
+    } catch {
+      targetChannelId = null;
+    }
   }
+
+  // 2. KUNCI CHANNEL DISCORD (READ-ONLY UNTUK EVERYONE)
+  if (targetChannelId) {
+    try {
+      await discordAPI(`/channels/${targetChannelId}/permissions/${guildId}`, 'PUT', {
+        type: 0,
+        allow: '1024', // View Channel
+        deny: '2048',  // Send Messages (Locked)
+      });
+    } catch (err) {
+      console.error(`Gagal mengunci channel ${targetChannelId}:`, err);
+    }
+  }
+
+  // 3. REVOKE ROLE TIM DARI WASIT SAAT MATCH DI-ARCHIVE
+  if (isValidSnowflake(params.refereeDiscordId)) {
+    if (isValidSnowflake(params.roleAId)) {
+      await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleAId}`, 'DELETE').catch(() => null);
+    }
+    if (isValidSnowflake(params.roleBId)) {
+      await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleBId}`, 'DELETE').catch(() => null);
+    }
+  }
+
+  return true;
 }
