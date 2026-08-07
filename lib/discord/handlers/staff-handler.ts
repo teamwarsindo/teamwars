@@ -146,25 +146,48 @@ export async function handleStaffCommand(interaction: any) {
     const userId = options.find((o: any) => o.name === 'user')?.value;
     const matchId = options.find((o: any) => o.name === 'match')?.value;
 
-    // 🔄 1. ACTION: UPDATE (Sync Master Staf KV)
+    // 🔄 1. ACTION: UPDATE (Sync Master Staf KV) - Dengan Pagination Loop ALL Members
     if (action === 'update') {
       const guildId = DISCORD_CONFIG.GUILD_ID;
       if (!guildId) {
         return { type: 4, data: { content: '❌ Error: GUILD_ID belum dikonfigurasi!', flags: 64 } };
       }
 
-      const members = await discordAPI(`/guilds/${guildId}/members?limit=1000`, 'GET');
-      if (!Array.isArray(members)) {
+      // 📥 FETCH ALL MEMBERS WITH PAGINATION (Melompati limit 1000 Discord)
+      const allMembers: any[] = [];
+      let lastMemberId = '0';
+      let keepFetching = true;
+
+      while (keepFetching) {
+        const batch: any = await discordAPI(
+          `/guilds/${guildId}/members?limit=1000&after=${lastMemberId}`,
+          'GET'
+        );
+
+        if (Array.isArray(batch) && batch.length > 0) {
+          allMembers.push(...batch);
+          lastMemberId = batch[batch.length - 1].user.id;
+          
+          if (batch.length < 1000) {
+            keepFetching = false;
+          }
+        } else {
+          keepFetching = false;
+        }
+      }
+
+      if (allMembers.length === 0) {
         return { type: 4, data: { content: '❌ Gagal mengambil daftar member Discord!', flags: 64 } };
       }
 
       let updatedReferees = 0;
       let updatedStreamers = 0;
 
+      // ⚖️ SYNC REFEREE
       if (type === 'REFEREE' || type === 'BOTH' || !type) {
         const currentRefs = (await kv.get<StaffItem[]>('staff:referees')) || [];
         const newRefList: StaffItem[] = [];
-        for (const m of members) {
+        for (const m of allMembers) {
           if (m.roles?.includes(DISCORD_CONFIG.ROLE_REFEREE)) {
             const discordId = m.user.id;
             const discordName = m.nick || m.user.global_name || m.user.username;
@@ -181,10 +204,11 @@ export async function handleStaffCommand(interaction: any) {
         updatedReferees = newRefList.length;
       }
 
+      // 🎥 SYNC STREAMER
       if (type === 'STREAMER' || type === 'BOTH' || !type) {
         const currentStrs = (await kv.get<StaffItem[]>('staff:streamers')) || [];
         const newStrList: StaffItem[] = [];
-        for (const m of members) {
+        for (const m of allMembers) {
           if (m.roles?.includes(DISCORD_CONFIG.ROLE_STREAMER)) {
             const discordId = m.user.id;
             const discordName = m.nick || m.user.global_name || m.user.username;
@@ -204,7 +228,7 @@ export async function handleStaffCommand(interaction: any) {
       return {
         type: 4,
         data: {
-          content: `✅ Master list staf berhasil diperbarui! (${updatedReferees} Referee, ${updatedStreamers} Streamer)`,
+          content: `✅ Master list staf berhasil diperbarui dari total **${allMembers.length}** member! (${updatedReferees} Referee, ${updatedStreamers} Streamer)`,
           flags: 64,
         },
       };
