@@ -4,7 +4,7 @@ import { executeAssignStaff, executeUnassignStaff } from '@/lib/discord/services
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { matchId, action, unassignType, assignType, targetStaffId, reason } = body;
+    const { matchId, action, unassignType, assignType, targetStaffId, scoreA, scoreB } = body;
 
     if (!matchId) {
       return NextResponse.json({ error: 'Match ID wajib diisi' }, { status: 400 });
@@ -13,8 +13,9 @@ export async function POST(req: Request) {
     if (action === 'UNASSIGN') {
       const result = await executeUnassignStaff({
         matchId,
-        assignType: unassignType || 'REFEREE',
-        reason: reason || 'REPLACED',
+        assignType: unassignType || assignType || 'REFEREE',
+        scoreA: Number(scoreA ?? 0),
+        scoreB: Number(scoreB ?? 0),
       });
       return NextResponse.json({ success: true, message: `Unassign match ${matchId} berhasil!`, result });
     }
