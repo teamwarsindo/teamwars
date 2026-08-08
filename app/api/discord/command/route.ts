@@ -38,7 +38,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔴 2. UNASSIGN COMMAND (SKOR OPSIONAL UNTUK STREAMER)
+    // 🔴 2. UNASSIGN COMMAND
     {
       name: 'unassign',
       description: 'Selesaikan penugasan Referee/Streamer (Chief/Admin)',
@@ -199,6 +199,61 @@ export async function GET(req: Request) {
         },
       ],
     },
+
+    // 🔄 11. TRANSFER COMMAND
+    {
+      name: 'transfer',
+      description: 'Kelola transfer, penambahan, dan pembaruan roster tim',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'action',
+          description: 'Pilih aksi transfer',
+          required: true,
+          choices: [
+            { name: 'OUT (Keluarkan Pemain)', value: 'out' },
+            { name: 'ADD (Masukkan Pemain)', value: 'add' },
+            { name: 'EDIT-DL (Ganti ID Duel Links)', value: 'edit-dl' },
+            { name: 'SET-LEADER (Ganti Ketua/Wakil - Admin)', value: 'set-leader' },
+          ],
+        },
+        {
+          type: 6, // USER
+          name: 'user',
+          description: 'Tag User Discord (Untuk ADD/SET-LEADER) atau Pilih dari Autocomplete (Untuk OUT/EDIT-DL)',
+          required: false,
+          autocomplete: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'ign',
+          description: 'Masukkan IGN Pemain (Wajib untuk ADD)',
+          required: false,
+        },
+        {
+          type: 3, // STRING
+          name: 'id_dl',
+          description: 'Masukkan ID Duel Links (Wajib untuk ADD)',
+          required: false,
+        },
+        {
+          type: 3, // STRING
+          name: 'new_id_dl',
+          description: 'Masukkan ID Duel Links Baru (Wajib untuk EDIT-DL)',
+          required: false,
+        },
+        {
+          type: 3, // STRING
+          name: 'position',
+          description: 'Pilih Posisi Baru (Khusus SET-LEADER)',
+          required: false,
+          choices: [
+            { name: 'Ketua', value: 'Ketua' },
+            { name: 'Wakil Ketua', value: 'Wakil Ketua' },
+          ],
+        },
+      ],
+    },
   ];
 
   const slashResult = await discordAPI(`/applications/${appId}/commands`, 'PUT', commands);
@@ -211,4 +266,4 @@ export async function GET(req: Request) {
   } else {
     return NextResponse.json({ error: '❌ Gagal mendaftarkan commands' }, { status: 500 });
   }
-          }
+}

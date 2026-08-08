@@ -14,8 +14,9 @@ import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
 import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
+import { handleTransferCommand, handleTransferAutocomplete } from '@/lib/discord/commands/transfer';
 
-// Assign & Unassign Handlers (Pecahan File Baru)
+// Assign & Unassign Handlers
 import { handleAssignAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
 import { handleAssignCommand } from '@/lib/discord/handlers/assign-handler';
 import { handleUnassignCommand } from '@/lib/discord/handlers/unassign-handler';
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     const body = JSON.parse(rawBody);
 
-    // 2. PING TEST DARI DISCORD PORTAL (Type 1 - Wajib HTTP 200 JSON Eksplisit)
+    // 2. PING TEST DARI DISCORD PORTAL (Type 1)
     if (body.type === 1) {
       return new NextResponse(JSON.stringify({ type: 1 }), {
         status: 200,
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
       const commandName = body.data.name;
       if (commandName === 'assign') return NextResponse.json(await handleAssignCommand(body));
       if (commandName === 'unassign') return NextResponse.json(await handleUnassignCommand(body));
+      if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body); 
@@ -207,6 +209,10 @@ export async function POST(req: NextRequest) {
         const autocompleteResponse = await handleAssignAutocomplete(body);
         return NextResponse.json(autocompleteResponse);
       }
+      if (body.data?.name === 'transfer') {
+        const autocompleteResponse = await handleTransferAutocomplete(body);
+        return NextResponse.json(autocompleteResponse);
+      }
     }
 
     // 📝 Modal Submit Interactions (Type 5)
@@ -224,4 +230,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-    }
+}
