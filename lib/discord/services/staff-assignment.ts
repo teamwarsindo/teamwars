@@ -141,7 +141,7 @@ export async function executeAssignStaff(params: {
     }
   }
 
-  // 🎯 Update Opening Embed di Channel Pertandingan (SUDAH DI-UPDATE MENGGUNAKAN teamAEmoji & teamBEmoji)
+  // Update Opening Embed di Channel Pertandingan
   if ((match as any).discordChannelId) {
     const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
       channelId: (match as any).discordChannelId,
@@ -263,7 +263,7 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // 2. HANYA REFEREE: Update Opening Embed di Match Channel (DENGAN teamAEmoji & teamBEmoji)
+  // 2. HANYA REFEREE: Update Opening Embed di Match Channel
   if (assignType === 'REFEREE') {
     (match as any).scoreA = scoreA;
     (match as any).scoreB = scoreB;
@@ -339,10 +339,19 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // 5. Simpan Schedule & Lepas Staff History
+  // 5. Reset ID Discord dari objek match agar tidak dianggap busy
+  // Namun TETAP MEMBIARKAN match.referee / match.streamer (nama) untuk match report
+  if (assignType === 'REFEREE') {
+    match.refereeDiscordId = undefined;
+  } else {
+    match.streamerDiscordId = undefined;
+    match.casterDiscordId = undefined;
+  }
+
+  // Simpan Schedule & Lepas Staff History
   await updateStaffHistory(assignType, targetStaffId, match.id, 'REMOVE');
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
   return { match, targetStaffName, targetStaffId };
-        }
+}
