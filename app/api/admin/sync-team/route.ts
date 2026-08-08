@@ -12,6 +12,7 @@ export interface PlayerItem {
 }
 
 export interface TeamKVData {
+  [key: string]: any; // 👈 Tambahkan baris ini untuk mengatasi error Type Check
   namaTim?: string;
   players?: string | PlayerItem[];
 }
