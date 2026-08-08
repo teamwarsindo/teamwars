@@ -1,5 +1,9 @@
 import nacl from 'tweetnacl';
 
+export function isValidSnowflake(id?: string): boolean {
+  return !!id && /^\d{17,20}$/.test(id);
+}
+
 export async function discordAPI(endpoint: string, method: string, body?: any) {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) {
@@ -28,11 +32,10 @@ export async function discordAPI(endpoint: string, method: string, body?: any) {
     if (!res.ok) {
       const errorText = await res.text();
       console.error(`❌ Discord API Error [${res.status}] ${method} ${endpoint}:`, errorText);
-      return null; // Return null agar backend tidak crash
+      return null;
     }
-    
-    // Jika 204 No Content (Sukses Hapus Pesan)
-    if (res.status === 204) return true; 
+
+    if (res.status === 204) return true;
     return await res.json();
   } catch (err) {
     console.error(`❌ Error API Discord [${method} ${endpoint}]:`, err);
@@ -87,4 +90,4 @@ export function getFooterText(createdAt?: string, updatedAt?: string) {
 export function hexToDecimal(hexString: string, fallbackColor = 11146056): number {
   if (!hexString) return fallbackColor;
   return parseInt(hexString.replace('#', ''), 16) || fallbackColor;
-      }
+}
