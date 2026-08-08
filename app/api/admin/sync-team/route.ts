@@ -1,112 +1,98 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/lib/types/tournament';
-import { createMatchDiscordChannel } from '@/lib/discord/channels';
-import { sendOrUpdateScheduleEmbed } from '@/lib/discord/messages/schedule';
 
-function getTeamSlug(teamName: string) {
-  return teamName
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '');
+export interface PlayerItem {
+  role?: string;
+  namaLengkap?: string;
+  discord?: string;
+  discordId?: string;
+  ign?: string;
+  idDuelLinks?: string;
+  duelId?: string;
 }
 
-export async function POST(req: Request) {
+export interface TeamKVData {
+  namaTim?: string;
+  players?: string | PlayerItem[];
+}
+
+function parsePlayers(playersData: string | PlayerItem[] | undefined): PlayerItem[] {
+  if (!playersData) return [];
+  if (Array.isArray(playersData)) return playersData;
   try {
-    const body = await req.json().catch(() => ({}));
-    const { matchId } = body;
+    return JSON.parse(playersData);
+  } catch {
+    return [];
+  }
+}
 
-    if (!matchId) {
-      return NextResponse.json({ error: 'Match ID wajib diisi' }, { status: 400 });
+export async function POST() {
+  try {
+    // 1. Ambil daftar semua teamSlug dari global:teams Set/List
+    const teamSlugs = (await kv.smembers('global:teams')) || [];
+
+    if (!teamSlugs || teamSlugs.length === 0) {
+      return NextResponse.json({ message: 'Tidak ada tim terdaftar di global:teams' }, { status: 200 });
     }
 
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const matchIndex = schedules.findIndex((m) => m.id === matchId);
-
-    if (matchIndex === -1) {
-      return NextResponse.json({ error: 'Match tidak ditemukan di Redis' }, { status: 404 });
-    }
-
-    const match = schedules[matchIndex];
-
-    // 1. CARI DATA TIM (DENGAN FALLBACK KEY REDIS)
-    const slugA = getTeamSlug(match.teamAName);
-    const slugB = getTeamSlug(match.teamBName);
-
-    const [teamA, teamB] = await Promise.all([
-      kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
-      kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
+    // 2. Hapus Key Global Set lama (1x Reset untuk mengganti tipe data ke Hash)
+    await Promise.all([
+      kv.del('global:ign'),
+      kv.del('global:duellinks'),
+      kv.del('global:discord'),
+      kv.del('global:discord_ids'),
     ]);
 
-    const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || '';
-    const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || '';
-    const emojiAId = teamA?.discordEmojiId || teamA?.emojiId || '';
-    const emojiBId = teamB?.discordEmojiId || teamB?.emojiId || '';
-    const roleAId = teamA?.discordRoleId || teamA?.roleId || '';
-    const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
+    let totalPlayersMigrated = 0;
+    let totalTeamsProcessed = 0;
 
-    const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
+    // 3. Loop setiap tim dan susun ulang objek Hash
+    for (const teamSlug of teamSlugs) {
+      const teamData = await kv.hgetall<TeamKVData>(`teams:${teamSlug}`);
+      if (!teamData) continue;
 
-    // 2. CREATE / SYNC CHANNEL MATCH PRIVAT & OPENING EMBED
-    const syncResult = await createMatchDiscordChannel({
-      matchId: match.id,
-      groupName: match.groupName,
-      teamAName: match.teamAName,
-      teamBName: match.teamBName,
-      kodeTimA,
-      kodeTimB,
-      emojiAId,
-      emojiBId,
-      weekName: calculatedWeek,
-      roleAId,
-      roleBId,
-      refereeName: match.referee,
-      refereeDiscordId: match.refereeDiscordId,
-      streamerName: match.caster || match.streamer,
-      streamerDiscordId: match.streamerDiscordId || match.casterDiscordId,
-      streamLink: match.streamLink,
-      matchDateIso: match.matchDate,
-      savedChannelId: (match as any).discordChannelId,
-      openingMsgId: (match as any).openingMsgId,
-    });
+      const players = parsePlayers(teamData.players);
+      if (players.length === 0) continue;
 
-    if (syncResult.channelId) (match as any).discordChannelId = syncResult.channelId;
-    if (syncResult.openingMsgId) (match as any).openingMsgId = syncResult.openingMsgId;
+      totalTeamsProcessed++;
 
-    // 3. UPDATE SCHEDULE EMBED DI CHANNEL PUBLIK (#schedule)
-    const scheduleMsgId = await sendOrUpdateScheduleEmbed({
-      groupName: match.groupName,
-      weekName: calculatedWeek,
-      teamAName: match.teamAName,
-      teamBName: match.teamBName,
-      kodeTimA,
-      kodeTimB,
-      emojiAId,
-      emojiBId,
-      matchDateIso: match.matchDate,
-      existingMsgId: (match as any).scheduleMsgId,
-    });
+      for (const player of players) {
+        const ign = (player.ign || '').trim().toLowerCase();
+        const rawDl = player.idDuelLinks || player.duelId || '';
+        const cleanDl = rawDl.trim();
+        const discordUser = (player.discord || '').trim().toLowerCase();
+        const discordId = (player.discordId || '').trim();
 
-    if (scheduleMsgId) {
-      (match as any).scheduleMsgId = scheduleMsgId;
+        const updates: Promise<any>[] = [];
+
+        if (ign) {
+          updates.push(kv.hset('global:ign', { [ign]: teamSlug }));
+        }
+        if (cleanDl) {
+          updates.push(kv.hset('global:duellinks', { [cleanDl]: teamSlug }));
+        }
+        if (discordUser) {
+          updates.push(kv.hset('global:discord', { [discordUser]: teamSlug }));
+        }
+        if (discordId) {
+          updates.push(kv.hset('global:discord_ids', { [discordId]: teamSlug }));
+        }
+
+        await Promise.all(updates);
+        totalPlayersMigrated++;
+      }
     }
-
-    // 4. SIMPAN DATA UPDATED CHANNEL & MESSAGE ID KE KV REDIS
-    schedules[matchIndex] = match;
-    await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      message: `Match ${match.id} berhasil di-sync ke Discord!`,
-      channelId: (match as any).discordChannelId,
-      openingMsgId: (match as any).openingMsgId,
-      scheduleMsgId: (match as any).scheduleMsgId,
+      message: '✅ Migrasi data Redis Global ke Hash berhasil dilakukan!',
+      stats: {
+        totalTeamsProcessed,
+        totalPlayersMigrated,
+      },
     });
-  } catch (error) {
-    console.error('Error Syncing Discord Channel:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+  } catch (error: any) {
+    console.error('Error Syncing Global Hash:', error);
+    return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
 }
-  
