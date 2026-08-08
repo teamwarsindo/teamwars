@@ -184,10 +184,10 @@ export async function executeAssignStaff(params: {
 export async function executeUnassignStaff(params: {
   matchId: string;
   assignType: 'REFEREE' | 'STREAMER';
-  scoreA: number;
-  scoreB: number;
+  scoreA?: number;
+  scoreB?: number;
 }) {
-  const { matchId, assignType, scoreA, scoreB } = params;
+  const { matchId, assignType, scoreA = 0, scoreB = 0 } = params;
 
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
   const idx = schedules.findIndex((m) => m.id === matchId);
@@ -234,37 +234,43 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // 2. Render Ulang Opening Embed Match (COMPLETED)
-  if ((match as any).discordChannelId) {
-    const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
-      channelId: (match as any).discordChannelId,
-      matchId: match.id,
-      groupName: match.groupName,
-      teamAName: match.teamAName,
-      teamBName: match.teamBName,
-      kodeTimA,
-      kodeTimB,
-      emojiAId,
-      emojiBId,
-      roleAId,
-      roleBId,
-      weekName: calculatedWeek,
-      matchDateIso: match.matchDate,
-      refereeName: match.referee,
-      refereeDiscordId: match.refereeDiscordId,
-      streamerName: match.streamer || match.caster,
-      streamerDiscordId: match.streamerDiscordId || match.casterDiscordId,
-      streamLink: match.streamLink,
-      existingMsgId: (match as any).openingMsgId,
-      isCompleted: true,
-      scoreA,
-      scoreB,
-    });
+  // 2. KONDISIONAL REFEREE: Render Ulang Opening Embed Match (HANYA JIKA REFEREE)
+  if (assignType === 'REFEREE') {
+    (match as any).scoreA = scoreA;
+    (match as any).scoreB = scoreB;
+    (match as any).isCompleted = true;
 
-    if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
+    if ((match as any).discordChannelId) {
+      const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
+        channelId: (match as any).discordChannelId,
+        matchId: match.id,
+        groupName: match.groupName,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        kodeTimA,
+        kodeTimB,
+        emojiAId,
+        emojiBId,
+        roleAId,
+        roleBId,
+        weekName: calculatedWeek,
+        matchDateIso: match.matchDate,
+        refereeName: match.referee,
+        refereeDiscordId: match.refereeDiscordId,
+        streamerName: match.streamer || match.caster,
+        streamerDiscordId: match.streamerDiscordId || match.casterDiscordId,
+        streamLink: match.streamLink,
+        existingMsgId: (match as any).openingMsgId,
+        isCompleted: true,
+        scoreA,
+        scoreB,
+      });
+
+      if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
+    }
   }
 
-  // 3. Send Reply Log ke #CH_ASSIGN
+  // 3. Send Reply Log ke #CH_ASSIGN (Berlaku untuk Referee & Streamer)
   const chAssign = DISCORD_CONFIG.CH_ASSIGN;
   const targetLogMsgId = assignType === 'REFEREE' ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId;
 
@@ -287,25 +293,23 @@ export async function executeUnassignStaff(params: {
     });
   }
 
-  // 4. Send Embed Score Simpel ke #CH_LOG / #CH_SCORE
-  const chLog = DISCORD_CONFIG.CH_LOG;
-  if (chLog) {
-    await sendOfficialScoreLog({
-      channelId: chLog,
-      teamAName: match.teamAName,
-      teamBName: match.teamBName,
-      teamAEmoji: emojiAId ? `<:${match.teamAName}:${emojiAId}>` : undefined,
-      teamBEmoji: emojiBId ? `<:${match.teamBName}:${emojiBId}>` : undefined,
-      scoreA,
-      scoreB,
-    });
+  // 4. KONDISIONAL REFEREE: Send Embed Score ke #CH_LOG / #CH_SCORE (HANYA JIKA REFEREE)
+  if (assignType === 'REFEREE') {
+    const chLog = DISCORD_CONFIG.CH_LOG;
+    if (chLog) {
+      await sendOfficialScoreLog({
+        channelId: chLog,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        teamAEmoji: emojiAId ? `<:${match.teamAName}:${emojiAId}>` : undefined,
+        teamBEmoji: emojiBId ? `<:${match.teamBName}:${emojiBId}>` : undefined,
+        scoreA,
+        scoreB,
+      });
+    }
   }
 
   // 5. Simpan Hasil Akhir ke Schedule & Lepas Busy Lock Staf
-  (match as any).scoreA = scoreA;
-  (match as any).scoreB = scoreB;
-  (match as any).isCompleted = true;
-
   await updateStaffHistory(assignType, targetStaffId, match.id, 'REMOVE');
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);

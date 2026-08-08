@@ -11,11 +11,12 @@ export async function POST(req: Request) {
     }
 
     if (action === 'UNASSIGN') {
+      const type = unassignType || assignType || 'REFEREE';
       const result = await executeUnassignStaff({
         matchId,
-        assignType: unassignType || assignType || 'REFEREE',
-        scoreA: Number(scoreA ?? 0),
-        scoreB: Number(scoreB ?? 0),
+        assignType: type,
+        scoreA: scoreA !== undefined ? Number(scoreA) : 0,
+        scoreB: scoreB !== undefined ? Number(scoreB) : 0,
       });
       return NextResponse.json({ success: true, message: `Unassign match ${matchId} berhasil!`, result });
     }

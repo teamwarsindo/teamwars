@@ -38,10 +38,10 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔴 2. UNASSIGN COMMAND (INPUT SKOR)
+    // 🔴 2. UNASSIGN COMMAND (SKOR OPSIONAL UNTUK STREAMER)
     {
       name: 'unassign',
-      description: 'Selesaikan penugasan Referee/Streamer & simpan skor akhir (Chief/Admin)',
+      description: 'Selesaikan penugasan Referee/Streamer (Chief/Admin)',
       options: [
         {
           type: 3,
@@ -56,21 +56,21 @@ export async function GET(req: Request) {
           description: 'Pilih peran yang selesai',
           required: true,
           choices: [
-            { name: '⚖️ Referee', value: 'REFEREE' },
-            { name: '🎥 Streamer', value: 'STREAMER' },
+            { name: '⚖️ Referee (Wajib isi Skor)', value: 'REFEREE' },
+            { name: '🎥 Streamer (Opsional Skor)', value: 'STREAMER' },
           ],
         },
         {
-          type: 4,
+          type: 4, // INTEGER
           name: 'score_a',
-          description: 'Masukkan Skor Tim A',
-          required: true,
+          description: 'Masukkan Skor Tim A (Wajib untuk Referee)',
+          required: false,
         },
         {
-          type: 4,
+          type: 4, // INTEGER
           name: 'score_b',
-          description: 'Masukkan Skor Tim B',
-          required: true,
+          description: 'Masukkan Skor Tim B (Wajib untuk Referee)',
+          required: false,
         },
       ],
     },

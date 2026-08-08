@@ -20,12 +20,23 @@ export async function handleUnassignCommand(interaction: any) {
   const opts = interaction.data?.options || [];
   const matchId = opts.find((o: any) => o.name === 'match')?.value;
   const assignType = opts.find((o: any) => o.name === 'type')?.value as 'REFEREE' | 'STREAMER';
-  const scoreA = parseInt(opts.find((o: any) => o.name === 'score_a')?.value, 10);
-  const scoreB = parseInt(opts.find((o: any) => o.name === 'score_b')?.value, 10);
+  const scoreAOpt = opts.find((o: any) => o.name === 'score_a')?.value;
+  const scoreBOpt = opts.find((o: any) => o.name === 'score_b')?.value;
 
-  if (!matchId || !assignType || isNaN(scoreA) || isNaN(scoreB)) {
-    return { type: 4, data: { content: '❌ Option `match`, `type`, `score_a`, dan `score_b` wajib diisi!', flags: 64 } };
+  if (!matchId || !assignType) {
+    return { type: 4, data: { content: '❌ Option `match` dan `type` wajib diisi!', flags: 64 } };
   }
+
+  // Validasi: Referee WAJIB mengisi skor
+  if (assignType === 'REFEREE' && (scoreAOpt === undefined || scoreBOpt === undefined)) {
+    return {
+      type: 4,
+      data: { content: '❌ Unassign Referee WAJIB mengisi `score_a` dan `score_b`!', flags: 64 },
+    };
+  }
+
+  const scoreA = scoreAOpt !== undefined ? parseInt(scoreAOpt, 10) : 0;
+  const scoreB = scoreBOpt !== undefined ? parseInt(scoreBOpt, 10) : 0;
 
   try {
     const roleTitle = assignType === 'REFEREE' ? 'Referee' : 'Streamer';
@@ -36,10 +47,12 @@ export async function handleUnassignCommand(interaction: any) {
       scoreB,
     });
 
+    const extraMsg = assignType === 'REFEREE' ? `\n🏆 Skor Akhir: **${scoreA} - ${scoreB}** (Score terkirim ke #CH_SCORE)` : '';
+
     return {
       type: 4,
       data: {
-        content: `✅ **Unassign Berhasil!** Tugas **${targetStaffName}** sebagai **${roleTitle}** pada match **${match.id}** telah Selesai.\n🏆 Skor Akhir: **${scoreA} - ${scoreB}**\nRole Discord telah dibersihkan dan pengumuman skor resmi telah terkirim!`,
+        content: `✅ **Unassign Berhasil!** Tugas **${targetStaffName}** sebagai **${roleTitle}** pada match **${match.id}** telah Selesai.${extraMsg}\nRole/Akses Discord telah dibersihkan!`,
         flags: 64,
       },
     };
