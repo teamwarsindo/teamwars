@@ -15,6 +15,7 @@ export interface PlayerItem {
 }
 
 export interface TeamKVData {
+  [key: string]: any; // 👈 Tambahkan baris ini
   namaTim: string;
   warna: string;
   logoTim?: string;
