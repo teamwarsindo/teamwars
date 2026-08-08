@@ -37,14 +37,13 @@ export async function POST() {
 
 async function handleSync() {
   try {
-    // 1. Ambil daftar semua teamSlug dari global:teams Set/List
     const teamSlugs = (await kv.smembers('global:teams')) || [];
 
     if (!teamSlugs || teamSlugs.length === 0) {
       return NextResponse.json({ message: 'Tidak ada tim terdaftar di global:teams' }, { status: 200 });
     }
 
-    // 2. Hapus Key Global Set lama (1x Reset untuk mengganti tipe data ke Hash)
+    // Reset key global
     await Promise.all([
       kv.del('global:ign'),
       kv.del('global:duellinks'),
@@ -55,7 +54,6 @@ async function handleSync() {
     let totalPlayersMigrated = 0;
     let totalTeamsProcessed = 0;
 
-    // 3. Loop setiap tim dan susun ulang objek Hash
     for (const teamSlug of teamSlugs) {
       const teamData = await kv.hgetall<TeamKVData>(`teams:${teamSlug}`);
       if (!teamData) continue;
@@ -66,16 +64,16 @@ async function handleSync() {
       totalTeamsProcessed++;
 
       for (const player of players) {
-        const ign = (player.ign || '').trim().toLowerCase();
+        const rawIgn = (player.ign || '').trim(); // 👈 SIMPAN CASING ASLI
         const rawDl = player.idDuelLinks || player.duelId || '';
         const cleanDl = rawDl.trim();
-        const discordUser = (player.discord || '').trim().toLowerCase();
+        const discordUser = (player.discord || '').trim(); // 👈 SIMPAN CASING ASLI
         const discordId = (player.discordId || '').trim();
 
         const updates: Promise<any>[] = [];
 
-        if (ign) {
-          updates.push(kv.hset('global:ign', { [ign]: teamSlug }));
+        if (rawIgn) {
+          updates.push(kv.hset('global:ign', { [rawIgn]: teamSlug }));
         }
         if (cleanDl) {
           updates.push(kv.hset('global:duellinks', { [cleanDl]: teamSlug }));
@@ -94,7 +92,7 @@ async function handleSync() {
 
     return NextResponse.json({
       success: true,
-      message: '✅ Migrasi data Redis Global ke Hash berhasil dilakukan!',
+      message: '✅ Migrasi data Redis Global ke Hash berhasil dilakukan (Casing Asli)!',
       stats: {
         totalTeamsProcessed,
         totalPlayersMigrated,
