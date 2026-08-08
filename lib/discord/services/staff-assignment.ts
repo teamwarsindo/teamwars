@@ -1,12 +1,19 @@
 import { kv } from '@vercel/kv';
+import { MatchScheduleItem } from '@/lib/types/tournament';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, isValidSnowflake } from '@/lib/discord/utils';
+import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
+import {
+  sendOrUpdateRefereeAssignmentLog,
+  sendOrUpdateStreamerAssignmentLog,
+  sendCompletedAssignmentLog,
+  sendOfficialScoreLog,
+} from '@/lib/discord/messages/assignment-log';
 
 export interface StaffItem {
   discordId: string;
   discordName: string;
   assignMatch?: string[];
-  historyMatch?: string[];
 }
 
 function getTeamSlug(teamName: string) {
@@ -18,104 +25,76 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
+/**
+ * Helper Resolusi Tag Emoji dari KV Store TWI
+ */
 function resolveTeamEmoji(teamData: any): string | undefined {
   if (!teamData) return undefined;
+
+  // 1. Jika di KV tersimpan tag utuh Discord (<:name:id>)
   const directTag = teamData.discordEmoji || teamData.emojiTag || teamData.emoji;
   if (typeof directTag === 'string' && directTag.startsWith('<:') && directTag.endsWith('>')) {
     return directTag;
   }
+
+  // 2. Jika di KV tersimpan ID emoji tersendiri
   const emojiId = teamData.discordEmojiId || teamData.emojiId;
   if (emojiId) {
     const rawCode = teamData.kodeTim || teamData.abbreviation || teamData.tag || 'team';
     const cleanName = rawCode.replace(/\s+/g, '');
     return `<:${cleanName}:${emojiId}>`;
   }
+
   return undefined;
 }
 
-function formatWIBDate(dateIso?: string): string {
-  if (!dateIso) return 'Belum tersedia';
-  const d = new Date(dateIso);
-  return (
-    d.toLocaleDateString('id-ID', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }) +
-    ' at ' +
-    d
-      .toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Jakarta',
-      })
-      .replace('.', ':') +
-    ' WIB'
-  );
+/**
+ * Helper Update Riwayat Penugasan Staff di KV Store
+ */
+async function updateStaffHistory(
+  type: 'REFEREE' | 'STREAMER',
+  staffId: string,
+  matchId: string,
+  action: 'ADD' | 'REMOVE'
+) {
+  const kvKey = type === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
+  const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
+  const idx = staffList.findIndex((s) => s.discordId === staffId);
+
+  if (idx !== -1) {
+    const history = new Set(staffList[idx].assignMatch || []);
+    if (action === 'ADD') {
+      history.add(matchId);
+    } else {
+      history.delete(matchId);
+    }
+    staffList[idx].assignMatch = Array.from(history);
+    await kv.set(kvKey, staffList);
+  }
 }
 
+/**
+ * EXECUTE ASSIGN STAFF (/assign)
+ */
 export async function executeAssignStaff(params: {
   matchId: string;
-  assignType: 'referee' | 'streamer';
+  assignType: 'REFEREE' | 'STREAMER';
   targetStaffId: string;
 }) {
   const { matchId, assignType, targetStaffId } = params;
 
-  const schedules = (await kv.get<any[]>('twi:schedules')) || [];
+  const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
   const idx = schedules.findIndex((m) => m.id === matchId);
-  if (idx === -1) throw new Error('Pertandingan tidak ditemukan di Redis KV.');
+  if (idx === -1) throw new Error('Match tidak ditemukan di Redis KV');
 
   const match = schedules[idx];
 
-  // 🛡️ GUARD 1: Cek apakah role sudah terisi di match
-  if (assignType === 'referee' && match.refereeDiscordId) {
-    throw new Error(`Match ini sudah memiliki Referee (<@${match.refereeDiscordId}>)! Lakukan /unassign terlebih dahulu.`);
-  }
-  if (assignType === 'streamer' && match.streamerDiscordId) {
-    throw new Error(`Match ini sudah memiliki Streamer (<@${match.streamerDiscordId}>)! Lakukan /unassign terlebih dahulu.`);
-  }
-
-  // 🛡️ GUARD 2: Cek apakah staff sedang sibuk di match lain
-  const staffKey = assignType === 'streamer' ? 'staff:streamers' : 'staff:referees';
-  const staffList = (await kv.get<StaffItem[]>(staffKey)) || [];
+  const kvKey = assignType === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
+  const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
   const staffObj = staffList.find((s) => s.discordId === targetStaffId);
   const staffName = staffObj?.discordName || `<@${targetStaffId}>`;
 
-  if (staffObj && staffObj.assignMatch && staffObj.assignMatch.length > 0) {
-    throw new Error(`Staff <@${targetStaffId}> sedang bertugas aktif di match lain! Selesaikan tugasnya terlebih dahulu.`);
-  }
-
-  const slugA = getTeamSlug(match.teamAName);
-  const slugB = getTeamSlug(match.teamBName);
-  const [teamA, teamB] = await Promise.all([
-    kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
-    kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
-  ]);
-
-  const roleAId = teamA?.discordRoleId || teamA?.roleId || '';
-  const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
-  const teamAEmoji = resolveTeamEmoji(teamA);
-  const teamBEmoji = resolveTeamEmoji(teamB);
-  const calculatedWeek = match.weekName || `Week ${match.calculatedWeekNumber || 1}`;
-  const guildId = DISCORD_CONFIG.GUILD_ID;
-
-  // Berikan akses Discord
-  if (guildId && isValidSnowflake(targetStaffId)) {
-    if (assignType === 'referee') {
-      if (isValidSnowflake(roleAId)) await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleAId}`, 'PUT').catch(() => null);
-      if (isValidSnowflake(roleBId)) await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleBId}`, 'PUT').catch(() => null);
-    } else if (match.discordChannelId) {
-      await discordAPI(`/channels/${match.discordChannelId}/permissions/${targetStaffId}`, 'PUT', {
-        type: 1,
-        allow: '66560',
-        deny: '0',
-      }).catch(() => null);
-    }
-  }
-
-  if (assignType === 'referee') {
+  if (assignType === 'REFEREE') {
     match.referee = staffName;
     match.refereeDiscordId = targetStaffId;
   } else {
@@ -123,217 +102,247 @@ export async function executeAssignStaff(params: {
     match.streamerDiscordId = match.casterDiscordId = targetStaffId;
   }
 
-  // Update assignMatch staff (status sibuk)
-  const staffIdx = staffList.findIndex((s) => s.discordId === targetStaffId);
-  if (staffIdx !== -1) {
-    staffList[staffIdx].assignMatch = Array.from(new Set([...(staffList[staffIdx].assignMatch || []), match.id]));
-  } else {
-    staffList.push({ discordId: targetStaffId, discordName: staffName, assignMatch: [match.id], historyMatch: [] });
-  }
-  await kv.set(staffKey, staffList);
+  const slugA = getTeamSlug(match.teamAName);
+  const slugB = getTeamSlug(match.teamBName);
 
-  schedules[idx] = match;
-  await kv.set('twi:schedules', schedules);
+  // Fetch KV Tim
+  const [teamA, teamB] = await Promise.all([
+    kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
+    kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
+  ]);
 
-  // 📺 OPENING EMBED: DELETE & POST BARU (TANPA MENTION TIM KARENA INI UPDATE STAFF)
-  if (match.discordChannelId) {
-    if (match.openingMsgId) {
-      await discordAPI(`/channels/${match.discordChannelId}/messages/${match.openingMsgId}`, 'DELETE').catch(() => null);
+  const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || slugA.toUpperCase();
+  const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || slugB.toUpperCase();
+  const roleAId = teamA?.discordRoleId || teamA?.roleId || '';
+  const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
+  const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
+
+  // Resolusi string Tag Emoji Resmi dari KV
+  const teamAEmoji = resolveTeamEmoji(teamA);
+  const teamBEmoji = resolveTeamEmoji(teamB);
+
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+
+  if (guildId && isValidSnowflake(targetStaffId)) {
+    if (assignType === 'REFEREE') {
+      if (isValidSnowflake(roleAId)) {
+        await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleAId}`, 'PUT').catch(() => null);
+      }
+      if (isValidSnowflake(roleBId)) {
+        await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleBId}`, 'PUT').catch(() => null);
+      }
     }
-
-    const roleAStr = roleAId ? `<@&${roleAId}>` : `**${match.teamAName}**`;
-    const roleBStr = roleBId ? `<@&${roleBId}>` : `**${match.teamBName}**`;
-    const teamADisp = `${teamAEmoji ? teamAEmoji + ' ' : ''}${roleAStr}`;
-    const teamBDisp = `${teamBEmoji ? teamBEmoji + ' ' : ''}${roleBStr}`;
-
-    const openingPayload = {
-      content: '', // Kosong tanpa tag tim saat update staff
-      embeds: [
-        {
-          title: '⚔️ Pertandingan Dimulai!',
-          description: `**${match.groupName || 'Group Stage'}** • **${calculatedWeek}**\n\n${teamADisp} **VS** ${teamBDisp}`,
-          color: 0xf1c40f,
-          fields: [
-            { name: '⚖️ Referee', value: match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : 'Belum tersedia', inline: true },
-            { name: '🎥 Streamer', value: match.streamerDiscordId ? `<@${match.streamerDiscordId}>` : 'Belum tersedia', inline: true },
-            { name: '📅 Waktu Match', value: formatWIBDate(match.matchDate), inline: false },
-            ...(match.streamLink ? [{ name: '📺 Link Streaming', value: match.streamLink, inline: false }] : []),
-          ],
-          footer: { text: `Match ID: ${match.id} • Team Wars Indonesia Season 7` },
-        },
-      ],
-    };
-
-    const newOpenRes = await discordAPI(`/channels/${match.discordChannelId}/messages`, 'POST', openingPayload).catch(() => null);
-    if (newOpenRes?.id) {
-      match.openingMsgId = newOpenRes.id;
+    if (assignType === 'STREAMER' && (match as any).discordChannelId) {
+      await discordAPI(`/channels/${(match as any).discordChannelId}/permissions/${targetStaffId}`, 'PUT', {
+        type: 1,
+        allow: '66560',
+        deny: '0',
+      }).catch(() => null);
     }
   }
 
-  // 📋 LOG PENUGASAN KE `#CH_ASSIGN` (REPLY KE LOG LAMA JIKA ADA)
+  // 🎯 Update Opening Embed di Channel Pertandingan (SUDAH DI-UPDATE MENGGUNAKAN teamAEmoji & teamBEmoji)
+  if ((match as any).discordChannelId) {
+    const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
+      channelId: (match as any).discordChannelId,
+      matchId: match.id,
+      groupName: match.groupName,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      teamAEmoji,
+      teamBEmoji,
+      kodeTimA,
+      kodeTimB,
+      roleAId,
+      roleBId,
+      weekName: calculatedWeek,
+      matchDateIso: match.matchDate,
+      refereeName: match.referee,
+      refereeDiscordId: match.refereeDiscordId,
+      streamerName: match.streamer || match.caster,
+      streamerDiscordId: match.streamerDiscordId || match.casterDiscordId,
+      streamLink: match.streamLink,
+      existingMsgId: (match as any).openingMsgId,
+      isCompleted: false,
+    });
+
+    if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
+  }
+
+  // Log ke #CH_ASSIGN
   const chAssign = DISCORD_CONFIG.CH_ASSIGN;
-  const prevLogId = assignType === 'referee' ? match.refereeLogMsgId : match.streamerLogMsgId;
-
   if (chAssign) {
-    const t1 = `${teamAEmoji ? teamAEmoji + ' ' : ''}**${match.teamAName}**`;
-    const t2 = `${teamBEmoji ? teamBEmoji + ' ' : ''}**${match.teamBName}**`;
-    const logPayload: any = {
-      content: `${assignType === 'referee' ? '⚖️' : '🎥'} <@${targetStaffId}> ditugaskan sebagai **${assignType === 'referee' ? 'Referee' : 'Streamer'}**!`,
-      embeds: [
-        {
-          title: assignType === 'referee' ? '⚖️ Referee Assignment' : '🎥 Streamer Assignment',
-          description: `${match.groupName || 'Group A'} • ${calculatedWeek}\n${t1} vs ${t2}`,
-          color: assignType === 'referee' ? 0x3498db : 0xe74c3c,
-          fields: [
-            { name: '📅 Waktu Pertandingan', value: formatWIBDate(match.matchDate), inline: false },
-            { name: '📌 Match Channel', value: match.discordChannelId ? `<#${match.discordChannelId}>` : '`Channel Belum Ada`', inline: false },
-          ],
-          footer: { text: 'Team Wars Indonesia Season 7' },
-        },
-      ],
+    const logParams = {
+      channelId: chAssign,
+      matchId: match.id,
+      weekName: calculatedWeek,
+      groupName: match.groupName,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      teamAEmoji,
+      teamBEmoji,
+      matchChannelId: (match as any).discordChannelId,
+      matchDateIso: match.matchDate,
+      staffName,
+      staffDiscordId: targetStaffId,
+      existingMsgId: assignType === 'REFEREE' ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId,
     };
 
-    if (prevLogId) {
-      logPayload.message_reference = { message_id: prevLogId };
-    }
+    const newLogMsgId =
+      assignType === 'REFEREE'
+        ? await sendOrUpdateRefereeAssignmentLog(logParams)
+        : await sendOrUpdateStreamerAssignmentLog(logParams);
 
-    const logRes = await discordAPI(`/channels/${chAssign}/messages`, 'POST', logPayload).catch(() => null);
-    if (logRes?.id) {
-      if (assignType === 'referee') match.refereeLogMsgId = logRes.id;
-      else match.streamerLogMsgId = logRes.id;
+    if (newLogMsgId) {
+      if (assignType === 'REFEREE') (match as any).refereeLogMsgId = newLogMsgId;
+      else (match as any).streamerLogMsgId = newLogMsgId;
     }
   }
 
+  await updateStaffHistory(assignType, targetStaffId, match.id, 'ADD');
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
   return { match, staffName };
 }
 
+/**
+ * EXECUTE UNASSIGN STAFF (/unassign)
+ */
 export async function executeUnassignStaff(params: {
   matchId: string;
-  assignType: 'referee' | 'streamer';
+  assignType: 'REFEREE' | 'STREAMER';
+  scoreA?: number;
+  scoreB?: number;
 }) {
-  const { matchId, assignType } = params;
+  const { matchId, assignType, scoreA = 0, scoreB = 0 } = params;
 
-  const schedules = (await kv.get<any[]>('twi:schedules')) || [];
+  const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
   const idx = schedules.findIndex((m) => m.id === matchId);
-  if (idx === -1) throw new Error('Pertandingan tidak ditemukan di Redis KV.');
+  if (idx === -1) throw new Error('Match tidak ditemukan di Redis KV');
 
   const match = schedules[idx];
-  const staffDiscordId = assignType === 'referee' ? match.refereeDiscordId : (match.streamerDiscordId || match.casterDiscordId);
+  const targetStaffId = assignType === 'REFEREE' ? match.refereeDiscordId : (match.streamerDiscordId || match.casterDiscordId);
+  const targetStaffName = assignType === 'REFEREE' ? match.referee : match.streamer;
 
-  if (!staffDiscordId) {
-    throw new Error(`Match ini belum memiliki ${assignType.toUpperCase()} yang terdaftar.`);
+  if (!targetStaffId) {
+    throw new Error(`Tidak ada ${assignType === 'REFEREE' ? 'Referee' : 'Streamer'} terdaftar di match ini.`);
   }
 
   const slugA = getTeamSlug(match.teamAName);
   const slugB = getTeamSlug(match.teamBName);
+
   const [teamA, teamB] = await Promise.all([
     kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
     kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
   ]);
 
+  const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || slugA.toUpperCase();
+  const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || slugB.toUpperCase();
   const roleAId = teamA?.discordRoleId || teamA?.roleId || '';
   const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
+  const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
+
   const teamAEmoji = resolveTeamEmoji(teamA);
   const teamBEmoji = resolveTeamEmoji(teamB);
-  const calculatedWeek = match.weekName || `Week ${match.calculatedWeekNumber || 1}`;
+
   const guildId = DISCORD_CONFIG.GUILD_ID;
 
-  // Cabut akses Discord staff
-  if (guildId && isValidSnowflake(staffDiscordId)) {
-    if (assignType === 'referee') {
-      if (isValidSnowflake(roleAId)) await discordAPI(`/guilds/${guildId}/members/${staffDiscordId}/roles/${roleAId}`, 'DELETE').catch(() => null);
-      if (isValidSnowflake(roleBId)) await discordAPI(`/guilds/${guildId}/members/${staffDiscordId}/roles/${roleBId}`, 'DELETE').catch(() => null);
-    } else if (match.discordChannelId) {
-      await discordAPI(`/channels/${match.discordChannelId}/permissions/${staffDiscordId}`, 'DELETE').catch(() => null);
+  // 1. Cabut Role / Akses Discord
+  if (guildId && isValidSnowflake(targetStaffId)) {
+    if (assignType === 'REFEREE') {
+      if (isValidSnowflake(roleAId)) {
+        await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleAId}`, 'DELETE').catch(() => null);
+      }
+      if (isValidSnowflake(roleBId)) {
+        await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleBId}`, 'DELETE').catch(() => null);
+      }
+    }
+    if (assignType === 'STREAMER' && (match as any).discordChannelId) {
+      await discordAPI(`/channels/${(match as any).discordChannelId}/permissions/${targetStaffId}`, 'DELETE').catch(() => null);
     }
   }
 
-  // Pindahkan dari assignMatch ke historyMatch permanen (untuk hitung jam terbang/lokasi)
-  const staffKey = assignType === 'streamer' ? 'staff:streamers' : 'staff:referees';
-  const staffList = (await kv.get<StaffItem[]>(staffKey)) || [];
-  const staffIdx = staffList.findIndex((s) => s.discordId === staffDiscordId);
-  if (staffIdx !== -1) {
-    const active = new Set(staffList[staffIdx].assignMatch || []);
-    active.delete(match.id);
-    staffList[staffIdx].assignMatch = Array.from(active);
+  // 2. HANYA REFEREE: Update Opening Embed di Match Channel (DENGAN teamAEmoji & teamBEmoji)
+  if (assignType === 'REFEREE') {
+    (match as any).scoreA = scoreA;
+    (match as any).scoreB = scoreB;
+    (match as any).isCompleted = true;
 
-    const history = new Set(staffList[staffIdx].historyMatch || []);
-    history.add(match.id);
-    staffList[staffIdx].historyMatch = Array.from(history);
+    if ((match as any).discordChannelId) {
+      const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
+        channelId: (match as any).discordChannelId,
+        matchId: match.id,
+        groupName: match.groupName,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        teamAEmoji,
+        teamBEmoji,
+        kodeTimA,
+        kodeTimB,
+        roleAId,
+        roleBId,
+        weekName: calculatedWeek,
+        matchDateIso: match.matchDate,
+        refereeName: match.referee,
+        refereeDiscordId: match.refereeDiscordId,
+        streamerName: match.streamer || match.caster,
+        streamerDiscordId: match.streamerDiscordId || match.casterDiscordId,
+        streamLink: match.streamLink,
+        existingMsgId: (match as any).openingMsgId,
+        isCompleted: true,
+        scoreA,
+        scoreB,
+      });
 
-    await kv.set(staffKey, staffList);
+      if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
+    }
   }
 
-  // 🔴 KHUSUS REFEREE: SELESAIKAN MATCH, KIRIM SKOR (WARNA MENGIKUTI TIM MENANG), & CABUT AKSES CHAT TIM
-  if (assignType === 'referee') {
-    match.isCompleted = true;
+  // 3. Send Reply Log ke #CH_ASSIGN
+  const chAssign = DISCORD_CONFIG.CH_ASSIGN;
+  const targetLogMsgId = assignType === 'REFEREE' ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId;
 
+  if (chAssign && targetLogMsgId) {
+    await sendCompletedAssignmentLog({
+      channelId: chAssign,
+      existingMsgId: targetLogMsgId,
+      roleType: assignType,
+      staffDiscordId: targetStaffId,
+      matchId: match.id,
+      groupName: match.groupName,
+      weekName: calculatedWeek,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      teamAEmoji,
+      teamBEmoji,
+      matchDateIso: match.matchDate,
+      scoreA,
+      scoreB,
+      streamLink: match.streamLink,
+    });
+  }
+
+  // 4. HANYA REFEREE: Send Embed Score ke #CH_SCORE
+  if (assignType === 'REFEREE') {
     const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
     if (chScore) {
-      const sA = match.scoreA ?? 0;
-      const sB = match.scoreB ?? 0;
-      const emojiA = teamAEmoji ? teamAEmoji + ' ' : '';
-      const emojiB = teamBEmoji ? teamBEmoji + ' ' : '';
-
-      let scoreSummary = '';
-      let winColor = 0x2ecc71;
-
-      if (sA > sB) {
-        scoreSummary = `${emojiA}**${match.teamAName}** defeated ${emojiB}**${match.teamBName}** with a score of **${sA}-${sB}**`;
-        winColor = 0x3498db;
-      } else if (sB > sA) {
-        scoreSummary = `${emojiB}**${match.teamBName}** defeated ${emojiA}**${match.teamAName}** with a score of **${sB}-${sA}**`;
-        winColor = 0xe74c3c;
-      } else {
-        scoreSummary = `${emojiA}**${match.teamAName}** tied with ${emojiB}**${match.teamBName}** with a score of **${sA}-${sB}**`;
-        winColor = 0xf1c40f;
-      }
-
-      const scorePayload = {
-        embeds: [{ description: scoreSummary, color: winColor }],
-      };
-      await discordAPI(`/channels/${chScore}/messages`, 'POST', scorePayload).catch(() => null);
-    }
-
-    if (guildId && match.discordChannelId) {
-      if (isValidSnowflake(roleAId)) await discordAPI(`/channels/${match.discordChannelId}/permissions/${roleAId}`, 'DELETE').catch(() => null);
-      if (isValidSnowflake(roleBId)) await discordAPI(`/channels/${match.discordChannelId}/permissions/${roleBId}`, 'DELETE').catch(() => null);
+      await sendOfficialScoreLog({
+        channelId: chScore,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        teamAEmoji,
+        teamBEmoji,
+        scoreA,
+        scoreB,
+      });
     }
   }
 
-  // 📺 OPENING EMBED DI CHANNEL MATCH DIBIARKAN UTUH (TIDAK DISENTUH/DIUBAH)
-
-  // 📋 KIRIM LOG SELESAI TUGAS KE `#CH_ASSIGN` (REPLY KE LOG AWAL)
-  const chAssign = DISCORD_CONFIG.CH_ASSIGN;
-  const targetLogId = assignType === 'referee' ? match.refereeLogMsgId : match.streamerLogMsgId;
-
-  if (chAssign && targetLogId) {
-    const t1 = `${teamAEmoji ? teamAEmoji + ' ' : ''}**${match.teamAName}**`;
-    const t2 = `${teamBEmoji ? teamBEmoji + ' ' : ''}**${match.teamBName}**`;
-    const roleTitle = assignType === 'referee' ? 'Referee' : 'Streamer';
-
-    const completePayload = {
-      content: `Terimakasih <@${staffDiscordId}> telah bertugas sebagai ${roleTitle}!`,
-      message_reference: { message_id: targetLogId },
-      embeds: [
-        {
-          title: `✅ ${roleTitle} Assignment - COMPLETED`,
-          description: `${match.groupName || 'Group A'} • ${calculatedWeek}\n${t1} vs ${t2}`,
-          color: 0x2ecc71,
-          fields: [{ name: '📅 Waktu Pertandingan', value: formatWIBDate(match.matchDate), inline: false }],
-          footer: { text: 'Team Wars Indonesia Season 7' },
-        },
-      ],
-    };
-    await discordAPI(`/channels/${chAssign}/messages`, 'POST', completePayload).catch(() => null);
-  }
-
+  // 5. Simpan Schedule & Lepas Staff History
+  await updateStaffHistory(assignType, targetStaffId, match.id, 'REMOVE');
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
-  return { match, staffDiscordId };
-      }
-              
+  return { match, targetStaffName, targetStaffId };
+        }
