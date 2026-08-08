@@ -12,7 +12,7 @@ export interface PlayerItem {
 }
 
 export interface TeamKVData {
-  [key: string]: any; // 👈 Tambahkan baris ini untuk mengatasi error Type Check
+  [key: string]: any;
   namaTim?: string;
   players?: string | PlayerItem[];
 }
@@ -27,7 +27,15 @@ function parsePlayers(playersData: string | PlayerItem[] | undefined): PlayerIte
   }
 }
 
+export async function GET() {
+  return handleSync();
+}
+
 export async function POST() {
+  return handleSync();
+}
+
+async function handleSync() {
   try {
     // 1. Ambil daftar semua teamSlug dari global:teams Set/List
     const teamSlugs = (await kv.smembers('global:teams')) || [];
