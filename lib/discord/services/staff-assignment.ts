@@ -25,6 +25,34 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
+/**
+ * Helper Resolusi Emoji dari KV Store TWI
+ * Mengakomodasi string tag utuh (<:name:id>) maupun gabungan ID + Kode Tim.
+ */
+function resolveTeamEmoji(teamData: any): string | undefined {
+  if (!teamData) return undefined;
+
+  // 1. Jika di KV tersimpan tag utuh Discord (<:name:id>)
+  const directTag = teamData.discordEmoji || teamData.emojiTag || teamData.emoji;
+  if (typeof directTag === 'string' && directTag.startsWith('<:') && directTag.endsWith('>')) {
+    return directTag;
+  }
+
+  // 2. Jika di KV tersimpan ID emoji tersendiri
+  const emojiId = teamData.discordEmojiId || teamData.emojiId;
+  if (emojiId) {
+    const rawCode = teamData.kodeTim || teamData.abbreviation || teamData.tag || 'team';
+    // Hapus spasi agar tidak merusak format tag emoji Discord
+    const cleanName = rawCode.replace(/\s+/g, '');
+    return `<:${cleanName}:${emojiId}>`;
+  }
+
+  return undefined;
+}
+
+/**
+ * Helper Update Riwayat Penugasan Staff di KV Store
+ */
 async function updateStaffHistory(
   type: 'REFEREE' | 'STREAMER',
   staffId: string,
@@ -48,7 +76,7 @@ async function updateStaffHistory(
 }
 
 /**
- * EXECUTE ASSIGN STAFF
+ * EXECUTE ASSIGN STAFF (/assign)
  */
 export async function executeAssignStaff(params: {
   matchId: string;
@@ -59,7 +87,7 @@ export async function executeAssignStaff(params: {
 
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
   const idx = schedules.findIndex((m) => m.id === matchId);
-  if (idx === -1) throw new Error('Match tidak ditemukan di Redis');
+  if (idx === -1) throw new Error('Match tidak ditemukan di Redis KV');
 
   const match = schedules[idx];
 
@@ -79,22 +107,27 @@ export async function executeAssignStaff(params: {
   const slugA = getTeamSlug(match.teamAName);
   const slugB = getTeamSlug(match.teamBName);
 
+  // Query KV Tim dengan Fallback Key (`teams:{slug}` & `team:{slug}`)
   const [teamA, teamB] = await Promise.all([
     kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
     kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
   ]);
 
-  const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || '';
-  const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || '';
+  const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || slugA.toUpperCase();
+  const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || slugB.toUpperCase();
   const emojiAId = teamA?.discordEmojiId || teamA?.emojiId || '';
   const emojiBId = teamB?.discordEmojiId || teamB?.emojiId || '';
   const roleAId = teamA?.discordRoleId || teamA?.roleId || '';
   const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
   const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
 
+  // Resolusi string Tag Emoji yang valid untuk pesan Discord
+  const teamAEmoji = resolveTeamEmoji(teamA);
+  const teamBEmoji = resolveTeamEmoji(teamB);
+
   const guildId = DISCORD_CONFIG.GUILD_ID;
 
-  // Berikan Akses / Role Discord
+  // Memberikan Role / Permission Discord ke Staff
   if (guildId && isValidSnowflake(targetStaffId)) {
     if (assignType === 'REFEREE') {
       if (isValidSnowflake(roleAId)) {
@@ -113,7 +146,7 @@ export async function executeAssignStaff(params: {
     }
   }
 
-  // Update Opening Embed Channel Match
+  // Update Opening Embed di Channel Pertandingan
   if ((match as any).discordChannelId) {
     const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
       channelId: (match as any).discordChannelId,
@@ -141,7 +174,7 @@ export async function executeAssignStaff(params: {
     if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
   }
 
-  // Log ke #CH_ASSIGN
+  // Kirim Pesan Log Penugasan ke #CH_ASSIGN
   const chAssign = DISCORD_CONFIG.CH_ASSIGN;
   if (chAssign) {
     const logParams = {
@@ -151,8 +184,8 @@ export async function executeAssignStaff(params: {
       groupName: match.groupName,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
-      teamAEmoji: emojiAId ? `<:${match.teamAName}:${emojiAId}>` : undefined,
-      teamBEmoji: emojiBId ? `<:${match.teamBName}:${emojiBId}>` : undefined,
+      teamAEmoji,
+      teamBEmoji,
       matchChannelId: (match as any).discordChannelId,
       matchDateIso: match.matchDate,
       staffName,
@@ -179,7 +212,7 @@ export async function executeAssignStaff(params: {
 }
 
 /**
- * EXECUTE UNASSIGN STAFF (COMPLETED TASK)
+ * EXECUTE UNASSIGN STAFF (/unassign)
  */
 export async function executeUnassignStaff(params: {
   matchId: string;
@@ -191,7 +224,7 @@ export async function executeUnassignStaff(params: {
 
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
   const idx = schedules.findIndex((m) => m.id === matchId);
-  if (idx === -1) throw new Error('Match tidak ditemukan di Redis');
+  if (idx === -1) throw new Error('Match tidak ditemukan di Redis KV');
 
   const match = schedules[idx];
   const targetStaffId = assignType === 'REFEREE' ? match.refereeDiscordId : (match.streamerDiscordId || match.casterDiscordId);
@@ -209,17 +242,20 @@ export async function executeUnassignStaff(params: {
     kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
   ]);
 
-  const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || '';
-  const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || '';
+  const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || slugA.toUpperCase();
+  const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || slugB.toUpperCase();
   const emojiAId = teamA?.discordEmojiId || teamA?.emojiId || '';
   const emojiBId = teamB?.discordEmojiId || teamB?.emojiId || '';
   const roleAId = teamA?.discordRoleId || teamA?.roleId || '';
   const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
   const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
 
+  const teamAEmoji = resolveTeamEmoji(teamA);
+  const teamBEmoji = resolveTeamEmoji(teamB);
+
   const guildId = DISCORD_CONFIG.GUILD_ID;
 
-  // 1. Cabut Role / Access Discord
+  // 1. Pencabutan Role / Akses Discord Staff
   if (guildId && isValidSnowflake(targetStaffId)) {
     if (assignType === 'REFEREE') {
       if (isValidSnowflake(roleAId)) {
@@ -234,7 +270,7 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // 2. KONDISIONAL REFEREE: Render Ulang Opening Embed Match (HANYA JIKA REFEREE)
+  // 2. Khusus REFEREE: Update Status Selesai & Opening Embed Match Channel
   if (assignType === 'REFEREE') {
     (match as any).scoreA = scoreA;
     (match as any).scoreB = scoreB;
@@ -270,7 +306,7 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // 3. Send Reply Log ke #CH_ASSIGN (Berlaku untuk Referee & Streamer)
+  // 3. Kirim Pesan Reply Selesai di #CH_ASSIGN
   const chAssign = DISCORD_CONFIG.CH_ASSIGN;
   const targetLogMsgId = assignType === 'REFEREE' ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId;
 
@@ -285,31 +321,32 @@ export async function executeUnassignStaff(params: {
       weekName: calculatedWeek,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
-      teamAEmoji: emojiAId ? `<:${match.teamAName}:${emojiAId}>` : undefined,
-      teamBEmoji: emojiBId ? `<:${match.teamBName}:${emojiBId}>` : undefined,
+      teamAEmoji,
+      teamBEmoji,
       matchDateIso: match.matchDate,
       scoreA,
       scoreB,
+      streamLink: match.streamLink,
     });
   }
 
-  // 4. KONDISIONAL REFEREE: Send Embed Score ke #CH_LOG / #CH_SCORE (HANYA JIKA REFEREE)
+  // 4. Khusus REFEREE: Kirim Embed Score Resmi ke #CH_SCORE
   if (assignType === 'REFEREE') {
-    const chLog = DISCORD_CONFIG.CH_LOG;
-    if (chLog) {
+    const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
+    if (chScore) {
       await sendOfficialScoreLog({
-        channelId: chLog,
+        channelId: chScore,
         teamAName: match.teamAName,
         teamBName: match.teamBName,
-        teamAEmoji: emojiAId ? `<:${match.teamAName}:${emojiAId}>` : undefined,
-        teamBEmoji: emojiBId ? `<:${match.teamBName}:${emojiBId}>` : undefined,
+        teamAEmoji,
+        teamBEmoji,
         scoreA,
         scoreB,
       });
     }
   }
 
-  // 5. Simpan Hasil Akhir ke Schedule & Lepas Busy Lock Staf
+  // 5. Bersihkan Riwayat Staff & Simpan Perubahan ke KV
   await updateStaffHistory(assignType, targetStaffId, match.id, 'REMOVE');
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);

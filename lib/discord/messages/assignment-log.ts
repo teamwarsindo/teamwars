@@ -19,20 +19,27 @@ export interface AssignmentLogParams {
 function formatWIBDate(dateIso?: string): string {
   if (!dateIso) return 'TBA';
   const d = new Date(dateIso);
-  return d.toLocaleDateString('id-ID', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }) + ' at ' + d.toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Asia/Jakarta',
-  }).replace('.', ':') + ' WIB';
+  return (
+    d.toLocaleDateString('id-ID', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }) +
+    ' at ' +
+    d
+      .toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Jakarta',
+      })
+      .replace('.', ':') +
+    ' WIB'
+  );
 }
 
-// ⚖️ LOG REFEREE ASSIGNMENT
+// ⚖️ LOG REFEREE ASSIGNMENT (AWAL)
 export async function sendOrUpdateRefereeAssignmentLog(params: AssignmentLogParams): Promise<string | null> {
   if (!params.channelId || !params.staffDiscordId) return null;
 
@@ -74,7 +81,7 @@ export async function sendOrUpdateRefereeAssignmentLog(params: AssignmentLogPara
   return res?.id || null;
 }
 
-// 🎥 LOG STREAMER ASSIGNMENT
+// 🎥 LOG STREAMER ASSIGNMENT (AWAL)
 export async function sendOrUpdateStreamerAssignmentLog(params: AssignmentLogParams): Promise<string | null> {
   if (!params.channelId || !params.staffDiscordId) return null;
 
@@ -130,28 +137,36 @@ export async function sendCompletedAssignmentLog(params: {
   teamAEmoji?: string;
   teamBEmoji?: string;
   matchDateIso?: string;
-  scoreA: number;
-  scoreB: number;
+  scoreA?: number;
+  scoreB?: number;
+  streamLink?: string;
 }): Promise<string | null> {
   if (!params.channelId || !params.existingMsgId) return null;
 
   const roleTitle = params.roleType === 'REFEREE' ? 'Referee' : 'Streamer';
-  const icon = params.roleType === 'REFEREE' ? '⚖️' : '🎥';
-
   const t1 = `${params.teamAEmoji ? params.teamAEmoji + ' ' : ''}**${params.teamAName}**`;
   const t2 = `${params.teamBEmoji ? params.teamBEmoji + ' ' : ''}**${params.teamBName}**`;
 
-  let winnerText = '';
-  if (params.scoreA > params.scoreB) {
-    winnerText = `${t1} defeated ${t2} with a score of **${params.scoreA}-${params.scoreB}**`;
-  } else if (params.scoreB > params.scoreA) {
-    winnerText = `${t2} defeated ${t1} with a score of **${params.scoreB}-${params.scoreA}**`;
+  const fields: any[] = [
+    { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
+  ];
+
+  if (params.roleType === 'REFEREE') {
+    const sA = params.scoreA ?? 0;
+    const sB = params.scoreB ?? 0;
+    let winnerText = '';
+    if (sA > sB) winnerText = `${t1} defeated ${t2} with a score of **${sA}-${sB}**`;
+    else if (sB > sA) winnerText = `${t2} defeated ${t1} with a score of **${sB}-${sA}**`;
+    else winnerText = `${t1} tied with ${t2} with a score of **${sA}-${sB}**`;
+
+    fields.push({ name: '🏆 Hasil Pertandingan', value: winnerText, inline: false });
   } else {
-    winnerText = `${t1} tied with ${t2} with a score of **${params.scoreA}-${params.scoreB}**`;
+    const streamUrl = params.streamLink || 'Belum tersedia';
+    fields.push({ name: '📺 Link Streaming', value: streamUrl, inline: false });
   }
 
   const payload = {
-    content: `✅ ${icon} <@${params.staffDiscordId}> tugas **${roleTitle}** untuk match **${params.matchId}** telah **Selesai**!`,
+    content: `Terimakasih <@${params.staffDiscordId}> telah bertugas sebagai ${roleTitle}!`,
     message_reference: {
       message_id: params.existingMsgId,
     },
@@ -160,10 +175,7 @@ export async function sendCompletedAssignmentLog(params: {
         title: `✅ ${roleTitle} Assignment - COMPLETED`,
         description: `${params.groupName || 'Group A'} • ${params.weekName || 'Week 1'}\n${t1} vs ${t2}`,
         color: 0x2ecc71,
-        fields: [
-          { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
-          { name: '🏆 Hasil Pertandingan', value: winnerText, inline: false },
-        ],
+        fields,
         footer: { text: 'Team Wars Indonesia Season 7' },
       },
     ],
@@ -173,7 +185,7 @@ export async function sendCompletedAssignmentLog(params: {
   return res?.id || null;
 }
 
-// 📢 LOG SCORE RESMI KE #CH_SCORE (SIMPEL SESUAI SCREENSHOT)
+// 📢 EMBED SCORE RESMI KE #CH_SCORE (SANGAT SIMPEL)
 export async function sendOfficialScoreLog(params: {
   channelId: string;
   teamAName: string;

@@ -27,7 +27,6 @@ export async function handleUnassignCommand(interaction: any) {
     return { type: 4, data: { content: '❌ Option `match` dan `type` wajib diisi!', flags: 64 } };
   }
 
-  // Validasi: Referee WAJIB mengisi skor
   if (assignType === 'REFEREE' && (scoreAOpt === undefined || scoreBOpt === undefined)) {
     return {
       type: 4,
@@ -47,7 +46,7 @@ export async function handleUnassignCommand(interaction: any) {
       scoreB,
     });
 
-    const extraMsg = assignType === 'REFEREE' ? `\n🏆 Skor Akhir: **${scoreA} - ${scoreB}** (Score terkirim ke #CH_SCORE)` : '';
+    const extraMsg = assignType === 'REFEREE' ? `\n🏆 Skor Akhir: **${scoreA} - ${scoreB}** (Terkirim ke #CH_SCORE)` : '';
 
     return {
       type: 4,
