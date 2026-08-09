@@ -5,30 +5,23 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-// Timestamp Unix: Batas Bidding Tepat Jam 20:00:00 WIB (Minggu, 9 Agustus 2026)
+// Batas Bidding Tepat Jam 20:00:00 WIB (Minggu, 9 Agustus 2026)
 const BID_DEADLINE_TIMESTAMP = 1786279200;
 
 /**
- * Helper menghitung sisa waktu presisi (14:00 WIB ke 20:00 WIB = 6 Jam pas)
+ * Helper menghitung sisa waktu format simpel sebelumnya
  */
 export function getRemainingTimeString(): string {
   const diffMs = (BID_DEADLINE_TIMESTAMP * 1000) - Date.now();
   if (diffMs <= 0) return '`Lelang Telah Selesai`';
 
-  // Tambahkan pembulatan toleransi detik agar delay eksekusi millisecond tidak mengurangi 1 menit
-  const totalSeconds = Math.round(diffMs / 1000);
-  const totalMinutes = Math.floor(totalSeconds / 60);
-
+  const totalMinutes = Math.floor(diffMs / (1000 * 60));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
-  if (hours > 0 && minutes > 0) {
-    return `${hours} jam ${minutes} menit`;
-  } else if (hours > 0) {
-    return `${hours} jam`;
-  } else {
-    return `${minutes} menit`;
-  }
+  if (hours > 0 && minutes > 0) return `${hours} jam ${minutes} menit`;
+  if (hours > 0) return `${hours} jam`;
+  return `${minutes} menit`;
 }
 
 export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
@@ -37,19 +30,19 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
     ? '❌ **Bidding telah resmi ditutup!** Terima kasih kepada seluruh peserta.'
     : 'Klik tombol di bawah untuk mengajukan penawaran nama divisi.';
 
-  // Format Group A (Dengan Guarding userId)
+  // Format Group A (Tampilkan Nama Bold, Tanpa Tag Mention)
   const groupA = data?.groupA;
-  const userMentionA = groupA?.userId ? `<@${groupA.userId}>` : (groupA?.displayName || groupA?.username || '_Tanpa Nama_');
+  const nameDisplayA = groupA?.displayName || groupA?.username || groupA?.nameUser || 'Belum ada';
   const valA = groupA
-    ? `💰 **${formatRupiah(groupA.amount)}** oleh ${userMentionA}`
+    ? `💰 **${formatRupiah(groupA.amount)}** oleh **${nameDisplayA}**`
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameA = groupA?.name ? groupA.name : 'Belum ada';
 
-  // Format Group B (Dengan Guarding userId)
+  // Format Group B (Tampilkan Nama Bold, Tanpa Tag Mention)
   const groupB = data?.groupB;
-  const userMentionB = groupB?.userId ? `<@${groupB.userId}>` : (groupB?.displayName || groupB?.username || '_Tanpa Nama_');
+  const nameDisplayB = groupB?.displayName || groupB?.username || groupB?.nameUser || 'Belum ada';
   const valB = groupB
-    ? `💰 **${formatRupiah(groupB.amount)}** oleh ${userMentionB}`
+    ? `💰 **${formatRupiah(groupB.amount)}** oleh **${nameDisplayB}**`
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameB = groupB?.name ? groupB.name : 'Belum ada';
 
