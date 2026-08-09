@@ -44,10 +44,10 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
         inline: false,
       },
       {
-        name: '⏳ Sisa Waktu Bidding:',
+        name: 'Batas Akhir: Hari Ini, 20:00 WIB',
         value: isClosed
           ? '`Lelang Telah Selesai`'
-          : `<t:${BID_DEADLINE_TIMESTAMP}:R>\n*(Batas Akhir: Hari Ini, 9 Agustus 2026, 20:00 WIB)*`,
+          : `⏳ Sisa Waktu: <t:${BID_DEADLINE_TIMESTAMP}:R>`,
         inline: false,
       },
     ],

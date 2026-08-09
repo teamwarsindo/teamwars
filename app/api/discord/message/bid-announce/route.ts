@@ -24,9 +24,11 @@ export async function GET(req: NextRequest) {
     const currentHour = nowWib.getHours();
     const currentMinute = nowWib.getMinutes();
 
-    // Aktifkan mode ANNOUNCE FULL (@everyone + Re-post) jika dipanggil di jam 12:00 atau 20:00 WIB
-    const isScheduledAnnounceTime = (currentHour === 12 || currentHour === 20) && currentMinute < 10;
-    
+    // Trigger Re-post + @everyone pada jam 11:20 WIB & 20:00 WIB
+    const isScheduledAnnounceTime = 
+      (currentHour === 11 && currentMinute === 20) || 
+      (currentHour === 20 && currentMinute === 0);
+
     // Otomatis TUTUP lelang jika waktu sudah mencapai/melewati jam 20:00 WIB
     const isClosed = currentHour >= 20;
 
@@ -70,10 +72,10 @@ export async function GET(req: NextRequest) {
           inline: false,
         },
         {
-          name: '⏳ Sisa Waktu Bidding:',
+          name: 'Batas Akhir: Hari Ini, 20:00 WIB',
           value: isClosed
             ? '`Lelang Telah Selesai`'
-            : `<t:${BID_DEADLINE_TIMESTAMP}:R>\n*(Batas Akhir: Hari Ini, 9 Agustus 2026, 20:00 WIB)*`,
+            : `⏳ Sisa Waktu: <t:${BID_DEADLINE_TIMESTAMP}:R>`,
           inline: false,
         },
         {
@@ -91,7 +93,7 @@ export async function GET(req: NextRequest) {
     let newsMessageId = (await kv.get<string>('twi_bid_announce_msg_id')) || (await kv.get<string>('twi:bid_announce_msg_id'));
     let actionTypeUsed = 'PATCH_ONLY';
 
-    // 4. EKSEKUSI A: MODE DELETE + POST (@everyone) DI JAM 12 SIANG & 8 MALAM
+    // 4. EKSEKUSI A: MODE DELETE + POST (@everyone) HANYA DI JAM 11:20 & 20:00 WIB
     if (isScheduledAnnounceTime || !newsMessageId) {
       actionTypeUsed = 'FULL_ANNOUNCE_POST';
 
@@ -123,7 +125,7 @@ export async function GET(req: NextRequest) {
         await kv.set('twi:bid_announce_msg_id', newsData.id);
       }
     } 
-    // 5. EKSEKUSI B: MODE PATCH (SILENT LIVE UPDATE)
+    // 5. EKSEKUSI B: MODE PATCH (SILENT LIVE UPDATE UNTUK CRON TIAP MENIT)
     else {
       await fetch(`https://discord.com/api/v10/channels/${newsChannelId}/messages/${newsMessageId}`, {
         method: 'PATCH',
