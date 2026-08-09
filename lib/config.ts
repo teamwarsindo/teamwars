@@ -11,8 +11,8 @@ export const CLOSE_TARGET = new Date(CLOSE_TARGET_DATE).getTime()
 export const BID_START_DATE = "2026-08-01T00:00:00+07:00";
 export const BID_START_TARGET = new Date(BID_START_DATE).getTime();
 
-// Waktu Tutup Bid: 8 Agustus 2026, 20:00:00 WIB
-export const BID_CLOSE_DATE = "2026-08-08T20:00:00+07:00";
+// Waktu Tutup Bid: 9 Agustus 2026, 20:00:00 WIB
+export const BID_CLOSE_DATE = "2026-08-09T20:00:00+07:00";
 export const BID_CLOSE_TARGET = new Date(BID_CLOSE_DATE).getTime();
 
 // Cukup ubah di sini saja jika domain berubah
