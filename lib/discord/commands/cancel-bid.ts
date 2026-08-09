@@ -32,7 +32,7 @@ export async function handleCancelBid(interaction: any) {
   }
  
   // 2. Ekstrak Parameter Command
-  const options = interaction.data.options || [];
+  const options = interaction.data?.options || [];
   const groupTargetOption = options.find((opt: any) => opt.name === 'group');
   const reasonOption = options.find((opt: any) => opt.name === 'alasan');
 
@@ -44,7 +44,11 @@ export async function handleCancelBid(interaction: any) {
   }
 
   // 3. Load Data Bidding dari KV
-  const data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
+  let dataStore: BidStore | null = await kv.get<BidStore>(KV_BID_KEY);
+  if (typeof dataStore === 'string') {
+    try { dataStore = JSON.parse(dataStore); } catch {}
+  }
+  const data: BidStore = dataStore || { groupA: null, groupB: null, logs: [] };
 
   const targetBid = groupTarget === "A" ? data.groupA : data.groupB;
 
@@ -57,7 +61,8 @@ export async function handleCancelBid(interaction: any) {
   const cancelledUser = targetBid.displayName || targetBid.username;
 
   // 4. Rollback ke Bid Sah Terakhir (Filter log yang bukan milik bid yang dibatalkan)
-  const remainingLogsForGroup = data.logs.filter(
+  const logs = Array.isArray(data.logs) ? data.logs : [];
+  const remainingLogsForGroup = logs.filter(
     log => log.group === groupTarget && log.amount !== cancelledBidAmount && !log.displayName.includes('[ADMIN]')
   );
 
@@ -88,6 +93,7 @@ export async function handleCancelBid(interaction: any) {
   const adminName = member?.nick || adminUser.global_name || adminUser.username;
   const timestamp = getFullWibTimestamp();
 
+  if (!Array.isArray(data.logs)) data.logs = [];
   data.logs.unshift({
     group: groupTarget,
     amount: cancelledBidAmount,
