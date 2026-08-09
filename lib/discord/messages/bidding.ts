@@ -8,6 +8,28 @@ export function formatRupiah(amount: number): string {
 // Timestamp Unix: Batas Bidding (Minggu, 9 Agustus 2026 20:00:00 WIB = 1786280400)
 const BID_DEADLINE_TIMESTAMP = 1786280400;
 
+/**
+ * Helper menghitung sisa waktu dalam format "X jam Y menit"
+ */
+export function getRemainingTimeString(): string {
+  const targetMs = BID_DEADLINE_TIMESTAMP * 1000;
+  const diffMs = targetMs - Date.now();
+
+  if (diffMs <= 0) return '`Lelang Telah Selesai`';
+
+  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) {
+    return `${hours} jam ${minutes} menit`;
+  } else if (hours > 0) {
+    return `${hours} jam`;
+  } else {
+    return `${minutes} menit`;
+  }
+}
+
 export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
   const statusTitle = isClosed ? '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7 (DITUTUP)' : '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7';
   const statusDesc = isClosed
@@ -28,26 +50,26 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameB = groupB?.name ? groupB.name : 'Belum ada';
 
+  const sisaWaktuText = isClosed ? '`Lelang Telah Selesai`' : `⏳ Sisa Waktu: ${getRemainingTimeString()}`;
+
   return {
     title: statusTitle,
     description: statusDesc,
     color: isClosed ? 0xed4245 : 0xfee75c,
     fields: [
       {
-        name: `🥇 GROUP A ➔ "${nameA}"`,
+        name: `GROUP A ➔ "${nameA}"`,
         value: valA,
         inline: false,
       },
       {
-        name: `🥇 GROUP B ➔ "${nameB}"`,
+        name: `GROUP B ➔ "${nameB}"`,
         value: valB,
         inline: false,
       },
       {
         name: 'Batas Akhir: Hari Ini, 20:00 WIB',
-        value: isClosed
-          ? '`Lelang Telah Selesai`'
-          : `⏳ Sisa Waktu: <t:${BID_DEADLINE_TIMESTAMP}:R>`,
+        value: sisaWaktuText,
         inline: false,
       },
     ],

@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/config';
-import { formatRupiah, patchMainBidMessage } from '@/lib/discord/messages/bidding';
+import { formatRupiah, patchMainBidMessage, getRemainingTimeString } from '@/lib/discord/messages/bidding';
 import { patchLogBidMessage } from '@/lib/discord/messages/log-bidding';
 
 export const dynamic = 'force-dynamic';
-
-// Batas Waktu Akhir Bidding: Hari Ini (Minggu, 9 Agustus 2026, 20:00 WIB)
-const BID_DEADLINE_TIMESTAMP = 1786280400;
 
 export async function GET(req: NextRequest) {
   try {
@@ -53,6 +50,8 @@ export async function GET(req: NextRequest) {
       ? `💰 **${formatRupiah(Number(groupB.amount))}** oleh <@${groupB.userId}>`
       : `💰 **Rp 0** oleh _Belum ada_`;
 
+    const sisaWaktuText = isClosed ? '`Lelang Telah Selesai`' : `⏳ Sisa Waktu: ${getRemainingTimeString()}`;
+
     // 3. SUSUN EMBED PENGUMUMAN #NEWS
     const newsEmbed = {
       title: isClosed ? '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7 (DITUTUP)' : '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7',
@@ -62,20 +61,18 @@ export async function GET(req: NextRequest) {
       color: isClosed ? 0xed4245 : 0xfee75c,
       fields: [
         {
-          name: `🥇 GROUP A ➔ "${nameA}"`,
+          name: `GROUP A ➔ "${nameA}"`,
           value: valA,
           inline: false,
         },
         {
-          name: `🥇 GROUP B ➔ "${nameB}"`,
+          name: `GROUP B ➔ "${nameB}"`,
           value: valB,
           inline: false,
         },
         {
           name: 'Batas Akhir: Hari Ini, 20:00 WIB',
-          value: isClosed
-            ? '`Lelang Telah Selesai`'
-            : `⏳ Sisa Waktu: <t:${BID_DEADLINE_TIMESTAMP}:R>`,
+          value: sisaWaktuText,
           inline: false,
         },
         {
