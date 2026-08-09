@@ -23,7 +23,7 @@ export interface BidStore {
 export const KV_BID_KEY = "twi_bidding_data";
 export const KV_MSG_MAIN_KEY = "twi_bid_msg_main_id";
 export const KV_MSG_LOG_KEY = "twi_bid_msg_log_id";
-export const KV_MSG_NEWS_KEY = "twi_bid_announce_msg_id"; // Key Resmi News
+export const KV_MSG_NEWS_KEY = "twi_bid_announce_msg_id";
 
 export function isBidOpen(): boolean {
   const nowWib = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
@@ -46,7 +46,39 @@ function makeEphemeralResponse(content: string) {
   });
 }
 
-// Helper pembuat Embed khusus News (Nama bold, bebas tag <@>)
+/**
+ * 🚀 Inisialisasi awal pengiriman pesan (Diperlukan oleh setup-bid/route.ts)
+ */
+export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
+  const isClosed = overrideStatus ? overrideStatus === 'closed' : !isBidOpen();
+
+  const initialData: BidStore = { groupA: null, groupB: null, logs: [] };
+
+  const mainEmbed = buildMainBidEmbed(initialData, isClosed);
+  const logPayload = buildLogBidPayload(initialData.logs);
+  const components = getBidButtons(isClosed);
+
+  const token = process.env.DISCORD_BOT_TOKEN;
+  const headers = { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' };
+
+  // Kirim Pesan Utama Lelang
+  const resMain = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
+    method: 'POST', headers, body: JSON.stringify({ embeds: [mainEmbed], components })
+  });
+  const msgMain: any = await resMain.json();
+
+  // Kirim Pesan Log Lelang
+  const resLog = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_BID}/messages`, {
+    method: 'POST', headers, body: JSON.stringify(logPayload)
+  });
+  const msgLog: any = await resLog.json();
+
+  await kv.set(KV_MSG_MAIN_KEY, msgMain.id);
+  await kv.set(KV_MSG_LOG_KEY, msgLog.id);
+  await kv.set(KV_BID_KEY, initialData); 
+}
+
+// Helper khusus pembuat Embed News (Nama bold, bebas tag <@>)
 export function buildNewsEmbed(data: BidStore, isClosed: boolean) {
   const nameA = data?.groupA?.name || 'Belum ada';
   const displayNameA = data?.groupA?.displayName || data?.groupA?.username || 'Belum ada';
@@ -104,17 +136,14 @@ export async function syncBidMessages(forceClosed?: boolean) {
 
   const promises: Promise<any>[] = [];
 
-  // Update Pesan Utama Channel Bidding
   if (mainMsgId) {
     promises.push(patchMainBidMessage(mainMsgId, currentData, isClosed, token));
   }
 
-  // Update Pesan Log Bidding
   if (logMsgId) {
     promises.push(patchLogBidMessage(logMsgId, currentData.logs || [], token));
   }
 
-  // Update Pesan Channel News
   if (newsMsgId) {
     const newsEmbed = buildNewsEmbed(currentData, isClosed);
     promises.push(
@@ -240,10 +269,8 @@ export async function processBidSubmission(interaction: any) {
 
   await kv.set(KV_BID_KEY, data);
 
-  // Sync update pesan utama, log, dan channel news secara bersamaan
   await syncBidMessages();
 
-  // Notifikasi real-time ke channel admin/log
   try {
     const token = process.env.DISCORD_BOT_TOKEN;
     const adminRoleId = DISCORD_CONFIG.ROLE_ADMIN;
@@ -279,5 +306,4 @@ export async function processBidSubmission(interaction: any) {
   }
 
   return makeEphemeralResponse(`✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`);
-                                          }
-    
+}
