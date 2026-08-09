@@ -5,29 +5,18 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-// Timestamp Unix: Batas Bidding (Minggu, 9 Agustus 2026 20:00:00 WIB = 1786280400)
-const BID_DEADLINE_TIMESTAMP = 1786280400;
+// Timestamp Unix: Batas Bidding Tepat Jam 20:00:00 WIB (Minggu, 9 Agustus 2026)
+const BID_DEADLINE_TIMESTAMP = 1786279200;
 
 /**
- * Helper menghitung sisa waktu presisi zona waktu Asia/Jakarta (WIB)
+ * Helper menghitung sisa waktu presisi dengan pembulatan ke menit terdekat (Math.round)
  */
 export function getRemainingTimeString(): string {
-  // 1. Ambil Waktu Sekarang di WIB
-  const nowWib = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
-
-  // 2. Tentukan Target Hari Ini Jam 20:00:00 WIB
-  const targetWib = new Date(nowWib);
-  targetWib.setHours(20, 0, 0, 0);
-
-  // 3. Hitung Selisih Millisecond
-  const diffMs = targetWib.getTime() - nowWib.getTime();
-
+  const diffMs = (BID_DEADLINE_TIMESTAMP * 1000) - Date.now();
   if (diffMs <= 0) return '`Lelang Telah Selesai`';
 
-  // 4. Konversi ke Total Detik & Menit (Pembulatan Matematika Tepat)
-  const totalSeconds = Math.round(diffMs / 1000);
-  const totalMinutes = Math.floor(totalSeconds / 60);
-
+  // Pembulatan ke menit terdekat agar sisa detik dari delay cronjob tidak memotong menit
+  const totalMinutes = Math.round(diffMs / (1000 * 60));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
@@ -68,12 +57,12 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
     color: isClosed ? 0xed4245 : 0xfee75c,
     fields: [
       {
-        name: `GROUP A ➔ "${nameA}"`,
+        name: `🥇 GROUP A ➔ "${nameA}"`,
         value: valA,
         inline: false,
       },
       {
-        name: `GROUP B ➔ "${nameB}"`,
+        name: `🥇 GROUP B ➔ "${nameB}"`,
         value: valB,
         inline: false,
       },
