@@ -23,7 +23,6 @@ export async function handleCancelBid(interaction: any) {
   const member = interaction.member;
   const userRoles: string[] = member?.roles || [];
   
-  // Menggunakan Role Admin yang ada di DISCORD_CONFIG
   const ADMIN_ROLES = [DISCORD_CONFIG.ROLE_ADMIN, DISCORD_CONFIG.ROLE_REFEREE];
   const isAdmin = userRoles.some(roleId => ADMIN_ROLES.includes(roleId)) || member?.permissions === "8";
 
@@ -63,16 +62,17 @@ export async function handleCancelBid(interaction: any) {
   // 4. Rollback ke Bid Sah Terakhir (Filter log yang bukan milik bid yang dibatalkan)
   const logs = Array.isArray(data.logs) ? data.logs : [];
   const remainingLogsForGroup = logs.filter(
-    log => log.group === groupTarget && log.amount !== cancelledBidAmount && !log.displayName.includes('[ADMIN]')
+    log => log.group === groupTarget && log.amount !== cancelledBidAmount && !log.displayName?.includes('[ADMIN]')
   );
 
   const previousValidBid = remainingLogsForGroup.length > 0 ? remainingLogsForGroup[0] : null;
 
+  // FIX: Ambil userId asli agar tidak terjadi bug tag kosong <@>
   if (groupTarget === "A") {
     data.groupA = previousValidBid ? {
       amount: previousValidBid.amount,
       name: previousValidBid.name,
-      userId: "",
+      userId: (previousValidBid as any).userId || targetBid.userId || "",
       username: previousValidBid.username,
       displayName: previousValidBid.displayName,
       timestamp: previousValidBid.timestamp
@@ -81,7 +81,7 @@ export async function handleCancelBid(interaction: any) {
     data.groupB = previousValidBid ? {
       amount: previousValidBid.amount,
       name: previousValidBid.name,
-      userId: "",
+      userId: (previousValidBid as any).userId || targetBid.userId || "",
       username: previousValidBid.username,
       displayName: previousValidBid.displayName,
       timestamp: previousValidBid.timestamp
@@ -95,7 +95,7 @@ export async function handleCancelBid(interaction: any) {
 
   if (!Array.isArray(data.logs)) data.logs = [];
   data.logs.unshift({
-    group: groupTarget,
+    group: groupTarget as any,
     amount: cancelledBidAmount,
     name: `🚫 DIBATALKAN ADMIN (${reason})`,
     username: adminUser.username,
