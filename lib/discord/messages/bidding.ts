@@ -13,11 +13,15 @@ const BID_DEADLINE_TIMESTAMP = 1786280400;
  */
 export function getRemainingTimeString(): string {
   const targetMs = BID_DEADLINE_TIMESTAMP * 1000;
-  const diffMs = targetMs - Date.now();
+  const nowMs = Date.now();
+  const diffMs = targetMs - nowMs;
 
   if (diffMs <= 0) return '`Lelang Telah Selesai`';
 
-  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  // Hitung total menit tersisa
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
