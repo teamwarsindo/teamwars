@@ -29,7 +29,6 @@ const BID_DEADLINE_TIMESTAMP = 1786279200;
 
 export function isBidOpen(): boolean {
   const now = Date.now();
-  // Jika config statis belum disetting, fallback menggunakan pengecekan timestamp 9 Agustus 2026 20:00 WIB
   if (BID_START_TARGET && BID_CLOSE_TARGET) {
     return now >= BID_START_TARGET && now <= BID_CLOSE_TARGET;
   }
@@ -238,7 +237,7 @@ export async function processBidSubmission(interaction: any) {
               title: `💸 Penawaran Baru — Group ${groupTarget}`,
               color: 0x57F287, // Warna Hijau Neon
               fields: [
-                { name: "👤 Penawar", value: `**${displayName}** (\`@${user.username}\`)`, inline: true },
+                { name: "👤 Penawar", value: `**${displayName}**`, inline: true },
                 { name: "💰 Nominal Bid", value: `**${formatRupiah(amountInput)}**`, inline: true },
                 { name: "🏷️ Nama Divisi", value: `*"${nameA}"*`, inline: false },
               ],
