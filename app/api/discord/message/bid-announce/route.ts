@@ -12,7 +12,9 @@ export const revalidate = 0;
 export async function GET(req: NextRequest) {
   try {
     const token = process.env.DISCORD_BOT_TOKEN;
-    if (!token) return NextResponse.json({ error: 'Bot token missing' }, { status: 500 });
+    if (!token) {
+      return NextResponse.json({ error: 'Bot token missing' }, { status: 500 });
+    }
 
     const headers = {
       Authorization: `Bot ${token}`,
@@ -39,26 +41,40 @@ export async function GET(req: NextRequest) {
 
     // 📢 3A. POSTING OTOMATIS JAM 18:00 WIB (SISA 2 JAM LAGI)
     if (hours === 18 && minutes === 0) {
-      await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_NEWS}/messages`, {
+      const newsEmbed18 = buildNewsEmbed(currentData, false);
+      const resNews18 = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_NEWS}/messages`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          content: '⏳ @everyone **PERINGATAN SISA 2 JAM LAGI!** ⏳\n\nLelang Penamaan Divisi TWI Season 7 akan **RESMI DITUTUP** pada pukul **20:00 WIB** (<t:1786279200:R>).\n\nSegera cek posisi bid tim kamu & lakukan penawaran di <#1268233334543224853> sebelum terlambat!',
+          content: '⏳ @everyone **PERINGATAN SISA 2 JAM LAGI!** ⏳\n\nLelang Penamaan Divisi TWI Season 7 akan **RESMI DITUTUP** pada pukul **20:00 WIB** (<t:1786279200:R>).\n\nSegera cek posisi bid tim kamu & lakukan penawaran di <#856446649940049930> sebelum terlambat!',
+          embeds: [newsEmbed18],
           allowed_mentions: { parse: ['everyone'] },
         }),
       });
+
+      const msgNews18: any = await resNews18.json();
+      if (msgNews18?.id) {
+        await kv.set(KV_MSG_NEWS_KEY, msgNews18.id);
+      }
     }
 
     // 🚨 3B. POSTING OTOMATIS JAM 19:00 WIB (SISA 1 JAM LAGI)
     if (hours === 19 && minutes === 0) {
-      await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_NEWS}/messages`, {
+      const newsEmbed19 = buildNewsEmbed(currentData, false);
+      const resNews19 = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_NEWS}/messages`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          content: '🚨 @everyone **PERINGATAN SISA 1 JAM LAGI!** 🚨\n\nLelang Penamaan Divisi TWI Season 7 akan **RESMI DITUTUP** pada pukul **20:00 WIB** (<t:1786279200:R>).\n\nSegera ajukan penawaran terbaik tim kamu sekarang!',
+          content: '🚨 @everyone **PERINGATAN SISA 1 JAM LAGI!** 🚨\n\nLelang Penamaan Divisi TWI Season 7 akan **RESMI DITUTUP** pada pukul **20:00 WIB** (<t:1786279200:R>).\n\nSegera ajukan penawaran terbaik tim kamu di <#856446649940049930> sekarang!',
+          embeds: [newsEmbed19],
           allowed_mentions: { parse: ['everyone'] },
         }),
       });
+
+      const msgNews19: any = await resNews19.json();
+      if (msgNews19?.id) {
+        await kv.set(KV_MSG_NEWS_KEY, msgNews19.id);
+      }
     }
 
     // 🔔 4. BROADCAST PENUTUPAN JAM 20:00 WIB
@@ -78,12 +94,14 @@ export async function GET(req: NextRequest) {
       });
 
       const newMainMsg: any = await resNewMain.json();
-      if (newMainMsg?.id) await kv.set(KV_MSG_MAIN_KEY, newMainMsg.id);
+      if (newMainMsg?.id) {
+        await kv.set(KV_MSG_MAIN_KEY, newMainMsg.id);
+      }
 
       return NextResponse.json({ success: true, message: 'Bidding closed and announced.' });
     }
 
-    // 🔄 5. SILENT LIVE UPDATE (Bidding, Log, News)
+    // 🔄 5. SILENT LIVE UPDATE (Update Embed Bidding, Log, dan News)
     if (mainMsgId) {
       const mainEmbed = buildMainBidEmbed(currentData, isClosed);
       const components = getBidButtons(isClosed);
@@ -121,4 +139,4 @@ export async function GET(req: NextRequest) {
     console.error('Error pada cronbid-announce route:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-      }
+}
