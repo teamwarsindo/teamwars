@@ -23,7 +23,7 @@ export interface BidStore {
 export const KV_BID_KEY = "twi_bidding_data";
 export const KV_MSG_MAIN_KEY = "twi_bid_msg_main_id";
 export const KV_MSG_LOG_KEY = "twi_bid_msg_log_id";
-export const KV_MSG_NEWS_KEY = "twi_bid_announce_msg_id";
+export const KV_MSG_NEWS_KEY = "twi_bid_announce_msg_id"; // Key Resmi News
 
 export function isBidOpen(): boolean {
   const nowWib = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
@@ -47,7 +47,7 @@ function makeEphemeralResponse(content: string) {
 }
 
 /**
- * 🚀 Inisialisasi awal pengiriman pesan (Diperlukan oleh setup-bid/route.ts)
+ * 🚀 Inisialisasi awal pengiriman pesan
  */
 export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   const isClosed = overrideStatus ? overrideStatus === 'closed' : !isBidOpen();
@@ -78,7 +78,7 @@ export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
   await kv.set(KV_BID_KEY, initialData); 
 }
 
-// Helper khusus pembuat Embed News (Nama bold, bebas tag <@>)
+// Helper pembuat Embed khusus News (Nama bold, bebas tag <@>, channel tag valid)
 export function buildNewsEmbed(data: BidStore, isClosed: boolean) {
   const nameA = data?.groupA?.name || 'Belum ada';
   const displayNameA = data?.groupA?.displayName || data?.groupA?.username || 'Belum ada';
@@ -98,7 +98,7 @@ export function buildNewsEmbed(data: BidStore, isClosed: boolean) {
     title: isClosed ? '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7 (DITUTUP)' : '🏆 LELANG PENAMAAN DIVISI TWI SEASON 7',
     description: isClosed
       ? '❌ **Bidding telah resmi ditutup!** Terima kasih kepada seluruh peserta.'
-      : 'Bidding nama resmi divisi masih terbuka!\nSilakan lakukan penawaran di <#1268233334543224853>.',
+      : 'Bidding nama resmi divisi masih terbuka!\nSilakan lakukan penawaran di <#856446649940049930>.',
     color: isClosed ? 0xed4245 : 0xfee75c,
     fields: [
       { name: `GROUP A ➔ "${nameA}"`, value: valA, inline: false },
