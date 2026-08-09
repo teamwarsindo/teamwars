@@ -31,13 +31,11 @@ function getTeamSlug(teamName: string) {
 function resolveTeamEmoji(teamData: any): string | undefined {
   if (!teamData) return undefined;
 
-  // 1. Jika di KV tersimpan tag utuh Discord (<:name:id>)
   const directTag = teamData.discordEmoji || teamData.emojiTag || teamData.emoji;
   if (typeof directTag === 'string' && directTag.startsWith('<:') && directTag.endsWith('>')) {
     return directTag;
   }
 
-  // 2. Jika di KV tersimpan ID emoji tersendiri
   const emojiId = teamData.discordEmojiId || teamData.emojiId;
   if (emojiId) {
     const rawCode = teamData.kodeTim || teamData.abbreviation || teamData.tag || 'team';
@@ -105,7 +103,6 @@ export async function executeAssignStaff(params: {
   const slugA = getTeamSlug(match.teamAName);
   const slugB = getTeamSlug(match.teamBName);
 
-  // Fetch KV Tim
   const [teamA, teamB] = await Promise.all([
     kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
     kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
@@ -117,7 +114,6 @@ export async function executeAssignStaff(params: {
   const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
   const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
 
-  // Resolusi string Tag Emoji Resmi dari KV
   const teamAEmoji = resolveTeamEmoji(teamA);
   const teamBEmoji = resolveTeamEmoji(teamB);
 
@@ -141,7 +137,6 @@ export async function executeAssignStaff(params: {
     }
   }
 
-  // Update Opening Embed di Channel Pertandingan
   if ((match as any).discordChannelId) {
     const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
       channelId: (match as any).discordChannelId,
@@ -169,7 +164,6 @@ export async function executeAssignStaff(params: {
     if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
   }
 
-  // Log ke #CH_ASSIGN
   const chAssign = DISCORD_CONFIG.CH_ASSIGN;
   if (chAssign) {
     const logParams = {
@@ -247,19 +241,32 @@ export async function executeUnassignStaff(params: {
   const teamBEmoji = resolveTeamEmoji(teamB);
 
   const guildId = DISCORD_CONFIG.GUILD_ID;
+  const matchChannelId = (match as any).discordChannelId;
 
   // 1. Cabut Role / Akses Discord
   if (guildId && isValidSnowflake(targetStaffId)) {
     if (assignType === 'REFEREE') {
+      // Cabut Role Tim dari akun Referee
       if (isValidSnowflake(roleAId)) {
         await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleAId}`, 'DELETE').catch(() => null);
       }
       if (isValidSnowflake(roleBId)) {
         await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleBId}`, 'DELETE').catch(() => null);
       }
+
+      // 🎯 CABUT AKSES ROLE TIM A & TIM B DARI CHANNEL MATCH PERTANDINGAN
+      if (matchChannelId) {
+        if (isValidSnowflake(roleAId)) {
+          await discordAPI(`/channels/${matchChannelId}/permissions/${roleAId}`, 'DELETE').catch(() => null);
+        }
+        if (isValidSnowflake(roleBId)) {
+          await discordAPI(`/channels/${matchChannelId}/permissions/${roleBId}`, 'DELETE').catch(() => null);
+        }
+      }
     }
-    if (assignType === 'STREAMER' && (match as any).discordChannelId) {
-      await discordAPI(`/channels/${(match as any).discordChannelId}/permissions/${targetStaffId}`, 'DELETE').catch(() => null);
+
+    if (assignType === 'STREAMER' && matchChannelId) {
+      await discordAPI(`/channels/${matchChannelId}/permissions/${targetStaffId}`, 'DELETE').catch(() => null);
     }
   }
 
@@ -269,9 +276,9 @@ export async function executeUnassignStaff(params: {
     (match as any).scoreB = scoreB;
     (match as any).isCompleted = true;
 
-    if ((match as any).discordChannelId) {
+    if (matchChannelId) {
       const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
-        channelId: (match as any).discordChannelId,
+        channelId: matchChannelId,
         matchId: match.id,
         groupName: match.groupName,
         teamAName: match.teamAName,
@@ -340,7 +347,6 @@ export async function executeUnassignStaff(params: {
   }
 
   // 5. Reset ID Discord dari objek match agar tidak dianggap busy
-  // Namun TETAP MEMBIARKAN match.referee / match.streamer (nama) untuk match report
   if (assignType === 'REFEREE') {
     match.refereeDiscordId = undefined;
   } else {
