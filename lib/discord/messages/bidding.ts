@@ -9,14 +9,16 @@ export function formatRupiah(amount: number): string {
 const BID_DEADLINE_TIMESTAMP = 1786279200;
 
 /**
- * Helper menghitung sisa waktu presisi dengan pembulatan ke menit terdekat (Math.round)
+ * Helper menghitung sisa waktu presisi (14:00 WIB ke 20:00 WIB = 6 Jam pas)
  */
 export function getRemainingTimeString(): string {
   const diffMs = (BID_DEADLINE_TIMESTAMP * 1000) - Date.now();
   if (diffMs <= 0) return '`Lelang Telah Selesai`';
 
-  // Pembulatan ke menit terdekat agar sisa detik dari delay cronjob tidak memotong menit
-  const totalMinutes = Math.round(diffMs / (1000 * 60));
+  // Tambahkan pembulatan toleransi detik agar delay eksekusi millisecond tidak mengurangi 1 menit
+  const totalSeconds = Math.round(diffMs / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
@@ -35,17 +37,19 @@ export function buildMainBidEmbed(data: any, isClosed: boolean = false) {
     ? '❌ **Bidding telah resmi ditutup!** Terima kasih kepada seluruh peserta.'
     : 'Klik tombol di bawah untuk mengajukan penawaran nama divisi.';
 
-  // Format Group A
+  // Format Group A (Dengan Guarding userId)
   const groupA = data?.groupA;
+  const userMentionA = groupA?.userId ? `<@${groupA.userId}>` : (groupA?.displayName || groupA?.username || '_Tanpa Nama_');
   const valA = groupA
-    ? `💰 **${formatRupiah(groupA.amount)}** oleh <@${groupA.userId}>`
+    ? `💰 **${formatRupiah(groupA.amount)}** oleh ${userMentionA}`
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameA = groupA?.name ? groupA.name : 'Belum ada';
 
-  // Format Group B
+  // Format Group B (Dengan Guarding userId)
   const groupB = data?.groupB;
+  const userMentionB = groupB?.userId ? `<@${groupB.userId}>` : (groupB?.displayName || groupB?.username || '_Tanpa Nama_');
   const valB = groupB
-    ? `💰 **${formatRupiah(groupB.amount)}** oleh <@${groupB.userId}>`
+    ? `💰 **${formatRupiah(groupB.amount)}** oleh ${userMentionB}`
     : `💰 **Rp 0** oleh _Belum ada_`;
   const nameB = groupB?.name ? groupB.name : 'Belum ada';
 
