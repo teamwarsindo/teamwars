@@ -9,17 +9,23 @@ export function formatRupiah(amount: number): string {
 const BID_DEADLINE_TIMESTAMP = 1786280400;
 
 /**
- * Helper menghitung sisa waktu dalam format "X jam Y menit"
+ * Helper menghitung sisa waktu presisi zona waktu Asia/Jakarta (WIB)
  */
 export function getRemainingTimeString(): string {
-  const targetMs = BID_DEADLINE_TIMESTAMP * 1000;
-  const nowMs = Date.now();
-  const diffMs = targetMs - nowMs;
+  // 1. Ambil Waktu Sekarang di WIB
+  const nowWib = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+
+  // 2. Tentukan Target Hari Ini Jam 20:00:00 WIB
+  const targetWib = new Date(nowWib);
+  targetWib.setHours(20, 0, 0, 0);
+
+  // 3. Hitung Selisih Millisecond
+  const diffMs = targetWib.getTime() - nowWib.getTime();
 
   if (diffMs <= 0) return '`Lelang Telah Selesai`';
 
-  // Hitung total menit tersisa
-  const totalSeconds = Math.floor(diffMs / 1000);
+  // 4. Konversi ke Total Detik & Menit (Pembulatan Matematika Tepat)
+  const totalSeconds = Math.round(diffMs / 1000);
   const totalMinutes = Math.floor(totalSeconds / 60);
 
   const hours = Math.floor(totalMinutes / 60);
