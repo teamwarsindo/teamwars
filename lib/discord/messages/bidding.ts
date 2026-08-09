@@ -7,6 +7,7 @@ export function formatRupiah(amount: number): string {
 
 /**
  * Helper menghitung sisa waktu presisi ke jam 20:00:00 WIB
+ * Menggunakan Math.round pada detik agar pembulatan menit akurat
  */
 export function getRemainingTimeString(): string {
   // 1. Waktu WIB Sekarang
@@ -20,8 +21,10 @@ export function getRemainingTimeString(): string {
 
   if (diffMs <= 0) return '`Lelang Telah Selesai`';
 
-  // 3. Hitung Selisih Jam & Menit
-  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  // 3. Bulatkan ke detik lalu ke menit terdekat (Math.round)
+  const totalSeconds = Math.round(diffMs / 1000);
+  const totalMinutes = Math.round(totalSeconds / 60);
+
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
@@ -99,4 +102,4 @@ export async function patchMainBidMessage(msgId: string, data: any, isClosed: bo
   }
 
   return res.ok;
-}
+      }
