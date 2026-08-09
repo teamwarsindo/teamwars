@@ -24,9 +24,16 @@ export const KV_BID_KEY = "twi_bidding_data";
 export const KV_MSG_MAIN_KEY = "twi_bid_msg_main_id";
 export const KV_MSG_LOG_KEY = "twi_bid_msg_log_id";
 
+// Batas Akhir Bidding: Hari Ini (Minggu, 9 Agustus 2026, 20:00:00 WIB)
+const BID_DEADLINE_TIMESTAMP = 1786279200;
+
 export function isBidOpen(): boolean {
   const now = Date.now();
-  return now >= BID_START_TARGET && now <= BID_CLOSE_TARGET;
+  // Jika config statis belum disetting, fallback menggunakan pengecekan timestamp 9 Agustus 2026 20:00 WIB
+  if (BID_START_TARGET && BID_CLOSE_TARGET) {
+    return now >= BID_START_TARGET && now <= BID_CLOSE_TARGET;
+  }
+  return now < (BID_DEADLINE_TIMESTAMP * 1000);
 }
 
 function getFullWibTimestamp(): string {
@@ -83,15 +90,20 @@ export async function initBiddingMessages(overrideStatus?: 'closed' | 'open') {
 export async function syncBidMessages(forceClosed?: boolean) {
   const isClosed = typeof forceClosed === 'boolean' ? forceClosed : !isBidOpen();
 
-  const data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
+  let data: BidStore | null = await kv.get<BidStore>(KV_BID_KEY);
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch {}
+  }
+  const currentData: BidStore = data || { groupA: null, groupB: null, logs: [] };
+
   const mainMsgId = await kv.get<string>(KV_MSG_MAIN_KEY);
   const logMsgId = await kv.get<string>(KV_MSG_LOG_KEY);
 
   const token = process.env.DISCORD_BOT_TOKEN;
 
   await Promise.all([
-    mainMsgId ? patchMainBidMessage(mainMsgId, data, isClosed, token!) : Promise.resolve(),
-    logMsgId ? patchLogBidMessage(logMsgId, data.logs, token!) : Promise.resolve()
+    mainMsgId ? patchMainBidMessage(mainMsgId, currentData, isClosed, token!) : Promise.resolve(),
+    logMsgId ? patchLogBidMessage(logMsgId, currentData.logs || [], token!) : Promise.resolve()
   ]);
 }
 
@@ -99,13 +111,17 @@ export async function syncBidMessages(forceClosed?: boolean) {
  * 📜 Handler Tombol Lihat Seluruh Log
  */
 export async function handleViewFullLog() {
-  const data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
+  let data: BidStore | null = await kv.get<BidStore>(KV_BID_KEY);
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch {}
+  }
+  const currentData: BidStore = data || { groupA: null, groupB: null, logs: [] };
 
-  if (!data.logs || data.logs.length === 0) {
+  if (!currentData.logs || currentData.logs.length === 0) {
     return makeEphemeralResponse("ℹ️ **Belum ada riwayat bidding saat ini.**");
   }
 
-  const fullLogList = data.logs.map((log, index) => {
+  const fullLogList = currentData.logs.map((log, index) => {
     const displayName = log.displayName || log.username;
     return `**${index + 1}.** \`[${log.timestamp}]\` **${displayName}** bid **${formatRupiah(log.amount)}** ➔ **Group ${log.group}** (*"${log.name}"*)`;
   }).join("\n\n");
@@ -118,7 +134,7 @@ export async function handleViewFullLog() {
       flags: 64, // Ephemeral
       embeds: [
         {
-          title: `📜 SELURUH RIWAYAT BIDDING (${data.logs.length} Total)`,
+          title: `📜 SELURUH RIWAYAT BIDDING (${currentData.logs.length} Total)`,
           description: trimmedList,
           color: 0x5865F2,
           footer: { text: "Team Wars Indonesia • Full Audit Trail" },
@@ -135,7 +151,7 @@ export async function handleViewFullLog() {
 export async function processBidSubmission(interaction: any) {
   if (!isBidOpen()) {
     await syncBidMessages(true);
-    return makeEphemeralResponse("❌ **Bidding sudah ditutup!** (Batas waktu: 8 Agustus 2026, 20:00 WIB)");
+    return makeEphemeralResponse("❌ **Bidding sudah ditutup!** (Batas waktu: Hari Ini, 9 Agustus 2026, 20:00 WIB)");
   }
 
   const customId = interaction.data.custom_id; 
@@ -147,8 +163,8 @@ export async function processBidSubmission(interaction: any) {
 
   for (const row of rows) {
     for (const comp of (row.components || [])) {
-      if (comp.custom_id === "input_division_name") nameA = comp.value.trim();
-      if (comp.custom_id === "input_bid_amount") amountRaw = comp.value;
+      if (comp.custom_id === "input_division_name") nameA = comp.value?.trim() || "";
+      if (comp.custom_id === "input_bid_amount") amountRaw = comp.value?.trim() || "";
     }
   }
 
@@ -162,7 +178,11 @@ export async function processBidSubmission(interaction: any) {
     return makeEphemeralResponse("❌ **Bid ditolak!** Nominal bid harus kelipatan **Rp 10.000** (Contoh: 110000, 120000).");
   }
 
-  const data: BidStore = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null, logs: [] };
+  let dataStore: BidStore | null = await kv.get<BidStore>(KV_BID_KEY);
+  if (typeof dataStore === 'string') {
+    try { dataStore = JSON.parse(dataStore); } catch {}
+  }
+  const data: BidStore = dataStore || { groupA: null, groupB: null, logs: [] };
 
   const currentA = data.groupA?.amount || 0;
   const currentB = data.groupB?.amount || 0;
@@ -190,6 +210,7 @@ export async function processBidSubmission(interaction: any) {
     data.groupB = { amount: amountInput, name: nameA, userId: user.id, username: user.username, displayName, timestamp };
   }
 
+  if (!Array.isArray(data.logs)) data.logs = [];
   data.logs.unshift({ group: groupTarget, amount: amountInput, name: nameA, username: user.username, displayName, timestamp });
 
   await kv.set(KV_BID_KEY, data);
@@ -197,7 +218,7 @@ export async function processBidSubmission(interaction: any) {
   // 1. Sync / Update Tampilan Embed Utama di Discord Channel Bidding
   await syncBidMessages();
 
-  // 🟢 2. NOTIFIKASI PING REALT-TIME KE CHANNEL LOG ADMIN (CH_LOG)
+  // 🟢 2. NOTIFIKASI PING REAL-TIME KE CHANNEL LOG ADMIN (CH_LOG)
   try {
     const token = process.env.DISCORD_BOT_TOKEN;
     const adminRoleId = DISCORD_CONFIG.ROLE_ADMIN;
@@ -233,4 +254,4 @@ export async function processBidSubmission(interaction: any) {
   }
 
   return makeEphemeralResponse(`✅ **Berhasil!** Bid **${formatRupiah(amountInput)}** untuk **Group ${groupTarget}** (*"${nameA}"*) telah dicatat!`);
-          }
+    }
