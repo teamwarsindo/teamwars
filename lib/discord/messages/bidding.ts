@@ -5,16 +5,22 @@ export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
 }
 
-// Batas Bidding Tepat Jam 20:00:00 WIB (Minggu, 9 Agustus 2026)
-const BID_DEADLINE_TIMESTAMP = 1786279200;
-
 /**
- * Helper menghitung sisa waktu format simpel sebelumnya
+ * Helper menghitung sisa waktu presisi ke jam 20:00:00 WIB
  */
 export function getRemainingTimeString(): string {
-  const diffMs = (BID_DEADLINE_TIMESTAMP * 1000) - Date.now();
+  // 1. Waktu WIB Sekarang
+  const nowWib = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+
+  // 2. Target Hari Ini Jam 20:00:00 WIB
+  const targetWib = new Date(nowWib);
+  targetWib.setHours(20, 0, 0, 0);
+
+  const diffMs = targetWib.getTime() - nowWib.getTime();
+
   if (diffMs <= 0) return '`Lelang Telah Selesai`';
 
+  // 3. Hitung Selisih Jam & Menit
   const totalMinutes = Math.floor(diffMs / (1000 * 60));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
