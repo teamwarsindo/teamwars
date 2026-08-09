@@ -35,6 +35,9 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
 
+// Batas Waktu Akhir Bidding: Hari Ini (Minggu, 9 Agustus 2026, 20:00:00 WIB)
+const BID_DEADLINE_TIMESTAMP = 1786279200;
+
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
@@ -94,8 +97,18 @@ export async function POST(req: NextRequest) {
 
       // 🏆 Tombol Bid Group A / B
       if (customId.startsWith('btn_bid_')) {
-        const groupTarget = customId.replace('btn_bid_', '');
+        // 🔒 CEK DEADLINE DAHULU SEBELUM BUKA MODAL
+        if (Date.now() >= BID_DEADLINE_TIMESTAMP * 1000) {
+          return NextResponse.json({
+            type: 4,
+            data: {
+              content: '❌ **Bidding telah resmi ditutup!** (Batas waktu: Hari Ini, 9 Agustus 2026, 20:00 WIB)',
+              flags: 64, // Ephemeral (hanya bisa dilihat oleh user yang klik)
+            },
+          });
+        }
 
+        const groupTarget = customId.replace('btn_bid_', '');
         const data = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null };
 
         const currentA = data.groupA?.amount || 0;
@@ -230,4 +243,5 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-}
+          }
+  
