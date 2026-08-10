@@ -56,7 +56,7 @@ export function MatchAdminCard({
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<MatchScheduleItem>(match);
 
-  // 🟢 SYNC STATE DRAFT SAAT PROPS MATCH DARI SERVER DI-REFRESH
+  // Sync draft setiap kali match prop diperbarui dari server
   useEffect(() => {
     setDraft(match);
   }, [match]);
@@ -71,7 +71,7 @@ export function MatchAdminCard({
 
   const scoreA = match.scoreA ?? 0;
   const scoreB = match.scoreB ?? 0;
-  const isMatchDone = Boolean(match.isFinished || (scoreA + scoreB > 0));
+  const isMatchDone = Boolean(match.isFinished || scoreA + scoreB > 0);
 
   const isTeamAWinner = isMatchDone && scoreA > scoreB;
   const isTeamBWinner = isMatchDone && scoreB > scoreA;
@@ -143,7 +143,7 @@ export function MatchAdminCard({
             />
           </div>
 
-          {/* WASIT DROPDOWN */}
+          {/* WASIT DROPDOWN (BERSIHKAN DUMMY JIKA PILIH "") */}
           <div>
             <label className="block text-[10px] text-muted-foreground font-bold mb-1">
               WASIT / REFEREE
@@ -152,12 +152,21 @@ export function MatchAdminCard({
               value={draft.refereeDiscordId || ''}
               onChange={(e) => {
                 const selectedId = e.target.value;
-                const selectedStaff = refereeList.find((r) => r.discordId === selectedId);
-                setDraft({
-                  ...draft,
-                  refereeDiscordId: selectedId,
-                  referee: selectedStaff ? selectedStaff.discordName : '',
-                });
+                if (!selectedId) {
+                  // 🟢 PAKSA KOSONGKAN NAMA & ID SUPAYA DUMMY TERHAPUS DENGAN PASTI
+                  setDraft({
+                    ...draft,
+                    refereeDiscordId: '',
+                    referee: '',
+                  });
+                } else {
+                  const selectedStaff = refereeList.find((r) => r.discordId === selectedId);
+                  setDraft({
+                    ...draft,
+                    refereeDiscordId: selectedId,
+                    referee: selectedStaff ? selectedStaff.discordName : '',
+                  });
+                }
               }}
               className="w-full rounded-lg bg-background border border-input p-2 font-semibold text-xs cursor-pointer"
             >
@@ -170,7 +179,7 @@ export function MatchAdminCard({
             </select>
           </div>
 
-          {/* STREAMER DROPDOWN */}
+          {/* STREAMER DROPDOWN (BERSIHKAN DUMMY JIKA PILIH "") */}
           <div>
             <label className="block text-[10px] text-muted-foreground font-bold mb-1">
               STREAMER / CASTER
@@ -179,12 +188,21 @@ export function MatchAdminCard({
               value={draft.streamerDiscordId || ''}
               onChange={(e) => {
                 const selectedId = e.target.value;
-                const selectedStaff = streamerList.find((s) => s.discordId === selectedId);
-                setDraft({
-                  ...draft,
-                  streamerDiscordId: selectedId,
-                  streamer: selectedStaff ? selectedStaff.discordName : '',
-                });
+                if (!selectedId) {
+                  // 🟢 PAKSA KOSONGKAN NAMA & ID SUPAYA DUMMY TERHAPUS DENGAN PASTI
+                  setDraft({
+                    ...draft,
+                    streamerDiscordId: '',
+                    streamer: '',
+                  });
+                } else {
+                  const selectedStaff = streamerList.find((s) => s.discordId === selectedId);
+                  setDraft({
+                    ...draft,
+                    streamerDiscordId: selectedId,
+                    streamer: selectedStaff ? selectedStaff.discordName : '',
+                  });
+                }
               }}
               className="w-full rounded-lg bg-background border border-input p-2 font-semibold text-xs cursor-pointer"
             >
@@ -329,4 +347,5 @@ export function MatchAdminCard({
       )}
     </div>
   );
-          }
+}
+  
