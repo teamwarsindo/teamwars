@@ -67,7 +67,7 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     params.teamBEmoji ||
     (params.emojiBId ? `<:${(params.kodeTimB || 'team').replace(/\s+/g, '')}:${params.emojiBId}>` : '');
 
-  // Logika Wasit & Streamer (Fallback ke 'Belum ditentukan' saat opening pertama)
+  // Logika Wasit & Streamer
   let refText = 'Belum ditentukan';
   let strmText = 'Belum ditentukan';
 
@@ -107,13 +107,14 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     });
   }
 
-  // Ketentuan Reschedule
+  // Ketentuan Reschedule (Poin Tersendiri)
   fields.push({
     name: '📢 Ketentuan Reschedule',
     value:
       '• **Persetujuan:** Kedua tim wajib setuju.\n' +
       '• **Hari Tanding:** Rabu s.d. Minggu.\n' +
-      `• **Batas Harian:** Maksimal 3 match per hari (Cek kuota slot di ${scheduleChannelMention}).\n` +
+      '• **Batas Harian:** Maksimal 3 match per hari.\n' +
+      `• **Cek Kuota:** ${scheduleChannelMention}\n` +
       '• **Konfirmasi:** Wajib lapor ke **Admin Discord**.',
     inline: false,
   });
@@ -145,15 +146,15 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const roleAMention = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
   const roleBMention = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
 
-  // HANYA SERTAKAN PING ROLE JIKA OPENING PERTAMA KALI (isFirstOpening === true)
   const postPayload: any = {
     embeds: [embedData],
   };
 
+  // HANYA SERTAKAN PING ROLE JIKA OPENING PERTAMA KALI
   if (isFirstOpening) {
     postPayload.content = `${roleAMention} ${roleBMention}`;
   }
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', postPayload).catch(() => null);
   return res?.id || null;
-}
+    }
