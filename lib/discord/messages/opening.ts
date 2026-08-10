@@ -55,7 +55,7 @@ function formatWIBDate(dateIso?: string): string {
 export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Promise<string | null> {
   if (!params.channelId) return null;
 
-  // Cek apakah ini pemanggilan opening pertama
+  // Deteksi apakah ini pembuatan pesan pertama kali
   const isFirstOpening = !params.existingMsgId;
 
   // Resolusi Emoji A & B
@@ -67,28 +67,26 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     params.teamBEmoji ||
     (params.emojiBId ? `<:${(params.kodeTimB || 'team').replace(/\s+/g, '')}:${params.emojiBId}>` : '');
 
-  // 🟢 LOGIKA BYPASS WASIT & STREAMER JIKA OPENING PERTAMA
+  // Logika Wasit & Streamer (Fallback ke 'Belum ditentukan' saat opening pertama)
   let refText = 'Belum ditentukan';
   let strmText = 'Belum ditentukan';
 
-  if (!isFirstOpening) {
-    if (params.refereeDiscordId) {
-      refText = `<@${params.refereeDiscordId}>`;
-    } else if (params.refereeName && params.refereeName !== 'Belum tersedia') {
-      refText = params.refereeName;
-    }
+  if (params.refereeDiscordId) {
+    refText = `<@${params.refereeDiscordId}>`;
+  } else if (params.refereeName && params.refereeName !== 'Belum tersedia') {
+    refText = params.refereeName;
+  }
 
-    if (params.streamerDiscordId) {
-      strmText = `<@${params.streamerDiscordId}>`;
-    } else if (params.streamerName && params.streamerName !== 'Belum tersedia') {
-      strmText = params.streamerName;
-    }
+  if (params.streamerDiscordId) {
+    strmText = `<@${params.streamerDiscordId}>`;
+  } else if (params.streamerName && params.streamerName !== 'Belum tersedia') {
+    strmText = params.streamerName;
   }
 
   const liveStreamText = params.streamLink || 'Belum tersedia';
   const isFinished = params.isCompleted || false;
 
-  // Link ke #CH_SCHEDULE
+  // Mention Channel Schedule
   const scheduleChannelMention = DISCORD_CONFIG.CH_SCHEDULE 
     ? `<#${DISCORD_CONFIG.CH_SCHEDULE}>` 
     : 'channel jadwal';
@@ -124,10 +122,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const teamADisplay = `${emojiA ? emojiA + ' ' : ''}**${params.teamAName}**`;
   const teamBDisplay = `${emojiB ? emojiB + ' ' : ''}**${params.teamBName}**`;
 
-  // String Mentions Role
-  const roleAMention = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
-  const roleBMention = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
-
   const groupDisplayName = params.groupName || 'Group Stage';
   const weekDisplayName = params.weekName || 'Week 1';
 
@@ -139,26 +133,26 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  // 1. PATCH jika pesan sudah ada
+  // 🗑️ 1. HAPUS PESAN EKSISTING DULU JIKA ADA (DELETE)
   if (params.existingMsgId) {
-    const patchPayload = {
-      embeds: [embedData],
-    };
-
-    const res = await discordAPI(
+    await discordAPI(
       `/channels/${params.channelId}/messages/${params.existingMsgId}`,
-      'PATCH',
-      patchPayload
+      'DELETE'
     ).catch(() => null);
-
-    if (res?.id) return res.id;
   }
 
-  // 2. POST jika pesan belum ada (Opening Pertama)
-  const postPayload = {
-    content: `${roleAMention} ${roleBMention}`,
+  // 📩 2. KIRIM PESAN BARU DI POSISI PALING BAWAH (POST)
+  const roleAMention = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
+  const roleBMention = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
+
+  // HANYA SERTAKAN PING ROLE JIKA OPENING PERTAMA KALI (isFirstOpening === true)
+  const postPayload: any = {
     embeds: [embedData],
   };
+
+  if (isFirstOpening) {
+    postPayload.content = `${roleAMention} ${roleBMention}`;
+  }
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', postPayload).catch(() => null);
   return res?.id || null;
