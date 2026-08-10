@@ -4,21 +4,30 @@ import { useEffect } from "react";
 import { MatchScheduleItem } from "@/lib/types/tournament";
 
 interface MatchReportModalProps {
-  open: boolean;
-  onClose: () => void;
+  open?: boolean;
   match: MatchScheduleItem | null;
+  weekNumber?: number;
+  onClose: () => void;
+  onSaveMatch?: (updatedMatch: MatchScheduleItem) => Promise<void>;
 }
 
-export function MatchReportModal({ open, onClose, match }: MatchReportModalProps) {
+export function MatchReportModal({
+  open,
+  match,
+  weekNumber,
+  onClose,
+  onSaveMatch,
+}: MatchReportModalProps) {
   useEffect(() => {
-    if (open) document.body.style.overflow = "hidden";
+    if (match || open) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "unset";
     return () => {
       document.body.style.overflow = "unset";
     };
-  }, [open]);
+  }, [match, open]);
 
-  if (!open || !match) return null;
+  // Modal hanya muncul jika match ada (dan open bernilai true jika dikirim)
+  if (!match || (open !== undefined && !open)) return null;
 
   const gameLogs = match.gameLogs || [];
   const rosterA = match.rosterA?.mainPlayers || [];
@@ -31,7 +40,7 @@ export function MatchReportModal({ open, onClose, match }: MatchReportModalProps
         <div className="flex items-center justify-between border-b border-border/50 px-5 py-3.5">
           <div>
             <span className="text-[10px] font-black uppercase text-primary tracking-wider block">
-              OFFICIAL MATCH REPORT • {match.groupName}
+              OFFICIAL MATCH REPORT • {match.groupName} {weekNumber ? `(Week ${weekNumber})` : ""}
             </span>
             <h3 className="text-sm font-extrabold text-foreground">
               {match.teamAName} vs {match.teamBName}
@@ -167,4 +176,5 @@ export function MatchReportModal({ open, onClose, match }: MatchReportModalProps
       </div>
     </div>
   );
-}
+        }
+                        
