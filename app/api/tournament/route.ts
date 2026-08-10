@@ -8,7 +8,6 @@ import { executeAssignStaff } from '@/lib/discord/services/staff-assignment';
 const KV_KEY_SCHEDULES = 'twi:schedules';
 const KV_KEY_ROULETTE = 'twi:roulette_state';
 
-// Batas waktu berlaku token Wasit jika dipanggil dari console wasit publik (7 hari)
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 function getTeamSlug(teamName: string) {
@@ -20,7 +19,17 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
-// Helper verifikasi token KHUSUS untuk Wasit Publik (Bukan Admin)
+// Helper Hitung Minggu Dinamis berdasarkan Tanggal Match (Patokan: 3 Agustus 2026)
+function computeWeekNumber(dateIsoString?: string): number {
+  if (!dateIsoString) return 1;
+  const startDate = new Date('2026-08-03T00:00:00+07:00').getTime();
+  const matchDate = new Date(dateIsoString).getTime();
+  if (isNaN(matchDate)) return 1;
+
+  const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
 function verifyRefereeTokenOnly(match: MatchScheduleItem, token?: string) {
   if (!match.refereeToken || token !== match.refereeToken) {
     return { valid: false, reason: 'TOKEN_INVALID' };
@@ -36,7 +45,6 @@ function verifyRefereeTokenOnly(match: MatchScheduleItem, token?: string) {
   return { valid: true, reason: 'REFEREE_VALID' };
 }
 
-// 🟢 GET ENDPOINT: UNTUK SCHEDULE PUBLIK, KLASEMEN, & CONSOLE INPUT WASIT
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -52,13 +60,11 @@ export async function GET(req: Request) {
     const groupA = rawGroupA.map((t: any) => ({ ...t, groupName: DIVISION_MAP.GROUP_A }));
     const groupB = rawGroupB.map((t: any) => ({ ...t, groupName: DIVISION_MAP.GROUP_B }));
 
-    // Auto-generate jika jadwal belum ada di KV
     if (schedules.length === 0 && (groupA.length > 0 || groupB.length > 0)) {
       schedules = generateChallongeRoundRobinSchedules(groupA, groupB);
       await kv.set(KV_KEY_SCHEDULES, schedules);
     }
 
-    // HANDLER DETAIL MATCH CONSOLE WASIT PUBLIK
     if (matchId) {
       const matchIndex = schedules.findIndex((m) => m.id === matchId);
       if (matchIndex === -1) {
@@ -67,14 +73,12 @@ export async function GET(req: Request) {
 
       const match = schedules[matchIndex];
 
-      // Auto-generate token wasit jika belum ada
       if (!match.refereeToken) {
         match.refereeToken = `REF-${match.id.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
         schedules[matchIndex] = match;
         await kv.set(KV_KEY_SCHEDULES, schedules);
       }
 
-      // Jika ada token yang dikirim, verifikasi batas waktu Wasit
       if (token && token !== process.env.BASIC_AUTH_PWD && token !== 'tsaqif') {
         const access = verifyRefereeTokenOnly(match, token);
         if (!access.valid) {
@@ -86,7 +90,6 @@ export async function GET(req: Request) {
         }
       }
 
-      // Fetch Roster Resmi Tim dari KV
       const slugA = getTeamSlug(match.teamAName);
       const slugB = getTeamSlug(match.teamBName);
 
@@ -129,7 +132,6 @@ export async function GET(req: Request) {
   }
 }
 
-// 🟢 POST ENDPOINT: HAK AKSES ADMIN PENUH TANPA DIBLOKIR TOKEN WASIT
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -137,7 +139,6 @@ export async function POST(req: Request) {
 
     let schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
-    // 1. RESET / SYNC JADWAL
     if (action === 'SYNC_ROULETTE' || action === 'FORCE_RESET_SCHEDULES') {
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
       const gA = (rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: DIVISION_MAP.GROUP_A }));
@@ -148,7 +149,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, schedules });
     }
 
-    // 2. UPDATE MATCH DATA (DASHBOARD ADMIN QUICK EDIT)
     if (action === 'UPDATE_MATCH_CONSOLE') {
       const targetIndex = schedules.findIndex((m) => m.id === matchId);
       if (targetIndex === -1) {
@@ -157,15 +157,28 @@ export async function POST(req: Request) {
 
       const existingMatch = schedules[targetIndex];
 
-      // 🟢 DUKUNG MENIMPA DUMMY DENGAN STRING KOSONG ("")
+      // 1. Dapatkan tanggal terbaru
+      const newMatchDate = matchData.matchDate || existingMatch.matchDate;
+      
+      // 2. Hitung ulang minggu secara otomatis berdasarkan tanggal baru
+      const calculatedWeek = computeWeekNumber(newMatchDate);
+
+      // 3. PAKSA KOSONGKAN DUMMY JIKA TIDAK PILIH WASIT/STREAMER
+      const refereeDiscordId = matchData.refereeDiscordId || '';
+      const refereeName = refereeDiscordId ? (matchData.referee || '') : '';
+
+      const streamerDiscordId = matchData.streamerDiscordId || '';
+      const streamerName = streamerDiscordId ? (matchData.streamer || '') : '';
+
       const updatedMatch: MatchScheduleItem = {
         ...existingMatch,
         ...matchData,
-        referee: typeof matchData.referee === 'string' ? matchData.referee : (existingMatch.referee || ''),
-        refereeDiscordId: typeof matchData.refereeDiscordId === 'string' ? matchData.refereeDiscordId : (existingMatch.refereeDiscordId || ''),
-        streamer: typeof matchData.streamer === 'string' ? matchData.streamer : (existingMatch.streamer || ''),
-        streamerDiscordId: typeof matchData.streamerDiscordId === 'string' ? matchData.streamerDiscordId : (existingMatch.streamerDiscordId || ''),
-        
+        matchDate: newMatchDate,
+        weekNumber: calculatedWeek, // Update minggu otomatis
+        referee: refereeName,       // Paksa "" jika refereeDiscordId kosong
+        refereeDiscordId: refereeDiscordId,
+        streamer: streamerName,     // Paksa "" jika streamerDiscordId kosong
+        streamerDiscordId: streamerDiscordId,
         scoreA: matchData.scoreA ?? existingMatch.scoreA ?? 0,
         scoreB: matchData.scoreB ?? existingMatch.scoreB ?? 0,
         isFinished: matchData.isFinished ?? existingMatch.isFinished ?? false,
@@ -176,7 +189,7 @@ export async function POST(req: Request) {
       schedules[targetIndex] = updatedMatch;
       await kv.set(KV_KEY_SCHEDULES, schedules);
 
-      // 🔵 A. OTOMATISASI ROLES DISCORD JIKA WASIT/STREAMER DIPILIH
+      // Assign Staff jika ada Wasit/Streamer baru
       if (updatedMatch.refereeDiscordId && updatedMatch.refereeDiscordId !== existingMatch.refereeDiscordId) {
         await executeAssignStaff({
           matchId: updatedMatch.id,
@@ -193,7 +206,7 @@ export async function POST(req: Request) {
         }).catch((e) => console.warn('Gagal assign streamer:', e));
       }
 
-      // 🟢 B. OTOMATISASI SYNC & REPOST EMBED DISCORD (BEBAS PING SPAM)
+      // Sync ke Discord
       const currentSchedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || schedules;
       const latestMatch = currentSchedules.find((m) => m.id === matchId) || updatedMatch;
 
@@ -205,9 +218,7 @@ export async function POST(req: Request) {
         kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
       ]);
 
-      const weekStr = (latestMatch as any).weekName || `Week ${latestMatch.weekNumber || 1}`;
-
-      // Resolusi nama grup resmi agar judul di embed tidak ter-reset ke Group A/B
+      const weekStr = `Week ${latestMatch.weekNumber || calculatedWeek}`;
       const resolvedGroupName =
         latestMatch.groupName === 'Group A' ? DIVISION_MAP.GROUP_A :
         latestMatch.groupName === 'Group B' ? DIVISION_MAP.GROUP_B :
@@ -247,7 +258,6 @@ export async function POST(req: Request) {
         }
       }
 
-      // Recalculate standings
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
       const masterTeams = [
         ...(rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: DIVISION_MAP.GROUP_A })),
@@ -265,7 +275,6 @@ export async function POST(req: Request) {
   }
 }
 
-// 🌐 GENERATOR JADWAL DENGAN TANGGAL UTAMA DARI ENV
 function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): MatchScheduleItem[] {
   const schedules: MatchScheduleItem[] = [];
   let idCounter = 1;
@@ -361,4 +370,5 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   }
 
   return schedules;
-      }
+                                                  }
+          
