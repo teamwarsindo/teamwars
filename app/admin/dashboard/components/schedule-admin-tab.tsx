@@ -16,9 +16,9 @@ export function ScheduleAdminTab() {
   const [refereeList, setRefereeList] = useState<StaffItem[]>([]);
   const [streamerList, setStreamerList] = useState<StaffItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // State Filter Week & Custom Dropdown
-  const [selectedWeek, setSelectedWeek] = useState<string>('ALL');
+
+  // Filter Week dengan Tipe Data Number | 'ALL' (Konsisten dengan ScheduleTab)
+  const [selectedWeek, setSelectedWeek] = useState<number | 'ALL'>('ALL');
   const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
   const weekDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +47,7 @@ export function ScheduleAdminTab() {
     fetchSchedulesAndStaff();
   }, []);
 
-  // Close dropdown jika klik di luar
+  // Tutup dropdown saat klik di luar area
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (weekDropdownRef.current && !weekDropdownRef.current.contains(event.target as Node)) {
@@ -58,24 +58,18 @@ export function ScheduleAdminTab() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Opsi Week Lengkap untuk Admin
-  const weekOptions = useMemo(() => {
+  // Ambil Angka Minggu Unik
+  const availableWeeks = useMemo(() => {
     if (!schedules?.length) return [];
-    const weeksMap = new Map<number, MatchScheduleItem[]>();
-    schedules.forEach((m) => {
-      const wNum = m.weekNumber || 1;
-      if (!weeksMap.has(wNum)) weeksMap.set(wNum, []);
-      weeksMap.get(wNum)?.push(m);
-    });
-    return Array.from(weeksMap.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([weekNumber, matches]) => ({ weekNum: `Week ${weekNumber}`, weekNumber, matches }));
+    return Array.from(
+      new Set(schedules.map((m) => Number(m.weekNumber) || 1))
+    ).sort((a, b) => a - b);
   }, [schedules]);
 
+  // Logika Filter Minggu
   const filteredSchedules = useMemo(() => {
     if (selectedWeek === 'ALL') return schedules;
-    const weekNum = parseInt(selectedWeek.replace('Week ', ''), 10);
-    return schedules.filter((m) => (m.weekNumber || 1) === weekNum);
+    return schedules.filter((m) => (Number(m.weekNumber) || 1) === selectedWeek);
   }, [schedules, selectedWeek]);
 
   const handleSaveMatchSchedule = async (updated: MatchScheduleItem) => {
@@ -105,8 +99,9 @@ export function ScheduleAdminTab() {
 
   const handleBroadcastRecap = async () => {
     if (selectedWeek === 'ALL') return;
+    const targetWeekStr = `Week ${selectedWeek}`;
     const res = await Swal.fire({
-      title: `Kelola Broadcast ${selectedWeek}?`,
+      title: `Kelola Broadcast ${targetWeekStr}?`,
       showCancelButton: true,
       showDenyButton: true,
       confirmButtonText: 'Ya, Broadcast!',
@@ -122,11 +117,11 @@ export function ScheduleAdminTab() {
     const apiRes = await fetch('/api/tournament/weekly-recap', {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetWeek: selectedWeek }),
+      body: JSON.stringify({ targetWeek: targetWeekStr }),
     });
     if (apiRes.ok) {
       await fetchSchedulesAndStaff();
-      Swal.fire('Selesai!', `Operasi ${selectedWeek} berhasil!`, 'success');
+      Swal.fire('Selesai!', `Operasi ${targetWeekStr} berhasil!`, 'success');
     }
   };
 
@@ -141,10 +136,9 @@ export function ScheduleAdminTab() {
           <p className="text-xs text-muted-foreground">Kelola waktu (WIB), Wasit, Streamer, dan otomatisasi channel Discord match.</p>
         </div>
 
-        {/* KONTROL KANAN: REFRESH STAFF, DROPDOWN WEEK & BROADCAST */}
+        {/* KONTROL KANAN */}
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:flex items-center gap-2 w-full md:w-auto">
           
-          {/* REFRESH STAFF BUTTON */}
           <button
             onClick={async () => {
               Swal.fire({ title: 'Refreshing...', didOpen: () => Swal.showLoading() });
@@ -158,8 +152,8 @@ export function ScheduleAdminTab() {
             <span>Refresh Staf KV</span>
           </button>
 
-          {/* CUSTOM POPOVER DROPDOWN WEEK */}
-          <div className="relative w-full sm:w-auto min-w-[190px]" ref={weekDropdownRef}>
+          {/* CUSTOM DROPDOWN FILTER MINGGU */}
+          <div className="relative w-full sm:w-auto min-w-[200px]" ref={weekDropdownRef}>
             <button
               type="button"
               onClick={() => setIsWeekDropdownOpen(!isWeekDropdownOpen)}
@@ -168,7 +162,7 @@ export function ScheduleAdminTab() {
               <span className="truncate">
                 {selectedWeek === 'ALL'
                   ? `Semua Minggu (${schedules.length} Match)`
-                  : `${selectedWeek} (${filteredSchedules.length} Match)`}
+                  : `Week ${selectedWeek} (${filteredSchedules.length} Match)`}
               </span>
               <ChevronDown className={`h-4 w-4 text-primary transition-transform ${isWeekDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -193,43 +187,45 @@ export function ScheduleAdminTab() {
 
                 <div className="my-1 border-t border-border/40" />
 
-                {weekOptions.map((w) => (
-                  <button
-                    key={w.weekNum}
-                    type="button"
-                    onClick={() => {
-                      setSelectedWeek(w.weekNum);
-                      setIsWeekDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                      selectedWeek === w.weekNum
-                        ? 'bg-primary/10 text-primary font-bold'
-                        : 'text-popover-foreground hover:bg-accent'
-                    }`}
-                  >
-                    <span>{w.weekNum} ({w.matches.length} Match)</span>
-                    {selectedWeek === w.weekNum && <Check className="h-3.5 w-3.5 text-primary" />}
-                  </button>
-                ))}
+                {availableWeeks.map((wNum) => {
+                  const matchCount = schedules.filter((m) => (Number(m.weekNumber) || 1) === wNum).length;
+                  return (
+                    <button
+                      key={wNum}
+                      type="button"
+                      onClick={() => {
+                        setSelectedWeek(wNum);
+                        setIsWeekDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        selectedWeek === wNum
+                          ? 'bg-primary/10 text-primary font-bold'
+                          : 'text-popover-foreground hover:bg-accent'
+                      }`}
+                    >
+                      <span>Week {wNum} ({matchCount} Match)</span>
+                      {selectedWeek === wNum && <Check className="h-3.5 w-3.5 text-primary" />}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* BROADCAST RECAP BUTTON */}
           {selectedWeek !== 'ALL' && (
             <button
               onClick={handleBroadcastRecap}
               className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Radio className="h-3.5 w-3.5" />
-              <span>Broadcast Recap ({selectedWeek})</span>
+              <span>Broadcast Recap (Week {selectedWeek})</span>
             </button>
           )}
 
         </div>
       </div>
 
-      {/* LIST KARTU MATCH */}
+      {/* LIST KARTU PERTANDINGAN */}
       <div className="grid grid-cols-1 gap-4">
         {filteredSchedules.map((match) => (
           <MatchAdminCard
@@ -257,4 +253,5 @@ export function ScheduleAdminTab() {
       </div>
     </div>
   );
-                                  }
+  }
+      
