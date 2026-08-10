@@ -18,7 +18,7 @@ export function PlayoffTab({
   groupAName = "Anda Yakin?",
   groupBName = "Sakurasawa Fighters",
 }: PlayoffTabProps) {
-  // Hitung Standing Akumulatif (Hanya jalan jika data dikirim dari parent)
+  // Hitung Standing Akumulatif
   const standings = useMemo(() => {
     if (!schedules.length || !masterTeams.length) return [];
     return calculateStandings(schedules, masterTeams);
@@ -99,7 +99,7 @@ export function PlayoffTab({
             />
             <TimelineMatchCard
               team1={top1GroupB}
-              fallback1={`Top 1 ${groupBName}`}
+              fallback1={`Top 2 ${groupBName}`}
               fallback2="Winner Play-Ins #3"
               label="Quarter-Final #3"
               isDirect
@@ -150,7 +150,6 @@ export function PlayoffTab({
   );
 }
 
-// Helper 1: Judul Header Per Blok Fase
 function PhaseHeader({ title, colorTheme }: { title: string; colorTheme: "sky" | "amber" | "emerald" | "purple" }) {
   const colorMap = {
     sky: "text-sky-400 border-sky-500/30 bg-sky-500",
@@ -169,7 +168,6 @@ function PhaseHeader({ title, colorTheme }: { title: string; colorTheme: "sky" |
   );
 }
 
-// Interface TypeScript
 interface TimelineMatchCardProps {
   team1?: ExtendedStandingItem;
   fallback1: string;
@@ -180,7 +178,6 @@ interface TimelineMatchCardProps {
   colorTheme?: "sky" | "amber" | "emerald" | "purple";
 }
 
-// Helper 2: Kartu Match Pertandingan di Dalam Fase
 function TimelineMatchCard({
   team1,
   fallback1,
@@ -226,14 +223,12 @@ function TimelineMatchCard({
         borderThemeMap[colorTheme]
       } ${isDirect ? "bg-amber-500/10 border-amber-500/50" : ""}`}
     >
-      {/* Header Match */}
       <div className="flex items-center justify-between border-b border-border/30 pb-1.5 gap-2">
         <span className="text-[9.5px] font-black text-primary uppercase tracking-wider">
           {label}
         </span>
       </div>
 
-      {/* TEAM 1 */}
       <div className="flex items-center justify-between font-bold text-[11px] min-w-0 pr-1">
         {getTeamDisplay(team1, fallback1)}
         <span className="text-primary font-black text-xs pl-1">0</span>
@@ -241,12 +236,10 @@ function TimelineMatchCard({
 
       <div className="border-t border-border/30" />
 
-      {/* TEAM 2 */}
       <div className="flex items-center justify-between font-bold text-[11px] min-w-0 pr-1">
         {getTeamDisplay(team2, fallback2)}
         <span className="text-primary font-black text-xs pl-1">0</span>
       </div>
     </div>
   );
-                                }
-          
+}
