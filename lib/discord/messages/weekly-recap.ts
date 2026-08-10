@@ -1,6 +1,5 @@
 import { discordAPI } from '../utils';
 import { DISCORD_CONFIG } from '../config';
-import { DIVISION_MAP } from '@/lib/types/tournament';
 
 export interface ScheduleMatch {
   matchDateIso: string;
@@ -10,28 +9,6 @@ export interface ScheduleMatch {
   team1Name: string;
   team2Emoji?: string;
   team2Name: string;
-}
-
-function getTeamSlug(teamName: string) {
-  return teamName
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '');
-}
-
-// 🟢 MAP EMOJI TIM DISCORD BERDASARKAN SLUG NAMA TIM
-const TEAM_DISCORD_EMOJIS: Record<string, string> = {
-  'anda-yakin': '🔥',
-  'sakurasawa-fighters': '🌸',
-  // Masukkan tag emoji Discord lengkap jika ada custom emoji, contoh: '<:slug:123456789>'
-};
-
-function resolveTeamEmoji(teamName: string, explicitEmoji?: string): string {
-  if (explicitEmoji) return explicitEmoji;
-  const slug = getTeamSlug(teamName);
-  return TEAM_DISCORD_EMOJIS[slug] || '🛡️';
 }
 
 function formatDiscordStyleTimeWIB(dateObj = new Date()): string {
@@ -113,12 +90,9 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     const sorted = [...schedules].sort((a, b) => new Date(a.matchDateIso).getTime() - new Date(b.matchDateIso).getTime());
 
     const matchLines = sorted.map((m) => {
-      const emoji1 = resolveTeamEmoji(m.team1Name, m.team1Emoji);
-      const emoji2 = resolveTeamEmoji(m.team2Name, m.team2Emoji);
-
-      const t1 = `${emoji1} **${m.team1Name}**`;
-      const t2 = `${emoji2} **${m.team2Name}**`;
-      return `${t1} vs ${t2}\n${m.dateStr} at ${m.timeStr}`;
+      const e1 = m.team1Emoji ? `${m.team1Emoji} ` : '';
+      const e2 = m.team2Emoji ? `${m.team2Emoji} ` : '';
+      return `${e1}**${m.team1Name}** vs ${e2}**${m.team2Name}**\n${m.dateStr} at ${m.timeStr}`;
     });
 
     return desc + matchLines.join('\n\n');
@@ -143,15 +117,15 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
+  // 🟢 CONTENT TEXT DENGAN NAMA DIVISI LENGKAP
   const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n🗓️ **${params.weekDateRangeStr}**\n\n@everyone`;
   const duelistMention = DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : '@Duelist';
 
-  // 🟢 NAMA DIVISI MENGGUNAKAN DIVISION_MAP (Dinamis)
+  // 🟢 JUDUL (TITLE) DITANGGALKAN / GAUSAH KASIH JUDUL DI EMBED
   const groupAPayload = {
     content: groupAContent,
     embeds: [
       {
-        title: `📊 Schedule ${DIVISION_MAP.GROUP_A} - ${params.weekName}`,
         color: 0x3498db,
         description: buildGroupDescription(params.groupASchedules),
         footer: { text: 'Team Wars Indonesia Season 7' },
@@ -162,7 +136,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   const groupBPayload = {
     embeds: [
       {
-        title: `📊 Schedule ${DIVISION_MAP.GROUP_B} - ${params.weekName}`,
         color: 0xe74c3c,
         description: buildGroupDescription(params.groupBSchedules),
         footer: { text: 'Team Wars Indonesia Season 7' },
@@ -211,7 +184,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // 🟢 3. RECAP: HAPUS RECAP LAMA & KIRIM BARU PADA POSISI PALING BAWAH
+  // 3. RECAP: HAPUS & POST BARU AT BOTTOM
   if (recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
   }
