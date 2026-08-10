@@ -155,7 +155,7 @@ export async function executeAssignStaff(params: {
       refereeName: match.referee,
       refereeDiscordId: match.refereeDiscordId,
       streamerName: match.streamer,
-      streamerDiscordId: match.streamerDiscordI,
+      streamerDiscordId: match.streamerDiscordId,
       streamLink: match.streamLink,
       existingMsgId: (match as any).openingMsgId,
       isCompleted: false,
