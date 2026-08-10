@@ -3,28 +3,27 @@ import { MatchScheduleItem, TeamStandingItem } from "@/lib/types/tournament";
 export interface ExtendedStandingItem extends TeamStandingItem {
   previousRank?: number;
   rankTrend?: "up" | "down" | "stay";
-  isTopGroup?: boolean; // Penanda Top 2 Group
+  isTopGroup?: boolean;
 }
 
 export function calculateStandings(
-  schedules: MatchScheduleItem[],
-  masterTeams: any[],
+  schedules: MatchScheduleItem[] = [],
+  masterTeams: any[] = [],
   upToWeek?: number
 ): ExtendedStandingItem[] {
-  // Jika upToWeek tidak diisi, ambil seluruh minggu yang ada di schedules
+  // 🟢 Penanganan TypeScript strict: Tentukan targetWeek secara pasti (bertipe number)
   const maxWeekInSchedules = schedules.length
     ? Math.max(...schedules.map((s) => s.weekNumber || 1))
     : 1;
-  const targetWeek = upToWeek ?? maxWeekInSchedules;
-  
-  // Filter match hanya sampai minggu yang dipilih
+  const targetWeek: number = typeof upToWeek === "number" ? upToWeek : maxWeekInSchedules;
+
+  // Filter match hanya sampai minggu target yang dipilih dan sudah FINISHED
   const filteredMatches = schedules.filter(
-    (m) => (m.weekNumber || 1) <= upToWeek && m.isFinished
+    (m) => (m.weekNumber || 1) <= targetWeek && m.isFinished
   );
 
   const statsMap = new Map<string, ExtendedStandingItem>();
 
-  // Inisialisasi tim dasar
   masterTeams.forEach((team) => {
     statsMap.set(team.name, {
       rank: 0,
@@ -42,7 +41,6 @@ export function calculateStandings(
     });
   });
 
-  // Hitung statistik dari match
   filteredMatches.forEach((m) => {
     const teamA = statsMap.get(m.teamAName);
     const teamB = statsMap.get(m.teamBName);
@@ -55,7 +53,7 @@ export function calculateStandings(
 
       if (m.scoreA > m.scoreB) {
         teamA.matchWins += 1;
-        teamA.points += 10; // 10 poin per kemenangan match
+        teamA.points += 10;
       } else if (m.scoreA < m.scoreB) {
         teamA.matchLosses += 1;
       }
@@ -78,7 +76,6 @@ export function calculateStandings(
 
   const standingsList = Array.from(statsMap.values());
 
-  // Urutkan berdasarkan Poin -> Match Wins -> Round Difference -> Set Wins
   standingsList.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
@@ -86,14 +83,13 @@ export function calculateStandings(
     return b.setWins - a.setWins;
   });
 
-  // Assign Rank
   standingsList.forEach((item, index) => {
     item.rank = index + 1;
   });
 
-  // Hitung Rank Trend dari Week sebelumnya (jika week > 1)
-  if (upToWeek > 1) {
-    const prevStandings = calculateStandingsForWeek(schedules, masterTeams, upToWeek - 1);
+  // Hitung tren rank jika target minggu > 1
+  if (targetWeek > 1) {
+    const prevStandings = calculateStandings(schedules, masterTeams, targetWeek - 1);
     const prevRankMap = new Map<string, number>();
     prevStandings.forEach((item) => prevRankMap.set(item.teamName, item.rank));
 
