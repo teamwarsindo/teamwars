@@ -142,14 +142,13 @@ export function MatchAdminCard({
               STREAMER / CASTER
             </label>
             <select
-              value={draft.streamerDiscordId || draft.casterDiscordId || ''}
+              value={draft.streamerDiscordId || ''}
               onChange={(e) => {
                 const selectedId = e.target.value;
                 const selectedStaff = streamerList.find((s) => s.discordId === selectedId);
                 setDraft({
                   ...draft,
                   streamerDiscordId: selectedId,
-                  casterDiscordId: selectedId,
                   streamer: selectedStaff ? selectedStaff.discordName : '',
                 });
               }}
@@ -251,7 +250,7 @@ export function MatchAdminCard({
               ✏️ Quick Edit
             </button>
 
-            {/* 📝 TOMBOL LENGKAP MATCH REPORT */}
+            {/* 📝 TOMBOL MATCH REPORT */}
             <div className="flex items-center rounded-lg border border-amber-500/40 bg-amber-500/10 overflow-hidden">
               <a
                 href={`/tournament/match-input/${match.id}?token=${match.refereeToken || ''}`}
