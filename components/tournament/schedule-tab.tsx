@@ -34,16 +34,14 @@ export function ScheduleTab({
   groupBName = "Divisi Group B",
   defaultWeek = 1,
 }: ScheduleTabProps) {
-  // 🟢 1. BATASI PILIHAN WEEK HANYA DARI WEEK 1 SAMPAI WEEK AKTIF
+  // Batasi pilihan minggu hanya dari Week 1 sampai dengan Week Aktif
   const availableWeeksUpToCurrent = useMemo(() => {
     const activeWeekNum = typeof defaultWeek === "number" && defaultWeek > 0 ? defaultWeek : 1;
     
-    // Ambil daftar minggu dari jadwal yang nilainya <= activeWeekNum
     const weeksInSchedules = Array.from(
       new Set(schedules.map((s) => s.weekNumber || 1))
     ).filter((w) => w <= activeWeekNum);
 
-    // Pastikan minimal ada rentang [1 ... activeWeekNum]
     const fullRange = Array.from(
       new Set([...weeksInSchedules, ...Array.from({ length: activeWeekNum }, (_, i) => i + 1)])
     ).sort((a, b) => a - b);
@@ -51,7 +49,6 @@ export function ScheduleTab({
     return fullRange;
   }, [schedules, defaultWeek]);
 
-  // 🟢 2. DEFAULT KETIKA DIAKSES LANGSUNG TERKUNCI DI WEEK AKTIF
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "ALL">(defaultWeek);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
 
@@ -61,13 +58,16 @@ export function ScheduleTab({
     }
   }, [defaultWeek]);
 
-  // 🟢 3. LOGIKA PEMFILTERAN JADWAL
+  // Logika pemfilteran jadwal dengan penanganan TypeScript strict
   const filteredSchedules = useMemo(() => {
     return schedules.filter((m) => {
-      // Jika pilih 'ALL', hanya tampilkan match dari Week 1 s/d Week Aktif
+      // 🟢 Ekstrak weekNumber bertipe number pasti
+      const mWeek = m.weekNumber || 1;
+
+      // Filter Week
       if (selectedWeekFilter === "ALL") {
-        if (m.weekNumber > defaultWeek) return false;
-      } else if (m.weekNumber !== selectedWeekFilter) {
+        if (mWeek > defaultWeek) return false;
+      } else if (mWeek !== selectedWeekFilter) {
         return false;
       }
 
@@ -91,7 +91,6 @@ export function ScheduleTab({
     defaultWeek,
   ]);
 
-  // Grouping kartu berdasarkan Week
   const groupedByWeek = useMemo(() => {
     const map = new Map<number, MatchScheduleItem[]>();
     filteredSchedules.forEach((m) => {
@@ -300,4 +299,4 @@ export function ScheduleTab({
       )}
     </div>
   );
-                    }
+          }
