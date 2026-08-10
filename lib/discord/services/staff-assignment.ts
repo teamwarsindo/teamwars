@@ -96,8 +96,8 @@ export async function executeAssignStaff(params: {
     match.referee = staffName;
     match.refereeDiscordId = targetStaffId;
   } else {
-    match.streamer = match.caster = staffName;
-    match.streamerDiscordId = match.casterDiscordId = targetStaffId;
+    match.streamer = staffName;
+    match.streamerDiscordId = targetStaffId;
   }
 
   const slugA = getTeamSlug(match.teamAName);
