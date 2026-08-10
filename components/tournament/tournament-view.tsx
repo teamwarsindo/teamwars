@@ -33,11 +33,6 @@ export function TournamentView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // 🟢 CEK APAKAH KEY ADMIN TERSEDIA DI URL ATAU PROPS ISADMIN
-  const isAdminKeyActive = useMemo(() => {
-    return isAdmin || searchParams.get("key") === "admin";
-  }, [isAdmin, searchParams]);
-
   // 🟢 ROUTING NAVIGASI DENGAN REDIRECT OTOMATIS KE ?tab=schedule
   const rawTabParam = searchParams.get("tab")?.toUpperCase();
   const activeMainTab: "SCHEDULE" | "STANDING" | "PLAYOFF" =
@@ -196,11 +191,11 @@ export function TournamentView({
         <StandingTab schedules={schedules} masterTeams={masterTeams} />
       )}
 
-      {/* VIEW TAB PLAYOFF: GATEKEEPING DATA HANYA DIBUKA JIKA ADMIN ATAU MINGGU PLAYOFF */}
+      {/* VIEW TAB PLAYOFF: HANYA MEMBUKA DATA JIKA USER ADALAH ADMIN ATAU SUDAH MASUK WEEK PLAYOFF */}
       {activeMainTab === "PLAYOFF" && (
         <PlayoffTab
-          schedules={isAdminKeyActive || isPlayoffWeek ? schedules : []}
-          masterTeams={isAdminKeyActive || isPlayoffWeek ? masterTeams : []}
+          schedules={isAdmin || isPlayoffWeek ? schedules : []}
+          masterTeams={isAdmin || isPlayoffWeek ? masterTeams : []}
           groupAName={DIVISION_MAP.GROUP_A}
           groupBName={DIVISION_MAP.GROUP_B}
         />
