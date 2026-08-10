@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { MatchScheduleItem } from '@/lib/types/tournament';
+import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
 import { MatchAdminCard } from './match-admin-card';
 import { ChevronDown, Check, RotateCcw, Radio } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -11,14 +11,26 @@ interface StaffItem {
   discordName: string;
 }
 
-export function ScheduleAdminTab() {
+interface ScheduleAdminTabProps {
+  groupAName?: string;
+  groupBName?: string;
+}
+
+export function ScheduleAdminTab({
+  groupAName = DIVISION_MAP.GROUP_A,
+  groupBName = DIVISION_MAP.GROUP_B,
+}: ScheduleAdminTabProps) {
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [refereeList, setRefereeList] = useState<StaffItem[]>([]);
   const [streamerList, setStreamerList] = useState<StaffItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Filter Week dengan Tipe Data Number | 'ALL' (Konsisten dengan ScheduleTab)
-  const [selectedWeek, setSelectedWeek] = useState<number | 'ALL'>('ALL');
+  // 🟢 LOGIKA FILTER MINGGU (MENGGUNAKAN STANDAR ANGKA MURNI SEPERTI SCHEDULETAB)
+  const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | 'ALL'>('ALL');
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<'ALL' | 'Group A' | 'Group B'>('ALL');
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('ALL');
+
+  // State Kontrol Custom Dropdown Popover
   const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
   const weekDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +59,7 @@ export function ScheduleAdminTab() {
     fetchSchedulesAndStaff();
   }, []);
 
-  // Tutup dropdown saat klik di luar area
+  // Handle klik di luar area dropdown untuk menutup menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (weekDropdownRef.current && !weekDropdownRef.current.contains(event.target as Node)) {
@@ -58,19 +70,60 @@ export function ScheduleAdminTab() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Ambil Angka Minggu Unik
-  const availableWeeks = useMemo(() => {
-    if (!schedules?.length) return [];
-    return Array.from(
-      new Set(schedules.map((m) => Number(m.weekNumber) || 1))
+  // 🟢 KARENA ADMIN, FULL WEEKS DIBUKA PENUH TANPA BATASAN
+  const availableWeeksFilter = useMemo(() => {
+    const allWeekNumbers = Array.from(
+      new Set(schedules.map((s) => Number(s.weekNumber) || 1))
     ).sort((a, b) => a - b);
+
+    return allWeekNumbers.length > 0 ? allWeekNumbers : [1];
   }, [schedules]);
 
-  // Logika Filter Minggu
+  // Ekstrak semua nama tim unik untuk filter tim admin
+  const allTeamNames = useMemo(() => {
+    const teams = new Set<string>();
+    schedules.forEach((m) => {
+      if (m.teamAName) teams.add(m.teamAName);
+      if (m.teamBName) teams.add(m.teamBName);
+    });
+    return Array.from(teams).sort();
+  }, [schedules]);
+
+  // 🟢 LOGIKA PENYARINGAN 3 LAPIS (MINGGU, DIVISI, TIM)
   const filteredSchedules = useMemo(() => {
-    if (selectedWeek === 'ALL') return schedules;
-    return schedules.filter((m) => (Number(m.weekNumber) || 1) === selectedWeek);
-  }, [schedules, selectedWeek]);
+    return schedules.filter((m) => {
+      const mWeek = Number(m.weekNumber) || 1;
+
+      // Filter Minggu
+      if (selectedWeekFilter !== 'ALL' && mWeek !== selectedWeekFilter) {
+        return false;
+      }
+
+      // Filter Divisi (Group A / Group B)
+      if (selectedGroupFilter !== 'ALL') {
+        const isGroupA = m.groupName === 'Group A' || m.groupName === groupAName;
+        const targetIsA = selectedGroupFilter === 'Group A';
+        if (isGroupA !== targetIsA) return false;
+      }
+
+      // Filter Tim
+      if (
+        selectedTeamFilter !== 'ALL' &&
+        m.teamAName !== selectedTeamFilter &&
+        m.teamBName !== selectedTeamFilter
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [schedules, selectedWeekFilter, selectedGroupFilter, selectedTeamFilter, groupAName]);
+
+  const handleResetFilters = () => {
+    setSelectedWeekFilter('ALL');
+    setSelectedGroupFilter('ALL');
+    setSelectedTeamFilter('ALL');
+  };
 
   const handleSaveMatchSchedule = async (updated: MatchScheduleItem) => {
     const res = await fetch('/api/tournament', {
@@ -98,8 +151,8 @@ export function ScheduleAdminTab() {
   };
 
   const handleBroadcastRecap = async () => {
-    if (selectedWeek === 'ALL') return;
-    const targetWeekStr = `Week ${selectedWeek}`;
+    if (selectedWeekFilter === 'ALL') return;
+    const targetWeekStr = `Week ${selectedWeekFilter}`;
     const res = await Swal.fire({
       title: `Kelola Broadcast ${targetWeekStr}?`,
       showCancelButton: true,
@@ -129,16 +182,14 @@ export function ScheduleAdminTab() {
 
   return (
     <div className="space-y-4">
-      {/* HEADER SECTION RESPONSIF */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <h2 className="text-lg font-extrabold text-foreground">Manajemen Schedule Pertandingan</h2>
-          <p className="text-xs text-muted-foreground">Kelola waktu (WIB), Wasit, Streamer, dan otomatisasi channel Discord match.</p>
-        </div>
+      {/* HEADER & KONTROL PANEL ADMIN */}
+      <div className="flex flex-col gap-3 border-b border-border pb-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-extrabold text-foreground">Manajemen Schedule Pertandingan</h2>
+            <p className="text-xs text-muted-foreground">Kelola waktu (WIB), Wasit, Streamer, dan otomatisasi channel Discord match.</p>
+          </div>
 
-        {/* KONTROL KANAN */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 lg:flex items-center gap-2 w-full md:w-auto">
-          
           <button
             onClick={async () => {
               Swal.fire({ title: 'Refreshing...', didOpen: () => Swal.showLoading() });
@@ -146,23 +197,70 @@ export function ScheduleAdminTab() {
               await fetchSchedulesAndStaff();
               Swal.fire({ icon: 'success', title: 'Staf Di-refresh!', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
             }}
-            className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-extrabold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-extrabold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             <span>Refresh Staf KV</span>
           </button>
+        </div>
 
-          {/* CUSTOM DROPDOWN FILTER MINGGU */}
-          <div className="relative w-full sm:w-auto min-w-[200px]" ref={weekDropdownRef}>
+        {/* 🟢 BARIS FILTER: DIVISI, TIM, & MINGGU (DISAMAKAN DENGAN SCHEDULETAB UTAMA) */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-2">
+          {/* 1. FILTER DIVISI */}
+          <div className="grid grid-cols-3 gap-1 bg-background border border-input rounded-xl p-1">
+            <button
+              onClick={() => setSelectedGroupFilter('ALL')}
+              className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                selectedGroupFilter === 'ALL' ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Semua
+            </button>
+            <button
+              onClick={() => setSelectedGroupFilter('Group A')}
+              className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition cursor-pointer truncate ${
+                selectedGroupFilter === 'Group A' ? 'bg-sky-500 text-white shadow-xs' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title={groupAName}
+            >
+              {groupAName}
+            </button>
+            <button
+              onClick={() => setSelectedGroupFilter('Group B')}
+              className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition cursor-pointer truncate ${
+                selectedGroupFilter === 'Group B' ? 'bg-amber-500 text-white shadow-xs' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              title={groupBName}
+            >
+              {groupBName}
+            </button>
+          </div>
+
+          {/* 2. FILTER TIM */}
+          <select
+            value={selectedTeamFilter}
+            onChange={(e) => setSelectedTeamFilter(e.target.value)}
+            className="bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary transition cursor-pointer"
+          >
+            <option value="ALL">Semua Tim</option>
+            {allTeamNames.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+
+          {/* 3. CUSTOM POPOVER DROPDOWN MINGGU */}
+          <div className="relative" ref={weekDropdownRef}>
             <button
               type="button"
               onClick={() => setIsWeekDropdownOpen(!isWeekDropdownOpen)}
-              className="w-full bg-background border border-input rounded-xl px-3.5 py-2 text-xs font-bold text-primary flex items-center justify-between transition hover:border-primary shadow-2xs cursor-pointer"
+              className="w-full bg-background border border-input rounded-xl px-3.5 py-2 text-xs font-bold text-primary flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
             >
               <span className="truncate">
-                {selectedWeek === 'ALL'
+                {selectedWeekFilter === 'ALL'
                   ? `Semua Minggu (${schedules.length} Match)`
-                  : `Week ${selectedWeek} (${filteredSchedules.length} Match)`}
+                  : `Week ${selectedWeekFilter} (${filteredSchedules.length} Match)`}
               </span>
               <ChevronDown className={`h-4 w-4 text-primary transition-transform ${isWeekDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -172,39 +270,39 @@ export function ScheduleAdminTab() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedWeek('ALL');
+                    setSelectedWeekFilter('ALL');
                     setIsWeekDropdownOpen(false);
                   }}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    selectedWeek === 'ALL'
+                    selectedWeekFilter === 'ALL'
                       ? 'bg-primary/10 text-primary font-bold'
                       : 'text-popover-foreground hover:bg-accent'
                   }`}
                 >
                   <span>Semua Minggu ({schedules.length} Match)</span>
-                  {selectedWeek === 'ALL' && <Check className="h-3.5 w-3.5 text-primary" />}
+                  {selectedWeekFilter === 'ALL' && <Check className="h-3.5 w-3.5 text-primary" />}
                 </button>
 
                 <div className="my-1 border-t border-border/40" />
 
-                {availableWeeks.map((wNum) => {
+                {availableWeeksFilter.map((wNum) => {
                   const matchCount = schedules.filter((m) => (Number(m.weekNumber) || 1) === wNum).length;
                   return (
                     <button
                       key={wNum}
                       type="button"
                       onClick={() => {
-                        setSelectedWeek(wNum);
+                        setSelectedWeekFilter(wNum);
                         setIsWeekDropdownOpen(false);
                       }}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                        selectedWeek === wNum
+                        selectedWeekFilter === wNum
                           ? 'bg-primary/10 text-primary font-bold'
                           : 'text-popover-foreground hover:bg-accent'
                       }`}
                     >
                       <span>Week {wNum} ({matchCount} Match)</span>
-                      {selectedWeek === wNum && <Check className="h-3.5 w-3.5 text-primary" />}
+                      {selectedWeekFilter === wNum && <Check className="h-3.5 w-3.5 text-primary" />}
                     </button>
                   );
                 })}
@@ -212,46 +310,63 @@ export function ScheduleAdminTab() {
             )}
           </div>
 
-          {selectedWeek !== 'ALL' && (
+          {/* 4. TOMBOL RESET / BROADCAST RECAP */}
+          <div className="flex gap-2">
             <button
-              onClick={handleBroadcastRecap}
-              className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+              onClick={handleResetFilters}
+              className="flex-1 py-2 px-3 rounded-xl bg-muted/40 hover:bg-muted text-foreground text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer border border-border/50"
             >
-              <Radio className="h-3.5 w-3.5" />
-              <span>Broadcast Recap (Week {selectedWeek})</span>
+              <span>Reset</span>
             </button>
-          )}
 
+            {selectedWeekFilter !== 'ALL' && (
+              <button
+                onClick={handleBroadcastRecap}
+                className="py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold shadow-xs transition flex items-center justify-center gap-1 cursor-pointer"
+                title={`Broadcast Recap Week ${selectedWeekFilter}`}
+              >
+                <Radio className="h-3.5 w-3.5" />
+                <span>Broadcast</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* LIST KARTU PERTANDINGAN */}
+      {/* LIST KARTU PERTANDINGAN DENGAN NAMA DIVISI BARU */}
       <div className="grid grid-cols-1 gap-4">
-        {filteredSchedules.map((match) => (
-          <MatchAdminCard
-            key={match.id}
-            match={match}
-            refereeList={refereeList}
-            streamerList={streamerList}
-            onSave={handleSaveMatchSchedule}
-            onSync={handleSyncSingleMatch}
-            onDeleteChannel={async (m) => {
-              const confirm = await Swal.fire({ title: `Hapus Channel ${m.id}?`, icon: 'warning', showCancelButton: true });
-              if (!confirm.isConfirmed) return;
-              await fetch('/api/tournament/delete-channel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ matchId: m.id }) });
-              await fetchSchedulesAndStaff();
-              Swal.fire('Berhasil!', 'Channel dihapus', 'success');
-            }}
-            onCopyLink={(m) => {
-              if (!m.refereeToken) return Swal.fire('Token Kosong', 'Klik Sync terlebih dahulu.', 'warning');
-              const magicUrl = `${window.location.origin}/tournament/match-input/${m.id}?token=${m.refereeToken}`;
-              navigator.clipboard.writeText(magicUrl);
-              Swal.fire({ icon: 'success', title: 'Magic Link Disalin!', text: magicUrl, timer: 1500, showConfirmButton: false });
-            }}
-          />
-        ))}
+        {filteredSchedules.length === 0 ? (
+          <div className="p-8 text-center text-xs font-bold text-muted-foreground bg-card border border-border rounded-2xl">
+            Tidak ada jadwal pertandingan yang sesuai dengan filter.
+          </div>
+        ) : (
+          filteredSchedules.map((match) => (
+            <MatchAdminCard
+              key={match.id}
+              match={match}
+              refereeList={refereeList}
+              streamerList={streamerList}
+              groupAName={groupAName}
+              groupBName={groupBName}
+              onSave={handleSaveMatchSchedule}
+              onSync={handleSyncSingleMatch}
+              onDeleteChannel={async (m) => {
+                const confirm = await Swal.fire({ title: `Hapus Channel ${m.id}?`, icon: 'warning', showCancelButton: true });
+                if (!confirm.isConfirmed) return;
+                await fetch('/api/tournament/delete-channel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ matchId: m.id }) });
+                await fetchSchedulesAndStaff();
+                Swal.fire('Berhasil!', 'Channel dihapus', 'success');
+              }}
+              onCopyLink={(m) => {
+                if (!m.refereeToken) return Swal.fire('Token Kosong', 'Klik Sync terlebih dahulu.', 'warning');
+                const magicUrl = `${window.location.origin}/tournament/match-input/${m.id}?token=${m.refereeToken}`;
+                navigator.clipboard.writeText(magicUrl);
+                Swal.fire({ icon: 'success', title: 'Magic Link Disalin!', text: magicUrl, timer: 1500, showConfirmButton: false });
+              }}
+            />
+          ))
+        )}
       </div>
     </div>
   );
-  }
-      
+            }
