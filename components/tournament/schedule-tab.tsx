@@ -34,7 +34,7 @@ export function ScheduleTab({
   groupBName = "Divisi Group B",
   defaultWeek = 1,
 }: ScheduleTabProps) {
-  // Batasi pilihan minggu hanya dari Week 1 sampai dengan Week Aktif
+  // Rentang minggu dari 1 s/d Week Aktif
   const availableWeeksUpToCurrent = useMemo(() => {
     const activeWeekNum = typeof defaultWeek === "number" && defaultWeek > 0 ? defaultWeek : 1;
     
@@ -58,13 +58,20 @@ export function ScheduleTab({
     }
   }, [defaultWeek]);
 
-  // Logika pemfilteran jadwal dengan penanganan TypeScript strict
+  // Pengecekan apakah ada filter yang sedang aktif
+  const isFilterActive = useMemo(() => {
+    return (
+      selectedWeekFilter !== defaultWeek ||
+      selectedGroupFilter !== "ALL" ||
+      selectedTeamFilter !== "ALL" ||
+      selectedDateFilter !== ""
+    );
+  }, [selectedWeekFilter, selectedGroupFilter, selectedTeamFilter, selectedDateFilter, defaultWeek]);
+
   const filteredSchedules = useMemo(() => {
     return schedules.filter((m) => {
-      // 🟢 Ekstrak weekNumber bertipe number pasti
       const mWeek = m.weekNumber || 1;
 
-      // Filter Week
       if (selectedWeekFilter === "ALL") {
         if (mWeek > defaultWeek) return false;
       } else if (mWeek !== selectedWeekFilter) {
@@ -165,7 +172,7 @@ export function ScheduleTab({
           <select
             value={selectedTeamFilter}
             onChange={(e) => setSelectedTeamFilter(e.target.value)}
-            className="bg-background border border-input rounded-xl px-3 py-1.5 text-xs font-bold text-foreground focus:outline-none focus:border-primary transition cursor-pointer"
+            className="bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary transition cursor-pointer"
           >
             <option value="ALL">Semua Tim</option>
             {allTeamNames.map((t) => (
@@ -175,7 +182,7 @@ export function ScheduleTab({
             ))}
           </select>
 
-          {/* FILTER WEEK: ADA 'SEMUA WEEK' TAPI MAKSIMAL HANYA SAMPAI WEEK AKTIF */}
+          {/* FILTER WEEK: TEKS SISTERM 'SEMUA WEEK' MURNI */}
           <select
             value={selectedWeekFilter}
             onChange={(e) =>
@@ -183,9 +190,9 @@ export function ScheduleTab({
                 e.target.value === "ALL" ? "ALL" : Number(e.target.value)
               )
             }
-            className="bg-background border border-input rounded-xl px-3 py-1.5 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
+            className="bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
           >
-            <option value="ALL">Semua Week (s/d Week {defaultWeek})</option>
+            <option value="ALL">Semua Week</option>
             {availableWeeksUpToCurrent.map((w) => (
               <option key={w} value={w}>
                 Week {w}
@@ -193,22 +200,29 @@ export function ScheduleTab({
             ))}
           </select>
 
-          {/* FILTER TANGGAL */}
-          <input
-            type="date"
-            value={selectedDateFilter}
-            onChange={(e) => setSelectedDateFilter(e.target.value)}
-            className="bg-background border border-input rounded-xl px-3 py-1.5 text-xs font-bold text-foreground focus:outline-none focus:border-primary transition cursor-pointer"
-          />
+          {/* FILTER TANGGAL DENGAN KOTAK INPUT TANGGAL BAWAAN */}
+          <div className="relative w-full">
+            <input
+              type="date"
+              value={selectedDateFilter}
+              onChange={(e) => setSelectedDateFilter(e.target.value)}
+              className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary transition cursor-pointer"
+            />
+          </div>
         </div>
 
-        {/* RESET FILTER & ADMIN SYNC */}
-        <div className="flex items-center justify-between pt-1 border-t border-border/30">
+        {/* BUTTON RESET FILTER & ADMIN SYNC */}
+        <div className="flex items-center justify-between pt-1.5 border-t border-border/30">
           <button
             onClick={handleResetFilters}
-            className="text-[11px] font-bold text-muted-foreground hover:text-foreground transition cursor-pointer"
+            disabled={!isFilterActive}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              isFilterActive
+                ? "bg-rose-500 text-white shadow-xs hover:bg-rose-600"
+                : "bg-muted/40 text-muted-foreground border border-border/40 opacity-60 cursor-not-allowed"
+            }`}
           >
-            🔄 Reset Filter
+            <span>🔄</span> Reset Filter
           </button>
 
           {isAdmin && (
@@ -222,7 +236,7 @@ export function ScheduleTab({
         </div>
       </div>
 
-      {/* KARTU JADWAL PER MINGGU */}
+      {/* LIST KARTU JADWAL */}
       {groupedByWeek.length === 0 ? (
         <div className="p-8 text-center text-xs font-bold text-muted-foreground bg-card border border-border rounded-2xl">
           🚫 Tidak ada jadwal pertandingan yang sesuai dengan filter.
@@ -231,7 +245,7 @@ export function ScheduleTab({
         groupedByWeek.map(([weekNum, matches]) => (
           <div key={weekNum} className="space-y-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-black uppercase text-primary tracking-wider">
+              <span className="text-xs font-black uppercase text-primary tracking-wider flex items-center gap-1">
                 🗓️ WEEK {weekNum}
               </span>
               <div className="h-[1px] flex-1 bg-border/60"></div>
@@ -252,6 +266,7 @@ export function ScheduleTab({
                         : "bg-amber-500/5 border-amber-500/40 hover:border-amber-500"
                     }`}
                   >
+                    {/* HEADER KARTU: NAMA DIVISI & TANGGAL */}
                     <div className="flex items-center justify-between text-[10px] font-bold">
                       <span
                         className={`text-[10px] font-black uppercase ${
@@ -263,28 +278,40 @@ export function ScheduleTab({
                       <span className="text-muted-foreground">{formatDateLabel(match.matchDate)}</span>
                     </div>
 
-                    <div className="grid grid-cols-7 items-center gap-1 text-center">
-                      <div className="col-span-3 flex items-center justify-end gap-1.5 min-w-0">
-                        <span className="font-bold text-[11px] text-foreground break-words text-right leading-snug">
+                    {/* BODY KARTU: LOGO SELALU DI KIRI NAMA TIM */}
+                    <div className="flex items-center justify-between gap-1.5 text-center">
+                      {/* TEAM A (LOGO DI KIRI) */}
+                      <div className="flex-1 flex items-center justify-start gap-1.5 min-w-0">
+                        <img
+                          src={match.teamALogo || "/logo.webp"}
+                          alt=""
+                          className="h-5 w-5 shrink-0 object-contain"
+                        />
+                        <span className="font-bold text-[11px] text-foreground break-words text-left leading-snug">
                           {match.teamAName}
                         </span>
-                        <img src={match.teamALogo || "/logo.webp"} alt="" className="h-5 w-5 shrink-0 object-contain" />
                       </div>
 
-                      <div className="col-span-1 flex justify-center">
+                      {/* SKOR OTOMATIS TIDAK LONJONG */}
+                      <div className="shrink-0 flex items-center justify-center px-1">
                         {match.isFinished || (match.scoreA || 0) + (match.scoreB || 0) > 0 ? (
-                          <span className="px-2 py-1 rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-xs">
+                          <span className="px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-xs whitespace-nowrap">
                             {match.scoreA} - {match.scoreB}
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-lg bg-muted text-muted-foreground font-extrabold text-[10px]">
+                          <span className="px-2.5 py-1 rounded-xl bg-muted text-muted-foreground font-extrabold text-[10px] whitespace-nowrap">
                             VS
                           </span>
                         )}
                       </div>
 
-                      <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0">
-                        <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                      {/* TEAM B (LOGO DI KIRI) */}
+                      <div className="flex-1 flex items-center justify-start gap-1.5 min-w-0">
+                        <img
+                          src={match.teamBLogo || "/logo.webp"}
+                          alt=""
+                          className="h-5 w-5 shrink-0 object-contain"
+                        />
                         <span className="font-bold text-[11px] text-foreground break-words text-left leading-snug">
                           {match.teamBName}
                         </span>
@@ -299,4 +326,4 @@ export function ScheduleTab({
       )}
     </div>
   );
-          }
+            }
