@@ -350,7 +350,7 @@ export async function executeUnassignStaff(params: {
   if (assignType === 'REFEREE') {
     match.refereeDiscordId = undefined;
   } else {
-    match.streamerDiscordId = undefined; di 
+    match.streamerDiscordId = undefined;
   }
 
   // Simpan Schedule & Lepas Staff History
