@@ -161,7 +161,7 @@ export function TournamentView({
         />
       )}
 
-      {activeMainTab === "STANDING" && <StandingTab standings={standings} />}
+      {activeMainTab === "STANDING" && <StandingTab schedules={schedules} masterTeams={masterTeams} />}
 
       {activeMainTab === "PLAYOFF" && <PlayoffTab />}
 
