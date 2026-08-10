@@ -24,7 +24,7 @@ export function RosterLineupBlock({
     if (rosterA.includes(ign)) {
       setRosterA(rosterA.filter((p) => p !== ign));
     } else {
-      if (rosterA.length >= 5) return; // Maksimal 5 Pemain
+      if (rosterA.length >= 5) return;
       setRosterA([...rosterA, ign]);
     }
   };
@@ -33,7 +33,7 @@ export function RosterLineupBlock({
     if (rosterB.includes(ign)) {
       setRosterB(rosterB.filter((p) => p !== ign));
     } else {
-      if (rosterB.length >= 5) return; // Maksimal 5 Pemain
+      if (rosterB.length >= 5) return;
       setRosterB([...rosterB, ign]);
     }
   };
@@ -124,7 +124,6 @@ export function RosterLineupBlock({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        {/* TIM A */}
         {renderMultiSelectCard(
           match.teamAName,
           match.teamALogo,
@@ -133,8 +132,6 @@ export function RosterLineupBlock({
           togglePlayerA,
           true
         )}
-
-        {/* TIM B */}
         {renderMultiSelectCard(
           match.teamBName,
           match.teamBLogo,
@@ -146,5 +143,4 @@ export function RosterLineupBlock({
       </div>
     </section>
   );
-        }
-    
+                      }
