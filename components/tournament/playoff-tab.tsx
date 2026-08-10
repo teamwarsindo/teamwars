@@ -8,20 +8,33 @@ import { CircleCheckBig } from "lucide-react";
 interface PlayoffTabProps {
   schedules?: MatchScheduleItem[];
   masterTeams?: any[];
+  groupAName?: string;
+  groupBName?: string;
 }
 
-export function PlayoffTab({ schedules = [], masterTeams = [] }: PlayoffTabProps) {
-  // Hitung Standing Akumulatif
+export function PlayoffTab({
+  schedules = [],
+  masterTeams = [],
+  groupAName = "Anda Yakin?",
+  groupBName = "Sakurasawa Fighters",
+}: PlayoffTabProps) {
+  // Hitung Standing Akumulatif (Hanya jalan jika data dikirim dari parent)
   const standings = useMemo(() => {
     if (!schedules.length || !masterTeams.length) return [];
     return calculateStandings(schedules, masterTeams);
   }, [schedules, masterTeams]);
 
   // Kelompokkan Tim Per Divisi
-  const groupAStandings = useMemo(() => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A), [standings]);
-  const groupBStandings = useMemo(() => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B), [standings]);
+  const groupAStandings = useMemo(
+    () => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A || s.groupName === groupAName),
+    [standings, groupAName]
+  );
+  const groupBStandings = useMemo(
+    () => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B || s.groupName === groupBName),
+    [standings, groupBName]
+  );
 
-  // Ekstrak Tim Lolos Otomatis ke QF (Top 2 Group A & B)
+  // Ekstrak Tim Lolos Otomatis ke QUARTER-FINAL (Top 2 Group A & B)
   const top1GroupA = groupAStandings[0];
   const top2GroupA = groupAStandings[1];
   const top1GroupB = groupBStandings[0];
@@ -46,15 +59,11 @@ export function PlayoffTab({ schedules = [], masterTeams = [] }: PlayoffTabProps
           <span>🏆</span> Playoff Stage Bracket
         </h3>
         <p className="text-[11px] text-muted-foreground font-semibold">
-          Kualifikasi otomatis diisi berdasarkan Klasemen Grup &amp; Global Standing.
+          Bagan bracket akan otomatis terisi tim kualifikasi setelah memasuki Fase Playoff.
         </p>
       </div>
 
-      {/* ========================================================
-          GRID FASE DENGAN KOTAK BLOK PEMBUNGKUS KONSISTEN
-          Mobile: Menumpuk Vertikal.
-          Desktop: 4 Kolom Sesuai Fase.
-          ======================================================== */}
+      {/* GRID FASE DENGAN KOTAK BLOK PEMBUNGKUS KONSISTEN */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative">
         
         {/* ================= FASE 1: ROUND 1 (PLAY-INS) - TEMA BIRU ================= */}
@@ -74,37 +83,33 @@ export function PlayoffTab({ schedules = [], masterTeams = [] }: PlayoffTabProps
           <div className="space-y-3 flex-1 flex flex-col justify-around">
             <TimelineMatchCard
               team1={top1GroupA}
-              fallback1={`Top 1 ${DIVISION_MAP.GROUP_A}`}
+              fallback1={`Top 1 ${groupAName}`}
               fallback2="Winner Play-Ins #1"
-              label="QF #1"
-              badgeText="Qual. Langsung"
+              label="QUARTER-FINAL #1"
               isDirect
               colorTheme="amber"
             />
             <TimelineMatchCard
               team1={top2GroupB}
-              fallback1={`Top 2 ${DIVISION_MAP.GROUP_B}`}
+              fallback1={`Top 2 ${groupBName}`}
               fallback2="Winner Play-Ins #2"
-              label="QF #2"
-              badgeText="Qual. Langsung"
+              label="QUARTER-FINAL #2"
               isDirect
               colorTheme="amber"
             />
             <TimelineMatchCard
               team1={top1GroupB}
-              fallback1={`Top 1 ${DIVISION_MAP.GROUP_B}`}
+              fallback1={`Top 1 ${groupBName}`}
               fallback2="Winner Play-Ins #3"
-              label="QF #3"
-              badgeText="Qual. Langsung"
+              label="QUARTER-FINAL #3"
               isDirect
               colorTheme="amber"
             />
             <TimelineMatchCard
               team1={top2GroupA}
-              fallback1={`Top 2 ${DIVISION_MAP.GROUP_A}`}
+              fallback1={`Top 2 ${groupAName}`}
               fallback2="Winner Play-Ins #4"
-              label="QF #4"
-              badgeText="Qual. Langsung"
+              label="QUARTER-FINAL #4"
               isDirect
               colorTheme="amber"
             />
@@ -115,23 +120,27 @@ export function PlayoffTab({ schedules = [], masterTeams = [] }: PlayoffTabProps
         <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-950/10 p-4 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="SEMI-FINAL" colorTheme="emerald" />
           <div className="space-y-3 flex-1 flex flex-col justify-around my-auto">
-            <TimelineMatchCard fallback1="Winner QF #1" fallback2="Winner QF #2" label="SEMI-FINAL #1" colorTheme="emerald" />
-            <TimelineMatchCard fallback1="Winner QF #3" fallback2="Winner QF #4" label="SEMI-FINAL #2" colorTheme="emerald" />
+            <TimelineMatchCard fallback1="Winner QUARTER-FINAL #1" fallback2="Winner QUARTER-FINAL #2" label="SEMI-FINAL #1" colorTheme="emerald" />
+            <TimelineMatchCard fallback1="Winner QUARTER-FINAL #3" fallback2="Winner QUARTER-FINAL #4" label="SEMI-FINAL #2" colorTheme="emerald" />
           </div>
         </div>
 
         {/* ================= FASE 4: GRAND FINAL - TEMA UNGU / PURPLE ================= */}
         <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/20 p-5 text-center shadow-lg flex flex-col justify-between space-y-4">
           <PhaseHeader title="GRAND FINAL" colorTheme="purple" />
-          <div className="p-4 rounded-xl border border-purple-500/40 bg-background/60 space-y-3 my-auto">
+          <div className="p-4 rounded-xl border border-purple-500/40 bg-background/90 space-y-3 my-auto shadow-md">
             <p className="font-black text-purple-400 text-xs uppercase tracking-widest flex items-center justify-center gap-1">
               👑 CHAMPIONSHIP FINAL
             </p>
             <div className="border-t border-purple-500/30 my-1" />
-            <div className="space-y-1">
-              <p className="text-[11px] font-extrabold text-slate-200">Winner SEMI-FINAL #1</p>
-              <p className="text-[10px] text-amber-400 font-black">VS</p>
-              <p className="text-[11px] font-extrabold text-slate-200">Winner SEMI-FINAL #2</p>
+            <div className="space-y-2 py-1">
+              <p className="text-[11.5px] font-extrabold text-foreground tracking-wide">
+                Winner SEMI-FINAL #1
+              </p>
+              <p className="text-[10px] text-amber-500 font-black">VS</p>
+              <p className="text-[11.5px] font-extrabold text-foreground tracking-wide">
+                Winner SEMI-FINAL #2
+              </p>
             </div>
           </div>
         </div>
@@ -167,7 +176,6 @@ interface TimelineMatchCardProps {
   team2?: ExtendedStandingItem;
   fallback2: string;
   label?: string;
-  badgeText?: string;
   isDirect?: boolean;
   colorTheme?: "sky" | "amber" | "emerald" | "purple";
 }
@@ -179,7 +187,6 @@ function TimelineMatchCard({
   team2,
   fallback2,
   label,
-  badgeText,
   isDirect,
   colorTheme = "sky",
 }: TimelineMatchCardProps) {
@@ -196,7 +203,7 @@ function TimelineMatchCard({
       return (
         <div className="flex items-center gap-1.5 truncate">
           <img src={teamData.teamLogo} alt="" className="h-4.5 w-4.5 shrink-0 object-contain" />
-          <span className="truncate leading-tight text-[11px] font-bold text-foreground">
+          <span className="truncate leading-tight text-[11px] font-extrabold text-foreground">
             {isWinner ? teamData.teamName.replace(" ✓", "") : teamData.teamName}
           </span>
           {isWinner && <CircleCheckBig className="h-4 w-4 text-emerald-500 shrink-0" />}
@@ -206,7 +213,7 @@ function TimelineMatchCard({
     return (
       <div className="flex items-center gap-1.5 truncate">
         <span className="h-2 w-2 rounded-full bg-muted shrink-0" />
-        <span className="truncate leading-tight text-[11px] font-medium text-muted-foreground/70">
+        <span className="truncate leading-tight text-[11px] font-bold text-muted-foreground/70">
           {fallbackName}
         </span>
       </div>
@@ -224,11 +231,6 @@ function TimelineMatchCard({
         <span className="text-[9.5px] font-black text-primary uppercase tracking-wider">
           {label}
         </span>
-        {badgeText && (
-          <span className="text-[8.5px] font-black text-amber-500 uppercase px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 whitespace-nowrap">
-            {badgeText}
-          </span>
-        )}
       </div>
 
       {/* TEAM 1 */}
