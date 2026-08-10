@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
 import { calculateStandings } from '@/lib/tournament/calculator';
+import { createMatchDiscordChannel } from '@/lib/discord/channels';
+import { executeAssignStaff } from '@/lib/discord/services/staff-assignment';
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
 const KV_KEY_ROULETTE = 'twi:roulette_state';
@@ -43,6 +45,7 @@ function verifyAccess(match: MatchScheduleItem, token?: string) {
   return { valid: true, isAdmin: false, reason: 'REFEREE_VALID' };
 }
 
+// 🟢 GET ENDPOINT: UNTUK SCHEDULE PUBLIK, KLASEMEN, & CONSOLE INPUT WASIT
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -133,6 +136,7 @@ export async function GET(req: Request) {
   }
 }
 
+// 🟢 POST ENDPOINT: SIMPAN QUICK EDIT & OTOMATISASI DISCORD SYNC
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -151,7 +155,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, schedules });
     }
 
-    // 2. UPDATE MATCH DATA (MATCH CONSOLE / ADMIN DASHBOARD)
+    // 2. UPDATE MATCH DATA (MATCH CONSOLE / ADMIN DASHBOARD QUICK EDIT)
     if (action === 'UPDATE_MATCH_CONSOLE') {
       const targetIndex = schedules.findIndex((m) => m.id === matchId);
       if (targetIndex === -1) {
@@ -174,7 +178,6 @@ export async function POST(req: Request) {
       const updatedMatch: MatchScheduleItem = {
         ...existingMatch,
         ...matchData,
-        // Skor utama tetap dipertahankan dari input admin/score sebelumnya
         scoreA: matchData.scoreA ?? existingMatch.scoreA ?? 0,
         scoreB: matchData.scoreB ?? existingMatch.scoreB ?? 0,
         isFinished: matchData.isFinished ?? existingMatch.isFinished ?? false,
@@ -185,7 +188,72 @@ export async function POST(req: Request) {
       schedules[targetIndex] = updatedMatch;
       await kv.set(KV_KEY_SCHEDULES, schedules);
 
-      // Recalculate standings (murni berdasarkan scoreA & scoreB)
+      // 🔵 A. OTOMATISASI ROLES & PERMISSIONS DISCORD JIKA WASIT/STREAMER DIUBAH
+      if (updatedMatch.refereeDiscordId && updatedMatch.refereeDiscordId !== existingMatch.refereeDiscordId) {
+        await executeAssignStaff({
+          matchId: updatedMatch.id,
+          assignType: 'REFEREE',
+          targetStaffId: updatedMatch.refereeDiscordId,
+        }).catch((e) => console.warn('Gagal assign referee:', e));
+      }
+
+      if (updatedMatch.streamerDiscordId && updatedMatch.streamerDiscordId !== existingMatch.streamerDiscordId) {
+        await executeAssignStaff({
+          matchId: updatedMatch.id,
+          assignType: 'STREAMER',
+          targetStaffId: updatedMatch.streamerDiscordId,
+        }).catch((e) => console.warn('Gagal assign streamer:', e));
+      }
+
+      // 🟢 B. OTOMATISASI SYNC EMBED & CHANNEL DISCORD
+      const currentSchedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || schedules;
+      const latestMatch = currentSchedules.find((m) => m.id === matchId) || updatedMatch;
+
+      const slugA = getTeamSlug(latestMatch.teamAName);
+      const slugB = getTeamSlug(latestMatch.teamBName);
+
+      const [teamA, teamB] = await Promise.all([
+        kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
+        kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
+      ]);
+
+      const weekStr = (latestMatch as any).weekName || `Week ${latestMatch.weekNumber || 1}`;
+
+      const syncResult = await createMatchDiscordChannel({
+        matchId: latestMatch.id,
+        groupName: latestMatch.groupName,
+        teamAName: latestMatch.teamAName,
+        teamBName: latestMatch.teamBName,
+        kodeTimA: teamA?.kodeTim,
+        kodeTimB: teamB?.kodeTim,
+        emojiAId: teamA?.emojiId,
+        emojiBId: teamB?.emojiId,
+        roleAId: teamA?.discordRoleId || teamA?.roleId,
+        roleBId: teamB?.discordRoleId || teamB?.roleId,
+        weekName: weekStr,
+        matchDateIso: latestMatch.matchDate,
+        refereeName: latestMatch.referee,
+        refereeDiscordId: latestMatch.refereeDiscordId,
+        streamerName: latestMatch.streamer,
+        streamerDiscordId: latestMatch.streamerDiscordId,
+        streamLink: latestMatch.streamLink,
+        savedChannelId: (latestMatch as any).discordChannelId,
+        openingMsgId: (latestMatch as any).openingMsgId,
+      }).catch(() => null);
+
+      if (syncResult?.channelId) {
+        const finalSchedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || currentSchedules;
+        const finalIdx = finalSchedules.findIndex((m) => m.id === matchId);
+        if (finalIdx !== -1) {
+          (finalSchedules[finalIdx] as any).discordChannelId = syncResult.channelId;
+          if (syncResult.openingMsgId) {
+            (finalSchedules[finalIdx] as any).openingMsgId = syncResult.openingMsgId;
+          }
+          await kv.set(KV_KEY_SCHEDULES, finalSchedules);
+        }
+      }
+
+      // Recalculate standings
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
       const masterTeams = [
         ...(rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: DIVISION_MAP.GROUP_A })),
@@ -193,7 +261,7 @@ export async function POST(req: Request) {
       ];
       const standings = calculateStandings(schedules, masterTeams);
 
-      return NextResponse.json({ success: true, updatedMatch, standings });
+      return NextResponse.json({ success: true, updatedMatch: latestMatch, standings });
     }
 
     return NextResponse.json({ error: 'Action tidak dikenal' }, { status: 400 });
@@ -203,6 +271,7 @@ export async function POST(req: Request) {
   }
 }
 
+// 🌐 GENERATOR JADWAL AUTOMATIS DENGAN ENV TWI_START_DATE
 function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): MatchScheduleItem[] {
   const schedules: MatchScheduleItem[] = [];
   let idCounter = 1;
@@ -235,8 +304,8 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   const roundsB = generateRounds(groupB);
   const totalRounds = Math.max(roundsA.length, roundsB.length);
 
-  const startWednesdayUTC = new Date('2026-08-05T13:00:00.000Z');
-  const startThursdayWeek1UTC = new Date('2026-08-06T13:00:00.000Z');
+  const startDateStr = process.env.TWI_START_DATE || '2026-08-03';
+  const startWednesdayUTC = new Date(`${startDateStr}T13:00:00.000Z`);
 
   for (let r = 0; r < totalRounds; r++) {
     const roundMatchesA = roundsA[r] || [];
@@ -244,14 +313,8 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
     const weekNumber = r + 1;
 
     for (let dayOffset = 0; dayOffset < 4; dayOffset++) {
-      let matchDate: Date;
-      if (r === 0) {
-        matchDate = new Date(startThursdayWeek1UTC);
-        matchDate.setDate(matchDate.getDate() + dayOffset);
-      } else {
-        matchDate = new Date(startWednesdayUTC);
-        matchDate.setDate(matchDate.getDate() + (r * 7) + dayOffset);
-      }
+      const matchDate = new Date(startWednesdayUTC);
+      matchDate.setDate(matchDate.getDate() + (r * 7) + dayOffset);
 
       if (dayOffset < roundMatchesA.length) {
         const pairA = roundMatchesA[dayOffset];
@@ -304,4 +367,5 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   }
 
   return schedules;
-}
+        }
+            
