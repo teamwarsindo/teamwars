@@ -36,7 +36,7 @@ export async function handleAssignCommand(interaction: any) {
   const busyMatch = schedules.find(
     (m) =>
       m.id !== matchId &&
-      (assignType === 'REFEREE' ? m.refereeDiscordId === targetId : (m.streamerDiscordId || m.casterDiscordId) === targetId)
+      (assignType === 'REFEREE' ? m.refereeDiscordId === targetId : m.streamerDiscordId === targetId)
   );
 
   if (busyMatch) {
