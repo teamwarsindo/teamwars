@@ -4,6 +4,7 @@ export interface ExtendedStandingItem extends TeamStandingItem {
   previousRank?: number;
   rankTrend?: "up" | "down" | "stay";
   isTopGroup?: boolean;
+  customRankLabel?: string;
 }
 
 function getMatchWeek(m: MatchScheduleItem): number {
@@ -24,24 +25,23 @@ function getMatchWeek(m: MatchScheduleItem): number {
 export function calculateStandings(
   schedules: MatchScheduleItem[] = [],
   masterTeams: any[] = [],
-  upToWeek?: number
+  upToWeek?: number // 0 atau undefined berarti 'Semua Week'
 ): ExtendedStandingItem[] {
   const allMatchWeeks = schedules.map((m) => getMatchWeek(m));
   const maxWeek = allMatchWeeks.length ? Math.max(...allMatchWeeks) : 1;
-  const targetWeek: number = typeof upToWeek === "number" ? upToWeek : maxWeek;
+  const targetWeek: number = typeof upToWeek === "number" && upToWeek > 0 ? upToWeek : maxWeek;
 
-  // Filter match yang sudah bertanding s/d targetWeek
+  // Filter match berdasarkan minggu
   const filteredMatches = schedules.filter((m) => {
     const isPlayed = Boolean(m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0);
     if (!isPlayed) return false;
 
-    if (targetWeek >= maxWeek) return true;
+    if (!upToWeek || upToWeek === 0 || targetWeek >= maxWeek) return true;
     return getMatchWeek(m) <= targetWeek;
   });
 
   const statsMap = new Map<string, ExtendedStandingItem>();
 
-  // Inisialisasi daftar tim
   masterTeams.forEach((team) => {
     const tName = team.name || team.teamName || "";
     if (tName) {
@@ -54,7 +54,7 @@ export function calculateStandings(
         matchPlayed: 0,
         matchWins: 0,
         matchLosses: 0,
-        setWins: 0, // setWins nanti diisi murni sama dengan matchWins (total W)
+        setWins: 0,
         setLosses: 0,
         roundDifference: 0,
         points: 0,
@@ -62,31 +62,30 @@ export function calculateStandings(
     }
   });
 
-  // Kalkulasi Skor Pertandingan
   filteredMatches.forEach((m) => {
     const teamA = statsMap.get(m.teamAName);
     const teamB = statsMap.get(m.teamBName);
 
-    const sA = Number(m.scoreA) || 0; // Poin game Tim A (misal 10)
-    const sB = Number(m.scoreB) || 0; // Poin game Tim B (misal 6)
+    const sA = Number(m.scoreA) || 0;
+    const sB = Number(m.scoreB) || 0;
 
     if (teamA) {
       teamA.matchPlayed += 1;
-      teamA.points += sA; // 🟢 Tim A dapat sA Poin (10)
+      teamA.points += sA;
       teamA.setLosses += sB;
       teamA.roundDifference += sA - sB;
 
       if (sA > sB) {
-        teamA.matchWins += 1; // Menang Match (W)
+        teamA.matchWins += 1;
       } else if (sA < sB) {
-        teamA.matchLosses += 1; // Kalah Match (L)
+        teamA.matchLosses += 1;
       }
-      teamA.setWins = teamA.matchWins; // 🟢 Set Wins murni mengambil total nilai W
+      teamA.setWins = teamA.matchWins;
     }
 
     if (teamB) {
       teamB.matchPlayed += 1;
-      teamB.points += sB; // 🟢 Tim B tetap dapat sB Poin meskipun kalah (6)
+      teamB.points += sB;
       teamB.setLosses += sA;
       teamB.roundDifference += sB - sA;
 
@@ -95,24 +94,44 @@ export function calculateStandings(
       } else if (sB < sA) {
         teamB.matchLosses += 1;
       }
-      teamB.setWins = teamB.matchWins; // 🟢 Set Wins murni mengambil total nilai W
+      teamB.setWins = teamB.matchWins;
     }
   });
 
   const standingsList = Array.from(statsMap.values());
 
-  // Urutan Klasemen: Points (Total Skor Game) -> Match Wins -> Round Difference
+  // Helper Check Head-to-Head (H2H)
+  const getH2HWinnerScore = (teamA: string, teamB: string): number => {
+    const directMatch = filteredMatches.find(
+      (m) =>
+        (m.teamAName === teamA && m.teamBName === teamB) ||
+        (m.teamAName === teamB && m.teamBName === teamA)
+    );
+    if (!directMatch) return 0;
+    if (directMatch.teamAName === teamA) {
+      return (directMatch.scoreA || 0) - (directMatch.scoreB || 0);
+    } else {
+      return (directMatch.scoreB || 0) - (directMatch.scoreA || 0);
+    }
+  };
+
+  // Poin -> Match Wins -> Round Difference -> H2H -> Alfabet
   standingsList.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-    return b.roundDifference - a.roundDifference;
+    if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
+
+    const h2h = getH2HWinnerScore(a.teamName, b.teamName);
+    if (h2h !== 0) return h2h > 0 ? -1 : 1;
+
+    return a.groupName.localeCompare(b.groupName) || a.teamName.localeCompare(b.teamName);
   });
 
   standingsList.forEach((item, index) => {
     item.rank = index + 1;
   });
 
-  // Hitung Indikator Trend (Naik/Turun/Stay)
+  // Hitung tren naik/turun rank
   if (targetWeek > 1) {
     const prevStandings = calculateStandings(schedules, masterTeams, targetWeek - 1);
     const prevRankMap = new Map<string, number>();
@@ -134,4 +153,4 @@ export function calculateStandings(
   }
 
   return standingsList;
-                      }
+}
