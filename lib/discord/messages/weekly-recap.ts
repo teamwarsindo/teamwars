@@ -118,16 +118,16 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
-  // 🟢 CONTENT RINGKAS: Hanya Judul H1 dan @everyone
+  // 🟢 CONTENT TEXT: H1 Title dan @everyone
   const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n@everyone`;
   const duelistMention = DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : '@Duelist';
 
-  // 🟢 NAMA DIVISI DIJADIKAN JUDUL EMBED
+  // 🟢 JUDUL EMBED: Hanya nama divisi tanpa "Week X"
   const groupAPayload = {
     content: groupAContent,
     embeds: [
       {
-        title: `📊 Schedule ${DIVISION_MAP.GROUP_A} - ${params.weekName}`,
+        title: `📊 Schedule ${DIVISION_MAP.GROUP_A}`,
         color: 0x3498db,
         description: buildGroupDescription(params.groupASchedules),
         footer: { text: 'Team Wars Indonesia Season 7' },
@@ -138,7 +138,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   const groupBPayload = {
     embeds: [
       {
-        title: `📊 Schedule ${DIVISION_MAP.GROUP_B} - ${params.weekName}`,
+        title: `📊 Schedule ${DIVISION_MAP.GROUP_B}`,
         color: 0xe74c3c,
         description: buildGroupDescription(params.groupBSchedules),
         footer: { text: 'Team Wars Indonesia Season 7' },
@@ -187,7 +187,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // 3. RECAP: HAPUS & POST BARU AT BOTTOM
+  // 3. RECAP: HAPUS RECAP LAMA & POST BARU AT BOTTOM
   if (recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
   }
@@ -203,4 +203,4 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId,
     recapMsgId,
   };
-}
+      }
