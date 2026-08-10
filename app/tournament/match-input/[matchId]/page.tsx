@@ -110,9 +110,10 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const availableIgnA = dbRosterA.map((p) => p.ign || p.namaLengkap || p.name).filter(Boolean);
   const availableIgnB = dbRosterB.map((p) => p.ign || p.namaLengkap || p.name).filter(Boolean);
 
-  const activeListA = rosterLineupA.filter(Boolean).length > 0 ? rosterLineupA.filter(Boolean) : availableIgnA.slice(0, 5);
-  const activeListB = rosterLineupB.filter(Boolean).length > 0 ? rosterLineupB.filter(Boolean) : availableIgnB.slice(0, 5);
-
+  // 🟢 HAPUS FALLBACK DB ROSTER! HANYA AMBIL PEMAIN YANG DIPILIH DARI SECTION 2 LINEUP
+  const activeListA = rosterLineupA.filter((p) => p && p.trim() !== '');
+  const activeListB = rosterLineupB.filter((p) => p && p.trim() !== '');
+  
   // Auto Add New Deck/Skill ke KV
   const handleAddMasterItem = async (type: "DECK" | "SKILL", newItem: string) => {
     try {
