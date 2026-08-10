@@ -265,7 +265,7 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
           teamAId: pairA[0].name,
           teamAName: pairA[0].name,
           teamALogo: pairA[0].logo || '/logo.webp',
-          teamBId: pairB[1]?.name || '',
+          teamBId: pairA[1].name,
           teamBName: pairA[1].name,
           teamBLogo: pairA[1].logo || '/logo.webp',
           scoreA: 0,
