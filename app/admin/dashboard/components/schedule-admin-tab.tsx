@@ -107,7 +107,7 @@ export function ScheduleAdminTab({
     return Array.from(teams).sort();
   }, [schedules]);
 
-  // 🟢 LOGIKA PENYARINGAN FIX (TIDAK MACET LAGI)
+  // 🟢 LOGIKA PENYARINGAN FIX
   const filteredSchedules = useMemo(() => {
     return schedulesWithWeek.filter((m) => {
       // Filter Minggu
@@ -167,19 +167,20 @@ export function ScheduleAdminTab({
     }
   };
 
-  // ⚡ SYNC CHANNEL MASSAL UNTUK WEEK TERPILIH
+  // ⚡ SYNC CHANNEL MASSAL UNTUK WEEK TERPILIH (BATCH VIA BACKEND API)
   const handleSyncWeekChannels = async () => {
     if (selectedWeekFilter === 'ALL') return;
 
-    const weekMatches = filteredSchedules; // Mengambil semua match yang sedang terfilter sesuai minggu ini
+    const targetWeekStr = `Week ${selectedWeekFilter}`;
+    const weekMatches = filteredSchedules;
 
     if (weekMatches.length === 0) {
-      return Swal.fire('Tidak Ada Match', `Tidak ada pertandingan ditemukan di Week ${selectedWeekFilter}`, 'info');
+      return Swal.fire('Tidak Ada Match', `Tidak ada pertandingan ditemukan di ${targetWeekStr}`, 'info');
     }
 
     const confirm = await Swal.fire({
-      title: `Buat Channel Discord Week ${selectedWeekFilter}?`,
-      text: `Aplikasi akan menyinkronkan ${weekMatches.length} channel Discord untuk semua pertandingan di Week ${selectedWeekFilter}.`,
+      title: `Buat Channel Discord ${targetWeekStr}?`,
+      text: `Aplikasi akan menyinkronkan channel Discord untuk semua pertandingan di ${targetWeekStr}.`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Ya, Buat Channel Sekarang!',
@@ -189,39 +190,33 @@ export function ScheduleAdminTab({
     if (!confirm.isConfirmed) return;
 
     Swal.fire({
-      title: `Memproses ${weekMatches.length} Channel...`,
+      title: `Memproses Channel ${targetWeekStr}...`,
       text: 'Mohon tunggu, sedang membuat channel di Discord...',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading(),
     });
 
-    let successCount = 0;
-    let failCount = 0;
+    try {
+      const res = await fetch('/api/tournament/sync-match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'WEEK',
+          targetWeek: targetWeekStr,
+        }),
+      });
 
-    for (const match of weekMatches) {
-      try {
-        const res = await fetch('/api/tournament/sync-match', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            matchId: match.id,
-            weekName: `Week ${match.computedWeek}`,
-          }),
-        });
-        if (res.ok) successCount++;
-        else failCount++;
-      } catch (err) {
-        console.error(`Error sync match ${match.id}:`, err);
-        failCount++;
+      const data = await res.json();
+
+      if (res.ok) {
+        await fetchSchedulesAndStaff();
+        Swal.fire('Selesai!', `Berhasil menyinkronkan channel Discord untuk ${targetWeekStr}!`, 'success');
+      } else {
+        Swal.fire('Gagal!', data.error || `Gagal menyinkronkan channel ${targetWeekStr}.`, 'error');
       }
-    }
-
-    await fetchSchedulesAndStaff();
-
-    if (failCount === 0) {
-      Swal.fire('Selesai!', `Berhasil menyinkronkan ${successCount} channel Discord untuk Week ${selectedWeekFilter}!`, 'success');
-    } else {
-      Swal.fire('Selesai dengan Catatan', `Berhasil: ${successCount}, Gagal: ${failCount}`, 'warning');
+    } catch (err) {
+      console.error(`Error sync week ${targetWeekStr}:`, err);
+      Swal.fire('Error!', 'Terjadi kesalahan sistem saat menghubungi server.', 'error');
     }
   };
 
@@ -460,5 +455,5 @@ export function ScheduleAdminTab({
       </div>
     </div>
   );
-                                    }
-        
+      }
+              
