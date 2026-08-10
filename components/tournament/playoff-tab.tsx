@@ -34,7 +34,7 @@ export function PlayoffTab({
     [standings, groupBName]
   );
 
-  // Ekstrak Tim Lolos Otomatis ke QUARTER-FINAL (Top 2 Group A & B)
+  // Ekstrak Tim Lolos Otomatis ke Quarter-Final (Top 2 Group A & B)
   const top1GroupA = groupAStandings[0];
   const top2GroupA = groupAStandings[1];
   const top1GroupB = groupBStandings[0];
@@ -85,7 +85,7 @@ export function PlayoffTab({
               team1={top1GroupA}
               fallback1={`Top 1 ${groupAName}`}
               fallback2="Winner Play-Ins #1"
-              label="QUARTER-FINAL #1"
+              label="Quarter-Final #1"
               isDirect
               colorTheme="amber"
             />
@@ -93,7 +93,7 @@ export function PlayoffTab({
               team1={top2GroupB}
               fallback1={`Top 2 ${groupBName}`}
               fallback2="Winner Play-Ins #2"
-              label="QUARTER-FINAL #2"
+              label="Quarter-Final #2"
               isDirect
               colorTheme="amber"
             />
@@ -101,7 +101,7 @@ export function PlayoffTab({
               team1={top1GroupB}
               fallback1={`Top 1 ${groupBName}`}
               fallback2="Winner Play-Ins #3"
-              label="QUARTER-FINAL #3"
+              label="Quarter-Final #3"
               isDirect
               colorTheme="amber"
             />
@@ -109,7 +109,7 @@ export function PlayoffTab({
               team1={top2GroupA}
               fallback1={`Top 2 ${groupAName}`}
               fallback2="Winner Play-Ins #4"
-              label="QUARTER-FINAL #4"
+              label="Quarter-Final #4"
               isDirect
               colorTheme="amber"
             />
@@ -120,26 +120,26 @@ export function PlayoffTab({
         <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-950/10 p-4 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="SEMI-FINAL" colorTheme="emerald" />
           <div className="space-y-3 flex-1 flex flex-col justify-around my-auto">
-            <TimelineMatchCard fallback1="Winner QUARTER-FINAL #1" fallback2="Winner QUARTER-FINAL #2" label="SEMI-FINAL #1" colorTheme="emerald" />
-            <TimelineMatchCard fallback1="Winner QUARTER-FINAL #3" fallback2="Winner QUARTER-FINAL #4" label="SEMI-FINAL #2" colorTheme="emerald" />
+            <TimelineMatchCard fallback1="Winner Quarter-Final #1" fallback2="Winner Quarter-Final #2" label="Semi-Final #1" colorTheme="emerald" />
+            <TimelineMatchCard fallback1="Winner Quarter-Final #3" fallback2="Winner Quarter-Final #4" label="Semi-Final #2" colorTheme="emerald" />
           </div>
         </div>
 
         {/* ================= FASE 4: GRAND FINAL - TEMA UNGU / PURPLE ================= */}
         <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/20 p-5 text-center shadow-lg flex flex-col justify-between space-y-4">
           <PhaseHeader title="GRAND FINAL" colorTheme="purple" />
-          <div className="p-4 rounded-xl border border-purple-500/40 bg-background/90 space-y-3 my-auto shadow-md">
+          <div className="p-4 rounded-xl border border-purple-500/40 bg-background/80 space-y-3 my-auto shadow-sm">
             <p className="font-black text-purple-400 text-xs uppercase tracking-widest flex items-center justify-center gap-1">
               👑 CHAMPIONSHIP FINAL
             </p>
             <div className="border-t border-purple-500/30 my-1" />
-            <div className="space-y-2 py-1">
-              <p className="text-[11.5px] font-extrabold text-foreground tracking-wide">
-                Winner SEMI-FINAL #1
+            <div className="space-y-2 py-1 text-[11px] font-bold text-muted-foreground/70">
+              <p className="leading-tight">
+                Winner Semi-Final #1
               </p>
-              <p className="text-[10px] text-amber-500 font-black">VS</p>
-              <p className="text-[11.5px] font-extrabold text-foreground tracking-wide">
-                Winner SEMI-FINAL #2
+              <p className="text-[10px] text-amber-500 font-black uppercase">VS</p>
+              <p className="leading-tight">
+                Winner Semi-Final #2
               </p>
             </div>
           </div>
@@ -248,4 +248,5 @@ function TimelineMatchCard({
       </div>
     </div>
   );
-}
+                                }
+          
