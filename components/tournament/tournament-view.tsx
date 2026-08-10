@@ -24,6 +24,7 @@ export function TournamentView({
   const [activeMainTab, setActiveMainTab] = useState<"SCHEDULE" | "STANDING" | "PLAYOFF">("SCHEDULE");
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [standings, setStandings] = useState<TeamStandingItem[]>([]);
+  const [masterTeams, setMasterTeams] = useState<any[]>([]); // 🟢 STATE MASTER TEAMS
   const [isLoading, setIsLoading] = useState(true);
   const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
 
@@ -34,8 +35,9 @@ export function TournamentView({
       if (data) {
         setSchedules(data.schedules || []);
         setStandings(data.standings || []);
+        setMasterTeams(data.masterTeams || []); // 🟢 AMBIL MASTER TEAMS DARI RESPONS API
 
-        // Jika modal sedang terbuka, perbarui data match aktif yang sedang dilihat
+        // Jika modal sedang terbuka, perbarui data match aktif
         if (activeReportMatch) {
           const updatedActive = (data.schedules || []).find((m: MatchScheduleItem) => m.id === activeReportMatch.id);
           if (updatedActive) setActiveReportMatch(updatedActive);
@@ -77,7 +79,7 @@ export function TournamentView({
       await fetchTournamentData();
 
       Swal.fire("Berhasil!", "Jadwal dan Standing berhasil disinkronisasi dengan data Roulette terbaru.", "success");
-    } catch (err) {
+    } catch {
       Swal.fire("Gagal!", "Terjadi kesalahan saat menyinkronkan data.", "error");
     } finally {
       setIsLoading(false);
@@ -91,11 +93,9 @@ export function TournamentView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "UPDATE_MATCH",
+          action: "UPDATE_MATCH_CONSOLE", // 🟢 ACTION DISESUAIKAN DENGAN ROUTE API
           matchId: updatedMatch.id,
-          scoreA: updatedMatch.scoreA,
-          scoreB: updatedMatch.scoreB,
-          gameLogs: updatedMatch.gameLogs,
+          matchData: updatedMatch,
         }),
       });
 
@@ -161,6 +161,7 @@ export function TournamentView({
         />
       )}
 
+      {/* 🟢 PASS PROPS SCHEDULES DAN MASTERTEAMS KE STANDING TAB */}
       {activeMainTab === "STANDING" && <StandingTab schedules={schedules} masterTeams={masterTeams} />}
 
       {activeMainTab === "PLAYOFF" && <PlayoffTab />}
@@ -169,9 +170,8 @@ export function TournamentView({
       {activeReportMatch && (
         <MatchReportModal
           match={activeReportMatch}
-          weekNumber={getMatchWeekNumber(activeReportMatch.matchDate)}
+          open={!!activeReportMatch}
           onClose={() => setActiveReportMatch(null)}
-          onSaveMatch={handleSaveMatch}
         />
       )}
     </div>
