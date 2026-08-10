@@ -112,7 +112,7 @@ export function GameLogsBlock({
               value={playerA}
               onChange={setPlayerA}
               options={activeListA}
-              placeholder={activeListA.length === 0 ? "-- Pilih Lineup Section 2 Dulu --" : "-- Pilih Pemain Lineup --"}
+              placeholder={activeListA.length === 0 ? "-- Centang Lineup Section 2 Dulu --" : "-- Pilih Pemain Lineup --"}
               disabled={activeListA.length === 0}
             />
           </div>
@@ -145,7 +145,7 @@ export function GameLogsBlock({
               value={playerB}
               onChange={setPlayerB}
               options={activeListB}
-              placeholder={activeListB.length === 0 ? "-- Pilih Lineup Section 2 Dulu --" : "-- Pilih Pemain Lineup --"}
+              placeholder={activeListB.length === 0 ? "-- Centang Lineup Section 2 Dulu --" : "-- Pilih Pemain Lineup --"}
               disabled={activeListB.length === 0}
             />
           </div>
