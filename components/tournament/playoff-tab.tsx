@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { MatchScheduleItem, DIVISION_MAP } from "@/lib/types/tournament";
 import { calculateStandings, ExtendedStandingItem } from "@/lib/tournament/calculator";
+import { CircleCheckBig } from "lucide-react";
 
 interface PlayoffTabProps {
   // Data ini hanya akan dikirim dari Parent jika (key=admin OR week >= 8)
@@ -39,30 +40,6 @@ export function PlayoffTab({ schedules = [], masterTeams = [] }: PlayoffTabProps
     return standings.filter((t) => !directNames.has(t.teamName)).slice(0, 8);
   }, [standings, top1GroupA, top2GroupA, top1GroupB, top2GroupB]);
 
-  // Helper untuk merender Teks Placeholder vs Data Asli
-  const getTeamDisplay = (teamData?: ExtendedStandingItem, fallbackName: string = "TBD") => {
-    // Jika parent kirim data (Week>=8 or Key=Admin), tampilkan nama asli
-    if (teamData) {
-      return (
-        <div className="flex items-center gap-1.5 truncate">
-          <img src={teamData.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-          <span className="truncate font-black text-foreground text-[11px] leading-tight">
-            {teamData.teamName}
-          </span>
-        </div>
-      );
-    }
-    // Jika tidak ada data, tampilkan teks placeholder samar
-    return (
-      <div className="flex items-center gap-1.5 truncate">
-        <span className="h-2 w-2 rounded-full bg-muted shrink-0" />
-        <span className="truncate font-bold text-muted-foreground/60 text-[11px] leading-tight">
-          {fallbackName}
-        </span>
-      </div>
-    );
-  };
-
   return (
     <div className="flex flex-col gap-8 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-xl relative">
       {/* HEADER PAGE */}
@@ -85,10 +62,11 @@ export function PlayoffTab({ schedules = [], masterTeams = [] }: PlayoffTabProps
         <div className="space-y-4">
           <TimelineHeader color="text-sky-400" label="ROUND 1 (PLAY-INS)" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-3.5">
-            <TimelineMatchCard team1Display={getTeamDisplay(wildcardSeeds[0], "Wildcard Seed 1")} team2Display={getTeamDisplay(wildcardSeeds[7], "Wildcard Seed 8")} label="Play-Ins #1" />
-            <TimelineMatchCard team1Display={getTeamDisplay(wildcardSeeds[3], "Wildcard Seed 4")} team2Display={getTeamDisplay(wildcardSeeds[4], "Wildcard Seed 5")} label="Play-Ins #2" />
-            <TimelineMatchCard team1Display={getTeamDisplay(wildcardSeeds[1], "Wildcard Seed 2")} team2Display={getTeamDisplay(wildcardSeeds[6], "Wildcard Seed 7")} label="Play-Ins #3" />
-            <TimelineMatchCard team1Display={getTeamDisplay(wildcardSeeds[2], "Wildcard Seed 3")} team2Display={getTeamDisplay(wildcardSeeds[5], "Wildcard Seed 6")} label="Play-Ins #4" />
+            {/* 🟢 FIXED: Gunakan properti team1/team2, bukan fallback1/fallback2 */}
+            <TimelineMatchCard team1={wildcardSeeds[0]} fallback1="Wildcard Seed 1" team2={wildcardSeeds[7]} fallback2="Wildcard Seed 8" label="Play-Ins #1" />
+            <TimelineMatchCard team1={wildcardSeeds[3]} fallback1="Wildcard Seed 4" team2={wildcardSeeds[4]} fallback2="Wildcard Seed 5" label="Play-Ins #2" />
+            <TimelineMatchCard team1={wildcardSeeds[1]} fallback1="Wildcard Seed 2" team2={wildcardSeeds[6]} fallback2="Wildcard Seed 7" label="Play-Ins #3" />
+            <TimelineMatchCard team1={wildcardSeeds[2]} fallback1="Wildcard Seed 3" team2={wildcardSeeds[5]} fallback2="Wildcard Seed 6" label="Play-Ins #4" />
           </div>
         </div>
 
@@ -96,33 +74,42 @@ export function PlayoffTab({ schedules = [], masterTeams = [] }: PlayoffTabProps
         <div className="space-y-4">
           <TimelineHeader color="text-amber-400" label="QUARTER-FINAL" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-3.5">
+            {/* 🟢 FIXED: Gunakan properti team1/team2, bukan fallback1/fallback2 */}
             <TimelineMatchCard
-              team1Display={getTeamDisplay(top1GroupA, `Top 1 ${DIVISION_MAP.GROUP_A} ✓`)}
-              team2Display={getTeamDisplay(undefined, "Winner Play-Ins #1")}
+              team1={top1GroupA}
+              fallback1={`Top 1 ${DIVISION_MAP.GROUP_A} ✓`}
+              team2={undefined} // 🟢 FIXED: Berikan undefined jika belum ada data tim
+              fallback2="Winner Play-Ins #1"
               label="QF #1"
               badgeText="Qual. Langsung"
               isDirect
               badge1Color="text-sky-400"
             />
             <TimelineMatchCard
-              team1Display={getTeamDisplay(top2GroupB, `Top 2 ${DIVISION_MAP.GROUP_B} ✓`)}
-              team2Display={getTeamDisplay(undefined, "Winner Play-Ins #2")}
+              team1={top2GroupB}
+              fallback1={`Top 2 ${DIVISION_MAP.GROUP_B} ✓`}
+              team2={undefined} // 🟢 FIXED
+              fallback2="Winner Play-Ins #2"
               label="QF #2"
               badgeText="Qual. Langsung"
               isDirect
               badge1Color="text-amber-400"
             />
             <TimelineMatchCard
-              team1Display={getTeamDisplay(top1GroupB, `Top 1 ${DIVISION_MAP.GROUP_B} ✓`)}
-              team2Display={getTeamDisplay(undefined, "Winner Play-Ins #3")}
+              team1={top1GroupB}
+              fallback1={`Top 1 ${DIVISION_MAP.GROUP_B} ✓`}
+              team2={undefined} // 🟢 FIXED
+              fallback2="Winner Play-Ins #3"
               label="QF #3"
               badgeText="Qual. Langsung"
               isDirect
               badge1Color="text-amber-400"
             />
             <TimelineMatchCard
-              team1Display={getTeamDisplay(top2GroupA, `Top 2 ${DIVISION_MAP.GROUP_A} ✓`)}
-              team2Display={getTeamDisplay(undefined, "Winner Play-Ins #4")}
+              team1={top2GroupA}
+              fallback1={`Top 2 ${DIVISION_MAP.GROUP_A} ✓`}
+              team2={undefined} // 🟢 FIXED
+              fallback2="Winner Play-Ins #4"
               label="QF #4"
               badgeText="Qual. Langsung"
               isDirect
@@ -135,15 +122,16 @@ export function PlayoffTab({ schedules = [], masterTeams = [] }: PlayoffTabProps
         <div className="space-y-4">
           <TimelineHeader color="text-emerald-400" label="SEMI-FINAL" />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-3.5">
-            <TimelineMatchCard fallback1="Winner QF #1" fallback2="Winner QF #2" label="SEMI-FINAL #1" />
-            <TimelineMatchCard fallback1="Winner QF #3" fallback2="Winner QF #4" label="SEMI-FINAL #2" />
+            {/* 🟢 FIXED: Gunakan properti team1/team2, berikan undefined jika data belum ada */}
+            <TimelineMatchCard team1={undefined} fallback1="Winner QF #1" team2={undefined} fallback2="Winner QF #2" label="SEMI-FINAL #1" />
+            <TimelineMatchCard team1={undefined} fallback1="Winner QF #3" team2={undefined} fallback2="Winner QF #4" label="SEMI-FINAL #2" />
           </div>
         </div>
 
         {/* --- GRAND FINAL CHAMPIONSHIP FINAL --- */}
         <div className="space-y-4">
           <TimelineHeader color="text-purple-400" label="GRAND FINAL" />
-          <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/20 p-5 text-center shadow-lg space-y-2.5 relative">
+          <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/30 p-5 text-center shadow-lg space-y-2.5 relative">
             <p className="font-black text-purple-400 text-xs uppercase tracking-widest flex items-center justify-center gap-1.5">
               👑 CHAMPIONSHIP FINAL
             </p>
@@ -170,25 +158,58 @@ function TimelineHeader({ color, label }: { color: string; label: string }) {
   );
 }
 
-// 🟢 BEST PRACTICE: Definisikan Interface untuk mencantumkan properti opsional 'badge1Color'
+// BEST PRACTICE: Definisikan Interface untuk mencantumkan properti opsional 'badge1Color'
 interface TimelineMatchCardProps {
-  team1Display: React.ReactNode;
-  team2Display: React.ReactNode;
+  team1?: ExtendedStandingItem; // 🟢 FIXED: Ubah tipe ke ExtendedStandingItem dan opsional
+  fallback1: string;
+  team2?: ExtendedStandingItem; // 🟢 FIXED: Ubah tipe ke ExtendedStandingItem dan opsional
+  fallback2: string;
   label?: string;
   badgeText?: string;
   isDirect?: boolean;
-  badge1Color?: string; // 👈 Menambahkan properti opsional bertipe string
+  badge1Color?: string;
 }
 
-// 🟢 BEST PRACTICE: Gunakan Interface tersebut sebagai tipe parameter komponen
+// BEST PRACTICE: Gunakan Interface tersebut sebagai tipe parameter komponen
 function TimelineMatchCard({
-  team1Display,
-  team2Display,
+  team1,
+  fallback1,
+  team2,
+  fallback2,
   label,
   badgeText,
   isDirect,
-  badge1Color, // 👈 Ambil nilainya dari destructuring
-}: TimelineMatchCardProps) { // 👈 Terapkan Interface di sini
+  badge1Color,
+}: TimelineMatchCardProps) {
+
+  // 🟢 FIXED: Logika render Team Display dipindah ke dalam komponen TimelineMatchCard
+  const getTeamDisplay = (teamData?: ExtendedStandingItem, fallbackName: string = "TBD") => {
+    // Jika data tim tersedia, tampilkan nama asli
+    if (teamData) {
+      // Placeholder pemenang (✓)
+      const isWinner = teamData.teamName.includes("✓") || false; 
+
+      return (
+        <div className="flex items-center gap-1.5 truncate">
+          <img src={teamData.teamLogo} alt="" className="h-4.5 w-4.5 shrink-0 object-contain" />
+          <span className={`truncate leading-tight text-[11px] font-bold text-foreground`}>
+            {isWinner ? teamData.teamName.replace(" ✓", "") : teamData.teamName}
+          </span>
+          {isWinner && <CircleCheckBig className="h-4 w-4 text-emerald-500 shrink-0" />}
+        </div>
+      );
+    }
+    // Jika tidak ada data, tampilkan teks placeholder samar
+    return (
+      <div className="flex items-center gap-1.5 truncate">
+        <span className="h-2 w-2 rounded-full bg-muted shrink-0" />
+        <span className={`truncate leading-tight text-[11px] font-medium text-muted-foreground`}>
+          {fallbackName}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div
       className={`rounded-2xl border bg-background/60 hover:border-primary/50 p-3 flex flex-col gap-2.5 shadow-sm transition relative z-10 ${
@@ -208,17 +229,19 @@ function TimelineMatchCard({
       </div>
 
       {/* TEAM 1 */}
-      <div className="flex items-center justify-between font-bold text-[11px] min-w-0 pr-1">
-        {team1Display}
-        <span className="text-primary font-black text-xs pl-1">0</span>
+      <div className={`flex items-center justify-between font-bold text-[11px] min-w-0 pr-1`}>
+        {/* 🟢 FIXED: Panggil helper display dengan opsional teamNumber1Color */}
+        {getTeamDisplay(team1, fallback1)}
+        <span className={`text-primary font-black text-xs pl-1`}>0</span>
       </div>
 
       <div className="border-t border-border/40" />
 
       {/* TEAM 2 */}
-      <div className="flex items-center justify-between font-bold text-[11px] min-w-0 pr-1">
-        {team2Display}
-        <span className="text-primary font-black text-xs pl-1">0</span>
+      <div className={`flex items-center justify-between font-bold text-[11px] min-w-0 pr-1`}>
+        {/* 🟢 FIXED: Panggil helper display */}
+        {getTeamDisplay(team2, fallback2)}
+        <span className={`text-primary font-black text-xs pl-1`}>0</span>
       </div>
     </div>
   );
