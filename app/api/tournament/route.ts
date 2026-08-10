@@ -157,10 +157,15 @@ export async function POST(req: Request) {
 
       const existingMatch = schedules[targetIndex];
 
-      // ⚡ BYPASS TOTAL VERIFIKASI TOKEN UNTUK ACTION ADMIN DASHBOARD!
+      // 🟢 DUKUNG MENIMPA DUMMY DENGAN STRING KOSONG ("")
       const updatedMatch: MatchScheduleItem = {
         ...existingMatch,
         ...matchData,
+        referee: typeof matchData.referee === 'string' ? matchData.referee : (existingMatch.referee || ''),
+        refereeDiscordId: typeof matchData.refereeDiscordId === 'string' ? matchData.refereeDiscordId : (existingMatch.refereeDiscordId || ''),
+        streamer: typeof matchData.streamer === 'string' ? matchData.streamer : (existingMatch.streamer || ''),
+        streamerDiscordId: typeof matchData.streamerDiscordId === 'string' ? matchData.streamerDiscordId : (existingMatch.streamerDiscordId || ''),
+        
         scoreA: matchData.scoreA ?? existingMatch.scoreA ?? 0,
         scoreB: matchData.scoreB ?? existingMatch.scoreB ?? 0,
         isFinished: matchData.isFinished ?? existingMatch.isFinished ?? false,
@@ -202,9 +207,15 @@ export async function POST(req: Request) {
 
       const weekStr = (latestMatch as any).weekName || `Week ${latestMatch.weekNumber || 1}`;
 
+      // Resolusi nama grup resmi agar judul di embed tidak ter-reset ke Group A/B
+      const resolvedGroupName =
+        latestMatch.groupName === 'Group A' ? DIVISION_MAP.GROUP_A :
+        latestMatch.groupName === 'Group B' ? DIVISION_MAP.GROUP_B :
+        latestMatch.groupName;
+
       const syncResult = await createMatchDiscordChannel({
         matchId: latestMatch.id,
-        groupName: latestMatch.groupName,
+        groupName: resolvedGroupName,
         teamAName: latestMatch.teamAName,
         teamBName: latestMatch.teamBName,
         kodeTimA: teamA?.kodeTim,
@@ -350,5 +361,4 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   }
 
   return schedules;
-}
-  
+      }
