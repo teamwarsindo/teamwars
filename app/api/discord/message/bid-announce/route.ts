@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          content: '⏳ @everyone **PERINGATAN SISA 2 JAM LAGI!** ⏳\n\nLelang Penamaan Divisi TWI Season 7 akan **RESMI DITUTUP** pada pukul **20:00 WIB** (<t:1786279200:R>).\n\nSegera cek posisi bid tim kamu & lakukan penawaran di <#856446649940049930> sebelum terlambat!',
+          content: '⏳ @everyone **PERINGATAN SISA 2 JAM LAGI!** ⏳\n\nLelang Penamaan Divisi TWI Season 7 akan **RESMI DITUTUP** pada pukul **20:00 WIB**.\n\nSegera cek posisi bid tim kamu & lakukan penawaran di <#856446649940049930> sebelum terlambat!',
           embeds: [newsEmbed18],
           allowed_mentions: { parse: ['everyone'] },
         }),
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          content: '🚨 @everyone **PERINGATAN SISA 1 JAM LAGI!** 🚨\n\nLelang Penamaan Divisi TWI Season 7 akan **RESMI DITUTUP** pada pukul **20:00 WIB** (<t:1786279200:R>).\n\nSegera ajukan penawaran terbaik tim kamu di <#856446649940049930> sekarang!',
+          content: '🚨 @everyone **PERINGATAN SISA 1 JAM LAGI!** 🚨\n\nLelang Penamaan Divisi TWI Season 7 akan **RESMI DITUTUP** pada pukul **20:00 WIB**.\n\nSegera ajukan penawaran terbaik tim kamu di <#856446649940049930> sekarang!',
           embeds: [newsEmbed19],
           allowed_mentions: { parse: ['everyone'] },
         }),
@@ -97,8 +97,6 @@ export async function GET(req: NextRequest) {
       if (newMainMsg?.id) {
         await kv.set(KV_MSG_MAIN_KEY, newMainMsg.id);
       }
-
-      return NextResponse.json({ success: true, message: 'Bidding closed and announced.' });
     }
 
     // 🔄 5. SILENT LIVE UPDATE (Update Embed Bidding, Log, dan News)
@@ -123,10 +121,18 @@ export async function GET(req: NextRequest) {
 
     if (newsMsgId) {
       const newsEmbed = buildNewsEmbed(currentData, isClosed);
+      const newsContent = isClosed
+        ? '🚨 @everyone **LELANG PENAMAAN DIVISI RESMI DITUTUP!** 🚨\n\nLelang Penamaan Divisi TWI Season 7 telah **RESMI DITUTUP** pada pukul **20:00 WIB**.\n\nTerima kasih kepada seluruh tim yang telah berpartisipasi! Hasil akhir dapat dilihat di <#856446649940049930>.'
+        : undefined;
+
       await fetch(`https://discord.com/api/v10/channels/${DISCORD_CONFIG.CH_NEWS}/messages/${newsMsgId}`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ embeds: [newsEmbed] }),
+        body: JSON.stringify({
+          ...(newsContent ? { content: newsContent } : {}),
+          embeds: [newsEmbed],
+          allowed_mentions: { parse: ['everyone'] },
+        }),
       });
     }
 
