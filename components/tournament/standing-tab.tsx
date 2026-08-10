@@ -19,19 +19,22 @@ function getCurrentCalendarWeek(): number {
 export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabProps) {
   const currentWeek = useMemo(() => getCurrentCalendarWeek(), []);
 
+  // Hanya mengambil minggu yang tersedia di jadwal
   const availableWeeks = useMemo(() => {
-    const weeksInSchedules = Array.from(
+    if (!schedules.length) return [1];
+    const weeks = Array.from(
       new Set(schedules.map((s) => s.weekNumber || 1))
     ).sort((a, b) => a - b);
+    return weeks;
+  }, [schedules]);
 
-    if (!weeksInSchedules.includes(currentWeek)) {
-      weeksInSchedules.push(currentWeek);
-      weeksInSchedules.sort((a, b) => a - b);
-    }
-    return weeksInSchedules;
-  }, [schedules, currentWeek]);
+  const initialWeek = useMemo(() => {
+    return availableWeeks.includes(currentWeek)
+      ? currentWeek
+      : availableWeeks[availableWeeks.length - 1] || 1;
+  }, [availableWeeks, currentWeek]);
 
-  const [selectedWeek, setSelectedWeek] = useState<number>(currentWeek);
+  const [selectedWeek, setSelectedWeek] = useState<number>(initialWeek);
   const [activeTab, setActiveTab] = useState<"GROUPS" | "GLOBAL">("GROUPS");
 
   const standings = useMemo(() => {
@@ -50,7 +53,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return list;
   }, [standings]);
 
-  // Global Standings: Label Rank Ringkas & Konsistensi Warna Group A (Sky) / Group B (Amber)
+  // Global Standing: Top 2 Tiap Group di Atas + Wildcard Top 8 (Emerald) + Sisa Tim (Rank 1-12)
   const globalStandings = useMemo(() => {
     const topGroupA = groupAStandings.slice(0, 2).map((t, i) => ({
       ...t,
@@ -119,14 +122,13 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
               if (isGlobal) {
                 if (item.isTopGroup) {
-                  // Aksensiasi Warna Konsisten: Group A (Biru/Sky) & Group B (Kuning/Amber)
                   rowStyle =
                     item.groupColor === "GROUP_A"
                       ? "bg-sky-500/15 hover:bg-sky-500/20 transition border-l-4 border-l-sky-500"
                       : "bg-amber-500/15 hover:bg-amber-500/20 transition border-l-4 border-l-amber-500";
                 } else if (item.rank <= 8) {
-                  // Wildcard Playoff
-                  rowStyle = "bg-primary/10 hover:bg-primary/15 transition border-l-2 border-l-primary";
+                  // Wildcard Playoff Rank 1-8 (Warna Hijau Emerald)
+                  rowStyle = "bg-emerald-500/15 hover:bg-emerald-500/20 transition border-l-4 border-l-emerald-500";
                 }
               }
 
@@ -142,6 +144,8 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                             ? item.groupColor === "GROUP_A"
                               ? "text-[10px] font-black text-sky-500"
                               : "text-[10px] font-black text-amber-500"
+                            : isGlobal && item.rank <= 8
+                            ? "text-[10px] font-black text-emerald-500"
                             : ""
                         }
                       >
@@ -150,7 +154,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     </div>
                   </td>
 
-                  {/* TEAMS: Nama Tim Tidak Kepotong */}
+                  {/* TEAMS */}
                   <td className="py-2 pl-1 pr-1">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <img src={item.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
@@ -200,7 +204,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
   return (
     <div className="space-y-4">
-      {/* SWITCHER TAB DENGAN UKURAN SEIMBANG */}
+      {/* SWITCHER TAB */}
       <div className="flex flex-col gap-3 bg-card border border-border p-3 rounded-2xl shadow-sm">
         <div className="grid grid-cols-2 gap-2 w-full">
           <button
@@ -227,13 +231,12 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
         {/* FILTER WEEK */}
         <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/30">
-          <label className="text-xs font-semibold text-muted-foreground">Filter:</label>
+          <label className="text-xs font-semibold text-muted-foreground">Filter Akumulasi S/D:</label>
           <select
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(Number(e.target.value))}
             className="bg-background border border-input rounded-xl px-3 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
           >
-            <option value={0}>Semua Week</option>
             {availableWeeks.map((w) => (
               <option key={w} value={w}>
                 Week {w}
@@ -243,7 +246,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       </div>
 
-      {/* KONTEN TAB */}
       {activeTab === "GROUPS" ? (
         <div className="space-y-6">
           {renderTable(groupAStandings, `Divisi ${DIVISION_MAP.GROUP_A}`)}
@@ -251,6 +253,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       ) : (
         <div className="space-y-3">
+          {/* LEGEND KALIMAT KETERANGAN QUALIFICATION */}
           <div className="p-3 bg-card border border-border rounded-xl text-[11px] space-y-1">
             <p className="font-bold text-foreground flex items-center gap-1.5">
               💡 <span>Ketentuan Kualifikasi Playoff:</span>
@@ -269,9 +272,9 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0"></span>
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0"></span>
                 <span>
-                  <strong className="text-primary font-bold">Highlight Biru Soft:</strong> Lolos Wildcard Playoff (Rank 1-8 Global).
+                  <strong className="text-emerald-500 font-bold">Hijau Soft:</strong> Wildcard Playoff (Rank 1-8 Global).
                 </span>
               </div>
             </div>
@@ -282,4 +285,5 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       )}
     </div>
   );
-           }
+            }
+        
