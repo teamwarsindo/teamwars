@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { MatchScheduleItem, DIVISION_MAP } from "@/lib/types/tournament";
-import { calculateStandingsForWeek, ExtendedStandingItem } from "@/lib/tournament/calculator";
+import { calculateStandings, ExtendedStandingItem } from "@/lib/tournament/calculator";
 
 interface StandingTabProps {
   schedules: MatchScheduleItem[];
@@ -21,7 +21,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
   // Hitung Standing Akumulatif berdasarkan Week
   const standings = useMemo(() => {
-    return calculateStandingsForWeek(schedules, masterTeams, selectedWeek);
+    return calculateStandings(schedules, masterTeams, selectedWeek);
   }, [schedules, masterTeams, selectedWeek]);
 
   // Split per Divisi/Grup
