@@ -141,15 +141,47 @@ export function ScheduleAdminTab({
     setSelectedTeamFilter('ALL');
   };
 
+  // 🟢 HANDLE SAVE QUICK EDIT (OTOMATIS SINKRON KE REDIS KV, WASIT/STREAMER ROLE, & DISCORD EMBED)
   const handleSaveMatchSchedule = async (updated: MatchScheduleItem) => {
-    const res = await fetch('/api/tournament', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'UPDATE_MATCH_CONSOLE', matchId: updated.id, token: 'tsaqif', matchData: updated }),
+    Swal.fire({
+      title: 'Menyimpan & Syncing...',
+      text: 'Memperbarui data match dan menyinkronkan ke Discord...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
     });
-    if (res.ok) {
+
+    try {
+      const res = await fetch('/api/tournament', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'UPDATE_MATCH_CONSOLE',
+          matchId: updated.id,
+          token: 'tsaqif',
+          matchData: updated,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal menyimpan perubahan ke server');
+      }
+
       await fetchSchedulesAndStaff();
-      Swal.fire({ icon: 'success', title: 'Jadwal Disimpan!', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Jadwal & Discord Disimpan!',
+        text: `Match ${updated.id} berhasil diperbarui di Dashboard & Discord.`,
+        toast: true,
+        position: 'top-end',
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      console.error('Error saving match schedule:', err);
+      Swal.fire('Gagal Menyimpan!', err.message || 'Terjadi kesalahan pada server.', 'error');
     }
   };
 
@@ -455,5 +487,4 @@ export function ScheduleAdminTab({
       </div>
     </div>
   );
-      }
-              
+    }
