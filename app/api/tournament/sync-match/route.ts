@@ -14,7 +14,24 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
-// 🟢 HELPER DELAY UNTUK MENCEGAH RATE LIMIT DISCORD API (429)
+// Helper mengambil tanggal start turnamen dari Env Variable
+function getTournamentStartDate(): number {
+  const startDateStr = process.env.TWI_START_DATE || '2026-08-03';
+  return new Date(`${startDateStr}T00:00:00+07:00`).getTime();
+}
+
+// Helper hitung minggu berbasis tanggal jika field weekNumber di KV belum ada
+function getMatchWeekNumber(dateString?: string): number {
+  if (!dateString) return 1;
+  const startDate = getTournamentStartDate();
+  const matchDate = new Date(dateString).getTime();
+  if (isNaN(matchDate)) return 1;
+
+  const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+// Helper delay mencegah Rate Limit Discord API (429)
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function POST(req: Request) {
@@ -36,9 +53,11 @@ export async function POST(req: Request) {
       }
 
       const weekNumber = parseInt(targetWeek.replace('Week ', ''), 10);
+      
+      // Filter presisi berbasis tanggal pertandingan
       const weekMatches = schedules.filter((m) => {
-        const wNum = m.weekNumber || 1;
-        return wNum === weekNumber;
+        const computedWeek = m.weekNumber || getMatchWeekNumber(m.matchDate);
+        return computedWeek === weekNumber;
       });
 
       if (weekMatches.length === 0) {
@@ -90,7 +109,6 @@ export async function POST(req: Request) {
           syncedChannelMap[match.id] = res.channelId;
         }
 
-        // 🛡️ BERI JEDA 300MS AGAR TIDAK MENGHITAMKAN BOT / KENA RATE LIMIT DISCORD
         await delay(300);
       }
 
@@ -103,7 +121,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // Untuk action di bawah ini wajib menyertakan matchId
     if (!matchId) {
       return NextResponse.json({ error: 'Match ID wajib diisi' }, { status: 400 });
     }
@@ -151,7 +168,8 @@ export async function POST(req: Request) {
       kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
     ]);
 
-    const weekStr = (match as any).weekName || `Week ${match.weekNumber || 1}`;
+    const computedWeekNum = match.weekNumber || getMatchWeekNumber(match.matchDate);
+    const weekStr = (match as any).weekName || `Week ${computedWeekNum}`;
 
     const res = await createMatchDiscordChannel({
       matchId: match.id,
@@ -194,4 +212,4 @@ export async function POST(req: Request) {
     console.error('Error Syncing Match:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-}
+            }
