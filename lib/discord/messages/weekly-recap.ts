@@ -1,5 +1,6 @@
 import { discordAPI } from '../utils';
 import { DISCORD_CONFIG } from '../config';
+import { DIVISION_MAP } from '@/lib/types/tournament';
 
 export interface ScheduleMatch {
   matchDateIso: string;
@@ -53,7 +54,7 @@ export async function deleteWeeklyScheduleAndRecap(params: {
 export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   channelId: string;
   weekName: string;
-  weekDateRangeStr: string;
+  weekDateRangeStr?: string;
   dailyMatchCounts: Array<{
     dateKey: string;
     dateFormatted: string;
@@ -117,15 +118,16 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
-  // 🟢 CONTENT TEXT DENGAN NAMA DIVISI LENGKAP
-  const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n🗓️ **${params.weekDateRangeStr}**\n\n@everyone`;
+  // 🟢 CONTENT RINGKAS: Hanya Judul H1 dan @everyone
+  const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n@everyone`;
   const duelistMention = DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : '@Duelist';
 
-  // 🟢 JUDUL (TITLE) DITANGGALKAN / GAUSAH KASIH JUDUL DI EMBED
+  // 🟢 NAMA DIVISI DIJADIKAN JUDUL EMBED
   const groupAPayload = {
     content: groupAContent,
     embeds: [
       {
+        title: `📊 Schedule ${DIVISION_MAP.GROUP_A} - ${params.weekName}`,
         color: 0x3498db,
         description: buildGroupDescription(params.groupASchedules),
         footer: { text: 'Team Wars Indonesia Season 7' },
@@ -136,6 +138,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   const groupBPayload = {
     embeds: [
       {
+        title: `📊 Schedule ${DIVISION_MAP.GROUP_B} - ${params.weekName}`,
         color: 0xe74c3c,
         description: buildGroupDescription(params.groupBSchedules),
         footer: { text: 'Team Wars Indonesia Season 7' },
@@ -200,4 +203,4 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId,
     recapMsgId,
   };
-    }
+}
