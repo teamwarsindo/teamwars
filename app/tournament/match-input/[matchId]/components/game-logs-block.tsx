@@ -33,7 +33,7 @@ export function GameLogsBlock({
   const [winnerTeamId, setWinnerTeamId] = useState("");
 
   const inputBase =
-    "w-full rounded-lg border border-border bg-background/60 p-2 text-xs font-semibold text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20";
+    "w-full rounded-lg border border-border bg-background/60 p-2 text-xs font-semibold text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer";
 
   const handlePromptAddMaster = async (type: "DECK" | "SKILL") => {
     const { value: text } = await Swal.fire({
@@ -108,7 +108,7 @@ export function GameLogsBlock({
 
       {/* INPUT FORM ROW */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-        {/* SIDE TIM A */}
+        {/* SIDE TIM A - PEMAIN DIAMBIL HANYA DARI LINEUP BERTANDING (activeListA) */}
         <div className="space-y-2.5 p-3 bg-muted/20 rounded-xl border border-border/30">
           <p className="font-extrabold text-primary uppercase text-[11px]">{match.teamAName}</p>
           <div>
@@ -146,7 +146,7 @@ export function GameLogsBlock({
           </div>
         </div>
 
-        {/* SIDE TIM B */}
+        {/* SIDE TIM B - PEMAIN DIAMBIL HANYA DARI LINEUP BERTANDING (activeListB) */}
         <div className="space-y-2.5 p-3 bg-muted/20 rounded-xl border border-border/30">
           <p className="font-extrabold text-rose-500 uppercase text-[11px]">{match.teamBName}</p>
           <div>
@@ -266,7 +266,7 @@ export function GameLogsBlock({
                         <button
                           type="button"
                           onClick={() => setGameLogs(gameLogs.filter((_, i) => i !== idx))}
-                          className="text-rose-500 hover:text-rose-400 font-bold text-xs"
+                          className="text-rose-500 hover:text-rose-400 font-bold text-xs cursor-pointer"
                         >
                           ✕
                         </button>
@@ -281,4 +281,5 @@ export function GameLogsBlock({
       )}
     </section>
   );
-}
+    }
+              
