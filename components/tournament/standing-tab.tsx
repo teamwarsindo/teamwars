@@ -19,22 +19,21 @@ function getCurrentCalendarWeek(): number {
 export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabProps) {
   const currentWeek = useMemo(() => getCurrentCalendarWeek(), []);
 
-  // Hanya mengambil minggu yang tersedia di jadwal
-  const availableWeeks = useMemo(() => {
-    if (!schedules.length) return [1];
-    const weeks = Array.from(
+  // 🟢 Filter minggu disinkronkan: Maksimal hanya sampai Week Aktif
+  const availableWeeksUpToCurrent = useMemo(() => {
+    const weeksInSchedules = Array.from(
       new Set(schedules.map((s) => s.weekNumber || 1))
+    ).filter((w) => w <= currentWeek);
+
+    const fullRange = Array.from(
+      new Set([...weeksInSchedules, ...Array.from({ length: currentWeek }, (_, i) => i + 1)])
     ).sort((a, b) => a - b);
-    return weeks;
-  }, [schedules]);
 
-  const initialWeek = useMemo(() => {
-    return availableWeeks.includes(currentWeek)
-      ? currentWeek
-      : availableWeeks[availableWeeks.length - 1] || 1;
-  }, [availableWeeks, currentWeek]);
+    return fullRange;
+  }, [schedules, currentWeek]);
 
-  const [selectedWeek, setSelectedWeek] = useState<number>(initialWeek);
+  // Default terkunci di Week Aktif saat ini
+  const [selectedWeek, setSelectedWeek] = useState<number>(currentWeek);
   const [activeTab, setActiveTab] = useState<"GROUPS" | "GLOBAL">("GROUPS");
 
   const standings = useMemo(() => {
@@ -53,7 +52,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return list;
   }, [standings]);
 
-  // Global Standing: Top 2 Tiap Group di Atas + Wildcard Top 8 (Emerald) + Sisa Tim (Rank 1-12)
+  // Global Standing
   const globalStandings = useMemo(() => {
     const topGroupA = groupAStandings.slice(0, 2).map((t, i) => ({
       ...t,
@@ -106,14 +105,15 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         <table className="w-full text-left text-[11px] table-fixed">
           <thead className="bg-muted/60 border-b border-border text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider">
             <tr>
-              <th className={`py-2 px-1 text-center ${isGlobal ? "w-[16%]" : "w-[12%]"}`}>RANK</th>
-              <th className={`py-2 pl-1 pr-1 ${isGlobal ? "w-[38%]" : "w-[42%]"}`}>TEAMS</th>
-              <th className="py-2 px-1 text-center w-[16%] leading-tight">
+              {/* 🟢 PROPORSI LEBAR KOLOM DIGESER KE KIRI */}
+              <th className={`py-2 px-1 text-center ${isGlobal ? "w-[18%]" : "w-[12%]"}`}>RANK</th>
+              <th className={`py-2 pl-1 pr-1 ${isGlobal ? "w-[32%]" : "w-[38%]"}`}>TEAMS</th>
+              <th className="py-2 px-0.5 text-center w-[16%] leading-tight">
                 MATCH<br />W-L
               </th>
-              <th className="py-2 px-1 text-center w-[10%]">RD</th>
-              <th className="py-2 px-1 text-center w-[10%]">SET WINS</th>
-              <th className="py-2 pl-1 pr-2 text-center w-[12%] text-primary">POINTS</th>
+              <th className="py-2 px-0.5 text-center w-[11%]">RD</th>
+              <th className="py-2 px-0.5 text-center w-[11%]">SET WINS</th>
+              <th className="py-2 pl-0.5 pr-2 text-center w-[12%] text-primary">POINTS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40 font-semibold text-foreground">
@@ -127,7 +127,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                       ? "bg-sky-500/15 hover:bg-sky-500/20 transition border-l-4 border-l-sky-500"
                       : "bg-amber-500/15 hover:bg-amber-500/20 transition border-l-4 border-l-amber-500";
                 } else if (item.rank <= 8) {
-                  // Wildcard Playoff Rank 1-8 (Warna Hijau Emerald)
                   rowStyle = "bg-emerald-500/15 hover:bg-emerald-500/20 transition border-l-4 border-l-emerald-500";
                 }
               }
@@ -165,12 +164,12 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   </td>
 
                   {/* MATCH W-L */}
-                  <td className="py-2 px-1 text-center font-bold text-[10.5px]">
+                  <td className="py-2 px-0.5 text-center font-bold text-[10.5px]">
                     {item.matchWins}-{item.matchLosses}
                   </td>
 
                   {/* RD */}
-                  <td className="py-2 px-1 text-center font-bold text-[10.5px]">
+                  <td className="py-2 px-0.5 text-center font-bold text-[10.5px]">
                     <span
                       className={
                         item.roundDifference > 0
@@ -185,12 +184,12 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   </td>
 
                   {/* SET WINS */}
-                  <td className="py-2 px-1 text-center font-extrabold text-foreground text-[10.5px]">
+                  <td className="py-2 px-0.5 text-center font-extrabold text-foreground text-[10.5px]">
                     {item.setWins}
                   </td>
 
-                  {/* POINTS */}
-                  <td className="py-2 pl-1 pr-2 text-center font-black text-primary text-xs">
+                  {/* POINTS (LONGGAR DAN TIDAK MEPET) */}
+                  <td className="py-2 pl-0.5 pr-2 text-center font-black text-primary text-xs">
                     {item.points}
                   </td>
                 </tr>
@@ -229,15 +228,15 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
           </button>
         </div>
 
-        {/* FILTER WEEK */}
+        {/* 🟢 TULISAN FILTER RINGKAS 'Filter:' DENGAN PILIHAN SINKRON */}
         <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/30">
-          <label className="text-xs font-semibold text-muted-foreground">Filter Akumulasi S/D:</label>
+          <label className="text-xs font-semibold text-muted-foreground">Filter:</label>
           <select
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(Number(e.target.value))}
             className="bg-background border border-input rounded-xl px-3 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
           >
-            {availableWeeks.map((w) => (
+            {availableWeeksUpToCurrent.map((w) => (
               <option key={w} value={w}>
                 Week {w}
               </option>
@@ -253,7 +252,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       ) : (
         <div className="space-y-3">
-          {/* LEGEND KALIMAT KETERANGAN QUALIFICATION */}
           <div className="p-3 bg-card border border-border rounded-xl text-[11px] space-y-1">
             <p className="font-bold text-foreground flex items-center gap-1.5">
               💡 <span>Ketentuan Kualifikasi Playoff:</span>
@@ -285,5 +283,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       )}
     </div>
   );
-            }
-        
+          }
