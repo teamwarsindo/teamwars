@@ -56,7 +56,7 @@ export function MetadataBlock({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* DROPDOWN WASIT MODERN */}
+        {/* DROPDOWN WASIT modern via CustomSelect */}
         <div>
           <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">
             Wasit / Referee Bertugas
@@ -69,7 +69,7 @@ export function MetadataBlock({
           />
         </div>
 
-        {/* DROPDOWN STREAMER MODERN */}
+        {/* DROPDOWN STREAMER modern via CustomSelect */}
         <div>
           <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">
             Streamer / Caster
