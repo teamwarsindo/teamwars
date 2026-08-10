@@ -11,10 +11,24 @@ const KV_KEY_SCHEDULES = 'twi:schedules';
 // CACHE RECAP GLOBAL DI LUAR (DELETE & RE-POST DI POSISI PALING BAWAH)
 const KV_KEY_GLOBAL_RECAP = 'twi:global_recap_msg_id';
 
+// Helper mengambil tanggal start turnamen dari Environment Variable Vercel
+function getTournamentStartDate(): number {
+  const startDateStr = process.env.TWI_START_DATE || '2026-08-03';
+  return new Date(`${startDateStr}T00:00:00+07:00`).getTime();
+}
+
+// Helper hitung minggu berjalan otomatis dari TWI_START_DATE
+function getCurrentServerWeek(): number {
+  const startDate = getTournamentStartDate();
+  const now = Date.now();
+  const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
 // Helper hitung minggu berbasis tanggal jika Vercel KV belum menyimpan field weekNumber
 function getMatchWeekNumber(dateString?: string): number {
   if (!dateString) return 1;
-  const startDate = new Date('2026-08-03T00:00:00+07:00').getTime();
+  const startDate = getTournamentStartDate();
   const matchDate = new Date(dateString).getTime();
   if (isNaN(matchDate)) return 1;
 
@@ -42,9 +56,207 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
+// 🟢 LOGIKA UTAMA BROADCAST RECAP
+async function executeWeeklyBroadcast(targetWeekStr: string) {
+  const weekNumber = parseInt(targetWeekStr.replace('Week ', ''), 10);
+  const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
+
+  const weekMatches = schedules.filter((m) => {
+    const computedWeek = m.weekNumber || getMatchWeekNumber(m.matchDate);
+    return computedWeek === weekNumber;
+  });
+
+  if (weekMatches.length === 0) {
+    throw new Error(`Tidak ada jadwal pertandingan untuk ${targetWeekStr}`);
+  }
+
+  // 1. FETCH DATA EMOJI SEMUA TIM DARI KV (`teams:{slug}`)
+  const teamSlugs = Array.from(
+    new Set(weekMatches.flatMap((m) => [getTeamSlug(m.teamAName), getTeamSlug(m.teamBName)]))
+  );
+
+  const emojiMap: Record<string, string> = {};
+  await Promise.all(
+    teamSlugs.map(async (slug) => {
+      try {
+        const teamData = await kv.hgetall<{ kodeTim?: string; emojiId?: string }>(`teams:${slug}`);
+        if (teamData?.kodeTim && teamData?.emojiId) {
+          emojiMap[slug] = `<:${teamData.kodeTim}:${teamData.emojiId}>`;
+        }
+      } catch {
+        // Silent catch fallback
+      }
+    })
+  );
+
+  // 2. PISAHKAN JADWAL GROUP A & B
+  const groupAMatches = weekMatches.filter(
+    (m) => m.groupName === DIVISION_MAP.GROUP_A || m.groupName === 'Group A'
+  );
+  const groupBMatches = weekMatches.filter(
+    (m) => m.groupName === DIVISION_MAP.GROUP_B || m.groupName === 'Group B'
+  );
+
+  const formatScheduleMatch = (m: MatchScheduleItem) => {
+    const d = new Date(m.matchDate);
+    const dateStr = d.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    });
+    const timeStr =
+      d.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Jakarta',
+      }) + ' WIB';
+
+    const slugA = getTeamSlug(m.teamAName);
+    const slugB = getTeamSlug(m.teamBName);
+
+    return {
+      matchDateIso: m.matchDate,
+      dateStr,
+      timeStr,
+      team1Emoji: emojiMap[slugA] || '🛡️',
+      team1Name: m.teamAName,
+      team2Emoji: emojiMap[slugB] || '🛡️',
+      team2Name: m.teamBName,
+    };
+  };
+
+  const groupASchedules = groupAMatches.map(formatScheduleMatch);
+  const groupBSchedules = groupBMatches.map(formatScheduleMatch);
+
+  // 3. LOGIKA GENERATE SLOT RESCHEDULE (RABU S/D MINGGU) & FILTER HARI BERLALU
+  const todayWibStr = getWibDateKey(new Date());
+
+  const matchDates = weekMatches
+    .map((m) => new Date(m.matchDate).getTime())
+    .sort((a, b) => a - b);
+  const earliestDate = new Date(matchDates[0]);
+
+  // Cari hari Rabu di minggu tersebut (0=Minggu, 1=Senin, ..., 3=Rabu)
+  const dayOfWeek = earliestDate.getDay();
+  const diffToWed = dayOfWeek >= 3 ? dayOfWeek - 3 : dayOfWeek + 4;
+  const wednesdayDate = new Date(earliestDate);
+  wednesdayDate.setDate(earliestDate.getDate() - diffToWed);
+
+  const matchCountByDate = new Map<string, number>();
+  weekMatches.forEach((m) => {
+    const dateKey = getWibDateKey(new Date(m.matchDate));
+    matchCountByDate.set(dateKey, (matchCountByDate.get(dateKey) || 0) + 1);
+  });
+
+  const dailyMatchCounts: { dateKey: string; dateFormatted: string; count: number }[] = [];
+
+  for (let i = 0; i < 5; i++) {
+    const currentDate = new Date(wednesdayDate);
+    currentDate.setDate(wednesdayDate.getDate() + i);
+
+    const dateKey = getWibDateKey(currentDate);
+
+    // Abaikan hari yang sudah berlalu sebelum hari ini
+    if (dateKey < todayWibStr) {
+      continue;
+    }
+
+    const dateFormatted = currentDate.toLocaleDateString('id-ID', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      timeZone: 'Asia/Jakarta',
+    });
+
+    dailyMatchCounts.push({
+      dateKey,
+      dateFormatted,
+      count: matchCountByDate.get(dateKey) || 0,
+    });
+  }
+
+  // 4. AMBIL CACHE MSG DENGAN STRUKTUR TERPISAH
+  const weekGroupCacheKey = `twi:schedule_msg_ids:${weekNumber}`;
+  const existingGroupMsgIds = (await kv.get<{ groupAMsgId?: string; groupBMsgId?: string }>(weekGroupCacheKey)) || {};
+  const existingGlobalRecapId = (await kv.get<{ recapMsgId?: string }>(KV_KEY_GLOBAL_RECAP)) || {};
+
+  // 5. HAPUS PESAN RECAP LAMA TERLEBIH DAHULU (DELETE)
+  if (existingGlobalRecapId?.recapMsgId) {
+    try {
+      await deleteWeeklyScheduleAndRecap({
+        channelId: DISCORD_CONFIG.CH_SCHEDULE,
+        existingMsgIds: { recapMsgId: existingGlobalRecapId.recapMsgId },
+        deleteRecapToo: true,
+      });
+      await kv.del(KV_KEY_GLOBAL_RECAP);
+    } catch (err) {
+      console.warn('Gagal menghapus recap lama, lanjut kirim baru:', err);
+    }
+  }
+
+  // 6. SEND/UPDATE DISCORD (PATCH GROUP A & B, RECAP DI-POST DI POSISI PALING BAWAH)
+  const result = await sendOrUpdateWeeklyScheduleAndRecap({
+    channelId: DISCORD_CONFIG.CH_SCHEDULE,
+    weekName: targetWeekStr,
+    dailyMatchCounts,
+    groupASchedules,
+    groupBSchedules,
+    existingMsgIds: {
+      groupAMsgId: existingGroupMsgIds.groupAMsgId,
+      groupBMsgId: existingGroupMsgIds.groupBMsgId,
+    },
+  });
+
+  // 7. SIMPAN MASING-MASING CACHE KE KV TERPISAH
+  await kv.set(weekGroupCacheKey, {
+    groupAMsgId: result.groupAMsgId,
+    groupBMsgId: result.groupBMsgId,
+  });
+
+  if (result.recapMsgId) {
+    await kv.set(KV_KEY_GLOBAL_RECAP, {
+      recapMsgId: result.recapMsgId,
+    });
+  }
+
+  return result;
+}
+
+// 🟢 GET ENDPOINT (UNTUK CRON JOB AUTOMATION)
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const authHeader = req.headers.get('authorization');
+    const cronSecret = searchParams.get('secret') || authHeader?.replace('Bearer ', '');
+
+    if (process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized Cron Request' }, { status: 401 });
+    }
+
+    const activeWeekNum = getCurrentServerWeek();
+    const targetWeekStr = `Week ${activeWeekNum}`;
+
+    const result = await executeWeeklyBroadcast(targetWeekStr);
+
+    return NextResponse.json({
+      success: true,
+      cronExecutedWeek: targetWeekStr,
+      message: `[CRON SUCCESS] Auto Broadcast ${targetWeekStr} berhasil dijalankan!`,
+      msgIds: result,
+    });
+  } catch (error) {
+    console.error('Error GET Cron Weekly Recap:', error);
+    return NextResponse.json({ error: String(error) }, { status: 500 });
+  }
+}
+
+// 🟢 POST ENDPOINT (UNTUK BROADCAST MANUAL VIA DASHBOARD)
 export async function POST(req: Request) {
   try {
-    const { targetWeek } = await req.json(); // Contoh: "Week 1" atau "Week 2"
+    const { targetWeek } = await req.json();
 
     if (!targetWeek || targetWeek === 'ALL') {
       return NextResponse.json(
@@ -53,177 +265,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const weekNumber = parseInt(targetWeek.replace('Week ', ''), 10);
-    const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
-
-    // Filter match khusus minggu yang dipilih (dengan auto-fallback hitung minggu)
-    const weekMatches = schedules.filter((m) => {
-      const computedWeek = m.weekNumber || getMatchWeekNumber(m.matchDate);
-      return computedWeek === weekNumber;
-    });
-
-    if (weekMatches.length === 0) {
-      return NextResponse.json(
-        { error: `Tidak ada jadwal pertandingan untuk ${targetWeek}` },
-        { status: 400 }
-      );
-    }
-
-    // 1. FETCH DATA EMOJI SEMUA TIM DARI KV (`teams:{slug}`)
-    const teamSlugs = Array.from(
-      new Set(weekMatches.flatMap((m) => [getTeamSlug(m.teamAName), getTeamSlug(m.teamBName)]))
-    );
-
-    const emojiMap: Record<string, string> = {};
-    await Promise.all(
-      teamSlugs.map(async (slug) => {
-        try {
-          const teamData = await kv.hgetall<{ kodeTim?: string; emojiId?: string }>(`teams:${slug}`);
-          if (teamData?.kodeTim && teamData?.emojiId) {
-            emojiMap[slug] = `<:${teamData.kodeTim}:${teamData.emojiId}>`;
-          }
-        } catch {
-          // Fallback jika fetch gagal
-        }
-      })
-    );
-
-    // 2. PISAHKAN JADWAL GROUP A & B
-    const groupAMatches = weekMatches.filter(
-      (m) => m.groupName === DIVISION_MAP.GROUP_A || m.groupName === 'Group A'
-    );
-    const groupBMatches = weekMatches.filter(
-      (m) => m.groupName === DIVISION_MAP.GROUP_B || m.groupName === 'Group B'
-    );
-
-    const formatScheduleMatch = (m: MatchScheduleItem) => {
-      const d = new Date(m.matchDate);
-      const dateStr = d.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        timeZone: 'Asia/Jakarta',
-      });
-      const timeStr =
-        d.toLocaleTimeString('id-ID', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Jakarta',
-        }) + ' WIB';
-
-      const slugA = getTeamSlug(m.teamAName);
-      const slugB = getTeamSlug(m.teamBName);
-
-      return {
-        matchDateIso: m.matchDate,
-        dateStr,
-        timeStr,
-        team1Emoji: emojiMap[slugA] || '🛡️',
-        team1Name: m.teamAName,
-        team2Emoji: emojiMap[slugB] || '🛡️',
-        team2Name: m.teamBName,
-      };
-    };
-
-    const groupASchedules = groupAMatches.map(formatScheduleMatch);
-    const groupBSchedules = groupBMatches.map(formatScheduleMatch);
-
-    // 3. LOGIKA GENERATE SLOT RESCHEDULE (RABU S/D MINGGU) & FILTER HARI BERLALU
-    const todayWibStr = getWibDateKey(new Date());
-
-    const matchDates = weekMatches
-      .map((m) => new Date(m.matchDate).getTime())
-      .sort((a, b) => a - b);
-    const earliestDate = new Date(matchDates[0]);
-
-    // Cari hari Rabu di minggu tersebut (0=Minggu, 1=Senin, ..., 3=Rabu)
-    const dayOfWeek = earliestDate.getDay();
-    const diffToWed = dayOfWeek >= 3 ? dayOfWeek - 3 : dayOfWeek + 4;
-    const wednesdayDate = new Date(earliestDate);
-    wednesdayDate.setDate(earliestDate.getDate() - diffToWed);
-
-    // Hitung jumlah match terdaftar per tanggal (WIB)
-    const matchCountByDate = new Map<string, number>();
-    weekMatches.forEach((m) => {
-      const dateKey = getWibDateKey(new Date(m.matchDate));
-      matchCountByDate.set(dateKey, (matchCountByDate.get(dateKey) || 0) + 1);
-    });
-
-    // Generate 5 Hari Slot (Rabu, Kamis, Jumat, Sabtu, Minggu)
-    const dailyMatchCounts: { dateKey: string; dateFormatted: string; count: number }[] = [];
-
-    for (let i = 0; i < 5; i++) {
-      const currentDate = new Date(wednesdayDate);
-      currentDate.setDate(wednesdayDate.getDate() + i);
-
-      const dateKey = getWibDateKey(currentDate);
-
-      // Abaikan hari yang sudah berlalu sebelum hari ini
-      if (dateKey < todayWibStr) {
-        continue;
-      }
-
-      const dateFormatted = currentDate.toLocaleDateString('id-ID', {
-        weekday: 'short',
-        day: '2-digit',
-        month: 'short',
-        timeZone: 'Asia/Jakarta',
-      });
-
-      const currentCount = matchCountByDate.get(dateKey) || 0;
-
-      dailyMatchCounts.push({
-        dateKey,
-        dateFormatted,
-        count: currentCount,
-      });
-    }
-
-    // 4. AMBIL CACHE MSG DENGAN STRUKTUR TERPISAH
-    const weekGroupCacheKey = `twi:schedule_msg_ids:${weekNumber}`;
-    const existingGroupMsgIds = (await kv.get<{ groupAMsgId?: string; groupBMsgId?: string }>(weekGroupCacheKey)) || {};
-    const existingGlobalRecapId = (await kv.get<{ recapMsgId?: string }>(KV_KEY_GLOBAL_RECAP)) || {};
-
-    // 5. HAPUS PESAN RECAP LAMA TERLEBIH DAHULU (DELETE)
-    if (existingGlobalRecapId?.recapMsgId) {
-      try {
-        await deleteWeeklyScheduleAndRecap({
-          channelId: DISCORD_CONFIG.CH_SCHEDULE,
-          existingMsgIds: { recapMsgId: existingGlobalRecapId.recapMsgId },
-          deleteRecapToo: true,
-        });
-        await kv.del(KV_KEY_GLOBAL_RECAP);
-      } catch (err) {
-        console.warn('Gagal menghapus recap lama, lanjut kirim baru:', err);
-      }
-    }
-
-    // 6. SEND/UPDATE DISCORD (PATCH GROUP A & B, RECAP DI-POST DI POSISI PALING BAWAH)
-    const result = await sendOrUpdateWeeklyScheduleAndRecap({
-      channelId: DISCORD_CONFIG.CH_SCHEDULE,
-      weekName: targetWeek,
-      dailyMatchCounts,
-      groupASchedules,
-      groupBSchedules,
-      existingMsgIds: {
-        groupAMsgId: existingGroupMsgIds.groupAMsgId,
-        groupBMsgId: existingGroupMsgIds.groupBMsgId,
-      },
-    });
-
-    // 7. SIMPAN MASING-MASING CACHE KE KV TERPISAH
-    await kv.set(weekGroupCacheKey, {
-      groupAMsgId: result.groupAMsgId,
-      groupBMsgId: result.groupBMsgId,
-    });
-
-    if (result.recapMsgId) {
-      await kv.set(KV_KEY_GLOBAL_RECAP, {
-        recapMsgId: result.recapMsgId,
-      });
-    }
+    const result = await executeWeeklyBroadcast(targetWeek);
 
     return NextResponse.json({
       success: true,
@@ -236,6 +278,7 @@ export async function POST(req: Request) {
   }
 }
 
+// 🔴 DELETE ENDPOINT (UNTUK MENGHAPUS BROADCAST VIA DASHBOARD)
 export async function DELETE(req: Request) {
   try {
     const { targetWeek } = await req.json();
@@ -281,4 +324,4 @@ export async function DELETE(req: Request) {
     console.error('Error DELETE Weekly Recap:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-      }
+}
