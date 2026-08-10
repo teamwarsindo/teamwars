@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { MatchScheduleItem } from "@/lib/types/tournament";
+import { ChevronDown, Check, RotateCcw } from "lucide-react";
 
 export interface ScheduleTabProps {
   schedules: MatchScheduleItem[];
@@ -30,9 +31,7 @@ export function ScheduleTab({
   groupBName = "Divisi Group B",
   defaultWeek = 1,
 }: ScheduleTabProps) {
-  // 🟢 LOGIKA FILTER WEEK BERDASARKAN PROPS isAdmin
-  // - Admin (isAdmin = true): Buka FULL WEEKS tanpa batasan
-  // - Penonton (isAdmin = false): Dibatasi maksimal s/d Week Aktif
+  // Filter Week untuk Admin vs Penonton
   const availableWeeksFilter = useMemo(() => {
     const allWeekNumbers = Array.from(
       new Set([...schedules.map((s) => s.weekNumber || 1), ...allWeeks])
@@ -51,13 +50,33 @@ export function ScheduleTab({
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "ALL">(defaultWeek);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
 
+  // State Kontrol Custom Dropdown Popover
+  const [isTeamDropdownOpen, setIsTeamDropdownOpen] = useState(false);
+  const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
+
+  const teamRef = useRef<HTMLDivElement>(null);
+  const weekRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (typeof defaultWeek === "number" && defaultWeek > 0) {
       setSelectedWeekFilter(defaultWeek);
     }
   }, [defaultWeek]);
 
-  // Pengecekan status aktif filter
+  // Handle klik di luar area dropdown untuk menutup menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (teamRef.current && !teamRef.current.contains(event.target as Node)) {
+        setIsTeamDropdownOpen(false);
+      }
+      if (weekRef.current && !weekRef.current.contains(event.target as Node)) {
+        setIsWeekDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const isFilterActive = useMemo(() => {
     return (
       selectedWeekFilter !== defaultWeek ||
@@ -95,7 +114,6 @@ export function ScheduleTab({
     isAdmin,
   ]);
 
-  // Grouping kartu per Week
   const groupedByWeek = useMemo(() => {
     const map = new Map<number, MatchScheduleItem[]>();
     filteredSchedules.forEach((m) => {
@@ -139,7 +157,6 @@ export function ScheduleTab({
             : "bg-amber-500/5 border-amber-500/40 hover:border-amber-500"
         }`}
       >
-        {/* HEADER KARTU: NAMA DIVISI & TANGGAL */}
         <div className="flex items-center justify-between text-[10px] font-bold">
           <span
             className={`text-[10px] font-black uppercase ${
@@ -151,9 +168,7 @@ export function ScheduleTab({
           <span className="text-muted-foreground">{formatDateLabel(match.matchDate)}</span>
         </div>
 
-        {/* BODY KARTU: NAMA TIM & LOGO & SKOR */}
         <div className="grid grid-cols-7 items-center gap-1 text-center">
-          {/* TIM KIRI */}
           <div className="col-span-3 flex items-center justify-end gap-1.5 min-w-0 pr-1">
             <span className="font-bold text-[11px] text-foreground break-words text-right leading-snug">
               {match.teamAName}
@@ -165,7 +180,6 @@ export function ScheduleTab({
             />
           </div>
 
-          {/* BADGE SKOR / VS */}
           <div className="col-span-1 flex justify-center">
             {match.isFinished || (match.scoreA || 0) + (match.scoreB || 0) > 0 ? (
               <span className="px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-xs whitespace-nowrap">
@@ -178,7 +192,6 @@ export function ScheduleTab({
             )}
           </div>
 
-          {/* TIM KANAN */}
           <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0 pl-1">
             <img
               src={match.teamBLogo || "/logo.webp"}
@@ -232,62 +245,144 @@ export function ScheduleTab({
           </button>
         </div>
 
-        {/* BARIS 2: DROPDOWN TIM, WEEK & RESET FILTER */}
+        {/* BARIS 2: DROPDOWN TIM, WEEK & RESET FILTER (CUSTOM POPOVER SELECT) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {/* FILTER TIM */}
-          <select
-            value={selectedTeamFilter}
-            onChange={(e) => setSelectedTeamFilter(e.target.value)}
-            className="bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary transition cursor-pointer"
-          >
-            <option value="ALL">Semua Tim</option>
-            {allTeamNames.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          
+          {/* CUSTOM DROPDOWN 1: FILTER TIM */}
+          <div className="relative" ref={teamRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsTeamDropdownOpen(!isTeamDropdownOpen);
+                setIsWeekDropdownOpen(false);
+              }}
+              className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-foreground flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
+            >
+              <span className="truncate">
+                {selectedTeamFilter === "ALL" ? "Semua Tim" : selectedTeamFilter}
+              </span>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isTeamDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
 
-          {/* FILTER WEEK */}
-          <select
-            value={selectedWeekFilter}
-            onChange={(e) =>
-              setSelectedWeekFilter(
-                e.target.value === "ALL" ? "ALL" : Number(e.target.value)
-              )
-            }
-            className="bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
-          >
-            <option value="ALL">Semua Week</option>
-            {availableWeeksFilter.map((w) => (
-              <option key={w} value={w}>
-                Week {w}
-              </option>
-            ))}
-          </select>
+            {isTeamDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTeamFilter("ALL");
+                    setIsTeamDropdownOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    selectedTeamFilter === "ALL"
+                      ? "bg-primary/10 text-primary font-bold"
+                      : "text-popover-foreground hover:bg-accent"
+                  }`}
+                >
+                  <span>Semua Tim</span>
+                  {selectedTeamFilter === "ALL" && <Check className="h-3.5 w-3.5 text-primary" />}
+                </button>
 
-          {/* TOMBOL RESET FILTER */}
+                {allTeamNames.map((team) => (
+                  <button
+                    key={team}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTeamFilter(team);
+                      setIsTeamDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      selectedTeamFilter === team
+                        ? "bg-primary/10 text-primary font-bold"
+                        : "text-popover-foreground hover:bg-accent"
+                    }`}
+                  >
+                    <span className="truncate">{team}</span>
+                    {selectedTeamFilter === team && <Check className="h-3.5 w-3.5 text-primary" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* CUSTOM DROPDOWN 2: FILTER WEEK */}
+          <div className="relative" ref={weekRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsWeekDropdownOpen(!isWeekDropdownOpen);
+                setIsTeamDropdownOpen(false);
+              }}
+              className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-primary flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
+            >
+              <span className="truncate">
+                {selectedWeekFilter === "ALL" ? "Semua Week" : `Week ${selectedWeekFilter}`}
+              </span>
+              <ChevronDown className={`h-4 w-4 text-primary transition-transform ${isWeekDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {isWeekDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedWeekFilter("ALL");
+                    setIsWeekDropdownOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    selectedWeekFilter === "ALL"
+                      ? "bg-primary/10 text-primary font-bold"
+                      : "text-popover-foreground hover:bg-accent"
+                  }`}
+                >
+                  <span>Semua Week</span>
+                  {selectedWeekFilter === "ALL" && <Check className="h-3.5 w-3.5 text-primary" />}
+                </button>
+
+                {availableWeeksFilter.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => {
+                      setSelectedWeekFilter(w);
+                      setIsWeekDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      selectedWeekFilter === w
+                        ? "bg-primary/10 text-primary font-bold"
+                        : "text-popover-foreground hover:bg-accent"
+                    }`}
+                  >
+                    <span>Week {w}</span>
+                    {selectedWeekFilter === w && <Check className="h-3.5 w-3.5 text-primary" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* TOMBOL RESET FILTER (TANPA EMOJI, MENGGUNAKAN LUCIDE ROTATECCW) */}
           <button
             onClick={handleResetFilters}
             disabled={!isFilterActive}
-            className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
               isFilterActive
                 ? "bg-rose-500 text-white shadow-xs hover:bg-rose-600"
                 : "bg-muted/30 text-muted-foreground/60 border border-border/30 cursor-not-allowed"
             }`}
           >
-            <span>🔄</span> Reset Filter
+            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+            <span>Reset Filter</span>
           </button>
         </div>
 
-        {/* TOMBOL SYNC HANYA UNTUK ADMIN */}
+        {/* ADMIN SYNC BUTTON */}
         {isAdmin && (
           <div className="pt-2 border-t border-border/30 text-right">
             <button
               onClick={onResetSchedules}
               className="text-[11px] font-black text-rose-500 hover:text-rose-400 transition cursor-pointer"
             >
-              ⚡ Sync Roulette & Jadwal
+              ⚡ Sync Roulette &amp; Jadwal
             </button>
           </div>
         )}
@@ -296,14 +391,14 @@ export function ScheduleTab({
       {/* LIST KARTU JADWAL PER WEEK */}
       {groupedByWeek.length === 0 ? (
         <div className="p-8 text-center text-xs font-bold text-muted-foreground bg-card border border-border rounded-2xl">
-          🚫 Tidak ada jadwal pertandingan yang sesuai dengan filter.
+          Tidak ada jadwal pertandingan yang sesuai dengan filter.
         </div>
       ) : (
         groupedByWeek.map(([weekNum, matches]) => (
           <div key={weekNum} className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-xs font-black uppercase text-primary tracking-wider flex items-center gap-1">
-                🗓️ WEEK {weekNum}
+                WEEK {weekNum}
               </span>
               <div className="h-[1px] flex-1 bg-border/60"></div>
             </div>
@@ -316,5 +411,4 @@ export function ScheduleTab({
       )}
     </div>
   );
-      }
-            
+}
