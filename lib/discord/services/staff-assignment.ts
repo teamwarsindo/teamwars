@@ -154,8 +154,8 @@ export async function executeAssignStaff(params: {
       matchDateIso: match.matchDate,
       refereeName: match.referee,
       refereeDiscordId: match.refereeDiscordId,
-      streamerName: match.streamer || match.caster,
-      streamerDiscordId: match.streamerDiscordId || match.casterDiscordId,
+      streamerName: match.streamer,
+      streamerDiscordId: match.streamerDiscordI,
       streamLink: match.streamLink,
       existingMsgId: (match as any).openingMsgId,
       isCompleted: false,
@@ -216,7 +216,7 @@ export async function executeUnassignStaff(params: {
   if (idx === -1) throw new Error('Match tidak ditemukan di Redis KV');
 
   const match = schedules[idx];
-  const targetStaffId = assignType === 'REFEREE' ? match.refereeDiscordId : (match.streamerDiscordId || match.casterDiscordId);
+  const targetStaffId = assignType === 'REFEREE' ? match.refereeDiscordId : (match.streamerDiscordId);
   const targetStaffName = assignType === 'REFEREE' ? match.referee : match.streamer;
 
   if (!targetStaffId) {
@@ -293,8 +293,8 @@ export async function executeUnassignStaff(params: {
         matchDateIso: match.matchDate,
         refereeName: match.referee,
         refereeDiscordId: match.refereeDiscordId,
-        streamerName: match.streamer || match.caster,
-        streamerDiscordId: match.streamerDiscordId || match.casterDiscordId,
+        streamerName: match.streamer,
+        streamerDiscordId: match.streamerDiscordId,
         streamLink: match.streamLink,
         existingMsgId: (match as any).openingMsgId,
         isCompleted: true,
@@ -350,8 +350,7 @@ export async function executeUnassignStaff(params: {
   if (assignType === 'REFEREE') {
     match.refereeDiscordId = undefined;
   } else {
-    match.streamerDiscordId = undefined;
-    match.casterDiscordId = undefined;
+    match.streamerDiscordId = undefined; di 
   }
 
   // Simpan Schedule & Lepas Staff History
