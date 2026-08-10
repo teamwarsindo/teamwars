@@ -73,13 +73,13 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   if (params.refereeDiscordId) {
     refText = `<@${params.refereeDiscordId}>`;
-  } else if (params.refereeName && params.refereeName !== 'Belum tersedia') {
+  } else if (params.refereeName && params.refereeName.trim() !== '' && params.refereeName !== 'Belum tersedia') {
     refText = params.refereeName;
   }
 
   if (params.streamerDiscordId) {
     strmText = `<@${params.streamerDiscordId}>`;
-  } else if (params.streamerName && params.streamerName !== 'Belum tersedia') {
+  } else if (params.streamerName && params.streamerName.trim() !== '' && params.streamerName !== 'Belum tersedia') {
     strmText = params.streamerName;
   }
 
@@ -157,4 +157,4 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', postPayload).catch(() => null);
   return res?.id || null;
-    }
+}
