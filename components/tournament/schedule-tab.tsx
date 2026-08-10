@@ -54,7 +54,7 @@ export function ScheduleTab({
     }
   }, [defaultWeek]);
 
-  // Pengecekan status aktif filter (Tanpa Filter Tanggal)
+  // Pengecekan status aktif filter
   const isFilterActive = useMemo(() => {
     return (
       selectedWeekFilter !== defaultWeek ||
@@ -296,66 +296,22 @@ export function ScheduleTab({
           🚫 Tidak ada jadwal pertandingan yang sesuai dengan filter.
         </div>
       ) : (
-        groupedByWeek.map(([weekNum, matches]) => {
-          // Memisahkan match berdasarkan divisi
-          const groupAMatches = matches.filter(
-            (m) => m.groupName === "Group A" || m.groupName === groupAName
-          );
-          const groupBMatches = matches.filter(
-            (m) => m.groupName === "Group B" || m.groupName === groupBName
-          );
-
-          return (
-            <div key={weekNum} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase text-primary tracking-wider flex items-center gap-1">
-                  🗓️ WEEK {weekNum}
-                </span>
-                <div className="h-[1px] flex-1 bg-border/60"></div>
-              </div>
-
-              {/* LAYOUT DESKTOP: GROUP A (KIRI) vs GROUP B (KANAN) ATAU AUTOMATIC FILL JIKA DIFILTER */}
-              {selectedGroupFilter === "ALL" ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* KOLOM KIRI: GROUP A */}
-                  <div className="space-y-2.5">
-                    <h4 className="text-[11px] font-black uppercase text-sky-500 tracking-wider flex items-center gap-1">
-                      <span>🔹</span> {groupAName}
-                    </h4>
-                    {groupAMatches.length > 0 ? (
-                      groupAMatches.map((m) => renderMatchCard(m))
-                    ) : (
-                      <div className="p-4 text-center text-[10px] text-muted-foreground bg-card border border-border rounded-xl">
-                        Tidak ada match untuk {groupAName}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* KOLOM KANAN: GROUP B */}
-                  <div className="space-y-2.5">
-                    <h4 className="text-[11px] font-black uppercase text-amber-500 tracking-wider flex items-center gap-1">
-                      <span>🔸</span> {groupBName}
-                    </h4>
-                    {groupBMatches.length > 0 ? (
-                      groupBMatches.map((m) => renderMatchCard(m))
-                    ) : (
-                      <div className="p-4 text-center text-[10px] text-muted-foreground bg-card border border-border rounded-xl">
-                        Tidak ada match untuk {groupBName}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                /* JIKA MEMILIH SPESIFIK NAMA DIVISI: OTOMATIS NGISI 2 KOLOM KIRI KANAN DI DESKTOP */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {matches.map((m) => renderMatchCard(m))}
-                </div>
-              )}
+        groupedByWeek.map(([weekNum, matches]) => (
+          <div key={weekNum} className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase text-primary tracking-wider flex items-center gap-1">
+                🗓️ WEEK {weekNum}
+              </span>
+              <div className="h-[1px] flex-1 bg-border/60"></div>
             </div>
-          );
-        })
+
+            {/* GRID 2 KOLOM DI DESKTOP LANSUNG MENGISI KARTU TANPA JUDUL DIVISI DI LUAR KARTU */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {matches.map((m) => renderMatchCard(m))}
+            </div>
+          </div>
+        ))
       )}
     </div>
   );
-    }
-    
+                            }
