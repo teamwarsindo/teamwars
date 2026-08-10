@@ -175,8 +175,6 @@ export function TournamentView({
           onSelectMatch={(m) => setActiveReportMatch(m)}
           selectedGroupFilter={selectedGroupFilter}
           setSelectedGroupFilter={setSelectedGroupFilter}
-          selectedDateFilter={selectedDateFilter}
-          setSelectedDateFilter={setSelectedDateFilter}
           groupAName={DIVISION_MAP.GROUP_A}
           groupBName={DIVISION_MAP.GROUP_B}
           defaultWeek={currentWeek}
