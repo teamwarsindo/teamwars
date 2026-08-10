@@ -190,7 +190,7 @@ export function MatchAdminCard({
             >
               <option value="">-- Belum Ada Streamer --</option>
               {streamerList.map((s) => (
-                <option key={s.discordId} value={r.discordId}>
+                <option key={s.discordId} value={s.discordId}>
                   {s.discordName}
                 </option>
               ))}
