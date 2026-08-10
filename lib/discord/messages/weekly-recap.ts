@@ -11,7 +11,6 @@ export interface ScheduleMatch {
   team2Name: string;
 }
 
-// Helper Format Timestamp WIB Presisi (Asia/Jakarta)
 function formatDiscordStyleTimeWIB(dateObj = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -31,7 +30,6 @@ function formatDiscordStyleTimeWIB(dateObj = new Date()): string {
   return `${p.day} ${p.month} ${p.year} at ${p.hour}:${p.minute} WIB`;
 }
 
-// 🔴 DELETE KHUSUS BAGIAN WEEK
 export async function deleteWeeklyScheduleAndRecap(params: {
   channelId: string;
   existingMsgIds?: {
@@ -45,11 +43,8 @@ export async function deleteWeeklyScheduleAndRecap(params: {
 
   const { recapMsgId, groupAMsgId, groupBMsgId } = params.existingMsgIds;
 
-  // Hapus Group A & Group B
   if (groupAMsgId) await discordAPI(`/channels/${params.channelId}/messages/${groupAMsgId}`, 'DELETE').catch(() => null);
   if (groupBMsgId) await discordAPI(`/channels/${params.channelId}/messages/${groupBMsgId}`, 'DELETE').catch(() => null);
-
-  // Hapus Recap HANYA jika week ini memegang Recap aktif
   if (params.deleteRecapToo && recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
   }
@@ -57,10 +52,10 @@ export async function deleteWeeklyScheduleAndRecap(params: {
 
 export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   channelId: string;
-  weekName: string; // Contoh: "Week 1"
-  weekDateRangeStr: string; // Contoh: "Senin, 03 Aug 2026 - Minggu, 09 Aug 2026"
+  weekName: string;
+  weekDateRangeStr: string;
   dailyMatchCounts: Array<{
-    dateKey: string; // YYYY-MM-DD
+    dateKey: string;
     dateFormatted: string;
     count: number;
   }>;
@@ -71,13 +66,12 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupAMsgId?: string;
     groupBMsgId?: string;
   };
-  oldRecapMsgId?: string; // ID Recap dari week sebelumnya jika pindah week
+  oldRecapMsgId?: string;
 }): Promise<{ recapMsgId: string | null; groupAMsgId: string | null; groupBMsgId: string | null }> {
   if (!params.channelId) {
     return { recapMsgId: null, groupAMsgId: null, groupBMsgId: null };
   }
 
-  // 1. FILTER TANGGAL SEKARANG (HAPUS TANGGAL YANG SUDAH LEWAT)
   const nowWIB = new Date();
   const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
   const [year, month, day] = new Intl.DateTimeFormat('sv-SE', options).format(nowWIB).split('-');
@@ -85,7 +79,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
 
   const validDailyCounts = (params.dailyMatchCounts || []).filter((d) => d.dateKey >= todayKey);
 
-  // Helper Pembuat Deskripsi Group (Tim Dulu, Baru Tanggal & Jam)
   const buildGroupDescription = (schedules: Array<ScheduleMatch>): string => {
     let desc = 'Penyesuaian jadwal setelah permintaan reschedule\n\n';
 
@@ -105,7 +98,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     return desc + matchLines.join('\n\n');
   };
 
-  // 2. REKAP FIELDS
   const recapFields = validDailyCounts.map((dayItem, idx) => {
     let statusText = '';
     if (dayItem.count >= 3) {
@@ -125,13 +117,9 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     };
   });
 
-  // 📢 CONTENT PESAN JADWAL: Tag @everyone
   const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n🗓️ **${params.weekDateRangeStr}**\n\n@everyone`;
-
-  // 📢 CONTENT PESAN REKAP: Tag Role Duelist
   const duelistMention = DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : '@Duelist';
 
-  // 📦 PAYLOAD PESAN 1: GROUP A
   const groupAPayload = {
     content: groupAContent,
     embeds: [
@@ -144,7 +132,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     ],
   };
 
-  // 📦 PAYLOAD PESAN 2: GROUP B
   const groupBPayload = {
     embeds: [
       {
@@ -156,7 +143,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     ],
   };
 
-  // 📦 PAYLOAD PESAN 3: SCHEDULE RECAP (DILENGKAPI CONTENT TAG DUELIST)
   const recapPayload = {
     content: duelistMention,
     embeds: [
@@ -170,18 +156,11 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     ],
   };
 
-  // Hapus Recap Minggu Lalu jika Pindah Week
-  if (params.oldRecapMsgId && params.oldRecapMsgId !== params.existingMsgIds?.recapMsgId) {
-    await discordAPI(`/channels/${params.channelId}/messages/${params.oldRecapMsgId}`, 'DELETE').catch(() => null);
-  }
-
   let groupAMsgId = params.existingMsgIds?.groupAMsgId || null;
   let groupBMsgId = params.existingMsgIds?.groupBMsgId || null;
   let recapMsgId = params.existingMsgIds?.recapMsgId || null;
 
-  // 3. EKSEKUSI PATCH / POST DALAM URUTAN (GROUP A -> GROUP B -> RECAP)
-
-  // Pesan 1: Group A
+  // 1. GROUP A: PATCH jika ada, jika tidak ada POST
   if (groupAMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${groupAMsgId}`, 'PATCH', groupAPayload).catch(() => null);
     if (!patchRes) {
@@ -193,7 +172,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupAMsgId = postRes?.id || null;
   }
 
-  // Pesan 2: Group B
+  // 2. GROUP B: PATCH jika ada, jika tidak ada POST
   if (groupBMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${groupBMsgId}`, 'PATCH', groupBPayload).catch(() => null);
     if (!patchRes) {
@@ -205,17 +184,17 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // Pesan 3: Schedule Recap
+  // 🟢 3. RECAP (KHUSUS RECAP: SELALU DELETE & POST ULANG AGAR TAG DUELIST MENTION/PING!)
   if (recapMsgId) {
-    const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'PATCH', recapPayload).catch(() => null);
-    if (!patchRes) {
-      const postRes = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', recapPayload).catch(() => null);
-      recapMsgId = postRes?.id || null;
-    }
-  } else {
-    const postRes = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', recapPayload).catch(() => null);
-    recapMsgId = postRes?.id || null;
+    await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
   }
+  if (params.oldRecapMsgId && params.oldRecapMsgId !== recapMsgId) {
+    await discordAPI(`/channels/${params.channelId}/messages/${params.oldRecapMsgId}`, 'DELETE').catch(() => null);
+  }
+
+  // Kirim ulang pesan Recap sebagai POST baru
+  const postRecapRes = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', recapPayload).catch(() => null);
+  recapMsgId = postRecapRes?.id || null;
 
   return {
     groupAMsgId,

@@ -1,14 +1,10 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { TournamentView } from "@/components/tournament/tournament-view";
 
 function TournamentContent() {
-  const searchParams = useSearchParams();
-  const isAdmin = searchParams.get("admin") === "true";
-
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<"ALL" | "Group A" | "Group B">("ALL");
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>("");
 
@@ -22,10 +18,10 @@ function TournamentContent() {
         <HeroHeader showDetails={false} />
       </div>
 
-      {/* 3. MAIN CONTENT */}
+      {/* 3. MAIN CONTENT (Read-Only Viewer Tanpa Edit Admin URL) */}
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-12">
         <TournamentView
-          isAdmin={isAdmin}
+          isAdmin={false}
           selectedGroupFilter={selectedGroupFilter}
           setSelectedGroupFilter={setSelectedGroupFilter}
           selectedDateFilter={selectedDateFilter}
@@ -40,8 +36,8 @@ function TournamentContent() {
 
 export default function TournamentLandingPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-xs font-bold text-primary">⏳ Loading Turnamen TWI...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-xs font-bold text-primary animate-pulse">⏳ Memuat Jadwal & Klasemen TWI...</div>}>
       <TournamentContent />
     </Suspense>
   );
-    }
+}

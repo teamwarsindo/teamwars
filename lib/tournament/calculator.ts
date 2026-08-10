@@ -1,23 +1,17 @@
-import { MatchScheduleItem, TeamStandingItem, PlayerPowerRankingItem } from "@/lib/types/tournament";
+import { MatchScheduleItem, TeamStandingItem, DIVISION_MAP } from '@/lib/types/tournament';
 
-/**
- * 🏆 Kalkulasi Standings Tim (Group Stage & Global Wildcard)
- * Mengikuti Tie-Breaker:
- * 1. Match Wins
- * 2. Point Difference (Round Difference)
- * 3. Set Wins (Total Score)
- * 4. Head to Head (Wins vs Tied)
- */
 export function calculateStandings(matches: MatchScheduleItem[], masterTeams: any[]): TeamStandingItem[] {
   const standingsMap = new Map<string, TeamStandingItem>();
 
-  // Initialize Map dari Master Teams
-  masterTeams.forEach((t) => {
-    standingsMap.set(t.name, {
-      teamId: t.name,
-      teamName: t.name,
-      teamLogo: t.logo || "/logo.webp",
-      groupName: t.groupName || "Group A",
+  // 1. Inisialisasi daftar tim dari masterTeams
+  masterTeams.forEach((team) => {
+    if (!team || !team.name) return;
+    standingsMap.set(team.name, {
+      rank: 0,
+      teamId: team.id || team.name,
+      teamName: team.name,
+      teamLogo: team.logo || '/logo.webp',
+      groupName: team.groupName || DIVISION_MAP.GROUP_A,
       matchPlayed: 0,
       matchWins: 0,
       matchLosses: 0,
@@ -28,8 +22,12 @@ export function calculateStandings(matches: MatchScheduleItem[], masterTeams: an
     });
   });
 
-  // Iterasi Semua Match Selesai
-  matches.filter((m) => m.isFinished).forEach((match) => {
+  // 2. Filter match yang sudah selesai (isFinished === true atau skor sudah terisi)
+  const completedMatches = matches.filter(
+    (m) => m.isFinished || (m as any).isCompleted || m.scoreA > 0 || m.scoreB > 0
+  );
+
+  completedMatches.forEach((match) => {
     const teamA = standingsMap.get(match.teamAName);
     const teamB = standingsMap.get(match.teamBName);
 
@@ -42,11 +40,11 @@ export function calculateStandings(matches: MatchScheduleItem[], masterTeams: an
       teamB.setWins += match.scoreB;
       teamB.setLosses += match.scoreA;
 
-      if (match.scoreA >= 10 || match.scoreA > match.scoreB) {
+      if (match.scoreA > match.scoreB) {
         teamA.matchWins += 1;
         teamA.points += 10;
         teamB.matchLosses += 1;
-      } else if (match.scoreB >= 10 || match.scoreB > match.scoreA) {
+      } else if (match.scoreB > match.scoreA) {
         teamB.matchWins += 1;
         teamB.points += 10;
         teamA.matchLosses += 1;
@@ -57,48 +55,19 @@ export function calculateStandings(matches: MatchScheduleItem[], masterTeams: an
     }
   });
 
+  // 3. Konversi ke Array & Urutkan berdasarkan Tie-Breaker resmi
   const standingsList = Array.from(standingsMap.values());
 
-  // Sorting dengan Hirarki Tie-Breaker
-  return standingsList.sort((a, b) => {
+  standingsList.sort((a, b) => {
     if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins; // 1. Match Wins
-    if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference; // 2. RD (Point Diff)
-    if (b.setWins !== a.setWins) return b.setWins - a.setWins; // 3. Total Set Wins
-    return 0; // 4. Head-to-Head
-  });
-}
-
-/**
- * 📊 Kalkulasi Deck Breakdown & Usage Winrate
- */
-export function calculateDeckBreakdown(matches: MatchScheduleItem[]) {
-  const deckStatsMap = new Map<string, { totalUsed: number; wins: number; losses: number }>();
-
-  matches.forEach((match) => {
-    if (match.gameLogs) {
-      match.gameLogs.forEach((log) => {
-        // Log Deck A
-        const statsA = deckStatsMap.get(log.teamADeck) || { totalUsed: 0, wins: 0, losses: 0 };
-        statsA.totalUsed += 1;
-        if (log.winnerTeamId === match.teamAId) statsA.wins += 1;
-        else statsA.losses += 1;
-        deckStatsMap.set(log.teamADeck, statsA);
-
-        // Log Deck B
-        const statsB = deckStatsMap.get(log.teamBDeck) || { totalUsed: 0, wins: 0, losses: 0 };
-        statsB.totalUsed += 1;
-        if (log.winnerTeamId === match.teamBId) statsB.wins += 1;
-        else statsB.losses += 1;
-        deckStatsMap.set(log.teamBDeck, statsB);
-      });
-    }
+    if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference; // 2. Round Difference
+    if (b.setWins !== a.setWins) return b.setWins - a.setWins; // 3. Set Wins
+    return a.teamName.localeCompare(b.teamName);
   });
 
-  return Array.from(deckStatsMap.entries())
-    .map(([deckName, stat]) => ({
-      deckName,
-      totalCount: stat.totalUsed,
-      winRate: Number(((stat.wins / (stat.totalUsed || 1)) * 100).toFixed(1)),
-    }))
-    .sort((a, b) => b.totalCount - a.totalCount);
+  // Assign Rank
+  return standingsList.map((item, index) => ({
+    ...item,
+    rank: index + 1,
+  }));
 }
