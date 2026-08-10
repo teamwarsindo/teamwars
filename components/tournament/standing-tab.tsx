@@ -19,7 +19,6 @@ function getCurrentCalendarWeek(): number {
 export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabProps) {
   const currentWeek = useMemo(() => getCurrentCalendarWeek(), []);
 
-  // 🟢 Filter minggu disinkronkan: Maksimal hanya sampai Week Aktif
   const availableWeeksUpToCurrent = useMemo(() => {
     const weeksInSchedules = Array.from(
       new Set(schedules.map((s) => s.weekNumber || 1))
@@ -32,7 +31,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return fullRange;
   }, [schedules, currentWeek]);
 
-  // Default terkunci di Week Aktif saat ini
   const [selectedWeek, setSelectedWeek] = useState<number>(currentWeek);
   const [activeTab, setActiveTab] = useState<"GROUPS" | "GLOBAL">("GROUPS");
 
@@ -52,7 +50,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return list;
   }, [standings]);
 
-  // Global Standing
   const globalStandings = useMemo(() => {
     const topGroupA = groupAStandings.slice(0, 2).map((t, i) => ({
       ...t,
@@ -105,7 +102,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         <table className="w-full text-left text-[11px] table-fixed">
           <thead className="bg-muted/60 border-b border-border text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider">
             <tr>
-              {/* 🟢 PROPORSI LEBAR KOLOM DIGESER KE KIRI */}
               <th className={`py-2 px-1 text-center ${isGlobal ? "w-[18%]" : "w-[12%]"}`}>RANK</th>
               <th className={`py-2 pl-1 pr-1 ${isGlobal ? "w-[32%]" : "w-[38%]"}`}>TEAMS</th>
               <th className="py-2 px-0.5 text-center w-[16%] leading-tight">
@@ -121,6 +117,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
               let rowStyle = "hover:bg-muted/20 transition";
 
               if (isGlobal) {
+                // WALIKAN WARNA DI STANDING GLOBAL
                 if (item.isTopGroup) {
                   rowStyle =
                     item.groupColor === "GROUP_A"
@@ -128,6 +125,14 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                       : "bg-amber-500/15 hover:bg-amber-500/20 transition border-l-4 border-l-amber-500";
                 } else if (item.rank <= 8) {
                   rowStyle = "bg-emerald-500/15 hover:bg-emerald-500/20 transition border-l-4 border-l-emerald-500";
+                }
+              } else {
+                // 🟢 PEWARNAAN KONSISTEN TOP 2 DI STANDING GROUP
+                if (item.rank <= 2) {
+                  rowStyle =
+                    item.groupName === DIVISION_MAP.GROUP_A
+                      ? "bg-sky-500/15 hover:bg-sky-500/20 transition border-l-4 border-l-sky-500"
+                      : "bg-amber-500/15 hover:bg-amber-500/20 transition border-l-4 border-l-amber-500";
                 }
               }
 
@@ -145,6 +150,10 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                               : "text-[10px] font-black text-amber-500"
                             : isGlobal && item.rank <= 8
                             ? "text-[10px] font-black text-emerald-500"
+                            : !isGlobal && item.rank <= 2
+                            ? item.groupName === DIVISION_MAP.GROUP_A
+                              ? "text-[10px] font-black text-sky-500"
+                              : "text-[10px] font-black text-amber-500"
                             : ""
                         }
                       >
@@ -188,7 +197,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     {item.setWins}
                   </td>
 
-                  {/* POINTS (LONGGAR DAN TIDAK MEPET) */}
+                  {/* POINTS */}
                   <td className="py-2 pl-0.5 pr-2 text-center font-black text-primary text-xs">
                     {item.points}
                   </td>
@@ -228,7 +237,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
           </button>
         </div>
 
-        {/* 🟢 TULISAN FILTER RINGKAS 'Filter:' DENGAN PILIHAN SINKRON */}
+        {/* FILTER WEEK */}
         <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/30">
           <label className="text-xs font-semibold text-muted-foreground">Filter:</label>
           <select
@@ -283,4 +292,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       )}
     </div>
   );
-          }
+}
