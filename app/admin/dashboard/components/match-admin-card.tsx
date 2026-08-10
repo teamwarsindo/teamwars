@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
-import { Pencil, FileText, Copy, RotateCcw, Trash2 } from 'lucide-react';
+import { Pencil, FileText, Copy, RotateCcw, Trash2, ExternalLink } from 'lucide-react';
 
 interface StaffItem {
   discordId: string;
@@ -77,22 +77,39 @@ export function MatchAdminCard({
 
   return (
     <div className="rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-xs space-y-3">
-      {/* HEADER KARTU MATCH DENGAN FORMAT NAMA HARI */}
-      <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-2 text-[11px] gap-1">
-        <span className={`font-black uppercase tracking-wider ${isGroupA ? 'text-sky-500' : 'text-amber-500'}`}>
-          {groupDisplayName} • {match.id} • Week {match.weekNumber || 1}
+      {/* 1. HEADER JUDUL 3 TEMPAT (KIRI: MATCH | TENGAH: DIVISI | KANAN: WEEK) */}
+      <div className="flex items-center justify-between border-b border-border/40 pb-2 text-[11px] font-black uppercase tracking-wider">
+        <span className="text-muted-foreground w-1/3 text-left">
+          {match.id.toUpperCase()}
         </span>
-        <span className="text-foreground font-extrabold bg-muted/50 px-2 py-0.5 rounded-md border border-border/50">
-          {new Date(match.matchDate).toLocaleDateString('id-ID', {
-            weekday: 'long', // 🟢 MENAMPILKAN NAMA HARI LENGKAP (Contoh: Sabtu)
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-            timeZone: 'Asia/Jakarta',
-          })}{' '}
-          WIB
+        <span className={`w-1/3 text-center truncate ${isGroupA ? 'text-sky-500' : 'text-amber-500'}`}>
+          {groupDisplayName}
         </span>
+        <span className="text-muted-foreground w-1/3 text-right">
+          WEEK {match.weekNumber || 1}
+        </span>
+      </div>
+
+      {/* 2. BARIS BAWAH JUDUL: KIRI TANGGAL (DENGAN NAMA HARI) & KANAN WASIT */}
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <div className="px-2 py-1 rounded-lg bg-muted/60 border border-border/60 text-foreground font-extrabold flex items-center gap-1">
+          <span>
+            {new Date(match.matchDate).toLocaleDateString('id-ID', {
+              weekday: 'long', // 🟢 MENAMPILKAN NAMA HARI LENGKAP
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: 'Asia/Jakarta',
+            })}{' '}
+            WIB
+          </span>
+        </div>
+
+        <div className="px-2 py-1 rounded-lg bg-muted/60 border border-border/60 text-foreground font-extrabold flex items-center gap-1">
+          <span className="text-muted-foreground font-bold">Wasit:</span>
+          <span>{match.referee || '-'}</span>
+        </div>
       </div>
 
       {/* DISPLAY NAMA TIM & SKOR */}
@@ -127,18 +144,30 @@ export function MatchAdminCard({
         </div>
       </div>
 
-      {/* MODE EDITING */}
+      {/* MODE EDITING VS DISPLAY */}
       {isEditing ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-muted/20 rounded-xl text-xs">
+          {/* INPUT TANGGAL & WAKTU + PRATINJAU NAMA HARI */}
           <div>
-            <label className="block text-[10px] text-muted-foreground font-bold mb-1">
-              TANGGAL &amp; WAKTU (WIB)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[10px] text-muted-foreground font-bold uppercase">
+                TANGGAL &amp; WAKTU (WIB)
+              </label>
+              {draft.matchDate && !isNaN(new Date(draft.matchDate).getTime()) && (
+                <span className="text-[10px] font-black text-sky-500 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20">
+                  {new Date(draft.matchDate).toLocaleDateString('id-ID', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'short',
+                  })}
+                </span>
+              )}
+            </div>
             <input
               type="datetime-local"
               value={formatISOToWIBInput(draft.matchDate)}
               onChange={(e) => setDraft({ ...draft, matchDate: formatWIBInputToISO(e.target.value) })}
-              className="w-full rounded-lg bg-background border border-input p-2 font-semibold"
+              className="w-full rounded-lg bg-background border border-input p-2 font-bold text-xs"
             />
           </div>
 
@@ -277,18 +306,32 @@ export function MatchAdminCard({
           </div>
         </div>
       ) : (
-        /* FOOTER KARTU INFO WASIT */
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs pt-2 border-t border-border/40 gap-2.5">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-[11px]">
-            <span>
-              <b className="text-foreground">Wasit:</b> {match.referee || '-'}
-            </span>
-            <span>
+        /* 3. BARIS STREAMER (KIRI) & LINK STREAMING CUSTOM TEKS (KANAN) */
+        <div className="space-y-2.5 pt-2 border-t border-border/40">
+          <div className="flex items-center justify-between text-[11px] px-0.5">
+            <div className="text-muted-foreground">
               <b className="text-foreground">Streamer:</b> {match.streamer || '-'}
-            </span>
+            </div>
+
+            <div>
+              {match.streamLink ? (
+                <a
+                  href={match.streamLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/30 font-bold hover:bg-rose-500/20 transition flex items-center gap-1"
+                >
+                  <span>Watch Live</span>
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+              ) : (
+                <span className="text-muted-foreground italic">- No Stream -</span>
+              )}
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 w-full sm:w-auto">
+          {/* TOMBOL AKSI KARTU MATCH */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center justify-end gap-1.5 w-full">
             <button
               onClick={() => setIsEditing(true)}
               className="px-2.5 py-1.5 rounded-xl border border-sky-500/40 bg-sky-500/10 text-sky-400 text-[11px] font-bold hover:bg-sky-500/20 transition flex items-center justify-center gap-1 cursor-pointer"
@@ -336,5 +379,5 @@ export function MatchAdminCard({
       )}
     </div>
   );
-                }
+          }
                 
