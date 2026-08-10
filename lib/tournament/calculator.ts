@@ -9,8 +9,14 @@ export interface ExtendedStandingItem extends TeamStandingItem {
 export function calculateStandings(
   schedules: MatchScheduleItem[],
   masterTeams: any[],
-  upToWeek: number
+  upToWeek?: number
 ): ExtendedStandingItem[] {
+  // Jika upToWeek tidak diisi, ambil seluruh minggu yang ada di schedules
+  const maxWeekInSchedules = schedules.length
+    ? Math.max(...schedules.map((s) => s.weekNumber || 1))
+    : 1;
+  const targetWeek = upToWeek ?? maxWeekInSchedules;
+  
   // Filter match hanya sampai minggu yang dipilih
   const filteredMatches = schedules.filter(
     (m) => (m.weekNumber || 1) <= upToWeek && m.isFinished
