@@ -19,14 +19,11 @@ function getCurrentCalendarWeek(): number {
 export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabProps) {
   const currentWeek = useMemo(() => getCurrentCalendarWeek(), []);
 
-  // 🟢 1. SINKRONISASI DAFTAR WEEK DENGAN JADWAL
   const availableWeeks = useMemo(() => {
-    if (!schedules.length) return [1];
     const weeksInSchedules = Array.from(
       new Set(schedules.map((s) => s.weekNumber || 1))
     ).sort((a, b) => a - b);
 
-    // Pastikan minimal week berjalan ikut masuk jika jadwal sudah ada
     if (!weeksInSchedules.includes(currentWeek)) {
       weeksInSchedules.push(currentWeek);
       weeksInSchedules.sort((a, b) => a - b);
@@ -34,14 +31,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return weeksInSchedules;
   }, [schedules, currentWeek]);
 
-  // Default filter ke minggu berjalan (atau minggu terbesar yang tersedia)
-  const initialSelectedWeek = useMemo(() => {
-    return availableWeeks.includes(currentWeek)
-      ? currentWeek
-      : availableWeeks[availableWeeks.length - 1] || 1;
-  }, [availableWeeks, currentWeek]);
-
-  const [selectedWeek, setSelectedWeek] = useState<number>(initialSelectedWeek);
+  const [selectedWeek, setSelectedWeek] = useState<number>(currentWeek);
   const [activeTab, setActiveTab] = useState<"GROUPS" | "GLOBAL">("GROUPS");
 
   const standings = useMemo(() => {
@@ -60,32 +50,38 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return list;
   }, [standings]);
 
+  // Global Standings: Top 2 Group A & B di atas (Custom Label), Sisanya 1 s/d 12
   const globalStandings = useMemo(() => {
-    const topGroupA = groupAStandings.slice(0, 2);
-    const topGroupB = groupBStandings.slice(0, 2);
+    const topGroupA = groupAStandings.slice(0, 2).map((t, i) => ({
+      ...t,
+      isTopGroup: true,
+      customRankLabel: `Top ${i + 1} ${DIVISION_MAP.GROUP_A}`,
+    }));
 
-    const top4Combined = [...topGroupA, ...topGroupB].sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-      return b.roundDifference - a.roundDifference;
-    });
+    const topGroupB = groupBStandings.slice(0, 2).map((t, i) => ({
+      ...t,
+      isTopGroup: true,
+      customRankLabel: `Top ${i + 1} ${DIVISION_MAP.GROUP_B}`,
+    }));
 
+    const top4Combined = [...topGroupA, ...topGroupB];
     const top4Names = new Set(top4Combined.map((t) => t.teamName));
+
     const remainingTeams = standings
       .filter((t) => !top4Names.has(t.teamName))
       .sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
         if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
         return b.roundDifference - a.roundDifference;
-      });
+      })
+      .map((t, idx) => ({
+        ...t,
+        rank: idx + 1, // 🟢 Rank 1 s/d 12 berurutan pasti
+        isTopGroup: false,
+        customRankLabel: `${idx + 1}`,
+      }));
 
-    const combinedList = [...top4Combined, ...remainingTeams];
-
-    return combinedList.map((item, idx) => ({
-      ...item,
-      rank: idx + 1,
-      isTopGroup: idx < 4,
-    }));
+    return [...top4Combined, ...remainingTeams];
   }, [standings, groupAStandings, groupBStandings]);
 
   const renderTrendIcon = (trend?: "up" | "down" | "stay") => {
@@ -94,7 +90,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return <span className="text-muted-foreground/40 font-bold text-[9px]">➖</span>;
   };
 
-  // 🟢 2. ADJUSTMENT LEBAR KOLOM & PADDING TABEL UNTUK HP
   const renderTable = (items: ExtendedStandingItem[], title: string, isGlobal = false) => (
     <div className="space-y-2">
       <h3 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
@@ -105,33 +100,36 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         <table className="w-full text-left text-[11px] table-fixed">
           <thead className="bg-muted/60 border-b border-border text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider">
             <tr>
-              <th className="py-2.5 pl-2 pr-1 text-center w-[12%]">RANK</th>
-              <th className="py-2.5 pl-1 pr-1 w-[35%]">TEAMS</th>
-              <th className="py-2.5 px-1 text-center w-[18%]">MATCH W-L</th>
-              <th className="py-2.5 px-1 text-center w-[11%]">RD</th>
-              <th className="py-2.5 px-1 text-center w-[11%]">SET WINS</th>
-              <th className="py-2.5 pl-1 pr-3 text-center w-[13%] text-primary">POINTS</th>
+              <th className={`py-2.5 px-1 text-center ${isGlobal ? "w-[24%]" : "w-[12%]"}`}>RANK</th>
+              <th className={`py-2.5 pl-1 pr-1 ${isGlobal ? "w-[30%]" : "w-[38%]"}`}>TEAMS</th>
+              <th className="py-2.5 px-1 text-center w-[16%]">MATCH W-L</th>
+              <th className="py-2.5 px-1 text-center w-[10%]">RD</th>
+              <th className="py-2.5 px-1 text-center w-[10%]">SET WINS</th>
+              <th className="py-2.5 pl-1 pr-2 text-center w-[12%] text-primary">POINTS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40 font-semibold text-foreground">
-            {items.map((item) => {
+            {items.map((item, idx) => {
               let rowStyle = "hover:bg-muted/20 transition";
 
               if (isGlobal) {
-                if (item.rank <= 4) {
+                if (item.isTopGroup) {
                   rowStyle = "bg-amber-500/10 hover:bg-amber-500/15 transition border-l-2 border-l-amber-500";
-                } else if (item.rank <= 12) {
+                } else if (item.rank <= 8) {
+                  // Top 8 Playoff Wildcard Tersisa
                   rowStyle = "bg-sky-500/10 hover:bg-sky-500/15 transition border-l-2 border-l-sky-500";
                 }
               }
 
               return (
-                <tr key={item.teamId || item.teamName} className={rowStyle}>
+                <tr key={item.teamId || item.teamName || idx} className={rowStyle}>
                   {/* RANK */}
-                  <td className="py-2 pl-2 pr-1 text-center font-bold">
+                  <td className="py-2 px-1 text-center font-bold">
                     <div className="flex items-center justify-center gap-0.5">
-                      {renderTrendIcon(item.rankTrend)}
-                      <span>{item.rank}</span>
+                      {!isGlobal && renderTrendIcon(item.rankTrend)}
+                      <span className={isGlobal && item.isTopGroup ? "text-[9.5px] font-black text-amber-500 leading-tight" : ""}>
+                        {isGlobal ? item.customRankLabel : item.rank}
+                      </span>
                     </div>
                   </td>
 
@@ -160,8 +158,8 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     {item.setWins}
                   </td>
 
-                  {/* POINTS (Memberikan Padding Kanan Lebih) */}
-                  <td className="py-2 pl-1 pr-3 text-center font-black text-primary text-xs">
+                  {/* POINTS */}
+                  <td className="py-2 pl-1 pr-2 text-center font-black text-primary text-xs">
                     {item.points}
                   </td>
                 </tr>
@@ -175,7 +173,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
   return (
     <div className="space-y-4">
-      {/* KOTAK SWITCHER TAB DENGAN UKURAN KOTAK SAMA BESAR */}
+      {/* SWITCHER TAB DENGAN UKURAN KOTAK SEIMBANG */}
       <div className="flex flex-col gap-3 bg-card border border-border p-3 rounded-2xl shadow-sm">
         <div className="grid grid-cols-2 gap-2 w-full">
           <button
@@ -200,7 +198,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
           </button>
         </div>
 
-        {/* FILTER WEEK DENGAN PILIHAN SINKRON */}
+        {/* FILTER WEEK */}
         <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/30">
           <label className="text-xs font-semibold text-muted-foreground">Filter:</label>
           <select
@@ -208,6 +206,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
             onChange={(e) => setSelectedWeek(Number(e.target.value))}
             className="bg-background border border-input rounded-xl px-3 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
           >
+            <option value={0}>Semua Week</option>
             {availableWeeks.map((w) => (
               <option key={w} value={w}>
                 Week {w}
@@ -229,17 +228,17 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
             <p className="font-bold text-foreground flex items-center gap-1.5">
               💡 <span>Ketentuan Kualifikasi Playoff:</span>
             </p>
-            <div className="flex flex-col gap-1 pl-4 text-muted-foreground font-semibold">
+            <div className="flex flex-col gap-1 pl-3 text-muted-foreground font-semibold">
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
                 <span>
-                  <strong className="text-amber-500 font-bold">Warna Kuning (Rank 1-4):</strong> Lolos Otomatis (Top 2 Group A & Group B).
+                  <strong className="text-amber-500 font-bold">Lolos Otomatis:</strong> Top 2 dari tiap Divisi.
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0"></span>
                 <span>
-                  <strong className="text-sky-400 font-bold">Warna Biru (Rank 5-12):</strong> Lolos Playoff Wildcard (Top 8 Global tersisa).
+                  <strong className="text-sky-400 font-bold">Wildcard Playoff:</strong> Rank 1 s/d 8 dari Global Tersisa.
                 </span>
               </div>
             </div>
@@ -250,4 +249,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       )}
     </div>
   );
-}
+                              }
