@@ -18,7 +18,7 @@ function isValidSnowflake(id?: string): boolean {
   return !!id && /^\d{17,20}$/.test(id);
 }
 
-// 🟢 CREATION: Text Channel Tim Pendaftaran
+// CREATION: Text Channel Tim Pendaftaran
 export async function createDiscordChannel(teamName: string, roleId: string) {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID;
@@ -39,7 +39,7 @@ export async function createDiscordChannel(teamName: string, roleId: string) {
   return data?.id || null;
 }
 
-// 🟢 CREATION: Voice Channel Tim Pendaftaran
+// CREATION: Voice Channel Tim Pendaftaran
 export async function createDiscordVoiceChannel(teamName: string, roleId: string) {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const parentCategoryId = DISCORD_CONFIG.CT_TEAM_ID;
@@ -60,7 +60,7 @@ export async function createDiscordVoiceChannel(teamName: string, roleId: string
   return data?.id || null;
 }
 
-// 🌐 BATCH CREATE CHANNELS
+// BATCH CREATE CHANNELS
 export async function createDiscordChannels(matches: any[]): Promise<Record<string, string>> {
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const createdChannelMap: Record<string, string> = {};
@@ -96,7 +96,7 @@ export async function createDiscordChannels(matches: any[]): Promise<Record<stri
   return createdChannelMap;
 }
 
-// 🟢 GENERATE / SYNC SINGLE MATCH DISCORD CHANNEL & EMBED
+// GENERATE / SYNC SINGLE MATCH DISCORD CHANNEL & EMBED
 export async function createMatchDiscordChannel(params: {
   matchId: string;
   groupName?: string;
@@ -126,6 +126,9 @@ export async function createMatchDiscordChannel(params: {
     return { channelId: null, openingMsgId: null };
   }
 
+  // Cek apakah channel/opening baru pertama kali dibuat
+  const isFirstOpening = !params.openingMsgId;
+
   const abbrA = getTeamAbbreviation(params.teamAName, params.kodeTimA);
   const abbrB = getTeamAbbreviation(params.teamBName, params.kodeTimB);
   const cleanMatchNum = params.matchId.replace('match-', '');
@@ -150,12 +153,12 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // Permission Overwrites (Privat: Everyone Deny, Bot Allow, Role Tim A & Tim B Allow, Streamer Personal Allow)
+  // Permission Overwrites (Privat)
   const permissionOverwrites: any[] = [
     {
       id: guildId, // @everyone
       type: 0,
-      deny: '1024', // View Channel
+      deny: '1024', // Hide Channel
     },
   ];
 
@@ -164,7 +167,7 @@ export async function createMatchDiscordChannel(params: {
     permissionOverwrites.push({
       id: DISCORD_CONFIG.BOT_ROLE_ID,
       type: 0,
-      allow: '1049616', // View Channel + Send Messages + Embed Links + Read History
+      allow: '1049616',
     });
   }
 
@@ -185,8 +188,8 @@ export async function createMatchDiscordChannel(params: {
     });
   }
 
-  // C. Streamer Personal (User ID)
-  const isStreamerIdValid = isValidSnowflake(params.streamerDiscordId);
+  // C. Streamer Personal (Hanya ditambahkan jika BUKAN opening pertama & ID valid)
+  const isStreamerIdValid = !isFirstOpening && isValidSnowflake(params.streamerDiscordId);
   if (isStreamerIdValid) {
     permissionOverwrites.push({
       id: params.streamerDiscordId,
@@ -229,8 +232,8 @@ export async function createMatchDiscordChannel(params: {
     return { channelId: null, openingMsgId: null };
   }
 
-  // 2. ASSIGN ROLE TIM A & TIM B KE AKUN WASIT
-  const isRefereeIdValid = isValidSnowflake(params.refereeDiscordId);
+  // 🟢 2. ASSIGN ROLE WASIT (HANYA DILAKUKAN JIKA BUKAN OPENING PERTAMA & ID VALID)
+  const isRefereeIdValid = !isFirstOpening && isValidSnowflake(params.refereeDiscordId);
   if (isRefereeIdValid) {
     const refereeId = params.refereeDiscordId!;
     try {
@@ -248,7 +251,7 @@ export async function createMatchDiscordChannel(params: {
     }
   }
 
-  // 3. EMBED OPENING (PRIVAT KHUSUS DI CHANNEL MATCH)
+  // 3. EMBED OPENING
   const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
     channelId,
     matchId: params.matchId,
@@ -263,9 +266,9 @@ export async function createMatchDiscordChannel(params: {
     roleBId: params.roleBId,
     weekName: params.weekName,
     matchDateIso: params.matchDateIso,
-    refereeName: params.refereeName,
+    refereeName: isRefereeIdValid ? params.refereeName : undefined,
     refereeDiscordId: isRefereeIdValid ? params.refereeDiscordId : undefined,
-    streamerName: params.streamerName,
+    streamerName: isStreamerIdValid ? params.streamerName : undefined,
     streamerDiscordId: isStreamerIdValid ? params.streamerDiscordId : undefined,
     streamLink: params.streamLink,
     existingMsgId: params.openingMsgId,
@@ -277,7 +280,7 @@ export async function createMatchDiscordChannel(params: {
   };
 }
 
-// 🔴 DELETE MATCH DISCORD CHANNEL & REVOKE WASIT ROLES
+// DELETE MATCH DISCORD CHANNEL & REVOKE WASIT ROLES
 export async function deleteMatchDiscordChannel(params: {
   matchId: string;
   savedChannelId?: string;
@@ -308,12 +311,10 @@ export async function deleteMatchDiscordChannel(params: {
     }
   }
 
-  // Hapus Channel Match
   if (targetChannelId) {
     await discordAPI(`/channels/${targetChannelId}`, 'DELETE').catch(() => null);
   }
 
-  // Revoke Role Tim dari Wasit
   if (isValidSnowflake(params.refereeDiscordId)) {
     if (isValidSnowflake(params.roleAId)) {
       await discordAPI(`/guilds/${guildId}/members/${params.refereeDiscordId}/roles/${params.roleAId}`, 'DELETE').catch(() => null);
@@ -324,4 +325,4 @@ export async function deleteMatchDiscordChannel(params: {
   }
 
   return true;
-}
+      }
