@@ -4,6 +4,7 @@ import { MatchScheduleItem } from '@/lib/types/tournament';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { executeAssignStaff, executeUnassignStaff } from '@/lib/discord/services/staff-assignment';
 
+// Helper slug nama tim
 function getTeamSlug(teamName: string) {
   return teamName
     .toLowerCase()
@@ -13,6 +14,9 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
+// 🟢 HELPER DELAY UNTUK MENCEGAH RATE LIMIT DISCORD API (429)
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -21,7 +25,7 @@ export async function POST(req: Request) {
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
     // ==========================================
-    // 🟢 1. ACTION: SYNC PER WEEK (MASSAL)
+    // 🟢 1. ACTION: SYNC PER WEEK (MASSAL / BATCH)
     // ==========================================
     if (action === 'WEEK' || targetWeek) {
       if (!targetWeek || targetWeek === 'ALL') {
@@ -85,6 +89,9 @@ export async function POST(req: Request) {
           }
           syncedChannelMap[match.id] = res.channelId;
         }
+
+        // 🛡️ BERI JEDA 300MS AGAR TIDAK MENGHITAMKAN BOT / KENA RATE LIMIT DISCORD
+        await delay(300);
       }
 
       await kv.set('twi:schedules', updatedMatches);
@@ -128,7 +135,7 @@ export async function POST(req: Request) {
     }
 
     // ==========================================
-    // 🟢 4. ACTION: SYNC SINGLE MATCH CHANNEL (DEFAULT)
+    // 🟢 4. ACTION: SYNC SINGLE MATCH CHANNEL
     // ==========================================
     const matchIdx = schedules.findIndex((m) => m.id === matchId);
     if (matchIdx === -1) {
@@ -187,5 +194,4 @@ export async function POST(req: Request) {
     console.error('Error Syncing Match:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-           }
-                                 
+}
