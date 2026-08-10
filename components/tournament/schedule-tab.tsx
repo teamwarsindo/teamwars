@@ -12,8 +12,6 @@ export interface ScheduleTabProps {
   onSelectMatch: (match: MatchScheduleItem) => void;
   selectedGroupFilter: "ALL" | "Group A" | "Group B";
   setSelectedGroupFilter: (v: "ALL" | "Group A" | "Group B") => void;
-  selectedDateFilter: string;
-  setSelectedDateFilter: (v: string) => void;
   groupAName?: string;
   groupBName?: string;
   defaultWeek?: number;
@@ -28,12 +26,11 @@ export function ScheduleTab({
   onSelectMatch,
   selectedGroupFilter,
   setSelectedGroupFilter,
-  selectedDateFilter,
-  setSelectedDateFilter,
   groupAName = "Divisi Group A",
   groupBName = "Divisi Group B",
   defaultWeek = 1,
 }: ScheduleTabProps) {
+  // Rentang minggu dari 1 s/d Week Aktif
   const availableWeeksUpToCurrent = useMemo(() => {
     const activeWeekNum = typeof defaultWeek === "number" && defaultWeek > 0 ? defaultWeek : 1;
     
@@ -57,14 +54,14 @@ export function ScheduleTab({
     }
   }, [defaultWeek]);
 
+  // Pengecekan status aktif filter (Tanpa Filter Tanggal)
   const isFilterActive = useMemo(() => {
     return (
       selectedWeekFilter !== defaultWeek ||
       selectedGroupFilter !== "ALL" ||
-      selectedTeamFilter !== "ALL" ||
-      selectedDateFilter !== ""
+      selectedTeamFilter !== "ALL"
     );
-  }, [selectedWeekFilter, selectedGroupFilter, selectedTeamFilter, selectedDateFilter, defaultWeek]);
+  }, [selectedWeekFilter, selectedGroupFilter, selectedTeamFilter, defaultWeek]);
 
   const filteredSchedules = useMemo(() => {
     return schedules.filter((m) => {
@@ -84,7 +81,6 @@ export function ScheduleTab({
       ) {
         return false;
       }
-      if (selectedDateFilter && !m.matchDate.startsWith(selectedDateFilter)) return false;
       return true;
     });
   }, [
@@ -92,10 +88,10 @@ export function ScheduleTab({
     selectedWeekFilter,
     selectedGroupFilter,
     selectedTeamFilter,
-    selectedDateFilter,
     defaultWeek,
   ]);
 
+  // Grouping kartu per Week
   const groupedByWeek = useMemo(() => {
     const map = new Map<number, MatchScheduleItem[]>();
     filteredSchedules.forEach((m) => {
@@ -110,7 +106,6 @@ export function ScheduleTab({
     setSelectedWeekFilter(defaultWeek);
     setSelectedGroupFilter("ALL");
     setSelectedTeamFilter("ALL");
-    setSelectedDateFilter("");
   };
 
   const formatDateLabel = (isoDate: string) => {
@@ -124,6 +119,76 @@ export function ScheduleTab({
       hour: "2-digit",
       minute: "2-digit",
     }).format(d);
+  };
+
+  // Helper untuk merender kartu pertandingan tunggal
+  const renderMatchCard = (match: MatchScheduleItem) => {
+    const isGroupA = match.groupName === "Group A" || match.groupName === groupAName;
+    const groupDisplayName = isGroupA ? groupAName : groupBName;
+
+    return (
+      <div
+        key={match.id}
+        onClick={() => onSelectMatch(match)}
+        className={`border transition p-3 rounded-2xl shadow-sm cursor-pointer space-y-2.5 ${
+          isGroupA
+            ? "bg-sky-500/5 border-sky-500/40 hover:border-sky-500"
+            : "bg-amber-500/5 border-amber-500/40 hover:border-amber-500"
+        }`}
+      >
+        {/* HEADER KARTU: NAMA DIVISI & TANGGAL */}
+        <div className="flex items-center justify-between text-[10px] font-bold">
+          <span
+            className={`text-[10px] font-black uppercase ${
+              isGroupA ? "text-sky-500" : "text-amber-500"
+            }`}
+          >
+            {groupDisplayName}
+          </span>
+          <span className="text-muted-foreground">{formatDateLabel(match.matchDate)}</span>
+        </div>
+
+        {/* BODY KARTU: TIM MEPET TENGAH DENGAN BADGE SKOR/VS BIRU */}
+        <div className="grid grid-cols-7 items-center gap-1 text-center">
+          {/* TIM KIRI: NAMA TIM -> LOGO (MEPET TENGAH) */}
+          <div className="col-span-3 flex items-center justify-end gap-1.5 min-w-0 pr-1">
+            <span className="font-bold text-[11px] text-foreground break-words text-right leading-snug">
+              {match.teamAName}
+            </span>
+            <img
+              src={match.teamALogo || "/logo.webp"}
+              alt=""
+              className="h-5 w-5 shrink-0 object-contain"
+            />
+          </div>
+
+          {/* BADGE SKOR / VS (BIRU) */}
+          <div className="col-span-1 flex justify-center">
+            {match.isFinished || (match.scoreA || 0) + (match.scoreB || 0) > 0 ? (
+              <span className="px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-xs whitespace-nowrap">
+                {match.scoreA} - {match.scoreB}
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-[11px] shadow-xs whitespace-nowrap">
+                VS
+              </span>
+            )}
+          </div>
+
+          {/* TIM KANAN: LOGO -> NAMA TIM (MEPET TENGAH) */}
+          <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0 pl-1">
+            <img
+              src={match.teamBLogo || "/logo.webp"}
+              alt=""
+              className="h-5 w-5 shrink-0 object-contain"
+            />
+            <span className="font-bold text-[11px] text-foreground break-words text-left leading-snug">
+              {match.teamBName}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -164,8 +229,8 @@ export function ScheduleTab({
           </button>
         </div>
 
-        {/* BARIS 2: DROPDOWN TIM & WEEK */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {/* BARIS 2: DROPDOWN TIM, WEEK & RESET FILTER */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {/* FILTER TIM */}
           <select
             value={selectedTeamFilter}
@@ -188,7 +253,7 @@ export function ScheduleTab({
                 e.target.value === "ALL" ? "ALL" : Number(e.target.value)
               )
             }
-            className="bg-background border border-input rounded-xl px-3 py-1.5 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
+            className="bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
           >
             <option value="ALL">Semua Week</option>
             {availableWeeksUpToCurrent.map((w) => (
@@ -197,25 +262,12 @@ export function ScheduleTab({
               </option>
             ))}
           </select>
-        </div>
-
-        {/* BARIS 3: FILTER TANGGAL DAN RESET FILTER (SEJAJAR SEPERTI GAMBAR 3) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
-          {/* INPUT TANGGAL DENAN ICON KALENDER */}
-          <div className="relative w-full flex items-center">
-            <input
-              type="date"
-              value={selectedDateFilter}
-              onChange={(e) => setSelectedDateFilter(e.target.value)}
-              className="w-full bg-background border border-input rounded-xl px-3 py-1.5 text-xs font-bold text-muted-foreground focus:outline-none focus:border-primary transition cursor-pointer"
-            />
-          </div>
 
           {/* TOMBOL RESET FILTER */}
           <button
             onClick={handleResetFilters}
             disabled={!isFilterActive}
-            className={`w-full py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
               isFilterActive
                 ? "bg-rose-500 text-white shadow-xs hover:bg-rose-600"
                 : "bg-muted/30 text-muted-foreground/60 border border-border/30 cursor-not-allowed"
@@ -238,94 +290,72 @@ export function ScheduleTab({
         )}
       </div>
 
-      {/* KARTU JADWAL PER MINGGU */}
+      {/* LIST KARTU JADWAL PER WEEK */}
       {groupedByWeek.length === 0 ? (
         <div className="p-8 text-center text-xs font-bold text-muted-foreground bg-card border border-border rounded-2xl">
           🚫 Tidak ada jadwal pertandingan yang sesuai dengan filter.
         </div>
       ) : (
-        groupedByWeek.map(([weekNum, matches]) => (
-          <div key={weekNum} className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black uppercase text-primary tracking-wider flex items-center gap-1">
-                🗓️ WEEK {weekNum}
-              </span>
-              <div className="h-[1px] flex-1 bg-border/60"></div>
-            </div>
+        groupedByWeek.map(([weekNum, matches]) => {
+          // Memisahkan match berdasarkan divisi
+          const groupAMatches = matches.filter(
+            (m) => m.groupName === "Group A" || m.groupName === groupAName
+          );
+          const groupBMatches = matches.filter(
+            (m) => m.groupName === "Group B" || m.groupName === groupBName
+          );
 
-            <div className="grid grid-cols-1 gap-2.5">
-              {matches.map((match) => {
-                const isGroupA = match.groupName === "Group A" || match.groupName === groupAName;
-                const groupDisplayName = isGroupA ? groupAName : groupBName;
+          return (
+            <div key={weekNum} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase text-primary tracking-wider flex items-center gap-1">
+                  🗓️ WEEK {weekNum}
+                </span>
+                <div className="h-[1px] flex-1 bg-border/60"></div>
+              </div>
 
-                return (
-                  <div
-                    key={match.id}
-                    onClick={() => onSelectMatch(match)}
-                    className={`border transition p-3 rounded-2xl shadow-sm cursor-pointer space-y-2.5 ${
-                      isGroupA
-                        ? "bg-sky-500/5 border-sky-500/40 hover:border-sky-500"
-                        : "bg-amber-500/5 border-amber-500/40 hover:border-amber-500"
-                    }`}
-                  >
-                    {/* CARD HEADER: DIVISI & TANGGAL */}
-                    <div className="flex items-center justify-between text-[10px] font-bold">
-                      <span
-                        className={`text-[10px] font-black uppercase ${
-                          isGroupA ? "text-sky-500" : "text-amber-500"
-                        }`}
-                      >
-                        {groupDisplayName}
-                      </span>
-                      <span className="text-muted-foreground">{formatDateLabel(match.matchDate)}</span>
-                    </div>
-
-                    {/* CARD BODY: TIM MEPET TENGAH DENGAN SKOR & VS DIWARNAI BIRU */}
-                    <div className="grid grid-cols-7 items-center gap-1 text-center">
-                      {/* TIM KIRI: NAMA TIM -> LOGO (MEPET KE TENGAH) */}
-                      <div className="col-span-3 flex items-center justify-end gap-1.5 min-w-0 pr-1">
-                        <span className="font-bold text-[11px] text-foreground break-words text-right leading-snug">
-                          {match.teamAName}
-                        </span>
-                        <img
-                          src={match.teamALogo || "/logo.webp"}
-                          alt=""
-                          className="h-5 w-5 shrink-0 object-contain"
-                        />
+              {/* LAYOUT DESKTOP: GROUP A (KIRI) vs GROUP B (KANAN) ATAU AUTOMATIC FILL JIKA DIFILTER */}
+              {selectedGroupFilter === "ALL" ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* KOLOM KIRI: GROUP A */}
+                  <div className="space-y-2.5">
+                    <h4 className="text-[11px] font-black uppercase text-sky-500 tracking-wider flex items-center gap-1">
+                      <span>🔹</span> {groupAName}
+                    </h4>
+                    {groupAMatches.length > 0 ? (
+                      groupAMatches.map((m) => renderMatchCard(m))
+                    ) : (
+                      <div className="p-4 text-center text-[10px] text-muted-foreground bg-card border border-border rounded-xl">
+                        Tidak ada match untuk {groupAName}
                       </div>
-
-                      {/* SKOR / VS (SELALU DIWARNAI BIRU SEPERTI SKOR) */}
-                      <div className="col-span-1 flex justify-center">
-                        {match.isFinished || (match.scoreA || 0) + (match.scoreB || 0) > 0 ? (
-                          <span className="px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-xs whitespace-nowrap">
-                            {match.scoreA} - {match.scoreB}
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-[11px] shadow-xs whitespace-nowrap">
-                            VS
-                          </span>
-                        )}
-                      </div>
-
-                      {/* TIM KANAN: LOGO -> NAMA TIM (MEPET KE TENGAH) */}
-                      <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0 pl-1">
-                        <img
-                          src={match.teamBLogo || "/logo.webp"}
-                          alt=""
-                          className="h-5 w-5 shrink-0 object-contain"
-                        />
-                        <span className="font-bold text-[11px] text-foreground break-words text-left leading-snug">
-                          {match.teamBName}
-                        </span>
-                      </div>
-                    </div>
+                    )}
                   </div>
-                );
-              })}
+
+                  {/* KOLOM KANAN: GROUP B */}
+                  <div className="space-y-2.5">
+                    <h4 className="text-[11px] font-black uppercase text-amber-500 tracking-wider flex items-center gap-1">
+                      <span>🔸</span> {groupBName}
+                    </h4>
+                    {groupBMatches.length > 0 ? (
+                      groupBMatches.map((m) => renderMatchCard(m))
+                    ) : (
+                      <div className="p-4 text-center text-[10px] text-muted-foreground bg-card border border-border rounded-xl">
+                        Tidak ada match untuk {groupBName}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* JIKA MEMILIH SPESIFIK NAMA DIVISI: OTOMATIS NGISI 2 KOLOM KIRI KANAN DI DESKTOP */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {matches.map((m) => renderMatchCard(m))}
+                </div>
+              )}
             </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );
-}
+    }
+    
