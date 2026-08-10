@@ -1,4 +1,5 @@
 import { discordAPI } from '../utils';
+import { DISCORD_CONFIG } from '../config';
 
 export interface OpeningEmbedParams {
   channelId: string;
@@ -36,6 +37,7 @@ function formatWIBDate(dateIso?: string): string {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
+      timeZone: 'Asia/Jakarta',
     }) +
     ', ' +
     d
@@ -53,6 +55,9 @@ function formatWIBDate(dateIso?: string): string {
 export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Promise<string | null> {
   if (!params.channelId) return null;
 
+  // Cek apakah ini pemanggilan opening pertama
+  const isFirstOpening = !params.existingMsgId;
+
   // Resolusi Emoji A & B
   const emojiA =
     params.teamAEmoji ||
@@ -62,20 +67,33 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     params.teamBEmoji ||
     (params.emojiBId ? `<:${(params.kodeTimB || 'team').replace(/\s+/g, '')}:${params.emojiBId}>` : '');
 
-  // Logika Referee & Streamer (Menggunakan Tag User jika ID ada, fallback ke nama / "Belum tersedia")
-  const refText = params.refereeDiscordId 
-    ? `<@${params.refereeDiscordId}>` 
-    : (params.refereeName || 'Belum tersedia');
+  // 🟢 LOGIKA BYPASS WASIT & STREAMER JIKA OPENING PERTAMA
+  let refText = 'Belum ditentukan';
+  let strmText = 'Belum ditentukan';
 
-  const strmText = params.streamerDiscordId 
-    ? `<@${params.streamerDiscordId}>` 
-    : (params.streamerName || 'Belum tersedia');
+  if (!isFirstOpening) {
+    if (params.refereeDiscordId) {
+      refText = `<@${params.refereeDiscordId}>`;
+    } else if (params.refereeName && params.refereeName !== 'Belum tersedia') {
+      refText = params.refereeName;
+    }
+
+    if (params.streamerDiscordId) {
+      strmText = `<@${params.streamerDiscordId}>`;
+    } else if (params.streamerName && params.streamerName !== 'Belum tersedia') {
+      strmText = params.streamerName;
+    }
+  }
 
   const liveStreamText = params.streamLink || 'Belum tersedia';
-
   const isFinished = params.isCompleted || false;
 
-  // Susunan Fields Embed sesuai Gambar
+  // Link ke #CH_SCHEDULE
+  const scheduleChannelMention = DISCORD_CONFIG.CH_SCHEDULE 
+    ? `<#${DISCORD_CONFIG.CH_SCHEDULE}>` 
+    : 'channel jadwal';
+
+  // Susunan Fields Embed
   const fields: any[] = [
     { name: '📅 Jadwal Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
     { name: '⚖️ Referee', value: refText, inline: true },
@@ -91,13 +109,13 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     });
   }
 
-  // Tambahkan Ketentuan Reschedule
+  // Ketentuan Reschedule
   fields.push({
     name: '📢 Ketentuan Reschedule',
     value:
       '• **Persetujuan:** Kedua tim wajib setuju.\n' +
       '• **Hari Tanding:** Rabu s.d. Minggu.\n' +
-      '• **Batas Harian:** Maksimal 3 match per hari.\n' +
+      `• **Batas Harian:** Maksimal 3 match per hari (Cek kuota slot di ${scheduleChannelMention}).\n` +
       '• **Konfirmasi:** Wajib lapor ke **Admin Discord**.',
     inline: false,
   });
@@ -110,15 +128,18 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const roleAMention = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
   const roleBMention = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
 
+  const groupDisplayName = params.groupName || 'Group Stage';
+  const weekDisplayName = params.weekName || 'Week 1';
+
   const embedData = {
-    title: `🏆 ${params.groupName || 'Group Stage'} - ${params.weekName || 'Week 1'}`,
+    title: `🏆 ${groupDisplayName} - ${weekDisplayName}`,
     description: `${teamADisplay} **VS** ${teamBDisplay}\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
-    color: isFinished ? 0x2ecc71 : 0x00a8fc, // Biru seperti gambar (atau Hijau jika selesai)
+    color: isFinished ? 0x2ecc71 : 0x00a8fc,
     fields,
     footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  // 1. Jika SUDAH ADA existingMsgId -> Operasi PATCH (Update pesan tanpa tag role lagi)
+  // 1. PATCH jika pesan sudah ada
   if (params.existingMsgId) {
     const patchPayload = {
       embeds: [embedData],
@@ -133,7 +154,7 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     if (res?.id) return res.id;
   }
 
-  // 2. Jika BELUM ADA existingMsgId -> Operasi POST (Kirim pesan baru dengan MENTION ROLE)
+  // 2. POST jika pesan belum ada (Opening Pertama)
   const postPayload = {
     content: `${roleAMention} ${roleBMention}`,
     embeds: [embedData],
