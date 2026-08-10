@@ -33,6 +33,11 @@ export function TournamentView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // 🟢 CEK APAKAH KEY ADMIN TERSEDIA DI URL ATAU PROPS ISADMIN
+  const isAdminKeyActive = useMemo(() => {
+    return isAdmin || searchParams.get("key") === "admin";
+  }, [isAdmin, searchParams]);
+
   // 🟢 ROUTING NAVIGASI DENGAN REDIRECT OTOMATIS KE ?tab=schedule
   const rawTabParam = searchParams.get("tab")?.toUpperCase();
   const activeMainTab: "SCHEDULE" | "STANDING" | "PLAYOFF" =
@@ -55,6 +60,11 @@ export function TournamentView({
   const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
 
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
+
+  // 🟢 DETEKSI MINGGU PLAYOFF (DIPATOK MINGGU 8 KE ATAS)
+  const isPlayoffWeek = useMemo(() => {
+    return currentWeek >= 8;
+  }, [currentWeek]);
 
   const fetchTournamentData = async () => {
     try {
@@ -186,9 +196,14 @@ export function TournamentView({
         <StandingTab schedules={schedules} masterTeams={masterTeams} />
       )}
 
-      {/* VIEW TAB PLAYOFF */}
+      {/* VIEW TAB PLAYOFF: GATEKEEPING DATA HANYA DIBUKA JIKA ADMIN ATAU MINGGU PLAYOFF */}
       {activeMainTab === "PLAYOFF" && (
-        <PlayoffTab schedules={schedules} masterTeams={masterTeams} />
+        <PlayoffTab
+          schedules={isAdminKeyActive || isPlayoffWeek ? schedules : []}
+          masterTeams={isAdminKeyActive || isPlayoffWeek ? masterTeams : []}
+          groupAName={DIVISION_MAP.GROUP_A}
+          groupBName={DIVISION_MAP.GROUP_B}
+        />
       )}
 
       {/* MODAL MATCH REPORT */}
@@ -201,4 +216,4 @@ export function TournamentView({
       )}
     </div>
   );
-}
+    }
