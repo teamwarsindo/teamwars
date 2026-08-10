@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
 import { Pencil, FileText, Copy, RotateCcw, Trash2 } from 'lucide-react';
 
@@ -56,16 +56,19 @@ export function MatchAdminCard({
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<MatchScheduleItem>(match);
 
+  // 🟢 SYNC STATE DRAFT APABILA PROPS MATCH DARIN SERVER DI-REFRESH
+  useEffect(() => {
+    setDraft(match);
+  }, [match]);
+
   const handleSave = () => {
     onSave(draft);
     setIsEditing(false);
   };
 
-  // Deteksi Nama Divisi Baru & Skema Warna
   const isGroupA = match.groupName === 'Group A' || match.groupName === groupAName;
   const groupDisplayName = isGroupA ? groupAName : groupBName;
 
-  // Logika Status Pertandingan Otomatis
   const scoreA = match.scoreA ?? 0;
   const scoreB = match.scoreB ?? 0;
   const isMatchDone = Boolean(match.isFinished || (scoreA + scoreB > 0));
@@ -93,9 +96,8 @@ export function MatchAdminCard({
         </span>
       </div>
 
-      {/* TEAMS & SKOR DISPLAY FLEXIBEL (MENCEGAH NAMA TIM MENTOK DI HP) */}
+      {/* TEAMS & SKOR DISPLAY */}
       <div className="flex items-center justify-between gap-1 my-2.5 px-0.5 font-black text-[11px] sm:text-xs">
-        {/* TIM A (KIRI) */}
         <div className="flex items-center justify-end gap-1.5 flex-1 min-w-0 pr-0.5">
           <span className={`truncate text-right leading-tight ${isTeamAWinner ? 'text-emerald-500 font-black' : 'text-foreground font-bold'}`}>
             {match.teamAName}
@@ -103,7 +105,6 @@ export function MatchAdminCard({
           <img src={match.teamALogo || '/logo.webp'} alt="" className="h-5 w-5 shrink-0 object-contain" />
         </div>
 
-        {/* BADGE SKOR & STATUS OTOMATIS */}
         <div className="flex flex-col items-center justify-center shrink-0 px-1">
           <span
             className={`font-black text-[10px] sm:text-xs px-2 py-0.5 rounded-lg whitespace-nowrap border ${
@@ -119,7 +120,6 @@ export function MatchAdminCard({
           </span>
         </div>
 
-        {/* TIM B (KANAN) */}
         <div className="flex items-center justify-start gap-1.5 flex-1 min-w-0 pl-0.5">
           <img src={match.teamBLogo || '/logo.webp'} alt="" className="h-5 w-5 shrink-0 object-contain" />
           <span className={`truncate text-left leading-tight ${isTeamBWinner ? 'text-emerald-500 font-black' : 'text-foreground font-bold'}`}>
@@ -251,7 +251,10 @@ export function MatchAdminCard({
 
           <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-2 mt-2">
             <button
-              onClick={() => setIsEditing(false)}
+              onClick={() => {
+                setDraft(match); // Reset ke data match awal
+                setIsEditing(false);
+              }}
               className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold hover:bg-muted cursor-pointer"
             >
               Batal
@@ -265,7 +268,7 @@ export function MatchAdminCard({
           </div>
         </div>
       ) : (
-        /* FOOTER KARTU INFO WASIT & TOMBOL AKSI RESPONSIF */
+        /* FOOTER KARTU INFO WASIT */
         <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs pt-2 border-t border-border/40 gap-2.5">
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-[11px]">
             <span>
@@ -276,7 +279,6 @@ export function MatchAdminCard({
             </span>
           </div>
 
-          {/* GRID TOMBOL AKSI RESPONSIF */}
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 w-full sm:w-auto">
             <button
               onClick={() => setIsEditing(true)}
@@ -325,4 +327,4 @@ export function MatchAdminCard({
       )}
     </div>
   );
-        }
+}
