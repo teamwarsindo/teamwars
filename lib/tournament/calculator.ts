@@ -6,7 +6,7 @@ export interface ExtendedStandingItem extends TeamStandingItem {
   isTopGroup?: boolean; // Penanda Top 2 Group
 }
 
-export function calculateStandingsForWeek(
+export function calculateStandings(
   schedules: MatchScheduleItem[],
   masterTeams: any[],
   upToWeek: number
