@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { MatchScheduleItem, TeamStandingItem } from "@/lib/types/tournament";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { MatchScheduleItem, TeamStandingItem, DIVISION_MAP } from "@/lib/types/tournament";
 import { ScheduleTab } from "./schedule-tab";
 import { StandingTab } from "./standing-tab";
 import { PlayoffTab } from "./playoff-tab";
 import { MatchReportModal } from "./match-report-modal";
 import Swal from "sweetalert2";
 
-// Helper menghitung week berjalan saat ini dari kalender server (dimulai hari Senin)
 function getCurrentServerWeek(): number {
-  const startDate = new Date("2026-08-03T00:00:00+07:00").getTime(); // Senin pertama
+  const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
   const now = new Date().getTime();
   const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
   return Math.max(1, Math.floor(diffDays / 7) + 1);
@@ -29,14 +29,31 @@ export function TournamentView({
   selectedDateFilter: string;
   setSelectedDateFilter: (v: string) => void;
 }) {
-  const [activeMainTab, setActiveMainTab] = useState<"SCHEDULE" | "STANDING" | "PLAYOFF">("SCHEDULE");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // 🟢 ROUTING NAVIGASI DENGAN REDIRECT OTOMATIS KE ?tab=schedule
+  const rawTabParam = searchParams.get("tab")?.toUpperCase();
+  const activeMainTab: "SCHEDULE" | "STANDING" | "PLAYOFF" =
+    rawTabParam === "STANDING" || rawTabParam === "PLAYOFF" ? rawTabParam : "SCHEDULE";
+
+  useEffect(() => {
+    if (!searchParams.get("tab")) {
+      router.replace(`${pathname}?tab=schedule`, { scroll: false });
+    }
+  }, [searchParams, pathname, router]);
+
+  const handleTabChange = (tabKey: "SCHEDULE" | "STANDING" | "PLAYOFF") => {
+    router.push(`${pathname}?tab=${tabKey.toLowerCase()}`, { scroll: false });
+  };
+
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [standings, setStandings] = useState<TeamStandingItem[]>([]);
   const [masterTeams, setMasterTeams] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
 
-  // Ambil minggu berjalan saat ini
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
 
   const fetchTournamentData = async () => {
@@ -48,7 +65,6 @@ export function TournamentView({
         setStandings(data.standings || []);
         setMasterTeams(data.masterTeams || []);
 
-        // Jika modal match report sedang terbuka, perbarui data match aktif yang sedang dilihat
         if (activeReportMatch) {
           const updatedActive = (data.schedules || []).find((m: MatchScheduleItem) => m.id === activeReportMatch.id);
           if (updatedActive) setActiveReportMatch(updatedActive);
@@ -68,7 +84,7 @@ export function TournamentView({
   const handleForceResetSchedules = async () => {
     const res = await Swal.fire({
       title: "SYNC DATA ROULETTE & GENERATE JADWAL?",
-      text: "Sistem akan mengambil daftar tim Group A & B terbaru dari Roulette dan menyusun ulang jadwal pertandingan secara otomatis.",
+      text: "Sistem akan mengambil daftar tim terbaru dari Roulette dan menyusun ulang jadwal pertandingan secara otomatis.",
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Ya, Sync Sekarang",
@@ -105,7 +121,6 @@ export function TournamentView({
     );
   }
 
-  // Hitung weekNumber untuk setiap item schedule berdasarkan tanggal pertandingan
   const getMatchWeekNumber = (dateString: string) => {
     if (!dateString) return 1;
     const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
@@ -122,18 +137,13 @@ export function TournamentView({
   }));
 
   const allTeamNames = Array.from(new Set(standings.map((s) => s.teamName)));
-  
-  // Dapatkan daftar seluruh minggu yang tersedia
   const allWeeks = Array.from(
-    new Set([
-      ...schedulesWithWeek.map((m) => m.weekNumber),
-      currentWeek,
-    ])
+    new Set([...schedulesWithWeek.map((m) => m.weekNumber), currentWeek])
   ).sort((a, b) => a - b);
 
   return (
     <div className="w-full flex flex-col gap-5">
-      {/* 3 Main Buttons Konsisten */}
+      {/* MAIN TABS NAVIGATION */}
       <div className="grid grid-cols-3 gap-2 w-full">
         {[
           { key: "SCHEDULE", label: "Group Stage" },
@@ -142,7 +152,7 @@ export function TournamentView({
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveMainTab(tab.key as any)}
+            onClick={() => handleTabChange(tab.key as any)}
             className={`rounded-xl py-3 px-2 text-center text-xs font-black uppercase tracking-wider border transition-all cursor-pointer ${
               activeMainTab === tab.key
                 ? "bg-primary text-primary-foreground border-primary shadow-md"
@@ -154,7 +164,7 @@ export function TournamentView({
         ))}
       </div>
 
-      {/* View Tab Aktif */}
+      {/* VIEW TAB SCHEDULE */}
       {activeMainTab === "SCHEDULE" && (
         <ScheduleTab
           schedules={schedulesWithWeek}
@@ -167,16 +177,21 @@ export function TournamentView({
           setSelectedGroupFilter={setSelectedGroupFilter}
           selectedDateFilter={selectedDateFilter}
           setSelectedDateFilter={setSelectedDateFilter}
+          groupAName={DIVISION_MAP.GROUP_A}
+          groupBName={DIVISION_MAP.GROUP_B}
+          defaultWeek={currentWeek}
         />
       )}
 
+      {/* VIEW TAB STANDING */}
       {activeMainTab === "STANDING" && (
         <StandingTab schedules={schedules} masterTeams={masterTeams} />
       )}
 
+      {/* VIEW TAB PLAYOFF */}
       {activeMainTab === "PLAYOFF" && <PlayoffTab />}
 
-      {/* Modal Popup Match Report Read-Only untuk Publik */}
+      {/* MODAL MATCH REPORT */}
       {activeReportMatch && (
         <MatchReportModal
           match={activeReportMatch}
@@ -186,4 +201,4 @@ export function TournamentView({
       )}
     </div>
   );
-            }
+}
