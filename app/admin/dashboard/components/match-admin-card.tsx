@@ -56,7 +56,7 @@ export function MatchAdminCard({
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<MatchScheduleItem>(match);
 
-  // 🟢 SYNC STATE DRAFT APABILA PROPS MATCH DARIN SERVER DI-REFRESH
+  // 🟢 SYNC STATE DRAFT SAAT PROPS MATCH DARI SERVER DI-REFRESH
   useEffect(() => {
     setDraft(match);
   }, [match]);
@@ -78,7 +78,7 @@ export function MatchAdminCard({
 
   return (
     <div className="rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-xs space-y-3">
-      {/* HEADER KARTU MATCH DENGAN NAMA DIVISI BARU */}
+      {/* HEADER KARTU MATCH */}
       <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-2 text-[11px] gap-1">
         <span className={`font-black uppercase tracking-wider ${isGroupA ? 'text-sky-500' : 'text-amber-500'}`}>
           {groupDisplayName} • {match.id} • Week {match.weekNumber || 1}
@@ -96,7 +96,7 @@ export function MatchAdminCard({
         </span>
       </div>
 
-      {/* TEAMS & SKOR DISPLAY */}
+      {/* DISPLAY NAMA TIM & SKOR */}
       <div className="flex items-center justify-between gap-1 my-2.5 px-0.5 font-black text-[11px] sm:text-xs">
         <div className="flex items-center justify-end gap-1.5 flex-1 min-w-0 pr-0.5">
           <span className={`truncate text-right leading-tight ${isTeamAWinner ? 'text-emerald-500 font-black' : 'text-foreground font-bold'}`}>
@@ -143,6 +143,7 @@ export function MatchAdminCard({
             />
           </div>
 
+          {/* WASIT DROPDOWN */}
           <div>
             <label className="block text-[10px] text-muted-foreground font-bold mb-1">
               WASIT / REFEREE
@@ -169,6 +170,7 @@ export function MatchAdminCard({
             </select>
           </div>
 
+          {/* STREAMER DROPDOWN */}
           <div>
             <label className="block text-[10px] text-muted-foreground font-bold mb-1">
               STREAMER / CASTER
@@ -188,7 +190,7 @@ export function MatchAdminCard({
             >
               <option value="">-- Belum Ada Streamer --</option>
               {streamerList.map((s) => (
-                <option key={s.discordId} value={s.discordId}>
+                <option key={s.discordId} value={r.discordId}>
                   {s.discordName}
                 </option>
               ))}
@@ -252,7 +254,7 @@ export function MatchAdminCard({
           <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-2 mt-2">
             <button
               onClick={() => {
-                setDraft(match); // Reset ke data match awal
+                setDraft(match);
                 setIsEditing(false);
               }}
               className="px-3 py-1.5 rounded-lg border border-border text-xs font-bold hover:bg-muted cursor-pointer"
@@ -327,4 +329,4 @@ export function MatchAdminCard({
       )}
     </div>
   );
-}
+          }
