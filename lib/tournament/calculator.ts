@@ -6,13 +6,12 @@ export interface ExtendedStandingItem extends TeamStandingItem {
   isTopGroup?: boolean;
 }
 
-// Helper untuk memastikan minggu match bertipe angka
 function getMatchWeek(m: MatchScheduleItem): number {
   if (typeof m.weekNumber === "number" && m.weekNumber > 0) {
     return m.weekNumber;
   }
   if (m.matchDate) {
-    const startDate = new Date("2026-08-05T00:00:00+07:00").getTime();
+    const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
     const matchDate = new Date(m.matchDate).getTime();
     if (!isNaN(matchDate)) {
       const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
@@ -27,32 +26,22 @@ export function calculateStandings(
   masterTeams: any[] = [],
   upToWeek?: number
 ): ExtendedStandingItem[] {
-  // Hitung minggu maksimum yang ada di jadwal
   const allMatchWeeks = schedules.map((m) => getMatchWeek(m));
   const maxWeek = allMatchWeeks.length ? Math.max(...allMatchWeeks) : 1;
-  
-  // Tentukan minggu target
   const targetWeek: number = typeof upToWeek === "number" ? upToWeek : maxWeek;
 
-  // FILTER MATCH LOGIC:
-  // - Pertandingan dianggap dimainkan jika isFinished = true ATAU (scoreA + scoreB > 0)
-  // - Jika targetWeek >= maxWeek, hitung SEMUA match (Kembali ke logika awal yang bekerja)
-  // - Jika targetWeek < maxWeek, filter match yang minggu-nya <= targetWeek
+  // Filter match yang sudah bertanding s/d targetWeek
   const filteredMatches = schedules.filter((m) => {
     const isPlayed = Boolean(m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0);
     if (!isPlayed) return false;
 
-    if (targetWeek >= maxWeek) {
-      return true; // Tampilkan semua jika akumulasi penuh
-    }
-
-    const mWeek = getMatchWeek(m);
-    return mWeek <= targetWeek;
+    if (targetWeek >= maxWeek) return true;
+    return getMatchWeek(m) <= targetWeek;
   });
 
   const statsMap = new Map<string, ExtendedStandingItem>();
 
-  // Inisialisasi tim
+  // Inisialisasi daftar tim
   masterTeams.forEach((team) => {
     const tName = team.name || team.teamName || "";
     if (tName) {
@@ -65,7 +54,7 @@ export function calculateStandings(
         matchPlayed: 0,
         matchWins: 0,
         matchLosses: 0,
-        setWins: 0,
+        setWins: 0, // setWins nanti diisi murni sama dengan matchWins (total W)
         setLosses: 0,
         roundDifference: 0,
         points: 0,
@@ -73,51 +62,50 @@ export function calculateStandings(
     }
   });
 
-  // Hitung poin & skor dari match
+  // Kalkulasi Skor Pertandingan
   filteredMatches.forEach((m) => {
     const teamA = statsMap.get(m.teamAName);
     const teamB = statsMap.get(m.teamBName);
 
-    const sA = Number(m.scoreA) || 0;
-    const sB = Number(m.scoreB) || 0;
+    const sA = Number(m.scoreA) || 0; // Poin game Tim A (misal 10)
+    const sB = Number(m.scoreB) || 0; // Poin game Tim B (misal 6)
 
     if (teamA) {
       teamA.matchPlayed += 1;
-      teamA.setWins += sA;
+      teamA.points += sA; // 🟢 Tim A dapat sA Poin (10)
       teamA.setLosses += sB;
       teamA.roundDifference += sA - sB;
 
       if (sA > sB) {
-        teamA.matchWins += 1;
-        teamA.points += 10;
+        teamA.matchWins += 1; // Menang Match (W)
       } else if (sA < sB) {
-        teamA.matchLosses += 1;
+        teamA.matchLosses += 1; // Kalah Match (L)
       }
+      teamA.setWins = teamA.matchWins; // 🟢 Set Wins murni mengambil total nilai W
     }
 
     if (teamB) {
       teamB.matchPlayed += 1;
-      teamB.setWins += sB;
+      teamB.points += sB; // 🟢 Tim B tetap dapat sB Poin meskipun kalah (6)
       teamB.setLosses += sA;
       teamB.roundDifference += sB - sA;
 
       if (sB > sA) {
         teamB.matchWins += 1;
-        teamB.points += 10;
       } else if (sB < sA) {
         teamB.matchLosses += 1;
       }
+      teamB.setWins = teamB.matchWins; // 🟢 Set Wins murni mengambil total nilai W
     }
   });
 
   const standingsList = Array.from(statsMap.values());
 
-  // Urutkan berdasarkan Poin -> Match Wins -> Round Difference -> Set Wins
+  // Urutan Klasemen: Points (Total Skor Game) -> Match Wins -> Round Difference
   standingsList.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-    if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
-    return b.setWins - a.setWins;
+    return b.roundDifference - a.roundDifference;
   });
 
   standingsList.forEach((item, index) => {
@@ -146,4 +134,4 @@ export function calculateStandings(
   }
 
   return standingsList;
-        }
+                      }
