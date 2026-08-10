@@ -131,7 +131,7 @@ export async function GET(req: Request) {
   }
 }
 
-// 🟢 POST: UPDATE MATCH CONSOLE (MURNI SIMPAN DOCK/KV & HITUNG STANDING)
+// 🟢 POST: UPDATE MATCH CONSOLE (MURNI SIMPAN KV & HITUNG STANDING)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -267,9 +267,9 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
           teamAId: pairA[0].name,
           teamAName: pairA[0].name,
           teamALogo: pairA[0].logo || '/logo.webp',
-          teamBId: pairB[1].name,
-          teamBName: pairB[1].name,
-          teamBLogo: pairB[1].logo || '/logo.webp',
+          teamBId: pairA[1].name,
+          teamBName: pairA[1].name,
+          teamBLogo: pairA[1].logo || '/logo.webp',
           scoreA: 0,
           scoreB: 0,
           isFinished: false,
@@ -306,4 +306,5 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   }
 
   return schedules;
-                             }
+      }
+    
