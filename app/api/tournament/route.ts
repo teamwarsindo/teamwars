@@ -8,7 +8,7 @@ import { executeAssignStaff } from '@/lib/discord/services/staff-assignment';
 const KV_KEY_SCHEDULES = 'twi:schedules';
 const KV_KEY_ROULETTE = 'twi:roulette_state';
 
-// Batas waktu berlaku token Wasit (7 hari dalam milidetik)
+// Batas waktu berlaku token Wasit jika dipanggil dari console wasit publik (7 hari)
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 function getTeamSlug(teamName: string) {
@@ -20,29 +20,20 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
-// Helper verifikasi token & expiration 7 hari
-function verifyAccess(match: MatchScheduleItem, token?: string) {
-  const adminSecret = process.env.BASIC_AUTH_PWD || 'tsaqif';
-
-  // Bypass Penuh Admin menggunakan BASIC_AUTH_PWD
-  if (token && token === adminSecret) {
-    return { valid: true, isAdmin: true, reason: 'ADMIN_BYPASS' };
-  }
-
-  // Cek kecocokan token Wasit
+// Helper verifikasi token KHUSUS untuk Wasit Publik (Bukan Admin)
+function verifyRefereeTokenOnly(match: MatchScheduleItem, token?: string) {
   if (!match.refereeToken || token !== match.refereeToken) {
-    return { valid: false, isAdmin: false, reason: 'TOKEN_INVALID' };
+    return { valid: false, reason: 'TOKEN_INVALID' };
   }
 
-  // Cek batas waktu 7 hari sejak tanggal pertandingan
   const matchTime = new Date(match.matchDate).getTime();
   const now = Date.now();
 
   if (!isNaN(matchTime) && now - matchTime > SEVEN_DAYS_MS) {
-    return { valid: false, isAdmin: false, reason: 'TOKEN_EXPIRED' };
+    return { valid: false, reason: 'TOKEN_EXPIRED' };
   }
 
-  return { valid: true, isAdmin: false, reason: 'REFEREE_VALID' };
+  return { valid: true, reason: 'REFEREE_VALID' };
 }
 
 // 🟢 GET ENDPOINT: UNTUK SCHEDULE PUBLIK, KLASEMEN, & CONSOLE INPUT WASIT
@@ -67,7 +58,7 @@ export async function GET(req: Request) {
       await kv.set(KV_KEY_SCHEDULES, schedules);
     }
 
-    // HANDLER DETAIL MATCH CONSOLE & WASIT
+    // HANDLER DETAIL MATCH CONSOLE WASIT PUBLIK
     if (matchId) {
       const matchIndex = schedules.findIndex((m) => m.id === matchId);
       if (matchIndex === -1) {
@@ -83,14 +74,16 @@ export async function GET(req: Request) {
         await kv.set(KV_KEY_SCHEDULES, schedules);
       }
 
-      // Verifikasi otorisasi akses token
-      const access = verifyAccess(match, token);
-      if (!access.valid) {
-        const errorMsg =
-          access.reason === 'TOKEN_EXPIRED'
-            ? 'Akses ditolak. Token Wasit sudah kadaluwarsa (lebih dari 7 hari).'
-            : 'Akses ditolak. Token Wasit tidak valid!';
-        return NextResponse.json({ error: errorMsg, accessReason: access.reason }, { status: 403 });
+      // Jika ada token yang dikirim, verifikasi batas waktu Wasit
+      if (token && token !== process.env.BASIC_AUTH_PWD && token !== 'tsaqif') {
+        const access = verifyRefereeTokenOnly(match, token);
+        if (!access.valid) {
+          const errorMsg =
+            access.reason === 'TOKEN_EXPIRED'
+              ? 'Akses ditolak. Token Wasit sudah kadaluwarsa (lebih dari 7 hari).'
+              : 'Akses ditolak. Token Wasit tidak valid!';
+          return NextResponse.json({ error: errorMsg, accessReason: access.reason }, { status: 403 });
+        }
       }
 
       // Fetch Roster Resmi Tim dari KV
@@ -136,11 +129,11 @@ export async function GET(req: Request) {
   }
 }
 
-// 🟢 POST ENDPOINT: SIMPAN QUICK EDIT & OTOMATISASI DISCORD SYNC
+// 🟢 POST ENDPOINT: HAK AKSES ADMIN PENUH TANPA DIBLOKIR TOKEN WASIT
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { action, matchId, token, matchData } = body;
+    const { action, matchId, matchData } = body;
 
     let schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
@@ -155,7 +148,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, schedules });
     }
 
-    // 2. UPDATE MATCH DATA (MATCH CONSOLE / ADMIN DASHBOARD QUICK EDIT)
+    // 2. UPDATE MATCH DATA (DASHBOARD ADMIN QUICK EDIT)
     if (action === 'UPDATE_MATCH_CONSOLE') {
       const targetIndex = schedules.findIndex((m) => m.id === matchId);
       if (targetIndex === -1) {
@@ -164,17 +157,7 @@ export async function POST(req: Request) {
 
       const existingMatch = schedules[targetIndex];
 
-      // Verifikasi token & bypass admin
-      const access = verifyAccess(existingMatch, token);
-      if (!access.valid) {
-        const errorMsg =
-          access.reason === 'TOKEN_EXPIRED'
-            ? 'Akses ditolak. Token Wasit sudah kadaluwarsa (lebih dari 7 hari).'
-            : 'Akses ditolak. Token Wasit tidak valid!';
-        return NextResponse.json({ error: errorMsg }, { status: 403 });
-      }
-
-      // Gabungkan data match
+      // ⚡ BYPASS TOTAL VERIFIKASI TOKEN UNTUK ACTION ADMIN DASHBOARD!
       const updatedMatch: MatchScheduleItem = {
         ...existingMatch,
         ...matchData,
@@ -188,7 +171,7 @@ export async function POST(req: Request) {
       schedules[targetIndex] = updatedMatch;
       await kv.set(KV_KEY_SCHEDULES, schedules);
 
-      // 🔵 A. OTOMATISASI ROLES & PERMISSIONS DISCORD JIKA WASIT/STREAMER DIUBAH
+      // 🔵 A. OTOMATISASI ROLES DISCORD JIKA WASIT/STREAMER DIPILIH
       if (updatedMatch.refereeDiscordId && updatedMatch.refereeDiscordId !== existingMatch.refereeDiscordId) {
         await executeAssignStaff({
           matchId: updatedMatch.id,
@@ -205,7 +188,7 @@ export async function POST(req: Request) {
         }).catch((e) => console.warn('Gagal assign streamer:', e));
       }
 
-      // 🟢 B. OTOMATISASI SYNC EMBED & CHANNEL DISCORD
+      // 🟢 B. OTOMATISASI SYNC & REPOST EMBED DISCORD (BEBAS PING SPAM)
       const currentSchedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || schedules;
       const latestMatch = currentSchedules.find((m) => m.id === matchId) || updatedMatch;
 
@@ -271,7 +254,7 @@ export async function POST(req: Request) {
   }
 }
 
-// 🌐 GENERATOR JADWAL AUTOMATIS DENGAN ENV TWI_START_DATE
+// 🌐 GENERATOR JADWAL DENGAN TANGGAL UTAMA DARI ENV
 function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): MatchScheduleItem[] {
   const schedules: MatchScheduleItem[] = [];
   let idCounter = 1;
@@ -367,5 +350,5 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   }
 
   return schedules;
-        }
-            
+}
+  
