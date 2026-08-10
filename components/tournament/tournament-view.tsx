@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MatchScheduleItem, TeamStandingItem } from "@/lib/types/tournament";
 import { ScheduleTab } from "./schedule-tab";
 import { StandingTab } from "./standing-tab";
 import { PlayoffTab } from "./playoff-tab";
 import { MatchReportModal } from "./match-report-modal";
 import Swal from "sweetalert2";
+
+// Helper menghitung week berjalan saat ini dari kalender server (dimulai hari Senin)
+function getCurrentServerWeek(): number {
+  const startDate = new Date("2026-08-03T00:00:00+07:00").getTime(); // Senin pertama
+  const now = new Date().getTime();
+  const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
 
 export function TournamentView({
   isAdmin,
@@ -24,9 +32,12 @@ export function TournamentView({
   const [activeMainTab, setActiveMainTab] = useState<"SCHEDULE" | "STANDING" | "PLAYOFF">("SCHEDULE");
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [standings, setStandings] = useState<TeamStandingItem[]>([]);
-  const [masterTeams, setMasterTeams] = useState<any[]>([]); // 🟢 STATE MASTER TEAMS
+  const [masterTeams, setMasterTeams] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
+
+  // Ambil minggu berjalan saat ini
+  const currentWeek = useMemo(() => getCurrentServerWeek(), []);
 
   const fetchTournamentData = async () => {
     try {
@@ -35,9 +46,9 @@ export function TournamentView({
       if (data) {
         setSchedules(data.schedules || []);
         setStandings(data.standings || []);
-        setMasterTeams(data.masterTeams || []); // 🟢 AMBIL MASTER TEAMS DARI RESPONS API
+        setMasterTeams(data.masterTeams || []);
 
-        // Jika modal sedang terbuka, perbarui data match aktif
+        // Jika modal match report sedang terbuka, perbarui data match aktif yang sedang dilihat
         if (activeReportMatch) {
           const updatedActive = (data.schedules || []).find((m: MatchScheduleItem) => m.id === activeReportMatch.id);
           if (updatedActive) setActiveReportMatch(updatedActive);
@@ -86,41 +97,39 @@ export function TournamentView({
     }
   };
 
-  // FUNGSI SIMPAN MATCH LOGS & SKOR KE KV DARI MODAL
-  const handleSaveMatch = async (updatedMatch: MatchScheduleItem) => {
-    try {
-      const res = await fetch("/api/tournament", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "UPDATE_MATCH_CONSOLE", // 🟢 ACTION DISESUAIKAN DENGAN ROUTE API
-          matchId: updatedMatch.id,
-          matchData: updatedMatch,
-        }),
-      });
-
-      if (res.ok) {
-        await fetchTournamentData(); // Refresh jadwal & standings
-      }
-    } catch (err) {
-      console.error("Gagal menyimpan match report:", err);
-    }
-  };
-
   if (isLoading) {
-    return <div className="p-8 text-center text-xs font-bold text-primary animate-pulse">⏳ Memuat Data Turnamen...</div>;
+    return (
+      <div className="p-8 text-center text-xs font-bold text-primary animate-pulse">
+        ⏳ Memuat Data Turnamen...
+      </div>
+    );
   }
 
+  // Hitung weekNumber untuk setiap item schedule berdasarkan tanggal pertandingan
   const getMatchWeekNumber = (dateString: string) => {
-    const startDate = new Date("2026-08-05T00:00:00+07:00").getTime();
+    if (!dateString) return 1;
+    const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
     const matchDate = new Date(dateString).getTime();
+    if (isNaN(matchDate)) return 1;
+
     const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
     return Math.max(1, Math.floor(diffDays / 7) + 1);
   };
 
-  const schedulesWithWeek = schedules.map((m) => ({ ...m, weekNumber: getMatchWeekNumber(m.matchDate) }));
+  const schedulesWithWeek = schedules.map((m) => ({
+    ...m,
+    weekNumber: m.weekNumber || getMatchWeekNumber(m.matchDate),
+  }));
+
   const allTeamNames = Array.from(new Set(standings.map((s) => s.teamName)));
-  const allWeeks = Array.from(new Set(schedulesWithWeek.map((m) => m.weekNumber))).sort((a, b) => a - b);
+  
+  // Dapatkan daftar seluruh minggu yang tersedia
+  const allWeeks = Array.from(
+    new Set([
+      ...schedulesWithWeek.map((m) => m.weekNumber),
+      currentWeek,
+    ])
+  ).sort((a, b) => a - b);
 
   return (
     <div className="w-full flex flex-col gap-5">
@@ -161,12 +170,13 @@ export function TournamentView({
         />
       )}
 
-      {/* 🟢 PASS PROPS SCHEDULES DAN MASTERTEAMS KE STANDING TAB */}
-      {activeMainTab === "STANDING" && <StandingTab schedules={schedules} masterTeams={masterTeams} />}
+      {activeMainTab === "STANDING" && (
+        <StandingTab schedules={schedules} masterTeams={masterTeams} />
+      )}
 
       {activeMainTab === "PLAYOFF" && <PlayoffTab />}
 
-      {/* Modal Popup Match Report */}
+      {/* Modal Popup Match Report Read-Only untuk Publik */}
       {activeReportMatch && (
         <MatchReportModal
           match={activeReportMatch}
@@ -176,4 +186,4 @@ export function TournamentView({
       )}
     </div>
   );
-}
+            }
