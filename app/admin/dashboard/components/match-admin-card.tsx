@@ -57,7 +57,7 @@ export function MatchAdminCard({
     setIsEditing(false);
   };
 
-  // LOGIKA STATUS MATCH OTOMATIS: Finished jika isFinished === true atau akumulasi skor > 0
+  // Logika Status Pertandingan Otomatis
   const scoreA = match.scoreA ?? 0;
   const scoreB = match.scoreB ?? 0;
   const isMatchDone = Boolean(match.isFinished || (scoreA + scoreB > 0));
@@ -85,20 +85,20 @@ export function MatchAdminCard({
         </span>
       </div>
 
-      {/* MATCH SCORE & TEAMS DISPLAY (LAPANG DI MOBILE) */}
-      <div className="grid grid-cols-7 items-center gap-1 my-2 font-black text-xs sm:text-sm">
-        {/* TIM A */}
-        <div className="col-span-3 flex items-center justify-end gap-1.5 min-w-0 pr-1">
-          <span className={`truncate text-right leading-snug ${isTeamAWinner ? 'text-emerald-500 font-black' : 'text-foreground font-bold'}`}>
+      {/* TEAMS & SKOR DISPLAY FLEXIBEL (MENCEGAH NAMA TIM MENTOK) */}
+      <div className="flex items-center justify-between gap-1 my-2.5 px-0.5 font-black text-[11px] sm:text-xs">
+        {/* TIM A (KIRI) */}
+        <div className="flex items-center justify-end gap-1.5 flex-1 min-w-0 pr-0.5">
+          <span className={`truncate text-right leading-tight ${isTeamAWinner ? 'text-emerald-500 font-black' : 'text-foreground font-bold'}`}>
             {match.teamAName}
           </span>
-          <img src={match.teamALogo || '/logo.webp'} alt="" className="h-5 w-5 sm:h-6 sm:w-6 shrink-0 object-contain" />
+          <img src={match.teamALogo || '/logo.webp'} alt="" className="h-5 w-5 shrink-0 object-contain" />
         </div>
 
         {/* BADGE SKOR & STATUS OTOMATIS */}
-        <div className="col-span-1 flex flex-col items-center justify-center">
+        <div className="flex flex-col items-center justify-center shrink-0 px-1">
           <span
-            className={`font-black text-[10.5px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full whitespace-nowrap border ${
+            className={`font-black text-[10px] sm:text-xs px-2 py-0.5 rounded-lg whitespace-nowrap border ${
               isMatchDone
                 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
                 : 'bg-amber-500/10 text-amber-500 border-amber-500/30'
@@ -106,21 +106,21 @@ export function MatchAdminCard({
           >
             {scoreA} - {scoreB}
           </span>
-          <span className="text-[8.5px] font-extrabold text-muted-foreground mt-0.5 uppercase tracking-wider">
+          <span className="text-[8px] font-extrabold text-muted-foreground mt-0.5 uppercase tracking-wider">
             {isMatchDone ? 'FINISHED' : 'SCHEDULED'}
           </span>
         </div>
 
-        {/* TIM B */}
-        <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0 pl-1">
-          <img src={match.teamBLogo || '/logo.webp'} alt="" className="h-5 w-5 sm:h-6 sm:w-6 shrink-0 object-contain" />
-          <span className={`truncate text-left leading-snug ${isTeamBWinner ? 'text-emerald-500 font-black' : 'text-foreground font-bold'}`}>
+        {/* TIM B (KANAN) */}
+        <div className="flex items-center justify-start gap-1.5 flex-1 min-w-0 pl-0.5">
+          <img src={match.teamBLogo || '/logo.webp'} alt="" className="h-5 w-5 shrink-0 object-contain" />
+          <span className={`truncate text-left leading-tight ${isTeamBWinner ? 'text-emerald-500 font-black' : 'text-foreground font-bold'}`}>
             {match.teamBName}
           </span>
         </div>
       </div>
 
-      {/* MODE EDITING VS MODE DISPLAY */}
+      {/* MODE EDITING VS DISPLAY */}
       {isEditing ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-muted/20 rounded-xl text-xs">
           <div>
@@ -257,9 +257,8 @@ export function MatchAdminCard({
           </div>
         </div>
       ) : (
-        /* FOOTER KARTU: INFO WASIT & TOMBOL AKSI RESPONSIF */
+        /* FOOTER KARTU */
         <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs pt-2 border-t border-border/40 gap-2.5">
-          {/* INFO STAF WASIT & STREAMER */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-[11px]">
             <span>
               <b className="text-foreground">Wasit:</b> {match.referee || '-'}
@@ -269,9 +268,8 @@ export function MatchAdminCard({
             </span>
           </div>
 
-          {/* GRID TOMBOL AKSI (GRID 2x2 DI MOBILE, 1 BARIS DI DESKTOP) */}
+          {/* GRID TOMBOL AKSI RESPONSIF */}
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 w-full sm:w-auto">
-            {/* QUICK EDIT */}
             <button
               onClick={() => setIsEditing(true)}
               className="px-2.5 py-1.5 rounded-xl border border-sky-500/40 bg-sky-500/10 text-sky-400 text-[11px] font-bold hover:bg-sky-500/20 transition flex items-center justify-center gap-1 cursor-pointer"
@@ -280,7 +278,6 @@ export function MatchAdminCard({
               <span>Quick Edit</span>
             </button>
 
-            {/* MATCH REPORT + COPY LINK */}
             <div className="flex items-center rounded-xl border border-amber-500/40 bg-amber-500/10 overflow-hidden min-w-0">
               <a
                 href={`/tournament/match-input/${match.id}?token=${match.refereeToken || ''}`}
@@ -300,7 +297,6 @@ export function MatchAdminCard({
               </button>
             </div>
 
-            {/* SYNC DISCORD */}
             <button
               onClick={() => onSync(match)}
               className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
@@ -309,7 +305,6 @@ export function MatchAdminCard({
               <span>Sync</span>
             </button>
 
-            {/* DELETE CHANNEL */}
             <button
               onClick={() => onDeleteChannel(match)}
               className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
@@ -322,5 +317,4 @@ export function MatchAdminCard({
       )}
     </div>
   );
-  }
-          
+}
