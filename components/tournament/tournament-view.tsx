@@ -187,7 +187,9 @@ export function TournamentView({
       )}
 
       {/* VIEW TAB PLAYOFF */}
-      {activeMainTab === "PLAYOFF" && <PlayoffTab />}
+      {activeMainTab === "PLAYOFF" && (
+        <PlayoffTab schedules={schedules} masterTeams={masterTeams} />
+      )}
 
       {/* MODAL MATCH REPORT */}
       {activeReportMatch && (
