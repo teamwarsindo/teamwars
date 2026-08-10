@@ -56,7 +56,6 @@ export function MatchAdminCard({
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<MatchScheduleItem>(match);
 
-  // Sync draft setiap kali match prop diperbarui dari server
   useEffect(() => {
     setDraft(match);
   }, [match]);
@@ -78,14 +77,14 @@ export function MatchAdminCard({
 
   return (
     <div className="rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-xs space-y-3">
-      {/* HEADER KARTU MATCH */}
+      {/* HEADER KARTU MATCH DENGAN FORMAT NAMA HARI */}
       <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-2 text-[11px] gap-1">
         <span className={`font-black uppercase tracking-wider ${isGroupA ? 'text-sky-500' : 'text-amber-500'}`}>
           {groupDisplayName} • {match.id} • Week {match.weekNumber || 1}
         </span>
-        <span className="text-muted-foreground font-semibold">
+        <span className="text-foreground font-extrabold bg-muted/50 px-2 py-0.5 rounded-md border border-border/50">
           {new Date(match.matchDate).toLocaleDateString('id-ID', {
-            weekday: 'short',
+            weekday: 'long', // 🟢 MENAMPILKAN NAMA HARI LENGKAP (Contoh: Sabtu)
             day: 'numeric',
             month: 'short',
             hour: '2-digit',
@@ -128,7 +127,7 @@ export function MatchAdminCard({
         </div>
       </div>
 
-      {/* MODE EDITING VS DISPLAY */}
+      {/* MODE EDITING */}
       {isEditing ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-muted/20 rounded-xl text-xs">
           <div>
@@ -143,7 +142,7 @@ export function MatchAdminCard({
             />
           </div>
 
-          {/* WASIT DROPDOWN (BERSIHKAN DUMMY JIKA PILIH "") */}
+          {/* WASIT DROPDOWN */}
           <div>
             <label className="block text-[10px] text-muted-foreground font-bold mb-1">
               WASIT / REFEREE
@@ -153,12 +152,7 @@ export function MatchAdminCard({
               onChange={(e) => {
                 const selectedId = e.target.value;
                 if (!selectedId) {
-                  // 🟢 PAKSA KOSONGKAN NAMA & ID SUPAYA DUMMY TERHAPUS DENGAN PASTI
-                  setDraft({
-                    ...draft,
-                    refereeDiscordId: '',
-                    referee: '',
-                  });
+                  setDraft({ ...draft, refereeDiscordId: '', referee: '' });
                 } else {
                   const selectedStaff = refereeList.find((r) => r.discordId === selectedId);
                   setDraft({
@@ -179,7 +173,7 @@ export function MatchAdminCard({
             </select>
           </div>
 
-          {/* STREAMER DROPDOWN (BERSIHKAN DUMMY JIKA PILIH "") */}
+          {/* STREAMER DROPDOWN */}
           <div>
             <label className="block text-[10px] text-muted-foreground font-bold mb-1">
               STREAMER / CASTER
@@ -189,12 +183,7 @@ export function MatchAdminCard({
               onChange={(e) => {
                 const selectedId = e.target.value;
                 if (!selectedId) {
-                  // 🟢 PAKSA KOSONGKAN NAMA & ID SUPAYA DUMMY TERHAPUS DENGAN PASTI
-                  setDraft({
-                    ...draft,
-                    streamerDiscordId: '',
-                    streamer: '',
-                  });
+                  setDraft({ ...draft, streamerDiscordId: '', streamer: '' });
                 } else {
                   const selectedStaff = streamerList.find((s) => s.discordId === selectedId);
                   setDraft({
@@ -347,5 +336,5 @@ export function MatchAdminCard({
       )}
     </div>
   );
-}
-  
+                }
+                
