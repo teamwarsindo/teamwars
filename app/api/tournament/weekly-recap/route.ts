@@ -101,8 +101,9 @@ export async function POST(req: Request) {
     const cacheKey = `twi:schedule_msg_ids:${weekNumber}`;
     const existingMsgIds = (await kv.get<any>(cacheKey)) || {};
 
+    // 🟢 PERBAIKAN: Gunakan DISCORD_CONFIG.CH_SCHEDULE
     const result = await sendOrUpdateWeeklyScheduleAndRecap({
-      channelId: DISCORD_CONFIG.CHANNELS.SCHEDULE,
+      channelId: DISCORD_CONFIG.CH_SCHEDULE,
       weekName: targetWeek,
       weekDateRangeStr: `Jadwal Pertandingan ${targetWeek}`,
       dailyMatchCounts,
@@ -141,8 +142,9 @@ export async function DELETE(req: Request) {
     const existingMsgIds = (await kv.get<any>(cacheKey)) || {};
 
     if (existingMsgIds) {
+      // 🟢 PERBAIKAN: Gunakan DISCORD_CONFIG.CH_SCHEDULE
       await deleteWeeklyScheduleAndRecap({
-        channelId: DISCORD_CONFIG.CHANNELS.SCHEDULE,
+        channelId: DISCORD_CONFIG.CH_SCHEDULE,
         existingMsgIds,
         deleteRecapToo: true,
       });
@@ -158,4 +160,4 @@ export async function DELETE(req: Request) {
     console.error('Error DELETE Weekly Recap:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+        }
