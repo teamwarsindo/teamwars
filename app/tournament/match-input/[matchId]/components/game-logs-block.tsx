@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
+import { CustomSelect } from "./custom-select";
 import Swal from "sweetalert2";
 
 export function GameLogsBlock({
@@ -23,7 +24,6 @@ export function GameLogsBlock({
   masterSkills: string[];
   onAddMasterItem: (type: "DECK" | "SKILL", newItem: string) => Promise<void>;
 }) {
-  // State Form Input Log Baru
   const [playerA, setPlayerA] = useState("");
   const [deckA, setDeckA] = useState("");
   const [skillA, setSkillA] = useState("");
@@ -31,9 +31,6 @@ export function GameLogsBlock({
   const [deckB, setDeckB] = useState("");
   const [skillB, setSkillB] = useState("");
   const [winnerTeamId, setWinnerTeamId] = useState("");
-
-  const inputBase =
-    "w-full rounded-lg border border-border bg-background/60 p-2 text-xs font-semibold text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer";
 
   const handlePromptAddMaster = async (type: "DECK" | "SKILL") => {
     const { value: text } = await Swal.fire({
@@ -71,7 +68,6 @@ export function GameLogsBlock({
 
     setGameLogs([...gameLogs, newLog]);
 
-    // Reset Input
     setPlayerA("");
     setDeckA("");
     setSkillA("");
@@ -106,81 +102,70 @@ export function GameLogsBlock({
         </div>
       </div>
 
-      {/* INPUT FORM ROW */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-        {/* SIDE TIM A - PEMAIN DIAMBIL HANYA DARI LINEUP BERTANDING (activeListA) */}
+        {/* SIDE TIM A */}
         <div className="space-y-2.5 p-3 bg-muted/20 rounded-xl border border-border/30">
           <p className="font-extrabold text-primary uppercase text-[11px]">{match.teamAName}</p>
           <div>
             <label className="block text-[10px] font-bold text-muted-foreground mb-1">Pemain Tim A</label>
-            <select value={playerA} onChange={(e) => setPlayerA(e.target.value)} className={inputBase}>
-              <option value="">-- Pilih Pemain Lineup --</option>
-              {activeListA.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              value={playerA}
+              onChange={setPlayerA}
+              options={activeListA}
+              placeholder={activeListA.length === 0 ? "-- Pilih Lineup Section 2 Dulu --" : "-- Pilih Pemain Lineup --"}
+              disabled={activeListA.length === 0}
+            />
           </div>
           <div>
             <label className="block text-[10px] font-bold text-muted-foreground mb-1">Deck Archetype</label>
-            <select value={deckA} onChange={(e) => setDeckA(e.target.value)} className={inputBase}>
-              <option value="">-- Pilih Master Deck KV --</option>
-              {masterDecks.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              value={deckA}
+              onChange={setDeckA}
+              options={masterDecks}
+              placeholder="-- Pilih Master Deck KV --"
+            />
           </div>
           <div>
             <label className="block text-[10px] font-bold text-muted-foreground mb-1">Skill</label>
-            <select value={skillA} onChange={(e) => setSkillA(e.target.value)} className={inputBase}>
-              <option value="">-- Pilih Master Skill KV --</option>
-              {masterSkills.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              value={skillA}
+              onChange={setSkillA}
+              options={masterSkills}
+              placeholder="-- Pilih Master Skill KV --"
+            />
           </div>
         </div>
 
-        {/* SIDE TIM B - PEMAIN DIAMBIL HANYA DARI LINEUP BERTANDING (activeListB) */}
+        {/* SIDE TIM B */}
         <div className="space-y-2.5 p-3 bg-muted/20 rounded-xl border border-border/30">
           <p className="font-extrabold text-rose-500 uppercase text-[11px]">{match.teamBName}</p>
           <div>
             <label className="block text-[10px] font-bold text-muted-foreground mb-1">Pemain Tim B</label>
-            <select value={playerB} onChange={(e) => setPlayerB(e.target.value)} className={inputBase}>
-              <option value="">-- Pilih Pemain Lineup --</option>
-              {activeListB.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              value={playerB}
+              onChange={setPlayerB}
+              options={activeListB}
+              placeholder={activeListB.length === 0 ? "-- Pilih Lineup Section 2 Dulu --" : "-- Pilih Pemain Lineup --"}
+              disabled={activeListB.length === 0}
+            />
           </div>
           <div>
             <label className="block text-[10px] font-bold text-muted-foreground mb-1">Deck Archetype</label>
-            <select value={deckB} onChange={(e) => setDeckB(e.target.value)} className={inputBase}>
-              <option value="">-- Pilih Master Deck KV --</option>
-              {masterDecks.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              value={deckB}
+              onChange={setDeckB}
+              options={masterDecks}
+              placeholder="-- Pilih Master Deck KV --"
+            />
           </div>
           <div>
             <label className="block text-[10px] font-bold text-muted-foreground mb-1">Skill</label>
-            <select value={skillB} onChange={(e) => setSkillB(e.target.value)} className={inputBase}>
-              <option value="">-- Pilih Master Skill KV --</option>
-              {masterSkills.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              value={skillB}
+              onChange={setSkillB}
+              options={masterSkills}
+              placeholder="-- Pilih Master Skill KV --"
+            />
           </div>
         </div>
       </div>
@@ -281,5 +266,4 @@ export function GameLogsBlock({
       )}
     </section>
   );
-    }
-              
+}
