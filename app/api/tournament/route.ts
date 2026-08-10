@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
 import { calculateStandings } from '@/lib/tournament/calculator';
-import { createMatchDiscordChannel } from '@/lib/discord/channels';
-import { executeAssignStaff } from '@/lib/discord/services/staff-assignment';
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
 const KV_KEY_ROULETTE = 'twi:roulette_state';
@@ -45,6 +43,7 @@ function verifyRefereeTokenOnly(match: MatchScheduleItem, token?: string) {
   return { valid: true, reason: 'REFEREE_VALID' };
 }
 
+// 🟢 GET: UNTUK DASHBOARD ADMIN & PUBLIK
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -132,6 +131,7 @@ export async function GET(req: Request) {
   }
 }
 
+// 🟢 POST: UPDATE MATCH CONSOLE (MURNI SIMPAN DOCK/KV & HITUNG STANDING)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -149,6 +149,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, schedules });
     }
 
+    // ⚡ UPDATE MATCH DATA: MURNI SIMPAN KE REDIS KV (TANPA PROSES DISCORD SYNC)
     if (action === 'UPDATE_MATCH_CONSOLE') {
       const targetIndex = schedules.findIndex((m) => m.id === matchId);
       if (targetIndex === -1) {
@@ -157,13 +158,10 @@ export async function POST(req: Request) {
 
       const existingMatch = schedules[targetIndex];
 
-      // 1. Dapatkan tanggal terbaru
       const newMatchDate = matchData.matchDate || existingMatch.matchDate;
-      
-      // 2. Hitung ulang minggu secara otomatis berdasarkan tanggal baru
       const calculatedWeek = computeWeekNumber(newMatchDate);
 
-      // 3. PAKSA KOSONGKAN DUMMY JIKA TIDAK PILIH WASIT/STREAMER
+      // Paksa kosongkan string jika tidak memilih Wasit/Streamer
       const refereeDiscordId = matchData.refereeDiscordId || '';
       const refereeName = refereeDiscordId ? (matchData.referee || '') : '';
 
@@ -174,10 +172,10 @@ export async function POST(req: Request) {
         ...existingMatch,
         ...matchData,
         matchDate: newMatchDate,
-        weekNumber: calculatedWeek, // Update minggu otomatis
-        referee: refereeName,       // Paksa "" jika refereeDiscordId kosong
+        weekNumber: calculatedWeek,
+        referee: refereeName,
         refereeDiscordId: refereeDiscordId,
-        streamer: streamerName,     // Paksa "" jika streamerDiscordId kosong
+        streamer: streamerName,
         streamerDiscordId: streamerDiscordId,
         scoreA: matchData.scoreA ?? existingMatch.scoreA ?? 0,
         scoreB: matchData.scoreB ?? existingMatch.scoreB ?? 0,
@@ -186,78 +184,11 @@ export async function POST(req: Request) {
 
       delete (updatedMatch as any).isCompleted;
 
+      // Simpan perubahan ke KV
       schedules[targetIndex] = updatedMatch;
       await kv.set(KV_KEY_SCHEDULES, schedules);
 
-      // Assign Staff jika ada Wasit/Streamer baru
-      if (updatedMatch.refereeDiscordId && updatedMatch.refereeDiscordId !== existingMatch.refereeDiscordId) {
-        await executeAssignStaff({
-          matchId: updatedMatch.id,
-          assignType: 'REFEREE',
-          targetStaffId: updatedMatch.refereeDiscordId,
-        }).catch((e) => console.warn('Gagal assign referee:', e));
-      }
-
-      if (updatedMatch.streamerDiscordId && updatedMatch.streamerDiscordId !== existingMatch.streamerDiscordId) {
-        await executeAssignStaff({
-          matchId: updatedMatch.id,
-          assignType: 'STREAMER',
-          targetStaffId: updatedMatch.streamerDiscordId,
-        }).catch((e) => console.warn('Gagal assign streamer:', e));
-      }
-
-      // Sync ke Discord
-      const currentSchedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || schedules;
-      const latestMatch = currentSchedules.find((m) => m.id === matchId) || updatedMatch;
-
-      const slugA = getTeamSlug(latestMatch.teamAName);
-      const slugB = getTeamSlug(latestMatch.teamBName);
-
-      const [teamA, teamB] = await Promise.all([
-        kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
-        kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
-      ]);
-
-      const weekStr = `Week ${latestMatch.weekNumber || calculatedWeek}`;
-      const resolvedGroupName =
-        latestMatch.groupName === 'Group A' ? DIVISION_MAP.GROUP_A :
-        latestMatch.groupName === 'Group B' ? DIVISION_MAP.GROUP_B :
-        latestMatch.groupName;
-
-      const syncResult = await createMatchDiscordChannel({
-        matchId: latestMatch.id,
-        groupName: resolvedGroupName,
-        teamAName: latestMatch.teamAName,
-        teamBName: latestMatch.teamBName,
-        kodeTimA: teamA?.kodeTim,
-        kodeTimB: teamB?.kodeTim,
-        emojiAId: teamA?.emojiId,
-        emojiBId: teamB?.emojiId,
-        roleAId: teamA?.discordRoleId || teamA?.roleId,
-        roleBId: teamB?.discordRoleId || teamB?.roleId,
-        weekName: weekStr,
-        matchDateIso: latestMatch.matchDate,
-        refereeName: latestMatch.referee,
-        refereeDiscordId: latestMatch.refereeDiscordId,
-        streamerName: latestMatch.streamer,
-        streamerDiscordId: latestMatch.streamerDiscordId,
-        streamLink: latestMatch.streamLink,
-        savedChannelId: (latestMatch as any).discordChannelId,
-        openingMsgId: (latestMatch as any).openingMsgId,
-      }).catch(() => null);
-
-      if (syncResult?.channelId) {
-        const finalSchedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || currentSchedules;
-        const finalIdx = finalSchedules.findIndex((m) => m.id === matchId);
-        if (finalIdx !== -1) {
-          (finalSchedules[finalIdx] as any).discordChannelId = syncResult.channelId;
-          if (syncResult.openingMsgId) {
-            (finalSchedules[finalIdx] as any).openingMsgId = syncResult.openingMsgId;
-          }
-          await kv.set(KV_KEY_SCHEDULES, finalSchedules);
-        }
-      }
-
+      // Hitung ulang Klasemen
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
       const masterTeams = [
         ...(rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: DIVISION_MAP.GROUP_A })),
@@ -265,7 +196,12 @@ export async function POST(req: Request) {
       ];
       const standings = calculateStandings(schedules, masterTeams);
 
-      return NextResponse.json({ success: true, updatedMatch: latestMatch, standings });
+      return NextResponse.json({
+        success: true,
+        message: 'Data match berhasil disimpan ke KV!',
+        updatedMatch,
+        standings,
+      });
     }
 
     return NextResponse.json({ error: 'Action tidak dikenal' }, { status: 400 });
@@ -331,9 +267,9 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
           teamAId: pairA[0].name,
           teamAName: pairA[0].name,
           teamALogo: pairA[0].logo || '/logo.webp',
-          teamBId: pairA[1].name,
-          teamBName: pairA[1].name,
-          teamBLogo: pairA[1].logo || '/logo.webp',
+          teamBId: pairB[1].name,
+          teamBName: pairB[1].name,
+          teamBLogo: pairB[1].logo || '/logo.webp',
           scoreA: 0,
           scoreB: 0,
           isFinished: false,
@@ -370,5 +306,4 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   }
 
   return schedules;
-                                                  }
-          
+                             }
