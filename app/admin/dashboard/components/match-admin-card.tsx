@@ -77,25 +77,29 @@ export function MatchAdminCard({
 
   return (
     <div className="rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-xs space-y-3">
-      {/* 1. HEADER JUDUL 3 TEMPAT (KIRI: MATCH | TENGAH: DIVISI | KANAN: WEEK) */}
-      <div className="flex items-center justify-between border-b border-border/40 pb-2 text-[11px] font-black uppercase tracking-wider">
-        <span className="text-muted-foreground w-1/3 text-left">
+      {/* 🟢 1. HEADER JUDUL (DENGAN SUPORT 2 BARIS JIKA NAMA DIVISI KEPANJANGAN) */}
+      <div className="flex items-center justify-between border-b border-border/40 pb-2 text-[11px] font-black uppercase tracking-wider gap-2">
+        <span className="text-muted-foreground shrink-0 text-left">
           {match.id.toUpperCase()}
         </span>
-        <span className={`w-1/3 text-center truncate ${isGroupA ? 'text-sky-500' : 'text-amber-500'}`}>
+
+        {/* TENGAH: DIVISI (BISA 2 BARIS JIKA TERLALU PANJANG) */}
+        <span className={`text-center leading-tight break-words flex-1 px-1 ${isGroupA ? 'text-sky-500' : 'text-amber-500'}`}>
           {groupDisplayName}
         </span>
-        <span className="text-muted-foreground w-1/3 text-right">
+
+        <span className="text-muted-foreground shrink-0 text-right">
           WEEK {match.weekNumber || 1}
         </span>
       </div>
 
-      {/* 2. BARIS BAWAH JUDUL: KIRI TANGGAL (DENGAN NAMA HARI) & KANAN WASIT */}
-      <div className="flex items-center justify-between gap-2 text-[11px]">
+      {/* 🟢 2. BARIS BAWAH JUDUL: KIRI TANGGAL (KOTAK) & KANAN WASIT (KOTAK) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+        {/* KIRI: TANGGAL */}
         <div className="px-2 py-1 rounded-lg bg-muted/60 border border-border/60 text-foreground font-extrabold flex items-center gap-1">
           <span>
             {new Date(match.matchDate).toLocaleDateString('id-ID', {
-              weekday: 'long', // 🟢 MENAMPILKAN NAMA HARI LENGKAP
+              weekday: 'long',
               day: 'numeric',
               month: 'short',
               hour: '2-digit',
@@ -106,9 +110,10 @@ export function MatchAdminCard({
           </span>
         </div>
 
-        <div className="px-2 py-1 rounded-lg bg-muted/60 border border-border/60 text-foreground font-extrabold flex items-center gap-1">
-          <span className="text-muted-foreground font-bold">Wasit:</span>
-          <span>{match.referee || '-'}</span>
+        {/* KANAN: WASIT (DENGAN KOTAK) */}
+        <div className="px-2 py-1 rounded-lg bg-muted/60 border border-border/60 text-foreground font-extrabold flex items-center gap-1 max-w-full">
+          <span className="text-muted-foreground font-bold shrink-0">Wasit:</span>
+          <span className="break-words">{match.referee || '-'}</span>
         </div>
       </div>
 
@@ -147,7 +152,7 @@ export function MatchAdminCard({
       {/* MODE EDITING VS DISPLAY */}
       {isEditing ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-muted/20 rounded-xl text-xs">
-          {/* INPUT TANGGAL & WAKTU + PRATINJAU NAMA HARI */}
+          {/* INPUT TANGGAL & WAKTU */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-[10px] text-muted-foreground font-bold uppercase">
@@ -306,26 +311,31 @@ export function MatchAdminCard({
           </div>
         </div>
       ) : (
-        /* 3. BARIS STREAMER (KIRI) & LINK STREAMING CUSTOM TEKS (KANAN) */
+        /* 🟢 3. BARIS STREAMER (DENGAN KOTAK) & LINK STREAMING CUSTOM TEKS (KANAN) */
         <div className="space-y-2.5 pt-2 border-t border-border/40">
-          <div className="flex items-center justify-between text-[11px] px-0.5">
-            <div className="text-muted-foreground">
-              <b className="text-foreground">Streamer:</b> {match.streamer || '-'}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            {/* KIRI: STREAMER (DILENGKAPI KOTAK/BADGE RESMI) */}
+            <div className="px-2 py-1 rounded-lg bg-muted/60 border border-border/60 text-foreground font-extrabold flex items-center gap-1 max-w-full">
+              <span className="text-muted-foreground font-bold shrink-0">Streamer:</span>
+              <span className="break-words">{match.streamer || '-'}</span>
             </div>
 
+            {/* KANAN: LINK STREAMING DENGAN CUSTOM TEXT */}
             <div>
               {match.streamLink ? (
                 <a
                   href={match.streamLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/30 font-bold hover:bg-rose-500/20 transition flex items-center gap-1"
+                  className="px-2 py-1 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/30 font-bold hover:bg-rose-500/20 transition flex items-center gap-1 text-[11px]"
                 >
                   <span>Watch Live</span>
                   <ExternalLink className="h-3 w-3 shrink-0" />
                 </a>
               ) : (
-                <span className="text-muted-foreground italic">- No Stream -</span>
+                <span className="text-muted-foreground italic text-[11px] px-2 py-1 rounded-lg bg-muted/30 border border-border/30">
+                  - No Stream -
+                </span>
               )}
             </div>
           </div>
@@ -379,5 +389,4 @@ export function MatchAdminCard({
       )}
     </div>
   );
-          }
-                
+      }
