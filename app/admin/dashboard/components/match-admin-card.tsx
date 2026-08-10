@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { MatchScheduleItem } from '@/lib/types/tournament';
+import { Pencil, FileText, Copy, RotateCcw, Trash2 } from 'lucide-react';
 
 interface StaffItem {
   discordId: string;
@@ -56,9 +57,18 @@ export function MatchAdminCard({
     setIsEditing(false);
   };
 
+  // LOGIKA STATUS MATCH OTOMATIS: Finished jika isFinished === true atau akumulasi skor > 0
+  const scoreA = match.scoreA ?? 0;
+  const scoreB = match.scoreB ?? 0;
+  const isMatchDone = Boolean(match.isFinished || (scoreA + scoreB > 0));
+
+  const isTeamAWinner = isMatchDone && scoreA > scoreB;
+  const isTeamBWinner = isMatchDone && scoreB > scoreA;
+
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
-      <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-2 text-xs">
+    <div className="rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-xs space-y-3">
+      {/* HEADER KARTU MATCH */}
+      <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-2 text-[11px] gap-1">
         <span className="font-extrabold text-primary uppercase">
           {match.groupName} • {match.id} • Week {match.weekNumber || 1}
         </span>
@@ -75,33 +85,47 @@ export function MatchAdminCard({
         </span>
       </div>
 
-      <div className="flex items-center justify-between my-2 font-black text-sm">
-        <div className="flex items-center gap-2">
-          <img src={match.teamALogo} alt="" className="h-6 w-6 object-contain" />
-          <span>{match.teamAName}</span>
+      {/* MATCH SCORE & TEAMS DISPLAY (LAPANG DI MOBILE) */}
+      <div className="grid grid-cols-7 items-center gap-1 my-2 font-black text-xs sm:text-sm">
+        {/* TIM A */}
+        <div className="col-span-3 flex items-center justify-end gap-1.5 min-w-0 pr-1">
+          <span className={`truncate text-right leading-snug ${isTeamAWinner ? 'text-emerald-500 font-black' : 'text-foreground font-bold'}`}>
+            {match.teamAName}
+          </span>
+          <img src={match.teamALogo || '/logo.webp'} alt="" className="h-5 w-5 sm:h-6 sm:w-6 shrink-0 object-contain" />
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* BADGE SKOR & STATUS OTOMATIS */}
+        <div className="col-span-1 flex flex-col items-center justify-center">
           <span
-            className={`font-extrabold text-xs px-2.5 py-1 rounded-full ${
-              match.isFinished
-                ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+            className={`font-black text-[10.5px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full whitespace-nowrap border ${
+              isMatchDone
+                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                : 'bg-amber-500/10 text-amber-500 border-amber-500/30'
             }`}
           >
-            {match.scoreA} - {match.scoreB} {match.isFinished ? '(FINISHED)' : '(SCHEDULED)'}
+            {scoreA} - {scoreB}
+          </span>
+          <span className="text-[8.5px] font-extrabold text-muted-foreground mt-0.5 uppercase tracking-wider">
+            {isMatchDone ? 'FINISHED' : 'SCHEDULED'}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span>{match.teamBName}</span>
-          <img src={match.teamBLogo} alt="" className="h-6 w-6 object-contain" />
+
+        {/* TIM B */}
+        <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0 pl-1">
+          <img src={match.teamBLogo || '/logo.webp'} alt="" className="h-5 w-5 sm:h-6 sm:w-6 shrink-0 object-contain" />
+          <span className={`truncate text-left leading-snug ${isTeamBWinner ? 'text-emerald-500 font-black' : 'text-foreground font-bold'}`}>
+            {match.teamBName}
+          </span>
         </div>
       </div>
 
+      {/* MODE EDITING VS MODE DISPLAY */}
       {isEditing ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-muted/20 rounded-xl text-xs">
           <div>
             <label className="block text-[10px] text-muted-foreground font-bold mb-1">
-              TANGGAL & WAKTU (WIB)
+              TANGGAL &amp; WAKTU (WIB)
             </label>
             <input
               type="datetime-local"
@@ -228,62 +252,75 @@ export function MatchAdminCard({
               onClick={handleSave}
               className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-black hover:bg-emerald-500 cursor-pointer"
             >
-              💾 Simpan
+              Simpan
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center justify-between text-xs pt-1 border-t border-border/40 gap-2">
-          <div className="space-x-3 text-muted-foreground">
+        /* FOOTER KARTU: INFO WASIT & TOMBOL AKSI RESPONSIF */
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs pt-2 border-t border-border/40 gap-2.5">
+          {/* INFO STAF WASIT & STREAMER */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-[11px]">
             <span>
-              <b>Wasit:</b> {match.referee || '-'}
+              <b className="text-foreground">Wasit:</b> {match.referee || '-'}
             </span>
             <span>
-              <b>Streamer:</b> {match.streamer || '-'}
+              <b className="text-foreground">Streamer:</b> {match.streamer || '-'}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* GRID TOMBOL AKSI (GRID 2x2 DI MOBILE, 1 BARIS DI DESKTOP) */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 w-full sm:w-auto">
+            {/* QUICK EDIT */}
             <button
               onClick={() => setIsEditing(true)}
-              className="px-3 py-1 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-400 text-[11px] font-bold hover:bg-sky-500/20 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-xl border border-sky-500/40 bg-sky-500/10 text-sky-400 text-[11px] font-bold hover:bg-sky-500/20 transition flex items-center justify-center gap-1 cursor-pointer"
             >
-              ✏️ Quick Edit
+              <Pencil className="h-3 w-3 shrink-0" />
+              <span>Quick Edit</span>
             </button>
 
-            {/* 📝 TOMBOL MATCH REPORT */}
-            <div className="flex items-center rounded-lg border border-amber-500/40 bg-amber-500/10 overflow-hidden">
+            {/* MATCH REPORT + COPY LINK */}
+            <div className="flex items-center rounded-xl border border-amber-500/40 bg-amber-500/10 overflow-hidden min-w-0">
               <a
                 href={`/tournament/match-input/${match.id}?token=${match.refereeToken || ''}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-2.5 py-1 text-amber-400 text-[11px] font-bold hover:bg-amber-500/20 transition flex items-center gap-1"
+                className="px-2 py-1.5 text-amber-400 text-[11px] font-bold hover:bg-amber-500/20 transition flex items-center justify-center gap-1 flex-1 truncate"
               >
-                📝 Match Report
+                <FileText className="h-3 w-3 shrink-0" />
+                <span className="truncate">Report</span>
               </a>
               <button
                 onClick={() => onCopyLink(match)}
                 title="Salin Magic Link Wasit"
-                className="px-2 py-1 border-l border-amber-500/30 text-amber-400 text-[11px] hover:bg-amber-500/20 transition cursor-pointer"
+                className="px-2 py-1.5 border-l border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition cursor-pointer"
               >
-                📋
+                <Copy className="h-3 w-3 shrink-0" />
               </button>
             </div>
 
+            {/* SYNC DISCORD */}
             <button
               onClick={() => onSync(match)}
-              className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold shadow-sm cursor-pointer"
+              className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
             >
-              🔄 Sync
+              <RotateCcw className="h-3 w-3 shrink-0" />
+              <span>Sync</span>
             </button>
+
+            {/* DELETE CHANNEL */}
             <button
               onClick={() => onDeleteChannel(match)}
-              className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold shadow-sm cursor-pointer"
+              className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
             >
-              🗑️ Delete Channel
+              <Trash2 className="h-3 w-3 shrink-0" />
+              <span className="truncate">Delete Channel</span>
             </button>
           </div>
         </div>
       )}
     </div>
   );
-}
+  }
+          
