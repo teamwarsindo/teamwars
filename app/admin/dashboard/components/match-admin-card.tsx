@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MatchScheduleItem } from '@/lib/types/tournament';
+import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
 import { Pencil, FileText, Copy, RotateCcw, Trash2 } from 'lucide-react';
 
 interface StaffItem {
@@ -13,6 +13,8 @@ interface MatchAdminCardProps {
   match: MatchScheduleItem;
   refereeList: StaffItem[];
   streamerList: StaffItem[];
+  groupAName?: string;
+  groupBName?: string;
   onSave: (updated: MatchScheduleItem) => void;
   onSync: (match: MatchScheduleItem) => void;
   onDeleteChannel: (match: MatchScheduleItem) => void;
@@ -44,6 +46,8 @@ export function MatchAdminCard({
   match,
   refereeList,
   streamerList,
+  groupAName = DIVISION_MAP.GROUP_A,
+  groupBName = DIVISION_MAP.GROUP_B,
   onSave,
   onSync,
   onDeleteChannel,
@@ -57,6 +61,10 @@ export function MatchAdminCard({
     setIsEditing(false);
   };
 
+  // Deteksi Nama Divisi Baru & Skema Warna
+  const isGroupA = match.groupName === 'Group A' || match.groupName === groupAName;
+  const groupDisplayName = isGroupA ? groupAName : groupBName;
+
   // Logika Status Pertandingan Otomatis
   const scoreA = match.scoreA ?? 0;
   const scoreB = match.scoreB ?? 0;
@@ -67,10 +75,10 @@ export function MatchAdminCard({
 
   return (
     <div className="rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-xs space-y-3">
-      {/* HEADER KARTU MATCH */}
+      {/* HEADER KARTU MATCH DENGAN NAMA DIVISI BARU */}
       <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-2 text-[11px] gap-1">
-        <span className="font-extrabold text-primary uppercase">
-          {match.groupName} • {match.id} • Week {match.weekNumber || 1}
+        <span className={`font-black uppercase tracking-wider ${isGroupA ? 'text-sky-500' : 'text-amber-500'}`}>
+          {groupDisplayName} • {match.id} • Week {match.weekNumber || 1}
         </span>
         <span className="text-muted-foreground font-semibold">
           {new Date(match.matchDate).toLocaleDateString('id-ID', {
@@ -85,7 +93,7 @@ export function MatchAdminCard({
         </span>
       </div>
 
-      {/* TEAMS & SKOR DISPLAY FLEXIBEL (MENCEGAH NAMA TIM MENTOK) */}
+      {/* TEAMS & SKOR DISPLAY FLEXIBEL (MENCEGAH NAMA TIM MENTOK DI HP) */}
       <div className="flex items-center justify-between gap-1 my-2.5 px-0.5 font-black text-[11px] sm:text-xs">
         {/* TIM A (KIRI) */}
         <div className="flex items-center justify-end gap-1.5 flex-1 min-w-0 pr-0.5">
@@ -257,7 +265,7 @@ export function MatchAdminCard({
           </div>
         </div>
       ) : (
-        /* FOOTER KARTU */
+        /* FOOTER KARTU INFO WASIT & TOMBOL AKSI RESPONSIF */
         <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs pt-2 border-t border-border/40 gap-2.5">
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-[11px]">
             <span>
@@ -317,4 +325,4 @@ export function MatchAdminCard({
       )}
     </div>
   );
-}
+        }
