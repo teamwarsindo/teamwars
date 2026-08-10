@@ -18,15 +18,31 @@ function getCurrentCalendarWeek(): number {
 
 export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabProps) {
   const currentWeek = useMemo(() => getCurrentCalendarWeek(), []);
-  const [selectedWeek, setSelectedWeek] = useState<number>(currentWeek);
-  const [activeTab, setActiveTab] = useState<"GROUPS" | "GLOBAL">("GROUPS");
 
-  const maxWeekOptions = useMemo(() => {
-    const maxInSchedules = schedules.length
-      ? Math.max(...schedules.map((s) => s.weekNumber || 1))
-      : 1;
-    return Math.max(maxInSchedules, currentWeek, 5);
+  // 🟢 1. SINKRONISASI DAFTAR WEEK DENGAN JADWAL
+  const availableWeeks = useMemo(() => {
+    if (!schedules.length) return [1];
+    const weeksInSchedules = Array.from(
+      new Set(schedules.map((s) => s.weekNumber || 1))
+    ).sort((a, b) => a - b);
+
+    // Pastikan minimal week berjalan ikut masuk jika jadwal sudah ada
+    if (!weeksInSchedules.includes(currentWeek)) {
+      weeksInSchedules.push(currentWeek);
+      weeksInSchedules.sort((a, b) => a - b);
+    }
+    return weeksInSchedules;
   }, [schedules, currentWeek]);
+
+  // Default filter ke minggu berjalan (atau minggu terbesar yang tersedia)
+  const initialSelectedWeek = useMemo(() => {
+    return availableWeeks.includes(currentWeek)
+      ? currentWeek
+      : availableWeeks[availableWeeks.length - 1] || 1;
+  }, [availableWeeks, currentWeek]);
+
+  const [selectedWeek, setSelectedWeek] = useState<number>(initialSelectedWeek);
+  const [activeTab, setActiveTab] = useState<"GROUPS" | "GLOBAL">("GROUPS");
 
   const standings = useMemo(() => {
     return calculateStandings(schedules, masterTeams, selectedWeek);
@@ -44,7 +60,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return list;
   }, [standings]);
 
-  // Global Standings: Top 2 dari tiap grup di posisi 1-4, sisanya di posisi 5-16
   const globalStandings = useMemo(() => {
     const topGroupA = groupAStandings.slice(0, 2);
     const topGroupB = groupBStandings.slice(0, 2);
@@ -74,11 +89,12 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   }, [standings, groupAStandings, groupBStandings]);
 
   const renderTrendIcon = (trend?: "up" | "down" | "stay") => {
-    if (trend === "up") return <span className="text-emerald-500 font-bold text-[10px]">▲</span>;
-    if (trend === "down") return <span className="text-rose-500 font-bold text-[10px]">▼</span>;
-    return <span className="text-muted-foreground/50 font-bold text-[10px]">➖</span>;
+    if (trend === "up") return <span className="text-emerald-500 font-bold text-[9px]">▲</span>;
+    if (trend === "down") return <span className="text-rose-500 font-bold text-[9px]">▼</span>;
+    return <span className="text-muted-foreground/40 font-bold text-[9px]">➖</span>;
   };
 
+  // 🟢 2. ADJUSTMENT LEBAR KOLOM & PADDING TABEL UNTUK HP
   const renderTable = (items: ExtendedStandingItem[], title: string, isGlobal = false) => (
     <div className="space-y-2">
       <h3 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
@@ -89,12 +105,12 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         <table className="w-full text-left text-[11px] table-fixed">
           <thead className="bg-muted/60 border-b border-border text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider">
             <tr>
-              <th className="py-2 px-1 text-center w-[12%]">RANK</th>
-              <th className="py-2 px-1.5 w-[38%]">TEAMS</th>
-              <th className="py-2 px-1 text-center w-[16%]">MATCH W-L</th>
-              <th className="py-2 px-1 text-center w-[12%]">RD</th>
-              <th className="py-2 px-1 text-center w-[11%]">SET WINS</th>
-              <th className="py-2 px-1 text-center w-[11%] text-primary">POINTS</th>
+              <th className="py-2.5 pl-2 pr-1 text-center w-[12%]">RANK</th>
+              <th className="py-2.5 pl-1 pr-1 w-[35%]">TEAMS</th>
+              <th className="py-2.5 px-1 text-center w-[18%]">MATCH W-L</th>
+              <th className="py-2.5 px-1 text-center w-[11%]">RD</th>
+              <th className="py-2.5 px-1 text-center w-[11%]">SET WINS</th>
+              <th className="py-2.5 pl-1 pr-3 text-center w-[13%] text-primary">POINTS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40 font-semibold text-foreground">
@@ -112,40 +128,40 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
               return (
                 <tr key={item.teamId || item.teamName} className={rowStyle}>
                   {/* RANK */}
-                  <td className="py-2 px-1 text-center font-bold">
-                    <div className="flex items-center justify-center gap-1">
+                  <td className="py-2 pl-2 pr-1 text-center font-bold">
+                    <div className="flex items-center justify-center gap-0.5">
                       {renderTrendIcon(item.rankTrend)}
                       <span>{item.rank}</span>
                     </div>
                   </td>
 
                   {/* TEAMS */}
-                  <td className="py-2 px-1.5 truncate">
+                  <td className="py-2 pl-1 pr-1 truncate">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <img src={item.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                      <span className="font-bold text-foreground truncate text-[11px]">{item.teamName}</span>
+                      <span className="font-bold text-foreground truncate text-[10.5px]">{item.teamName}</span>
                     </div>
                   </td>
 
                   {/* MATCH W-L */}
-                  <td className="py-2 px-1 text-center font-bold">
+                  <td className="py-2 px-1 text-center font-bold text-[10.5px]">
                     {item.matchWins}-{item.matchLosses}
                   </td>
 
                   {/* RD */}
-                  <td className="py-2 px-1 text-center font-bold">
+                  <td className="py-2 px-1 text-center font-bold text-[10.5px]">
                     <span className={item.roundDifference > 0 ? "text-emerald-500" : item.roundDifference < 0 ? "text-rose-500" : "text-muted-foreground"}>
                       {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
                     </span>
                   </td>
 
-                  {/* SET WINS (Nilai W dari MATCH W-L) */}
-                  <td className="py-2 px-1 text-center font-extrabold text-foreground">
+                  {/* SET WINS */}
+                  <td className="py-2 px-1 text-center font-extrabold text-foreground text-[10.5px]">
                     {item.setWins}
                   </td>
 
-                  {/* POINTS (Total Poin Game, misal 10 & 6) */}
-                  <td className="py-2 px-1 text-center font-black text-primary text-xs">
+                  {/* POINTS (Memberikan Padding Kanan Lebih) */}
+                  <td className="py-2 pl-1 pr-3 text-center font-black text-primary text-xs">
                     {item.points}
                   </td>
                 </tr>
@@ -184,7 +200,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
           </button>
         </div>
 
-        {/* FILTER WEEK */}
+        {/* FILTER WEEK DENGAN PILIHAN SINKRON */}
         <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/30">
           <label className="text-xs font-semibold text-muted-foreground">Filter:</label>
           <select
@@ -192,7 +208,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
             onChange={(e) => setSelectedWeek(Number(e.target.value))}
             className="bg-background border border-input rounded-xl px-3 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
           >
-            {Array.from({ length: maxWeekOptions }, (_, i) => i + 1).map((w) => (
+            {availableWeeks.map((w) => (
               <option key={w} value={w}>
                 Week {w}
               </option>
@@ -209,7 +225,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       ) : (
         <div className="space-y-3">
-          {/* LEGEND KALIMAT DIPERJELAS DENGAN WARNA */}
           <div className="p-3 bg-card border border-border rounded-xl text-[11px] space-y-1">
             <p className="font-bold text-foreground flex items-center gap-1.5">
               💡 <span>Ketentuan Kualifikasi Playoff:</span>
