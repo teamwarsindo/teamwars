@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CustomSelect } from "./custom-select";
 
 interface StaffItem {
   discordId: string;
@@ -25,7 +26,6 @@ export function MetadataBlock({
   const [refereeList, setRefereeList] = useState<StaffItem[]>([]);
   const [streamerList, setStreamerList] = useState<StaffItem[]>([]);
 
-  // Load Staf Wasit & Streamer dari API KV Staf
   useEffect(() => {
     async function fetchStaff() {
       try {
@@ -42,11 +42,11 @@ export function MetadataBlock({
     fetchStaff();
   }, []);
 
-  const selectBase =
-    "w-full rounded-lg border border-border bg-background/60 p-2 text-xs font-semibold text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer";
-
   const inputBase =
     "w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+  const refereeOptions = refereeList.map((r) => r.discordName);
+  const streamerOptions = streamerList.map((s) => s.discordName);
 
   return (
     <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-4">
@@ -56,42 +56,30 @@ export function MetadataBlock({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* DROPDOWN WASIT */}
+        {/* DROPDOWN WASIT MODERN */}
         <div>
           <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">
             Wasit / Referee Bertugas
           </label>
-          <select
+          <CustomSelect
             value={referee}
-            onChange={(e) => setReferee(e.target.value)}
-            className={selectBase}
-          >
-            <option value="">-- Pilih Wasit Bertugas --</option>
-            {refereeList.map((r) => (
-              <option key={r.discordId} value={r.discordName}>
-                {r.discordName}
-              </option>
-            ))}
-          </select>
+            onChange={setReferee}
+            options={refereeOptions}
+            placeholder="-- Pilih Wasit Bertugas --"
+          />
         </div>
 
-        {/* DROPDOWN STREAMER */}
+        {/* DROPDOWN STREAMER MODERN */}
         <div>
           <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">
             Streamer / Caster
           </label>
-          <select
+          <CustomSelect
             value={streamer}
-            onChange={(e) => setStreamer(e.target.value)}
-            className={selectBase}
-          >
-            <option value="">-- Pilih Streamer --</option>
-            {streamerList.map((s) => (
-              <option key={s.discordId} value={s.discordName}>
-                {s.discordName}
-              </option>
-            ))}
-          </select>
+            onChange={setStreamer}
+            options={streamerOptions}
+            placeholder="-- Pilih Streamer --"
+          />
         </div>
 
         <div>
@@ -109,4 +97,4 @@ export function MetadataBlock({
       </div>
     </section>
   );
-            }
+}
