@@ -9,6 +9,17 @@ import {
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
 
+// 🟢 HELPER TANGGAL UNTUK MEMECAH WEEK JIKA KV BELUM MEMILIKI weekNumber
+function getMatchWeekNumber(dateString?: string): number {
+  if (!dateString) return 1;
+  const startDate = new Date('2026-08-03T00:00:00+07:00').getTime();
+  const matchDate = new Date(dateString).getTime();
+  if (isNaN(matchDate)) return 1;
+
+  const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
 export async function POST(req: Request) {
   try {
     const { targetWeek } = await req.json(); // Contoh: "Week 1" atau "Week 2"
@@ -23,8 +34,11 @@ export async function POST(req: Request) {
     const weekNumber = parseInt(targetWeek.replace('Week ', ''), 10);
     const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
-    // Filter match khusus minggu yang dipilih
-    const weekMatches = schedules.filter((m) => m.weekNumber === weekNumber);
+    // 🟢 PERBAIKAN: Hitung weekNumber secara otomatis jika di KV bernilai undefined
+    const weekMatches = schedules.filter((m) => {
+      const computedWeek = m.weekNumber || getMatchWeekNumber(m.matchDate);
+      return computedWeek === weekNumber;
+    });
 
     if (weekMatches.length === 0) {
       return NextResponse.json(
@@ -101,7 +115,6 @@ export async function POST(req: Request) {
     const cacheKey = `twi:schedule_msg_ids:${weekNumber}`;
     const existingMsgIds = (await kv.get<any>(cacheKey)) || {};
 
-    // 🟢 PERBAIKAN: Gunakan DISCORD_CONFIG.CH_SCHEDULE
     const result = await sendOrUpdateWeeklyScheduleAndRecap({
       channelId: DISCORD_CONFIG.CH_SCHEDULE,
       weekName: targetWeek,
@@ -142,7 +155,6 @@ export async function DELETE(req: Request) {
     const existingMsgIds = (await kv.get<any>(cacheKey)) || {};
 
     if (existingMsgIds) {
-      // 🟢 PERBAIKAN: Gunakan DISCORD_CONFIG.CH_SCHEDULE
       await deleteWeeklyScheduleAndRecap({
         channelId: DISCORD_CONFIG.CH_SCHEDULE,
         existingMsgIds,
@@ -160,4 +172,4 @@ export async function DELETE(req: Request) {
     console.error('Error DELETE Weekly Recap:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-        }
+}
