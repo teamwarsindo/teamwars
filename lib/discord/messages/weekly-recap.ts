@@ -1,5 +1,6 @@
 import { discordAPI } from '../utils';
 import { DISCORD_CONFIG } from '../config';
+import { DIVISION_MAP } from '@/lib/types/tournament';
 
 export interface ScheduleMatch {
   matchDateIso: string;
@@ -9,6 +10,28 @@ export interface ScheduleMatch {
   team1Name: string;
   team2Emoji?: string;
   team2Name: string;
+}
+
+function getTeamSlug(teamName: string) {
+  return teamName
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+}
+
+// 🟢 MAP EMOJI TIM DISCORD BERDASARKAN SLUG NAMA TIM
+const TEAM_DISCORD_EMOJIS: Record<string, string> = {
+  'anda-yakin': '🔥',
+  'sakurasawa-fighters': '🌸',
+  // Masukkan tag emoji Discord lengkap jika ada custom emoji, contoh: '<:slug:123456789>'
+};
+
+function resolveTeamEmoji(teamName: string, explicitEmoji?: string): string {
+  if (explicitEmoji) return explicitEmoji;
+  const slug = getTeamSlug(teamName);
+  return TEAM_DISCORD_EMOJIS[slug] || '🛡️';
 }
 
 function formatDiscordStyleTimeWIB(dateObj = new Date()): string {
@@ -90,8 +113,11 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     const sorted = [...schedules].sort((a, b) => new Date(a.matchDateIso).getTime() - new Date(b.matchDateIso).getTime());
 
     const matchLines = sorted.map((m) => {
-      const t1 = `${m.team1Emoji ? m.team1Emoji + ' ' : ''}**${m.team1Name}**`;
-      const t2 = `${m.team2Emoji ? m.team2Emoji + ' ' : ''}**${m.team2Name}**`;
+      const emoji1 = resolveTeamEmoji(m.team1Name, m.team1Emoji);
+      const emoji2 = resolveTeamEmoji(m.team2Name, m.team2Emoji);
+
+      const t1 = `${emoji1} **${m.team1Name}**`;
+      const t2 = `${emoji2} **${m.team2Name}**`;
       return `${t1} vs ${t2}\n${m.dateStr} at ${m.timeStr}`;
     });
 
@@ -120,11 +146,12 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n🗓️ **${params.weekDateRangeStr}**\n\n@everyone`;
   const duelistMention = DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : '@Duelist';
 
+  // 🟢 NAMA DIVISI MENGGUNAKAN DIVISION_MAP (Dinamis)
   const groupAPayload = {
     content: groupAContent,
     embeds: [
       {
-        title: `📊 Schedule Group A - ${params.weekName}`,
+        title: `📊 Schedule ${DIVISION_MAP.GROUP_A} - ${params.weekName}`,
         color: 0x3498db,
         description: buildGroupDescription(params.groupASchedules),
         footer: { text: 'Team Wars Indonesia Season 7' },
@@ -135,7 +162,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   const groupBPayload = {
     embeds: [
       {
-        title: `📊 Schedule Group B - ${params.weekName}`,
+        title: `📊 Schedule ${DIVISION_MAP.GROUP_B} - ${params.weekName}`,
         color: 0xe74c3c,
         description: buildGroupDescription(params.groupBSchedules),
         footer: { text: 'Team Wars Indonesia Season 7' },
@@ -160,7 +187,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   let groupBMsgId = params.existingMsgIds?.groupBMsgId || null;
   let recapMsgId = params.existingMsgIds?.recapMsgId || null;
 
-  // 1. GROUP A: PATCH jika ada, jika tidak ada POST
+  // 1. GROUP A: PATCH / POST
   if (groupAMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${groupAMsgId}`, 'PATCH', groupAPayload).catch(() => null);
     if (!patchRes) {
@@ -172,7 +199,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupAMsgId = postRes?.id || null;
   }
 
-  // 2. GROUP B: PATCH jika ada, jika tidak ada POST
+  // 2. GROUP B: PATCH / POST
   if (groupBMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${groupBMsgId}`, 'PATCH', groupBPayload).catch(() => null);
     if (!patchRes) {
@@ -184,7 +211,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // 🟢 3. RECAP (KHUSUS RECAP: SELALU DELETE & POST ULANG AGAR TAG DUELIST MENTION/PING!)
+  // 🟢 3. RECAP: HAPUS RECAP LAMA & KIRIM BARU PADA POSISI PALING BAWAH
   if (recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
   }
@@ -192,7 +219,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     await discordAPI(`/channels/${params.channelId}/messages/${params.oldRecapMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // Kirim ulang pesan Recap sebagai POST baru
   const postRecapRes = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', recapPayload).catch(() => null);
   recapMsgId = postRecapRes?.id || null;
 
@@ -201,4 +227,4 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId,
     recapMsgId,
   };
-}
+    }
