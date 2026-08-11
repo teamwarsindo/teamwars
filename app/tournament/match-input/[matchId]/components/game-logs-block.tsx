@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
 import { PlayerDeckInfo } from "./roster-lineup-block";
 import { CustomSelect } from "./custom-select";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, ShieldAlert } from "lucide-react";
 import Swal from "sweetalert2";
 
 interface GameLogsBlockProps {
@@ -13,9 +13,6 @@ interface GameLogsBlockProps {
   setGameLogs: (v: GameDetailLog[]) => void;
   lineupA: PlayerDeckInfo[];
   lineupB: PlayerDeckInfo[];
-  masterDecks: string[];
-  masterSkills: string[];
-  onAddMasterItem: (type: "DECK" | "SKILL", newItem: string) => Promise<void>;
 }
 
 export function GameLogsBlock({
@@ -24,100 +21,104 @@ export function GameLogsBlock({
   setGameLogs,
   lineupA,
   lineupB,
-  masterDecks,
-  masterSkills,
-  onAddMasterItem,
 }: GameLogsBlockProps) {
   const [playerA, setPlayerA] = useState("");
+  const [selectedDeckSlotA, setSelectedDeckSlotA] = useState<"deck1" | "deck2">("deck1");
   const [deckA, setDeckA] = useState("");
   const [skillA, setSkillA] = useState("");
 
   const [playerB, setPlayerB] = useState("");
+  const [selectedDeckSlotB, setSelectedDeckSlotB] = useState<"deck1" | "deck2">("deck1");
   const [deckB, setDeckB] = useState("");
   const [skillB, setSkillB] = useState("");
 
-  // Result Selection: "A" | "B" | "DRAW" (Technical Loss Kedua Pihak)
-  const [gameResult, setGameResult] = useState<"A" | "B" | "DRAW">("A");
-
-  // Counter Repeat per Tim (Max 2)
-  const repeatCountA = gameLogs.filter((g) => (g as any).isRepeatA).length;
-  const repeatCountB = gameLogs.filter((g) => (g as any).isRepeatB).length;
+  // Pemenang Game: "A" | "B" | "DRAW" | ""
+  const [gameResult, setGameResult] = useState<"A" | "B" | "DRAW" | "">("");
 
   const [isRepeatA, setIsRepeatA] = useState(false);
   const [isRepeatB, setIsRepeatB] = useState(false);
 
-  // 🟢 AUTO-FILL PEMAIN MENANG DARI GAME SEBELUMNYA
+  // Counter Hitung Repeat Digunakan
+  const repeatCountA = gameLogs.filter((g) => (g as any).isRepeatA).length;
+  const repeatCountB = gameLogs.filter((g) => (g as any).isRepeatB).length;
+
+  // 🟢 CEK apakah pemain A/B berhak mendapatkan REPEAT
+  const canRepeatA = (() => {
+    if (!playerA || repeatCountA >= 2) return false;
+    const playerGames = gameLogs.filter((g) => g.playerAName === playerA);
+    const hasWonAny = playerGames.some((g) => g.winnerTeamId === match.teamAId);
+    if (hasWonAny) return false; // Pernah menang -> Tidak bisa repeat
+    const hasLostOnce = playerGames.some((g) => g.winnerTeamId !== match.teamAId);
+    return hasLostOnce && playerGames.length === 1; // Baru 1x main & kalah
+  })();
+
+  const canRepeatB = (() => {
+    if (!playerB || repeatCountB >= 2) return false;
+    const playerGames = gameLogs.filter((g) => g.playerBName === playerB);
+    const hasWonAny = playerGames.some((g) => g.winnerTeamId === match.teamBId);
+    if (hasWonAny) return false;
+    const hasLostOnce = playerGames.some((g) => g.winnerTeamId !== match.teamBId);
+    return hasLostOnce && playerGames.length === 1;
+  })();
+
+  // 🟢 AUTO FILL PEMAIN MENANG DARI GAME SEBELUMNYA & RESET PEMAIN KALAH
   useEffect(() => {
     if (gameLogs.length === 0) return;
     const lastGame = gameLogs[gameLogs.length - 1];
 
     if (lastGame.winnerTeamId === match.teamAId) {
       setPlayerA(lastGame.playerAName);
-      setDeckA(lastGame.deckA);
-      setSkillA(lastGame.skillA);
+      setPlayerB(""); // Reset Tim B yang kalah
     } else if (lastGame.winnerTeamId === match.teamBId) {
       setPlayerB(lastGame.playerBName);
-      setDeckB(lastGame.deckB);
-      setSkillB(lastGame.skillB);
+      setPlayerA(""); // Reset Tim A yang kalah
+    } else {
+      // Double Loss -> Reset Kedua Pihak
+      setPlayerA("");
+      setPlayerB("");
     }
   }, [gameLogs, match.teamAId, match.teamBId]);
 
-  // 🟢 AUTO-FILL DECK & SKILL SAAT PEMAIN DIPILIH
+  // 🟢 SINKRONISASI DECK KETIKA PEMAIN & SLOT DECK DIPILIH (TIM A)
   useEffect(() => {
-    if (!playerA) return;
-    const p = lineupA.find((x) => x.playerName === playerA);
-    if (p) {
-      // Cek apakah Deck 1 sudah pernah dipakai & kalah
-      const usedDeck1 = gameLogs.some(
-        (g) => g.playerAName === playerA && g.deckA === p.deck1 && g.winnerTeamId !== match.teamAId
-      );
-      if (usedDeck1 && !isRepeatA) {
-        setDeckA(p.deck2 || p.deck1);
-        setSkillA(p.skill2 || p.skill1);
-      } else {
-        setDeckA(p.deck1);
-        setSkillA(p.skill1);
-      }
-    }
-  }, [playerA, lineupA, gameLogs, match.teamAId, isRepeatA]);
-
-  useEffect(() => {
-    if (!playerB) return;
-    const p = lineupB.find((x) => x.playerName === playerB);
-    if (p) {
-      const usedDeck1 = gameLogs.some(
-        (g) => g.playerBName === playerB && g.deckB === p.deck1 && g.winnerTeamId !== match.teamBId
-      );
-      if (usedDeck1 && !isRepeatB) {
-        setDeckB(p.deck2 || p.deck1);
-        setSkillB(p.skill2 || p.skill1);
-      } else {
-        setDeckB(p.deck1);
-        setSkillB(p.skill1);
-      }
-    }
-  }, [playerB, lineupB, gameLogs, match.teamBId, isRepeatB]);
-
-  const handlePromptAddMaster = async (type: "DECK" | "SKILL") => {
-    const { value: text } = await Swal.fire({
-      title: `Tambah Master ${type === "DECK" ? "Deck Archetype" : "Skill"} Baru`,
-      input: "text",
-      inputPlaceholder: `Masukkan nama ${type === "DECK" ? "Deck" : "Skill"}...`,
-      showCancelButton: true,
-      confirmButtonText: "Simpan Ke KV",
-      confirmButtonColor: "#9333ea",
-    });
-
-    if (text) {
-      await onAddMasterItem(type, text);
-    }
-  };
-
-  const handleAddSingleGame = () => {
-    if (!playerA || !playerB) {
-      Swal.fire("Peringatan", "Pemain A dan Pemain B wajib dipilih!", "warning");
+    if (!playerA) {
+      setDeckA("");
+      setSkillA("");
       return;
     }
+    const p = lineupA.find((x) => x.playerName === playerA);
+    if (p) {
+      if (selectedDeckSlotA === "deck1") {
+        setDeckA(p.deck1);
+        setSkillA(p.skill1);
+      } else {
+        setDeckA(p.deck2);
+        setSkillA(p.skill2);
+      }
+    }
+  }, [playerA, selectedDeckSlotA, lineupA]);
+
+  // 🟢 SINKRONISASI DECK KETIKA PEMAIN & SLOT DECK DIPILIH (TIM B)
+  useEffect(() => {
+    if (!playerB) {
+      setDeckB("");
+      setSkillB("");
+      return;
+    }
+    const p = lineupB.find((x) => x.playerName === playerB);
+    if (p) {
+      if (selectedDeckSlotB === "deck1") {
+        setDeckB(p.deck1);
+        setSkillB(p.skill1);
+      } else {
+        setDeckB(p.deck2);
+        setSkillB(p.skill2);
+      }
+    }
+  }, [playerB, selectedDeckSlotB, lineupB]);
+
+  const handleAddSingleGame = () => {
+    if (!playerA || !playerB || !gameResult) return;
 
     const winnerTeamId =
       gameResult === "A" ? match.teamAId : gameResult === "B" ? match.teamBId : "DRAW_TECH_LOSS";
@@ -139,189 +140,292 @@ export function GameLogsBlock({
 
     setGameLogs([...gameLogs, newLog]);
 
-    // Reset State
-    setPlayerA("");
-    setDeckA("");
-    setSkillA("");
-    setPlayerB("");
-    setDeckB("");
-    setSkillB("");
-    setGameResult("A");
+    // Reset Pilihan Kemenangan
+    setGameResult("");
     setIsRepeatA(false);
     setIsRepeatB(false);
   };
 
+  const isFormReady = Boolean(playerA && playerB && deckA && deckB);
+  const isWinnerSelected = Boolean(gameResult !== "");
+
   const optionsA = lineupA.map((p) => p.playerName);
   const optionsB = lineupB.map((p) => p.playerName);
 
+  const activePlayerObjA = lineupA.find((p) => p.playerName === playerA);
+  const activePlayerObjB = lineupB.find((p) => p.playerName === playerB);
+
   return (
     <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-5">
-      <div className="flex items-center justify-between border-b border-border/40 pb-3">
-        <div className="flex items-center gap-3">
-          <span className="h-6 w-1 rounded-full bg-primary" />
-          <h3 className="text-sm font-semibold text-foreground">3. Form Input Log Per-Game (Conquest Mode)</h3>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handlePromptAddMaster("DECK")}
-            className="px-2.5 py-1 rounded-lg border border-primary/40 bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition cursor-pointer"
-          >
-            + Master Deck
-          </button>
-          <button
-            type="button"
-            onClick={() => handlePromptAddMaster("SKILL")}
-            className="px-2.5 py-1 rounded-lg border border-primary/40 bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition cursor-pointer"
-          >
-            + Master Skill
-          </button>
-        </div>
+      <div className="flex items-center gap-3 border-b border-border/40 pb-3">
+        <span className="h-6 w-1 rounded-full bg-primary" />
+        <h3 className="text-sm font-semibold text-foreground">
+          3. Form Input Log Game #{gameLogs.length + 1}
+        </h3>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
         {/* SIDE TIM A */}
-        <div className="space-y-3 p-3 bg-muted/20 rounded-xl border border-border/30">
-          <div className="flex items-center justify-between">
-            <span className="font-extrabold text-primary uppercase text-[11px]">{match.teamAName}</span>
-            <span className="text-[10px] text-muted-foreground font-bold">Repeat Digunakan: {repeatCountA}/2</span>
+        <div className="space-y-3 p-3.5 bg-muted/20 rounded-xl border border-border/30">
+          <div className="flex items-center justify-between pb-1 border-b border-border/20">
+            <div className="flex items-center gap-1.5 font-black text-primary uppercase text-xs">
+              <img src={match.teamALogo || "/logo.webp"} alt="" className="h-4 w-4 object-contain" />
+              <span>{match.teamAName}</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground font-bold">Repeat: {repeatCountA}/2</span>
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-muted-foreground mb-1">Pemain Tim A</label>
+            <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase">
+              Pemain Bertanding
+            </label>
             <CustomSelect
               value={playerA}
               onChange={setPlayerA}
               options={optionsA}
-              placeholder={optionsA.length === 0 ? "-- Pilih Lineup Section 2 Dulu --" : "-- Pilih Pemain Lineup --"}
+              placeholder={optionsA.length === 0 ? "-- Register Lineup Dulu --" : "-- Pilih Pemain --"}
               disabled={optionsA.length === 0}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 bg-background p-2 rounded-lg border border-border/40">
-            <div>
-              <span className="block text-[9px] font-bold text-muted-foreground">DECK IN-GAME</span>
-              <span className="font-extrabold text-foreground text-xs">{deckA || "-"}</span>
+          {/* PILIHAN DECK 1 ATAU DECK 2 UNTUK EQUINOX DKK */}
+          {activePlayerObjA && (
+            <div className="space-y-1.5 p-2.5 bg-background rounded-xl border border-border/50">
+              <label className="block text-[10px] font-bold text-muted-foreground uppercase">
+                Pilih Deck Digunakan
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDeckSlotA("deck1")}
+                  className={`p-2 rounded-lg border text-left transition cursor-pointer ${
+                    selectedDeckSlotA === "deck1"
+                      ? "bg-primary/15 border-primary text-primary font-bold"
+                      : "bg-muted/30 border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span className="block text-[9px] opacity-70">DECK 1</span>
+                  <span className="block truncate font-extrabold text-[11px]">
+                    {activePlayerObjA.deck1 || "-"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedDeckSlotA("deck2")}
+                  className={`p-2 rounded-lg border text-left transition cursor-pointer ${
+                    selectedDeckSlotA === "deck2"
+                      ? "bg-primary/15 border-primary text-primary font-bold"
+                      : "bg-muted/30 border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span className="block text-[9px] opacity-70">DECK 2</span>
+                  <span className="block truncate font-extrabold text-[11px]">
+                    {activePlayerObjA.deck2 || "-"}
+                  </span>
+                </button>
+              </div>
+
+              <div className="pt-1 text-[10px] text-muted-foreground font-semibold flex items-center justify-between">
+                <span>Skill Active:</span>
+                <span className="font-bold text-foreground">{skillA || "-"}</span>
+              </div>
             </div>
-            <div>
-              <span className="block text-[9px] font-bold text-muted-foreground">SKILL</span>
-              <span className="font-extrabold text-foreground text-xs">{skillA || "-"}</span>
-            </div>
-          </div>
+          )}
 
           {/* TOMBOL REPEAT TIM A */}
           <button
             type="button"
-            disabled={repeatCountA >= 2}
+            disabled={!canRepeatA}
             onClick={() => setIsRepeatA(!isRepeatA)}
-            className={`w-full py-1.5 px-2 rounded-lg border text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+            className={`w-full py-2 px-2 rounded-xl border text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
               isRepeatA
                 ? "bg-amber-500/20 border-amber-500 text-amber-500 font-extrabold"
-                : "bg-background border-border text-muted-foreground hover:bg-muted"
+                : canRepeatA
+                ? "bg-background border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+                : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
             }`}
           >
-            <RotateCcw className="h-3 w-3" />
-            <span>{isRepeatA ? "⚡ REPEAT AKTIF (Deck 2 Hangus)" : "Gunakan REPEAT (Maks 2x)"}</span>
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>
+              {isRepeatA
+                ? "⚡ REPEAT AKTIF (Deck 2 Hangus)"
+                : canRepeatA
+                ? "Gunakan REPEAT"
+                : "REPEAT (Belum Memenuhi Syarat)"}
+            </span>
           </button>
         </div>
 
         {/* SIDE TIM B */}
-        <div className="space-y-3 p-3 bg-muted/20 rounded-xl border border-border/30">
-          <div className="flex items-center justify-between">
-            <span className="font-extrabold text-rose-500 uppercase text-[11px]">{match.teamBName}</span>
-            <span className="text-[10px] text-muted-foreground font-bold">Repeat Digunakan: {repeatCountB}/2</span>
+        <div className="space-y-3 p-3.5 bg-muted/20 rounded-xl border border-border/30">
+          <div className="flex items-center justify-between pb-1 border-b border-border/20">
+            <div className="flex items-center gap-1.5 font-black text-rose-500 uppercase text-xs">
+              <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-4 w-4 object-contain" />
+              <span>{match.teamBName}</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground font-bold">Repeat: {repeatCountB}/2</span>
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-muted-foreground mb-1">Pemain Tim B</label>
+            <label className="block text-[10px] font-bold text-muted-foreground mb-1 uppercase">
+              Pemain Bertanding
+            </label>
             <CustomSelect
               value={playerB}
               onChange={setPlayerB}
               options={optionsB}
-              placeholder={optionsB.length === 0 ? "-- Pilih Lineup Section 2 Dulu --" : "-- Pilih Pemain Lineup --"}
+              placeholder={optionsB.length === 0 ? "-- Register Lineup Dulu --" : "-- Pilih Pemain --"}
               disabled={optionsB.length === 0}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 bg-background p-2 rounded-lg border border-border/40">
-            <div>
-              <span className="block text-[9px] font-bold text-muted-foreground">DECK IN-GAME</span>
-              <span className="font-extrabold text-foreground text-xs">{deckB || "-"}</span>
+          {/* PILIHAN DECK 1 ATAU DECK 2 TIM B */}
+          {activePlayerObjB && (
+            <div className="space-y-1.5 p-2.5 bg-background rounded-xl border border-border/50">
+              <label className="block text-[10px] font-bold text-muted-foreground uppercase">
+                Pilih Deck Digunakan
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDeckSlotB("deck1")}
+                  className={`p-2 rounded-lg border text-left transition cursor-pointer ${
+                    selectedDeckSlotB === "deck1"
+                      ? "bg-rose-500/15 border-rose-500 text-rose-500 font-bold"
+                      : "bg-muted/30 border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span className="block text-[9px] opacity-70">DECK 1</span>
+                  <span className="block truncate font-extrabold text-[11px]">
+                    {activePlayerObjB.deck1 || "-"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedDeckSlotB("deck2")}
+                  className={`p-2 rounded-lg border text-left transition cursor-pointer ${
+                    selectedDeckSlotB === "deck2"
+                      ? "bg-rose-500/15 border-rose-500 text-rose-500 font-bold"
+                      : "bg-muted/30 border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span className="block text-[9px] opacity-70">DECK 2</span>
+                  <span className="block truncate font-extrabold text-[11px]">
+                    {activePlayerObjB.deck2 || "-"}
+                  </span>
+                </button>
+              </div>
+
+              <div className="pt-1 text-[10px] text-muted-foreground font-semibold flex items-center justify-between">
+                <span>Skill Active:</span>
+                <span className="font-bold text-foreground">{skillB || "-"}</span>
+              </div>
             </div>
-            <div>
-              <span className="block text-[9px] font-bold text-muted-foreground">SKILL</span>
-              <span className="font-extrabold text-foreground text-xs">{skillB || "-"}</span>
-            </div>
-          </div>
+          )}
 
           {/* TOMBOL REPEAT TIM B */}
           <button
             type="button"
-            disabled={repeatCountB >= 2}
+            disabled={!canRepeatB}
             onClick={() => setIsRepeatB(!isRepeatB)}
-            className={`w-full py-1.5 px-2 rounded-lg border text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+            className={`w-full py-2 px-2 rounded-xl border text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
               isRepeatB
                 ? "bg-amber-500/20 border-amber-500 text-amber-500 font-extrabold"
-                : "bg-background border-border text-muted-foreground hover:bg-muted"
+                : canRepeatB
+                ? "bg-background border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+                : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
             }`}
           >
-            <RotateCcw className="h-3 w-3" />
-            <span>{isRepeatB ? "⚡ REPEAT AKTIF (Deck 2 Hangus)" : "Gunakan REPEAT (Maks 2x)"}</span>
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>
+              {isRepeatB
+                ? "⚡ REPEAT AKTIF (Deck 2 Hangus)"
+                : canRepeatB
+                ? "Gunakan REPEAT"
+                : "REPEAT (Belum Memenuhi Syarat)"}
+            </span>
           </button>
         </div>
       </div>
 
-      {/* HASIL GAME & DOUBLE LOSS / TECH LOSS SELECTOR */}
-      <div className="space-y-1.5">
+      {/* HASIL KEMENANGAN GAME BERSIH DENGAN LOGO TIM */}
+      <div className="space-y-2">
         <label className="block text-[10px] font-bold text-muted-foreground uppercase">
-          HASIL / PEMENANG GAME #{gameLogs.length + 1}
+          PEMENANG GAME #{gameLogs.length + 1}
         </label>
         <div className="grid grid-cols-3 gap-2">
+          {/* WINNER TIM A */}
           <button
             type="button"
+            disabled={!isFormReady}
             onClick={() => setGameResult("A")}
-            className={`py-2 rounded-xl border text-xs font-black transition cursor-pointer ${
+            className={`p-3 rounded-2xl border transition flex flex-col items-center justify-center gap-1 cursor-pointer ${
               gameResult === "A"
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-muted/30 border-border text-foreground hover:bg-muted"
+                ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
+                : isFormReady
+                ? "bg-background border-border hover:bg-muted text-foreground"
+                : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
             }`}
           >
-            🏆 WIN: {match.teamAName}
+            <img src={match.teamALogo || "/logo.webp"} alt="" className="h-6 w-6 object-contain" />
+            <span className="font-black text-[11px] truncate w-full text-center">
+              {match.teamAName}
+            </span>
           </button>
+
+          {/* WINNER TIM B */}
           <button
             type="button"
+            disabled={!isFormReady}
             onClick={() => setGameResult("B")}
-            className={`py-2 rounded-xl border text-xs font-black transition cursor-pointer ${
+            className={`p-3 rounded-2xl border transition flex flex-col items-center justify-center gap-1 cursor-pointer ${
               gameResult === "B"
-                ? "bg-rose-600 text-white border-rose-500"
-                : "bg-muted/30 border-border text-foreground hover:bg-muted"
+                ? "bg-rose-600 text-white border-rose-500 shadow-md scale-[1.02]"
+                : isFormReady
+                ? "bg-background border-border hover:bg-muted text-foreground"
+                : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
             }`}
           >
-            🏆 WIN: {match.teamBName}
+            <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-6 w-6 object-contain" />
+            <span className="font-black text-[11px] truncate w-full text-center">
+              {match.teamBName}
+            </span>
           </button>
+
+          {/* DOUBLE LOSS */}
           <button
             type="button"
+            disabled={!isFormReady}
             onClick={() => setGameResult("DRAW")}
-            className={`py-2 rounded-xl border text-xs font-black transition cursor-pointer ${
+            className={`p-3 rounded-2xl border transition flex flex-col items-center justify-center gap-1 cursor-pointer ${
               gameResult === "DRAW"
-                ? "bg-amber-600 text-white border-amber-500"
-                : "bg-muted/30 border-border text-foreground hover:bg-muted"
+                ? "bg-amber-600 text-white border-amber-500 shadow-md scale-[1.02]"
+                : isFormReady
+                ? "bg-background border-border hover:bg-muted text-foreground"
+                : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
             }`}
           >
-            ⚠️ DOUBLE LOSS / DRAW
+            <ShieldAlert className="h-6 w-6 text-amber-400" />
+            <span className="font-black text-[10px] leading-tight text-center">
+              DOUBLE LOSS
+            </span>
           </button>
         </div>
       </div>
 
+      {/* TOMBOL SIMPAN LOG GAME (AKTIF KETIKA WINNER DIPILIH) */}
       <button
         type="button"
+        disabled={!isWinnerSelected}
         onClick={handleAddSingleGame}
-        className="w-full py-3 rounded-xl bg-primary font-bold text-xs text-primary-foreground shadow-md hover:bg-primary/90 transition cursor-pointer"
+        className="w-full py-3.5 rounded-2xl bg-primary font-extrabold text-xs text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
       >
         ➕ Simpan Log Game #{gameLogs.length + 1}
       </button>
 
-      {/* TABEL LOG GAME */}
+      {/* TABEL PREVIEW LOG GAME */}
       {gameLogs.length > 0 && (
         <div className="pt-3 border-t border-border/40 space-y-2">
           <h4 className="text-xs font-extrabold text-foreground uppercase tracking-wider">
@@ -331,10 +435,10 @@ export function GameLogsBlock({
             <table className="w-full text-left text-xs">
               <thead className="bg-muted/50 border-b border-border text-[10px] font-bold text-muted-foreground uppercase">
                 <tr>
-                  <th className="p-2.5 text-center">#</th>
+                  <th className="p-2.5 text-center">Game</th>
                   <th className="p-2.5">Pemain A</th>
                   <th className="p-2.5">Deck / Skill A</th>
-                  <th className="p-2.5 text-center">Hasil Game</th>
+                  <th className="p-2.5 text-center">Hasil</th>
                   <th className="p-2.5">Deck / Skill B</th>
                   <th className="p-2.5">Pemain B</th>
                   <th className="p-2.5 text-center">Hapus</th>
@@ -347,7 +451,7 @@ export function GameLogsBlock({
 
                   return (
                     <tr key={idx} className="hover:bg-muted/20 transition">
-                      <td className="p-2.5 text-center font-bold">{idx + 1}</td>
+                      <td className="p-2.5 text-center font-bold">#{idx + 1}</td>
                       <td className="p-2.5 font-bold text-foreground">{log.playerAName}</td>
                       <td className="p-2.5 text-muted-foreground">
                         {log.deckA} <span className="text-[9px]">({log.skillA})</span>
@@ -384,5 +488,4 @@ export function GameLogsBlock({
       )}
     </section>
   );
-        }
-    
+}

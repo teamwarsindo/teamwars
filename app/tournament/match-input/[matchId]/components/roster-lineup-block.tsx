@@ -1,7 +1,8 @@
 "use client";
 
 import { MatchScheduleItem } from "@/lib/types/tournament";
-import { Check } from "lucide-react";
+import { Check, Plus } from "lucide-react";
+import Swal from "sweetalert2";
 
 export interface PlayerDeckInfo {
   playerName: string;
@@ -21,6 +22,7 @@ interface RosterLineupBlockProps {
   availableIgnB: string[];
   masterDecks: string[];
   masterSkills: string[];
+  onAddMasterItem: (type: "DECK" | "SKILL", newItem: string) => Promise<void>;
 }
 
 export function RosterLineupBlock({
@@ -33,7 +35,23 @@ export function RosterLineupBlock({
   availableIgnB,
   masterDecks,
   masterSkills,
+  onAddMasterItem,
 }: RosterLineupBlockProps) {
+  const handlePromptAddMaster = async (type: "DECK" | "SKILL") => {
+    const { value: text } = await Swal.fire({
+      title: `Tambah Master ${type === "DECK" ? "Deck Archetype" : "Skill"} Baru`,
+      input: "text",
+      inputPlaceholder: `Masukkan nama ${type === "DECK" ? "Deck" : "Skill"}...`,
+      showCancelButton: true,
+      confirmButtonText: "Simpan Ke KV",
+      confirmButtonColor: "#9333ea",
+    });
+
+    if (text && text.trim() !== "") {
+      await onAddMasterItem(type, text.trim());
+    }
+  };
+
   const togglePlayer = (
     ign: string,
     currentLineup: PlayerDeckInfo[],
@@ -81,7 +99,7 @@ export function RosterLineupBlock({
       <div className="space-y-4 p-4 bg-muted/20 rounded-2xl border border-border/40">
         <div className="flex items-center justify-between pb-2 border-b border-border/30">
           <div className="flex items-center gap-2 font-black text-xs uppercase">
-            <img src={teamLogo} alt="" className="h-4 w-4 object-contain" />
+            <img src={teamLogo} alt="" className="h-5 w-5 object-contain" />
             <span className={isTeamA ? "text-primary" : "text-rose-500"}>{teamName}</span>
           </div>
           <span
@@ -91,12 +109,11 @@ export function RosterLineupBlock({
                 : "bg-amber-500/10 text-amber-500 border-amber-500/30"
             }`}
           >
-            {currentLineup.length}/5 Pemain Terpilih
+            {currentLineup.length}/5 Pemain
           </span>
         </div>
 
-        {/* LIST CENTANG PEMAIN */}
-        <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+        <div className="grid grid-cols-1 gap-2 max-h-44 overflow-y-auto pr-1">
           {availableOptions.map((ign) => {
             const isChecked = currentLineup.some((p) => p.playerName === ign);
             const isDisabled = !isChecked && isMax;
@@ -134,31 +151,30 @@ export function RosterLineupBlock({
           })}
         </div>
 
-        {/* INPUT DECK & SKILL UNTUK PEMAIN TERPILIH */}
         {currentLineup.length > 0 && (
           <div className="space-y-3 pt-3 border-t border-border/40">
             <p className="text-[11px] font-extrabold text-foreground uppercase tracking-wide">
-              ⚙️ Pengaturan 2 Deck &amp; Skill Pemain ({currentLineup.length})
+              ⚙️ Pengaturan 2 Deck &amp; Skill Pemain
             </p>
             {currentLineup.map((p, idx) => (
               <div
                 key={p.playerName}
-                className="p-3 bg-background/80 rounded-xl border border-border/60 space-y-2 text-xs"
+                className="p-3 bg-background/90 rounded-xl border border-border/60 space-y-2 text-xs"
               >
                 <span className="font-extrabold text-foreground flex items-center gap-1">
                   <span className="text-primary">{idx + 1}.</span> {p.playerName}
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  {/* DECK 1 & SKILL 1 */}
+                  {/* DECK 1 */}
                   <div className="space-y-1 p-2 bg-muted/30 rounded-lg border border-border/30">
-                    <span className="font-bold text-primary block text-[10px]">DECK 1</span>
+                    <span className="font-bold text-primary block text-[10px]">DECK 1 &amp; SKILL</span>
                     <select
                       value={p.deck1}
                       onChange={(e) =>
                         updateDeckSkill(p.playerName, "deck1", e.target.value, currentLineup, setLineup)
                       }
-                      className="w-full rounded bg-background border border-input p-1 font-semibold"
+                      className="w-full rounded bg-background border border-input p-1 font-semibold text-xs"
                     >
                       <option value="">-- Pilih Deck 1 --</option>
                       {masterDecks.map((d) => (
@@ -170,7 +186,7 @@ export function RosterLineupBlock({
                       onChange={(e) =>
                         updateDeckSkill(p.playerName, "skill1", e.target.value, currentLineup, setLineup)
                       }
-                      className="w-full rounded bg-background border border-input p-1 font-semibold"
+                      className="w-full rounded bg-background border border-input p-1 font-semibold text-xs"
                     >
                       <option value="">-- Pilih Skill 1 --</option>
                       {masterSkills.map((s) => (
@@ -179,15 +195,15 @@ export function RosterLineupBlock({
                     </select>
                   </div>
 
-                  {/* DECK 2 & SKILL 2 */}
+                  {/* DECK 2 */}
                   <div className="space-y-1 p-2 bg-muted/30 rounded-lg border border-border/30">
-                    <span className="font-bold text-rose-500 block text-[10px]">DECK 2</span>
+                    <span className="font-bold text-rose-500 block text-[10px]">DECK 2 &amp; SKILL</span>
                     <select
                       value={p.deck2}
                       onChange={(e) =>
                         updateDeckSkill(p.playerName, "deck2", e.target.value, currentLineup, setLineup)
                       }
-                      className="w-full rounded bg-background border border-input p-1 font-semibold"
+                      className="w-full rounded bg-background border border-input p-1 font-semibold text-xs"
                     >
                       <option value="">-- Pilih Deck 2 --</option>
                       {masterDecks.map((d) => (
@@ -199,7 +215,7 @@ export function RosterLineupBlock({
                       onChange={(e) =>
                         updateDeckSkill(p.playerName, "skill2", e.target.value, currentLineup, setLineup)
                       }
-                      className="w-full rounded bg-background border border-input p-1 font-semibold"
+                      className="w-full rounded bg-background border border-input p-1 font-semibold text-xs"
                     >
                       <option value="">-- Pilih Skill 2 --</option>
                       {masterSkills.map((s) => (
@@ -218,13 +234,35 @@ export function RosterLineupBlock({
 
   return (
     <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-4">
-      <div className="flex items-center gap-3 border-b border-border/40 pb-3">
-        <span className="h-6 w-1 rounded-full bg-primary" />
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">2. Lineup Bertanding (5 Pemain &amp; 10 Deck)</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Centang 5 pemain aktif lalu tentukan Deck 1 &amp; Deck 2 beserta Skill masing-masing pemain.
-          </p>
+      <div className="flex flex-wrap items-center justify-between border-b border-border/40 pb-3 gap-2">
+        <div className="flex items-center gap-3">
+          <span className="h-6 w-1 rounded-full bg-primary" />
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">2. Lineup Bertanding &amp; Register Deck</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Centang 5 pemain aktif dan Daftarkan Deck 1 &amp; Deck 2 beserta Skill.
+            </p>
+          </div>
+        </div>
+
+        {/* 🟢 TOMBOL TAMBAH MASTER DECK & SKILL DIPINDAHKAN KE SINI */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handlePromptAddMaster("DECK")}
+            className="px-2.5 py-1.5 rounded-xl border border-primary/40 bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition flex items-center gap-1 cursor-pointer"
+          >
+            <Plus className="h-3 w-3" />
+            <span>Deck</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handlePromptAddMaster("SKILL")}
+            className="px-2.5 py-1.5 rounded-xl border border-primary/40 bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition flex items-center gap-1 cursor-pointer"
+          >
+            <Plus className="h-3 w-3" />
+            <span>Skill</span>
+          </button>
         </div>
       </div>
 
@@ -248,5 +286,4 @@ export function RosterLineupBlock({
       </div>
     </section>
   );
-        }
-                
+}
