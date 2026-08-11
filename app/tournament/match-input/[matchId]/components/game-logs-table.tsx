@@ -20,16 +20,16 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
         📋 Tabel Log Game ({gameLogs.length} Game)
       </h4>
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-left border-collapse min-w-[480px]">
+        <table className="w-full text-left border-collapse min-w-[540px]">
           <thead className="bg-muted/60 border-b border-border text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase">
             <tr>
               <th className="p-2 text-center w-6">#</th>
-              <th className="p-2 w-28">Players</th>
-              <th className="p-2">Archetype (Skill)</th>
-              <th className="p-2 text-center w-16 whitespace-nowrap">Score</th>
-              <th className="p-2">Archetype (Skill)</th>
-              <th className="p-2 w-28">Players</th>
-              <th className="p-2 text-center w-7">Hapus</th>
+              <th className="p-2 w-[18%]">Players</th>
+              <th className="p-2 w-[32%]">Archetype (Skill)</th>
+              <th className="p-2 text-center w-14 whitespace-nowrap">Score</th>
+              <th className="p-2 w-[32%]">Archetype (Skill)</th>
+              <th className="p-2 w-[18%]">Players</th>
+              <th className="p-2 text-center w-6">Hapus</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/30 font-medium text-[10px] sm:text-[11px]">
@@ -54,34 +54,34 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                   <td className="p-2 text-center font-black">{idx + 1}</td>
 
                   {/* PEMAIN A */}
-                  <td className="p-2 font-bold text-foreground leading-tight">
+                  <td className="p-2 font-bold text-foreground leading-tight break-words">
                     <div className="flex items-center gap-1 flex-wrap">
                       <span>{log.playerAName}</span>
                       {isRepeatA && (
                         <span className="text-[8px] font-black bg-amber-500 text-black px-1 rounded uppercase shrink-0">
-                          ⚡ REPEAT
+                          R
                         </span>
                       )}
                     </div>
                   </td>
 
-                  {/* ARCHETYPE (SKILL) A */}
-                  <td className="p-2 leading-tight">
+                  {/* ARCHETYPE (SKILL) A - LEBAR KOLOM DIPERBESAR */}
+                  <td className="p-2 leading-tight break-words">
                     <div className="font-extrabold text-foreground">{log.deckA}</div>
                     <div className="text-[9px] text-muted-foreground font-semibold opacity-85">
                       ({log.skillA})
                     </div>
                   </td>
 
-                  {/* SCORE AKUMULASI (PAS 1 BARIS) */}
+                  {/* SCORE AKUMULASI PAS 1 BARIS */}
                   <td className="p-2 text-center font-black whitespace-nowrap">
-                    <span className="px-2 py-0.5 rounded bg-background border border-border text-foreground font-black text-[10px] sm:text-[11px] shadow-xs inline-block tracking-wider">
+                    <span className="px-1.5 py-0.5 rounded bg-background border border-border text-foreground font-black text-[10px] shadow-xs inline-block tracking-wider">
                       {runningScoreA} - {runningScoreB}
                     </span>
                   </td>
 
-                  {/* ARCHETYPE (SKILL) B */}
-                  <td className="p-2 leading-tight">
+                  {/* ARCHETYPE (SKILL) B - LEBAR KOLOM DIPERBESAR */}
+                  <td className="p-2 leading-tight break-words">
                     <div className="font-extrabold text-foreground">{log.deckB}</div>
                     <div className="text-[9px] text-muted-foreground font-semibold opacity-85">
                       ({log.skillB})
@@ -89,12 +89,12 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                   </td>
 
                   {/* PEMAIN B */}
-                  <td className="p-2 font-bold text-foreground leading-tight">
+                  <td className="p-2 font-bold text-foreground leading-tight break-words">
                     <div className="flex items-center gap-1 flex-wrap">
                       <span>{log.playerBName}</span>
                       {isRepeatB && (
                         <span className="text-[8px] font-black bg-amber-500 text-black px-1 rounded uppercase shrink-0">
-                          ⚡ REPEAT
+                          R
                         </span>
                       )}
                     </div>
@@ -118,4 +118,4 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
       </div>
     </div>
   );
-                                                                 }
+}
