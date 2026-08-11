@@ -43,7 +43,6 @@ export function GameLogsBlock({
   const repeatCountA = gameLogs.filter((g) => (g as any).isRepeatA).length;
   const repeatCountB = gameLogs.filter((g) => (g as any).isRepeatB).length;
 
-  // 🟢 AMBIL STATUS PEMAIN & DECK DENGAN PRESISI
   const getPlayerStats = (playerName: string, isTeamA: boolean) => {
     const pLogs = gameLogs.filter((g) => (isTeamA ? g.playerAName : g.playerBName) === playerName);
     const wins = pLogs.filter((g) => g.winnerTeamId === (isTeamA ? match.teamAId : match.teamBId)).length;
@@ -54,10 +53,9 @@ export function GameLogsBlock({
     const hasActivatedRepeat = pLogs.some((g) => (isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB));
 
     const lastGameOfPlayer = pLogs[pLogs.length - 1];
-    const lastDeckUsed = lastGameOfPlayer ? (isTeamA ? lastGameOfPlayer.deckA : lastGameOfPlayer.deckB) : null;
     const isLastGameRepeat = lastGameOfPlayer ? (isTeamA ? (lastGameOfPlayer as any).isRepeatA : (lastGameOfPlayer as any).isRepeatB) : false;
 
-    // Deck 1 & 2 Kalah Status
+    // Deteksi deck1 / deck2 kalah
     const deck1Lost = pLogs.some(
       (g) =>
         (isTeamA ? g.deckA : g.deckB) === pObj?.deck1 &&
@@ -80,7 +78,6 @@ export function GameLogsBlock({
       deck2Lost,
       hasActivatedRepeat,
       isDeck1Repeated: hasActivatedRepeat,
-      lastDeckUsed,
       isLastGameRepeat,
       isEliminated,
       totalGames: pLogs.length,
@@ -102,7 +99,7 @@ export function GameLogsBlock({
     return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
   })();
 
-  // 🟢 KUNCI AUTOMATIS PEMAIN & DECK YANG MENANG
+  // 🟢 AUTO LOCK PEMAIN & DECK MENANG
   useEffect(() => {
     if (gameLogs.length === 0) {
       setIsLockedA(false);
@@ -140,7 +137,7 @@ export function GameLogsBlock({
     }
   }, [gameLogs, match.teamAId, match.teamBId, lineupA, lineupB]);
 
-  // 🟢 AUTO FORCE BINDING UNTUK PEMAIN TIM A
+  // 🟢 OTOMATISASI PINDAH DECK UNTUK TIM A (SINKRONISASI LOGIKA REPEAT & DECK KALAH)
   useEffect(() => {
     if (!playerA) {
       setDeckA("");
@@ -152,8 +149,11 @@ export function GameLogsBlock({
 
     const stats = getPlayerStats(playerA, true);
 
-    // Jika kalah deck 1 tanpa Repeat dan tidak locked, paksa ke deck 2
-    if (stats.deck1Lost && !isLockedA && !isRepeatA) {
+    // jika REPEAT aktif -> Paksa & kunci ke Deck 1!
+    if (isRepeatA) {
+      setSelectedDeckSlotA("deck1");
+    } else if (!isLockedA && stats.deck1Lost) {
+      // Jika deck 1 kalah tanpa repeat -> Otomatis alihkan ke deck 2!
       setSelectedDeckSlotA("deck2");
     }
 
@@ -166,7 +166,7 @@ export function GameLogsBlock({
     }
   }, [playerA, selectedDeckSlotA, lineupA, gameLogs, isLockedA, isRepeatA]);
 
-  // 🟢 AUTO FORCE BINDING UNTUK PEMAIN TIM B
+  // 🟢 OTOMATISASI PINDAH DECK UNTUK TIM B (SINKRONISASI LOGIKA REPEAT & DECK KALAH)
   useEffect(() => {
     if (!playerB) {
       setDeckB("");
@@ -178,7 +178,9 @@ export function GameLogsBlock({
 
     const stats = getPlayerStats(playerB, false);
 
-    if (stats.deck1Lost && !isLockedB && !isRepeatB) {
+    if (isRepeatB) {
+      setSelectedDeckSlotB("deck1");
+    } else if (!isLockedB && stats.deck1Lost) {
       setSelectedDeckSlotB("deck2");
     }
 
@@ -286,5 +288,5 @@ export function GameLogsBlock({
       <GameLogsTable match={match} gameLogs={gameLogs} setGameLogs={setGameLogs} />
     </section>
   );
-                                             }
-      
+      }
+  
