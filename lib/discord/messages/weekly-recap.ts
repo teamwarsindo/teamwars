@@ -120,8 +120,13 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
 
   // 🟢 CONTENT TEXT: H1 Title dan @everyone
   const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n@everyone`;
+  
+  // 🟢 CONTENT TEXT: H1 Title dan Duelist Referee Streamer
   const duelistMention = DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : '@Duelist';
-
+  const refereeMention = DISCORD_CONFIG.ROLE_REFEREE ? `<@&${DISCORD_CONFIG.ROLE_REFEREE}>` : '@Referee';
+  const streamerMention = DISCORD_CONFIG.ROLE_STREAMER ? `<@&${DISCORD_CONFIG.ROLE_STREAMER}>` : '@Streamer';
+  const recapContent = `${duelistMention} ${refereeMention} ${streamerMention}`;
+  
   // 🟢 JUDUL EMBED: Hanya nama divisi tanpa "Week X"
   const groupAPayload = {
     content: groupAContent,
@@ -147,7 +152,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   };
 
   const recapPayload = {
-    content: duelistMention,
+    content: recapContent,
     embeds: [
       {
         title: `📊 Schedule Recap - ${params.weekName}`,
