@@ -24,16 +24,16 @@ export function WinnerSelector({
   return (
     <div className="space-y-3">
       <div className="space-y-2">
-        <label className="block text-[10px] font-bold text-muted-foreground uppercase">
+        <label className="block text-[10px] font-bold text-muted-foreground uppercase text-center">
           PEMENANG GAME #{gameNumber}
         </label>
         <div className="grid grid-cols-2 gap-3">
-          {/* WINNER TIM A [ W - L ] */}
+          {/* WINNER TIM A (TANPA TEKS NAMA TIM YANG KEPANJANGAN) */}
           <button
             type="button"
             disabled={!isFormReady}
             onClick={() => setGameResult("A")}
-            className={`p-3 rounded-2xl border transition flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-3 px-2 rounded-2xl border transition flex items-center justify-center gap-2 cursor-pointer ${
               gameResult === "A"
                 ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.01]"
                 : isFormReady
@@ -41,19 +41,16 @@ export function WinnerSelector({
                 : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
             }`}
           >
-            <img src={match.teamALogo || "/logo.webp"} alt="" className="h-6 w-6 object-contain shrink-0" />
-            <div className="text-left leading-tight min-w-0">
-              <span className="block font-black text-xs truncate">{match.teamAName}</span>
-              <span className="text-[10px] opacity-80 font-bold">[ WINNER: W - L ]</span>
-            </div>
+            <img src={match.teamALogo || "/logo.webp"} alt="" className="h-7 w-7 object-contain shrink-0" />
+            <span className="font-black text-xs tracking-wider uppercase">[ WIN ]</span>
           </button>
 
-          {/* WINNER TIM B [ L - W ] */}
+          {/* WINNER TIM B (TANPA TEKS NAMA TIM YANG KEPANJANGAN) */}
           <button
             type="button"
             disabled={!isFormReady}
             onClick={() => setGameResult("B")}
-            className={`p-3 rounded-2xl border transition flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-3 px-2 rounded-2xl border transition flex items-center justify-center gap-2 cursor-pointer ${
               gameResult === "B"
                 ? "bg-rose-600 text-white border-rose-500 shadow-md scale-[1.01]"
                 : isFormReady
@@ -61,11 +58,8 @@ export function WinnerSelector({
                 : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
             }`}
           >
-            <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-6 w-6 object-contain shrink-0" />
-            <div className="text-left leading-tight min-w-0">
-              <span className="block font-black text-xs truncate">{match.teamBName}</span>
-              <span className="text-[10px] opacity-80 font-bold">[ WINNER: L - W ]</span>
-            </div>
+            <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-7 w-7 object-contain shrink-0" />
+            <span className="font-black text-xs tracking-wider uppercase">[ WIN ]</span>
           </button>
         </div>
       </div>
