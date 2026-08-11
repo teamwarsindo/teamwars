@@ -12,6 +12,7 @@ interface TeamGameInputProps {
   setPlayer: (val: string) => void;
   availableOptions: string[];
   isLocked: boolean;
+  setIsLocked?: (val: boolean) => void;
   activePlayerObj?: PlayerDeckInfo;
   selectedDeckSlot: "deck1" | "deck2";
   setSelectedDeckSlot: (val: "deck1" | "deck2") => void;
@@ -20,7 +21,12 @@ interface TeamGameInputProps {
   isRepeat: boolean;
   setIsRepeat: (val: boolean) => void;
   canRepeat: boolean;
-  deckLostStats?: { deck1Lost: boolean; deck2Lost: boolean; isDeck1Repeated: boolean };
+  deckLostStats?: {
+    deck1Lost: boolean;
+    deck2Lost: boolean;
+    hasActivatedRepeat?: boolean;
+    isDeck1Repeated?: boolean;
+  };
 }
 
 export function TeamGameInput({
@@ -79,7 +85,7 @@ export function TeamGameInput({
         </div>
       </div>
 
-      {/* DISPLAY STATUS DECK DENGAN PENANDA KUNING AMBER REPEAT */}
+      {/* DISPLAY STATUS DECK */}
       {activePlayerObj && (
         <div
           className={`space-y-1.5 p-2.5 rounded-xl border transition-all ${
@@ -178,4 +184,4 @@ export function TeamGameInput({
       </button>
     </div>
   );
-            }
+}
