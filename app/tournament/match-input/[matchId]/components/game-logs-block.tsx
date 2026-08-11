@@ -40,43 +40,71 @@ export function GameLogsBlock({
   const [isLockedA, setIsLockedA] = useState(false);
   const [isLockedB, setIsLockedB] = useState(false);
 
+  // Hitung jumlah Repeat yang sudah digunakan per tim (Maksimal 2x per match)
   const repeatCountA = gameLogs.filter((g) => (g as any).isRepeatA).length;
   const repeatCountB = gameLogs.filter((g) => (g as any).isRepeatB).length;
 
+  // 🟢 LOGIKA PERSISTENSI REPEAT & ELIMINASI PEMAIN
   const getPlayerStats = (playerName: string, isTeamA: boolean) => {
     const pLogs = gameLogs.filter((g) => (isTeamA ? g.playerAName : g.playerBName) === playerName);
     const wins = pLogs.filter((g) => g.winnerTeamId === (isTeamA ? match.teamAId : match.teamBId)).length;
     const losses = pLogs.filter((g) => g.winnerTeamId !== (isTeamA ? match.teamAId : match.teamBId)).length;
 
     const pObj = (isTeamA ? lineupA : lineupB).find((x) => x.playerName === playerName);
+
+    // Cek apakah pemain ini PERNAH mengaktifkan Repeat di game sebelumnya
+    const hasActivatedRepeat = pLogs.some((g) => (isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB));
+
+    // Cek apakah Deck 1 kalah tanpa Repeat
     const deck1Lost = pLogs.some(
-      (g) => (isTeamA ? g.deckA : g.deckB) === pObj?.deck1 && g.winnerTeamId !== (isTeamA ? match.teamAId : match.teamBId)
+      (g) =>
+        (isTeamA ? g.deckA : g.deckB) === pObj?.deck1 &&
+        g.winnerTeamId !== (isTeamA ? match.teamAId : match.teamBId) &&
+        !(isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB)
     );
+
     const deck2Lost = pLogs.some(
       (g) => (isTeamA ? g.deckA : g.deckB) === pObj?.deck2 && g.winnerTeamId !== (isTeamA ? match.teamAId : match.teamBId)
     );
 
+    // 🟢 Pemain Gugur Total jika KALAH 2 kali (baik pakai Repeat maupun pakai 2 Deck berbeda)
     const isEliminated = losses >= 2 || (deck1Lost && deck2Lost);
-    return { wins, losses, deck1Lost, deck2Lost, isEliminated, totalGames: pLogs.length };
+
+    return {
+      wins,
+      losses,
+      deck1Lost,
+      deck2Lost,
+      hasActivatedRepeat,
+      isEliminated,
+      totalGames: pLogs.length,
+    };
   };
 
+  // Filter pemain yang masih hidup (belum gugur 2 deck)
   const availableOptionsA = lineupA.filter((p) => !getPlayerStats(p.playerName, true).isEliminated).map((p) => p.playerName);
   const availableOptionsB = lineupB.filter((p) => !getPlayerStats(p.playerName, false).isEliminated).map((p) => p.playerName);
 
+  // Hak Repeat hanya diberikan saat pemain baru 1x main & KALAH di Deck 1
   const canRepeatA = (() => {
     if (!playerA || repeatCountA >= 2) return false;
     const stats = getPlayerStats(playerA, true);
-    return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1;
+    return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
   })();
 
   const canRepeatB = (() => {
     if (!playerB || repeatCountB >= 2) return false;
     const stats = getPlayerStats(playerB, false);
-    return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1;
+    return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
   })();
 
+  // 🟢 KUNCI AUTOMATIS PEMAIN MENANG & KOSONGKAN PEMAIN KALAH
   useEffect(() => {
-    if (gameLogs.length === 0) return;
+    if (gameLogs.length === 0) {
+      setIsLockedA(false);
+      setIsLockedB(false);
+      return;
+    }
     const lastGame = gameLogs[gameLogs.length - 1];
 
     if (lastGame.winnerTeamId === match.teamAId) {
@@ -92,6 +120,7 @@ export function GameLogsBlock({
     }
   }, [gameLogs, match.teamAId, match.teamBId]);
 
+  // 🟢 OTOMATISASI SELEKSI DECK TIM A (REPEAT TAHAN TERUS SELAMA MENANG)
   useEffect(() => {
     if (!playerA) {
       setDeckA("");
@@ -102,11 +131,14 @@ export function GameLogsBlock({
     if (!p) return;
 
     const stats = getPlayerStats(playerA, true);
-    if (isRepeatA) {
+
+    if (isRepeatA || stats.hasActivatedRepeat) {
+      // Jika Repeat aktif atau pernah diaktifkan sebelumnya, tahan terus di Deck 1!
       setSelectedDeckSlotA("deck1");
       setDeckA(p.deck1);
       setSkillA(p.skill1);
     } else if (stats.deck1Lost) {
+      // Jika Deck 1 kalah tanpa Repeat, wajib pakai Deck 2
       setSelectedDeckSlotA("deck2");
       setDeckA(p.deck2);
       setSkillA(p.skill2);
@@ -117,6 +149,7 @@ export function GameLogsBlock({
     }
   }, [playerA, isRepeatA, lineupA, gameLogs]);
 
+  // 🟢 OTOMATISASI SELEKSI DECK TIM B (REPEAT TAHAN TERUS SELAMA MENANG)
   useEffect(() => {
     if (!playerB) {
       setDeckB("");
@@ -127,7 +160,8 @@ export function GameLogsBlock({
     if (!p) return;
 
     const stats = getPlayerStats(playerB, false);
-    if (isRepeatB) {
+
+    if (isRepeatB || stats.hasActivatedRepeat) {
       setSelectedDeckSlotB("deck1");
       setDeckB(p.deck1);
       setSkillB(p.skill1);
@@ -180,7 +214,7 @@ export function GameLogsBlock({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-        {/* TEAM A INPUT */}
+        {/* FORM INPUT TIM A */}
         <TeamGameInput
           isTeamA={true}
           teamName={match.teamAName}
@@ -189,7 +223,6 @@ export function GameLogsBlock({
           setPlayer={setPlayerA}
           availableOptions={availableOptionsA}
           isLocked={isLockedA}
-          setIsLocked={setIsLockedA}
           activePlayerObj={lineupA.find((p) => p.playerName === playerA)}
           selectedDeckSlot={selectedDeckSlotA}
           setSelectedDeckSlot={setSelectedDeckSlotA}
@@ -201,7 +234,7 @@ export function GameLogsBlock({
           deckLostStats={playerA ? getPlayerStats(playerA, true) : undefined}
         />
 
-        {/* TEAM B INPUT */}
+        {/* FORM INPUT TIM B */}
         <TeamGameInput
           isTeamA={false}
           teamName={match.teamBName}
@@ -210,7 +243,6 @@ export function GameLogsBlock({
           setPlayer={setPlayerB}
           availableOptions={availableOptionsB}
           isLocked={isLockedB}
-          setIsLocked={setIsLockedB}
           activePlayerObj={lineupB.find((p) => p.playerName === playerB)}
           selectedDeckSlot={selectedDeckSlotB}
           setSelectedDeckSlot={setSelectedDeckSlotB}
@@ -223,7 +255,7 @@ export function GameLogsBlock({
         />
       </div>
 
-      {/* WINNER SELECTOR */}
+      {/* SELECTOR WINNER TOMBOL RINGKAS */}
       <WinnerSelector
         match={match}
         gameNumber={gameLogs.length + 1}
@@ -233,9 +265,8 @@ export function GameLogsBlock({
         onSaveGame={handleAddSingleGame}
       />
 
-      {/* GAME LOGS PREVIEW TABLE */}
+      {/* TABEL PREVIEW HASIL SKOR AKUMULASI */}
       <GameLogsTable match={match} gameLogs={gameLogs} setGameLogs={setGameLogs} />
     </section>
   );
-      }
-          
+                                }
