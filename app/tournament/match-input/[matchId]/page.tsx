@@ -258,6 +258,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
               availableIgnB={availableIgnB}
               masterDecks={masterDecks}
               masterSkills={masterSkills}
+              onAddMasterItem={handleAddMasterItem}
             />
           )}
 
@@ -278,9 +279,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
               setGameLogs={setGameLogs}
               lineupA={lineupA}
               lineupB={lineupB}
-              masterDecks={masterDecks}
-              masterSkills={masterSkills}
-              onAddMasterItem={handleAddMasterItem}
             />
           )}
 
@@ -312,4 +310,5 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       <Footer />
     </main>
   );
-  }
+      }
+            
