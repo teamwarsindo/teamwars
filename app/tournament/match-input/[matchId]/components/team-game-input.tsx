@@ -83,7 +83,7 @@ export function TeamGameInput({
         </div>
       </div>
 
-      {/* DISPLAY STATUS DECK (TANPA LABEL DECK 1 / DECK 2) */}
+      {/* DISPLAY STATUS DECK (NAMA SKILL TIDAK TERPOTONG) */}
       {activePlayerObj && (
         <div
           className={`space-y-1.5 p-2.5 rounded-xl border transition-all ${
@@ -104,7 +104,7 @@ export function TeamGameInput({
           </div>
 
           <div className="grid grid-cols-2 gap-1.5">
-            {/* PILIHAN DECK PERTAMA */}
+            {/* PILIHAN DECK 1 */}
             <button
               type="button"
               disabled={isLocked || (deckLostStats?.deck1Lost && !isRepeat)}
@@ -119,15 +119,15 @@ export function TeamGameInput({
                   : "bg-muted/30 border-border text-foreground hover:bg-muted cursor-pointer"
               }`}
             >
-              <div className="font-extrabold text-xs leading-tight truncate">
+              <div className="font-extrabold text-xs leading-tight whitespace-normal break-words">
                 {activePlayerObj.deck1 || "-"}
               </div>
-              <div className="text-[9px] text-muted-foreground font-semibold truncate opacity-80 mt-0.5">
+              <div className="text-[9px] text-muted-foreground font-semibold whitespace-normal break-words opacity-85 mt-0.5">
                 ({activePlayerObj.skill1 || "-"})
               </div>
             </button>
 
-            {/* PILIHAN DECK KEDUA */}
+            {/* PILIHAN DECK 2 */}
             <button
               type="button"
               disabled={isLocked || isRepeat || deckLostStats?.deck2Lost}
@@ -142,10 +142,10 @@ export function TeamGameInput({
                   : "bg-muted/30 border-border text-foreground hover:bg-muted cursor-pointer"
               }`}
             >
-              <div className="font-extrabold text-xs leading-tight truncate">
+              <div className="font-extrabold text-xs leading-tight whitespace-normal break-words">
                 {activePlayerObj.deck2 || "-"}
               </div>
-              <div className="text-[9px] text-muted-foreground font-semibold truncate opacity-80 mt-0.5">
+              <div className="text-[9px] text-muted-foreground font-semibold whitespace-normal break-words opacity-85 mt-0.5">
                 ({activePlayerObj.skill2 || "-"})
               </div>
             </button>
@@ -153,7 +153,7 @@ export function TeamGameInput({
         </div>
       )}
 
-      {/* TOMBOL REPEAT */}
+      {/* TOMBOL REPEAT (DITULIS CUKUP "R") */}
       <button
         type="button"
         disabled={(!canRepeat && !isRepeat) || isLocked}
@@ -161,26 +161,18 @@ export function TeamGameInput({
           if (isLocked) return;
           const nextVal = !isRepeat;
           setIsRepeat(nextVal);
-          if (nextVal) setSelectedDeckSlot("deck1");
         }}
-        className={`w-full py-2 px-2 rounded-xl border text-[11px] font-bold transition flex items-center justify-center gap-1.5 ${
+        className={`w-full py-2 px-2 rounded-xl border text-[11px] font-black transition flex items-center justify-center gap-1.5 ${
           isRepeat
-            ? "bg-amber-500 text-black border-amber-500 font-black shadow-sm cursor-not-allowed opacity-90"
+            ? "bg-amber-500 text-black border-amber-500 shadow-sm cursor-not-allowed opacity-90"
             : canRepeat && !isLocked
             ? "bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 cursor-pointer"
             : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
         }`}
       >
         <RotateCcw className="h-3.5 w-3.5" />
-        <span>
-          {isRepeat
-            ? "⚡ REPEAT AKTIF"
-            : canRepeat
-            ? "Gunakan REPEAT"
-            : "REPEAT"}
-        </span>
+        <span>{isRepeat ? "⚡ REPEAT (R) AKTIF" : "Gunakan R (Repeat)"}</span>
       </button>
     </div>
   );
-          }
-          
+}
