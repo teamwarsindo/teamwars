@@ -43,7 +43,7 @@ export function GameLogsBlock({
   const repeatCountA = gameLogs.filter((g) => (g as any).isRepeatA).length;
   const repeatCountB = gameLogs.filter((g) => (g as any).isRepeatB).length;
 
-  // 🟢 CEK STATUS LENGKAP PEMAIN & DECK DARI KANTONG LOG GAME
+  // 🟢 AMBIL STATUS PEMAIN & DECK DENGAN PRESISI
   const getPlayerStats = (playerName: string, isTeamA: boolean) => {
     const pLogs = gameLogs.filter((g) => (isTeamA ? g.playerAName : g.playerBName) === playerName);
     const wins = pLogs.filter((g) => g.winnerTeamId === (isTeamA ? match.teamAId : match.teamBId)).length;
@@ -51,15 +51,13 @@ export function GameLogsBlock({
 
     const pObj = (isTeamA ? lineupA : lineupB).find((x) => x.playerName === playerName);
 
-    // Cek apakah pernah pakai Repeat
     const hasActivatedRepeat = pLogs.some((g) => (isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB));
 
-    // Cek log terakhir pemain
     const lastGameOfPlayer = pLogs[pLogs.length - 1];
     const lastDeckUsed = lastGameOfPlayer ? (isTeamA ? lastGameOfPlayer.deckA : lastGameOfPlayer.deckB) : null;
     const isLastGameRepeat = lastGameOfPlayer ? (isTeamA ? (lastGameOfPlayer as any).isRepeatA : (lastGameOfPlayer as any).isRepeatB) : false;
 
-    // Deck 1 & Deck 2 Kalah Status
+    // Deck 1 & 2 Kalah Status
     const deck1Lost = pLogs.some(
       (g) =>
         (isTeamA ? g.deckA : g.deckB) === pObj?.deck1 &&
@@ -104,7 +102,7 @@ export function GameLogsBlock({
     return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
   })();
 
-  // 🟢 AUTO LOCK WINNER & RECORD LAST PLAYED DECK
+  // 🟢 KUNCI AUTOMATIS PEMAIN & DECK YANG MENANG
   useEffect(() => {
     if (gameLogs.length === 0) {
       setIsLockedA(false);
@@ -116,8 +114,7 @@ export function GameLogsBlock({
     if (lastGame.winnerTeamId === match.teamAId) {
       setPlayerA(lastGame.playerAName);
       setIsLockedA(true);
-      
-      // Auto Lock Slot Deck yang sedang aktif di game pemenang
+
       const pA = lineupA.find((x) => x.playerName === lastGame.playerAName);
       if (pA && lastGame.deckA === pA.deck2) {
         setSelectedDeckSlotA("deck2");
@@ -143,7 +140,7 @@ export function GameLogsBlock({
     }
   }, [gameLogs, match.teamAId, match.teamBId, lineupA, lineupB]);
 
-  // 🟢 SINKRONISASI DECK TIM A
+  // 🟢 AUTO FORCE BINDING UNTUK PEMAIN TIM A
   useEffect(() => {
     if (!playerA) {
       setDeckA("");
@@ -155,6 +152,11 @@ export function GameLogsBlock({
 
     const stats = getPlayerStats(playerA, true);
 
+    // Jika kalah deck 1 tanpa Repeat dan tidak locked, paksa ke deck 2
+    if (stats.deck1Lost && !isLockedA && !isRepeatA) {
+      setSelectedDeckSlotA("deck2");
+    }
+
     if (selectedDeckSlotA === "deck1") {
       setDeckA(p.deck1);
       setSkillA(p.skill1);
@@ -162,9 +164,9 @@ export function GameLogsBlock({
       setDeckA(p.deck2);
       setSkillA(p.skill2);
     }
-  }, [playerA, selectedDeckSlotA, lineupA, gameLogs]);
+  }, [playerA, selectedDeckSlotA, lineupA, gameLogs, isLockedA, isRepeatA]);
 
-  // 🟢 SINKRONISASI DECK TIM B
+  // 🟢 AUTO FORCE BINDING UNTUK PEMAIN TIM B
   useEffect(() => {
     if (!playerB) {
       setDeckB("");
@@ -176,6 +178,10 @@ export function GameLogsBlock({
 
     const stats = getPlayerStats(playerB, false);
 
+    if (stats.deck1Lost && !isLockedB && !isRepeatB) {
+      setSelectedDeckSlotB("deck2");
+    }
+
     if (selectedDeckSlotB === "deck1") {
       setDeckB(p.deck1);
       setSkillB(p.skill1);
@@ -183,14 +189,13 @@ export function GameLogsBlock({
       setDeckB(p.deck2);
       setSkillB(p.skill2);
     }
-  }, [playerB, selectedDeckSlotB, lineupB, gameLogs]);
+  }, [playerB, selectedDeckSlotB, lineupB, gameLogs, isLockedB, isRepeatB]);
 
   const handleAddSingleGame = () => {
     if (!playerA || !playerB || !gameResult) return;
 
     const winnerTeamId = gameResult === "A" ? match.teamAId : match.teamBId;
 
-    // Cek apakah game ini merupakan bawaan Repeat dari game sebelumnya yang terus menang
     const statsA = getPlayerStats(playerA, true);
     const statsB = getPlayerStats(playerB, false);
 
@@ -281,5 +286,5 @@ export function GameLogsBlock({
       <GameLogsTable match={match} gameLogs={gameLogs} setGameLogs={setGameLogs} />
     </section>
   );
-    }
-                              
+                                             }
+      
