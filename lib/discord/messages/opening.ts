@@ -1,5 +1,6 @@
 import { discordAPI } from '../utils';
 import { DISCORD_CONFIG } from '../config';
+import { DIVISION_MAP } from '@/lib/types/tournament'; // 🟢 Import DIVISION_MAP
 
 export interface OpeningEmbedParams {
   channelId: string;
@@ -31,6 +32,8 @@ export interface OpeningEmbedParams {
 function formatWIBDate(dateIso?: string): string {
   if (!dateIso) return 'Belum ditentukan';
   const d = new Date(dateIso);
+  if (isNaN(d.getTime())) return 'Belum ditentukan';
+  
   return (
     d.toLocaleDateString('id-ID', {
       weekday: 'long',
@@ -55,10 +58,9 @@ function formatWIBDate(dateIso?: string): string {
 export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Promise<string | null> {
   if (!params.channelId) return null;
 
-  // Deteksi apakah ini pembuatan pesan pertama kali
   const isFirstOpening = !params.existingMsgId;
 
-  // Resolusi Emoji A & B
+  // Resolusi Emoji
   const emojiA =
     params.teamAEmoji ||
     (params.emojiAId ? `<:${(params.kodeTimA || 'team').replace(/\s+/g, '')}:${params.emojiAId}>` : '');
@@ -86,12 +88,11 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const liveStreamText = params.streamLink || 'Belum tersedia';
   const isFinished = params.isCompleted || false;
 
-  // Mention Channel Schedule
   const scheduleChannelMention = DISCORD_CONFIG.CH_SCHEDULE 
     ? `<#${DISCORD_CONFIG.CH_SCHEDULE}>` 
-    : 'channel jadwal';
+    : '#schedule-results';
 
-  // Susunan Fields Embed
+  // Fields Embed
   const fields: any[] = [
     { name: '📅 Jadwal Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
     { name: '⚖️ Referee', value: refText, inline: true },
@@ -107,7 +108,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     });
   }
 
-  // Ketentuan Reschedule (Poin Tersendiri)
   fields.push({
     name: '📢 Ketentuan Reschedule',
     value:
@@ -119,22 +119,28 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     inline: false,
   });
 
-  // Tampilan Nama Tim
   const teamADisplay = `${emojiA ? emojiA + ' ' : ''}**${params.teamAName}**`;
   const teamBDisplay = `${emojiB ? emojiB + ' ' : ''}**${params.teamBName}**`;
 
-  const groupDisplayName = params.groupName || 'Group Stage';
+  // 🟢 PERBARUAN UTAMA: RESOLUSI NAMA DIVISI RESMI DILAKUKAN DI SINI!
+  let groupDisplayName = params.groupName || 'Group Stage';
+  if (groupDisplayName === 'Group A') {
+    groupDisplayName = DIVISION_MAP.GROUP_A;
+  } else if (groupDisplayName === 'Group B') {
+    groupDisplayName = DIVISION_MAP.GROUP_B;
+  }
+
   const weekDisplayName = params.weekName || 'Week 1';
 
   const embedData = {
-    title: `🏆 ${groupDisplayName} - ${weekDisplayName}`,
+    title: `🏆 ${groupDisplayName} - ${weekDisplayName}`, // 👈 Otomatis jadi "🏆 SAKURASAWA FIGHTERS - Week 2"
     description: `${teamADisplay} **VS** ${teamBDisplay}\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
     color: isFinished ? 0x2ecc71 : 0x00a8fc,
     fields,
     footer: { text: 'Team Wars Indonesia Season 7' },
   };
 
-  // 🗑️ 1. HAPUS PESAN EKSISTING DULU JIKA ADA (DELETE)
+  // 🗑️ 1. HAPUS PESAN LAMA JIKA ADA
   if (params.existingMsgId) {
     await discordAPI(
       `/channels/${params.channelId}/messages/${params.existingMsgId}`,
@@ -142,7 +148,7 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     ).catch(() => null);
   }
 
-  // 📩 2. KIRIM PESAN BARU DI POSISI PALING BAWAH (POST)
+  // 📩 2. POST PESAN BARU DI PALING BAWAH
   const roleAMention = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
   const roleBMention = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
 
@@ -150,7 +156,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     embeds: [embedData],
   };
 
-  // HANYA SERTAKAN PING ROLE JIKA OPENING PERTAMA KALI
   if (isFirstOpening) {
     postPayload.content = `${roleAMention} ${roleBMention}`;
   }
