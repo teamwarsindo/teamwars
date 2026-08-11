@@ -11,7 +11,6 @@ interface GameLogsTableProps {
 export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTableProps) {
   if (gameLogs.length === 0) return null;
 
-  // 🟢 HITUNG AKUMULASI SKOR REAL-TIME PER GAME
   let runningScoreA = 0;
   let runningScoreB = 0;
 
@@ -21,19 +20,19 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
         📋 Tabel Log Game ({gameLogs.length} Game)
       </h4>
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-left text-[10px] sm:text-xs">
-          <thead className="bg-muted/50 border-b border-border text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase">
+        <table className="w-full text-left border-collapse min-w-[500px]">
+          <thead className="bg-muted/60 border-b border-border text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase">
             <tr>
-              <th className="p-2 text-center w-8">#</th>
-              <th className="p-2">Pemain A</th>
-              <th className="p-2">Deck / Skill A</th>
-              <th className="p-2 text-center whitespace-nowrap">Skor</th>
-              <th className="p-2">Deck / Skill B</th>
-              <th className="p-2">Pemain B</th>
+              <th className="p-2 text-center w-7">#</th>
+              <th className="p-2 w-1/5">Players A</th>
+              <th className="p-2 w-1/4">Archetype (Skill) A</th>
+              <th className="p-2 text-center w-16">Score</th>
+              <th className="p-2 w-1/4">Archetype (Skill) B</th>
+              <th className="p-2 w-1/5">Players B</th>
               <th className="p-2 text-center w-8">Hapus</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/40 font-semibold">
+          <tbody className="divide-y divide-border/30 font-medium text-[10px] sm:text-[11px]">
             {gameLogs.map((log, idx) => {
               const isAWin = log.winnerTeamId === match.teamAId;
               if (isAWin) runningScoreA++;
@@ -41,44 +40,68 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
 
               const isRepeatA = (log as any).isRepeatA;
               const isRepeatB = (log as any).isRepeatB;
+              const isAnyRepeat = isRepeatA || isRepeatB;
 
               return (
-                <tr key={idx} className="hover:bg-muted/20 transition">
-                  <td className="p-2 text-center font-black">#{idx + 1}</td>
-                  <td className="p-2 font-bold text-foreground truncate max-w-[100px]">
-                    {log.playerAName}
-                    {isRepeatA && (
-                      <span className="ml-1 text-[8px] bg-amber-500 text-black px-1 py-0.2 rounded font-black">
-                        ⚡
-                      </span>
-                    )}
+                <tr
+                  key={idx}
+                  className={`transition ${
+                    isAnyRepeat
+                      ? "bg-amber-500/15 dark:bg-amber-500/20 border-l-4 border-l-amber-500 hover:bg-amber-500/25"
+                      : "hover:bg-muted/20"
+                  }`}
+                >
+                  <td className="p-2 text-center font-black">{idx + 1}</td>
+
+                  {/* PEMAIN A */}
+                  <td className="p-2 font-bold text-foreground leading-tight">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span>{log.playerAName}</span>
+                      {isRepeatA && (
+                        <span className="text-[8px] font-black bg-amber-500 text-black px-1 rounded uppercase shrink-0">
+                          ⚡ REPEAT
+                        </span>
+                      )}
+                    </div>
                   </td>
-                  <td className="p-2 text-muted-foreground max-w-[120px]">
-                    <div className="truncate font-bold text-foreground">{log.deckA}</div>
-                    <div className="truncate text-[8px] opacity-75">({log.skillA})</div>
+
+                  {/* ARCHETYPE & SKILL A */}
+                  <td className="p-2 leading-tight">
+                    <div className="font-extrabold text-foreground">{log.deckA}</div>
+                    <div className="text-[9px] text-muted-foreground opacity-80">({log.skillA})</div>
                   </td>
-                  <td className="p-2 text-center font-black whitespace-nowrap">
-                    <span className="px-2 py-0.5 rounded bg-muted border border-border text-foreground font-black text-[11px]">
+
+                  {/* SKOR AKUMULASI */}
+                  <td className="p-2 text-center font-black">
+                    <span className="px-2 py-0.5 rounded bg-background border border-border text-foreground font-black text-[11px] shadow-xs inline-block">
                       {runningScoreA} - {runningScoreB}
                     </span>
                   </td>
-                  <td className="p-2 text-muted-foreground max-w-[120px]">
-                    <div className="truncate font-bold text-foreground">{log.deckB}</div>
-                    <div className="truncate text-[8px] opacity-75">({log.skillB})</div>
+
+                  {/* ARCHETYPE & SKILL B */}
+                  <td className="p-2 leading-tight">
+                    <div className="font-extrabold text-foreground">{log.deckB}</div>
+                    <div className="text-[9px] text-muted-foreground opacity-80">({log.skillB})</div>
                   </td>
-                  <td className="p-2 font-bold text-foreground truncate max-w-[100px]">
-                    {log.playerBName}
-                    {isRepeatB && (
-                      <span className="ml-1 text-[8px] bg-amber-500 text-black px-1 py-0.2 rounded font-black">
-                        ⚡
-                      </span>
-                    )}
+
+                  {/* PEMAIN B */}
+                  <td className="p-2 font-bold text-foreground leading-tight">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span>{log.playerBName}</span>
+                      {isRepeatB && (
+                        <span className="text-[8px] font-black bg-amber-500 text-black px-1 rounded uppercase shrink-0">
+                          ⚡ REPEAT
+                        </span>
+                      )}
+                    </div>
                   </td>
+
+                  {/* HAPUS */}
                   <td className="p-2 text-center">
                     <button
                       type="button"
                       onClick={() => setGameLogs(gameLogs.filter((_, i) => i !== idx))}
-                      className="text-rose-500 hover:text-rose-400 font-black text-xs cursor-pointer"
+                      className="text-rose-500 hover:text-rose-400 font-black text-xs p-1 cursor-pointer"
                     >
                       ✕
                     </button>
@@ -91,5 +114,4 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
       </div>
     </div>
   );
-            }
-                  
+                  }
