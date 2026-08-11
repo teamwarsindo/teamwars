@@ -23,7 +23,6 @@ interface TeamGameInputProps {
   deckLostStats?: {
     deck1Lost: boolean;
     deck2Lost: boolean;
-    activeDeckLost?: boolean;
     isDeck1Repeated?: boolean;
   };
 }
@@ -84,7 +83,7 @@ export function TeamGameInput({
         </div>
       </div>
 
-      {/* DISPLAY DECK STATUS */}
+      {/* DISPLAY STATUS DECK (TANPA LABEL DECK 1 / DECK 2) */}
       {activePlayerObj && (
         <div
           className={`space-y-1.5 p-2.5 rounded-xl border transition-all ${
@@ -95,7 +94,7 @@ export function TeamGameInput({
         >
           <div className="flex items-center justify-between">
             <label className="block text-[10px] font-bold text-muted-foreground uppercase">
-              Status Deck Pemain
+              Pilihan Deck Pemain
             </label>
             {isRepeat && (
               <span className="text-[9px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase">
@@ -105,7 +104,7 @@ export function TeamGameInput({
           </div>
 
           <div className="grid grid-cols-2 gap-1.5">
-            {/* DECK 1 */}
+            {/* PILIHAN DECK PERTAMA */}
             <button
               type="button"
               disabled={isLocked || (deckLostStats?.deck1Lost && !isRepeat)}
@@ -117,18 +116,18 @@ export function TeamGameInput({
                     : activeBg
                   : deckLostStats?.deck1Lost
                   ? "bg-muted/50 border-border/30 text-muted-foreground/40 line-through cursor-not-allowed"
-                  : "bg-muted/30 border-border text-foreground hover:bg-muted"
+                  : "bg-muted/30 border-border text-foreground hover:bg-muted cursor-pointer"
               }`}
             >
-              <span className="block text-[9px] opacity-70">
-                DECK 1 {deckLostStats?.deck1Lost && !isRepeat ? "(KALAH)" : ""}
-              </span>
-              <span className="block truncate font-extrabold text-[11px]">
+              <div className="font-extrabold text-xs leading-tight truncate">
                 {activePlayerObj.deck1 || "-"}
-              </span>
+              </div>
+              <div className="text-[9px] text-muted-foreground font-semibold truncate opacity-80 mt-0.5">
+                ({activePlayerObj.skill1 || "-"})
+              </div>
             </button>
 
-            {/* DECK 2 */}
+            {/* PILIHAN DECK KEDUA */}
             <button
               type="button"
               disabled={isLocked || isRepeat || deckLostStats?.deck2Lost}
@@ -140,21 +139,16 @@ export function TeamGameInput({
                   ? "bg-rose-500/10 border-rose-500/30 text-rose-500/50 line-through cursor-not-allowed"
                   : deckLostStats?.deck2Lost
                   ? "bg-muted/50 border-border/30 text-muted-foreground/40 line-through cursor-not-allowed"
-                  : "bg-muted/30 border-border text-foreground hover:bg-muted"
+                  : "bg-muted/30 border-border text-foreground hover:bg-muted cursor-pointer"
               }`}
             >
-              <span className="block text-[9px] opacity-70">
-                DECK 2 {isRepeat ? "(HANGUS)" : deckLostStats?.deck2Lost ? "(KALAH)" : ""}
-              </span>
-              <span className="block truncate font-extrabold text-[11px]">
+              <div className="font-extrabold text-xs leading-tight truncate">
                 {activePlayerObj.deck2 || "-"}
-              </span>
+              </div>
+              <div className="text-[9px] text-muted-foreground font-semibold truncate opacity-80 mt-0.5">
+                ({activePlayerObj.skill2 || "-"})
+              </div>
             </button>
-          </div>
-
-          <div className="pt-1 text-[10px] text-muted-foreground font-semibold flex items-center justify-between">
-            <span>Skill Active:</span>
-            <span className="font-bold text-foreground">{skill || "-"}</span>
           </div>
         </div>
       )}
@@ -162,16 +156,18 @@ export function TeamGameInput({
       {/* TOMBOL REPEAT */}
       <button
         type="button"
-        disabled={!canRepeat || isLocked}
+        disabled={(!canRepeat && !isRepeat) || isLocked}
         onClick={() => {
+          if (isLocked) return;
           const nextVal = !isRepeat;
           setIsRepeat(nextVal);
+          if (nextVal) setSelectedDeckSlot("deck1");
         }}
-        className={`w-full py-2 px-2 rounded-xl border text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+        className={`w-full py-2 px-2 rounded-xl border text-[11px] font-bold transition flex items-center justify-center gap-1.5 ${
           isRepeat
-            ? "bg-amber-500 text-black border-amber-500 font-black shadow-sm"
+            ? "bg-amber-500 text-black border-amber-500 font-black shadow-sm cursor-not-allowed opacity-90"
             : canRepeat && !isLocked
-            ? "bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+            ? "bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 cursor-pointer"
             : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
         }`}
       >
@@ -181,9 +177,10 @@ export function TeamGameInput({
             ? "⚡ REPEAT AKTIF"
             : canRepeat
             ? "Gunakan REPEAT"
-            : "REPEAT (Belum Memenuhi Syarat)"}
+            : "REPEAT"}
         </span>
       </button>
     </div>
   );
-}
+          }
+          
