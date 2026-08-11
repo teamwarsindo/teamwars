@@ -12,7 +12,6 @@ interface TeamGameInputProps {
   setPlayer: (val: string) => void;
   availableOptions: string[];
   isLocked: boolean;
-  setIsLocked?: (val: boolean) => void;
   activePlayerObj?: PlayerDeckInfo;
   selectedDeckSlot: "deck1" | "deck2";
   setSelectedDeckSlot: (val: "deck1" | "deck2") => void;
@@ -24,7 +23,7 @@ interface TeamGameInputProps {
   deckLostStats?: {
     deck1Lost: boolean;
     deck2Lost: boolean;
-    hasActivatedRepeat?: boolean;
+    activeDeckLost?: boolean;
     isDeck1Repeated?: boolean;
   };
 }
@@ -85,7 +84,7 @@ export function TeamGameInput({
         </div>
       </div>
 
-      {/* DISPLAY STATUS DECK */}
+      {/* DISPLAY DECK STATUS */}
       {activePlayerObj && (
         <div
           className={`space-y-1.5 p-2.5 rounded-xl border transition-all ${
@@ -106,9 +105,10 @@ export function TeamGameInput({
           </div>
 
           <div className="grid grid-cols-2 gap-1.5">
+            {/* DECK 1 */}
             <button
               type="button"
-              disabled={deckLostStats?.deck1Lost && !isRepeat}
+              disabled={isLocked || (deckLostStats?.deck1Lost && !isRepeat)}
               onClick={() => setSelectedDeckSlot("deck1")}
               className={`p-2 rounded-lg border text-left transition ${
                 selectedDeckSlot === "deck1"
@@ -117,7 +117,7 @@ export function TeamGameInput({
                     : activeBg
                   : deckLostStats?.deck1Lost
                   ? "bg-muted/50 border-border/30 text-muted-foreground/40 line-through cursor-not-allowed"
-                  : "bg-muted/30 border-border text-foreground"
+                  : "bg-muted/30 border-border text-foreground hover:bg-muted"
               }`}
             >
               <span className="block text-[9px] opacity-70">
@@ -128,20 +128,23 @@ export function TeamGameInput({
               </span>
             </button>
 
+            {/* DECK 2 */}
             <button
               type="button"
-              disabled={isRepeat || (!deckLostStats?.deck1Lost && selectedDeckSlot === "deck1")}
+              disabled={isLocked || isRepeat || deckLostStats?.deck2Lost}
               onClick={() => setSelectedDeckSlot("deck2")}
               className={`p-2 rounded-lg border text-left transition ${
                 selectedDeckSlot === "deck2"
                   ? activeBg
                   : isRepeat
                   ? "bg-rose-500/10 border-rose-500/30 text-rose-500/50 line-through cursor-not-allowed"
-                  : "bg-muted/30 border-border text-foreground"
+                  : deckLostStats?.deck2Lost
+                  ? "bg-muted/50 border-border/30 text-muted-foreground/40 line-through cursor-not-allowed"
+                  : "bg-muted/30 border-border text-foreground hover:bg-muted"
               }`}
             >
               <span className="block text-[9px] opacity-70">
-                DECK 2 {isRepeat ? "(HANGUS)" : ""}
+                DECK 2 {isRepeat ? "(HANGUS)" : deckLostStats?.deck2Lost ? "(KALAH)" : ""}
               </span>
               <span className="block truncate font-extrabold text-[11px]">
                 {activePlayerObj.deck2 || "-"}
@@ -159,16 +162,15 @@ export function TeamGameInput({
       {/* TOMBOL REPEAT */}
       <button
         type="button"
-        disabled={!canRepeat}
+        disabled={!canRepeat || isLocked}
         onClick={() => {
           const nextVal = !isRepeat;
           setIsRepeat(nextVal);
-          if (nextVal) setSelectedDeckSlot("deck1");
         }}
         className={`w-full py-2 px-2 rounded-xl border text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
           isRepeat
             ? "bg-amber-500 text-black border-amber-500 font-black shadow-sm"
-            : canRepeat
+            : canRepeat && !isLocked
             ? "bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
             : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
         }`}
@@ -176,7 +178,7 @@ export function TeamGameInput({
         <RotateCcw className="h-3.5 w-3.5" />
         <span>
           {isRepeat
-            ? "⚡ REPEAT AKTIF (Mengulang Deck 1)"
+            ? "⚡ REPEAT AKTIF"
             : canRepeat
             ? "Gunakan REPEAT"
             : "REPEAT (Belum Memenuhi Syarat)"}
