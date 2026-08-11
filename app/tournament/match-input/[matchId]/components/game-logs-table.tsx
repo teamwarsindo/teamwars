@@ -20,16 +20,16 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
         📋 Tabel Log Game ({gameLogs.length} Game)
       </h4>
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-left border-collapse min-w-[500px]">
+        <table className="w-full text-left border-collapse min-w-[480px]">
           <thead className="bg-muted/60 border-b border-border text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase">
             <tr>
-              <th className="p-2 text-center w-7">#</th>
-              <th className="p-2 w-1/5">Players A</th>
-              <th className="p-2 w-1/4">Archetype (Skill) A</th>
-              <th className="p-2 text-center w-16">Score</th>
-              <th className="p-2 w-1/4">Archetype (Skill) B</th>
-              <th className="p-2 w-1/5">Players B</th>
-              <th className="p-2 text-center w-8">Hapus</th>
+              <th className="p-2 text-center w-6">#</th>
+              <th className="p-2 w-28">Players</th>
+              <th className="p-2">Archetype (Skill)</th>
+              <th className="p-2 text-center w-16 whitespace-nowrap">Score</th>
+              <th className="p-2">Archetype (Skill)</th>
+              <th className="p-2 w-28">Players</th>
+              <th className="p-2 text-center w-7">Hapus</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/30 font-medium text-[10px] sm:text-[11px]">
@@ -65,23 +65,27 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                     </div>
                   </td>
 
-                  {/* ARCHETYPE & SKILL A */}
+                  {/* ARCHETYPE (SKILL) A */}
                   <td className="p-2 leading-tight">
                     <div className="font-extrabold text-foreground">{log.deckA}</div>
-                    <div className="text-[9px] text-muted-foreground opacity-80">({log.skillA})</div>
+                    <div className="text-[9px] text-muted-foreground font-semibold opacity-85">
+                      ({log.skillA})
+                    </div>
                   </td>
 
-                  {/* SKOR AKUMULASI */}
-                  <td className="p-2 text-center font-black">
-                    <span className="px-2 py-0.5 rounded bg-background border border-border text-foreground font-black text-[11px] shadow-xs inline-block">
+                  {/* SCORE AKUMULASI (PAS 1 BARIS) */}
+                  <td className="p-2 text-center font-black whitespace-nowrap">
+                    <span className="px-2 py-0.5 rounded bg-background border border-border text-foreground font-black text-[10px] sm:text-[11px] shadow-xs inline-block tracking-wider">
                       {runningScoreA} - {runningScoreB}
                     </span>
                   </td>
 
-                  {/* ARCHETYPE & SKILL B */}
+                  {/* ARCHETYPE (SKILL) B */}
                   <td className="p-2 leading-tight">
                     <div className="font-extrabold text-foreground">{log.deckB}</div>
-                    <div className="text-[9px] text-muted-foreground opacity-80">({log.skillB})</div>
+                    <div className="text-[9px] text-muted-foreground font-semibold opacity-85">
+                      ({log.skillB})
+                    </div>
                   </td>
 
                   {/* PEMAIN B */}
@@ -114,4 +118,4 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
       </div>
     </div>
   );
-                  }
+                                                                 }
