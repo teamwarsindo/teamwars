@@ -9,7 +9,7 @@ import Swal from "sweetalert2";
 import { ConsoleHeader } from "./components/console-header";
 import { MetadataBlock } from "./components/metadata-block";
 import { SmartPasteBlock } from "./components/smart-paste-block";
-import { RosterLineupBlock } from "./components/roster-lineup-block";
+import { RosterLineupBlock, PlayerDeckInfo } from "./components/roster-lineup-block";
 import { GameLogsBlock } from "./components/game-logs-block";
 import { ReviewSubmitModal } from "./components/review-submit-modal";
 
@@ -42,17 +42,15 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const [streamer, setStreamer] = useState("");
   const [streamLink, setStreamLink] = useState("");
 
-  const [rosterLineupA, setRosterLineupA] = useState<string[]>([]);
-  const [rosterLineupB, setRosterLineupB] = useState<string[]>([]);
+  const [lineupA, setLineupA] = useState<PlayerDeckInfo[]>([]);
+  const [lineupB, setLineupB] = useState<PlayerDeckInfo[]>([]);
 
   const [gameLogs, setGameLogs] = useState<GameDetailLog[]>([]);
   const [rawDiscordText, setRawDiscordText] = useState("");
 
-  // Master Data Deck & Skill dari KV
   const [masterDecks, setMasterDecks] = useState<string[]>([]);
   const [masterSkills, setMasterSkills] = useState<string[]>([]);
 
-  // 1. Fetch Detail Match & Roster
   const fetchMatchDetails = async () => {
     try {
       const res = await fetch(`/api/tournament?matchId=${matchId}&token=${token}`);
@@ -65,16 +63,13 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         setDbRosterB(data.dbRosterB || []);
         setIsAuthorized(true);
 
-        // Load data awal dari match
         setReferee(m.referee || "");
         setStreamer(m.streamer || "");
         setStreamLink(m.streamLink || "");
         setGameLogs(m.gameLogs || []);
 
-        const mainA = (m as any).rosterA?.mainPlayers?.map((p: any) => p.playerName) || [];
-        const mainB = (m as any).rosterB?.mainPlayers?.map((p: any) => p.playerName) || [];
-        if (mainA.length > 0) setRosterLineupA(mainA);
-        if (mainB.length > 0) setRosterLineupB(mainB);
+        if ((m as any).lineupA) setLineupA((m as any).lineupA);
+        if ((m as any).lineupB) setLineupB((m as any).lineupB);
       } else {
         setIsAuthorized(false);
         if (data.accessReason === "TOKEN_EXPIRED") setIsExpired(true);
@@ -86,7 +81,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
     }
   };
 
-  // 2. Fetch Master Deck & Skill dari KV
   const fetchMasterData = async () => {
     try {
       const res = await fetch("/api/tournament/master-data");
@@ -110,11 +104,9 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const availableIgnA = dbRosterA.map((p) => p.ign || p.namaLengkap || p.name).filter(Boolean);
   const availableIgnB = dbRosterB.map((p) => p.ign || p.namaLengkap || p.name).filter(Boolean);
 
-  // 🟢 HAPUS FALLBACK DB ROSTER! HANYA AMBIL PEMAIN YANG DIPILIH DARI SECTION 2 LINEUP
-  const activeListA = rosterLineupA.filter((p) => p && p.trim() !== '');
-  const activeListB = rosterLineupB.filter((p) => p && p.trim() !== '');
-  
-  // Auto Add New Deck/Skill ke KV
+  const activeListA = lineupA.map((p) => p.playerName);
+  const activeListB = lineupB.map((p) => p.playerName);
+
   const handleAddMasterItem = async (type: "DECK" | "SKILL", newItem: string) => {
     try {
       const res = await fetch("/api/tournament/master-data", {
@@ -149,18 +141,20 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       referee,
       streamer,
       streamLink,
+      lineupA,
+      lineupB,
       gameLogs,
       rosterA: {
         teamId: match.teamAId,
         teamName: match.teamAName,
         teamLogo: match.teamALogo,
-        mainPlayers: activeListA.map((p) => ({ playerId: p, playerName: p })),
+        mainPlayers: lineupA.map((p) => ({ playerId: p.playerName, playerName: p.playerName })),
       },
       rosterB: {
         teamId: match.teamBId,
         teamName: match.teamBName,
         teamLogo: match.teamBLogo,
-        mainPlayers: activeListB.map((p) => ({ playerId: p, playerName: p })),
+        mainPlayers: lineupB.map((p) => ({ playerId: p.playerName, playerName: p.playerName })),
       },
     };
 
@@ -183,7 +177,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         Swal.fire({
           icon: "success",
           title: "Match Report Tersimpan!",
-          text: "Laporan pertandingan dan log game berhasil dikunci ke KV.",
+          text: "Laporan pertandingan Conquest berhasil dikunci ke KV.",
         });
       } else {
         Swal.fire("Gagal", data.error || "Gagal menyimpan laporan", "error");
@@ -200,7 +194,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
         <TopBar title="Match Console" />
         <div className="flex flex-1 items-center justify-center p-8 text-xs font-bold text-primary animate-pulse">
-          ⏳ Memuat Match Console & Master Data KV...
+          ⏳ Memuat Match Console &amp; Master Data KV...
         </div>
         <Footer />
       </main>
@@ -242,10 +236,8 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         <div className="w-full max-w-4xl space-y-6">
           <HeroHeader showDetails={false} />
 
-          {/* Console Header Info Match */}
           {match && <ConsoleHeader match={match} onExit={() => router.push("/tournament")} />}
 
-          {/* Block 1: Metadata Wasit & Streamer */}
           <MetadataBlock
             referee={referee}
             setReferee={setReferee}
@@ -255,20 +247,20 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
             setStreamLink={setStreamLink}
           />
 
-          {/* Block 2: Select 5 Roster Lineup */}
           {match && (
             <RosterLineupBlock
               match={match}
-              rosterA={rosterLineupA}
-              setRosterA={setRosterLineupA}
-              rosterB={rosterLineupB}
-              setRosterB={setRosterLineupB}
+              lineupA={lineupA}
+              setLineupA={setLineupA}
+              lineupB={lineupB}
+              setLineupB={setLineupB}
               availableIgnA={availableIgnA}
               availableIgnB={availableIgnB}
+              masterDecks={masterDecks}
+              masterSkills={masterSkills}
             />
           )}
 
-          {/* Block 3: Smart Paste Parser */}
           <SmartPasteBlock
             rawText={rawDiscordText}
             setRawText={setRawDiscordText}
@@ -279,34 +271,31 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
             setGameLogs={setGameLogs}
           />
 
-          {/* Block 4: Form Input & Table Game Logs */}
           {match && (
             <GameLogsBlock
               match={match}
               gameLogs={gameLogs}
               setGameLogs={setGameLogs}
-              activeListA={activeListA}
-              activeListB={activeListB}
+              lineupA={lineupA}
+              lineupB={lineupB}
               masterDecks={masterDecks}
               masterSkills={masterSkills}
               onAddMasterItem={handleAddMasterItem}
             />
           )}
 
-          {/* Action Submit & Preview */}
           <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
             <button
               onClick={() => setIsReviewOpen(true)}
               disabled={gameLogs.length === 0}
               className="w-full rounded-xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              📋 Review & Submit Match Report ({gameLogs.length} Game)
+              📋 Review &amp; Submit Match Report ({gameLogs.length} Game)
             </button>
           </section>
         </div>
       </div>
 
-      {/* Modal Review Before Confirm */}
       {match && (
         <ReviewSubmitModal
           open={isReviewOpen}
@@ -323,4 +312,4 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       <Footer />
     </main>
   );
-}
+  }
