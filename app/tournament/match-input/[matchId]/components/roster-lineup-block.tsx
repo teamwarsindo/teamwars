@@ -78,6 +78,15 @@ export function RosterLineupBlock({
   ) => {
     const updated = currentLineup.map((p) => {
       if (p.playerName === playerName) {
+        // Validation: Jika memilih deck2 yang sama dengan deck1, cegah & berikan peringatan
+        if (field === "deck2" && val !== "" && val === p.deck1) {
+          Swal.fire("Peringatan", "Deck 2 TIDAK BOLEH SAMA dengan Deck 1!", "warning");
+          return p;
+        }
+        if (field === "deck1" && val !== "" && val === p.deck2) {
+          Swal.fire("Peringatan", "Deck 1 TIDAK BOLEH SAMA dengan Deck 2!", "warning");
+          return p;
+        }
         return { ...p, [field]: val };
       }
       return p;
@@ -154,7 +163,7 @@ export function RosterLineupBlock({
         {currentLineup.length > 0 && (
           <div className="space-y-3 pt-3 border-t border-border/40">
             <p className="text-[11px] font-extrabold text-foreground uppercase tracking-wide">
-              ⚙️ Pengaturan 2 Deck &amp; Skill Pemain
+              ⚙️ Pengaturan 2 Deck Berbeda &amp; Skill Pemain
             </p>
             {currentLineup.map((p, idx) => (
               <div
@@ -178,7 +187,9 @@ export function RosterLineupBlock({
                     >
                       <option value="">-- Pilih Deck 1 --</option>
                       {masterDecks.map((d) => (
-                        <option key={d} value={d}>{d}</option>
+                        <option key={d} value={d} disabled={d === p.deck2}>
+                          {d} {d === p.deck2 ? "(Sudah Dipilih Di Deck 2)" : ""}
+                        </option>
                       ))}
                     </select>
                     <select
@@ -207,7 +218,9 @@ export function RosterLineupBlock({
                     >
                       <option value="">-- Pilih Deck 2 --</option>
                       {masterDecks.map((d) => (
-                        <option key={d} value={d}>{d}</option>
+                        <option key={d} value={d} disabled={d === p.deck1}>
+                          {d} {d === p.deck1 ? "(Tidak Boleh Sama Dengan Deck 1)" : ""}
+                        </option>
                       ))}
                     </select>
                     <select
@@ -240,12 +253,11 @@ export function RosterLineupBlock({
           <div>
             <h3 className="text-sm font-semibold text-foreground">2. Lineup Bertanding &amp; Register Deck</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Centang 5 pemain aktif dan Daftarkan Deck 1 &amp; Deck 2 beserta Skill.
+              Centang 5 pemain aktif. Setiap pemain wajib mendaftarkan 2 deck yang berbeda.
             </p>
           </div>
         </div>
 
-        {/* 🟢 TOMBOL TAMBAH MASTER DECK & SKILL DIPINDAHKAN KE SINI */}
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -286,4 +298,5 @@ export function RosterLineupBlock({
       </div>
     </section>
   );
-}
+    }
+                      
