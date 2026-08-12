@@ -13,6 +13,7 @@ interface GameLogsBlockProps {
   setGameLogs: (v: GameDetailLog[]) => void;
   lineupA: PlayerDeckInfo[];
   lineupB: PlayerDeckInfo[];
+  isLineupLocked: boolean;
 }
 
 export function GameLogsBlock({
@@ -21,6 +22,7 @@ export function GameLogsBlock({
   setGameLogs,
   lineupA,
   lineupB,
+  isLineupLocked,
 }: GameLogsBlockProps) {
   const [playerA, setPlayerA] = useState("");
   const [selectedDeckSlotA, setSelectedDeckSlotA] = useState<"deck1" | "deck2">("deck1");
@@ -43,19 +45,35 @@ export function GameLogsBlock({
   const repeatCountA = gameLogs.filter((g) => (g as any).isRepeatA).length;
   const repeatCountB = gameLogs.filter((g) => (g as any).isRepeatB).length;
 
+  // 🟢 ANALISIS STATISTIK PEMAIN & DECK
   const getPlayerStats = (playerName: string, isTeamA: boolean) => {
+    if (!gameLogs || gameLogs.length === 0) {
+      return {
+        wins: 0,
+        losses: 0,
+        deck1Lost: false,
+        deck2Lost: false,
+        hasActivatedRepeat: false,
+        isDeck1Repeated: false,
+        isEliminated: false,
+        totalGames: 0,
+      };
+    }
+
     const pLogs = gameLogs.filter((g) => (isTeamA ? g.playerAName : g.playerBName) === playerName);
     const wins = pLogs.filter((g) => g.winnerTeamId === (isTeamA ? match.teamAId : match.teamBId)).length;
     const losses = pLogs.filter((g) => g.winnerTeamId !== (isTeamA ? match.teamAId : match.teamBId)).length;
 
     const pObj = (isTeamA ? lineupA : lineupB).find((x) => x.playerName === playerName);
-
     const hasActivatedRepeat = pLogs.some((g) => (isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB));
 
     const lastGameOfPlayer = pLogs[pLogs.length - 1];
-    const isLastGameRepeat = lastGameOfPlayer ? (isTeamA ? (lastGameOfPlayer as any).isRepeatA : (lastGameOfPlayer as any).isRepeatB) : false;
+    const isLastGameRepeat = lastGameOfPlayer
+      ? isTeamA
+        ? (lastGameOfPlayer as any).isRepeatA
+        : (lastGameOfPlayer as any).isRepeatB
+      : false;
 
-    // Deteksi deck1 / deck2 kalah
     const deck1Lost = pLogs.some(
       (g) =>
         (isTeamA ? g.deckA : g.deckB) === pObj?.deck1 &&
@@ -84,24 +102,42 @@ export function GameLogsBlock({
     };
   };
 
-  const availableOptionsA = lineupA.filter((p) => !getPlayerStats(p.playerName, true).isEliminated).map((p) => p.playerName);
-  const availableOptionsB = lineupB.filter((p) => !getPlayerStats(p.playerName, false).isEliminated).map((p) => p.playerName);
+  // 🟢 DROPDOWN PILIHAN PEMAIN TERSEDIA
+  const availableOptionsA = lineupA
+    .filter((p) => !getPlayerStats(p.playerName, true).isEliminated)
+    .map((p) => {
+      const dlText = p.duellinksId && p.duellinksId !== "-" ? ` (${p.duellinksId})` : "";
+      return `${p.playerName}${dlText}`;
+    });
+
+  const availableOptionsB = lineupB
+    .filter((p) => !getPlayerStats(p.playerName, false).isEliminated)
+    .map((p) => {
+      const dlText = p.duellinksId && p.duellinksId !== "-" ? ` (${p.duellinksId})` : "";
+      return `${p.playerName}${dlText}`;
+    });
+
+  // Helper Ambil Nama IGN Murni
+  const extractIgn = (fullString: string) => fullString.replace(/\s*\([^)]*\)/g, "").trim();
+
+  const currentIgnA = extractIgn(playerA);
+  const currentIgnB = extractIgn(playerB);
 
   const canRepeatA = (() => {
-    if (!playerA || repeatCountA >= 2) return false;
-    const stats = getPlayerStats(playerA, true);
+    if (!currentIgnA || repeatCountA >= 2) return false;
+    const stats = getPlayerStats(currentIgnA, true);
     return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
   })();
 
   const canRepeatB = (() => {
-    if (!playerB || repeatCountB >= 2) return false;
-    const stats = getPlayerStats(playerB, false);
+    if (!currentIgnB || repeatCountB >= 2) return false;
+    const stats = getPlayerStats(currentIgnB, false);
     return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
   })();
 
-  // 🟢 AUTO LOCK PEMAIN & DECK MENANG
+  // 🟢 AUTOMATISASI KUNCI PEMAIN & DECK MENANG
   useEffect(() => {
-    if (gameLogs.length === 0) {
+    if (!gameLogs || gameLogs.length === 0) {
       setIsLockedA(false);
       setIsLockedB(false);
       return;
@@ -109,10 +145,11 @@ export function GameLogsBlock({
     const lastGame = gameLogs[gameLogs.length - 1];
 
     if (lastGame.winnerTeamId === match.teamAId) {
-      setPlayerA(lastGame.playerAName);
+      const pA = lineupA.find((x) => x.playerName === lastGame.playerAName);
+      const dlText = pA?.duellinksId && pA.duellinksId !== "-" ? ` (${pA.duellinksId})` : "";
+      setPlayerA(`${lastGame.playerAName}${dlText}`);
       setIsLockedA(true);
 
-      const pA = lineupA.find((x) => x.playerName === lastGame.playerAName);
       if (pA && lastGame.deckA === pA.deck2) {
         setSelectedDeckSlotA("deck2");
       } else {
@@ -122,10 +159,11 @@ export function GameLogsBlock({
       setPlayerB("");
       setIsLockedB(false);
     } else if (lastGame.winnerTeamId === match.teamBId) {
-      setPlayerB(lastGame.playerBName);
+      const pB = lineupB.find((x) => x.playerName === lastGame.playerBName);
+      const dlText = pB?.duellinksId && pB.duellinksId !== "-" ? ` (${pB.duellinksId})` : "";
+      setPlayerB(`${lastGame.playerBName}${dlText}`);
       setIsLockedB(true);
 
-      const pB = lineupB.find((x) => x.playerName === lastGame.playerBName);
       if (pB && lastGame.deckB === pB.deck2) {
         setSelectedDeckSlotB("deck2");
       } else {
@@ -137,23 +175,21 @@ export function GameLogsBlock({
     }
   }, [gameLogs, match.teamAId, match.teamBId, lineupA, lineupB]);
 
-  // 🟢 OTOMATISASI PINDAH DECK UNTUK TIM A (SINKRONISASI LOGIKA REPEAT & DECK KALAH)
+  // SINKRONISASI SELEKSI DECK A
   useEffect(() => {
-    if (!playerA) {
+    if (!currentIgnA) {
       setDeckA("");
       setSkillA("");
       return;
     }
-    const p = lineupA.find((x) => x.playerName === playerA);
+    const p = lineupA.find((x) => x.playerName === currentIgnA);
     if (!p) return;
 
-    const stats = getPlayerStats(playerA, true);
+    const stats = getPlayerStats(currentIgnA, true);
 
-    // jika REPEAT aktif -> Paksa & kunci ke Deck 1!
     if (isRepeatA) {
       setSelectedDeckSlotA("deck1");
     } else if (!isLockedA && stats.deck1Lost) {
-      // Jika deck 1 kalah tanpa repeat -> Otomatis alihkan ke deck 2!
       setSelectedDeckSlotA("deck2");
     }
 
@@ -164,19 +200,19 @@ export function GameLogsBlock({
       setDeckA(p.deck2);
       setSkillA(p.skill2);
     }
-  }, [playerA, selectedDeckSlotA, lineupA, gameLogs, isLockedA, isRepeatA]);
+  }, [playerA, currentIgnA, selectedDeckSlotA, lineupA, gameLogs, isLockedA, isRepeatA]);
 
-  // 🟢 OTOMATISASI PINDAH DECK UNTUK TIM B (SINKRONISASI LOGIKA REPEAT & DECK KALAH)
+  // SINKRONISASI SELEKSI DECK B
   useEffect(() => {
-    if (!playerB) {
+    if (!currentIgnB) {
       setDeckB("");
       setSkillB("");
       return;
     }
-    const p = lineupB.find((x) => x.playerName === playerB);
+    const p = lineupB.find((x) => x.playerName === currentIgnB);
     if (!p) return;
 
-    const stats = getPlayerStats(playerB, false);
+    const stats = getPlayerStats(currentIgnB, false);
 
     if (isRepeatB) {
       setSelectedDeckSlotB("deck1");
@@ -191,27 +227,27 @@ export function GameLogsBlock({
       setDeckB(p.deck2);
       setSkillB(p.skill2);
     }
-  }, [playerB, selectedDeckSlotB, lineupB, gameLogs, isLockedB, isRepeatB]);
+  }, [playerB, currentIgnB, selectedDeckSlotB, lineupB, gameLogs, isLockedB, isRepeatB]);
 
   const handleAddSingleGame = () => {
-    if (!playerA || !playerB || !gameResult) return;
+    if (!currentIgnA || !currentIgnB || !gameResult || !isLineupLocked) return;
 
     const winnerTeamId = gameResult === "A" ? match.teamAId : match.teamBId;
 
-    const statsA = getPlayerStats(playerA, true);
-    const statsB = getPlayerStats(playerB, false);
+    const statsA = getPlayerStats(currentIgnA, true);
+    const statsB = getPlayerStats(currentIgnB, false);
 
     const activeIsRepeatA = isRepeatA || (isLockedA && statsA.isLastGameRepeat);
     const activeIsRepeatB = isRepeatB || (isLockedB && statsB.isLastGameRepeat);
 
     const newLog: GameDetailLog & { isRepeatA?: boolean; isRepeatB?: boolean } = {
       gameNumber: gameLogs.length + 1,
-      playerAId: playerA,
-      playerAName: playerA,
+      playerAId: currentIgnA,
+      playerAName: currentIgnA,
       deckA: deckA || "-",
       skillA: skillA || "-",
-      playerBId: playerB,
-      playerBName: playerB,
+      playerBId: currentIgnB,
+      playerBName: currentIgnB,
       deckB: deckB || "-",
       skillB: skillB || "-",
       winnerTeamId,
@@ -225,15 +261,22 @@ export function GameLogsBlock({
     setIsRepeatB(false);
   };
 
-  const isFormReady = Boolean(playerA && playerB && deckA && deckB);
+  const isFormReady = Boolean(isLineupLocked && currentIgnA && currentIgnB && deckA && deckB);
 
   return (
-    <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-5">
-      <div className="flex items-center gap-3 border-b border-border/40 pb-3">
-        <span className="h-6 w-1 rounded-full bg-primary" />
-        <h3 className="text-sm font-semibold text-foreground">
-          3. Form Input Log Game #{gameLogs.length + 1}
-        </h3>
+    <section className={`glass glow-border rounded-2xl border p-5 shadow-sm space-y-5 transition-all ${!isLineupLocked ? "opacity-60 pointer-events-none" : ""}`}>
+      <div className="flex items-center justify-between border-b border-border/40 pb-3">
+        <div className="flex items-center gap-3">
+          <span className="h-6 w-1 rounded-full bg-primary" />
+          <h3 className="text-sm font-semibold text-foreground">
+            3. Form Input Log Game #{gameLogs.length + 1}
+          </h3>
+        </div>
+        {!isLineupLocked && (
+          <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+            🔒 Kunci Lineup Dulu di Section 2
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -245,15 +288,16 @@ export function GameLogsBlock({
           setPlayer={setPlayerA}
           availableOptions={availableOptionsA}
           isLocked={isLockedA}
-          activePlayerObj={lineupA.find((p) => p.playerName === playerA)}
+          isLineupLocked={isLineupLocked}
+          activePlayerObj={lineupA.find((p) => p.playerName === currentIgnA)}
           selectedDeckSlot={selectedDeckSlotA}
           setSelectedDeckSlot={setSelectedDeckSlotA}
           skill={skillA}
           repeatCount={repeatCountA}
-          isRepeat={isRepeatA || (isLockedA && getPlayerStats(playerA, true).isLastGameRepeat)}
+          isRepeat={isRepeatA || (isLockedA && getPlayerStats(currentIgnA, true).isLastGameRepeat)}
           setIsRepeat={setIsRepeatA}
           canRepeat={canRepeatA}
-          deckLostStats={playerA ? getPlayerStats(playerA, true) : undefined}
+          deckLostStats={currentIgnA ? getPlayerStats(currentIgnA, true) : undefined}
         />
 
         <TeamGameInput
@@ -264,15 +308,16 @@ export function GameLogsBlock({
           setPlayer={setPlayerB}
           availableOptions={availableOptionsB}
           isLocked={isLockedB}
-          activePlayerObj={lineupB.find((p) => p.playerName === playerB)}
+          isLineupLocked={isLineupLocked}
+          activePlayerObj={lineupB.find((p) => p.playerName === currentIgnB)}
           selectedDeckSlot={selectedDeckSlotB}
           setSelectedDeckSlot={setSelectedDeckSlotB}
           skill={skillB}
           repeatCount={repeatCountB}
-          isRepeat={isRepeatB || (isLockedB && getPlayerStats(playerB, false).isLastGameRepeat)}
+          isRepeat={isRepeatB || (isLockedB && getPlayerStats(currentIgnB, false).isLastGameRepeat)}
           setIsRepeat={setIsRepeatB}
           canRepeat={canRepeatB}
-          deckLostStats={playerB ? getPlayerStats(playerB, false) : undefined}
+          deckLostStats={currentIgnB ? getPlayerStats(currentIgnB, false) : undefined}
         />
       </div>
 
@@ -289,4 +334,3 @@ export function GameLogsBlock({
     </section>
   );
       }
-  
