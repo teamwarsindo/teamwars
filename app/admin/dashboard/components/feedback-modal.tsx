@@ -22,7 +22,7 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
     if (data && data.isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = ''; // Balikin ke default (string kosong lebih aman dari 'unset')
+      document.body.style.overflow = '';
     }
 
     return () => {
@@ -36,12 +36,11 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
 
   return (
     <div
-      // PERBAIKAN: z-[9999] agar dipastikan nampil paling depan menutupi apapun!
       className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative flex flex-col items-center text-center"
+        className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative flex flex-col items-center text-center overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -62,7 +61,11 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
         </div>
 
         <h3 className="text-lg font-bold text-white mb-2">{data.title}</h3>
-        <p className="text-sm text-neutral-300 leading-relaxed mb-5">{data.message}</p>
+        
+        {/* 🔴 PERBAIKAN DI SINI: Tambah break-words, w-full, px-2 */}
+        <p className="text-sm text-neutral-300 leading-relaxed mb-5 break-words w-full px-2">
+          {data.message}
+        </p>
 
         {data.details && data.details.length > 0 && (
           <div className="w-full bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 mb-5 text-left text-xs text-neutral-400 space-y-1.5">
@@ -88,4 +91,5 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
       </div>
     </div>
   );
-}
+      }
+              
