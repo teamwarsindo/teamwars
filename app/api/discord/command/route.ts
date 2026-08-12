@@ -200,7 +200,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔄 11. TRANSFER COMMAND (Refactored Options Order)
+    // 🔄 11. TRANSFER COMMAND
     {
       name: 'transfer',
       description: 'Kelola transfer, penambahan, dan pembaruan roster tim',
@@ -212,14 +212,14 @@ export async function GET(req: Request) {
           description: 'Keluarkan pemain dari roster tim',
           options: [
             {
-              type: 3, // STRING (REQUIRED DI DEPAN)
+              type: 3, // STRING (REQUIRED)
               name: 'user',
               description: 'Pilih nama/IGN pemain yang ingin dikeluarkan dari tim',
               required: true,
               autocomplete: true,
             },
             {
-              type: 3, // STRING (OPTIONAL DI BELAKANG)
+              type: 3, // STRING (OPTIONAL)
               name: 'team',
               description: 'Pilih tim target (Wajib diisi jika dijalankan oleh Admin)',
               required: false,
@@ -234,25 +234,25 @@ export async function GET(req: Request) {
           description: 'Tambahkan pemain baru ke dalam roster tim',
           options: [
             {
-              type: 6, // USER Mention (REQUIRED DI DEPAN)
+              type: 6, // USER Mention (REQUIRED)
               name: 'user',
               description: 'Tag (@mention) akun Discord pemain baru',
               required: true,
             },
             {
-              type: 3, // STRING (REQUIRED DI DEPAN)
+              type: 3, // STRING (REQUIRED)
               name: 'ign',
               description: 'Ketik In-Game Name (IGN) Duel Links pemain baru',
               required: true,
             },
             {
-              type: 3, // STRING (REQUIRED DI DEPAN)
+              type: 3, // STRING (REQUIRED)
               name: 'id_dl',
               description: 'Ketik 9 digit ID Duel Links pemain (contoh: 123456789)',
               required: true,
             },
             {
-              type: 3, // STRING (OPTIONAL DI BELAKANG)
+              type: 3, // STRING (OPTIONAL)
               name: 'team',
               description: 'Pilih tim tujuan (Wajib diisi jika dijalankan oleh Admin)',
               required: false,
@@ -267,20 +267,20 @@ export async function GET(req: Request) {
           description: 'Perbarui ID Duel Links atau Jabatan (Ketua/Wakil) pemain',
           options: [
             {
-              type: 3, // STRING (REQUIRED DI DEPAN)
+              type: 3, // STRING (REQUIRED)
               name: 'user',
               description: 'Pilih nama/IGN pemain yang data/jabatannya ingin diubah',
               required: true,
               autocomplete: true,
             },
             {
-              type: 3, // STRING (OPTIONAL DI BELAKANG)
+              type: 3, // STRING (OPTIONAL)
               name: 'new_id_dl',
               description: 'Ketik ID Duel Links baru (kosongkan jika tidak mengubah ID)',
               required: false,
             },
             {
-              type: 3, // STRING (OPTIONAL DI BELAKANG)
+              type: 3, // STRING (OPTIONAL)
               name: 'position',
               description: 'Pilih posisi baru (Ketua khusus Admin, Wakil bisa oleh Ketua)',
               required: false,
@@ -290,9 +290,36 @@ export async function GET(req: Request) {
               ],
             },
             {
-              type: 3, // STRING (OPTIONAL DI BELAKANG)
+              type: 3, // STRING (OPTIONAL)
               name: 'team',
               description: 'Pilih tim target (Opsional jika pemain sudah terdeteksi di tim)',
+              required: false,
+              autocomplete: true,
+            },
+          ],
+        },
+        // SUBCOMMAND 4: PARSE (COPAS OTOMATIS FOR ADMIN)
+        {
+          type: 1, // SUB_COMMAND
+          name: 'parse',
+          description: '[ADMIN] Copas teks request transfer untuk diproses otomatis',
+          options: [
+            {
+              type: 3, // STRING (REQUIRED)
+              name: 'text',
+              description: 'Paste/Copas seluruh teks pesan request dari channel di sini',
+              required: true,
+            },
+            {
+              type: 6, // USER Mention (REQUIRED)
+              name: 'user',
+              description: 'Tag (@mention) akun Discord pemain target',
+              required: true,
+            },
+            {
+              type: 3, // STRING (OPTIONAL)
+              name: 'team',
+              description: 'Pilih tim target (Wajib diisi jika Admin)',
               required: false,
               autocomplete: true,
             },
