@@ -45,7 +45,6 @@ export function GameLogsBlock({
   const repeatCountA = gameLogs.filter((g) => (g as any).isRepeatA).length;
   const repeatCountB = gameLogs.filter((g) => (g as any).isRepeatB).length;
 
-  // 🟢 ANALISIS STATISTIK PEMAIN & DECK
   const getPlayerStats = (playerName: string, isTeamA: boolean) => {
     if (!gameLogs || gameLogs.length === 0) {
       return {
@@ -102,7 +101,6 @@ export function GameLogsBlock({
     };
   };
 
-  // 🟢 DROPDOWN PILIHAN PEMAIN TERSEDIA
   const availableOptionsA = lineupA
     .filter((p) => !getPlayerStats(p.playerName, true).isEliminated)
     .map((p) => {
@@ -117,7 +115,6 @@ export function GameLogsBlock({
       return `${p.playerName}${dlText}`;
     });
 
-  // Helper Ambil Nama IGN Murni
   const extractIgn = (fullString: string) => fullString.replace(/\s*\([^)]*\)/g, "").trim();
 
   const currentIgnA = extractIgn(playerA);
@@ -135,7 +132,7 @@ export function GameLogsBlock({
     return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
   })();
 
-  // 🟢 AUTOMATISASI KUNCI PEMAIN & DECK MENANG
+  // 🟢 LOGIKA KUNCI PEMAIN (MENANG ATAU KALAH 1 DECK)
   useEffect(() => {
     if (!gameLogs || gameLogs.length === 0) {
       setIsLockedA(false);
@@ -144,38 +141,64 @@ export function GameLogsBlock({
     }
     const lastGame = gameLogs[gameLogs.length - 1];
 
+    // PEMAIN TIM A
     if (lastGame.winnerTeamId === match.teamAId) {
+      // Pemain A Menang -> Locked
       const pA = lineupA.find((x) => x.playerName === lastGame.playerAName);
       const dlText = pA?.duellinksId && pA.duellinksId !== "-" ? ` (${pA.duellinksId})` : "";
       setPlayerA(`${lastGame.playerAName}${dlText}`);
       setIsLockedA(true);
 
-      if (pA && lastGame.deckA === pA.deck2) {
+      if (pA && lastGame.deckA === pA.deck2) setSelectedDeckSlotA("deck2");
+      else setSelectedDeckSlotA("deck1");
+    } else {
+      // Pemain A Kalah -> Cek Apakah Masih Ada Deck 2?
+      const pA = lineupA.find((x) => x.playerName === lastGame.playerAName);
+      const statsA = getPlayerStats(lastGame.playerAName, true);
+
+      if (pA && !statsA.isEliminated) {
+        // Pemain A Kalah 1 Deck -> TETAP LOCKED & PAKSA KE DECK 2
+        const dlText = pA.duellinksId && pA.duellinksId !== "-" ? ` (${pA.duellinksId})` : "";
+        setPlayerA(`${lastGame.playerAName}${dlText}`);
+        setIsLockedA(true);
         setSelectedDeckSlotA("deck2");
       } else {
-        setSelectedDeckSlotA("deck1");
+        // Pemain A Gugur Total -> Unlocked untuk ganti pemain baru
+        setPlayerA("");
+        setIsLockedA(false);
       }
+    }
 
-      setPlayerB("");
-      setIsLockedB(false);
-    } else if (lastGame.winnerTeamId === match.teamBId) {
+    // PEMAIN TIM B
+    if (lastGame.winnerTeamId === match.teamBId) {
+      // Pemain B Menang -> Locked
       const pB = lineupB.find((x) => x.playerName === lastGame.playerBName);
       const dlText = pB?.duellinksId && pB.duellinksId !== "-" ? ` (${pB.duellinksId})` : "";
       setPlayerB(`${lastGame.playerBName}${dlText}`);
       setIsLockedB(true);
 
-      if (pB && lastGame.deckB === pB.deck2) {
+      if (pB && lastGame.deckB === pB.deck2) setSelectedDeckSlotB("deck2");
+      else setSelectedDeckSlotB("deck1");
+    } else {
+      // Pemain B Kalah -> Cek Apakah Masih Ada Deck 2?
+      const pB = lineupB.find((x) => x.playerName === lastGame.playerBName);
+      const statsB = getPlayerStats(lastGame.playerBName, false);
+
+      if (pB && !statsB.isEliminated) {
+        // Pemain B Kalah 1 Deck -> TETAP LOCKED & PAKSA KE DECK 2
+        const dlText = pB.duellinksId && pB.duellinksId !== "-" ? ` (${pB.duellinksId})` : "";
+        setPlayerB(`${lastGame.playerBName}${dlText}`);
+        setIsLockedB(true);
         setSelectedDeckSlotB("deck2");
       } else {
-        setSelectedDeckSlotB("deck1");
+        // Pemain B Gugur Total -> Unlocked untuk ganti pemain baru
+        setPlayerB("");
+        setIsLockedB(false);
       }
-
-      setPlayerA("");
-      setIsLockedA(false);
     }
   }, [gameLogs, match.teamAId, match.teamBId, lineupA, lineupB]);
 
-  // SINKRONISASI SELEKSI DECK A
+  // SINKRONISASI DECK A
   useEffect(() => {
     if (!currentIgnA) {
       setDeckA("");
@@ -189,7 +212,7 @@ export function GameLogsBlock({
 
     if (isRepeatA) {
       setSelectedDeckSlotA("deck1");
-    } else if (!isLockedA && stats.deck1Lost) {
+    } else if (stats.deck1Lost) {
       setSelectedDeckSlotA("deck2");
     }
 
@@ -200,9 +223,9 @@ export function GameLogsBlock({
       setDeckA(p.deck2);
       setSkillA(p.skill2);
     }
-  }, [playerA, currentIgnA, selectedDeckSlotA, lineupA, gameLogs, isLockedA, isRepeatA]);
+  }, [playerA, currentIgnA, selectedDeckSlotA, lineupA, gameLogs, isRepeatA]);
 
-  // SINKRONISASI SELEKSI DECK B
+  // SINKRONISASI DECK B
   useEffect(() => {
     if (!currentIgnB) {
       setDeckB("");
@@ -216,7 +239,7 @@ export function GameLogsBlock({
 
     if (isRepeatB) {
       setSelectedDeckSlotB("deck1");
-    } else if (!isLockedB && stats.deck1Lost) {
+    } else if (stats.deck1Lost) {
       setSelectedDeckSlotB("deck2");
     }
 
@@ -227,7 +250,7 @@ export function GameLogsBlock({
       setDeckB(p.deck2);
       setSkillB(p.skill2);
     }
-  }, [playerB, currentIgnB, selectedDeckSlotB, lineupB, gameLogs, isLockedB, isRepeatB]);
+  }, [playerB, currentIgnB, selectedDeckSlotB, lineupB, gameLogs, isRepeatB]);
 
   const handleAddSingleGame = () => {
     if (!currentIgnA || !currentIgnB || !gameResult || !isLineupLocked) return;
@@ -264,7 +287,11 @@ export function GameLogsBlock({
   const isFormReady = Boolean(isLineupLocked && currentIgnA && currentIgnB && deckA && deckB);
 
   return (
-    <section className={`glass glow-border rounded-2xl border p-5 shadow-sm space-y-5 transition-all ${!isLineupLocked ? "opacity-60 pointer-events-none" : ""}`}>
+    <section
+      className={`glass glow-border rounded-2xl border p-5 shadow-sm space-y-5 transition-all ${
+        !isLineupLocked ? "opacity-60 pointer-events-none" : ""
+      }`}
+    >
       <div className="flex items-center justify-between border-b border-border/40 pb-3">
         <div className="flex items-center gap-3">
           <span className="h-6 w-1 rounded-full bg-primary" />
