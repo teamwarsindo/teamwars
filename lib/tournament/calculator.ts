@@ -13,7 +13,7 @@ function getMatchWeek(m: MatchScheduleItem): number {
   }
 
   if (m.matchDate) {
-    const startDate = new Date(process.env.TWI_START_DATE).getTime();
+    const startDate = process.env.TWI_START_DATE;
     const matchDate = new Date(m.matchDate).getTime();
 
     // Pastikan kedua timestamp bernilai number yang valid (bukan NaN)
