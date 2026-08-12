@@ -47,6 +47,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const [isLineupLocked, setIsLineupLocked] = useState(false);
 
   const [gameLogs, setGameLogs] = useState<GameDetailLog[]>([]);
+  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
   const [masterDecks, setMasterDecks] = useState<string[]>([]);
   const [masterSkills, setMasterSkills] = useState<string[]>([]);
@@ -65,21 +66,19 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         setDbRosterB(data.dbRosterB || []);
         setIsAuthorized(true);
 
-        setReferee(m.referee || "");
-        setStreamer(m.streamer || "");
+        // 🟢 FIX 1: Ambil data nama referee/streamer dari key m.refereeName atau m.referee
+        setReferee((m as any).refereeName || m.referee || "");
+        setStreamer((m as any).streamerName || m.streamer || "");
         setStreamLink(m.streamLink || "");
 
-        if ((m as any).lineupA && (m as any).lineupA.length > 0) {
-          setLineupA((m as any).lineupA);
-        }
-        if ((m as any).lineupB && (m as any).lineupB.length > 0) {
-          setLineupB((m as any).lineupB);
-        }
+        if ((m as any).lineupA && (m as any).lineupA.length > 0) setLineupA((m as any).lineupA);
+        if ((m as any).lineupB && (m as any).lineupB.length > 0) setLineupB((m as any).lineupB);
 
         if ((m as any).lineupA?.length === 5 && (m as any).lineupB?.length === 5) {
           setIsLineupLocked(true);
         }
 
+        // 🟢 FIX 2: Restore Draft dari Local Storage jika ada, jika tidak pakai dari KV
         const savedLocal = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (savedLocal) {
           try {
@@ -95,6 +94,8 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         } else {
           setGameLogs(m.gameLogs || []);
         }
+
+        setIsInitialLoaded(true);
       } else {
         setIsAuthorized(false);
         if (data.accessReason === "TOKEN_EXPIRED") setIsExpired(true);
@@ -126,11 +127,12 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
     }
   }, [matchId, token]);
 
+  // 🟢 FIX 2: Hanya simpan ke LocalStorage JIKA data awal sudah selesai di-load
   useEffect(() => {
-    if (matchId && gameLogs) {
+    if (isInitialLoaded && matchId) {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(gameLogs));
     }
-  }, [gameLogs, matchId]);
+  }, [gameLogs, isInitialLoaded, matchId]);
 
   const handleAddMasterItem = async (type: "DECK" | "SKILL", newItem: string) => {
     try {
@@ -362,5 +364,4 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       <Footer />
     </main>
   );
-                           }
-          
+        }
