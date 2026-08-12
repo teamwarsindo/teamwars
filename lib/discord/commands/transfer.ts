@@ -5,11 +5,13 @@ import {
   executeTransferAdd,
   executeTransferEditDl,
   executeTransferSetLeader,
+  PlayerItem,
+} from '@/lib/discord/services/transfer-service';
+import {
   parsePlayers,
   parseTransferSmartText,
   formatDuelId,
-  PlayerItem,
-} from '@/lib/discord/services/transfer-service';
+} from '@/lib/discord/utils/transfer-helpers';
 
 function isAuth(interaction: any): boolean {
   try {
@@ -199,7 +201,7 @@ export async function handleTransferCommand(interaction: any) {
 
       if (newIdDl) {
         const resDl = await executeTransferEditDl(teamSlug, targetUser, newIdDl);
-        results.push(`ID Duel Links **${resDl.ign}** diperbarui menjadi \`${resDl.newDl}\` (Sisa kuota transfer: **${2 - resDl.currentQuota}**)`);
+        results.push(`ID Game **${resDl.ign}** diperbarui menjadi \`${resDl.newDl}\` (Sisa kuota transfer: **${2 - resDl.currentQuota}**)`);
       }
 
       if (position) {
@@ -268,7 +270,7 @@ export async function handleTransferCommand(interaction: any) {
                 { name: '👤 Target User', value: `<@${targetDiscordId}> (\`@${targetUsername}\`)`, inline: true },
                 { name: '🛡️ Tim Target', value: `**${teamSlug}**`, inline: true },
                 { name: '🎮 IGN Pemain', value: parsed.ign ? `\`${parsed.ign}\`` : '⚠️ *Tidak Ditemukan*', inline: true },
-                { name: '🆔 ID Duel Links', value: parsed.idDl ? `\`${formatDuelId(parsed.idDl)}\`` : '⚠️ *Tidak Ditemukan*', inline: true },
+                { name: '🆔 ID Game', value: parsed.idDl ? `\`${formatDuelId(parsed.idDl)}\`` : '⚠️ *Tidak Ditemukan*', inline: true },
                 { name: '📝 Teks Pesan Asli', value: `\`\`\`${rawText.slice(0, 180)}\`\`\``, inline: false },
               ],
               footer: { text: 'Klik "Proses" jika sesuai, atau klik tombol "Paksa Ubah" jika deteksi aksi keliru.' },
@@ -329,5 +331,4 @@ export async function handleTransferCommand(interaction: any) {
       data: { content: `❌ **Gagal Memproses Transfer:** ${error.message || 'Terjadi kesalahan internal'}`, flags: 64 },
     };
   }
-        }
-                                   
+                                }
