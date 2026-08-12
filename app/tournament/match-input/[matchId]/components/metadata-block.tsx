@@ -1,6 +1,7 @@
 "use client";
 
 import { ShieldCheck, Clock } from "lucide-react";
+import { CustomSelect } from "./custom-select";
 
 interface MetadataBlockProps {
   referee: string;
@@ -25,6 +26,19 @@ export function MetadataBlock({
   lateDecksB,
   setLateDecksB,
 }: MetadataBlockProps) {
+  // Opsi 0 sampai 10 Deck Telat (0m - 20m)
+  const options = Array.from({ length: 11 }, (_, i) => `${i} (${i * 2} m)`);
+
+  const handleSelectA = (val: string) => {
+    const num = parseInt(val.split(" ")[0]) || 0;
+    setLateDecksA(num);
+  };
+
+  const handleSelectB = (val: string) => {
+    const num = parseInt(val.split(" ")[0]) || 0;
+    setLateDecksB(num);
+  };
+
   return (
     <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-4">
       <div className="flex items-center justify-between border-b border-border/40 pb-2">
@@ -38,21 +52,27 @@ export function MetadataBlock({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
         <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
-          <span className="block text-[10px] font-bold text-muted-foreground uppercase">Wasit (Referee)</span>
+          <span className="block text-[10px] font-bold text-muted-foreground uppercase">
+            Wasit (Referee)
+          </span>
           <span className="font-extrabold text-foreground text-xs mt-0.5 block truncate">
             {referee || "Belum Ditugaskan"}
           </span>
         </div>
 
         <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
-          <span className="block text-[10px] font-bold text-muted-foreground uppercase">Caster / Streamer</span>
+          <span className="block text-[10px] font-bold text-muted-foreground uppercase">
+            Caster / Streamer
+          </span>
           <span className="font-extrabold text-foreground text-xs mt-0.5 block truncate">
             {streamer || "Belum Ditugaskan"}
           </span>
         </div>
 
         <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
-          <span className="block text-[10px] font-bold text-muted-foreground uppercase">Link Live Stream</span>
+          <span className="block text-[10px] font-bold text-muted-foreground uppercase">
+            Link Live Stream
+          </span>
           {streamLink && streamLink.startsWith("http") ? (
             <a
               href={streamLink}
@@ -70,48 +90,34 @@ export function MetadataBlock({
         </div>
       </div>
 
-      {/* INPUT PENALTI DECK TELAT SUBMIT */}
+      {/* INPUT PENALTI DECK TELAT SUBMIT DENGAN CUSTOM SELECT */}
       <div className="pt-2 border-t border-border/30">
         <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-foreground uppercase mb-2">
           <Clock className="h-3.5 w-3.5 text-amber-500" />
-          <span>Penalti Telat Submit Deck (1 Deck = -2 Menit Timer)</span>
+          <span>Penalti Telat Submit Deck (1 Deck = -2 Menit)</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-          <div className="p-2.5 bg-background rounded-xl border border-border/40 flex items-center justify-between">
-            <span className="font-bold text-primary truncate max-w-[140px]">{teamAName}</span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground">Deck Telat:</span>
-              <select
-                value={lateDecksA}
-                onChange={(e) => setLateDecksA(Number(e.target.value))}
-                className="bg-muted rounded px-2 py-1 font-bold text-xs border border-border"
-              >
-                {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                  <option key={n} value={n}>
-                    {n} ({n * 2} m)
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-primary truncate block">
+              {teamAName}
+            </span>
+            <CustomSelect
+              value={`${lateDecksA} (${lateDecksA * 2} m)`}
+              onChange={handleSelectA}
+              options={options}
+            />
           </div>
 
-          <div className="p-2.5 bg-background rounded-xl border border-border/40 flex items-center justify-between">
-            <span className="font-bold text-rose-500 truncate max-w-[140px]">{teamBName}</span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground">Deck Telat:</span>
-              <select
-                value={lateDecksB}
-                onChange={(e) => setLateDecksB(Number(e.target.value))}
-                className="bg-muted rounded px-2 py-1 font-bold text-xs border border-border"
-              >
-                {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                  <option key={n} value={n}>
-                    {n} ({n * 2} m)
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-rose-500 truncate block">
+              {teamBName}
+            </span>
+            <CustomSelect
+              value={`${lateDecksB} (${lateDecksB * 2} m)`}
+              onChange={handleSelectB}
+              options={options}
+            />
           </div>
         </div>
       </div>

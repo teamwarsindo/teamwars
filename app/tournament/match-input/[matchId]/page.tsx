@@ -42,7 +42,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const [streamer, setStreamer] = useState("");
   const [streamLink, setStreamLink] = useState("");
 
-  // 🟢 STATE PENALTI TELAT SUBMIT DECK
+  // STATE PENALTI TELAT SUBMIT DECK
   const [lateDecksA, setLateDecksA] = useState(0);
   const [lateDecksB, setLateDecksB] = useState(0);
 
@@ -81,7 +81,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
           setIsLineupLocked(true);
         }
 
-        // Restore Draft dari Local Storage jika ada
         const savedLocal = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (savedLocal) {
           try {
@@ -334,6 +333,8 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
               onSaveLineupToKV={handleSaveLineupToKV}
               isLineupLocked={isLineupLocked}
               setIsLineupLocked={setIsLineupLocked}
+              gameLogs={gameLogs}
+              setGameLogs={setGameLogs}
             />
           )}
 
@@ -378,4 +379,4 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       <Footer />
     </main>
   );
-      }
+}
