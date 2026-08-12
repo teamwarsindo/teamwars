@@ -2,44 +2,71 @@
 
 import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
 
+interface WarningLogItem {
+  gameNumber: number;
+  teamId: string;
+  teamName: string;
+  warningNumber: number;
+  isTechnicalLossTriggered: boolean;
+}
+
 interface GameLogsTableProps {
   match: MatchScheduleItem;
   gameLogs: GameDetailLog[];
   setGameLogs: (v: GameDetailLog[]) => void;
+  warningLogs?: WarningLogItem[]; // <-- PROPERTI INI YANG KURANG DI INTERFACE SEBELUMNYA
 }
 
-export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTableProps) {
+export function GameLogsTable({
+  match,
+  gameLogs,
+  setGameLogs,
+  warningLogs = [],
+}: GameLogsTableProps) {
   if (gameLogs.length === 0) return null;
 
   let runningScoreA = 0;
   let runningScoreB = 0;
 
   return (
-    <div className="pt-3 border-t border-border/40 space-y-2">
+    <div className="pt-3 border-t border-border/40 space-y-4">
       <h4 className="text-xs font-extrabold text-foreground uppercase tracking-wider text-center">
         📋 Tabel Log Game ({gameLogs.length} Game)
       </h4>
+
+      {/* TABEL LOG PERTANDINGAN */}
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-center border-collapse min-w-[540px]">
+        <table className="w-full text-center border-collapse min-w-[500px]">
           <thead className="bg-muted/60 border-b border-border text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase">
             <tr>
               <th className="p-2 text-center w-6 align-middle">#</th>
               <th className="p-2 text-center w-[20%] align-middle">Players</th>
-              <th className="p-2 text-center w-[28%] align-middle">Archetype (Skill)</th>
+              <th className="p-2 text-center w-[28%] align-middle leading-tight">
+                Archetype
+                <br />
+                <span className="text-[8px] font-semibold opacity-70">(Skill)</span>
+              </th>
               <th className="p-2 text-center w-16 whitespace-nowrap align-middle">Score</th>
-              <th className="p-2 text-center w-[28%] align-middle">Archetype (Skill)</th>
+              <th className="p-2 text-center w-[28%] align-middle leading-tight">
+                Archetype
+                <br />
+                <span className="text-[8px] font-semibold opacity-70">(Skill)</span>
+              </th>
               <th className="p-2 text-center w-[20%] align-middle">Players</th>
               <th className="p-2 text-center w-6 align-middle">Hapus</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/30 font-medium text-[10px] sm:text-[11px] align-middle">
             {gameLogs.map((log, idx) => {
+              const isLastRow = idx === gameLogs.length - 1;
               const isAWin = log.winnerTeamId === match.teamAId;
               if (isAWin) runningScoreA++;
               else runningScoreB++;
 
               const isRepeatA = (log as any).isRepeatA;
               const isRepeatB = (log as any).isRepeatB;
+              const isTLA = (log as any).isTLA;
+              const isTLB = (log as any).isTLB;
 
               return (
                 <tr key={idx} className="hover:bg-muted/20 transition">
@@ -50,9 +77,7 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                   {/* PEMAIN TIM A */}
                   <td
                     className={`p-2 text-center font-bold leading-tight align-middle break-words ${
-                      isAWin
-                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-black"
-                        : "opacity-75"
+                      isAWin ? "text-emerald-500 font-black" : "text-foreground opacity-80"
                     }`}
                   >
                     <div className="flex items-center justify-center gap-1 flex-wrap">
@@ -62,15 +87,18 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                           R
                         </span>
                       )}
+                      {isTLA && (
+                        <span className="text-[8px] font-black bg-rose-500 text-white px-1 rounded uppercase shrink-0">
+                          TL
+                        </span>
+                      )}
                     </div>
                   </td>
 
                   {/* DECK TIM A */}
                   <td
                     className={`p-2 text-center leading-tight align-middle break-words ${
-                      isAWin
-                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-black"
-                        : "opacity-75"
+                      isAWin ? "text-emerald-500 font-black" : "text-foreground opacity-80"
                     }`}
                   >
                     <div className="font-extrabold">{log.deckA}</div>
@@ -87,9 +115,7 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                   {/* DECK TIM B */}
                   <td
                     className={`p-2 text-center leading-tight align-middle break-words ${
-                      !isAWin
-                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-black"
-                        : "opacity-75"
+                      !isAWin ? "text-emerald-500 font-black" : "text-foreground opacity-80"
                     }`}
                   >
                     <div className="font-extrabold">{log.deckB}</div>
@@ -99,9 +125,7 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                   {/* PEMAIN TIM B */}
                   <td
                     className={`p-2 text-center font-bold leading-tight align-middle break-words ${
-                      !isAWin
-                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-black"
-                        : "opacity-75"
+                      !isAWin ? "text-emerald-500 font-black" : "text-foreground opacity-80"
                     }`}
                   >
                     <div className="flex items-center justify-center gap-1 flex-wrap">
@@ -111,18 +135,30 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                           R
                         </span>
                       )}
+                      {isTLB && (
+                        <span className="text-[8px] font-black bg-rose-500 text-white px-1 rounded uppercase shrink-0">
+                          TL
+                        </span>
+                      )}
                     </div>
                   </td>
 
-                  {/* HAPUS */}
+                  {/* HAPUS HANYA DI BARIS TERAKHIR (STRICT UNDO) */}
                   <td className="p-2 text-center align-middle">
-                    <button
-                      type="button"
-                      onClick={() => setGameLogs(gameLogs.filter((_, i) => i !== idx))}
-                      className="text-rose-500 hover:text-rose-400 font-black text-xs p-1 cursor-pointer"
-                    >
-                      ✕
-                    </button>
+                    {isLastRow ? (
+                      <button
+                        type="button"
+                        onClick={() => setGameLogs(gameLogs.filter((_, i) => i !== idx))}
+                        className="text-rose-500 hover:text-rose-400 font-black text-xs p-1 cursor-pointer"
+                        title="Hapus Game Terakhir"
+                      >
+                        ✕
+                      </button>
+                    ) : (
+                      <span className="text-muted-foreground/30 font-bold text-xs cursor-not-allowed">
+                        -
+                      </span>
+                    )}
                   </td>
                 </tr>
               );
@@ -130,6 +166,34 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
           </tbody>
         </table>
       </div>
+
+      {/* 🟢 BLOK CATATAN STATUS & PELANGGARAN WARNING TIM */}
+      {warningLogs.length > 0 && (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2 text-[10px]">
+          <div className="font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center justify-between">
+            <span>⚠️ Catatan Histori Warning Screenshot Tim</span>
+            <span className="text-[9px] font-mono bg-amber-500/20 px-1.5 py-0.5 rounded">
+              Total Log: {warningLogs.length}
+            </span>
+          </div>
+          <ul className="divide-y divide-amber-500/20 font-medium">
+            {warningLogs.map((w, idx) => (
+              <li key={idx} className="py-1 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-foreground">Game #{w.gameNumber}</span>: Tim{" "}
+                  <span className="font-extrabold text-primary">{w.teamName}</span> menerima{" "}
+                  <span className="font-black text-amber-500">Warning #{w.warningNumber}</span> (Lupa SS).
+                </div>
+                {w.isTechnicalLossTriggered && (
+                  <span className="text-[8px] font-black text-white bg-rose-500 px-1.5 py-0.5 rounded uppercase">
+                    Deck Lose (TL) Triggered
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
