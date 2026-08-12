@@ -11,7 +11,6 @@ import {
   sendTeamTracker 
 } from '@/lib/discord';
 
-// Modul Discord Message Bot API
 import { sendFinanceMessage } from '@/lib/discord/messages/finance';
 import { sendCreativeMessage } from '@/lib/discord/messages/creative';
 import { sendRosterMessage } from '@/lib/discord/messages/roster';
@@ -29,7 +28,6 @@ async function sendEmailSafe(params: any) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    // 👈 TAMBAHAN: Ekstrak channelId, alias menjadi customChannelId agar tidak bentrok
     const { email, namaTim, warna, logoTim, buktiTransfer, players, channelId: customChannelId } = data; 
 
     if (!namaTim || typeof namaTim !== 'string') {
@@ -69,15 +67,25 @@ export async function POST(request: NextRequest) {
     await kv.set(`token:map:${editToken}`, teamSlug);
     await kv.sadd("global:teams", teamSlug);
 
-    // Injeksi Index Sekunder
+    // ==========================================
+    // INJEKSI INDEX SEKUNDER (HSET Untuk Tipe HASH)
+    // ==========================================
     if (players && players.length > 0) {
-      const igns = players.map((p: any) => p.ign.toLowerCase());
-      const discords = players.map((p: any) => p.discord.toLowerCase());
-      const duelLinks = players.map((p: any) => p.idDuelLinks || p.duelId);
-      
-      if (igns.length) await kv.sadd("global:ign", ...igns);
-      if (discords.length) await kv.sadd("global:discord", ...discords);
-      if (duelLinks.length) await kv.sadd("global:duellinks", ...duelLinks);
+      const discordMap: Record<string, string> = {};
+      const ignMap: Record<string, string> = {};
+      const duelLinksMap: Record<string, string> = {};
+
+      players.forEach((p: any) => {
+        if (p.discord) discordMap[p.discord.toLowerCase()] = teamSlug;
+        if (p.ign) ignMap[p.ign.toLowerCase()] = teamSlug;
+        
+        const dlId = p.idDuelLinks || p.duelId;
+        if (dlId) duelLinksMap[dlId.toString().toLowerCase()] = teamSlug;
+      });
+
+      if (Object.keys(discordMap).length > 0) await kv.hset("global:discord", discordMap);
+      if (Object.keys(ignMap).length > 0) await kv.hset("global:ign", ignMap);
+      if (Object.keys(duelLinksMap).length > 0) await kv.hset("global:duellinks", duelLinksMap);
     }
 
     const ketua = players.find((p: any) => p.role === "Ketua") || { namaLengkap: "-", discord: "-", idDuelLinks: "-" };
@@ -115,7 +123,6 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // 👈 TAMBAHAN: Lempar customChannelId ke fungsi-fungsi pengirim pesan
         const [financeId, creativeId, rosterId] = await Promise.all([
           sendFinanceMessage({ namaTim: trimmedNamaTim, warna, buktiTransfer, teamSlug, channelId: customChannelId }),
           sendCreativeMessage({ namaTim: trimmedNamaTim, warna, logoTim, channelId: customChannelId }),
@@ -144,4 +151,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Terjadi kesalahan server" }, { status: 500 });
   }
 }
-  
