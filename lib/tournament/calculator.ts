@@ -12,7 +12,8 @@ function getMatchWeek(m: MatchScheduleItem): number {
     return m.weekNumber;
   }
   if (m.matchDate) {
-    const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
+    const startDateStr = process.env.TWI_START_DATE;
+    const startDate = new Date(startDateStr).getTime();
     const matchDate = new Date(m.matchDate).getTime();
     if (!isNaN(matchDate)) {
       const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
