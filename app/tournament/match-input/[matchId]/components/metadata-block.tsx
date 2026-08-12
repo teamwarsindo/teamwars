@@ -1,14 +1,11 @@
 "use client";
 
-import { ShieldCheck, Info } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 interface MetadataBlockProps {
   referee: string;
-  setReferee?: (v: string) => void;
   streamer: string;
-  setStreamer?: (v: string) => void;
   streamLink: string;
-  setStreamLink?: (v: string) => void;
 }
 
 export function MetadataBlock({
@@ -18,16 +15,11 @@ export function MetadataBlock({
 }: MetadataBlockProps) {
   return (
     <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-3">
-      <div className="flex items-center justify-between border-b border-border/40 pb-2">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-primary" />
-          <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wide">
-            1. Petugas &amp; Live Stream Match
-          </h3>
-        </div>
-        <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
-          <Info className="h-3 w-3" /> Admin Managed
-        </span>
+      <div className="flex items-center gap-2 border-b border-border/40 pb-2">
+        <ShieldCheck className="h-4 w-4 text-primary" />
+        <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wide">
+          1. Petugas &amp; Live Stream Match
+        </h3>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -65,4 +57,4 @@ export function MetadataBlock({
       </div>
     </section>
   );
-}
+      }
