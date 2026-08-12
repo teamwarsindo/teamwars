@@ -6,6 +6,17 @@ import { PlayerDeckInfo } from "./roster-lineup-block";
 import { TeamGameInput } from "./team-game-input";
 import { WinnerSelector } from "./winner-selector";
 import { GameLogsTable } from "./game-logs-table";
+import { useMatchTimer } from "../hooks/use-match-timer";
+import { getPlayerStats, extractIgn } from "../utils/conquest-rules";
+import Swal from "sweetalert2";
+
+interface WarningLogItem {
+  gameNumber: number;
+  teamId: string;
+  teamName: string;
+  warningNumber: number;
+  isTechnicalLossTriggered: boolean;
+}
 
 interface GameLogsBlockProps {
   match: MatchScheduleItem;
@@ -14,6 +25,8 @@ interface GameLogsBlockProps {
   lineupA: PlayerDeckInfo[];
   lineupB: PlayerDeckInfo[];
   isLineupLocked: boolean;
+  lateDecksA: number;
+  lateDecksB: number;
 }
 
 export function GameLogsBlock({
@@ -23,6 +36,8 @@ export function GameLogsBlock({
   lineupA,
   lineupB,
   isLineupLocked,
+  lateDecksA,
+  lateDecksB,
 }: GameLogsBlockProps) {
   const [playerA, setPlayerA] = useState("");
   const [selectedDeckSlotA, setSelectedDeckSlotA] = useState<"deck1" | "deck2">("deck1");
@@ -35,360 +50,205 @@ export function GameLogsBlock({
   const [skillB, setSkillB] = useState("");
 
   const [gameResult, setGameResult] = useState<"A" | "B" | "">("");
-
   const [isRepeatA, setIsRepeatA] = useState(false);
   const [isRepeatB, setIsRepeatB] = useState(false);
-
+  const [isTLA, setIsTLA] = useState(false);
+  const [isTLB, setIsTLB] = useState(false);
   const [isLockedA, setIsLockedA] = useState(false);
   const [isLockedB, setIsLockedB] = useState(false);
 
-  // Kuota Repeat
-  const repeatCountA = new Set(
-    gameLogs.filter((g) => (g as any).isRepeatA).map((g) => g.playerAName)
-  ).size;
+  const [warningLogs, setWarningLogs] = useState<WarningLogItem[]>([]);
 
-  const repeatCountB = new Set(
-    gameLogs.filter((g) => (g as any).isRepeatB).map((g) => g.playerBName)
-  ).size;
+  // AUTO-TL DARI TIMER 00:00
+  const executeTLGame = (losingTeam: "A" | "B") => {
+    const winnerTeamId = losingTeam === "A" ? match.teamBId : match.teamAId;
+    const pA = extractIgn(playerA) || lineupA[0]?.playerName || "Player A";
+    const pB = extractIgn(playerB) || lineupB[0]?.playerName || "Player B";
 
-  // 🟢 LOGIKA EVALUASI PEMAIN PERSIS PER IGN
-  const getPlayerStats = (playerName: string, isTeamA: boolean) => {
-    if (!gameLogs || gameLogs.length === 0 || !playerName) {
-      return {
-        wins: 0,
-        losses: 0,
-        deck1Lost: false,
-        deck2Lost: false,
-        hasActivatedRepeat: false,
-        isDeck1Repeated: false,
-        isEliminated: false,
-        totalGames: 0,
-        lastDeckUsed: null as string | null,
-      };
-    }
+    const pObjA = lineupA.find((x) => x.playerName === pA);
+    const pObjB = lineupB.find((x) => x.playerName === pB);
 
-    const pLogs = gameLogs.filter((g) => (isTeamA ? g.playerAName : g.playerBName) === playerName);
-    const wins = pLogs.filter((g) => g.winnerTeamId === (isTeamA ? match.teamAId : match.teamBId)).length;
-    const losses = pLogs.filter((g) => g.winnerTeamId !== (isTeamA ? match.teamAId : match.teamBId)).length;
+    const newLog: GameDetailLog = {
+      gameNumber: gameLogs.length + 1,
+      playerAId: pA, playerAName: pA,
+      deckA: (selectedDeckSlotA === "deck1" ? pObjA?.deck1 : pObjA?.deck2) || "-",
+      skillA: (selectedDeckSlotA === "deck1" ? pObjA?.skill1 : pObjA?.skill2) || "-",
+      playerBId: pB, playerBName: pB,
+      deckB: (selectedDeckSlotB === "deck1" ? pObjB?.deck1 : pObjB?.deck2) || "-",
+      skillB: (selectedDeckSlotB === "deck1" ? pObjB?.skill1 : pObjB?.skill2) || "-",
+      winnerTeamId,
+      isTLA: losingTeam === "A",
+      isTLB: losingTeam === "B",
+    } as any;
 
-    const pObj = (isTeamA ? lineupA : lineupB).find((x) => x.playerName === playerName);
-    const hasActivatedRepeat = pLogs.some((g) => (isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB));
-
-    const lastGameOfPlayer = pLogs[pLogs.length - 1];
-    const lastDeckUsed = lastGameOfPlayer ? (isTeamA ? lastGameOfPlayer.deckA : lastGameOfPlayer.deckB) : null;
-
-    const isLastGameRepeat = lastGameOfPlayer
-      ? isTeamA
-        ? (lastGameOfPlayer as any).isRepeatA
-        : (lastGameOfPlayer as any).isRepeatB
-      : false;
-
-    // Deck 1 dianggap kalah jika pemain pernah kalah memakai Deck 1 (tanpa Repeat)
-    const deck1Lost = pLogs.some(
-      (g) =>
-        (isTeamA ? g.deckA : g.deckB) === pObj?.deck1 &&
-        g.winnerTeamId !== (isTeamA ? match.teamAId : match.teamBId) &&
-        !(isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB)
-    );
-
-    // Deck 2 dianggap kalah jika pemain pernah kalah memakai Deck 2
-    const deck2Lost = pLogs.some(
-      (g) =>
-        (isTeamA ? g.deckA : g.deckB) === pObj?.deck2 &&
-        g.winnerTeamId !== (isTeamA ? match.teamAId : match.teamBId)
-    );
-
-    const isEliminated = losses >= 2 || (deck1Lost && deck2Lost);
-
-    return {
-      wins,
-      losses,
-      deck1Lost,
-      deck2Lost,
-      hasActivatedRepeat,
-      isDeck1Repeated: hasActivatedRepeat,
-      isLastGameRepeat,
-      isEliminated,
-      totalGames: pLogs.length,
-      lastDeckUsed,
-    };
+    setGameLogs([...gameLogs, newLog]);
   };
 
-  const availableOptionsA = lineupA
-    .filter((p) => !getPlayerStats(p.playerName, true).isEliminated)
-    .map((p) => {
-      const dlText = p.duellinksId && p.duellinksId !== "-" ? ` (${p.duellinksId})` : "";
-      return `${p.playerName}${dlText}`;
-    });
-
-  const availableOptionsB = lineupB
-    .filter((p) => !getPlayerStats(p.playerName, false).isEliminated)
-    .map((p) => {
-      const dlText = p.duellinksId && p.duellinksId !== "-" ? ` (${p.duellinksId})` : "";
-      return `${p.playerName}${dlText}`;
-    });
-
-  const extractIgn = (fullString: string) => fullString.replace(/\s*\([^)]*\)/g, "").trim();
+  // CUSTOM HOOKS TIMER
+  const timerHookA = useMatchTimer({ teamName: match.teamAName, lateDecks: lateDecksA, onExecuteTL: () => executeTLGame("A") });
+  const timerHookB = useMatchTimer({ teamName: match.teamBName, lateDecks: lateDecksB, onExecuteTL: () => executeTLGame("B") });
 
   const currentIgnA = extractIgn(playerA);
   const currentIgnB = extractIgn(playerB);
 
-  const canRepeatA = (() => {
-    if (!currentIgnA || repeatCountA >= 2) return false;
-    const stats = getPlayerStats(currentIgnA, true);
-    return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
-  })();
+  const statsA = getPlayerStats(currentIgnA, true, gameLogs, match.teamAId, lineupA);
+  const statsB = getPlayerStats(currentIgnB, false, gameLogs, match.teamBId, lineupB);
 
-  const canRepeatB = (() => {
-    if (!currentIgnB || repeatCountB >= 2) return false;
-    const stats = getPlayerStats(currentIgnB, false);
-    return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
-  })();
+  const warningCountA = warningLogs.filter((w) => w.teamId === match.teamAId).length;
+  const warningCountB = warningLogs.filter((w) => w.teamId === match.teamBId).length;
 
-  // 🟢 PERBAIKAN LOGIKA TRANSIKSI PEMAIN & DECK TERAKHIR
+  const repeatCountA = new Set(gameLogs.filter((g) => (g as any).isRepeatA).map((g) => g.playerAName)).size;
+  const repeatCountB = new Set(gameLogs.filter((g) => (g as any).isRepeatB).map((g) => g.playerBName)).size;
+
+  const availableOptionsA = lineupA.filter((p) => !getPlayerStats(p.playerName, true, gameLogs, match.teamAId, lineupA).isEliminated).map((p) => p.duellinksId && p.duellinksId !== "-" ? `${p.playerName} (${p.duellinksId})` : p.playerName);
+  const availableOptionsB = lineupB.filter((p) => !getPlayerStats(p.playerName, false, gameLogs, match.teamBId, lineupB).isEliminated).map((p) => p.duellinksId && p.duellinksId !== "-" ? `${p.playerName} (${p.duellinksId})` : p.playerName);
+
+  // AUTO SINKRONISASI LOCK PEMAIN
   useEffect(() => {
     if (!gameLogs || gameLogs.length === 0) {
-      setIsLockedA(false);
-      setIsLockedB(false);
-      return;
+      setIsLockedA(false); setIsLockedB(false); return;
     }
     const lastGame = gameLogs[gameLogs.length - 1];
 
-    // --- TIM A ---
     if (lastGame.winnerTeamId === match.teamAId) {
       const pA = lineupA.find((x) => x.playerName === lastGame.playerAName);
-      const dlText = pA?.duellinksId && pA.duellinksId !== "-" ? ` (${pA.duellinksId})` : "";
-      setPlayerA(`${lastGame.playerAName}${dlText}`);
+      setPlayerA(pA?.duellinksId && pA.duellinksId !== "-" ? `${pA.playerName} (${pA.duellinksId})` : lastGame.playerAName);
       setIsLockedA(true);
-
-      const statsA = getPlayerStats(lastGame.playerAName, true);
-      if (statsA.isLastGameRepeat || (lastGame as any).isRepeatA) {
-        setSelectedDeckSlotA("deck1");
-      } else if (pA && lastGame.deckA === pA.deck2) {
-        setSelectedDeckSlotA("deck2");
-      } else {
-        setSelectedDeckSlotA("deck1");
-      }
+      setSelectedDeckSlotA((lastGame as any).isRepeatA || statsA.isLastGameRepeat ? "deck1" : pA && lastGame.deckA === pA.deck2 ? "deck2" : "deck1");
     } else {
-      const statsA = getPlayerStats(lastGame.playerAName, true);
       const pA = lineupA.find((x) => x.playerName === lastGame.playerAName);
-
       if (pA && !statsA.isEliminated) {
-        const dlText = pA.duellinksId && pA.duellinksId !== "-" ? ` (${pA.duellinksId})` : "";
-        setPlayerA(`${lastGame.playerAName}${dlText}`);
-        setIsLockedA(true);
-
-        // Jika dia kalah di Deck 1 -> Pindah ke Deck 2
-        if (statsA.deck1Lost) {
-          setSelectedDeckSlotA("deck2");
-        }
-      } else {
-        setPlayerA("");
-        setIsLockedA(false);
-        setSelectedDeckSlotA("deck1");
-      }
+        setPlayerA(pA.duellinksId && pA.duellinksId !== "-" ? `${pA.playerName} (${pA.duellinksId})` : lastGame.playerAName);
+        setIsLockedA(true); if (statsA.deck1Lost) setSelectedDeckSlotA("deck2");
+      } else { setPlayerA(""); setIsLockedA(false); setSelectedDeckSlotA("deck1"); }
     }
 
-    // --- TIM B ---
     if (lastGame.winnerTeamId === match.teamBId) {
       const pB = lineupB.find((x) => x.playerName === lastGame.playerBName);
-      const dlText = pB?.duellinksId && pB.duellinksId !== "-" ? ` (${pB.duellinksId})` : "";
-      setPlayerB(`${lastGame.playerBName}${dlText}`);
+      setPlayerB(pB?.duellinksId && pB.duellinksId !== "-" ? `${pB.playerName} (${pB.duellinksId})` : lastGame.playerBName);
       setIsLockedB(true);
-
-      const statsB = getPlayerStats(lastGame.playerBName, false);
-      if (statsB.isLastGameRepeat || (lastGame as any).isRepeatB) {
-        setSelectedDeckSlotB("deck1");
-      } else if (pB && lastGame.deckB === pB.deck2) {
-        setSelectedDeckSlotB("deck2");
-      } else {
-        setSelectedDeckSlotB("deck1");
-      }
+      setSelectedDeckSlotB((lastGame as any).isRepeatB || statsB.isLastGameRepeat ? "deck1" : pB && lastGame.deckB === pB.deck2 ? "deck2" : "deck1");
     } else {
-      const statsB = getPlayerStats(lastGame.playerBName, false);
       const pB = lineupB.find((x) => x.playerName === lastGame.playerBName);
-
       if (pB && !statsB.isEliminated) {
-        const dlText = pB.duellinksId && pB.duellinksId !== "-" ? ` (${pB.duellinksId})` : "";
-        setPlayerB(`${lastGame.playerBName}${dlText}`);
-        setIsLockedB(true);
-
-        // Jika dia kalah di Deck 1 -> Pindah ke Deck 2
-        if (statsB.deck1Lost) {
-          setSelectedDeckSlotB("deck2");
-        }
-      } else {
-        setPlayerB("");
-        setIsLockedB(false);
-        setSelectedDeckSlotB("deck1");
-      }
+        setPlayerB(pB.duellinksId && pB.duellinksId !== "-" ? `${pB.playerName} (${pB.duellinksId})` : lastGame.playerBName);
+        setIsLockedB(true); if (statsB.deck1Lost) setSelectedDeckSlotB("deck2");
+      } else { setPlayerB(""); setIsLockedB(false); setSelectedDeckSlotB("deck1"); }
     }
   }, [gameLogs, match.teamAId, match.teamBId, lineupA, lineupB]);
 
-  // SINKRONISASI BINDING DECK A
+  // BINDING DECK PER PEMAIN
   useEffect(() => {
-    if (!currentIgnA) {
-      setDeckA("");
-      setSkillA("");
-      return;
-    }
+    if (!currentIgnA) { setDeckA(""); setSkillA(""); return; }
     const p = lineupA.find((x) => x.playerName === currentIgnA);
     if (!p) return;
-
-    const stats = getPlayerStats(currentIgnA, true);
-
-    if (stats.totalGames === 0) {
-      setSelectedDeckSlotA("deck1");
-    } else if (isRepeatA || stats.isLastGameRepeat) {
-      setSelectedDeckSlotA("deck1");
-    } else if (stats.deck1Lost) {
-      setSelectedDeckSlotA("deck2");
-    }
-
-    if (selectedDeckSlotA === "deck1") {
-      setDeckA(p.deck1);
-      setSkillA(p.skill1);
-    } else {
-      setDeckA(p.deck2);
-      setSkillA(p.skill2);
-    }
+    if (statsA.totalGames === 0 || isRepeatA || statsA.isLastGameRepeat) setSelectedDeckSlotA("deck1");
+    else if (statsA.deck1Lost) setSelectedDeckSlotA("deck2");
+    setDeckA(selectedDeckSlotA === "deck1" ? p.deck1 : p.deck2);
+    setSkillA(selectedDeckSlotA === "deck1" ? p.skill1 : p.skill2);
   }, [playerA, currentIgnA, selectedDeckSlotA, lineupA, gameLogs, isRepeatA]);
 
-  // SINKRONISASI BINDING DECK B
   useEffect(() => {
-    if (!currentIgnB) {
-      setDeckB("");
-      setSkillB("");
-      return;
-    }
+    if (!currentIgnB) { setDeckB(""); setSkillB(""); return; }
     const p = lineupB.find((x) => x.playerName === currentIgnB);
     if (!p) return;
-
-    const stats = getPlayerStats(currentIgnB, false);
-
-    if (stats.totalGames === 0) {
-      setSelectedDeckSlotB("deck1");
-    } else if (isRepeatB || stats.isLastGameRepeat) {
-      setSelectedDeckSlotB("deck1");
-    } else if (stats.deck1Lost) {
-      setSelectedDeckSlotB("deck2");
-    }
-
-    if (selectedDeckSlotB === "deck1") {
-      setDeckB(p.deck1);
-      setSkillB(p.skill1);
-    } else {
-      setDeckB(p.deck2);
-      setSkillB(p.skill2);
-    }
+    if (statsB.totalGames === 0 || isRepeatB || statsB.isLastGameRepeat) setSelectedDeckSlotB("deck1");
+    else if (statsB.deck1Lost) setSelectedDeckSlotB("deck2");
+    setDeckB(selectedDeckSlotB === "deck1" ? p.deck1 : p.deck2);
+    setSkillB(selectedDeckSlotB === "deck1" ? p.skill1 : p.skill2);
   }, [playerB, currentIgnB, selectedDeckSlotB, lineupB, gameLogs, isRepeatB]);
 
-  const handleAddSingleGame = () => {
+  const handleAddSingleGame = async () => {
     if (!currentIgnA || !currentIgnB || !gameResult || !isLineupLocked) return;
 
-    const winnerTeamId = gameResult === "A" ? match.teamAId : match.teamBId;
+    if (gameLogs.length > 0) {
+      const prevGameNum = gameLogs.length;
+      const { value: formValues } = await Swal.fire({
+        title: `Konfirmasi SS Game #${prevGameNum}`,
+        html: `
+          <div class="space-y-2 text-left text-xs font-bold">
+            <label class="flex items-center gap-2 p-2 bg-muted/30 rounded border border-border cursor-pointer">
+              <input type="checkbox" id="ss-a" checked class="h-4 w-4 rounded accent-purple-600" />
+              <span>${match.teamAName} Mengumpulkan SS</span>
+            </label>
+            <label class="flex items-center gap-2 p-2 bg-muted/30 rounded border border-border cursor-pointer">
+              <input type="checkbox" id="ss-b" checked class="h-4 w-4 rounded accent-purple-600" />
+              <span>${match.teamBName} Mengumpulkan SS</span>
+            </label>
+          </div>`,
+        showCancelButton: true, confirmButtonText: "Simpan Game", confirmButtonColor: "#9333ea",
+        preConfirm: () => ({
+          ssA: (document.getElementById("ss-a") as HTMLInputElement)?.checked,
+          ssB: (document.getElementById("ss-b") as HTMLInputElement)?.checked,
+        }),
+      });
 
-    const statsA = getPlayerStats(currentIgnA, true);
-    const statsB = getPlayerStats(currentIgnB, false);
+      if (!formValues) return;
 
-    const activeIsRepeatA = isRepeatA || (isLockedA && statsA.isLastGameRepeat);
-    const activeIsRepeatB = isRepeatB || (isLockedB && statsB.isLastGameRepeat);
+      const newWarningLogs = [...warningLogs];
+      if (!formValues.ssA) {
+        const nextW = warningCountA + 1;
+        newWarningLogs.push({ gameNumber: prevGameNum, teamId: match.teamAId, teamName: match.teamAName, warningNumber: nextW, isTechnicalLossTriggered: nextW % 2 === 0 });
+      }
+      if (!formValues.ssB) {
+        const nextW = warningCountB + 1;
+        newWarningLogs.push({ gameNumber: prevGameNum, teamId: match.teamBId, teamName: match.teamBName, warningNumber: nextW, isTechnicalLossTriggered: nextW % 2 === 0 });
+      }
+      setWarningLogs(newWarningLogs);
+    }
 
-    const newLog: GameDetailLog & { isRepeatA?: boolean; isRepeatB?: boolean } = {
+    const newLog: GameDetailLog = {
       gameNumber: gameLogs.length + 1,
-      playerAId: currentIgnA,
-      playerAName: currentIgnA,
-      deckA: deckA || "-",
-      skillA: skillA || "-",
-      playerBId: currentIgnB,
-      playerBName: currentIgnB,
-      deckB: deckB || "-",
-      skillB: skillB || "-",
-      winnerTeamId,
-      isRepeatA: activeIsRepeatA,
-      isRepeatB: activeIsRepeatB,
-    };
+      playerAId: currentIgnA, playerAName: currentIgnA, deckA: deckA || "-", skillA: skillA || "-",
+      playerBId: currentIgnB, playerBName: currentIgnB, deckB: deckB || "-", skillB: skillB || "-",
+      winnerTeamId: gameResult === "A" ? match.teamAId : match.teamBId,
+      isRepeatA: isRepeatA || (isLockedA && statsA.isLastGameRepeat),
+      isRepeatB: isRepeatB || (isLockedB && statsB.isLastGameRepeat),
+      isTLA, isTLB,
+    } as any;
 
     setGameLogs([...gameLogs, newLog]);
-    setGameResult("");
-    setIsRepeatA(false);
-    setIsRepeatB(false);
+    setGameResult(""); setIsRepeatA(false); setIsRepeatB(false); setIsTLA(false); setIsTLB(false);
   };
 
-  const isFormReady = Boolean(isLineupLocked && currentIgnA && currentIgnB && deckA && deckB);
-
   return (
-    <section
-      className={`glass glow-border rounded-2xl border p-5 shadow-sm space-y-5 transition-all ${
-        !isLineupLocked ? "opacity-60 pointer-events-none" : ""
-      }`}
-    >
+    <section className={`glass glow-border rounded-2xl border p-5 shadow-sm space-y-5 transition-all ${!isLineupLocked ? "opacity-60 pointer-events-none" : ""}`}>
       <div className="flex items-center justify-between border-b border-border/40 pb-3">
-        <div className="flex items-center gap-3">
-          <span className="h-6 w-1 rounded-full bg-primary" />
-          <h3 className="text-sm font-semibold text-foreground">
-            3. Form Input Log Game #{gameLogs.length + 1}
-          </h3>
-        </div>
-        {!isLineupLocked && (
-          <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
-            🔒 Kunci Lineup Dulu di Section 2
-          </span>
-        )}
+        <h3 className="text-sm font-semibold text-foreground">3. Form Input Log Game #{gameLogs.length + 1}</h3>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
         <TeamGameInput
-          isTeamA={true}
-          teamName={match.teamAName}
-          teamLogo={match.teamALogo}
-          player={playerA}
-          setPlayer={setPlayerA}
-          availableOptions={availableOptionsA}
-          isLocked={isLockedA}
-          isLineupLocked={isLineupLocked}
+          isTeamA={true} teamName={match.teamAName} teamLogo={match.teamALogo}
+          player={playerA} setPlayer={setPlayerA} availableOptions={availableOptionsA}
+          isLocked={isLockedA} isLineupLocked={isLineupLocked}
           activePlayerObj={lineupA.find((p) => p.playerName === currentIgnA)}
-          selectedDeckSlot={selectedDeckSlotA}
-          setSelectedDeckSlot={setSelectedDeckSlotA}
-          skill={skillA}
-          repeatCount={repeatCountA}
-          isRepeat={isRepeatA || (isLockedA && getPlayerStats(currentIgnA, true).isLastGameRepeat)}
-          setIsRepeat={setIsRepeatA}
-          canRepeat={canRepeatA}
-          deckLostStats={currentIgnA ? getPlayerStats(currentIgnA, true) : undefined}
+          selectedDeckSlot={selectedDeckSlotA} setSelectedDeckSlot={setSelectedDeckSlotA}
+          repeatCount={repeatCountA} isRepeat={isRepeatA || (isLockedA && statsA.isLastGameRepeat)}
+          setIsRepeat={setIsRepeatA} canRepeat={statsA.losses === 1 && statsA.wins === 0 && statsA.totalGames === 1 && !statsA.hasActivatedRepeat && repeatCountA < 2}
+          deckLostStats={currentIgnA ? statsA : undefined}
+          warningCount={warningCountA} isTechnicalLoss={isTLA} setIsTechnicalLoss={setIsTLA}
+          timerSeconds={timerHookA.timer} isTimerRunning={timerHookA.isRunning}
+          onToggleTimer={timerHookA.toggleTimer} onResetTimer={timerHookA.resetTimer}
         />
 
         <TeamGameInput
-          isTeamA={false}
-          teamName={match.teamBName}
-          teamLogo={match.teamBLogo}
-          player={playerB}
-          setPlayer={setPlayerB}
-          availableOptions={availableOptionsB}
-          isLocked={isLockedB}
-          isLineupLocked={isLineupLocked}
+          isTeamA={false} teamName={match.teamBName} teamLogo={match.teamBLogo}
+          player={playerB} setPlayer={setPlayerB} availableOptions={availableOptionsB}
+          isLocked={isLockedB} isLineupLocked={isLineupLocked}
           activePlayerObj={lineupB.find((p) => p.playerName === currentIgnB)}
-          selectedDeckSlot={selectedDeckSlotB}
-          setSelectedDeckSlot={setSelectedDeckSlotB}
-          skill={skillB}
-          repeatCount={repeatCountB}
-          isRepeat={isRepeatB || (isLockedB && getPlayerStats(currentIgnB, false).isLastGameRepeat)}
-          setIsRepeat={setIsRepeatB}
-          canRepeat={canRepeatB}
-          deckLostStats={currentIgnB ? getPlayerStats(currentIgnB, false) : undefined}
+          selectedDeckSlot={selectedDeckSlotB} setSelectedDeckSlot={setSelectedDeckSlotB}
+          repeatCount={repeatCountB} isRepeat={isRepeatB || (isLockedB && statsB.isLastGameRepeat)}
+          setIsRepeat={setIsRepeatB} canRepeat={statsB.losses === 1 && statsB.wins === 0 && statsB.totalGames === 1 && !statsB.hasActivatedRepeat && repeatCountB < 2}
+          deckLostStats={currentIgnB ? statsB : undefined}
+          warningCount={warningCountB} isTechnicalLoss={isTLB} setIsTechnicalLoss={setIsTLB}
+          timerSeconds={timerHookB.timer} isTimerRunning={timerHookB.isRunning}
+          onToggleTimer={timerHookB.toggleTimer} onResetTimer={timerHookB.resetTimer}
         />
       </div>
 
-      <WinnerSelector
-        match={match}
-        gameNumber={gameLogs.length + 1}
-        isFormReady={isFormReady}
-        gameResult={gameResult}
-        setGameResult={setGameResult}
-        onSaveGame={handleAddSingleGame}
-      />
-
-      <GameLogsTable match={match} gameLogs={gameLogs} setGameLogs={setGameLogs} />
+      <WinnerSelector match={match} gameNumber={gameLogs.length + 1} isFormReady={Boolean(isLineupLocked && currentIgnA && currentIgnB && deckA && deckB)} gameResult={gameResult} setGameResult={setGameResult} onSaveGame={handleAddSingleGame} />
+      <GameLogsTable match={match} gameLogs={gameLogs} setGameLogs={setGameLogs} warningLogs={warningLogs} />
     </section>
   );
 }

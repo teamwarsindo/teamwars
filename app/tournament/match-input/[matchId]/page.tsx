@@ -1,367 +1,276 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
-import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
-import Swal from "sweetalert2";
-
-import { ConsoleHeader } from "./components/console-header";
 import { MetadataBlock } from "./components/metadata-block";
 import { RosterLineupBlock, PlayerDeckInfo } from "./components/roster-lineup-block";
 import { GameLogsBlock } from "./components/game-logs-block";
-import { ReviewSubmitModal } from "./components/review-submit-modal";
+import { ArrowLeft, Send, Trophy, CheckCircle2 } from "lucide-react";
+import Swal from "sweetalert2";
 
-interface PlayerItem {
-  id: string;
-  name: string;
-  ign?: string;
-  duellinksId?: string;
-  namaLengkap?: string;
-}
-
-export default function MatchInputConsolePage({ params }: { params: Promise<{ matchId: string }> }) {
-  const resolvedParams = use(params);
-  const matchId = resolvedParams.matchId;
-
+export default function MatchInputPage() {
+  const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") || "";
+  const matchId = params?.matchId as string;
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [isExpired, setIsExpired] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isReviewOpen, setIsReviewOpen] = useState(false);
-
   const [match, setMatch] = useState<MatchScheduleItem | null>(null);
-  const [dbRosterA, setDbRosterA] = useState<PlayerItem[]>([]);
-  const [dbRosterB, setDbRosterB] = useState<PlayerItem[]>([]);
 
+  // METADATA
   const [referee, setReferee] = useState("");
   const [streamer, setStreamer] = useState("");
   const [streamLink, setStreamLink] = useState("");
+  const [lateDecksA, setLateDecksA] = useState(0);
+  const [lateDecksB, setLateDecksB] = useState(0);
 
+  // ROSTER DB & MASTER DATA
+  const [dbRosterA, setDbRosterA] = useState<Array<{ id: string; name: string; ign?: string; duellinksId?: string }>>([]);
+  const [dbRosterB, setDbRosterB] = useState<Array<{ id: string; name: string; ign?: string; duellinksId?: string }>>([]);
+  const [masterDecks, setMasterDecks] = useState<string[]>([]);
+  const [masterSkills, setMasterSkills] = useState<string[]>([]);
+
+  // LINEUP
   const [lineupA, setLineupA] = useState<PlayerDeckInfo[]>([]);
   const [lineupB, setLineupB] = useState<PlayerDeckInfo[]>([]);
   const [isLineupLocked, setIsLineupLocked] = useState(false);
 
+  // GAME LOGS
   const [gameLogs, setGameLogs] = useState<GameDetailLog[]>([]);
-  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
-  const [masterDecks, setMasterDecks] = useState<string[]>([]);
-  const [masterSkills, setMasterSkills] = useState<string[]>([]);
+  // AUTO-DETECT AKHIR MATCH (SKOR 10)
+  const scoreA = gameLogs.filter((g) => g.winnerTeamId === match?.teamAId).length;
+  const scoreB = gameLogs.filter((g) => g.winnerTeamId === match?.teamBId).length;
+  const isMatchEnded = scoreA >= 10 || scoreB >= 10;
 
-  const LOCAL_STORAGE_KEY = `match_draft_logs_${matchId}`;
+  useEffect(() => {
+    // Sederhanakan Fetch Data Pertandingan
+    async function fetchMatchData() {
+      try {
+        setIsLoading(true);
+        const res = await fetch(`/api/match-input/${matchId}`);
+        if (!res.ok) throw new Error("Gagal mengambil data match");
 
-  const fetchMatchDetails = async () => {
-    try {
-      const res = await fetch(`/api/tournament?matchId=${matchId}&token=${token}`);
-      const data = await res.json();
+        const data = await res.json();
+        setMatch(data.match);
+        setReferee(data.match.referee || "");
+        setStreamer(data.match.streamer || "");
+        setStreamLink(data.match.streamLink || "");
 
-      if (res.ok && data.success) {
-        const m: MatchScheduleItem = data.match;
-        setMatch(m);
         setDbRosterA(data.dbRosterA || []);
         setDbRosterB(data.dbRosterB || []);
-        setIsAuthorized(true);
+        setMasterDecks(data.masterDecks || []);
+        setMasterSkills(data.masterSkills || []);
 
-        // 🟢 FIX 1: Ambil data nama referee/streamer dari key m.refereeName atau m.referee
-        setReferee((m as any).refereeName || m.referee || "");
-        setStreamer((m as any).streamerName || m.streamer || "");
-        setStreamLink(m.streamLink || "");
-
-        if ((m as any).lineupA && (m as any).lineupA.length > 0) setLineupA((m as any).lineupA);
-        if ((m as any).lineupB && (m as any).lineupB.length > 0) setLineupB((m as any).lineupB);
-
-        if ((m as any).lineupA?.length === 5 && (m as any).lineupB?.length === 5) {
-          setIsLineupLocked(true);
+        if (data.existingLineup) {
+          setLineupA(data.existingLineup.lineupA || []);
+          setLineupB(data.existingLineup.lineupB || []);
+          setIsLineupLocked(data.existingLineup.isLocked || false);
         }
 
-        // 🟢 FIX 2: Restore Draft dari Local Storage jika ada, jika tidak pakai dari KV
-        const savedLocal = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (savedLocal) {
-          try {
-            const parsed = JSON.parse(savedLocal);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setGameLogs(parsed);
-            } else {
-              setGameLogs(m.gameLogs || []);
-            }
-          } catch {
-            setGameLogs(m.gameLogs || []);
-          }
-        } else {
-          setGameLogs(m.gameLogs || []);
+        if (data.existingLogs) {
+          setGameLogs(data.existingLogs);
         }
-
-        setIsInitialLoaded(true);
-      } else {
-        setIsAuthorized(false);
-        if (data.accessReason === "TOKEN_EXPIRED") setIsExpired(true);
+      } catch (err) {
+        Swal.fire("Error", "Gagal memuat data pertandingan", "error");
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Error fetching match details:", err);
-    } finally {
-      setIsLoading(false);
     }
-  };
 
-  const fetchMasterData = async () => {
-    try {
-      const res = await fetch("/api/tournament/master-data");
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setMasterDecks(data.decks || []);
-        setMasterSkills(data.skills || []);
-      }
-    } catch (err) {
-      console.error("Error fetching master data:", err);
-    }
-  };
+    if (matchId) fetchMatchData();
+  }, [matchId]);
 
-  useEffect(() => {
-    if (matchId) {
-      fetchMatchDetails();
-      fetchMasterData();
-    }
-  }, [matchId, token]);
-
-  // 🟢 FIX 2: Hanya simpan ke LocalStorage JIKA data awal sudah selesai di-load
-  useEffect(() => {
-    if (isInitialLoaded && matchId) {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(gameLogs));
-    }
-  }, [gameLogs, isInitialLoaded, matchId]);
-
+  // TAMBAH MASTER DECK / SKILL BARU
   const handleAddMasterItem = async (type: "DECK" | "SKILL", newItem: string) => {
     try {
-      const res = await fetch("/api/tournament/master-data", {
+      const res = await fetch(`/api/tournament/master-items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, newItem }),
+        body: JSON.stringify({ type, name: newItem }),
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (type === "DECK") setMasterDecks(data.decks);
-        if (type === "SKILL") setMasterSkills(data.skills);
-        Swal.fire({
-          icon: "success",
-          title: `${type === "DECK" ? "Deck" : "Skill"} Ditambahkan!`,
-          text: `"${newItem}" berhasil disimpan ke Master Data KV.`,
-          toast: true,
-          position: "top-end",
-          timer: 1500,
-          showConfirmButton: false,
-        });
+
+      if (!res.ok) throw new Error("Gagal menambah master item");
+
+      if (type === "DECK") {
+        setMasterDecks((prev) => [...prev, newItem].sort());
+      } else {
+        setMasterSkills((prev) => [...prev, newItem].sort());
       }
+
+      Swal.fire("Berhasil", `Master ${type === "DECK" ? "Deck" : "Skill"} ditambahkan!`, "success");
     } catch {
-      Swal.fire("Error", "Gagal menambahkan master data", "error");
+      Swal.fire("Gagal", "Gagal menyimpan ke Master Database", "error");
     }
   };
 
+  // SIMPAN LINEUP KE KV
   const handleSaveLineupToKV = async () => {
-    if (!match) return;
+    try {
+      const res = await fetch(`/api/match-input/${matchId}/save-lineup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lineupA, lineupB }),
+      });
 
-    const payload = {
-      lineupA,
-      lineupB,
-      rosterA: {
-        teamId: match.teamAId,
-        teamName: match.teamAName,
-        teamLogo: match.teamALogo,
-        mainPlayers: lineupA.map((p) => ({ playerId: p.playerName, playerName: p.playerName })),
-      },
-      rosterB: {
-        teamId: match.teamBId,
-        teamName: match.teamBName,
-        teamLogo: match.teamBLogo,
-        mainPlayers: lineupB.map((p) => ({ playerId: p.playerName, playerName: p.playerName })),
-      },
-    };
-
-    const res = await fetch("/api/tournament", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "UPDATE_MATCH_CONSOLE",
-        matchId,
-        token,
-        matchData: payload,
-      }),
-    });
-
-    const data = await res.json();
-    if (res.ok && data.success) {
-      setMatch(data.updatedMatch);
-    } else {
-      throw new Error(data.error || "Gagal update lineup");
+      if (!res.ok) throw new Error("Gagal menyimpan lineup");
+      Swal.fire("Tersimpan", "Lineup berhasil dikunci & disimpan!", "success");
+    } catch {
+      Swal.fire("Gagal", "Terjadi kesalahan saat menyimpan lineup", "error");
     }
   };
 
-  const handleSaveToKV = async () => {
-    if (!match) return;
-    setIsSaving(true);
-
-    const payload = {
-      referee,
-      streamer,
-      streamLink,
-      lineupA,
-      lineupB,
-      gameLogs,
-      rosterA: {
-        teamId: match.teamAId,
-        teamName: match.teamAName,
-        teamLogo: match.teamALogo,
-        mainPlayers: lineupA.map((p) => ({ playerId: p.playerName, playerName: p.playerName })),
-      },
-      rosterB: {
-        teamId: match.teamBId,
-        teamName: match.teamBName,
-        teamLogo: match.teamBLogo,
-        mainPlayers: lineupB.map((p) => ({ playerId: p.playerName, playerName: p.playerName })),
-      },
-    };
+  // SUBMIT LAPORAN AKHIR MATCH
+  const handleSubmitFinalReport = async () => {
+    if (!isMatchEnded) {
+      const confirm = await Swal.fire({
+        title: "Konfirmasi Submit Early",
+        text: "Skor belum menyentuh 10. Apakah pertandingan ini memang sudah selesai secara sah?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Ya, Submit Sekarang",
+        cancelButtonText: "Batal",
+        confirmButtonColor: "#10b981",
+      });
+      if (!confirm.isConfirmed) return;
+    }
 
     try {
-      const res = await fetch("/api/tournament", {
+      const winnerId = scoreA > scoreB ? match?.teamAId : match?.teamBId;
+      const res = await fetch(`/api/match-input/${matchId}/submit-final`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "UPDATE_MATCH_CONSOLE",
-          matchId,
-          token,
-          matchData: payload,
+          lineupA,
+          lineupB,
+          gameLogs,
+          scoreA,
+          scoreB,
+          winnerId,
         }),
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setMatch(data.updatedMatch);
-        setIsReviewOpen(false);
-        localStorage.removeItem(LOCAL_STORAGE_KEY);
-        Swal.fire({
-          icon: "success",
-          title: "Match Report Tersimpan!",
-          text: "Laporan pertandingan Conquest berhasil dikunci ke KV.",
-        });
-      } else {
-        Swal.fire("Gagal", data.error || "Gagal menyimpan laporan", "error");
-      }
+      if (!res.ok) throw new Error("Gagal mengirim laporan akhir");
+
+      await Swal.fire("Sukses!", "Laporan Pertandingan Berhasil Dikirim!", "success");
+      router.push("/tournament/matches");
     } catch {
-      Swal.fire("Error", "Gagal menghubungi server", "error");
-    } finally {
-      setIsSaving(false);
+      Swal.fire("Gagal", "Terjadi kesalahan saat mengirim laporan", "error");
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !match) {
     return (
-      <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
-        <TopBar title="Match Console" />
-        <div className="flex flex-1 items-center justify-center p-8 text-xs font-bold text-primary animate-pulse">
-          ⏳ Memuat Match Console &amp; Master Data KV...
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+            Memuat Data Match Console...
+          </p>
         </div>
-        <Footer />
-      </main>
-    );
-  }
-
-  if (!isAuthorized) {
-    return (
-      <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
-        <TopBar title="Match Console" />
-        <div className="flex flex-1 items-center justify-center p-4">
-          <div className="glass glow-border max-w-md rounded-2xl border bg-popover/90 p-6 text-center shadow-2xl">
-            <div className="text-4xl mb-2">🔒</div>
-            <h2 className="text-lg font-bold text-destructive uppercase">Akses Ditolak</h2>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {isExpired
-                ? "Token Wasit untuk pertandingan ini sudah kedaluwarsa (lebih dari 7 hari)."
-                : "Kamu tidak memiliki Token Wasit yang sah untuk mengakses halaman ini."}
-            </p>
-            <button
-              onClick={() => router.push("/tournament")}
-              className="mt-6 w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 cursor-pointer"
-            >
-              Kembali ke Jadwal
-            </button>
-          </div>
-        </div>
-        <Footer />
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
-      <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
-      <TopBar title="Official Referee Console" />
+    <div className="min-h-screen bg-background text-foreground p-3 sm:p-6 max-w-6xl mx-auto space-y-6">
+      {/* HEADER NAVIGASI */}
+      <div className="flex items-center justify-between border-b border-border/40 pb-4">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="px-3 py-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Kembali</span>
+        </button>
 
-      <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-8 sm:px-6">
-        <div className="w-full max-w-4xl space-y-6">
-          <HeroHeader showDetails={false} />
+        <div className="text-center">
+          <h1 className="text-sm sm:text-base font-black uppercase tracking-wider text-foreground">
+            Match Console (Conquest Mode)
+          </h1>
+          <p className="text-[10px] text-muted-foreground font-semibold">
+            Match #{match.matchNumber || matchId}
+          </p>
+        </div>
 
-          {match && <ConsoleHeader match={match} onExit={() => router.push("/tournament")} />}
-
-          <MetadataBlock referee={referee} streamer={streamer} streamLink={streamLink} />
-
-          {match && (
-            <RosterLineupBlock
-              match={match}
-              lineupA={lineupA}
-              setLineupA={setLineupA}
-              lineupB={lineupB}
-              setLineupB={setLineupB}
-              dbRosterA={dbRosterA}
-              dbRosterB={dbRosterB}
-              masterDecks={masterDecks}
-              masterSkills={masterSkills}
-              onAddMasterItem={handleAddMasterItem}
-              onSaveLineupToKV={handleSaveLineupToKV}
-              isLineupLocked={isLineupLocked}
-              setIsLineupLocked={setIsLineupLocked}
-            />
-          )}
-
-          {match && (
-            <GameLogsBlock
-              match={match}
-              gameLogs={gameLogs}
-              setGameLogs={setGameLogs}
-              lineupA={lineupA}
-              lineupB={lineupB}
-              isLineupLocked={isLineupLocked}
-            />
-          )}
-
-          <section className="glass glow-border rounded-2xl border p-5 sm:p-6">
-            <button
-              onClick={() => setIsReviewOpen(true)}
-              disabled={gameLogs.length === 0}
-              className="w-full rounded-xl bg-primary py-4 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-            >
-              📋 Review &amp; Submit Match Report ({gameLogs.length} Game)
-            </button>
-          </section>
+        <div className="text-right">
+          <span className="text-[10px] font-extrabold px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20">
+            {scoreA} - {scoreB}
+          </span>
         </div>
       </div>
 
-      {match && (
-        <ReviewSubmitModal
-          open={isReviewOpen}
-          onClose={() => setIsReviewOpen(false)}
-          match={match}
-          referee={referee}
-          streamer={streamer}
-          gameLogs={gameLogs}
-          isSaving={isSaving}
-          onConfirm={handleSaveToKV}
-        />
+      {/* BANNER JIKA MATCH SELESAI (SKOR 10) */}
+      {isMatchEnded && (
+        <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-center space-y-1">
+          <div className="flex items-center justify-center gap-2 text-emerald-500 font-black text-sm uppercase">
+            <Trophy className="h-5 w-5" />
+            <span>MATCH ENDED - TIM {scoreA >= 10 ? match.teamAName : match.teamBName} MENANG!</span>
+          </div>
+          <p className="text-xs font-semibold text-muted-foreground">
+            Skor Akhir: {scoreA} - {scoreB}. Silakan periksa kembali data sebelum menekan tombol Submit Laporan.
+          </p>
+        </div>
       )}
 
-      <Footer />
-    </main>
+      {/* SECTION 1: METADATA & PENALTI */}
+      <MetadataBlock
+        referee={referee}
+        streamer={streamer}
+        streamLink={streamLink}
+        teamAName={match.teamAName}
+        teamBName={match.teamBName}
+        lateDecksA={lateDecksA}
+        setLateDecksA={setLateDecksA}
+        lateDecksB={lateDecksB}
+        setLateDecksB={setLateDecksB}
+      />
+
+      {/* SECTION 2: LINEUP & ROSTER REGISTER */}
+      <RosterLineupBlock
+        match={match}
+        lineupA={lineupA}
+        setLineupA={setLineupA}
+        lineupB={lineupB}
+        setLineupB={setLineupB}
+        dbRosterA={dbRosterA}
+        dbRosterB={dbRosterB}
+        masterDecks={masterDecks}
+        masterSkills={masterSkills}
+        onAddMasterItem={handleAddMasterItem}
+        onSaveLineupToKV={handleSaveLineupToKV}
+        isLineupLocked={isLineupLocked}
+        setIsLineupLocked={setIsLineupLocked}
+      />
+
+      {/* SECTION 3: FORM GAME LOGS & TIMER CONTROL */}
+      <GameLogsBlock
+        match={match}
+        gameLogs={gameLogs}
+        setGameLogs={setGameLogs}
+        lineupA={lineupA}
+        lineupB={lineupB}
+        isLineupLocked={isLineupLocked}
+        lateDecksA={lateDecksA}
+        lateDecksB={lateDecksB}
+      />
+
+      {/* FOOTER ACTION: SUBMIT REPORT */}
+      <div className="pt-4 border-t border-border/40">
+        <button
+          type="button"
+          onClick={handleSubmitFinalReport}
+          className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm shadow-lg transition flex items-center justify-center gap-2 cursor-pointer ${
+            isMatchEnded
+              ? "bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse"
+              : "bg-primary hover:bg-primary/90 text-primary-foreground"
+          }`}
+        >
+          {isMatchEnded ? <CheckCircle2 className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+          <span>📋 REVIEW &amp; SUBMIT MATCH REPORT</span>
+        </button>
+      </div>
+    </div>
   );
-        }
+}
