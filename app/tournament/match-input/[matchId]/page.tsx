@@ -17,6 +17,7 @@ interface PlayerItem {
   id: string;
   name: string;
   ign?: string;
+  duellinksId?: string;
   namaLengkap?: string;
 }
 
@@ -44,6 +45,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
 
   const [lineupA, setLineupA] = useState<PlayerDeckInfo[]>([]);
   const [lineupB, setLineupB] = useState<PlayerDeckInfo[]>([]);
+  const [isLineupLocked, setIsLineupLocked] = useState(false);
 
   const [gameLogs, setGameLogs] = useState<GameDetailLog[]>([]);
   const [rawDiscordText, setRawDiscordText] = useState("");
@@ -51,6 +53,9 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const [masterDecks, setMasterDecks] = useState<string[]>([]);
   const [masterSkills, setMasterSkills] = useState<string[]>([]);
 
+  const LOCAL_STORAGE_KEY = `match_draft_logs_${matchId}`;
+
+  // 🟢 1. FETCH MATCH DETAILS & MASTER DATA
   const fetchMatchDetails = async () => {
     try {
       const res = await fetch(`/api/tournament?matchId=${matchId}&token=${token}`);
@@ -66,10 +71,36 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         setReferee(m.referee || "");
         setStreamer(m.streamer || "");
         setStreamLink(m.streamLink || "");
-        setGameLogs(m.gameLogs || []);
 
-        if ((m as any).lineupA) setLineupA((m as any).lineupA);
-        if ((m as any).lineupB) setLineupB((m as any).lineupB);
+        // Warm up state lineup dari KV
+        if ((m as any).lineupA && (m as any).lineupA.length > 0) {
+          setLineupA((m as any).lineupA);
+        }
+        if ((m as any).lineupB && (m as any).lineupB.length > 0) {
+          setLineupB((m as any).lineupB);
+        }
+
+        // Jika lineup sudah pernah di-save di KV, otomatis set lock
+        if ((m as any).lineupA?.length === 5 && (m as any).lineupB?.length === 5) {
+          setIsLineupLocked(true);
+        }
+
+        // Restore game logs dari localStorage jika ter-refresh
+        const savedLocal = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (savedLocal) {
+          try {
+            const parsed = JSON.parse(savedLocal);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setGameLogs(parsed);
+            } else {
+              setGameLogs(m.gameLogs || []);
+            }
+          } catch {
+            setGameLogs(m.gameLogs || []);
+          }
+        } else {
+          setGameLogs(m.gameLogs || []);
+        }
       } else {
         setIsAuthorized(false);
         if (data.accessReason === "TOKEN_EXPIRED") setIsExpired(true);
@@ -101,8 +132,12 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
     }
   }, [matchId, token]);
 
-  const availableIgnA = dbRosterA.map((p) => p.ign || p.namaLengkap || p.name).filter(Boolean);
-  const availableIgnB = dbRosterB.map((p) => p.ign || p.namaLengkap || p.name).filter(Boolean);
+  // Auto-Save Draft Game Logs ke Local Storage
+  useEffect(() => {
+    if (matchId && gameLogs) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(gameLogs));
+    }
+  }, [gameLogs, matchId]);
 
   const activeListA = lineupA.map((p) => p.playerName);
   const activeListB = lineupB.map((p) => p.playerName);
@@ -133,6 +168,47 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
     }
   };
 
+  // Simpan Lineup & 10 Deck ke KV (Safe Overwrite)
+  const handleSaveLineupToKV = async () => {
+    if (!match) return;
+
+    const payload = {
+      lineupA,
+      lineupB,
+      rosterA: {
+        teamId: match.teamAId,
+        teamName: match.teamAName,
+        teamLogo: match.teamALogo,
+        mainPlayers: lineupA.map((p) => ({ playerId: p.playerName, playerName: p.playerName })),
+      },
+      rosterB: {
+        teamId: match.teamBId,
+        teamName: match.teamBName,
+        teamLogo: match.teamBLogo,
+        mainPlayers: lineupB.map((p) => ({ playerId: p.playerName, playerName: p.playerName })),
+      },
+    };
+
+    const res = await fetch("/api/tournament", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "UPDATE_MATCH_CONSOLE",
+        matchId,
+        token,
+        matchData: payload,
+      }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      setMatch(data.updatedMatch);
+    } else {
+      throw new Error(data.error || "Gagal update lineup");
+    }
+  };
+
+  // Simpan Laporan Pertandingan Lengkap
   const handleSaveToKV = async () => {
     if (!match) return;
     setIsSaving(true);
@@ -174,6 +250,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       if (res.ok && data.success) {
         setMatch(data.updatedMatch);
         setIsReviewOpen(false);
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
         Swal.fire({
           icon: "success",
           title: "Match Report Tersimpan!",
@@ -216,7 +293,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
             </p>
             <button
               onClick={() => router.push("/tournament")}
-              className="mt-6 w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90"
+              className="mt-6 w-full rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 cursor-pointer"
             >
               Kembali ke Jadwal
             </button>
@@ -240,11 +317,8 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
 
           <MetadataBlock
             referee={referee}
-            setReferee={setReferee}
             streamer={streamer}
-            setStreamer={setStreamer}
             streamLink={streamLink}
-            setStreamLink={setStreamLink}
           />
 
           {match && (
@@ -254,11 +328,14 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
               setLineupA={setLineupA}
               lineupB={lineupB}
               setLineupB={setLineupB}
-              availableIgnA={availableIgnA}
-              availableIgnB={availableIgnB}
+              dbRosterA={dbRosterA}
+              dbRosterB={dbRosterB}
               masterDecks={masterDecks}
               masterSkills={masterSkills}
               onAddMasterItem={handleAddMasterItem}
+              onSaveLineupToKV={handleSaveLineupToKV}
+              isLineupLocked={isLineupLocked}
+              setIsLineupLocked={setIsLineupLocked}
             />
           )}
 
@@ -279,6 +356,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
               setGameLogs={setGameLogs}
               lineupA={lineupA}
               lineupB={lineupB}
+              isLineupLocked={isLineupLocked}
             />
           )}
 
@@ -310,5 +388,4 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       <Footer />
     </main>
   );
-      }
-            
+}
