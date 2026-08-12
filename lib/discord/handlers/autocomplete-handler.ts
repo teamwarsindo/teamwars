@@ -7,14 +7,24 @@ export interface StaffItem {
   assignMatch?: string[];
 }
 
-// 🟢 Helper persis seperti di React Dashboard Admin
-function getMondayOfWeek(d: Date): Date {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(date.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  return monday;
+// 🟢 Mengambil Start Date dari Env (Fallback ke 2026-08-03 jika env belum terbaca)
+const START_DATE_ENV = process.env.TWI_START_DATE || '2026-08-03T00:00:00+07:00';
+const TOURNAMENT_START_TIME = new Date(START_DATE_ENV).getTime();
+
+function getMatchWeekNumber(matchDateIso: string): number {
+  if (!matchDateIso) return 1;
+  const matchDate = new Date(matchDateIso).getTime();
+  if (isNaN(matchDate)) return 1;
+
+  const diffDays = Math.floor((matchDate - TOURNAMENT_START_TIME) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+// Helper untuk hitung minggu aktif saat ini (berdasarkan hari ini)
+function getCurrentWeekNumber(): number {
+  const now = Date.now();
+  const diffDays = Math.floor((now - TOURNAMENT_START_TIME) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
 }
 
 function formatWIBShort(isoString: string): string {
@@ -33,43 +43,41 @@ export async function handleAssignAutocomplete(interaction: any) {
 
   const query = (focusedOption.value || '').toLowerCase();
 
-  // A. AUTO-COMPLETE MATCH (Presisi Week 1 Sesuai Kalkulasi Dashboard Admin)
+  // A. AUTO-COMPLETE MATCH (Dinamis Berdasarkan Week Aktif Saat Ini)
   if (focusedOption.name === 'match') {
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     if (!schedules.length) return { type: 8, data: { choices: [] } };
 
-    // 1. Urutkan berdasarkan tanggal pertandingan terawal
-    const sortedByDate = [...schedules].sort(
-      (a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
-    );
+    // 1. Hitung week number untuk setiap match
+    const schedulesWithWeek = schedules.map((m) => ({
+      ...m,
+      calculatedWeekNumber: m.weekNumber || getMatchWeekNumber(m.matchDate),
+    }));
 
-    // 2. Hitung Senin Pertama Turnamen
-    const tournamentStartMonday = getMondayOfWeek(new Date(sortedByDate[0].matchDate));
+    // 2. Hitung Minggu Aktif Hari Ini berdasarkan TWI_START_DATE
+    const currentWeek = getCurrentWeekNumber();
 
-    // 3. Pasang kalkulasi Week Number ke tiap match
-    const schedulesWithWeek = sortedByDate.map((m) => {
-      const matchMonday = getMondayOfWeek(new Date(m.matchDate));
-      const diffInDays = Math.round((matchMonday.getTime() - tournamentStartMonday.getTime()) / (1000 * 3600 * 24));
-      const calculatedWeekNumber = Math.floor(diffInDays / 7) + 1;
-      return { ...m, calculatedWeekNumber };
-    });
+    // 3. Filter Match Khusus Week Aktif Hari Ini
+    let activeWeekMatches = schedulesWithWeek.filter((m) => m.calculatedWeekNumber === currentWeek);
 
-    // 4. Murni Filter Khusus Week 1
-    const week1Matches = schedulesWithWeek.filter((m) => m.calculatedWeekNumber === 1);
+    // Fallback: Jika di minggu sekarang tidak ada match, tampilkan match yang belum selesai
+    if (activeWeekMatches.length === 0) {
+      activeWeekMatches = schedulesWithWeek.filter((m) => !(m as any).isCompleted);
+    }
 
-    // 5. Urutkan berdasarkan Nomor Match (MATCH-1, MATCH-2, MATCH-3 ...)
-    const sortedByMatchId = week1Matches.sort((a, b) => {
+    // 4. Urutkan berdasarkan Nomor Match (MATCH-1, MATCH-2 ...)
+    const sortedByMatchId = activeWeekMatches.sort((a, b) => {
       const numA = parseInt(a.id.replace(/[^0-9]/g, ''), 10) || 0;
       const numB = parseInt(b.id.replace(/[^0-9]/g, ''), 10) || 0;
       return numA - numB;
     });
 
-    // 6. Filter Query Pencarian
+    // 5. Filter Query Pencarian
     const choices = sortedByMatchId
       .filter((m) => `${m.id} ${m.teamAName} vs ${m.teamBName}`.toLowerCase().includes(query))
       .slice(0, 25)
       .map((m) => ({
-        name: `${m.id.toUpperCase()}: ${m.teamAName} vs ${m.teamBName} (${formatWIBShort(m.matchDate)})`,
+        name: `[W${m.calculatedWeekNumber}] ${m.id.toUpperCase()}: ${m.teamAName} vs ${m.teamBName} (${formatWIBShort(m.matchDate)})`,
         value: m.id,
       }));
 
@@ -91,4 +99,4 @@ export async function handleAssignAutocomplete(interaction: any) {
   }
 
   return { type: 8, data: { choices: [] } };
-                     }
+}
