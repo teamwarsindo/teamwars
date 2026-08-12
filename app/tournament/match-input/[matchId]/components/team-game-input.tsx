@@ -24,7 +24,6 @@ interface TeamGameInputProps {
   deckLostStats?: {
     deck1Lost: boolean;
     deck2Lost: boolean;
-    isDeck1Repeated?: boolean;
   };
 }
 
@@ -54,7 +53,7 @@ export function TeamGameInput({
   const placeholderText = !isLineupLocked
     ? "-- Kunci Lineup Dulu --"
     : availableOptions.length === 0
-    ? "-- Lineup Habis (Semua Gugur) --"
+    ? "-- Semua Pemain Gugur --"
     : "-- Pilih Pemain --";
 
   return (
@@ -90,15 +89,9 @@ export function TeamGameInput({
         </div>
       </div>
 
-      {/* DISPLAY STATUS DECK */}
+      {/* DISPLAY DECK */}
       {activePlayerObj && (
-        <div
-          className={`space-y-1.5 p-2.5 rounded-xl border transition-all ${
-            isRepeat
-              ? "bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30"
-              : "bg-background border-border/50"
-          }`}
-        >
+        <div className="space-y-1.5 p-2.5 rounded-xl border bg-background border-border/50">
           <div className="flex items-center justify-between">
             <label className="block text-[10px] font-bold text-muted-foreground uppercase">
               Pilihan Deck Pemain
@@ -111,7 +104,7 @@ export function TeamGameInput({
           </div>
 
           <div className="grid grid-cols-2 gap-1.5">
-            {/* DECK PERTAMA */}
+            {/* DECK 1 */}
             <button
               type="button"
               disabled={isLocked || (deckLostStats?.deck1Lost && !isRepeat)}
@@ -138,18 +131,18 @@ export function TeamGameInput({
               <div className="mt-1.5 pt-1 border-t border-border/20">
                 {selectedDeckSlot === "deck1" && (
                   <span className="text-[8px] font-black text-emerald-500 bg-emerald-500/10 px-1 py-0.5 rounded inline-block">
-                    🟢 Deck Digunakan
+                    🟢 Digunakan
                   </span>
                 )}
                 {deckLostStats?.deck1Lost && !isRepeat && (
                   <span className="text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 py-0.5 rounded inline-block">
-                    ❌ Deck Kalah
+                    ❌ Kalah
                   </span>
                 )}
               </div>
             </button>
 
-            {/* DECK KEDUA */}
+            {/* DECK 2 */}
             <button
               type="button"
               disabled={isLocked || isRepeat || deckLostStats?.deck2Lost}
@@ -176,7 +169,7 @@ export function TeamGameInput({
               <div className="mt-1.5 pt-1 border-t border-border/20">
                 {selectedDeckSlot === "deck2" && !isRepeat && (
                   <span className="text-[8px] font-black text-emerald-500 bg-emerald-500/10 px-1 py-0.5 rounded inline-block">
-                    🟢 Deck Digunakan
+                    🟢 Digunakan
                   </span>
                 )}
                 {isRepeat && (
@@ -186,7 +179,7 @@ export function TeamGameInput({
                 )}
                 {deckLostStats?.deck2Lost && (
                   <span className="text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 py-0.5 rounded inline-block">
-                    ❌ Deck Kalah
+                    ❌ Kalah
                   </span>
                 )}
               </div>
@@ -195,7 +188,7 @@ export function TeamGameInput({
         </div>
       )}
 
-      {/* 🟢 FIX 3: REPEAT AKTIFKAN DIPERBOLEHKAN MESKI PEMAIN INI KALAH & SEDANG BERTANDING */}
+      {/* TOMBOL REPEAT */}
       <button
         type="button"
         disabled={!canRepeat && !isRepeat}
@@ -206,7 +199,7 @@ export function TeamGameInput({
         }}
         className={`w-full py-2 px-2 rounded-xl border text-[11px] font-black transition flex items-center justify-center gap-1.5 ${
           isRepeat
-            ? "bg-amber-500 text-black border-amber-500 shadow-sm cursor-pointer opacity-100"
+            ? "bg-amber-500 text-black border-amber-500 shadow-sm cursor-pointer"
             : canRepeat
             ? "bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 cursor-pointer"
             : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
@@ -217,4 +210,4 @@ export function TeamGameInput({
       </button>
     </div>
   );
-      }
+}
