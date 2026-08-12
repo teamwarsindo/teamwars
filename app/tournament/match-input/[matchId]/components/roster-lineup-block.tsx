@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MatchScheduleItem } from "@/lib/types/tournament";
+import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
 import { Check, Plus, Lock, Unlock } from "lucide-react";
 import Swal from "sweetalert2";
 
