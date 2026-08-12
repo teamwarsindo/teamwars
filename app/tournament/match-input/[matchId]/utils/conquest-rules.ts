@@ -1,5 +1,4 @@
-import { GameDetailLog } from "@/lib/types/tournament";
-import { PlayerDeckInfo } from "../components/roster-lineup-block";
+import { GameDetailLog, PlayerDeckInfo } from "@/lib/types/tournament";
 
 export function getPlayerStats(
   playerName: string,
@@ -8,7 +7,7 @@ export function getPlayerStats(
   teamId: string,
   lineup: PlayerDeckInfo[]
 ) {
-  if (!gameLogs || gameLogs.length === 0 || !playerName) {
+  if (!gameLogs || gameLogs.length === 0 || !playerName || playerName === "-") {
     return {
       wins: 0,
       losses: 0,
@@ -21,22 +20,29 @@ export function getPlayerStats(
     };
   }
 
-  const pLogs = gameLogs.filter((g) => (isTeamA ? g.playerAName : g.playerBName) === playerName);
+  // Filter game log yang dimainkan oleh pemain ini saja (mengabaikan game Auto-TL)
+  const pLogs = gameLogs.filter(
+    (g) => (isTeamA ? g.playerAName : g.playerBName) === playerName
+  );
+  
   const wins = pLogs.filter((g) => g.winnerTeamId === teamId).length;
   const losses = pLogs.filter((g) => g.winnerTeamId !== teamId).length;
   const pObj = lineup.find((x) => x.playerName === playerName);
 
   const lastGame = pLogs[pLogs.length - 1];
-  const isLastGameRepeat = lastGame ? Boolean(isTeamA ? (lastGame as any).isRepeatA : (lastGame as any).isRepeatB) : false;
-  
-  // Cek apakah pemain pernah mengaktifkan repeat di log mana pun
-  const hasActivatedRepeat = pLogs.some((g) => (isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB));
+  const isLastGameRepeat = lastGame
+    ? Boolean(isTeamA ? lastGame.isRepeatA : lastGame.isRepeatB)
+    : false;
+
+  const hasActivatedRepeat = pLogs.some((g) =>
+    Boolean(isTeamA ? g.isRepeatA : g.isRepeatB)
+  );
 
   const deck1Lost = pLogs.some(
     (g) =>
       (isTeamA ? g.deckA : g.deckB) === pObj?.deck1 &&
       g.winnerTeamId !== teamId &&
-      !(isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB)
+      !Boolean(isTeamA ? g.isRepeatA : g.isRepeatB)
   );
 
   const deck2Lost = pLogs.some(
@@ -56,5 +62,6 @@ export function getPlayerStats(
 }
 
 export function extractIgn(fullString: string) {
+  if (!fullString) return "";
   return fullString.replace(/\s*\([^)]*\)/g, "").trim();
 }

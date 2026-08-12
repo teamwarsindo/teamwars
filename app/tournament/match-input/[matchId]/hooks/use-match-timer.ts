@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Swal from "sweetalert2";
+import { TOURNAMENT_CONFIG } from "../constants/tournament";
 
 interface UseMatchTimerProps {
   teamName: string;
@@ -10,7 +11,12 @@ interface UseMatchTimerProps {
 }
 
 export function useMatchTimer({ teamName, lateDecks, onExecuteTL }: UseMatchTimerProps) {
-  const baseTime = Math.max(0, (15 - lateDecks * 2) * 60);
+  // Hitung durasi awal berdasarkan config: 15 menit minus penalti per-deck
+  const baseTime = Math.max(
+    0,
+    (TOURNAMENT_CONFIG.TIMER_DEFAULT_SECONDS / 60 - lateDecks * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK) * 60
+  );
+
   const [timer, setTimer] = useState(baseTime);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -18,7 +24,7 @@ export function useMatchTimer({ teamName, lateDecks, onExecuteTL }: UseMatchTime
     setTimer(baseTime);
   }, [lateDecks, baseTime]);
 
-  const handleTimeoutTL = async () => {
+  const handleTimeoutTL = useCallback(async () => {
     setIsRunning(false);
     const result = await Swal.fire({
       title: `⚠️ TIMER ${teamName} HABIS (00:00)`,
@@ -33,28 +39,35 @@ export function useMatchTimer({ teamName, lateDecks, onExecuteTL }: UseMatchTime
 
     if (result.isConfirmed) {
       onExecuteTL();
-      setTimer(180); // Reset ke 3 Menit Tambahan
-      setIsRunning(true); // LANGSUNG JALAN
+      setTimer(TOURNAMENT_CONFIG.TIMER_OVERTIME_SECONDS); // Overtime 3 Menit Tambahan
+      setIsRunning(true);
     }
-  };
+  }, [teamName, onExecuteTL]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-    if (isRunning && timer > 0) {
-      interval = setInterval(() => setTimer((t) => t - 1), 1000);
-    } else if (timer === 0 && isRunning) {
-      handleTimeoutTL();
+    if (isRunning) {
+      interval = setInterval(() => {
+        setTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval!);
+            handleTimeoutTL();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRunning, timer]);
+  }, [isRunning, handleTimeoutTL]);
 
   const toggleTimer = () => {
     if (timer === 0 && !isRunning) {
       handleTimeoutTL();
     } else {
-      setIsRunning(!isRunning);
+      setIsRunning((prev) => !prev);
     }
   };
 

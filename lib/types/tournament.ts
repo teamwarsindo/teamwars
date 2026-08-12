@@ -3,6 +3,17 @@ export const DIVISION_MAP = {
   GROUP_B: 'Sakurasawa Fighters',
 } as const;
 
+// Interface Informasi Deck & Skill Pemain di Lineup
+export interface PlayerDeckInfo {
+  playerName: string;
+  duellinksId?: string;
+  deck1: string;
+  skill1: string;
+  deck2: string;
+  skill2: string;
+}
+
+// Interface Detail Log Per Game
 export interface GameDetailLog {
   gameNumber: number;
   playerAId: string;
@@ -14,8 +25,22 @@ export interface GameDetailLog {
   deckB: string;
   skillB: string;
   winnerTeamId: string;
+  isRepeatA?: boolean;
+  isRepeatB?: boolean;
+  isTLA?: boolean;
+  isTLB?: boolean;
 }
 
+// Interface Catatan Pelanggaran Warning Screenshot (SS)
+export interface WarningLogItem {
+  gameNumber: number;
+  teamId: string;
+  teamName: string;
+  warningNumber: number;
+  isTechnicalLossTriggered: boolean;
+}
+
+// Interface Jadwal Utama (Ringkas & Lightweight di KV)
 export interface MatchScheduleItem {
   id: string;
   matchDate: string;
@@ -37,7 +62,39 @@ export interface MatchScheduleItem {
   streamer?: string;
   streamerDiscordId?: string;
   streamLink?: string;
+  // Fallback opsional untuk ketersediaan data match lama
   gameLogs?: GameDetailLog[];
+  lineupA?: PlayerDeckInfo[];
+  lineupB?: PlayerDeckInfo[];
+  rosterA?: {
+    teamId: string;
+    teamName: string;
+    teamLogo: string;
+    mainPlayers: Array<{ playerId: string; playerName: string }>;
+  };
+  rosterB?: {
+    teamId: string;
+    teamName: string;
+    teamLogo: string;
+    mainPlayers: Array<{ playerId: string; playerName: string }>;
+  };
+}
+
+// Interface Detail Khusus Match Console (Disimpan Terpisah di Key `twi:match_details:{matchId}`)
+export interface MatchDetailsKV {
+  matchId: string;
+  lineupA: PlayerDeckInfo[];
+  lineupB: PlayerDeckInfo[];
+  gameLogs: GameDetailLog[];
+  warningLogs?: WarningLogItem[];
+  referee?: string;
+  refereeDiscordId?: string;
+  streamer?: string;
+  streamerDiscordId?: string;
+  streamLink?: string;
+  lateDecksA?: number;
+  lateDecksB?: number;
+  isLineupLocked?: boolean;
   rosterA?: {
     teamId: string;
     teamName: string;

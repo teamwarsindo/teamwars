@@ -1,9 +1,10 @@
 "use client";
 
 import { ShieldCheck, Clock, ExternalLink } from "lucide-react";
-import { CustomSelect } from "./custom-select";
+import { CustomSelect } from "../custom-select";
+import { TOURNAMENT_CONFIG } from "../../constants/tournament";
 
-interface MetadataBlockProps {
+interface Section1MetadataProps {
   referee: string;
   streamer: string;
   streamLink: string;
@@ -15,7 +16,7 @@ interface MetadataBlockProps {
   setLateDecksB: (v: number) => void;
 }
 
-export function MetadataBlock({
+export function Section1Metadata({
   referee,
   streamer,
   streamLink,
@@ -25,9 +26,12 @@ export function MetadataBlock({
   setLateDecksA,
   lateDecksB,
   setLateDecksB,
-}: MetadataBlockProps) {
-  // Option 0 - 10 Deck Telat (0m - 20m) menggunakan CustomSelect
-  const options = Array.from({ length: 11 }, (_, i) => `${i} (${i * 2} m)`);
+}: Section1MetadataProps) {
+  // Opsi Pilihan 0 - 10 Deck berdasarkan Konfigurasi Terpusat
+  const options = Array.from(
+    { length: TOURNAMENT_CONFIG.MAX_LATE_DECKS_OPTION + 1 },
+    (_, i) => `${i} (${i * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK} m)`
+  );
 
   const handleSelectA = (val: string) => {
     const num = parseInt(val.split(" ")[0]) || 0;
@@ -69,7 +73,6 @@ export function MetadataBlock({
           </span>
         </div>
 
-        {/* LINK STREAMING TAMPIL RAPI DENGAN TOMBOL TEKS */}
         <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
           <span className="block text-[10px] font-bold text-muted-foreground uppercase">
             Live Stream
@@ -92,11 +95,12 @@ export function MetadataBlock({
         </div>
       </div>
 
-      {/* INPUT PENALTI DECK TELAT SUBMIT DENGAN CUSTOM SELECT */}
       <div className="pt-2 border-t border-border/30">
         <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-foreground uppercase mb-2">
           <Clock className="h-3.5 w-3.5 text-amber-500" />
-          <span>Penalti Telat Submit Deck (1 Deck = -2 Menit)</span>
+          <span>
+            Penalti Telat Submit Deck (1 Deck = -{TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK} Menit)
+          </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -105,7 +109,7 @@ export function MetadataBlock({
               {teamAName}
             </span>
             <CustomSelect
-              value={`${lateDecksA} (${lateDecksA * 2} m)`}
+              value={`${lateDecksA} (${lateDecksA * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK} m)`}
               onChange={handleSelectA}
               options={options}
             />
@@ -116,7 +120,7 @@ export function MetadataBlock({
               {teamBName}
             </span>
             <CustomSelect
-              value={`${lateDecksB} (${lateDecksB * 2} m)`}
+              value={`${lateDecksB} (${lateDecksB * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK} m)`}
               onChange={handleSelectB}
               options={options}
             />

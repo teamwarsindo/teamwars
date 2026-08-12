@@ -2,14 +2,15 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
+import { MatchScheduleItem, GameDetailLog, PlayerDeckInfo, WarningLogItem } from "@/lib/types/tournament";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import Swal from "sweetalert2";
 
 import { ConsoleHeader } from "./components/console-header";
-import { MetadataBlock } from "./components/metadata-block";
-import { RosterLineupBlock, PlayerDeckInfo } from "./components/roster-lineup-block";
-import { GameLogsBlock } from "./components/game-logs-block";
+import { Section1Metadata } from "./components/sections/section-1-metadata";
+import { Section2Lineup } from "./components/sections/section-2-lineup";
+import { Section3GameInput } from "./components/sections/section-3-game-input";
+import { Section4GameTable } from "./components/sections/section-4-game-table";
 import { ReviewSubmitModal } from "./components/review-submit-modal";
 
 interface PlayerItem {
@@ -17,7 +18,6 @@ interface PlayerItem {
   name: string;
   ign?: string;
   duellinksId?: string;
-  namaLengkap?: string;
 }
 
 export default function MatchInputConsolePage({ params }: { params: Promise<{ matchId: string }> }) {
@@ -42,7 +42,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const [streamer, setStreamer] = useState("");
   const [streamLink, setStreamLink] = useState("");
 
-  // STATE PENALTI TELAT SUBMIT DECK
   const [lateDecksA, setLateDecksA] = useState(0);
   const [lateDecksB, setLateDecksB] = useState(0);
 
@@ -51,6 +50,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const [isLineupLocked, setIsLineupLocked] = useState(false);
 
   const [gameLogs, setGameLogs] = useState<GameDetailLog[]>([]);
+  const [warningLogs, setWarningLogs] = useState<WarningLogItem[]>([]);
   const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
   const [masterDecks, setMasterDecks] = useState<string[]>([]);
@@ -64,20 +64,22 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       const data = await res.json();
 
       if (res.ok && data.success) {
-        const m: MatchScheduleItem = data.match;
+        const m = data.match;
         setMatch(m);
         setDbRosterA(data.dbRosterA || []);
         setDbRosterB(data.dbRosterB || []);
         setIsAuthorized(true);
 
-        setReferee((m as any).refereeName || m.referee || "");
-        setStreamer((m as any).streamerName || m.streamer || "");
+        setReferee(m.refereeName || m.referee || "");
+        setStreamer(m.streamerName || m.streamer || "");
         setStreamLink(m.streamLink || "");
 
-        if ((m as any).lineupA && (m as any).lineupA.length > 0) setLineupA((m as any).lineupA);
-        if ((m as any).lineupB && (m as any).lineupB.length > 0) setLineupB((m as any).lineupB);
+        if (m.lineupA?.length > 0) setLineupA(m.lineupA);
+        if (m.lineupB?.length > 0) setLineupB(m.lineupB);
 
-        if ((m as any).lineupA?.length === 5 && (m as any).lineupB?.length === 5) {
+        // BACA PERSISTENCE LOCK LINEUP DARI LOCALSTORAGE / API
+        const savedLockState = localStorage.getItem(`lineup_locked_${matchId}`);
+        if (savedLockState === "true" || m.isLineupLocked) {
           setIsLineupLocked(true);
         }
 
@@ -85,11 +87,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         if (savedLocal) {
           try {
             const parsed = JSON.parse(savedLocal);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setGameLogs(parsed);
-            } else {
-              setGameLogs(m.gameLogs || []);
-            }
+            setGameLogs(Array.isArray(parsed) && parsed.length > 0 ? parsed : m.gameLogs || []);
           } catch {
             setGameLogs(m.gameLogs || []);
           }
@@ -149,7 +147,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         Swal.fire({
           icon: "success",
           title: `${type === "DECK" ? "Deck" : "Skill"} Ditambahkan!`,
-          text: `"${newItem}" berhasil disimpan ke Master Data KV.`,
           toast: true,
           position: "top-end",
           timer: 1500,
@@ -163,10 +160,10 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
 
   const handleSaveLineupToKV = async () => {
     if (!match) return;
-
     const payload = {
       lineupA,
       lineupB,
+      isLineupLocked: true,
       rosterA: {
         teamId: match.teamAId,
         teamName: match.teamAName,
@@ -208,9 +205,13 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       referee,
       streamer,
       streamLink,
+      lateDecksA,
+      lateDecksB,
       lineupA,
       lineupB,
       gameLogs,
+      warningLogs,
+      isLineupLocked,
       rosterA: {
         teamId: match.teamAId,
         teamName: match.teamAName,
@@ -306,7 +307,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
 
           {match && <ConsoleHeader match={match} onExit={() => router.push("/tournament")} />}
 
-          <MetadataBlock
+          <Section1Metadata
             referee={referee}
             streamer={streamer}
             streamLink={streamLink}
@@ -319,7 +320,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
           />
 
           {match && (
-            <RosterLineupBlock
+            <Section2Lineup
               match={match}
               lineupA={lineupA}
               setLineupA={setLineupA}
@@ -339,7 +340,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
           )}
 
           {match && (
-            <GameLogsBlock
+            <Section3GameInput
               match={match}
               gameLogs={gameLogs}
               setGameLogs={setGameLogs}
@@ -348,6 +349,17 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
               isLineupLocked={isLineupLocked}
               lateDecksA={lateDecksA}
               lateDecksB={lateDecksB}
+              warningLogs={warningLogs}
+              setWarningLogs={setWarningLogs}
+            />
+          )}
+
+          {match && (
+            <Section4GameTable
+              match={match}
+              gameLogs={gameLogs}
+              setGameLogs={setGameLogs}
+              warningLogs={warningLogs}
             />
           )}
 

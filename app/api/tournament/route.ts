@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
+import {
+  MatchScheduleItem,
+  MatchDetailsKV,
+  GameDetailLog,
+  DIVISION_MAP,
+} from '@/lib/types/tournament';
 import { calculateStandings } from '@/lib/tournament/calculator';
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
@@ -17,7 +22,6 @@ function getTeamSlug(teamName: string) {
     .replace(/-+$/, '');
 }
 
-// Helper Hitung Minggu Dinamis berdasarkan Tanggal Match (Patokan: 3 Agustus 2026)
 function computeWeekNumber(dateIsoString?: string): number {
   if (!dateIsoString) return 1;
   const startDate = new Date('2026-08-03T00:00:00+07:00').getTime();
@@ -43,7 +47,7 @@ function verifyRefereeTokenOnly(match: MatchScheduleItem, token?: string) {
   return { valid: true, reason: 'REFEREE_VALID' };
 }
 
-// 🟢 GET: UNTUK DASHBOARD ADMIN & PUBLIK
+// 🟢 GET: MENGAMBIL DATA JADWAL & DETAIL MATCH
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -64,6 +68,7 @@ export async function GET(req: Request) {
       await kv.set(KV_KEY_SCHEDULES, schedules);
     }
 
+    // --- CASE 1: FETCH DETAIL KHUSUS SATU MATCH (MATCH CONSOLE & POP-UP) ---
     if (matchId) {
       const matchIndex = schedules.findIndex((m) => m.id === matchId);
       if (matchIndex === -1) {
@@ -72,13 +77,16 @@ export async function GET(req: Request) {
 
       const match = schedules[matchIndex];
 
+      // Generate Referee Token jika belum ada
       if (!match.refereeToken) {
         match.refereeToken = `REF-${match.id.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
         schedules[matchIndex] = match;
         await kv.set(KV_KEY_SCHEDULES, schedules);
       }
 
-      if (token && token !== process.env.BASIC_AUTH_PWD && token !== 'tsaqif') {
+      // Verifikasi Token Wasit
+      const adminSecret = process.env.BASIC_AUTH_PWD || 'tsaqif';
+      if (token && token !== adminSecret) {
         const access = verifyRefereeTokenOnly(match, token);
         if (!access.valid) {
           const errorMsg =
@@ -89,6 +97,27 @@ export async function GET(req: Request) {
         }
       }
 
+      // 1. Ambil detail match dari Key Terpisah (Arsitektur Baru)
+      let matchDetails = await kv.get<MatchDetailsKV>(`twi:match_details:${matchId}`);
+
+      // 2. FALLBACK STRATEGY (Untuk Data Match Lama)
+      if (!matchDetails) {
+        matchDetails = {
+          matchId,
+          lineupA: match.lineupA || [],
+          lineupB: match.lineupB || [],
+          gameLogs: match.gameLogs || [],
+          referee: match.referee || '',
+          refereeDiscordId: match.refereeDiscordId || '',
+          streamer: match.streamer || '',
+          streamerDiscordId: match.streamerDiscordId || '',
+          streamLink: match.streamLink || '',
+          rosterA: match.rosterA,
+          rosterB: match.rosterB,
+        };
+      }
+
+      // Ambil Roster DB Tim A & B
       const slugA = getTeamSlug(match.teamAName);
       const slugB = getTeamSlug(match.teamBName);
 
@@ -106,15 +135,22 @@ export async function GET(req: Request) {
         }
       };
 
+      // Gabungkan (Merge) data match dasar dengan matchDetails
+      const mergedMatch = {
+        ...match,
+        ...matchDetails,
+      };
+
       return NextResponse.json({
         success: true,
-        match,
+        match: mergedMatch,
         dbRosterA: parsePlayers(teamDataA),
         dbRosterB: parsePlayers(teamDataB),
         isExpired: false,
       });
     }
 
+    // --- CASE 2: FETCH KLASEMEN & JADWAL UTAMA ---
     const masterTeams = [...groupA, ...groupB];
     const standings = calculateStandings(schedules, masterTeams);
 
@@ -131,7 +167,7 @@ export async function GET(req: Request) {
   }
 }
 
-// 🟢 POST: UPDATE MATCH CONSOLE (MURNI SIMPAN KV & HITUNG STANDING)
+// 🟢 POST: UPDATE MATCH CONSOLE (SIMPAN DETAIL TERPISAH & HITUNG SKOR/STANDINGS)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -149,7 +185,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, schedules });
     }
 
-    // ⚡ UPDATE MATCH DATA: MURNI SIMPAN KE REDIS KV (TANPA PROSES DISCORD SYNC)
     if (action === 'UPDATE_MATCH_CONSOLE') {
       const targetIndex = schedules.findIndex((m) => m.id === matchId);
       if (targetIndex === -1) {
@@ -157,38 +192,78 @@ export async function POST(req: Request) {
       }
 
       const existingMatch = schedules[targetIndex];
+      const existingDetails = (await kv.get<MatchDetailsKV>(`twi:match_details:${matchId}`)) || {};
+
+      // 1. Dapatkan gameLogs terbaru (jika ada di payload, pakai yang baru)
+      const incomingLogs: GameDetailLog[] = matchData.gameLogs ?? existingDetails.gameLogs ?? existingMatch.gameLogs ?? [];
+
+      // 2. KALKULASI SKOR AUTOMATIS DARI GAME LOGS
+      let calculatedScoreA = 0;
+      let calculatedScoreB = 0;
+
+      incomingLogs.forEach((log) => {
+        if (log.winnerTeamId === existingMatch.teamAId) calculatedScoreA++;
+        else if (log.winnerTeamId === existingMatch.teamBId) calculatedScoreB++;
+      });
+
+      // Tentukan apakah match sudah selesai (misal salah satu tim menang 10 game / ditentukan manual)
+      const isFinishedCalculated = matchData.isFinished ?? (calculatedScoreA >= 10 || calculatedScoreB >= 10);
 
       const newMatchDate = matchData.matchDate || existingMatch.matchDate;
       const calculatedWeek = computeWeekNumber(newMatchDate);
 
-      // Paksa kosongkan string jika tidak memilih Wasit/Streamer
-      const refereeDiscordId = matchData.refereeDiscordId || '';
-      const refereeName = refereeDiscordId ? (matchData.referee || '') : '';
+      // Preserve Data Referee/Streamer jika payload hanya update lineup
+      const finalReferee = matchData.referee !== undefined ? matchData.referee : (existingDetails.referee || existingMatch.referee || '');
+      const finalRefereeDiscordId = matchData.refereeDiscordId !== undefined ? matchData.refereeDiscordId : (existingDetails.refereeDiscordId || existingMatch.refereeDiscordId || '');
+      const finalStreamer = matchData.streamer !== undefined ? matchData.streamer : (existingDetails.streamer || existingMatch.streamer || '');
+      const finalStreamerDiscordId = matchData.streamerDiscordId !== undefined ? matchData.streamerDiscordId : (existingDetails.streamerDiscordId || existingMatch.streamerDiscordId || '');
+      const finalStreamLink = matchData.streamLink !== undefined ? matchData.streamLink : (existingDetails.streamLink || existingMatch.streamLink || '');
 
-      const streamerDiscordId = matchData.streamerDiscordId || '';
-      const streamerName = streamerDiscordId ? (matchData.streamer || '') : '';
-
-      const updatedMatch: MatchScheduleItem = {
-        ...existingMatch,
-        ...matchData,
-        matchDate: newMatchDate,
-        weekNumber: calculatedWeek,
-        referee: refereeName,
-        refereeDiscordId: refereeDiscordId,
-        streamer: streamerName,
-        streamerDiscordId: streamerDiscordId,
-        scoreA: matchData.scoreA ?? existingMatch.scoreA ?? 0,
-        scoreB: matchData.scoreB ?? existingMatch.scoreB ?? 0,
-        isFinished: matchData.isFinished ?? existingMatch.isFinished ?? false,
+      // 3. UPDATE DETAIL KHUSUS DI KEY TERPISAH (`twi:match_details:{matchId}`)
+      const updatedDetails: MatchDetailsKV = {
+        matchId,
+        lineupA: matchData.lineupA ?? existingDetails.lineupA ?? existingMatch.lineupA ?? [],
+        lineupB: matchData.lineupB ?? existingDetails.lineupB ?? existingMatch.lineupB ?? [],
+        gameLogs: incomingLogs,
+        warningLogs: matchData.warningLogs ?? existingDetails.warningLogs ?? [],
+        referee: finalReferee,
+        refereeDiscordId: finalRefereeDiscordId,
+        streamer: finalStreamer,
+        streamerDiscordId: finalStreamerDiscordId,
+        streamLink: finalStreamLink,
+        lateDecksA: matchData.lateDecksA ?? existingDetails.lateDecksA ?? 0,
+        lateDecksB: matchData.lateDecksB ?? existingDetails.lateDecksB ?? 0,
+        isLineupLocked: matchData.isLineupLocked ?? existingDetails.isLineupLocked ?? false,
+        rosterA: matchData.rosterA ?? existingDetails.rosterA ?? existingMatch.rosterA,
+        rosterB: matchData.rosterB ?? existingDetails.rosterB ?? existingMatch.rosterB,
       };
 
-      delete (updatedMatch as any).isCompleted;
+      await kv.set(`twi:match_details:${matchId}`, updatedDetails);
 
-      // Simpan perubahan ke KV
-      schedules[targetIndex] = updatedMatch;
+      // 4. UPDATE DATA RINGKAS DI SCHEDULES UTAMA
+      const updatedScheduleItem: MatchScheduleItem = {
+        ...existingMatch,
+        matchDate: newMatchDate,
+        weekNumber: calculatedWeek,
+        scoreA: calculatedScoreA,
+        scoreB: calculatedScoreB,
+        isFinished: isFinishedCalculated,
+        referee: finalReferee,
+        refereeDiscordId: finalRefereeDiscordId,
+        streamer: finalStreamer,
+        streamerDiscordId: finalStreamerDiscordId,
+        streamLink: finalStreamLink,
+      };
+
+      // BERSIHKAN FIELD HEAVY DARI SCHEDULES UTAMA (AUTO-MIGRATE / STRIP HEAVY DATA)
+      delete (updatedScheduleItem as any).gameLogs;
+      delete (updatedScheduleItem as any).lineupA;
+      delete (updatedScheduleItem as any).lineupB;
+
+      schedules[targetIndex] = updatedScheduleItem;
       await kv.set(KV_KEY_SCHEDULES, schedules);
 
-      // Hitung ulang Klasemen
+      // 5. HITUNG UANG KLASEMEN REALTME
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
       const masterTeams = [
         ...(rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: DIVISION_MAP.GROUP_A })),
@@ -198,8 +273,11 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         success: true,
-        message: 'Data match berhasil disimpan ke KV!',
-        updatedMatch,
+        message: 'Data match berhasil diperbarui di KV!',
+        updatedMatch: {
+          ...updatedScheduleItem,
+          ...updatedDetails,
+        },
         standings,
       });
     }
@@ -306,5 +384,4 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   }
 
   return schedules;
-      }
-    
+}

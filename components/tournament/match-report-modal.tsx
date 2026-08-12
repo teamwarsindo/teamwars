@@ -16,7 +16,6 @@ export function MatchReportModal({
   match,
   weekNumber,
   onClose,
-  onSaveMatch,
 }: MatchReportModalProps) {
   useEffect(() => {
     if (match || open) document.body.style.overflow = "hidden";
@@ -26,7 +25,6 @@ export function MatchReportModal({
     };
   }, [match, open]);
 
-  // Modal hanya muncul jika match ada (dan open bernilai true jika dikirim)
   if (!match || (open !== undefined && !open)) return null;
 
   const gameLogs = match.gameLogs || [];
@@ -99,7 +97,7 @@ export function MatchReportModal({
             </div>
           </div>
 
-          {/* ROSTER ACTIVE LINEUP (5 PEMAIN) */}
+          {/* ROSTER ACTIVE LINEUP */}
           {(rosterA.length > 0 || rosterB.length > 0) && (
             <div className="space-y-1.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
@@ -145,15 +143,27 @@ export function MatchReportModal({
               <div className="divide-y rounded-xl border border-border bg-card overflow-hidden text-[11px]">
                 {gameLogs.map((log, idx) => {
                   const isAWin = log.winnerTeamId === match.teamAId;
+                  const isAutoTL = log.playerAName === "-" || log.playerBName === "-";
+
                   return (
                     <div key={idx} className="p-3 flex items-center justify-between hover:bg-muted/20 transition">
                       <div className="space-y-0.5">
                         <span className="font-bold text-primary block">Game #{idx + 1}</span>
-                        <div className="text-muted-foreground">
-                          <strong className="text-foreground">{log.playerAName}</strong> ({log.deckA} / {log.skillA})
-                          <span className="mx-1 text-muted-foreground/60">vs</span>
-                          <strong className="text-foreground">{log.playerBName}</strong> ({log.deckB} / {log.skillB})
-                        </div>
+                        {isAutoTL ? (
+                          <div className="text-muted-foreground italic">
+                            <span className="text-rose-500 font-bold">[Technical Loss]</span> {log.deckA === "Line-up kurang" ? `${match.teamAName} Line-up kurang` : `${match.teamBName} Line-up kurang`}
+                          </div>
+                        ) : (
+                          <div className="text-muted-foreground">
+                            <strong className="text-foreground">{log.playerAName}</strong> ({log.deckA} / {log.skillA})
+                            {log.isRepeatA && <span className="ml-1 text-[8px] font-black bg-amber-500 text-black px-1 rounded">R</span>}
+                            {log.isTLA && <span className="ml-1 text-[8px] font-black bg-rose-500 text-white px-1 rounded">TL</span>}
+                            <span className="mx-1 text-muted-foreground/60">vs</span>
+                            <strong className="text-foreground">{log.playerBName}</strong> ({log.deckB} / {log.skillB})
+                            {log.isRepeatB && <span className="ml-1 text-[8px] font-black bg-amber-500 text-black px-1 rounded">R</span>}
+                            {log.isTLB && <span className="ml-1 text-[8px] font-black bg-rose-500 text-white px-1 rounded">TL</span>}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right pl-2">
                         <span
@@ -176,5 +186,4 @@ export function MatchReportModal({
       </div>
     </div>
   );
-        }
-                        
+}
