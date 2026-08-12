@@ -28,6 +28,10 @@ interface RosterLineupBlockProps {
   onSaveLineupToKV: () => Promise<void>;
   isLineupLocked: boolean;
   setIsLineupLocked: (v: boolean) => void;
+
+  // 🟢 DUA BARIS INI YANG WAJIB ADA AGAR VERCEL GAK ERROR:
+  gameLogs?: GameDetailLog[];
+  setGameLogs?: (v: GameDetailLog[]) => void;
 }
 
 export function RosterLineupBlock({
@@ -44,6 +48,8 @@ export function RosterLineupBlock({
   onSaveLineupToKV,
   isLineupLocked,
   setIsLineupLocked,
+  gameLogs = [],
+  setGameLogs,
 }: RosterLineupBlockProps) {
   const [isSavingLineup, setIsSavingLineup] = useState(false);
 
