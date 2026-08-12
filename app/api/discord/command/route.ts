@@ -3,7 +3,7 @@ import { discordAPI } from '@/lib/discord/utils';
 
 export async function GET(req: Request) {
   const appId = process.env.DISCORD_CLIENT_ID; 
-  if (!appId) return NextResponse.json({ error: 'Missing Client ID' }, { status: 500 });
+  if (!appId) return NextResponse.json({ error: 'Missing Client ID in Environment Variables' }, { status: 500 });
 
   const commands = [
     // 🟢 1. ASSIGN COMMAND
@@ -200,7 +200,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔄 11. TRANSFER COMMAND (Refactored Subcommands)
+    // 🔄 11. TRANSFER COMMAND (Refactored Options Order)
     {
       name: 'transfer',
       description: 'Kelola transfer, penambahan, dan pembaruan roster tim',
@@ -212,17 +212,17 @@ export async function GET(req: Request) {
           description: 'Keluarkan pemain dari roster tim',
           options: [
             {
-              type: 3, // STRING
-              name: 'team',
-              description: 'Pilih tim target (Wajib diisi jika dijalankan oleh Admin)',
-              required: false,
-              autocomplete: true,
-            },
-            {
-              type: 3, // STRING
+              type: 3, // STRING (REQUIRED DI DEPAN)
               name: 'user',
               description: 'Pilih nama/IGN pemain yang ingin dikeluarkan dari tim',
               required: true,
+              autocomplete: true,
+            },
+            {
+              type: 3, // STRING (OPTIONAL DI BELAKANG)
+              name: 'team',
+              description: 'Pilih tim target (Wajib diisi jika dijalankan oleh Admin)',
+              required: false,
               autocomplete: true,
             },
           ],
@@ -234,29 +234,29 @@ export async function GET(req: Request) {
           description: 'Tambahkan pemain baru ke dalam roster tim',
           options: [
             {
-              type: 3, // STRING
-              name: 'team',
-              description: 'Pilih tim tujuan (Wajib diisi jika dijalankan oleh Admin)',
-              required: false,
-              autocomplete: true,
-            },
-            {
-              type: 6, // USER (Mention)
+              type: 6, // USER Mention (REQUIRED DI DEPAN)
               name: 'user',
               description: 'Tag (@mention) akun Discord pemain baru',
               required: true,
             },
             {
-              type: 3, // STRING
+              type: 3, // STRING (REQUIRED DI DEPAN)
               name: 'ign',
               description: 'Ketik In-Game Name (IGN) Duel Links pemain baru',
               required: true,
             },
             {
-              type: 3, // STRING
+              type: 3, // STRING (REQUIRED DI DEPAN)
               name: 'id_dl',
               description: 'Ketik 9 digit ID Duel Links pemain (contoh: 123456789)',
               required: true,
+            },
+            {
+              type: 3, // STRING (OPTIONAL DI BELAKANG)
+              name: 'team',
+              description: 'Pilih tim tujuan (Wajib diisi jika dijalankan oleh Admin)',
+              required: false,
+              autocomplete: true,
             },
           ],
         },
@@ -267,34 +267,34 @@ export async function GET(req: Request) {
           description: 'Perbarui ID Duel Links atau Jabatan (Ketua/Wakil) pemain',
           options: [
             {
-              type: 3, // STRING
-              name: 'team',
-              description: 'Pilih tim target (Opsional jika pemain sudah terdeteksi di tim)',
-              required: false,
-              autocomplete: true,
-            },
-            {
-              type: 3, // STRING
+              type: 3, // STRING (REQUIRED DI DEPAN)
               name: 'user',
               description: 'Pilih nama/IGN pemain yang data/jabatannya ingin diubah',
               required: true,
               autocomplete: true,
             },
             {
-              type: 3, // STRING
+              type: 3, // STRING (OPTIONAL DI BELAKANG)
               name: 'new_id_dl',
               description: 'Ketik ID Duel Links baru (kosongkan jika tidak mengubah ID)',
               required: false,
             },
             {
-              type: 3, // STRING
+              type: 3, // STRING (OPTIONAL DI BELAKANG)
               name: 'position',
               description: 'Pilih posisi baru (Ketua khusus Admin, Wakil bisa oleh Ketua)',
               required: false,
               choices: [
-                { name: 'Ketua (Khusus Admin)', value: 'Ketua' },
+                { name: 'Ketua', value: 'Ketua' },
                 { name: 'Wakil Ketua', value: 'Wakil Ketua' },
               ],
+            },
+            {
+              type: 3, // STRING (OPTIONAL DI BELAKANG)
+              name: 'team',
+              description: 'Pilih tim target (Opsional jika pemain sudah terdeteksi di tim)',
+              required: false,
+              autocomplete: true,
             },
           ],
         },
@@ -304,12 +304,15 @@ export async function GET(req: Request) {
 
   const slashResult = await discordAPI(`/applications/${appId}/commands`, 'PUT', commands);
 
-  if (slashResult) {
+  if (slashResult && !slashResult.error) {
     return NextResponse.json({ 
       message: '✅ Setup Slash Commands Berhasil Dijalankan!', 
       commands: slashResult
     });
   } else {
-    return NextResponse.json({ error: '❌ Gagal mendaftarkan commands' }, { status: 500 });
+    return NextResponse.json({ 
+      error: '❌ Gagal mendaftarkan commands', 
+      details: slashResult || 'Discord API mengembalikan null.' 
+    }, { status: 500 });
   }
 }
