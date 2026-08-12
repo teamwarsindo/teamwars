@@ -12,13 +12,14 @@ function getMatchWeek(m: MatchScheduleItem): number {
     return m.weekNumber;
   }
 
-  if (m.matchDate) {
-    const startDate = process.env.TWI_START_DATE;
-    const matchDate = new Date(m.matchDate).getTime();
+  // Cek m.matchDate DAN process.env.TWI_START_DATE agar TypeScript tahu env tidak undefined
+  if (m.matchDate && process.env.TWI_START_DATE) {
+    const startTime = new Date(process.env.TWI_START_DATE).getTime();
+    const matchTime = new Date(m.matchDate).getTime();
 
-    // Pastikan kedua timestamp bernilai number yang valid (bukan NaN)
-    if (!isNaN(matchDate) && !isNaN(startDate)) {
-      const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
+    // Lakukan pengecekan angka/timestamp murni
+    if (!isNaN(matchTime) && !isNaN(startTime)) {
+      const diffDays = Math.floor((matchTime - startTime) / (1000 * 60 * 60 * 24));
       return Math.max(1, Math.floor(diffDays / 7) + 1);
     }
   }
