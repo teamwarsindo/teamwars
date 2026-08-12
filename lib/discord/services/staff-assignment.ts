@@ -81,9 +81,9 @@ export async function executeAssignStaff(params: {
 }) {
   const { matchId, assignType, targetStaffId } = params;
 
-  // 1. Validasi Snowflake ID
+  // 🔴 Wajib ID Discord Valid agar bisa di-tag
   if (!isValidSnowflake(targetStaffId)) {
-    throw new Error('ID Staf tidak valid (Bukan akun Discord resmi).');
+    throw new Error('ID Staf tidak valid! Staf harus berupa akun Discord asli agar bisa di-tag.');
   }
 
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
@@ -96,15 +96,23 @@ export async function executeAssignStaff(params: {
   const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
   const staffObj = staffList.find((s) => s.discordId === targetStaffId);
 
-  // 🟢 Pastikan format staffName selalu berupa Mention <@ID> jika Snowflake valid
-  const staffName = `<@${targetStaffId}>`;
-
+  // Set staf baru yang di-assign
   if (assignType === 'REFEREE') {
-    match.referee = staffName;
+    match.referee = `<@${targetStaffId}>`;
     match.refereeDiscordId = targetStaffId;
   } else {
-    match.streamer = staffName;
+    match.streamer = `<@${targetStaffId}>`;
     match.streamerDiscordId = targetStaffId;
+  }
+
+  // 🧹 SANITASI DATA DUMMY: Hapus Referee/Streamer lama jika ID-nya tidak bisa di-tag
+  if (!isValidSnowflake(match.refereeDiscordId)) {
+    match.referee = undefined;
+    match.refereeDiscordId = undefined;
+  }
+  if (!isValidSnowflake(match.streamerDiscordId)) {
+    match.streamer = undefined;
+    match.streamerDiscordId = undefined;
   }
 
   const slugA = getTeamSlug(match.teamAName);
@@ -144,6 +152,10 @@ export async function executeAssignStaff(params: {
     }
   }
 
+  // 🎯 Format nama tag untuk embed (Hanya tag <@ID> yang dikirim)
+  const finalRefereeTag = isValidSnowflake(match.refereeDiscordId) ? `<@${match.refereeDiscordId}>` : undefined;
+  const finalStreamerTag = isValidSnowflake(match.streamerDiscordId) ? `<@${match.streamerDiscordId}>` : undefined;
+
   if ((match as any).discordChannelId) {
     const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
       channelId: (match as any).discordChannelId,
@@ -159,9 +171,9 @@ export async function executeAssignStaff(params: {
       roleBId,
       weekName: calculatedWeek,
       matchDateIso: match.matchDate,
-      refereeName: match.referee,
+      refereeName: finalRefereeTag,
       refereeDiscordId: match.refereeDiscordId,
-      streamerName: match.streamer,
+      streamerName: finalStreamerTag,
       streamerDiscordId: match.streamerDiscordId,
       streamLink: match.streamLink,
       existingMsgId: (match as any).openingMsgId,
@@ -184,7 +196,7 @@ export async function executeAssignStaff(params: {
       teamBEmoji,
       matchChannelId: (match as any).discordChannelId,
       matchDateIso: match.matchDate,
-      staffName: staffObj?.discordName || staffName,
+      staffName: staffObj?.discordName || `<@${targetStaffId}>`,
       staffDiscordId: targetStaffId,
       existingMsgId: assignType === 'REFEREE' ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId,
     };
@@ -204,7 +216,7 @@ export async function executeAssignStaff(params: {
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
-  return { match, staffName: staffObj?.discordName || staffName };
+  return { match, staffName: staffObj?.discordName || `<@${targetStaffId}>` };
 }
 
 /**
@@ -226,8 +238,8 @@ export async function executeUnassignStaff(params: {
   const targetStaffId = assignType === 'REFEREE' ? match.refereeDiscordId : match.streamerDiscordId;
   const targetStaffName = assignType === 'REFEREE' ? match.referee : match.streamer;
 
-  if (!targetStaffId) {
-    throw new Error(`Tidak ada ${assignType === 'REFEREE' ? 'Referee' : 'Streamer'} terdaftar di match ini.`);
+  if (!targetStaffId || !isValidSnowflake(targetStaffId)) {
+    throw new Error(`Tidak ada ${assignType === 'REFEREE' ? 'Referee' : 'Streamer'} ber-ID valid yang terdaftar di match ini.`);
   }
 
   const slugA = getTeamSlug(match.teamAName);
@@ -275,11 +287,22 @@ export async function executeUnassignStaff(params: {
     }
   }
 
+  // Reset ID & Nama agar bersih
+  if (assignType === 'REFEREE') {
+    match.referee = undefined;
+    match.refereeDiscordId = undefined;
+  } else {
+    match.streamer = undefined;
+    match.streamerDiscordId = undefined;
+  }
+
   // 2. HANYA REFEREE: Update Opening Embed di Match Channel
   if (assignType === 'REFEREE') {
     (match as any).scoreA = scoreA;
     (match as any).scoreB = scoreB;
     (match as any).isCompleted = true;
+
+    const finalStreamerTag = isValidSnowflake(match.streamerDiscordId) ? `<@${match.streamerDiscordId}>` : undefined;
 
     if (matchChannelId) {
       const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
@@ -296,9 +319,9 @@ export async function executeUnassignStaff(params: {
         roleBId,
         weekName: calculatedWeek,
         matchDateIso: match.matchDate,
-        refereeName: match.referee,
-        refereeDiscordId: match.refereeDiscordId,
-        streamerName: match.streamer,
+        refereeName: undefined,
+        refereeDiscordId: undefined,
+        streamerName: finalStreamerTag,
         streamerDiscordId: match.streamerDiscordId,
         streamLink: match.streamLink,
         existingMsgId: (match as any).openingMsgId,
@@ -351,19 +374,10 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // 5. Reset ID Discord dari objek match agar tidak dianggap busy
-  if (assignType === 'REFEREE') {
-    match.referee = undefined;
-    match.refereeDiscordId = undefined;
-  } else {
-    match.streamer = undefined;
-    match.streamerDiscordId = undefined;
-  }
-
   // Simpan Schedule & Lepas Staff History
   await updateStaffHistory(assignType, targetStaffId, match.id, 'REMOVE');
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
-  return { match, targetStaffName, targetStaffId };
+  return { match, targetStaffName: targetStaffName || `<@${targetStaffId}>`, targetStaffId };
 }
