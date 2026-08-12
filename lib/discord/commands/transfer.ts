@@ -6,6 +6,8 @@ import {
   executeTransferEditDl,
   executeTransferSetLeader,
   parsePlayers,
+  parseTransferSmartText,
+  formatDuelId,
   PlayerItem,
 } from '@/lib/discord/services/transfer-service';
 
@@ -20,12 +22,9 @@ function isAuth(interaction: any): boolean {
   );
 }
 
-/**
- * Helper Ekstraksi Subcommand & Options
- */
 function getSubcommandData(interaction: any) {
   const options = interaction.data?.options || [];
-  const subcommandObj = options.find((o: any) => o.type === 1); // 1 = SUB_COMMAND
+  const subcommandObj = options.find((o: any) => o.type === 1);
   if (!subcommandObj) return { subcommand: null, opts: [] };
   return {
     subcommand: subcommandObj.name,
@@ -33,9 +32,6 @@ function getSubcommandData(interaction: any) {
   };
 }
 
-/**
- * Autocomplete Handler untuk memilih Pemain dari Roster / Tim Target
- */
 export async function handleTransferAutocomplete(interaction: any) {
   const { opts } = getSubcommandData(interaction);
   const focusedOption = opts.find((o: any) => o.focused);
@@ -44,7 +40,6 @@ export async function handleTransferAutocomplete(interaction: any) {
   const userId = interaction.member?.user?.id;
   const userUsername = interaction.member?.user?.username;
 
-  // 1. Autocomplete Opsi 'team' (Sisi Admin)
   if (focusedOption.name === 'team') {
     const allTeamSlugs = await kv.smembers('global:teams');
     const searchValue = (focusedOption.value || '').toLowerCase();
@@ -62,12 +57,10 @@ export async function handleTransferAutocomplete(interaction: any) {
     return { type: 8, data: { choices } };
   }
 
-  // 2. Autocomplete Opsi 'user'
   if (focusedOption.name === 'user') {
     const selectedTeamOpt = opts.find((o: any) => o.name === 'team')?.value;
     let targetTeamSlug = selectedTeamOpt;
 
-    // Jika opsi 'team' tidak diisi, cari dari ID User
     if (!targetTeamSlug) {
       targetTeamSlug = await kv.hget<string>('global:discord_ids', userId);
       if (!targetTeamSlug && userUsername) {
@@ -97,9 +90,6 @@ export async function handleTransferAutocomplete(interaction: any) {
   return { type: 8, data: { choices: [] } };
 }
 
-/**
- * Command Handler utama untuk /transfer
- */
 export async function handleTransferCommand(interaction: any) {
   const { subcommand, opts } = getSubcommandData(interaction);
   if (!subcommand) return { type: 4, data: { content: '❌ Subcommand tidak valid!', flags: 64 } };
@@ -108,7 +98,6 @@ export async function handleTransferCommand(interaction: any) {
   const userUsername = interaction.member?.user?.username;
   const isAdmin = isAuth(interaction);
 
-  // Ambil opsi team jika diisi (khusus Admin)
   const inputTeamSlug = opts.find((o: any) => o.name === 'team')?.value;
 
   let teamSlug = inputTeamSlug;
@@ -119,7 +108,6 @@ export async function handleTransferCommand(interaction: any) {
     }
   }
 
-  // Validasi Admin Wajib Memilih Tim
   if (isAdmin && !inputTeamSlug && !teamSlug) {
     return {
       type: 4,
@@ -200,13 +188,11 @@ export async function handleTransferCommand(interaction: any) {
 
       const results = [];
 
-      // Proses Edit ID DL
       if (newIdDl) {
         const resDl = await executeTransferEditDl(teamSlug, targetUser, newIdDl);
         results.push(`ID Duel Links **${resDl.ign}** diperbarui menjadi \`${resDl.newDl}\` (Sisa kuota transfer: **${2 - resDl.currentQuota}**)`);
       }
 
-      // Proses Edit Position / Leader
       if (position) {
         const resLeader = await executeTransferSetLeader(teamSlug, targetUser, position, isAdmin);
         results.push(`**${resLeader.ign}** sekarang ditugaskan sebagai **${resLeader.newRole}** tim **${resLeader.teamName}**`);
@@ -218,6 +204,99 @@ export async function handleTransferCommand(interaction: any) {
       };
     }
 
+    // -------------------------------------------------------------
+    // 4. SUBCOMMAND: PARSE (PREVIEW INTERAKTIF KHUSUS ADMIN)
+    // -------------------------------------------------------------
+    if (subcommand === 'parse') {
+      if (!isAdmin) {
+        return { type: 4, data: { content: '❌ Fitur Parse Request khusus untuk **Admin**!', flags: 64 } };
+      }
+
+      const rawText = opts.find((o: any) => o.name === 'text')?.value || '';
+      const targetDiscordId = opts.find((o: any) => o.name === 'user')?.value;
+
+      if (!rawText || !targetDiscordId) {
+        return { type: 4, data: { content: '❌ Option `text` dan `user` wajib diisi!', flags: 64 } };
+      }
+
+      const parsed = parseTransferSmartText(rawText);
+
+      const resolvedUsers = interaction.data?.resolved?.users || {};
+      const targetUserData = resolvedUsers[targetDiscordId] || {};
+      const targetUsername = targetUserData.username || targetDiscordId;
+
+      // Safe Encoding untuk Data Tombol
+      const encodedIgn = encodeURIComponent(parsed.ign || '');
+      const cleanIdDl = parsed.idDl || '';
+
+      return {
+        type: 4,
+        data: {
+          flags: 64, // Ephemeral (Hanya Admin yang Bisa Lihat)
+          embeds: [
+            {
+              title: '🔍 PREVIEW AUTO-PARSE TRANSFER REQUEST',
+              description: 'Periksa data di bawah ini. Data **BELUM** tersimpan ke database sampai kamu menekan tombol Proses.',
+              color: 0x3498db,
+              fields: [
+                { name: '⚡ Aksi Terdeteksi', value: `**${parsed.action}**`, inline: true },
+                { name: '👤 Target User', value: `<@${targetDiscordId}> (\`@${targetUsername}\`)`, inline: true },
+                { name: '🛡️ Tim Target', value: `**${teamSlug}**`, inline: true },
+                { name: '🎮 IGN Pemain', value: parsed.ign ? `\`${parsed.ign}\`` : '⚠️ *Tidak Ditemukan*', inline: true },
+                { name: '🆔 ID Duel Links', value: parsed.idDl ? `\`${formatDuelId(parsed.idDl)}\`` : '⚠️ *Tidak Ditemukan*', inline: true },
+                { name: '📝 Teks Pesan Asli', value: `\`\`\`${rawText.slice(0, 180)}\`\`\``, inline: false },
+              ],
+              footer: { text: 'Klik "Proses" jika sesuai, atau klik tombol "Paksa Ubah" jika deteksi aksi keliru.' },
+            },
+          ],
+          components: [
+            {
+              type: 1, // Row 1: Tombol Eksekusi & Batal
+              components: [
+                {
+                  type: 2,
+                  style: 3, // Hijau
+                  label: `Proses ${parsed.action}`,
+                  custom_id: `btn_parse_${parsed.action}_${teamSlug}_${targetDiscordId}_${encodedIgn}_${cleanIdDl}`,
+                  emoji: { name: '✅' },
+                },
+                {
+                  type: 2,
+                  style: 4, // Merah
+                  label: 'Batal',
+                  custom_id: 'btn_parse_CANCEL',
+                  emoji: { name: '❌' },
+                },
+              ],
+            },
+            {
+              type: 1, // Row 2: Override Manual Action
+              components: [
+                {
+                  type: 2,
+                  style: 2, // Abu-abu
+                  label: 'Paksa Ubah ke ADD',
+                  custom_id: `btn_parse_ADD_${teamSlug}_${targetDiscordId}_${encodedIgn}_${cleanIdDl}`,
+                },
+                {
+                  type: 2,
+                  style: 2,
+                  label: 'Paksa Ubah ke OUT',
+                  custom_id: `btn_parse_OUT_${teamSlug}_${targetDiscordId}_${encodedIgn}_${cleanIdDl}`,
+                },
+                {
+                  type: 2,
+                  style: 2,
+                  label: 'Paksa Ubah ke EDIT DL',
+                  custom_id: `btn_parse_EDIT_${teamSlug}_${targetDiscordId}_${encodedIgn}_${cleanIdDl}`,
+                },
+              ],
+            },
+          ],
+        },
+      };
+    }
+
     return { type: 4, data: { content: '❌ Action tidak dikenali!', flags: 64 } };
   } catch (error: any) {
     return {
@@ -225,4 +304,4 @@ export async function handleTransferCommand(interaction: any) {
       data: { content: error.message || '❌ Terjadi kesalahan saat memproses transfer.', flags: 64 },
     };
   }
-}
+          }
