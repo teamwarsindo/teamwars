@@ -1,98 +1,66 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CustomSelect } from "./custom-select";
+import { ShieldCheck, Info } from "lucide-react";
 
-interface StaffItem {
-  discordId: string;
-  discordName: string;
+interface MetadataBlockProps {
+  referee: string;
+  setReferee?: (v: string) => void;
+  streamer: string;
+  setStreamer?: (v: string) => void;
+  streamLink: string;
+  setStreamLink?: (v: string) => void;
 }
 
 export function MetadataBlock({
   referee,
-  setReferee,
   streamer,
-  setStreamer,
   streamLink,
-  setStreamLink,
-}: {
-  referee: string;
-  setReferee: (v: string) => void;
-  streamer: string;
-  setStreamer: (v: string) => void;
-  streamLink: string;
-  setStreamLink: (v: string) => void;
-}) {
-  const [refereeList, setRefereeList] = useState<StaffItem[]>([]);
-  const [streamerList, setStreamerList] = useState<StaffItem[]>([]);
-
-  useEffect(() => {
-    async function fetchStaff() {
-      try {
-        const res = await fetch("/api/tournament/staff");
-        const data = await res.json();
-        if (data.success) {
-          setRefereeList(data.referees || []);
-          setStreamerList(data.streamers || []);
-        }
-      } catch (err) {
-        console.error("Gagal memuat staf:", err);
-      }
-    }
-    fetchStaff();
-  }, []);
-
-  const inputBase =
-    "w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/20";
-
-  const refereeOptions = refereeList.map((r) => r.discordName);
-  const streamerOptions = streamerList.map((s) => s.discordName);
-
+}: MetadataBlockProps) {
   return (
-    <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-4">
-      <div className="flex items-center gap-3 border-b border-border/40 pb-3">
-        <span className="h-6 w-1 rounded-full bg-primary" />
-        <h3 className="text-sm font-semibold text-foreground">1. Identitas Wasit & Streamer</h3>
+    <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-3">
+      <div className="flex items-center justify-between border-b border-border/40 pb-2">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wide">
+            1. Petugas &amp; Live Stream Match
+          </h3>
+        </div>
+        <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+          <Info className="h-3 w-3" /> Admin Managed
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* DROPDOWN WASIT modern via CustomSelect */}
-        <div>
-          <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">
-            Wasit / Referee Bertugas
-          </label>
-          <CustomSelect
-            value={referee}
-            onChange={setReferee}
-            options={refereeOptions}
-            placeholder="-- Pilih Wasit Bertugas --"
-          />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
+          <span className="block text-[10px] font-bold text-muted-foreground uppercase">Wasit (Referee)</span>
+          <span className="font-extrabold text-foreground text-xs mt-0.5 block truncate">
+            {referee || "Belum Ditugaskan"}
+          </span>
         </div>
 
-        {/* DROPDOWN STREAMER modern via CustomSelect */}
-        <div>
-          <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">
-            Streamer / Caster
-          </label>
-          <CustomSelect
-            value={streamer}
-            onChange={setStreamer}
-            options={streamerOptions}
-            placeholder="-- Pilih Streamer --"
-          />
+        <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
+          <span className="block text-[10px] font-bold text-muted-foreground uppercase">Caster / Streamer</span>
+          <span className="font-extrabold text-foreground text-xs mt-0.5 block truncate">
+            {streamer || "Belum Ditugaskan"}
+          </span>
         </div>
 
-        <div>
-          <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">
-            Link TAYANGAN LIVE (YOUTUBE)
-          </label>
-          <input
-            type="text"
-            placeholder="https://youtube.com/live/..."
-            value={streamLink}
-            onChange={(e) => setStreamLink(e.target.value)}
-            className={inputBase}
-          />
+        <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
+          <span className="block text-[10px] font-bold text-muted-foreground uppercase">Link Live Stream</span>
+          {streamLink && streamLink.startsWith("http") ? (
+            <a
+              href={streamLink}
+              target="_blank"
+              rel="noreferrer"
+              className="font-extrabold text-primary text-xs mt-0.5 block truncate hover:underline"
+            >
+              {streamLink}
+            </a>
+          ) : (
+            <span className="font-extrabold text-muted-foreground text-xs mt-0.5 block truncate">
+              {streamLink || "Belum Tersedia"}
+            </span>
+          )}
         </div>
       </div>
     </section>
