@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI, isValidSnowflake, hexToDecimal, getFooterText } from '@/lib/discord/utils';
+import { discordAPI, isValidSnowflake, hexToDecimal } from '@/lib/discord/utils';
 
 export interface PlayerItem {
   role: 'Ketua' | 'Wakil Ketua' | 'Anggota';
@@ -52,7 +52,7 @@ export function parsePlayers(playersData: string | PlayerItem[]): PlayerItem[] {
 }
 
 /**
- * Smart Extractor Teks Request Transfer (Aman untuk Multi-Line & Single-Line)
+ * Smart Extractor Teks Request Transfer (Aman Multi-Line & Single-Line)
  */
 export function parseTransferSmartText(rawText: string): {
   action: 'ADD' | 'OUT' | 'EDIT';
@@ -92,25 +92,19 @@ export function parseTransferSmartText(rawText: string): {
 }
 
 /**
- * Send Log Berita Transfer Simpel
+ * Send Log Berita Transfer Simpel (Tanpa Title & Footer)
  */
 export async function sendTransferNewsLog(params: {
-  teamName: string;
   teamHex: string;
   messageText: string;
-  createdAt?: string;
 }) {
   if (!DISCORD_CONFIG.CH_LOG_TRANSFER) return;
 
   const payload = {
     embeds: [
       {
-        title: 'TRANSFER ROSTER',
         description: params.messageText,
         color: hexToDecimal(params.teamHex || '#3498db'),
-        footer: {
-          text: getFooterText(params.createdAt, new Date().toISOString()),
-        },
       },
     ],
   };
@@ -132,6 +126,15 @@ export async function refreshTeamEmbeds(
   const ketua = players.find((p) => p.role === 'Ketua') || { ign: '-' };
   const wakil = players.find((p) => p.role === 'Wakil Ketua') || { ign: '-' };
 
+  const getFooterString = () =>
+    `Registered: ${new Date(createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} at ${new Date(
+      createdAt
+    ).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB\nLast Updated: ${new Date(
+      updatedAt
+    ).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} at ${new Date(
+      updatedAt
+    ).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`;
+
   // 1. Update Embed CH_ROSTER
   if (teamData.adminMsgId && DISCORD_CONFIG.CH_ROSTER) {
     const playerListString = players.map((p) => `${p.ign} (${p.idDuelLinks})`).join('\n');
@@ -147,7 +150,7 @@ export async function refreshTeamEmbeds(
             { name: 'Players', value: playerListString, inline: false },
           ],
           footer: {
-            text: getFooterText(createdAt, updatedAt),
+            text: getFooterString(),
           },
         },
       ],
@@ -160,7 +163,6 @@ export async function refreshTeamEmbeds(
     // 🔍 READ DATA DARI HASH global:verified_users
     const verifiedHash = (await kv.hgetall<Record<string, string>>('global:verified_users')) || {};
     
-    // Set untuk pencarian instan (Username & Discord ID)
     const verifiedUsernames = new Set(Object.keys(verifiedHash).map((k) => k.toLowerCase()));
     const verifiedIds = new Set(Object.values(verifiedHash));
 
@@ -170,7 +172,6 @@ export async function refreshTeamEmbeds(
     players.forEach((p) => {
       const pDiscordClean = p.discord ? p.discord.toLowerCase() : '';
       
-      // Cek apakah pemain terdaftar di global:verified_users
       const isVerified =
         (pDiscordClean && verifiedUsernames.has(pDiscordClean)) ||
         (p.discordId && verifiedIds.has(p.discordId));
@@ -197,7 +198,7 @@ export async function refreshTeamEmbeds(
             { name: '🔄 Kuota Transfer', value: `**${currentQuotaUsed} / 2** Terpakai`, inline: false },
           ],
           footer: {
-            text: getFooterText(createdAt, updatedAt),
+            text: getFooterString(),
           },
         },
       ],
@@ -265,15 +266,16 @@ export async function executeTransferOut(teamSlug: string, targetDiscordUsername
 
   const guildId = DISCORD_CONFIG.GUILD_ID;
   if (guildId && removedPlayer.discordId && teamData.discordRoleId) {
-    // Cabut Role Tim, Role Duelist TETAP ADA
+    // Cabut Role Tim (Role Duelist & Verified TETAP ADA)
     await discordAPI(`/guilds/${guildId}/members/${removedPlayer.discordId}/roles/${teamData.discordRoleId}`, 'DELETE').catch(() => null);
   }
 
   await kv.hset(key, { players: JSON.stringify(players) });
   await refreshTeamEmbeds(teamSlug, teamData, players);
 
-  const logMsg = `${removedPlayer.ign} (${removedPlayer.idDuelLinks}) telah dikeluarkan dari roster tim ${teamData.namaTim}`;
-  await sendTransferNewsLog({ teamName: teamData.namaTim, teamHex: teamData.warna, messageText: logMsg, createdAt: teamData.createdAt });
+  // Log Berita OUT
+  const logMsg = `**${removedPlayer.ign}** (**${removedPlayer.idDuelLinks}**) telah dikeluarkan dari roster tim 🛡️ **${teamData.namaTim}**`;
+  await sendTransferNewsLog({ teamHex: teamData.warna, messageText: logMsg });
 
   return { teamName: teamData.namaTim, removedIgn: removedPlayer.ign };
 }
@@ -304,7 +306,7 @@ export async function executeTransferAdd(params: {
     throw new Error('Gagal Transfer! ID Game / Duel Links harus terdiri dari 9 digit angka.');
   }
 
-  // 🟢 FREE AGENT / PEMAIN MURNI BARU BEBAS -> KUOTA TIM TETAP LAMA (TIDAK BERKURANG/TERPOTONG)
+  // FREE AGENT BEBAS -> KUOTA TIM TETAP LAMA
   const currentQuota = teamData.transferQuotaUsed || 0;
 
   // Cek Duplikasi Global
@@ -340,32 +342,41 @@ export async function executeTransferAdd(params: {
 
   players.push(newPlayer);
 
+  // 🟢 SIMPAN RAPPING KV + OTOMATIS DAFTARKAN KE HASH global:verified_users
   await Promise.all([
     kv.hset('global:ign', { [cleanIgn.toLowerCase()]: teamSlug }),
     kv.hset('global:duellinks', { [formattedDl]: teamSlug }),
     kv.hset('global:discord', { [targetUsername.toLowerCase()]: teamSlug }),
     kv.hset('global:discord_ids', { [targetDiscordId]: teamSlug }),
+    kv.hset('global:verified_users', { [targetUsername.toLowerCase()]: targetDiscordId }),
   ]);
 
   const guildId = DISCORD_CONFIG.GUILD_ID;
   if (guildId && isValidSnowflake(targetDiscordId)) {
+    // A. Role Tim
     if (teamData.discordRoleId) {
       await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`, 'PUT').catch(() => null);
     }
+    // B. Role Duelist
     if (DISCORD_CONFIG.ROLE_DUELIST) {
       await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_DUELIST}`, 'PUT').catch(() => null);
     }
+    // C. Role Verified (OTOMATIS BERI ROLE VERIFIED)
+    if (DISCORD_CONFIG.ROLE_VERIFIED) {
+      await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_VERIFIED}`, 'PUT').catch(() => null);
+    }
+    // D. Update Server Nickname
     await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: cleanIgn }).catch(() => null);
   }
 
   await kv.hset(key, { players: JSON.stringify(players), transferQuotaUsed: currentQuota });
   
-  // Refresh Tracker & Roster dengan status verifikasi yang sinkron
+  // Refresh Tracker Roster
   await refreshTeamEmbeds(teamSlug, teamData, players, currentQuota);
 
-  // Send Log Berita
-  const logMsg = `${cleanIgn} (${formattedDl}) telah ditambahkan ke roster tim ${teamData.namaTim}`;
-  await sendTransferNewsLog({ teamName: teamData.namaTim, teamHex: teamData.warna, messageText: logMsg, createdAt: teamData.createdAt });
+  // Log Berita ADD
+  const logMsg = `**${cleanIgn}** (**${formattedDl}**) telah ditambahkan ke roster tim 🛡️ **${teamData.namaTim}**`;
+  await sendTransferNewsLog({ teamHex: teamData.warna, messageText: logMsg });
 
   return { teamName: teamData.namaTim, addedIgn: cleanIgn, currentQuota };
 }
@@ -410,8 +421,9 @@ export async function executeTransferEditDl(teamSlug: string, targetUsername: st
   await kv.hset(key, { players: JSON.stringify(players), transferQuotaUsed: currentQuota });
   await refreshTeamEmbeds(teamSlug, teamData, players, currentQuota);
 
-  const logMsg = `${player.ign} dari tim ${teamData.namaTim} telah mengganti ID Game dari ${oldDl} menjadi ${formattedDl}`;
-  await sendTransferNewsLog({ teamName: teamData.namaTim, teamHex: teamData.warna, messageText: logMsg, createdAt: teamData.createdAt });
+  // Log Berita EDIT ID
+  const logMsg = `**${player.ign}** dari tim 🛡️ **${teamData.namaTim}** telah mengganti ID Game dari ${oldDl} menjadi **${formattedDl}**`;
+  await sendTransferNewsLog({ teamHex: teamData.warna, messageText: logMsg });
 
   return { teamName: teamData.namaTim, ign: player.ign, newDl: formattedDl, currentQuota };
 }
@@ -468,9 +480,9 @@ export async function executeTransferSetLeader(
   await kv.hset(key, { players: JSON.stringify(orderedPlayers) });
   await refreshTeamEmbeds(teamSlug, teamData, orderedPlayers);
 
-  const logMsg = `Tim ${teamData.namaTim} telah mengganti jabatan ${newRole} ke ${newLeaderPlayer.ign}`;
-  await sendTransferNewsLog({ teamName: teamData.namaTim, teamHex: teamData.warna, messageText: logMsg, createdAt: teamData.createdAt });
+  // Log Berita SET LEADER
+  const logMsg = `Tim 🛡️ **${teamData.namaTim}** telah mengganti jabatan **${newRole}** ke **${newLeaderPlayer.ign}**`;
+  await sendTransferNewsLog({ teamHex: teamData.warna, messageText: logMsg });
 
   return { teamName: teamData.namaTim, ign: newLeaderPlayer.ign, newRole };
-}
-  
+    }
