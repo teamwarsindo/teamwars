@@ -47,6 +47,14 @@ export function RosterLineupBlock({
 }: RosterLineupBlockProps) {
   const [isSavingLineup, setIsSavingLineup] = useState(false);
 
+  // CEK KELENGKAPAN: Wajib 5 Pemain & 10 Deck per tim
+  const isLineupAComplete =
+    lineupA.length === 5 && lineupA.every((p) => p.deck1 && p.skill1 && p.deck2 && p.skill2);
+  const isLineupBComplete =
+    lineupB.length === 5 && lineupB.every((p) => p.deck1 && p.skill1 && p.deck2 && p.skill2);
+
+  const isFormReadyToLock = isLineupAComplete && isLineupBComplete;
+
   const handlePromptAddMaster = async (type: "DECK" | "SKILL") => {
     if (isLineupLocked) return;
     const { value: text } = await Swal.fire({
@@ -64,18 +72,13 @@ export function RosterLineupBlock({
   };
 
   const handleToggleLockLineup = async () => {
-    // Jika ingin Lock Lineup -> Cek syarat 5 pemain & 10 deck terisi
     if (!isLineupLocked) {
-      if (lineupA.length !== 5 || lineupB.length !== 5) {
-        Swal.fire("Peringatan", "Kedua tim wajib memilih tepat 5 pemain aktif!", "warning");
-        return;
-      }
-
-      const isLineupAComplete = lineupA.every((p) => p.deck1 && p.skill1 && p.deck2 && p.skill2);
-      const isLineupBComplete = lineupB.every((p) => p.deck1 && p.skill1 && p.deck2 && p.skill2);
-
-      if (!isLineupAComplete || !isLineupBComplete) {
-        Swal.fire("Peringatan", "Setiap pemain di lineup wajib melengkapi 2 Deck & 2 Skill!", "warning");
+      if (!isFormReadyToLock) {
+        Swal.fire(
+          "Belum Lengkap",
+          "Kedua tim wajib memilih 5 pemain dan melengkapi 10 deck & skill!",
+          "warning"
+        );
         return;
       }
 
@@ -86,7 +89,7 @@ export function RosterLineupBlock({
         Swal.fire({
           icon: "success",
           title: "Lineup Dikunci!",
-          text: "Lineup & 10 Deck berhasil dikunci ke KV. Section Log Input sekarang aktif.",
+          text: "Lineup & 10 Deck berhasil dikunci ke KV.",
           timer: 1500,
           showConfirmButton: false,
         });
@@ -96,12 +99,11 @@ export function RosterLineupBlock({
         setIsSavingLineup(false);
       }
     } else {
-      // Buka kunci lineup untuk diedit kembali
       setIsLineupLocked(false);
       Swal.fire({
         icon: "info",
         title: "Mode Edit Lineup",
-        text: "Lineup dibuka untuk diedit. Section Log Input dikunci sementara sampai Anda menekan Lock lagi.",
+        text: "Lineup dibuka untuk diedit kembali.",
         timer: 1500,
         showConfirmButton: false,
       });
@@ -165,7 +167,13 @@ export function RosterLineupBlock({
     const isMax = currentLineup.length >= 5;
 
     return (
-      <div className={`space-y-4 p-4 rounded-2xl border transition-all ${isLineupLocked ? "bg-muted/10 opacity-90 border-border/20" : "bg-muted/20 border-border/40"}`}>
+      <div
+        className={`space-y-4 p-4 rounded-2xl border transition-all ${
+          isLineupLocked
+            ? "bg-muted/10 opacity-90 border-border/20"
+            : "bg-muted/20 border-border/40"
+        }`}
+      >
         <div className="flex items-center justify-between pb-2 border-b border-border/30">
           <div className="flex items-center gap-2 font-black text-xs uppercase">
             <img src={teamLogo || "/logo.webp"} alt="" className="h-5 w-5 object-contain" />
@@ -276,7 +284,9 @@ export function RosterLineupBlock({
                     >
                       <option value="">-- Pilih Skill --</option>
                       {masterSkills.map((s) => (
-                        <option key={s} value={s}>{s}</option>
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -309,7 +319,9 @@ export function RosterLineupBlock({
                     >
                       <option value="">-- Pilih Skill --</option>
                       {masterSkills.map((s) => (
-                        <option key={s} value={s}>{s}</option>
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -383,12 +395,12 @@ export function RosterLineupBlock({
         )}
       </div>
 
-      {/* 🟢 TOMBOL LOCK / EDIT LINEUP */}
+      {/* 🟢 TOMBOL LOCK HANYA AKTIF KETIKA LINEUP SUDAH LENGKAP */}
       <button
         type="button"
-        disabled={isSavingLineup}
+        disabled={isSavingLineup || (!isLineupLocked && !isFormReadyToLock)}
         onClick={handleToggleLockLineup}
-        className={`w-full py-3.5 rounded-xl font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer ${
+        className={`w-full py-3.5 rounded-xl font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
           isLineupLocked
             ? "bg-amber-600 hover:bg-amber-500 text-white"
             : "bg-emerald-600 hover:bg-emerald-500 text-white"
@@ -400,10 +412,11 @@ export function RosterLineupBlock({
             ? "Menyimpan ke KV..."
             : isLineupLocked
             ? "✏️ EDIT LINEUP (Buka Kunci Lineup)"
-            : "🔒 LOCK LINEUP (Aktifkan Form Input Match)"}
+            : isFormReadyToLock
+            ? "🔒 LOCK LINEUP (Aktifkan Form Input Match)"
+            : "🔒 Lengkapi 5 Pemain & 10 Deck Untuk Lock Lineup"}
         </span>
       </button>
     </section>
   );
-      }
-        
+    }
