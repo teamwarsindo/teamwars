@@ -16,6 +16,9 @@ import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
 import { handleTransferCommand, handleTransferAutocomplete } from '@/lib/discord/commands/transfer';
 
+// Transfer Execution Services
+import { executeTransferAdd, executeTransferOut, executeTransferEditDl } from '@/lib/discord/services/transfer-service';
+
 // Assign & Unassign Handlers
 import { handleAssignAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
 import { handleAssignCommand } from '@/lib/discord/handlers/assign-handler';
@@ -35,7 +38,6 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
 
-// Batas Waktu Akhir Bidding: Hari Ini (Minggu, 9 Agustus 2026, 20:00:00 WIB)
 const BID_DEADLINE_TIMESTAMP = 1786279200;
 
 export async function POST(req: NextRequest) {
@@ -44,7 +46,6 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get('x-signature-ed25519');
     const timestamp = req.headers.get('x-signature-timestamp');
 
-    // 1. Verifikasi Signature Discord
     if (!verifySignature(rawBody, signature, timestamp)) {
       console.warn('⚠️ Request Discord ditolak: Signature Invalid!');
       return new NextResponse('Akses Ditolak', { status: 401 });
@@ -52,7 +53,6 @@ export async function POST(req: NextRequest) {
 
     const body = JSON.parse(rawBody);
 
-    // 2. PING TEST DARI DISCORD PORTAL (Type 1)
     if (body.type === 1) {
       return new NextResponse(JSON.stringify({ type: 1 }), {
         status: 200,
@@ -90,20 +90,106 @@ export async function POST(req: NextRequest) {
         return await handleBtTimer(body);
       }
 
-      // 📜 Tombol Lihat Seluruh Log
+      // 🔄 HANDLER TOMBOL PARSE TRANSFER
+      if (customId.startsWith('btn_parse_')) {
+        if (customId === 'btn_parse_CANCEL') {
+          return NextResponse.json({
+            type: 7, // UPDATE_MESSAGE
+            data: { content: '❌ **Proses Auto-Parse Transfer Dibatalkan.**', embeds: [], components: [] },
+          });
+        }
+
+        const parts = customId.split('_'); // btn_parse_{ACTION}_{TEAM}_{USERID}_{IGN}_{IDDL}
+        const action = parts[2] as 'ADD' | 'OUT' | 'EDIT';
+        const teamSlug = parts[3];
+        const targetDiscordId = parts[4];
+        const rawIgn = decodeURIComponent(parts[5] || '');
+        const rawIdDl = parts[6] || '';
+
+        // Ambil Data Username Discord dari API
+        const userRes = await fetch(`https://discord.com/api/v10/users/${targetDiscordId}`, {
+          headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+        }).then((r) => r.json()).catch(() => ({}));
+
+        const targetUsername = userRes.username || targetDiscordId;
+
+        try {
+          if (action === 'OUT') {
+            const res = await executeTransferOut(teamSlug, targetUsername);
+            return NextResponse.json({
+              type: 7,
+              data: {
+                content: `✅ **Auto-Parse OUT Berhasil!**\nPemain **${res.removedIgn}** resmi dikeluarkan dari tim **${res.teamName}**.`,
+                embeds: [],
+                components: [],
+              },
+            });
+          }
+
+          if (action === 'EDIT') {
+            if (!rawIdDl) {
+              return NextResponse.json({
+                type: 4,
+                data: { content: '❌ **Gagal Exec Edit!** ID Duel Links Baru tidak ditemukan pada teks.', flags: 64 },
+              });
+            }
+            const res = await executeTransferEditDl(teamSlug, targetUsername, rawIdDl);
+            return NextResponse.json({
+              type: 7,
+              data: {
+                content: `✅ **Auto-Parse EDIT DL Berhasil!**\nID Duel Links **${res.ign}** diperbarui menjadi \`${res.newDl}\` (Sisa kuota: **${2 - res.currentQuota}**)`,
+                embeds: [],
+                components: [],
+              },
+            });
+          }
+
+          // DEFAULT ACTION: ADD
+          if (!rawIgn || !rawIdDl) {
+            return NextResponse.json({
+              type: 4,
+              data: {
+                content: `❌ **Gagal Exec ADD!** Data IGN (\`${rawIgn || '-'}\`) atau ID DL (\`${rawIdDl || '-'}\`) kurang lengkap. Silakan gunakan \`/transfer add\` manual.`,
+                flags: 64,
+              },
+            });
+          }
+
+          const res = await executeTransferAdd({
+            teamSlug,
+            targetDiscordId,
+            targetUsername,
+            ign: rawIgn,
+            rawIdDl,
+          });
+
+          return NextResponse.json({
+            type: 7,
+            data: {
+              content: `✅ **Auto-Parse ADD Berhasil!**\n• Pemain: **${res.addedIgn}** (\`${rawIdDl}\`)\n• Tim: **${res.teamName}**\nℹ️ Sisa kuota transfer tim: **${2 - res.currentQuota}**`,
+              embeds: [],
+              components: [],
+            },
+          });
+        } catch (err: any) {
+          return NextResponse.json({
+            type: 4,
+            data: { content: `❌ **Gagal Eksekusi:** ${err.message || 'Terjadi kesalahan'}`, flags: 64 },
+          });
+        }
+      }
+
       if (customId === 'btn_view_full_log') {
         return await handleViewFullLog();
       }
 
-      // 🏆 Tombol Bid Group A / B
       if (customId.startsWith('btn_bid_')) {
-        // 🔒 CEK DEADLINE DAHULU SEBELUM BUKA MODAL
         if (Date.now() >= BID_DEADLINE_TIMESTAMP * 1000) {
           return NextResponse.json({
             type: 4,
             data: {
-              content: '❌ **Bidding telah resmi ditutup!** (Batas waktu: Hari Ini, 9 Agustus 2026, 20:00 WIB)',
-              flags: 64, // Ephemeral
+              content: '❌ **Bidding telah resmi ditutup!**',
+              flags: 64,
             },
           });
         }
@@ -122,7 +208,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(getBidModal(groupTarget, minAmount));
       }
 
-      // 📝 EDIT MATCH REPORT
       if (customId.startsWith('btn_edit_match_')) {
         const matchId = customId.replace('btn_edit_match_', '');
         const schedules = (await kv.get<any[]>('twi:schedules')) || [];
@@ -147,7 +232,6 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // 📢 REQUEST RESCHEDULE
       if (customId.startsWith('btn_request_reschedule_')) {
         const matchId = customId.replace('btn_request_reschedule_', '');
         const suggestedDate = new Date();
@@ -181,7 +265,6 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // ✅ CONFIRM RESCHEDULE
       if (customId.startsWith('btn_confirm_reschedule_')) {
         const [, , matchId, newDateIso] = customId.split('_');
         const schedules = (await kv.get<any[]>('twi:schedules')) || [];
@@ -215,7 +298,6 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ❌ REJECT RESCHEDULE
       if (customId.startsWith('btn_reject_reschedule_')) {
         return NextResponse.json({ type: 4, data: { content: '❌ **Pengajuan Reschedule Ditolak.**' } });
       }
@@ -247,4 +329,5 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-}
+        }
+        
