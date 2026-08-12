@@ -40,7 +40,6 @@ export function TeamGameInput({
   activePlayerObj,
   selectedDeckSlot,
   setSelectedDeckSlot,
-  skill,
   repeatCount,
   isRepeat,
   setIsRepeat,
@@ -52,7 +51,6 @@ export function TeamGameInput({
     ? "bg-primary/15 border-primary text-primary font-bold"
     : "bg-rose-500/15 border-rose-500 text-rose-500 font-bold";
 
-  // Placeholder dropdown sesuai status lineup & eliminasi
   const placeholderText = !isLineupLocked
     ? "-- Kunci Lineup Dulu --"
     : availableOptions.length === 0
@@ -113,12 +111,12 @@ export function TeamGameInput({
           </div>
 
           <div className="grid grid-cols-2 gap-1.5">
-            {/* PILIHAN DECK PERTAMA */}
+            {/* DECK PERTAMA */}
             <button
               type="button"
               disabled={isLocked || (deckLostStats?.deck1Lost && !isRepeat)}
               onClick={() => setSelectedDeckSlot("deck1")}
-              className={`p-2 rounded-lg border text-left transition ${
+              className={`p-2 rounded-lg border text-left transition flex flex-col justify-between ${
                 selectedDeckSlot === "deck1"
                   ? isRepeat
                     ? "bg-amber-500/20 border-amber-500 text-amber-600 dark:text-amber-400 font-extrabold"
@@ -128,32 +126,36 @@ export function TeamGameInput({
                   : "bg-muted/30 border-border text-foreground hover:bg-muted cursor-pointer"
               }`}
             >
-              <div className="flex items-center justify-between gap-1 mb-0.5">
+              <div>
                 <div className="font-extrabold text-xs leading-tight whitespace-normal break-words">
                   {activePlayerObj.deck1 || "-"}
                 </div>
+                <div className="text-[9px] text-muted-foreground font-semibold whitespace-normal break-words opacity-85 mt-0.5">
+                  ({activePlayerObj.skill1 || "-"})
+                </div>
+              </div>
+
+              {/* BADGE DI LETAKKAN DI BAWAH TEKS */}
+              <div className="mt-1.5 pt-1 border-t border-border/20">
                 {selectedDeckSlot === "deck1" && (
-                  <span className="text-[8px] font-black text-emerald-500 bg-emerald-500/10 px-1 rounded shrink-0">
+                  <span className="text-[8px] font-black text-emerald-500 bg-emerald-500/10 px-1 py-0.5 rounded inline-block">
                     🟢 Deck Digunakan
                   </span>
                 )}
                 {deckLostStats?.deck1Lost && !isRepeat && (
-                  <span className="text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 rounded shrink-0">
+                  <span className="text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 py-0.5 rounded inline-block">
                     ❌ Deck Kalah
                   </span>
                 )}
               </div>
-              <div className="text-[9px] text-muted-foreground font-semibold whitespace-normal break-words opacity-85">
-                ({activePlayerObj.skill1 || "-"})
-              </div>
             </button>
 
-            {/* PILIHAN DECK KEDUA */}
+            {/* DECK KEDUA */}
             <button
               type="button"
               disabled={isLocked || isRepeat || deckLostStats?.deck2Lost}
               onClick={() => setSelectedDeckSlot("deck2")}
-              className={`p-2 rounded-lg border text-left transition ${
+              className={`p-2 rounded-lg border text-left transition flex flex-col justify-between ${
                 selectedDeckSlot === "deck2"
                   ? activeBg
                   : isRepeat
@@ -163,28 +165,32 @@ export function TeamGameInput({
                   : "bg-muted/30 border-border text-foreground hover:bg-muted cursor-pointer"
               }`}
             >
-              <div className="flex items-center justify-between gap-1 mb-0.5">
+              <div>
                 <div className="font-extrabold text-xs leading-tight whitespace-normal break-words">
                   {activePlayerObj.deck2 || "-"}
                 </div>
+                <div className="text-[9px] text-muted-foreground font-semibold whitespace-normal break-words opacity-85 mt-0.5">
+                  ({activePlayerObj.skill2 || "-"})
+                </div>
+              </div>
+
+              {/* BADGE DI LETAKKAN DI BAWAH TEKS */}
+              <div className="mt-1.5 pt-1 border-t border-border/20">
                 {selectedDeckSlot === "deck2" && !isRepeat && (
-                  <span className="text-[8px] font-black text-emerald-500 bg-emerald-500/10 px-1 rounded shrink-0">
+                  <span className="text-[8px] font-black text-emerald-500 bg-emerald-500/10 px-1 py-0.5 rounded inline-block">
                     🟢 Deck Digunakan
                   </span>
                 )}
                 {isRepeat && (
-                  <span className="text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 rounded shrink-0">
+                  <span className="text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 py-0.5 rounded inline-block">
                     Hangus
                   </span>
                 )}
                 {deckLostStats?.deck2Lost && (
-                  <span className="text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 rounded shrink-0">
+                  <span className="text-[8px] font-bold text-rose-500 bg-rose-500/10 px-1 py-0.5 rounded inline-block">
                     ❌ Deck Kalah
                   </span>
                 )}
-              </div>
-              <div className="text-[9px] text-muted-foreground font-semibold whitespace-normal break-words opacity-85">
-                ({activePlayerObj.skill2 || "-"})
               </div>
             </button>
           </div>
@@ -214,4 +220,5 @@ export function TeamGameInput({
       </button>
     </div>
   );
-}
+  }
+      
