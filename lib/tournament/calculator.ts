@@ -11,14 +11,18 @@ function getMatchWeek(m: MatchScheduleItem): number {
   if (typeof m.weekNumber === "number" && m.weekNumber > 0) {
     return m.weekNumber;
   }
+
   if (m.matchDate) {
     const startDate = process.env.TWI_START_DATE;
     const matchDate = new Date(m.matchDate).getTime();
-    if (!isNaN(matchDate)) {
+
+    // Pastikan kedua timestamp bernilai number yang valid (bukan NaN)
+    if (!isNaN(matchDate) && !isNaN(startDate)) {
       const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
       return Math.max(1, Math.floor(diffDays / 7) + 1);
     }
   }
+
   return 1;
 }
 
