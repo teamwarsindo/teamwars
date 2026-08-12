@@ -192,7 +192,8 @@ export async function POST(req: Request) {
       }
 
       const existingMatch = schedules[targetIndex];
-      const existingDetails = (await kv.get<MatchDetailsKV>(`twi:match_details:${matchId}`)) || {};
+      // 🟢 KODE BARU (PERBAIKAN TYPE CHECK)
+      const existingDetails = (await kv.get<MatchDetailsKV>(`twi:match_details:${matchId}`)) || ({} as Partial<MatchDetailsKV>);
 
       // 1. Dapatkan gameLogs terbaru (jika ada di payload, pakai yang baru)
       const incomingLogs: GameDetailLog[] = matchData.gameLogs ?? existingDetails.gameLogs ?? existingMatch.gameLogs ?? [];
