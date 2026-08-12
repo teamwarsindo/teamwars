@@ -8,16 +8,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { token, namaTim, warna, logoTim, buktiTransfer, players, key } = body;
 
-    // 🔑 Deteksi Mode Admin
+    // 🔑 Deteksi Mode Admin via Environment Variable
+    const ADMIN_SECRET = process.env.BASIC_AUTH_PWD;
     const urlKey = request.nextUrl.searchParams.get('key');
-    const isAdminKey = (key === '470212070957252618') || (urlKey === '470212070957252618');
+    const isAdminKey = Boolean(ADMIN_SECRET && (key === ADMIN_SECRET || urlKey === ADMIN_SECRET));
 
     if (!token) {
       return NextResponse.json({ error: 'Token tidak valid' }, { status: 400 });
     }
 
     // 1. Validasi Token & Ambil Data Tim
-    const teamSlug = await kv.get(`token:map:${token}`);
+    const teamSlug = await kv.get<string>(`token:map:${token}`);
     if (!teamSlug) {
       return NextResponse.json({ error: 'Tim tidak ditemukan' }, { status: 404 });
     }
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     const verifiedMap = (verifiedUsersMap as Record<string, string>) || {};
     const oldPlayers = typeof oldTeamData.players === 'string'
-      ? JSON.parse(oldTeamData.players)
+      ? JSON.parse(oldTeamData.players as string)
       : (oldTeamData.players || []);
 
     // 2. Peringatan Status Verifikasi Discord (TIDAK MEMBLOKIR PENYIMPANAN)
@@ -56,10 +57,7 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < players.length; i++) {
       const newPlayer = players[i];
-      const oldPlayer = oldPlayers[i];
-
       const newDiscord = newPlayer.discord ? newPlayer.discord.toLowerCase().replace(/^@/, '').trim() : '';
-      const oldDiscord = oldPlayer?.discord ? oldPlayer.discord.toLowerCase().replace(/^@/, '').trim() : '';
 
       if (newDiscord) {
         const isNewVerified = verifiedMap.hasOwnProperty(newDiscord);
@@ -93,10 +91,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Sinkronisasi Data Global / Cleanup
+    // =========================================================
+    // 4. Sinkronisasi Data Global / Cleanup (OPERASI HASH KV)
+    // =========================================================
     const getCleanDiscord = (p: any) => p?.discord?.toLowerCase().replace(/^@/, '').trim();
     const getCleanIgn = (p: any) => p?.ign?.toLowerCase().trim();
-    const getCleanDuelLinks = (p: any) => (p?.idDuelLinks || p?.duelId);
+    const getCleanDuelLinks = (p: any) => (p?.idDuelLinks || p?.duelId)?.toString().toLowerCase().trim();
 
     const oldDiscords = new Set(oldPlayers.map(getCleanDiscord).filter(Boolean));
     const oldIgns = new Set(oldPlayers.map(getCleanIgn).filter(Boolean));
@@ -106,23 +106,60 @@ export async function POST(request: NextRequest) {
     const newIgns = new Set(players.map(getCleanIgn).filter(Boolean));
     const newDuelLinks = new Set(players.map(getCleanDuelLinks).filter(Boolean));
 
-    // 4A. Hapus data lama yang diganti
-    const discordsToRemove = [...oldDiscords].filter(d => !newDiscords.has(d));
-    const ignsToRemove = [...oldIgns].filter(i => !newIgns.has(i));
-    const duelLinksToRemove = [...oldDuelLinks].filter(dl => !newDuelLinks.has(dl));
+    // 4A. Hapus field pemain lama yang sudah tidak digunakan lagi (HDEL)
+    const discordsToRemove = [...oldDiscords].filter(d => !newDiscords.has(d)) as string[];
+    const ignsToRemove = [...oldIgns].filter(i => !newIgns.has(i)) as string[];
+    const duelLinksToRemove = [...oldDuelLinks].filter(dl => !newDuelLinks.has(dl)) as string[];
 
-    if (discordsToRemove.length) await kv.srem('global:discord', ...discordsToRemove);
-    if (ignsToRemove.length) await kv.srem('global:ign', ...ignsToRemove);
-    if (duelLinksToRemove.length) await kv.srem('global:duellinks', ...duelLinksToRemove);
+    if (discordsToRemove.length) await kv.hdel('global:discord', ...discordsToRemove);
+    if (ignsToRemove.length) await kv.hdel('global:ign', ...ignsToRemove);
+    if (duelLinksToRemove.length) await kv.hdel('global:duellinks', ...duelLinksToRemove);
 
-    // 4B. Tambah data baru yang masuk
-    const discordsToAdd = [...newDiscords].filter(d => !oldDiscords.has(d));
-    const ignsToAdd = [...newIgns].filter(i => !oldIgns.has(i));
-    const duelLinksToAdd = [...newDuelLinks].filter(dl => !oldDuelLinks.has(dl));
+    // 4B. Tambah field pemain baru yang dimasukkan (HSET dengan object map)
+    const discordsToAdd = [...newDiscords].filter(d => !oldDiscords.has(d)) as string[];
+    const ignsToAdd = [...newIgns].filter(i => !oldIgns.has(i)) as string[];
+    const duelLinksToAdd = [...newDuelLinks].filter(dl => !oldDuelLinks.has(dl)) as string[];
 
-    if (discordsToAdd.length) await kv.sadd('global:discord', ...discordsToAdd);
-    if (ignsToAdd.length) await kv.sadd('global:ign', ...ignsToAdd);
-    if (duelLinksToAdd.length) await kv.sadd('global:duellinks', ...duelLinksToAdd);
+    if (discordsToAdd.length) {
+      const discordMap: Record<string, string> = {};
+      discordsToAdd.forEach(d => { discordMap[d] = targetSlug; });
+      await kv.hset('global:discord', discordMap);
+    }
+
+    if (ignsToAdd.length) {
+      const ignMap: Record<string, string> = {};
+      ignsToAdd.forEach(i => { ignMap[i] = targetSlug; });
+      await kv.hset('global:ign', ignMap);
+    }
+
+    if (duelLinksToAdd.length) {
+      const dlMap: Record<string, string> = {};
+      duelLinksToAdd.forEach(dl => { dlMap[dl] = targetSlug; });
+      await kv.hset('global:duellinks', dlMap);
+    }
+
+    // Jika terjadi perubahan nama tim (slug berubah), update semua value pemain di Hash ke slug baru
+    if (newTeamSlug !== teamSlug) {
+      const allNewDiscords = [...newDiscords] as string[];
+      const allNewIgns = [...newIgns] as string[];
+      const allNewDuelLinks = [...newDuelLinks] as string[];
+
+      if (allNewDiscords.length) {
+        const dMap: Record<string, string> = {};
+        allNewDiscords.forEach(d => { dMap[d] = targetSlug; });
+        await kv.hset('global:discord', dMap);
+      }
+      if (allNewIgns.length) {
+        const iMap: Record<string, string> = {};
+        allNewIgns.forEach(i => { iMap[i] = targetSlug; });
+        await kv.hset('global:ign', iMap);
+      }
+      if (allNewDuelLinks.length) {
+        const dlMap: Record<string, string> = {};
+        allNewDuelLinks.forEach(dl => { dlMap[dl] = targetSlug; });
+        await kv.hset('global:duellinks', dlMap);
+      }
+    }
 
     // 5. Update Data Utama di KV Redis
     const createdAt = oldTeamData.createdAt as string;
@@ -149,10 +186,10 @@ export async function POST(request: NextRequest) {
     const rosterMessageId = oldTeamData.adminMsgId as string;
     const trackerChannelId = oldTeamData.discordChannelId as string;
     const trackerMessageId = oldTeamData.trackerMsgId as string;
-    const teamRoleId = oldTeamData.discordRoleId || oldTeamData.roleId;
+    const teamRoleId = (oldTeamData.discordRoleId || oldTeamData.roleId) as string;
     
     const creativeMsgId = oldTeamData.creativeMsgId as string; 
-    const creativeChannelId = oldTeamData.creativeChannelId || DISCORD_CONFIG.CH_LOGO;
+    const creativeChannelId = (oldTeamData.creativeChannelId || DISCORD_CONFIG.CH_LOGO) as string;
 
     // 6A. Update Embed Roster
     if (rosterMessageId) {
@@ -182,7 +219,7 @@ export async function POST(request: NextRequest) {
         .catch(err => console.error('Gagal update roster embed message:', err));
     }
 
-    // 6B. Update Embed Tracker (Otomatis menampilkan Tanda ❌ jika belum terverifikasi)
+    // 6B. Update Embed Tracker
     if (trackerChannelId && trackerMessageId) {
       let verifiedCount = 0;
       let rosterText = "";
@@ -225,7 +262,7 @@ export async function POST(request: NextRequest) {
 
     // 6D. Update Pesan Creative
     if (creativeMsgId && warna && warna !== oldTeamData.warna) {
-      const currentLogo = logoTim || oldTeamData.logoTim;
+      const currentLogo = (logoTim || oldTeamData.logoTim) as string;
       let directDownloadLogo = currentLogo;
       
       if (currentLogo && currentLogo.includes('/upload/logo/')) {
@@ -251,7 +288,7 @@ export async function POST(request: NextRequest) {
         .catch(err => console.error('Gagal update pesan creative:', err));
     }
 
-    // 7. Berikan Respons Berhasil (Plus catatan warning jika ada)
+    // 7. Berikan Respons Berhasil
     return NextResponse.json({
       success: true,
       message: 'Data tim berhasil diperbarui!',
@@ -262,5 +299,4 @@ export async function POST(request: NextRequest) {
     console.error('Error Edit Team API:', error);
     return NextResponse.json({ error: 'Gagal memperbarui data tim' }, { status: 500 });
   }
-      }
-        
+}
