@@ -7,8 +7,10 @@ interface WinnerSelectorProps {
   gameNumber: number;
   isFormReady: boolean;
   gameResult: "A" | "B" | "";
-  setGameResult: (val: "A" | "B") => void;
-  onSaveGame: () => void;
+  setGameResult: (val: "A" | "B" | "") => void;
+  onSaveGame: () => Promise<void>;
+  disabledA?: boolean;
+  disabledB?: boolean;
 }
 
 export function WinnerSelector({
@@ -18,58 +20,60 @@ export function WinnerSelector({
   gameResult,
   setGameResult,
   onSaveGame,
+  disabledA = false,
+  disabledB = false,
 }: WinnerSelectorProps) {
-  const isWinnerSelected = Boolean(gameResult !== "");
-
   return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        <label className="block text-[10px] font-bold text-muted-foreground uppercase text-center">
-          PEMENANG GAME #{gameNumber}
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          {/* WINNER TIM A (TANPA TEKS NAMA TIM YANG KEPANJANGAN) */}
-          <button
-            type="button"
-            disabled={!isFormReady}
-            onClick={() => setGameResult("A")}
-            className={`py-3 px-2 rounded-2xl border transition flex items-center justify-center gap-2 cursor-pointer ${
-              gameResult === "A"
-                ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.01]"
-                : isFormReady
-                ? "bg-background border-border hover:bg-muted text-foreground"
-                : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
-            }`}
-          >
-            <img src={match.teamALogo || "/logo.webp"} alt="" className="h-7 w-7 object-contain shrink-0" />
-            <span className="font-black text-xs tracking-wider uppercase">[ WIN ]</span>
-          </button>
+    <div className="space-y-3 pt-3 border-t border-border/40">
+      <label className="block text-[11px] font-extrabold uppercase tracking-wide text-foreground text-center">
+        Pemenang Game #{gameNumber}
+      </label>
 
-          {/* WINNER TIM B (TANPA TEKS NAMA TIM YANG KEPANJANGAN) */}
-          <button
-            type="button"
-            disabled={!isFormReady}
-            onClick={() => setGameResult("B")}
-            className={`py-3 px-2 rounded-2xl border transition flex items-center justify-center gap-2 cursor-pointer ${
-              gameResult === "B"
-                ? "bg-rose-600 text-white border-rose-500 shadow-md scale-[1.01]"
-                : isFormReady
-                ? "bg-background border-border hover:bg-muted text-foreground"
-                : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
-            }`}
-          >
-            <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-7 w-7 object-contain shrink-0" />
-            <span className="font-black text-xs tracking-wider uppercase">[ WIN ]</span>
-          </button>
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        {/* TOMBOL WIN TIM A */}
+        <button
+          type="button"
+          disabled={!isFormReady || disabledA}
+          onClick={() => setGameResult(gameResult === "A" ? "" : "A")}
+          className={`py-3 px-2 rounded-xl font-black text-xs transition border flex items-center justify-center gap-2 cursor-pointer ${
+            gameResult === "A"
+              ? "bg-emerald-500 text-white border-emerald-500 shadow-md"
+              : disabledA
+              ? "bg-muted/30 border-border/20 text-muted-foreground/30 cursor-not-allowed line-through"
+              : isFormReady
+              ? "bg-background border-border text-foreground hover:bg-emerald-500/10 hover:border-emerald-500/50"
+              : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
+          }`}
+        >
+          <img src={match.teamALogo || "/logo.webp"} alt="" className="h-4 w-4 object-contain" />
+          <span>[ WIN ] {match.teamAName}</span>
+        </button>
+
+        {/* TOMBOL WIN TIM B */}
+        <button
+          type="button"
+          disabled={!isFormReady || disabledB}
+          onClick={() => setGameResult(gameResult === "B" ? "" : "B")}
+          className={`py-3 px-2 rounded-xl font-black text-xs transition border flex items-center justify-center gap-2 cursor-pointer ${
+            gameResult === "B"
+              ? "bg-emerald-500 text-white border-emerald-500 shadow-md"
+              : disabledB
+              ? "bg-muted/30 border-border/20 text-muted-foreground/30 cursor-not-allowed line-through"
+              : isFormReady
+              ? "bg-background border-border text-foreground hover:bg-emerald-500/10 hover:border-emerald-500/50"
+              : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
+          }`}
+        >
+          <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-4 w-4 object-contain" />
+          <span>[ WIN ] {match.teamBName}</span>
+        </button>
       </div>
 
-      {/* TOMBOL SIMPAN LOG GAME */}
       <button
         type="button"
-        disabled={!isWinnerSelected}
+        disabled={!isFormReady || !gameResult}
         onClick={onSaveGame}
-        className="w-full py-3.5 rounded-2xl bg-primary font-extrabold text-xs text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-md hover:bg-primary/90 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
       >
         ➕ Simpan Log Game #{gameNumber}
       </button>
