@@ -12,14 +12,19 @@ import {
 } from '@/lib/discord/services/transfer-service';
 
 function isAuth(interaction: any): boolean {
-  const member = interaction.member;
-  const roles: string[] = member?.roles || [];
-  const isAdmin = (BigInt(member?.permissions || '0') & BigInt(0x8)) === BigInt(0x8);
-  return (
-    isAdmin ||
-    (!!DISCORD_CONFIG.ROLE_ADMIN && roles.includes(DISCORD_CONFIG.ROLE_ADMIN)) ||
-    (!!DISCORD_CONFIG.ROLE_CHIEF && roles.includes(DISCORD_CONFIG.ROLE_CHIEF))
-  );
+  try {
+    const member = interaction?.member;
+    const roles: string[] = member?.roles || [];
+    const permissions = BigInt(member?.permissions || '0');
+    const isAdmin = (permissions & BigInt(0x8)) === BigInt(0x8);
+    return (
+      isAdmin ||
+      (!!DISCORD_CONFIG.ROLE_ADMIN && roles.includes(DISCORD_CONFIG.ROLE_ADMIN)) ||
+      (!!DISCORD_CONFIG.ROLE_CHIEF && roles.includes(DISCORD_CONFIG.ROLE_CHIEF))
+    );
+  } catch {
+    return false;
+  }
 }
 
 function getSubcommandData(interaction: any) {
@@ -33,96 +38,100 @@ function getSubcommandData(interaction: any) {
 }
 
 export async function handleTransferAutocomplete(interaction: any) {
-  const { opts } = getSubcommandData(interaction);
-  const focusedOption = opts.find((o: any) => o.focused);
-  if (!focusedOption) return { type: 8, data: { choices: [] } };
+  try {
+    const { opts } = getSubcommandData(interaction);
+    const focusedOption = opts.find((o: any) => o.focused);
+    if (!focusedOption) return { type: 8, data: { choices: [] } };
 
-  const userId = interaction.member?.user?.id;
-  const userUsername = interaction.member?.user?.username;
+    const userId = interaction.member?.user?.id;
+    const userUsername = interaction.member?.user?.username;
 
-  if (focusedOption.name === 'team') {
-    const allTeamSlugs = await kv.smembers('global:teams');
-    const searchValue = (focusedOption.value || '').toLowerCase();
-    const choices = [];
+    if (focusedOption.name === 'team') {
+      const allTeamSlugs = (await kv.smembers('global:teams')) || [];
+      const searchValue = (focusedOption.value || '').toLowerCase();
+      const choices = [];
 
-    for (const slug of allTeamSlugs) {
-      const teamData = await kv.hgetall<any>(`teams:${slug}`);
-      if (teamData && teamData.namaTim) {
-        if (teamData.namaTim.toLowerCase().includes(searchValue) || slug.includes(searchValue)) {
-          choices.push({ name: teamData.namaTim, value: slug });
+      for (const slug of allTeamSlugs) {
+        const teamData = await kv.hgetall<any>(`teams:${slug}`);
+        if (teamData && teamData.namaTim) {
+          if (teamData.namaTim.toLowerCase().includes(searchValue) || slug.includes(searchValue)) {
+            choices.push({ name: teamData.namaTim, value: slug });
+          }
+        }
+        if (choices.length >= 25) break;
+      }
+      return { type: 8, data: { choices } };
+    }
+
+    if (focusedOption.name === 'user') {
+      const selectedTeamOpt = opts.find((o: any) => o.name === 'team')?.value;
+      let targetTeamSlug = selectedTeamOpt;
+
+      if (!targetTeamSlug) {
+        targetTeamSlug = await kv.hget<string>('global:discord_ids', userId);
+        if (!targetTeamSlug && userUsername) {
+          targetTeamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
         }
       }
-      if (choices.length >= 25) break;
+
+      if (!targetTeamSlug) return { type: 8, data: { choices: [] } };
+
+      const teamData = await kv.hgetall<any>(`teams:${targetTeamSlug}`);
+      if (!teamData || !teamData.players) return { type: 8, data: { choices: [] } };
+
+      const players: PlayerItem[] = parsePlayers(teamData.players);
+      const searchValue = (focusedOption.value || '').toLowerCase();
+
+      const choices = players
+        .filter((p) => p.ign.toLowerCase().includes(searchValue) || p.discord.toLowerCase().includes(searchValue))
+        .slice(0, 25)
+        .map((p) => ({
+          name: `${p.ign} (@${p.discord}) - ${p.role}`,
+          value: p.discord,
+        }));
+
+      return { type: 8, data: { choices } };
     }
-    return { type: 8, data: { choices } };
+
+    return { type: 8, data: { choices: [] } };
+  } catch {
+    return { type: 8, data: { choices: [] } };
   }
-
-  if (focusedOption.name === 'user') {
-    const selectedTeamOpt = opts.find((o: any) => o.name === 'team')?.value;
-    let targetTeamSlug = selectedTeamOpt;
-
-    if (!targetTeamSlug) {
-      targetTeamSlug = await kv.hget<string>('global:discord_ids', userId);
-      if (!targetTeamSlug && userUsername) {
-        targetTeamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
-      }
-    }
-
-    if (!targetTeamSlug) return { type: 8, data: { choices: [] } };
-
-    const teamData = await kv.hgetall<any>(`teams:${targetTeamSlug}`);
-    if (!teamData || !teamData.players) return { type: 8, data: { choices: [] } };
-
-    const players: PlayerItem[] = parsePlayers(teamData.players);
-    const searchValue = (focusedOption.value || '').toLowerCase();
-
-    const choices = players
-      .filter((p) => p.ign.toLowerCase().includes(searchValue) || p.discord.toLowerCase().includes(searchValue))
-      .slice(0, 25)
-      .map((p) => ({
-        name: `${p.ign} (@${p.discord}) - ${p.role}`,
-        value: p.discord,
-      }));
-
-    return { type: 8, data: { choices } };
-  }
-
-  return { type: 8, data: { choices: [] } };
 }
 
 export async function handleTransferCommand(interaction: any) {
-  const { subcommand, opts } = getSubcommandData(interaction);
-  if (!subcommand) return { type: 4, data: { content: '❌ Subcommand tidak valid!', flags: 64 } };
-
-  const userId = interaction.member?.user?.id;
-  const userUsername = interaction.member?.user?.username;
-  const isAdmin = isAuth(interaction);
-
-  const inputTeamSlug = opts.find((o: any) => o.name === 'team')?.value;
-
-  let teamSlug = inputTeamSlug;
-  if (!teamSlug) {
-    teamSlug = await kv.hget<string>('global:discord_ids', userId);
-    if (!teamSlug && userUsername) {
-      teamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
-    }
-  }
-
-  if (isAdmin && !inputTeamSlug && !teamSlug) {
-    return {
-      type: 4,
-      data: { content: '❌ **Akses Admin:** Kamu wajib memilih opsi `team` saat menggunakan command transfer!', flags: 64 },
-    };
-  }
-
-  if (!teamSlug) {
-    return {
-      type: 4,
-      data: { content: '❌ **Akses Ditolak!** Kamu harus menjadi Ketua/Wakil/Admin tim untuk menggunakan command ini.', flags: 64 },
-    };
-  }
-
   try {
+    const { subcommand, opts } = getSubcommandData(interaction);
+    if (!subcommand) return { type: 4, data: { content: '❌ Subcommand tidak valid!', flags: 64 } };
+
+    const userId = interaction.member?.user?.id;
+    const userUsername = interaction.member?.user?.username;
+    const isAdmin = isAuth(interaction);
+
+    const inputTeamSlug = opts.find((o: any) => o.name === 'team')?.value;
+
+    let teamSlug = inputTeamSlug;
+    if (!teamSlug) {
+      teamSlug = await kv.hget<string>('global:discord_ids', userId);
+      if (!teamSlug && userUsername) {
+        teamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
+      }
+    }
+
+    if (isAdmin && !inputTeamSlug && !teamSlug) {
+      return {
+        type: 4,
+        data: { content: '❌ **Akses Admin:** Kamu wajib memilih opsi `team` saat menggunakan command transfer!', flags: 64 },
+      };
+    }
+
+    if (!teamSlug) {
+      return {
+        type: 4,
+        data: { content: '❌ **Akses Ditolak!** Kamu harus menjadi Ketua/Wakil/Admin tim untuk menggunakan command ini.', flags: 64 },
+      };
+    }
+
     // -------------------------------------------------------------
     // 1. SUBCOMMAND: OUT
     // -------------------------------------------------------------
@@ -205,7 +214,7 @@ export async function handleTransferCommand(interaction: any) {
     }
 
     // -------------------------------------------------------------
-    // 4. SUBCOMMAND: PARSE (RINGKAS CUSTOM_ID < 100 CHARS)
+    // 4. SUBCOMMAND: PARSE (SAFE PREVIEW ADMIN)
     // -------------------------------------------------------------
     if (subcommand === 'parse') {
       if (!isAdmin) {
@@ -225,25 +234,30 @@ export async function handleTransferCommand(interaction: any) {
       const targetUserData = resolvedUsers[targetDiscordId] || {};
       const targetUsername = targetUserData.username || targetDiscordId;
 
-      // SIMPAN DATA TEMPORARY KE KV AGAR CUSTOM_ID RINGKAS & TIDAK MELEBIHI 100 KARAKTER
-      const sessionKey = `parse_session:${interaction.id}`;
-      await kv.set(
-        sessionKey,
-        {
-          teamSlug,
-          targetDiscordId,
-          targetUsername,
-          ign: parsed.ign || '',
-          idDl: parsed.idDl || '',
-          action: parsed.action,
-        },
-        { ex: 600 } // Expire dalam 10 menit
-      );
+      const interactionId = interaction.id || Date.now().toString();
+      const sessionKey = `parse_session:${interactionId}`;
+
+      try {
+        await kv.set(
+          sessionKey,
+          {
+            teamSlug,
+            targetDiscordId,
+            targetUsername,
+            ign: parsed.ign || '',
+            idDl: parsed.idDl || '',
+            action: parsed.action,
+          },
+          { ex: 600 }
+        );
+      } catch (kvErr) {
+        console.error('KV Session Save Error:', kvErr);
+      }
 
       return {
         type: 4,
         data: {
-          flags: 64, // Ephemeral Privat
+          flags: 64,
           embeds: [
             {
               title: '🔍 PREVIEW AUTO-PARSE TRANSFER REQUEST',
@@ -266,14 +280,14 @@ export async function handleTransferCommand(interaction: any) {
               components: [
                 {
                   type: 2,
-                  style: 3, // Hijau
+                  style: 3,
                   label: `Proses ${parsed.action}`,
-                  custom_id: `btn_parse_EXEC_${parsed.action}_${interaction.id}`,
+                  custom_id: `btn_parse_EXEC_${parsed.action}_${interactionId}`,
                   emoji: { name: '✅' },
                 },
                 {
                   type: 2,
-                  style: 4, // Merah
+                  style: 4,
                   label: 'Batal',
                   custom_id: 'btn_parse_CANCEL',
                   emoji: { name: '❌' },
@@ -285,21 +299,21 @@ export async function handleTransferCommand(interaction: any) {
               components: [
                 {
                   type: 2,
-                  style: 2, // Abu-abu
+                  style: 2,
                   label: 'Paksa Ubah ke ADD',
-                  custom_id: `btn_parse_EXEC_ADD_${interaction.id}`,
+                  custom_id: `btn_parse_EXEC_ADD_${interactionId}`,
                 },
                 {
                   type: 2,
                   style: 2,
                   label: 'Paksa Ubah ke OUT',
-                  custom_id: `btn_parse_EXEC_OUT_${interaction.id}`,
+                  custom_id: `btn_parse_EXEC_OUT_${interactionId}`,
                 },
                 {
                   type: 2,
                   style: 2,
                   label: 'Paksa Ubah ke EDIT DL',
-                  custom_id: `btn_parse_EXEC_EDIT_${interaction.id}`,
+                  custom_id: `btn_parse_EXEC_EDIT_${interactionId}`,
                 },
               ],
             },
@@ -312,7 +326,8 @@ export async function handleTransferCommand(interaction: any) {
   } catch (error: any) {
     return {
       type: 4,
-      data: { content: error.message || '❌ Terjadi kesalahan saat memproses transfer.', flags: 64 },
+      data: { content: `❌ **Gagal Memproses Transfer:** ${error.message || 'Terjadi kesalahan internal'}`, flags: 64 },
     };
   }
         }
+                                   
