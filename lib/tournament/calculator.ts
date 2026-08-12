@@ -12,8 +12,7 @@ function getMatchWeek(m: MatchScheduleItem): number {
     return m.weekNumber;
   }
   if (m.matchDate) {
-    const startDateStr = process.env.TWI_START_DATE;
-    const startDate = new Date(startDateStr).getTime();
+    const startDate = process.env.TWI_START_DATE;
     const matchDate = new Date(m.matchDate).getTime();
     if (!isNaN(matchDate)) {
       const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
