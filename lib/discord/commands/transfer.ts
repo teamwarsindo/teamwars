@@ -205,7 +205,7 @@ export async function handleTransferCommand(interaction: any) {
     }
 
     // -------------------------------------------------------------
-    // 4. SUBCOMMAND: PARSE (PREVIEW INTERAKTIF KHUSUS ADMIN)
+    // 4. SUBCOMMAND: PARSE (RINGKAS CUSTOM_ID < 100 CHARS)
     // -------------------------------------------------------------
     if (subcommand === 'parse') {
       if (!isAdmin) {
@@ -225,14 +225,25 @@ export async function handleTransferCommand(interaction: any) {
       const targetUserData = resolvedUsers[targetDiscordId] || {};
       const targetUsername = targetUserData.username || targetDiscordId;
 
-      // Safe Encoding untuk Data Tombol
-      const encodedIgn = encodeURIComponent(parsed.ign || '');
-      const cleanIdDl = parsed.idDl || '';
+      // SIMPAN DATA TEMPORARY KE KV AGAR CUSTOM_ID RINGKAS & TIDAK MELEBIHI 100 KARAKTER
+      const sessionKey = `parse_session:${interaction.id}`;
+      await kv.set(
+        sessionKey,
+        {
+          teamSlug,
+          targetDiscordId,
+          targetUsername,
+          ign: parsed.ign || '',
+          idDl: parsed.idDl || '',
+          action: parsed.action,
+        },
+        { ex: 600 } // Expire dalam 10 menit
+      );
 
       return {
         type: 4,
         data: {
-          flags: 64, // Ephemeral (Hanya Admin yang Bisa Lihat)
+          flags: 64, // Ephemeral Privat
           embeds: [
             {
               title: '🔍 PREVIEW AUTO-PARSE TRANSFER REQUEST',
@@ -251,13 +262,13 @@ export async function handleTransferCommand(interaction: any) {
           ],
           components: [
             {
-              type: 1, // Row 1: Tombol Eksekusi & Batal
+              type: 1,
               components: [
                 {
                   type: 2,
                   style: 3, // Hijau
                   label: `Proses ${parsed.action}`,
-                  custom_id: `btn_parse_${parsed.action}_${teamSlug}_${targetDiscordId}_${encodedIgn}_${cleanIdDl}`,
+                  custom_id: `btn_parse_EXEC_${parsed.action}_${interaction.id}`,
                   emoji: { name: '✅' },
                 },
                 {
@@ -270,25 +281,25 @@ export async function handleTransferCommand(interaction: any) {
               ],
             },
             {
-              type: 1, // Row 2: Override Manual Action
+              type: 1,
               components: [
                 {
                   type: 2,
                   style: 2, // Abu-abu
                   label: 'Paksa Ubah ke ADD',
-                  custom_id: `btn_parse_ADD_${teamSlug}_${targetDiscordId}_${encodedIgn}_${cleanIdDl}`,
+                  custom_id: `btn_parse_EXEC_ADD_${interaction.id}`,
                 },
                 {
                   type: 2,
                   style: 2,
                   label: 'Paksa Ubah ke OUT',
-                  custom_id: `btn_parse_OUT_${teamSlug}_${targetDiscordId}_${encodedIgn}_${cleanIdDl}`,
+                  custom_id: `btn_parse_EXEC_OUT_${interaction.id}`,
                 },
                 {
                   type: 2,
                   style: 2,
                   label: 'Paksa Ubah ke EDIT DL',
-                  custom_id: `btn_parse_EDIT_${teamSlug}_${targetDiscordId}_${encodedIgn}_${cleanIdDl}`,
+                  custom_id: `btn_parse_EXEC_EDIT_${interaction.id}`,
                 },
               ],
             },
@@ -304,4 +315,4 @@ export async function handleTransferCommand(interaction: any) {
       data: { content: error.message || '❌ Terjadi kesalahan saat memproses transfer.', flags: 64 },
     };
   }
-          }
+        }
