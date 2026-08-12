@@ -26,6 +26,7 @@ export interface TeamKVData {
 }
 
 export function formatDuelId(input: string): string {
+  if (!input) return '-';
   const clean = input.replace(/\D/g, '');
   if (clean.length !== 9) return input.trim();
   return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6, 9)}`;
@@ -48,7 +49,7 @@ export function parsePlayers(playersData: string | PlayerItem[]): PlayerItem[] {
 }
 
 /**
- * Smart Extractor Teks Request Transfer
+ * Smart Extractor Teks Request Transfer (Aman Multi-Line & Single-Line)
  */
 export function parseTransferSmartText(rawText: string): {
   action: 'ADD' | 'OUT' | 'EDIT';
@@ -57,7 +58,6 @@ export function parseTransferSmartText(rawText: string): {
 } {
   const textLower = rawText.toLowerCase();
 
-  // 1. Deteksi Aksi
   let action: 'ADD' | 'OUT' | 'EDIT' = 'ADD';
   if (textLower.includes('req out') || textLower.includes('mengeluarkan')) {
     action = 'OUT';
@@ -65,22 +65,21 @@ export function parseTransferSmartText(rawText: string): {
     action = 'EDIT';
   }
 
-  // 2. Extract IGN (String setelah 'IGN :' atau 'IGN:')
-  const ignMatch = rawText.match(/IGN\s*:\s*([^\n\r]+)/i);
-  const ign = ignMatch ? ignMatch[1].trim() : null;
-
-  // 3. Extract ID Duel Links / MD (Mencari 9 digit angka)
+  const idMatches = rawText.match(/(\d{3}[-\s]?\d{3}[-\s]?\d{3}|\d{9})/g);
   let idDl: string | null = null;
+  if (idMatches && idMatches.length > 0) {
+    idDl = idMatches[idMatches.length - 1].replace(/\D/g, '');
+  }
 
-  if (action === 'EDIT') {
-    const idBaruMatch = rawText.match(/(?:baru|new)\s*:\s*([\d\s-]{9,13})/i) || rawText.match(/(\d{3}[-\s]?\d{3}[-\s]?\d{3}|\d{9})/g);
-    if (idBaruMatch) {
-      const rawId = Array.isArray(idBaruMatch) ? idBaruMatch[idBaruMatch.length - 1] : idBaruMatch[1];
-      idDl = rawId.replace(/\D/g, '');
+  let ign: string | null = null;
+  const ignMatch = rawText.match(/IGN\s*:\s*([^\n\r\t]+)/i);
+  if (ignMatch) {
+    let extracted = ignMatch[1].trim();
+    const cutoffIndex = extracted.search(/\b(ID|ID DL|Discord)\b/i);
+    if (cutoffIndex !== -1) {
+      extracted = extracted.substring(0, cutoffIndex).trim();
     }
-  } else {
-    const idMatches = rawText.match(/(\d{3}[-\s]?\d{3}[-\s]?\d{3}|\d{9})/);
-    idDl = idMatches ? idMatches[0].replace(/\D/g, '') : null;
+    ign = extracted || null;
   }
 
   return { action, ign, idDl };
@@ -102,7 +101,7 @@ export async function sendTransferNewsLog(params: {
       {
         title: 'TRANSFER ROSTER',
         description: params.messageText,
-        color: hexToDecimal(params.teamHex),
+        color: hexToDecimal(params.teamHex || '#3498db'),
         footer: {
           text: getFooterText(params.createdAt, new Date().toISOString()),
         },
@@ -116,20 +115,25 @@ export async function sendTransferNewsLog(params: {
 /**
  * Helper Refresh Embed CH_ROSTER dan Match Camp Tracker
  */
-export async function refreshTeamEmbeds(teamSlug: string, teamData: TeamKVData, players: PlayerItem[]) {
+export async function refreshTeamEmbeds(
+  teamSlug: string,
+  teamData: TeamKVData,
+  players: PlayerItem[],
+  quotaUsedOverride?: number
+) {
   const createdAt = teamData.createdAt || new Date().toISOString();
   const updatedAt = new Date().toISOString();
   const ketua = players.find((p) => p.role === 'Ketua') || { ign: '-' };
   const wakil = players.find((p) => p.role === 'Wakil Ketua') || { ign: '-' };
 
-  // 1. Update/PATCH Embed CH_ROSTER
+  // 1. Update Embed CH_ROSTER
   if (teamData.adminMsgId && DISCORD_CONFIG.CH_ROSTER) {
     const playerListString = players.map((p) => `${p.ign} (${p.idDuelLinks})`).join('\n');
     const rosterPayload = {
       embeds: [
         {
           title: teamData.namaTim,
-          color: hexToDecimal(teamData.warna),
+          color: hexToDecimal(teamData.warna || '#3498db'),
           thumbnail: teamData.logoTim ? { url: teamData.logoTim } : undefined,
           fields: [
             { name: 'Ketua', value: ketua.ign, inline: true },
@@ -145,25 +149,25 @@ export async function refreshTeamEmbeds(teamSlug: string, teamData: TeamKVData, 
     await discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${teamData.adminMsgId}`, 'PATCH', rosterPayload).catch(() => null);
   }
 
-  // 2. Update/PATCH Embed Match Camp Tracker
+  // 2. Update Embed Match Camp Tracker
   if (teamData.trackerMsgId && teamData.discordChannelId) {
     let rosterText = '';
     players.forEach((p) => {
       rosterText += `❌ **${p.ign}** (\`@${p.discord}\`) - *${p.role}*\n`;
     });
 
-    const quotaUsed = teamData.transferQuotaUsed || 0;
+    const currentQuotaUsed = quotaUsedOverride !== undefined ? quotaUsedOverride : (teamData.transferQuotaUsed || 0);
 
     const trackerPayload = {
       embeds: [
         {
           title: teamData.namaTim,
           description: `**DAFTAR ROSTER:**\n${rosterText}`,
-          color: hexToDecimal(teamData.warna),
+          color: hexToDecimal(teamData.warna || '#3498db'),
           fields: [
             { name: '📌 Role Tim', value: teamData.discordRoleId ? `<@&${teamData.discordRoleId}>` : '*(Belum Ada)*', inline: true },
             { name: '📊 Status', value: `**0 / ${players.length}** Terverifikasi`, inline: true },
-            { name: '🔄 Kuota Transfer', value: `**${quotaUsed} / 2** Terpakai`, inline: false },
+            { name: '🔄 Kuota Transfer', value: `**${currentQuotaUsed} / 2** Terpakai`, inline: false },
           ],
           footer: {
             text: getFooterText(createdAt, updatedAt),
@@ -217,6 +221,7 @@ export async function executeTransferOut(teamSlug: string, targetDiscordUsername
     removedPlayer.discordId ? kv.hdel('global:discord_ids', removedPlayer.discordId) : Promise.resolve(),
   ]);
 
+  // Simpan ke Pool Free Agent / Free Duelist
   const freeDuelistKey = `global:free_duelists:${removedPlayer.discord.toLowerCase()}`;
   const existingFreeDuelist = await kv.hgetall<any>(freeDuelistKey);
   const currentJoinedCount = existingFreeDuelist?.teamsJoinedCount || 1;
@@ -233,6 +238,7 @@ export async function executeTransferOut(teamSlug: string, targetDiscordUsername
 
   const guildId = DISCORD_CONFIG.GUILD_ID;
   if (guildId && removedPlayer.discordId && teamData.discordRoleId) {
+    // Cabut Role Tim, Role Duelist Tetap Ada
     await discordAPI(`/guilds/${guildId}/members/${removedPlayer.discordId}/roles/${teamData.discordRoleId}`, 'DELETE').catch(() => null);
   }
 
@@ -271,25 +277,10 @@ export async function executeTransferAdd(params: {
     throw new Error('Gagal Transfer! ID Duel Links harus terdiri dari 9 digit angka.');
   }
 
-  const freeDuelistKey = `global:free_duelists:${targetUsername.toLowerCase()}`;
-  const freeDuelist = await kv.hgetall<any>(freeDuelistKey);
+  // FREE AGENT BEBAS -> KUOTA TIM TIDAK BERKURANG/TIDAK BERTAMBAH (TETAP)
+  const currentQuota = teamData.transferQuotaUsed || 0;
 
-  let currentQuota = teamData.transferQuotaUsed || 0;
-
-  if (freeDuelist && freeDuelist.ign) {
-    const joinedCount = freeDuelist.teamsJoinedCount || 1;
-    if (joinedCount >= 2) {
-      throw new Error(`Gagal Transfer! Pemain **${targetUsername}** sudah mencapai batas maksimal 2x membela tim.`);
-    }
-
-    if (currentQuota >= 2) {
-      throw new Error('Gagal Transfer! Tim kamu sudah menghabiskan kuota maksimal (2x) transfer/perubahan roster.');
-    }
-
-    currentQuota += 1;
-    await kv.hset(freeDuelistKey, { teamsJoinedCount: joinedCount + 1 });
-  }
-
+  // Cek Duplikasi Global
   const [existingIgnTeam, existingDlTeam, existingDiscordTeam] = await Promise.all([
     kv.hget<string>('global:ign', cleanIgn.toLowerCase()),
     kv.hget<string>('global:duellinks', formattedDl),
@@ -341,8 +332,11 @@ export async function executeTransferAdd(params: {
   }
 
   await kv.hset(key, { players: JSON.stringify(players), transferQuotaUsed: currentQuota });
-  await refreshTeamEmbeds(teamSlug, teamData, players);
+  
+  // Refresh Tracker Roster
+  await refreshTeamEmbeds(teamSlug, teamData, players, currentQuota);
 
+  // Send Log
   const logMsg = `${cleanIgn} (${formattedDl}) telah ditambahkan ke roster tim ${teamData.namaTim}`;
   await sendTransferNewsLog({ teamName: teamData.namaTim, teamHex: teamData.warna, messageText: logMsg, createdAt: teamData.createdAt });
 
@@ -386,7 +380,7 @@ export async function executeTransferEditDl(teamSlug: string, targetUsername: st
   currentQuota += 1;
 
   await kv.hset(key, { players: JSON.stringify(players), transferQuotaUsed: currentQuota });
-  await refreshTeamEmbeds(teamSlug, teamData, players);
+  await refreshTeamEmbeds(teamSlug, teamData, players, currentQuota);
 
   const logMsg = `${player.ign} dari tim ${teamData.namaTim} telah mengganti ID Duel Links dari ${oldDl} menjadi ${formattedDl}`;
   await sendTransferNewsLog({ teamName: teamData.namaTim, teamHex: teamData.warna, messageText: logMsg, createdAt: teamData.createdAt });
@@ -450,4 +444,5 @@ export async function executeTransferSetLeader(
   await sendTransferNewsLog({ teamName: teamData.namaTim, teamHex: teamData.warna, messageText: logMsg, createdAt: teamData.createdAt });
 
   return { teamName: teamData.namaTim, ign: newLeaderPlayer.ign, newRole };
-    }
+            }
+    
