@@ -44,7 +44,6 @@ export default function MatchInputPage() {
   const isMatchEnded = scoreA >= 10 || scoreB >= 10;
 
   useEffect(() => {
-    // Sederhanakan Fetch Data Pertandingan
     async function fetchMatchData() {
       try {
         setIsLoading(true);
@@ -71,7 +70,7 @@ export default function MatchInputPage() {
         if (data.existingLogs) {
           setGameLogs(data.existingLogs);
         }
-      } catch (err) {
+      } catch {
         Swal.fire("Error", "Gagal memuat data pertandingan", "error");
       } finally {
         setIsLoading(false);
@@ -190,7 +189,7 @@ export default function MatchInputPage() {
             Match Console (Conquest Mode)
           </h1>
           <p className="text-[10px] text-muted-foreground font-semibold">
-            Match #{match.matchNumber || matchId}
+            Match #{match.id || matchId}
           </p>
         </div>
 
