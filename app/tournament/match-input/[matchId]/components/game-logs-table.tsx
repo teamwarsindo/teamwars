@@ -40,24 +40,18 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
 
               const isRepeatA = (log as any).isRepeatA;
               const isRepeatB = (log as any).isRepeatB;
-              const isAnyRepeat = isRepeatA || isRepeatB;
 
               return (
-                <tr
-                  key={idx}
-                  className={`transition ${
-                    isAnyRepeat
-                      ? "bg-amber-500/20 dark:bg-amber-500/25 border-l-4 border-l-amber-500 hover:bg-amber-500/30"
-                      : "hover:bg-muted/20"
-                  }`}
-                >
-                  <td className="p-2 text-center font-black align-middle">{idx + 1}</td>
+                <tr key={idx} className="hover:bg-muted/20 transition">
+                  <td className="p-2 text-center font-black align-middle text-muted-foreground">
+                    {idx + 1}
+                  </td>
 
-                  {/* 🟢 FIX 4: HIGHLIGHT PEMAIN & DECK TIM A KETIKA WIN */}
+                  {/* PEMAIN TIM A */}
                   <td
                     className={`p-2 text-center font-bold leading-tight align-middle break-words ${
                       isAWin
-                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black border-y border-emerald-500/30"
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-black"
                         : "opacity-75"
                     }`}
                   >
@@ -71,10 +65,11 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                     </div>
                   </td>
 
+                  {/* DECK TIM A */}
                   <td
                     className={`p-2 text-center leading-tight align-middle break-words ${
                       isAWin
-                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black border-y border-emerald-500/30"
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-black"
                         : "opacity-75"
                     }`}
                   >
@@ -82,18 +77,18 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                     <div className="text-[9px] opacity-80">({log.skillA})</div>
                   </td>
 
-                  {/* SCORE AKUMULASI PAS 1 BARIS */}
+                  {/* SKOR AKUMULASI */}
                   <td className="p-2 text-center font-black whitespace-nowrap align-middle">
                     <span className="px-2 py-0.5 rounded bg-background border border-border text-foreground font-black text-[10px] sm:text-[11px] shadow-xs inline-block tracking-wider">
                       {runningScoreA} - {runningScoreB}
                     </span>
                   </td>
 
-                  {/* 🟢 FIX 4: HIGHLIGHT PEMAIN & DECK TIM B KETIKA WIN */}
+                  {/* DECK TIM B */}
                   <td
                     className={`p-2 text-center leading-tight align-middle break-words ${
                       !isAWin
-                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black border-y border-emerald-500/30"
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-black"
                         : "opacity-75"
                     }`}
                   >
@@ -101,10 +96,11 @@ export function GameLogsTable({ match, gameLogs, setGameLogs }: GameLogsTablePro
                     <div className="text-[9px] opacity-80">({log.skillB})</div>
                   </td>
 
+                  {/* PEMAIN TIM B */}
                   <td
                     className={`p-2 text-center font-bold leading-tight align-middle break-words ${
                       !isAWin
-                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black border-y border-emerald-500/30"
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-black"
                         : "opacity-75"
                     }`}
                   >

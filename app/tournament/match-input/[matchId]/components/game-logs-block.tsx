@@ -42,8 +42,14 @@ export function GameLogsBlock({
   const [isLockedA, setIsLockedA] = useState(false);
   const [isLockedB, setIsLockedB] = useState(false);
 
-  const repeatCountA = gameLogs.filter((g) => (g as any).isRepeatA).length;
-  const repeatCountB = gameLogs.filter((g) => (g as any).isRepeatB).length;
+  // 🟢 FIX A: KUOTA REPEAT DIHITUNG BERDASARKAN JUMLAH PEMAIN UNIK YANG REPEAT (MAKSIMAL 2 PEMAIN UNIK)
+  const repeatCountA = new Set(
+    gameLogs.filter((g) => (g as any).isRepeatA).map((g) => g.playerAName)
+  ).size;
+
+  const repeatCountB = new Set(
+    gameLogs.filter((g) => (g as any).isRepeatB).map((g) => g.playerBName)
+  ).size;
 
   const getPlayerStats = (playerName: string, isTeamA: boolean) => {
     if (!gameLogs || gameLogs.length === 0) {
@@ -132,7 +138,7 @@ export function GameLogsBlock({
     return stats.losses === 1 && stats.wins === 0 && stats.totalGames === 1 && !stats.hasActivatedRepeat;
   })();
 
-  // 🟢 LOGIKA KUNCI PEMAIN (MENANG ATAU KALAH 1 DECK)
+  // 🟢 AUTO LOCK WINNER DAN KUNCI SLOT DECK AKTIF
   useEffect(() => {
     if (!gameLogs || gameLogs.length === 0) {
       setIsLockedA(false);
@@ -143,27 +149,30 @@ export function GameLogsBlock({
 
     // PEMAIN TIM A
     if (lastGame.winnerTeamId === match.teamAId) {
-      // Pemain A Menang -> Locked
       const pA = lineupA.find((x) => x.playerName === lastGame.playerAName);
       const dlText = pA?.duellinksId && pA.duellinksId !== "-" ? ` (${pA.duellinksId})` : "";
       setPlayerA(`${lastGame.playerAName}${dlText}`);
       setIsLockedA(true);
 
-      if (pA && lastGame.deckA === pA.deck2) setSelectedDeckSlotA("deck2");
-      else setSelectedDeckSlotA("deck1");
+      const statsA = getPlayerStats(lastGame.playerAName, true);
+      // 🟢 FIX B: Jika dia sedang bertanding mode Repeat -> Wajib TAHAN DI DECK 1
+      if (statsA.isLastGameRepeat || (lastGame as any).isRepeatA) {
+        setSelectedDeckSlotA("deck1");
+      } else if (pA && lastGame.deckA === pA.deck2) {
+        setSelectedDeckSlotA("deck2");
+      } else {
+        setSelectedDeckSlotA("deck1");
+      }
     } else {
-      // Pemain A Kalah -> Cek Apakah Masih Ada Deck 2?
       const pA = lineupA.find((x) => x.playerName === lastGame.playerAName);
       const statsA = getPlayerStats(lastGame.playerAName, true);
 
       if (pA && !statsA.isEliminated) {
-        // Pemain A Kalah 1 Deck -> TETAP LOCKED & PAKSA KE DECK 2
         const dlText = pA.duellinksId && pA.duellinksId !== "-" ? ` (${pA.duellinksId})` : "";
         setPlayerA(`${lastGame.playerAName}${dlText}`);
         setIsLockedA(true);
         setSelectedDeckSlotA("deck2");
       } else {
-        // Pemain A Gugur Total -> Unlocked untuk ganti pemain baru
         setPlayerA("");
         setIsLockedA(false);
       }
@@ -171,34 +180,37 @@ export function GameLogsBlock({
 
     // PEMAIN TIM B
     if (lastGame.winnerTeamId === match.teamBId) {
-      // Pemain B Menang -> Locked
       const pB = lineupB.find((x) => x.playerName === lastGame.playerBName);
       const dlText = pB?.duellinksId && pB.duellinksId !== "-" ? ` (${pB.duellinksId})` : "";
       setPlayerB(`${lastGame.playerBName}${dlText}`);
       setIsLockedB(true);
 
-      if (pB && lastGame.deckB === pB.deck2) setSelectedDeckSlotB("deck2");
-      else setSelectedDeckSlotB("deck1");
+      const statsB = getPlayerStats(lastGame.playerBName, false);
+      // 🟢 FIX B: Jika dia sedang bertanding mode Repeat -> Wajib TAHAN DI DECK 1
+      if (statsB.isLastGameRepeat || (lastGame as any).isRepeatB) {
+        setSelectedDeckSlotB("deck1");
+      } else if (pB && lastGame.deckB === pB.deck2) {
+        setSelectedDeckSlotB("deck2");
+      } else {
+        setSelectedDeckSlotB("deck1");
+      }
     } else {
-      // Pemain B Kalah -> Cek Apakah Masih Ada Deck 2?
       const pB = lineupB.find((x) => x.playerName === lastGame.playerBName);
       const statsB = getPlayerStats(lastGame.playerBName, false);
 
       if (pB && !statsB.isEliminated) {
-        // Pemain B Kalah 1 Deck -> TETAP LOCKED & PAKSA KE DECK 2
         const dlText = pB.duellinksId && pB.duellinksId !== "-" ? ` (${pB.duellinksId})` : "";
         setPlayerB(`${lastGame.playerBName}${dlText}`);
         setIsLockedB(true);
         setSelectedDeckSlotB("deck2");
       } else {
-        // Pemain B Gugur Total -> Unlocked untuk ganti pemain baru
         setPlayerB("");
         setIsLockedB(false);
       }
     }
   }, [gameLogs, match.teamAId, match.teamBId, lineupA, lineupB]);
 
-  // SINKRONISASI DECK A
+  // SINKRONISASI SELEKSI DECK A
   useEffect(() => {
     if (!currentIgnA) {
       setDeckA("");
@@ -210,7 +222,8 @@ export function GameLogsBlock({
 
     const stats = getPlayerStats(currentIgnA, true);
 
-    if (isRepeatA) {
+    // 🟢 FIX C: Jika Repeat aktif atau pernah repeat & terus menang -> Paksa Deck 1 terus!
+    if (isRepeatA || stats.isLastGameRepeat) {
       setSelectedDeckSlotA("deck1");
     } else if (stats.deck1Lost) {
       setSelectedDeckSlotA("deck2");
@@ -225,7 +238,7 @@ export function GameLogsBlock({
     }
   }, [playerA, currentIgnA, selectedDeckSlotA, lineupA, gameLogs, isRepeatA]);
 
-  // SINKRONISASI DECK B
+  // SINKRONISASI SELEKSI DECK B
   useEffect(() => {
     if (!currentIgnB) {
       setDeckB("");
@@ -237,7 +250,8 @@ export function GameLogsBlock({
 
     const stats = getPlayerStats(currentIgnB, false);
 
-    if (isRepeatB) {
+    // 🟢 FIX C: Jika Repeat aktif atau pernah repeat & terus menang -> Paksa Deck 1 terus!
+    if (isRepeatB || stats.isLastGameRepeat) {
       setSelectedDeckSlotB("deck1");
     } else if (stats.deck1Lost) {
       setSelectedDeckSlotB("deck2");
@@ -360,4 +374,4 @@ export function GameLogsBlock({
       <GameLogsTable match={match} gameLogs={gameLogs} setGameLogs={setGameLogs} />
     </section>
   );
-      }
+}
