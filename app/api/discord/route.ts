@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
             type: 4,
             data: {
               content: '❌ **Bidding telah resmi ditutup!** (Batas waktu: Hari Ini, 9 Agustus 2026, 20:00 WIB)',
-              flags: 64, // Ephemeral (hanya bisa dilihat oleh user yang klik)
+              flags: 64, // Ephemeral
             },
           });
         }
@@ -156,7 +156,12 @@ export async function POST(req: NextRequest) {
         const suggestedIso = suggestedDate.toISOString();
 
         const formattedSuggestedWIB = suggestedDate.toLocaleDateString('id-ID', {
-          weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta',
+          weekday: 'long',
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Asia/Jakarta',
         });
 
         return NextResponse.json({
@@ -238,10 +243,8 @@ export async function POST(req: NextRequest) {
     }
 
     return new NextResponse('Unknown Interaction', { status: 400 });
-
   } catch (error) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-          }
-  
+}

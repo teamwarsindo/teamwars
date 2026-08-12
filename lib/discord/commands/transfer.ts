@@ -21,61 +21,113 @@ function isAuth(interaction: any): boolean {
 }
 
 /**
+ * Helper Ekstraksi Subcommand & Options
+ */
+function getSubcommandData(interaction: any) {
+  const options = interaction.data?.options || [];
+  const subcommandObj = options.find((o: any) => o.type === 1); // 1 = SUB_COMMAND
+  if (!subcommandObj) return { subcommand: null, opts: [] };
+  return {
+    subcommand: subcommandObj.name,
+    opts: subcommandObj.options || [],
+  };
+}
+
+/**
  * Autocomplete Handler untuk memilih Pemain dari Roster / Tim Target
  */
 export async function handleTransferAutocomplete(interaction: any) {
-  const opts = interaction.data?.options || [];
+  const { opts } = getSubcommandData(interaction);
   const focusedOption = opts.find((o: any) => o.focused);
   if (!focusedOption) return { type: 8, data: { choices: [] } };
 
   const userId = interaction.member?.user?.id;
   const userUsername = interaction.member?.user?.username;
 
-  // Cari teamSlug berdasarkan Discord User ID
-  let userTeamSlug = await kv.hget<string>('global:discord_ids', userId);
-  if (!userTeamSlug && userUsername) {
-    userTeamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
+  // 1. Autocomplete Opsi 'team' (Sisi Admin)
+  if (focusedOption.name === 'team') {
+    const allTeamSlugs = await kv.smembers('global:teams');
+    const searchValue = (focusedOption.value || '').toLowerCase();
+    const choices = [];
+
+    for (const slug of allTeamSlugs) {
+      const teamData = await kv.hgetall<any>(`teams:${slug}`);
+      if (teamData && teamData.namaTim) {
+        if (teamData.namaTim.toLowerCase().includes(searchValue) || slug.includes(searchValue)) {
+          choices.push({ name: teamData.namaTim, value: slug });
+        }
+      }
+      if (choices.length >= 25) break;
+    }
+    return { type: 8, data: { choices } };
   }
 
-  if (!userTeamSlug) return { type: 8, data: { choices: [] } };
+  // 2. Autocomplete Opsi 'user'
+  if (focusedOption.name === 'user') {
+    const selectedTeamOpt = opts.find((o: any) => o.name === 'team')?.value;
+    let targetTeamSlug = selectedTeamOpt;
 
-  const teamData = await kv.hgetall<any>(`teams:${userTeamSlug}`);
-  if (!teamData || !teamData.players) return { type: 8, data: { choices: [] } };
+    // Jika opsi 'team' tidak diisi, cari dari ID User
+    if (!targetTeamSlug) {
+      targetTeamSlug = await kv.hget<string>('global:discord_ids', userId);
+      if (!targetTeamSlug && userUsername) {
+        targetTeamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
+      }
+    }
 
-  const players: PlayerItem[] = parsePlayers(teamData.players);
-  const searchValue = (focusedOption.value || '').toLowerCase();
+    if (!targetTeamSlug) return { type: 8, data: { choices: [] } };
 
-  const choices = players
-    .filter((p) => p.ign.toLowerCase().includes(searchValue) || p.discord.toLowerCase().includes(searchValue))
-    .slice(0, 25)
-    .map((p) => ({
-      name: `${p.ign} (@${p.discord}) - ${p.role}`,
-      value: p.discord,
-    }));
+    const teamData = await kv.hgetall<any>(`teams:${targetTeamSlug}`);
+    if (!teamData || !teamData.players) return { type: 8, data: { choices: [] } };
 
-  return { type: 8, data: { choices } };
+    const players: PlayerItem[] = parsePlayers(teamData.players);
+    const searchValue = (focusedOption.value || '').toLowerCase();
+
+    const choices = players
+      .filter((p) => p.ign.toLowerCase().includes(searchValue) || p.discord.toLowerCase().includes(searchValue))
+      .slice(0, 25)
+      .map((p) => ({
+        name: `${p.ign} (@${p.discord}) - ${p.role}`,
+        value: p.discord,
+      }));
+
+    return { type: 8, data: { choices } };
+  }
+
+  return { type: 8, data: { choices: [] } };
 }
 
 /**
  * Command Handler utama untuk /transfer
  */
 export async function handleTransferCommand(interaction: any) {
-  const opts = interaction.data?.options || [];
-  const action = opts.find((o: any) => o.name === 'action')?.value;
+  const { subcommand, opts } = getSubcommandData(interaction);
+  if (!subcommand) return { type: 4, data: { content: '❌ Subcommand tidak valid!', flags: 64 } };
 
   const userId = interaction.member?.user?.id;
   const userUsername = interaction.member?.user?.username;
-  const roles: string[] = interaction.member?.roles || [];
   const isAdmin = isAuth(interaction);
 
-  // Cari tim pelaksana
-  let teamSlug = await kv.hget<string>('global:discord_ids', userId);
-  if (!teamSlug && userUsername) {
-    teamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
+  // Ambil opsi team jika diisi (khusus Admin)
+  const inputTeamSlug = opts.find((o: any) => o.name === 'team')?.value;
+
+  let teamSlug = inputTeamSlug;
+  if (!teamSlug) {
+    teamSlug = await kv.hget<string>('global:discord_ids', userId);
+    if (!teamSlug && userUsername) {
+      teamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
+    }
   }
 
-  // Pilihan khusus Admin (bisa memilih tim via parameter team_slug jika disiapkan, atau fallback ke userTeamSlug)
-  if (!teamSlug && !isAdmin) {
+  // Validasi Admin Wajib Memilih Tim
+  if (isAdmin && !inputTeamSlug && !teamSlug) {
+    return {
+      type: 4,
+      data: { content: '❌ **Akses Admin:** Kamu wajib memilih opsi `team` saat menggunakan command transfer!', flags: 64 },
+    };
+  }
+
+  if (!teamSlug) {
     return {
       type: 4,
       data: { content: '❌ **Akses Ditolak!** Kamu harus menjadi Ketua/Wakil/Admin tim untuk menggunakan command ini.', flags: 64 },
@@ -83,20 +135,24 @@ export async function handleTransferCommand(interaction: any) {
   }
 
   try {
-    // 1. ACTION: OUT (Keluarkan Pemain)
-    if (action === 'out') {
+    // -------------------------------------------------------------
+    // 1. SUBCOMMAND: OUT
+    // -------------------------------------------------------------
+    if (subcommand === 'out') {
       const targetUser = opts.find((o: any) => o.name === 'user')?.value;
       if (!targetUser) return { type: 4, data: { content: '❌ Option `user` wajib diisi!', flags: 64 } };
 
-      const result = await executeTransferOut(teamSlug!, targetUser);
+      const result = await executeTransferOut(teamSlug, targetUser);
       return {
         type: 4,
         data: { content: `✅ **Berhasil!** Pemain **${result.removedIgn}** telah dikeluarkan dari tim **${result.teamName}**.`, flags: 64 },
       };
     }
 
-    // 2. ACTION: ADD (Masukkan Pemain Baru / Global)
-    if (action === 'add') {
+    // -------------------------------------------------------------
+    // 2. SUBCOMMAND: ADD
+    // -------------------------------------------------------------
+    if (subcommand === 'add') {
       const targetDiscordId = opts.find((o: any) => o.name === 'user')?.value;
       const ign = opts.find((o: any) => o.name === 'ign')?.value;
       const rawIdDl = opts.find((o: any) => o.name === 'id_dl')?.value;
@@ -105,13 +161,12 @@ export async function handleTransferCommand(interaction: any) {
         return { type: 4, data: { content: '❌ Option `user`, `ign`, dan `id_dl` wajib diisi!', flags: 64 } };
       }
 
-      // Resolved Target User Data
       const resolvedUsers = interaction.data?.resolved?.users || {};
       const targetUserData = resolvedUsers[targetDiscordId] || {};
       const targetUsername = targetUserData.username || targetDiscordId;
 
       const result = await executeTransferAdd({
-        teamSlug: teamSlug!,
+        teamSlug,
         targetDiscordId,
         targetUsername,
         ign,
@@ -120,43 +175,46 @@ export async function handleTransferCommand(interaction: any) {
 
       return {
         type: 4,
-        data: { content: `✅ **Berhasil!** Pemain **${result.addedIgn}** berhasil dimasukkan ke dalam tim **${result.teamName}**.`, flags: 64 },
+        data: {
+          content: `✅ **Berhasil!** Pemain **${result.addedIgn}** berhasil dimasukkan ke dalam tim **${result.teamName}**.\nℹ️ Sisa kuota transfer tim saat ini: **${
+            2 - result.currentQuota
+          }**`,
+          flags: 64,
+        },
       };
     }
 
-    // 3. ACTION: EDIT-DL (Ganti ID Duel Links)
-    if (action === 'edit-dl') {
+    // -------------------------------------------------------------
+    // 3. SUBCOMMAND: EDIT
+    // -------------------------------------------------------------
+    if (subcommand === 'edit') {
       const targetUser = opts.find((o: any) => o.name === 'user')?.value;
       const newIdDl = opts.find((o: any) => o.name === 'new_id_dl')?.value;
+      const position = opts.find((o: any) => o.name === 'position')?.value as 'Ketua' | 'Wakil Ketua' | undefined;
 
-      if (!targetUser || !newIdDl) {
-        return { type: 4, data: { content: '❌ Option `user` dan `new_id_dl` wajib diisi!', flags: 64 } };
+      if (!targetUser) return { type: 4, data: { content: '❌ Option `user` wajib diisi!', flags: 64 } };
+
+      if (!newIdDl && !position) {
+        return { type: 4, data: { content: '❌ Wajib mengisikan salah satu opsi: `new_id_dl` atau `position`!', flags: 64 } };
       }
 
-      const result = await executeTransferEditDl(teamSlug!, targetUser, newIdDl);
+      const results = [];
+
+      // Proses Edit ID DL
+      if (newIdDl) {
+        const resDl = await executeTransferEditDl(teamSlug, targetUser, newIdDl);
+        results.push(`ID Duel Links **${resDl.ign}** diperbarui menjadi \`${resDl.newDl}\` (Sisa kuota transfer: **${2 - resDl.currentQuota}**)`);
+      }
+
+      // Proses Edit Position / Leader
+      if (position) {
+        const resLeader = await executeTransferSetLeader(teamSlug, targetUser, position, isAdmin);
+        results.push(`**${resLeader.ign}** sekarang ditugaskan sebagai **${resLeader.newRole}** tim **${resLeader.teamName}**`);
+      }
+
       return {
         type: 4,
-        data: { content: `✅ **Berhasil!** ID Duel Links pemain **${result.ign}** diperbarui menjadi \`${result.newDl}\`.`, flags: 64 },
-      };
-    }
-
-    // 4. ACTION: SET-LEADER (Ganti Ketua/Wakil - Khusus Admin)
-    if (action === 'set-leader') {
-      if (!isAdmin) {
-        return { type: 4, data: { content: '❌ Khusus **Admin** yang dapat mengubah posisi Ketua/Wakil!', flags: 64 } };
-      }
-
-      const targetUser = opts.find((o: any) => o.name === 'user')?.value;
-      const position = opts.find((o: any) => o.name === 'position')?.value as 'Ketua' | 'Wakil Ketua';
-
-      if (!targetUser || !position) {
-        return { type: 4, data: { content: '❌ Option `user` dan `position` wajib diisi!', flags: 64 } };
-      }
-
-      const result = await executeTransferSetLeader(teamSlug!, targetUser, position);
-      return {
-        type: 4,
-        data: { content: `✅ **Berhasil!** **${result.ign}** sekarang ditugaskan sebagai **${result.newRole}** tim **${result.teamName}**.`, flags: 64 },
+        data: { content: `✅ **Berhasil!**\n• ${results.join('\n• ')}`, flags: 64 },
       };
     }
 

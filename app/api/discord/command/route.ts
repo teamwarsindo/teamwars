@@ -200,56 +200,102 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔄 11. TRANSFER COMMAND
+    // 🔄 11. TRANSFER COMMAND (Refactored Subcommands)
     {
       name: 'transfer',
       description: 'Kelola transfer, penambahan, dan pembaruan roster tim',
       options: [
+        // SUBCOMMAND 1: OUT
         {
-          type: 3, // STRING
-          name: 'action',
-          description: 'Pilih aksi transfer',
-          required: true,
-          choices: [
-            { name: 'OUT (Keluarkan Pemain)', value: 'out' },
-            { name: 'ADD (Masukkan Pemain)', value: 'add' },
-            { name: 'EDIT-DL (Ganti ID Duel Links)', value: 'edit-dl' },
-            { name: 'SET-LEADER (Ganti Ketua/Wakil - Admin)', value: 'set-leader' },
+          type: 1, // SUB_COMMAND
+          name: 'out',
+          description: 'Keluarkan pemain dari roster tim',
+          options: [
+            {
+              type: 3, // STRING
+              name: 'team',
+              description: 'Pilih tim target (Wajib diisi jika dijalankan oleh Admin)',
+              required: false,
+              autocomplete: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'user',
+              description: 'Pilih nama/IGN pemain yang ingin dikeluarkan dari tim',
+              required: true,
+              autocomplete: true,
+            },
           ],
         },
+        // SUBCOMMAND 2: ADD
         {
-          type: 6, // USER
-          name: 'user',
-          description: 'Tag User Discord (Untuk ADD/SET-LEADER) atau Pilih dari Autocomplete (Untuk OUT/EDIT-DL)',
-          required: false,
-          autocomplete: true,
+          type: 1, // SUB_COMMAND
+          name: 'add',
+          description: 'Tambahkan pemain baru ke dalam roster tim',
+          options: [
+            {
+              type: 3, // STRING
+              name: 'team',
+              description: 'Pilih tim tujuan (Wajib diisi jika dijalankan oleh Admin)',
+              required: false,
+              autocomplete: true,
+            },
+            {
+              type: 6, // USER (Mention)
+              name: 'user',
+              description: 'Tag (@mention) akun Discord pemain baru',
+              required: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'ign',
+              description: 'Ketik In-Game Name (IGN) Duel Links pemain baru',
+              required: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'id_dl',
+              description: 'Ketik 9 digit ID Duel Links pemain (contoh: 123456789)',
+              required: true,
+            },
+          ],
         },
+        // SUBCOMMAND 3: EDIT
         {
-          type: 3, // STRING
-          name: 'ign',
-          description: 'Masukkan IGN Pemain (Wajib untuk ADD)',
-          required: false,
-        },
-        {
-          type: 3, // STRING
-          name: 'id_dl',
-          description: 'Masukkan ID Duel Links (Wajib untuk ADD)',
-          required: false,
-        },
-        {
-          type: 3, // STRING
-          name: 'new_id_dl',
-          description: 'Masukkan ID Duel Links Baru (Wajib untuk EDIT-DL)',
-          required: false,
-        },
-        {
-          type: 3, // STRING
-          name: 'position',
-          description: 'Pilih Posisi Baru (Khusus SET-LEADER)',
-          required: false,
-          choices: [
-            { name: 'Ketua', value: 'Ketua' },
-            { name: 'Wakil Ketua', value: 'Wakil Ketua' },
+          type: 1, // SUB_COMMAND
+          name: 'edit',
+          description: 'Perbarui ID Duel Links atau Jabatan (Ketua/Wakil) pemain',
+          options: [
+            {
+              type: 3, // STRING
+              name: 'team',
+              description: 'Pilih tim target (Opsional jika pemain sudah terdeteksi di tim)',
+              required: false,
+              autocomplete: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'user',
+              description: 'Pilih nama/IGN pemain yang data/jabatannya ingin diubah',
+              required: true,
+              autocomplete: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'new_id_dl',
+              description: 'Ketik ID Duel Links baru (kosongkan jika tidak mengubah ID)',
+              required: false,
+            },
+            {
+              type: 3, // STRING
+              name: 'position',
+              description: 'Pilih posisi baru (Ketua khusus Admin, Wakil bisa oleh Ketua)',
+              required: false,
+              choices: [
+                { name: 'Ketua (Khusus Admin)', value: 'Ketua' },
+                { name: 'Wakil Ketua', value: 'Wakil Ketua' },
+              ],
+            },
           ],
         },
       ],
