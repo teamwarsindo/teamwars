@@ -11,7 +11,7 @@ export interface TransferLogParams {
 
 export async function sendTransferNewsLog(params: TransferLogParams): Promise<string | null> {
   const { teamName, teamHex, action, targetIgn, newIdDl } = params;
-  const channelId = DISCORD_CONFIG.CH_TFNEWS;
+  const channelId = DISCORD_CONFIG.CH_LOG_TRANSFER;
 
   if (!channelId) return null;
 
