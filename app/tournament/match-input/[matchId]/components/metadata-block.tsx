@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck, Clock } from "lucide-react";
+import { ShieldCheck, Clock, ExternalLink } from "lucide-react";
 import { CustomSelect } from "./custom-select";
 
 interface MetadataBlockProps {
@@ -26,7 +26,7 @@ export function MetadataBlock({
   lateDecksB,
   setLateDecksB,
 }: MetadataBlockProps) {
-  // Opsi 0 sampai 10 Deck Telat (0m - 20m)
+  // Option 0 - 10 Deck Telat (0m - 20m) menggunakan CustomSelect
   const options = Array.from({ length: 11 }, (_, i) => `${i} (${i * 2} m)`);
 
   const handleSelectA = (val: string) => {
@@ -69,18 +69,20 @@ export function MetadataBlock({
           </span>
         </div>
 
+        {/* LINK STREAMING TAMPIL RAPI DENGAN TOMBOL TEKS */}
         <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
           <span className="block text-[10px] font-bold text-muted-foreground uppercase">
-            Link Live Stream
+            Live Stream
           </span>
           {streamLink && streamLink.startsWith("http") ? (
             <a
               href={streamLink}
               target="_blank"
               rel="noreferrer"
-              className="font-extrabold text-primary text-xs mt-0.5 block truncate hover:underline"
+              className="font-extrabold text-primary text-xs mt-0.5 flex items-center gap-1 hover:underline"
             >
-              {streamLink}
+              <span>Tonton Live Stream</span>
+              <ExternalLink className="h-3 w-3" />
             </a>
           ) : (
             <span className="font-extrabold text-muted-foreground text-xs mt-0.5 block truncate">
