@@ -11,18 +11,38 @@ interface UseMatchTimerProps {
 }
 
 export function useMatchTimer({ teamName, lateDecks, onExecuteTL }: UseMatchTimerProps) {
-  // Hitung durasi awal berdasarkan config: 15 menit minus penalti per-deck
-  const baseTime = Math.max(
-    0,
-    (TOURNAMENT_CONFIG.TIMER_DEFAULT_SECONDS / 60 - lateDecks * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK) * 60
-  );
+  // Hitung penalti menit (1 Deck = 2 Menit)
+  const penaltyMins = lateDecks * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK;
+  const netMins = 15 - penaltyMins;
 
-  const [timer, setTimer] = useState(baseTime);
+  let initialSeconds = 0;
+  let initialCycle = 0;
+
+  if (netMins > 0) {
+    // Masih berada dalam Waktu Regulasi (15m)
+    initialSeconds = netMins * 60;
+  } else {
+    // Waktu Regulasi Habis -> Hitung Siklus Extra Timer (Kelipatan 3 Menit / 180s)
+    const deficitSecs = Math.abs(netMins) * 60;
+    initialCycle = Math.floor(deficitSecs / 180) + 1;
+    const totalCycleSecs = initialCycle * 180;
+    initialSeconds = totalCycleSecs - deficitSecs;
+
+    if (initialSeconds === 0) {
+      initialCycle += 1;
+      initialSeconds = 180;
+    }
+  }
+
+  const [timer, setTimer] = useState(initialSeconds);
+  const [extraCycle, setExtraCycle] = useState(initialCycle);
   const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
-    setTimer(baseTime);
-  }, [lateDecks, baseTime]);
+    setTimer(initialSeconds);
+    setExtraCycle(initialCycle);
+    setIsRunning(false);
+  }, [lateDecks, initialSeconds, initialCycle]);
 
   const handleTimeoutTL = useCallback(async () => {
     setIsRunning(false);
@@ -39,7 +59,9 @@ export function useMatchTimer({ teamName, lateDecks, onExecuteTL }: UseMatchTime
 
     if (result.isConfirmed) {
       onExecuteTL();
-      setTimer(TOURNAMENT_CONFIG.TIMER_OVERTIME_SECONDS); // Overtime 3 Menit Tambahan
+      // Buka siklus Extra Timer 3 Menit baru
+      setExtraCycle((prev) => prev + 1);
+      setTimer(TOURNAMENT_CONFIG.TIMER_OVERTIME_SECONDS);
       setIsRunning(true);
     }
   }, [teamName, onExecuteTL]);
@@ -72,9 +94,17 @@ export function useMatchTimer({ teamName, lateDecks, onExecuteTL }: UseMatchTime
   };
 
   const resetTimer = () => {
-    setTimer(baseTime);
+    setTimer(initialSeconds);
+    setExtraCycle(initialCycle);
     setIsRunning(false);
   };
 
-  return { timer, isRunning, toggleTimer, resetTimer };
+  return {
+    timer,
+    extraCycle,
+    isExtraTimer: extraCycle > 0,
+    isRunning,
+    toggleTimer,
+    resetTimer,
+  };
 }

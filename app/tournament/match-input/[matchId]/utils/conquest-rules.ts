@@ -20,11 +20,11 @@ export function getPlayerStats(
     };
   }
 
-  // Filter game log yang dimainkan oleh pemain ini saja (mengabaikan game Auto-TL)
+  // Filter game log murni yang dimainkan oleh pemain ini (mengabaikan game Auto-TL Roster)
   const pLogs = gameLogs.filter(
     (g) => (isTeamA ? g.playerAName : g.playerBName) === playerName
   );
-  
+
   const wins = pLogs.filter((g) => g.winnerTeamId === teamId).length;
   const losses = pLogs.filter((g) => g.winnerTeamId !== teamId).length;
   const pObj = lineup.find((x) => x.playerName === playerName);

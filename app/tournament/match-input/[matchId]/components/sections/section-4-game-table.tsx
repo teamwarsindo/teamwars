@@ -7,6 +7,7 @@ interface Section4GameTableProps {
   gameLogs: GameDetailLog[];
   setGameLogs: (v: GameDetailLog[]) => void;
   warningLogs?: WarningLogItem[];
+  setWarningLogs?: React.Dispatch<React.SetStateAction<WarningLogItem[]>>;
 }
 
 export function Section4GameTable({
@@ -14,11 +15,23 @@ export function Section4GameTable({
   gameLogs,
   setGameLogs,
   warningLogs = [],
+  setWarningLogs,
 }: Section4GameTableProps) {
   if (gameLogs.length === 0) return null;
 
   let runningScoreA = 0;
   let runningScoreB = 0;
+
+  // HAPUS BARIS TERAKHIR & SINKRONKAN UNDO WARNING SS
+  const handleDeleteLastGame = (targetIndex: number) => {
+    const deletedGameNumber = gameLogs[targetIndex]?.gameNumber || targetIndex + 1;
+    
+    setGameLogs(gameLogs.filter((_, i) => i !== targetIndex));
+
+    if (setWarningLogs) {
+      setWarningLogs((prev) => prev.filter((w) => w.gameNumber !== deletedGameNumber));
+    }
+  };
 
   return (
     <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-4">
@@ -60,34 +73,30 @@ export function Section4GameTable({
                     {idx + 1}
                   </td>
 
-                  {/* PEMAIN TIM A */}
-                  <td
-                    className={`p-2 text-center font-bold leading-tight align-middle break-words ${
-                      isAWin ? "text-primary font-black" : "text-foreground opacity-80"
-                    }`}
-                  >
+                  {/* PEMAIN TIM A (BADGE TL DI SEBELAH KIRI NAMA) */}
+                  <td className="p-2 text-center font-bold leading-tight align-middle break-words text-foreground">
                     <div className="flex items-center justify-center gap-1 flex-wrap">
-                      <span>{log.playerAName}</span>
-                      {log.isRepeatA && (
-                        <span className="text-[8px] font-black bg-amber-500 text-black px-1 rounded uppercase shrink-0">
-                          R
-                        </span>
-                      )}
                       {log.isTLA && (
                         <span className="text-[8px] font-black bg-rose-500 text-white px-1 rounded uppercase shrink-0">
                           TL
+                        </span>
+                      )}
+                      <span className={isAWin ? "text-emerald-500 font-black" : "text-foreground"}>
+                        {log.playerAName}
+                      </span>
+                      {log.isRepeatA && (
+                        <span className="text-[8px] font-black bg-amber-500 text-black px-1 rounded uppercase shrink-0">
+                          R
                         </span>
                       )}
                     </div>
                   </td>
 
                   {/* DECK TIM A */}
-                  <td
-                    className={`p-2 text-center leading-tight align-middle break-words ${
-                      isAWin ? "text-primary font-black" : "text-foreground opacity-80"
-                    }`}
-                  >
-                    <div className="font-extrabold">{log.deckA}</div>
+                  <td className="p-2 text-center leading-tight align-middle break-words text-foreground">
+                    <div className={isAWin ? "text-emerald-500 font-black" : "font-extrabold"}>
+                      {log.deckA}
+                    </div>
                     {log.skillA && <div className="text-[9px] opacity-80">({log.skillA})</div>}
                   </td>
 
@@ -99,28 +108,24 @@ export function Section4GameTable({
                   </td>
 
                   {/* DECK TIM B */}
-                  <td
-                    className={`p-2 text-center leading-tight align-middle break-words ${
-                      !isAWin ? "text-rose-500 font-black" : "text-foreground opacity-80"
-                    }`}
-                  >
-                    <div className="font-extrabold">{log.deckB}</div>
+                  <td className="p-2 text-center leading-tight align-middle break-words text-foreground">
+                    <div className={!isAWin ? "text-emerald-500 font-black" : "font-extrabold"}>
+                      {log.deckB}
+                    </div>
                     {log.skillB && <div className="text-[9px] opacity-80">({log.skillB})</div>}
                   </td>
 
-                  {/* PEMAIN TIM B */}
-                  <td
-                    className={`p-2 text-center font-bold leading-tight align-middle break-words ${
-                      !isAWin ? "text-rose-500 font-black" : "text-foreground opacity-80"
-                    }`}
-                  >
+                  {/* PEMAIN TIM B (BADGE TL DI SEBELAH KANAN NAMA) */}
+                  <td className="p-2 text-center font-bold leading-tight align-middle break-words text-foreground">
                     <div className="flex items-center justify-center gap-1 flex-wrap">
-                      <span>{log.playerBName}</span>
                       {log.isRepeatB && (
                         <span className="text-[8px] font-black bg-amber-500 text-black px-1 rounded uppercase shrink-0">
                           R
                         </span>
                       )}
+                      <span className={!isAWin ? "text-emerald-500 font-black" : "text-foreground"}>
+                        {log.playerBName}
+                      </span>
                       {log.isTLB && (
                         <span className="text-[8px] font-black bg-rose-500 text-white px-1 rounded uppercase shrink-0">
                           TL
@@ -134,7 +139,7 @@ export function Section4GameTable({
                     {isLastRow ? (
                       <button
                         type="button"
-                        onClick={() => setGameLogs(gameLogs.filter((_, i) => i !== idx))}
+                        onClick={() => handleDeleteLastGame(idx)}
                         className="text-rose-500 hover:text-rose-400 font-black text-xs p-1 cursor-pointer"
                         title="Hapus Game Terakhir"
                       >
@@ -153,10 +158,10 @@ export function Section4GameTable({
         </table>
       </div>
 
-      {/* CATATAN HISTORI WARNING SS */}
+      {/* CATATAN WARNING HISTORI SS */}
       {warningLogs.length > 0 && (
         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2 text-[10px]">
-          <div className="font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center justify-between">
+          <div className="font-extrabold text-amber-500 uppercase tracking-wider flex items-center justify-between">
             <span>⚠️ Catatan Histori Warning Screenshot Tim</span>
             <span className="text-[9px] font-mono bg-amber-500/20 px-1.5 py-0.5 rounded">
               Total Log: {warningLogs.length}

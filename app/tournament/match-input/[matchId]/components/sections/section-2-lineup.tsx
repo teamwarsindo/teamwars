@@ -17,6 +17,8 @@ interface Section2LineupProps {
   dbRosterB: Array<{ id: string; name: string; ign?: string; duellinksId?: string }>;
   masterDecks: string[];
   masterSkills: string[];
+  lateDecksA: number;
+  lateDecksB: number;
   onAddMasterItem: (type: "DECK" | "SKILL", newItem: string) => Promise<void>;
   onSaveLineupToKV: () => Promise<void>;
   isLineupLocked: boolean;
@@ -35,6 +37,8 @@ export function Section2Lineup({
   dbRosterB,
   masterDecks,
   masterSkills,
+  lateDecksA,
+  lateDecksB,
   onAddMasterItem,
   onSaveLineupToKV,
   isLineupLocked,
@@ -43,6 +47,10 @@ export function Section2Lineup({
   setGameLogs,
 }: Section2LineupProps) {
   const [isSavingLineup, setIsSavingLineup] = useState(false);
+
+  // Hitung batas maksimal centang pemain berdasarkan Penalti Late Submit
+  const maxPlayersA = Math.max(1, TOURNAMENT_CONFIG.MAX_ROSTER_SIZE - Math.floor(lateDecksA / 2));
+  const maxPlayersB = Math.max(1, TOURNAMENT_CONFIG.MAX_ROSTER_SIZE - Math.floor(lateDecksB / 2));
 
   const isCompleteA =
     lineupA.length > 0 && lineupA.every((p) => p.deck1 && p.skill1 && p.deck2 && p.skill2);
@@ -74,21 +82,19 @@ export function Section2Lineup({
         return;
       }
 
-      // Hitung kekurangan pemain berdasarkan config (5 - roster) * 2 deck
-      const missingA = TOURNAMENT_CONFIG.MAX_ROSTER_SIZE - lineupA.length;
-      const missingB = TOURNAMENT_CONFIG.MAX_ROSTER_SIZE - lineupB.length;
-      const totalTlA = missingA * TOURNAMENT_CONFIG.DECKS_PER_PLAYER;
-      const totalTlB = missingB * TOURNAMENT_CONFIG.DECKS_PER_PLAYER;
+      // Hitung Auto-TL dari Roster Kurang + Penalti Late Submit
+      const totalTlA = (TOURNAMENT_CONFIG.MAX_ROSTER_SIZE - lineupA.length) * TOURNAMENT_CONFIG.DECKS_PER_PLAYER + lateDecksA;
+      const totalTlB = (TOURNAMENT_CONFIG.MAX_ROSTER_SIZE - lineupB.length) * TOURNAMENT_CONFIG.DECKS_PER_PLAYER + lateDecksB;
 
       if (totalTlA > 0 || totalTlB > 0) {
         const confirm = await Swal.fire({
           title: "Konfirmasi Auto Technical Loss",
           html: `
             <div class="text-left text-xs space-y-2">
-              <p>Roster kurang dari 5 pemain akan otomatis diberi Hukuman TL:</p>
+              <p>Sistem akan meng-generate Hukuman Auto-TL ke Log Game:</p>
               <ul class="list-disc pl-4 font-bold text-rose-500">
-                <li>${match.teamAName}: ${lineupA.length}/5 Pemain (${totalTlA} TL)</li>
-                <li>${match.teamBName}: ${lineupB.length}/5 Pemain (${totalTlB} TL)</li>
+                <li>${match.teamAName}: ${totalTlA} Game Auto-TL</li>
+                <li>${match.teamBName}: ${totalTlB} Game Auto-TL</li>
               </ul>
             </div>
           `,
@@ -100,30 +106,27 @@ export function Section2Lineup({
 
         if (!confirm.isConfirmed) return;
 
-        // GENERATE AUTOMATIS LOG GAME TL SESUAI FORMAT REFACTOR
         if (setGameLogs) {
           const autoLogs: GameDetailLog[] = [];
           let gameNum = 1;
 
-          // Auto TL Tim A jika kurang roster
           for (let i = 0; i < totalTlA; i++) {
             autoLogs.push({
               gameNumber: gameNum++,
               playerAId: "-",
               playerAName: "-",
-              deckA: "Line-up kurang",
+              deckA: "Line-up kurang / Penalti",
               skillA: "",
               playerBId: "-",
               playerBName: "-",
               deckB: "Technical Win",
               skillB: "",
               winnerTeamId: match.teamBId,
-              isTLA: true, // Badge TL hanya di sisi Tim A yang kalah
+              isTLA: true,
               isTLB: false,
             });
           }
 
-          // Auto TL Tim B jika kurang roster
           for (let i = 0; i < totalTlB; i++) {
             autoLogs.push({
               gameNumber: gameNum++,
@@ -133,11 +136,11 @@ export function Section2Lineup({
               skillA: "",
               playerBId: "-",
               playerBName: "-",
-              deckB: "Line-up kurang",
+              deckB: "Line-up kurang / Penalti",
               skillB: "",
               winnerTeamId: match.teamAId,
               isTLA: false,
-              isTLB: true, // Badge TL hanya di sisi Tim B yang kalah
+              isTLB: true,
             });
           }
 
@@ -164,15 +167,16 @@ export function Section2Lineup({
   return (
     <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-4">
       <div className="flex items-center justify-between border-b border-border/40 pb-3">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          <span>2. Lineup Bertanding</span>
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-semibold text-foreground">2. Lineup Bertanding</h3>
           {isLineupLocked && (
-            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">
               Locked
             </span>
           )}
-        </h3>
-        <div className="flex gap-2">
+        </div>
+
+        <div className="flex items-center gap-2">
           <button
             type="button"
             disabled={isLineupLocked}
@@ -204,7 +208,7 @@ export function Section2Lineup({
           masterDecks={masterDecks}
           masterSkills={masterSkills}
           isLocked={isLineupLocked}
-          isTeamA={true}
+          maxSelectablePlayers={maxPlayersA}
         />
         <TeamRosterColumn
           teamName={match.teamBName}
@@ -215,7 +219,7 @@ export function Section2Lineup({
           masterDecks={masterDecks}
           masterSkills={masterSkills}
           isLocked={isLineupLocked}
-          isTeamA={false}
+          maxSelectablePlayers={maxPlayersB}
         />
       </div>
 

@@ -3,7 +3,6 @@ export const DIVISION_MAP = {
   GROUP_B: 'Sakurasawa Fighters',
 } as const;
 
-// Interface Informasi Deck & Skill Pemain di Lineup
 export interface PlayerDeckInfo {
   playerName: string;
   duellinksId?: string;
@@ -13,7 +12,6 @@ export interface PlayerDeckInfo {
   skill2: string;
 }
 
-// Interface Detail Log Per Game
 export interface GameDetailLog {
   gameNumber: number;
   playerAId: string;
@@ -31,7 +29,6 @@ export interface GameDetailLog {
   isTLB?: boolean;
 }
 
-// Interface Catatan Pelanggaran Warning Screenshot (SS)
 export interface WarningLogItem {
   gameNumber: number;
   teamId: string;
@@ -40,7 +37,6 @@ export interface WarningLogItem {
   isTechnicalLossTriggered: boolean;
 }
 
-// Interface Jadwal Utama (Ringkas & Lightweight di KV)
 export interface MatchScheduleItem {
   id: string;
   matchDate: string;
@@ -62,7 +58,6 @@ export interface MatchScheduleItem {
   streamer?: string;
   streamerDiscordId?: string;
   streamLink?: string;
-  // Fallback opsional untuk ketersediaan data match lama
   gameLogs?: GameDetailLog[];
   lineupA?: PlayerDeckInfo[];
   lineupB?: PlayerDeckInfo[];
@@ -80,7 +75,6 @@ export interface MatchScheduleItem {
   };
 }
 
-// Interface Detail Khusus Match Console (Disimpan Terpisah di Key `twi:match_details:{matchId}`)
 export interface MatchDetailsKV {
   matchId: string;
   lineupA: PlayerDeckInfo[];

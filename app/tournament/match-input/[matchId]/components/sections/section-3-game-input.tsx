@@ -7,7 +7,6 @@ import { WinnerSelector } from "../winner-selector";
 import { useMatchTimer } from "../../hooks/use-match-timer";
 import { getPlayerStats, extractIgn } from "../../utils/conquest-rules";
 import { TOURNAMENT_CONFIG } from "../../constants/tournament";
-import Swal from "sweetalert2";
 
 interface Section3GameInputProps {
   match: MatchScheduleItem;
@@ -38,11 +37,13 @@ export function Section3GameInput({
   const [selectedDeckSlotA, setSelectedDeckSlotA] = useState<"deck1" | "deck2">("deck1");
   const [deckA, setDeckA] = useState("");
   const [skillA, setSkillA] = useState("");
+  const [hasSSA, setHasSSA] = useState(true);
 
   const [playerB, setPlayerB] = useState("");
   const [selectedDeckSlotB, setSelectedDeckSlotB] = useState<"deck1" | "deck2">("deck1");
   const [deckB, setDeckB] = useState("");
   const [skillB, setSkillB] = useState("");
+  const [hasSSB, setHasSSB] = useState(true);
 
   const [gameResult, setGameResult] = useState<"A" | "B" | "">("");
   const [isRepeatA, setIsRepeatA] = useState(false);
@@ -51,6 +52,12 @@ export function Section3GameInput({
   const [isTLB, setIsTLB] = useState(false);
   const [isLockedA, setIsLockedA] = useState(false);
   const [isLockedB, setIsLockedB] = useState(false);
+
+  // AUTO LOCK WINNER JIKA TL DIPENCET
+  useEffect(() => {
+    if (isTLA) setGameResult("B");
+    if (isTLB) setGameResult("A");
+  }, [isTLA, isTLB]);
 
   // AUTO TL DARI TIMEOUT TIMER
   const executeTLGame = (losingTeam: "A" | "B") => {
@@ -70,7 +77,7 @@ export function Section3GameInput({
       playerBId: pB,
       playerBName: pB,
       deckB: (selectedDeckSlotB === "deck1" ? pObjB?.deck1 : pObjB?.deck2) || "-",
-      skillB: (selectedDeckSlotB === "deck1" ? pObjB?.skill1 : pObjB?.skill2) || "-",
+      skillB: (selectedDeckSlotB === "deck1" ? pObjB?.skill2 : pObjB?.skill2) || "-",
       winnerTeamId,
       isTLA: losingTeam === "A",
       isTLB: losingTeam === "B",
@@ -102,7 +109,7 @@ export function Section3GameInput({
     .filter((p) => !getPlayerStats(p.playerName, false, gameLogs, match.teamBId, lineupB).isEliminated)
     .map((p) => (p.duellinksId && p.duellinksId !== "-" ? `${p.playerName} (${p.duellinksId})` : p.playerName));
 
-  // AUTO SINKRONISASI LOCK PEMAIN PEMENANG
+  // SINKRONISASI PEMAIN BERTANDING DARI GAME SEBELUMNYA
   useEffect(() => {
     if (!gameLogs || gameLogs.length === 0) {
       setIsLockedA(false);
@@ -110,7 +117,6 @@ export function Section3GameInput({
       return;
     }
 
-    // Ambil game riil terakhir (mengabaikan game Auto-TL)
     const realLogs = gameLogs.filter((g) => !g.isTLA && !g.isTLB && g.playerAName !== "-");
     if (realLogs.length === 0) return;
 
@@ -127,9 +133,11 @@ export function Section3GameInput({
       if (pA && !statsA.isEliminated) {
         setPlayerA(pA.duellinksId && pA.duellinksId !== "-" ? `${pA.playerName} (${pA.duellinksId})` : lastGame.playerAName);
         setIsLockedA(true);
+        if (statsA.deck1Lost) setSelectedDeckSlotA("deck2");
       } else {
         setPlayerA("");
         setIsLockedA(false);
+        setSelectedDeckSlotA("deck1");
       }
     }
 
@@ -144,14 +152,16 @@ export function Section3GameInput({
       if (pB && !statsB.isEliminated) {
         setPlayerB(pB.duellinksId && pB.duellinksId !== "-" ? `${pB.playerName} (${pB.duellinksId})` : lastGame.playerBName);
         setIsLockedB(true);
+        if (statsB.deck1Lost) setSelectedDeckSlotB("deck2");
       } else {
         setPlayerB("");
         setIsLockedB(false);
+        setSelectedDeckSlotB("deck1");
       }
     }
   }, [gameLogs, match.teamAId, match.teamBId, lineupA, lineupB]);
 
-  // BINDING DECK PER PEMAIN
+  // BINDING DECK & SKILL SELEKSI
   useEffect(() => {
     if (!currentIgnA) { setDeckA(""); setSkillA(""); return; }
     const p = lineupA.find((x) => x.playerName === currentIgnA);
@@ -168,63 +178,41 @@ export function Section3GameInput({
     setSkillB(selectedDeckSlotB === "deck1" ? p.skill2 : p.skill2);
   }, [playerB, currentIgnB, selectedDeckSlotB, lineupB]);
 
+  const realLogsCount = gameLogs.filter((g) => !g.isTLA && !g.isTLB && g.playerAName !== "-").length;
+
   const handleAddSingleGame = async () => {
     if (!currentIgnA || !currentIgnB || !gameResult || !isLineupLocked) return;
 
-    // POP-UP SS KONFIRMASI (Hanya dipicu jika game sebelumnya adalah game riil)
-    const realLogs = gameLogs.filter((g) => !g.isTLA && !g.isTLB && g.playerAName !== "-");
-    if (realLogs.length > 0) {
-      const prevRealGame = realLogs[realLogs.length - 1];
-      const { value: formValues } = await Swal.fire({
-        title: `Konfirmasi SS Game #${prevRealGame.gameNumber}`,
-        html: `
-          <div class="space-y-2 text-left text-xs font-bold">
-            <label class="flex items-center gap-2 p-2 bg-muted/30 rounded border border-border cursor-pointer">
-              <input type="checkbox" id="ss-a" checked class="h-4 w-4 rounded accent-purple-600" />
-              <span>${match.teamAName} Mengumpulkan SS</span>
-            </label>
-            <label class="flex items-center gap-2 p-2 bg-muted/30 rounded border border-border cursor-pointer">
-              <input type="checkbox" id="ss-b" checked class="h-4 w-4 rounded accent-purple-600" />
-              <span>${match.teamBName} Mengumpulkan SS</span>
-            </label>
-          </div>`,
-        showCancelButton: true,
-        confirmButtonText: "Simpan Game",
-        confirmButtonColor: "#9333ea",
-        preConfirm: () => ({
-          ssA: (document.getElementById("ss-a") as HTMLInputElement)?.checked,
-          ssB: (document.getElementById("ss-b") as HTMLInputElement)?.checked,
-        }),
+    // CATAT WARNING DARI CHECKBOX INTEGRASI
+    const currentGameNum = gameLogs.length + 1;
+    const newWarningLogs = [...warningLogs];
+
+    if (!hasSSA && realLogsCount > 0) {
+      const nextW = warningCountA + 1;
+      newWarningLogs.push({
+        gameNumber: currentGameNum,
+        teamId: match.teamAId,
+        teamName: match.teamAName,
+        warningNumber: nextW,
+        isTechnicalLossTriggered: nextW % TOURNAMENT_CONFIG.WARNINGS_FOR_TL === 0,
       });
-
-      if (!formValues) return;
-
-      const newWarningLogs = [...warningLogs];
-      if (!formValues.ssA) {
-        const nextW = warningCountA + 1;
-        newWarningLogs.push({
-          gameNumber: prevRealGame.gameNumber,
-          teamId: match.teamAId,
-          teamName: match.teamAName,
-          warningNumber: nextW,
-          isTechnicalLossTriggered: nextW % TOURNAMENT_CONFIG.WARNINGS_FOR_TL === 0,
-        });
-      }
-      if (!formValues.ssB) {
-        const nextW = warningCountB + 1;
-        newWarningLogs.push({
-          gameNumber: prevRealGame.gameNumber,
-          teamId: match.teamBId,
-          teamName: match.teamBName,
-          warningNumber: nextW,
-          isTechnicalLossTriggered: nextW % TOURNAMENT_CONFIG.WARNINGS_FOR_TL === 0,
-        });
-      }
-      setWarningLogs(newWarningLogs);
     }
 
+    if (!hasSSB && realLogsCount > 0) {
+      const nextW = warningCountB + 1;
+      newWarningLogs.push({
+        gameNumber: currentGameNum,
+        teamId: match.teamBId,
+        teamName: match.teamBName,
+        warningNumber: nextW,
+        isTechnicalLossTriggered: nextW % TOURNAMENT_CONFIG.WARNINGS_FOR_TL === 0,
+      });
+    }
+
+    setWarningLogs(newWarningLogs);
+
     const newLog: GameDetailLog = {
-      gameNumber: gameLogs.length + 1,
+      gameNumber: currentGameNum,
       playerAId: currentIgnA,
       playerAName: currentIgnA,
       deckA: deckA || "-",
@@ -246,6 +234,8 @@ export function Section3GameInput({
     setIsRepeatB(false);
     setIsTLA(false);
     setIsTLB(false);
+    setHasSSA(true);
+    setHasSSB(true);
   };
 
   return (
@@ -277,8 +267,13 @@ export function Section3GameInput({
           warningCount={warningCountA}
           isTechnicalLoss={isTLA}
           setIsTechnicalLoss={setIsTLA}
+          hasSS={hasSSA}
+          setHasSS={setHasSSA}
+          showSSCheckbox={realLogsCount > 0 && Boolean(playerA)}
           timerSeconds={timerHookA.timer}
           isTimerRunning={timerHookA.isRunning}
+          isExtraTimer={timerHookA.isExtraTimer}
+          extraCycle={timerHookA.extraCycle}
           onToggleTimer={timerHookA.toggleTimer}
           onResetTimer={timerHookA.resetTimer}
         />
@@ -303,8 +298,13 @@ export function Section3GameInput({
           warningCount={warningCountB}
           isTechnicalLoss={isTLB}
           setIsTechnicalLoss={setIsTLB}
+          hasSS={hasSSB}
+          setHasSS={setHasSSB}
+          showSSCheckbox={realLogsCount > 0 && Boolean(playerB)}
           timerSeconds={timerHookB.timer}
           isTimerRunning={timerHookB.isRunning}
+          isExtraTimer={timerHookB.isExtraTimer}
+          extraCycle={timerHookB.extraCycle}
           onToggleTimer={timerHookB.toggleTimer}
           onResetTimer={timerHookB.resetTimer}
         />
@@ -317,6 +317,8 @@ export function Section3GameInput({
         gameResult={gameResult}
         setGameResult={setGameResult}
         onSaveGame={handleAddSingleGame}
+        disabledA={isTLA}
+        disabledB={isTLB}
       />
     </section>
   );

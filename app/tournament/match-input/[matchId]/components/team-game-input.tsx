@@ -2,7 +2,7 @@
 
 import { PlayerDeckInfo } from "@/lib/types/tournament";
 import { CustomSelect } from "./custom-select";
-import { RotateCcw, Lock, Play, Pause, RefreshCw, AlertTriangle } from "lucide-react";
+import { RotateCcw, Lock, Play, Pause, RefreshCw, AlertTriangle, CheckSquare, Square } from "lucide-react";
 
 interface TeamGameInputProps {
   isTeamA: boolean;
@@ -27,15 +27,18 @@ interface TeamGameInputProps {
   warningCount: number;
   isTechnicalLoss: boolean;
   setIsTechnicalLoss: (val: boolean) => void;
-  // Timer Props
+  hasSS: boolean;
+  setHasSS: (val: boolean) => void;
+  showSSCheckbox: boolean;
   timerSeconds: number;
   isTimerRunning: boolean;
+  isExtraTimer?: boolean;
+  extraCycle?: number;
   onToggleTimer: () => void;
   onResetTimer: () => void;
 }
 
 export function TeamGameInput({
-  isTeamA,
   teamName,
   teamLogo,
   player,
@@ -54,34 +57,35 @@ export function TeamGameInput({
   warningCount,
   isTechnicalLoss,
   setIsTechnicalLoss,
+  hasSS,
+  setHasSS,
+  showSSCheckbox,
   timerSeconds,
   isTimerRunning,
+  isExtraTimer,
+  extraCycle = 0,
   onToggleTimer,
   onResetTimer,
 }: TeamGameInputProps) {
-  const textColor = isTeamA ? "text-primary" : "text-rose-500";
-  const activeBg = isTeamA
-    ? "bg-primary/15 border-primary text-primary font-bold"
-    : "bg-rose-500/15 border-rose-500 text-rose-500 font-bold";
-
   const placeholderText = !isLineupLocked
     ? "-- Kunci Lineup Dulu --"
     : availableOptions.length === 0
     ? "-- Semua Pemain Gugur --"
     : "-- Pilih Pemain --";
 
-  // Format Waktu MM:SS
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  const isPlayerSelected = Boolean(player && player !== "");
+
   return (
     <div className="space-y-3 p-3 bg-muted/20 rounded-xl border border-border/30">
-      {/* HEADER TIM & STATUS WARNING */}
+      {/* HEADER TIM & WARNING */}
       <div className="flex items-center justify-between pb-1 border-b border-border/20">
-        <div className={`flex items-center gap-1.5 font-black uppercase text-xs truncate max-w-[150px] ${textColor}`}>
+        <div className="flex items-center gap-1.5 font-black uppercase text-xs truncate max-w-[170px] text-foreground">
           <img src={teamLogo || "/logo.webp"} alt="" className="h-4 w-4 object-contain shrink-0" />
           <span className="truncate">{teamName}</span>
         </div>
@@ -97,14 +101,46 @@ export function TeamGameInput({
         </div>
       </div>
 
-      {/* ⏱️ WIDGET TIMER KONTROL TIM (15 MINS / OVERTIME 3 MINS) */}
+      {/* CHECKBOX SS DITINGGALKAN LANGSUNG DI BAWAH NAMA TIM */}
+      {showSSCheckbox && (
+        <button
+          type="button"
+          onClick={() => setHasSS(!hasSS)}
+          className={`w-full p-2 rounded-lg border text-[11px] font-bold transition flex items-center gap-2 cursor-pointer ${
+            hasSS
+              ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-500"
+              : "bg-amber-500/10 border-amber-500/40 text-amber-500"
+          }`}
+        >
+          {hasSS ? <CheckSquare className="h-4 w-4 shrink-0" /> : <Square className="h-4 w-4 shrink-0" />}
+          <span>{hasSS ? "☑️ Screenshot Game Lalu Ada" : "⚠️ Tidak Ada SS (Warning +1)"}</span>
+        </button>
+      )}
+
+      {/* WIDGET TIMER KONTROL TIM */}
       <div className="flex items-center justify-between p-2 rounded-xl bg-background border border-border/40 shadow-xs">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase">Timer:</span>
-          <span className={`font-mono text-sm font-black tracking-wider ${timerSeconds <= 60 ? "text-rose-500 animate-pulse" : timerSeconds <= 300 ? "text-amber-500" : "text-foreground"}`}>
-            {formatTime(timerSeconds)}
-          </span>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Timer:</span>
+            <span
+              className={`font-mono text-sm font-black tracking-wider ${
+                isExtraTimer
+                  ? "text-rose-500 animate-pulse"
+                  : timerSeconds <= 60
+                  ? "text-amber-500 animate-pulse"
+                  : "text-foreground"
+              }`}
+            >
+              {formatTime(timerSeconds)}
+            </span>
+          </div>
+          {isExtraTimer && (
+            <span className="text-[8px] font-black text-rose-500 uppercase tracking-tight">
+              ⚡ EXTRA TIMER #{extraCycle}
+            </span>
+          )}
         </div>
+
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -122,7 +158,7 @@ export function TeamGameInput({
             type="button"
             onClick={onResetTimer}
             className="p-1 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition cursor-pointer"
-            title="Reset Timer ke Waktu Awal"
+            title="Reset Timer"
           >
             <RefreshCw className="h-3 w-3" />
           </button>
@@ -137,21 +173,24 @@ export function TeamGameInput({
         <div className="relative">
           <CustomSelect
             value={player}
-            onChange={setPlayer}
+            onChange={(v) => {
+              setPlayer(v);
+              setIsTechnicalLoss(false);
+            }}
             options={availableOptions}
             placeholder={placeholderText}
             disabled={!isLineupLocked || availableOptions.length === 0 || isLocked}
           />
           {isLocked && (
             <span className="absolute right-8 top-2 text-[10px] font-extrabold text-emerald-500 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-              <Lock className="h-3 w-3" /> Sedang Bertanding
+              <Lock className="h-3 w-3" /> Bertanding
             </span>
           )}
         </div>
       </div>
 
-      {/* DISPLAY DECK PEMAIN */}
-      {activePlayerObj && (
+      {/* CARDS PILIHAN DECK */}
+      {isPlayerSelected && activePlayerObj && (
         <div className="space-y-1.5 p-2.5 rounded-xl border bg-background border-border/50">
           <div className="flex items-center justify-between">
             <label className="block text-[10px] font-bold text-muted-foreground uppercase">
@@ -180,8 +219,8 @@ export function TeamGameInput({
               className={`p-2 rounded-lg border text-left transition flex flex-col justify-between ${
                 selectedDeckSlot === "deck1"
                   ? isRepeat
-                    ? "bg-amber-500/20 border-amber-500 text-amber-600 dark:text-amber-400 font-extrabold"
-                    : activeBg
+                    ? "bg-amber-500/20 border-amber-500 text-amber-500 font-extrabold"
+                    : "bg-primary/20 border-primary text-primary font-bold"
                   : deckLostStats?.deck1Lost
                   ? "bg-muted/50 border-border/30 text-muted-foreground/40 line-through cursor-not-allowed"
                   : "bg-muted/30 border-border text-foreground hover:bg-muted cursor-pointer"
@@ -217,9 +256,9 @@ export function TeamGameInput({
               onClick={() => setSelectedDeckSlot("deck2")}
               className={`p-2 rounded-lg border text-left transition flex flex-col justify-between ${
                 selectedDeckSlot === "deck2"
-                  ? activeBg
+                  ? "bg-primary/20 border-primary text-primary font-bold"
                   : isRepeat
-                  ? "bg-rose-500/10 border-rose-500/30 text-rose-500/50 line-through cursor-not-allowed"
+                  ? "bg-muted/50 border-border/30 text-muted-foreground/40 line-through cursor-not-allowed"
                   : deckLostStats?.deck2Lost
                   ? "bg-muted/50 border-border/30 text-muted-foreground/40 line-through cursor-not-allowed"
                   : "bg-muted/30 border-border text-foreground hover:bg-muted cursor-pointer"
@@ -256,11 +295,11 @@ export function TeamGameInput({
         </div>
       )}
 
-      {/* TOMBOL REPEAT & TECHNICAL LOSS */}
+      {/* ACTION BUTTONS REPEAT & TL (HANYA AKTIF JIKA PEMAIN SUDAH DIPILIH) */}
       <div className="grid grid-cols-2 gap-1.5">
         <button
           type="button"
-          disabled={!canRepeat && !isRepeat}
+          disabled={!isPlayerSelected || (!canRepeat && !isRepeat)}
           onClick={() => {
             const nextVal = !isRepeat;
             setIsRepeat(nextVal);
@@ -269,8 +308,8 @@ export function TeamGameInput({
           className={`py-2 px-2 rounded-xl border text-[10px] font-black transition flex items-center justify-center gap-1 ${
             isRepeat
               ? "bg-amber-500 text-black border-amber-500 shadow-sm cursor-pointer"
-              : canRepeat
-              ? "bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 cursor-pointer"
+              : canRepeat && isPlayerSelected
+              ? "bg-amber-500/10 border-amber-500/40 text-amber-500 hover:bg-amber-500/20 cursor-pointer"
               : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
           }`}
         >
@@ -280,11 +319,17 @@ export function TeamGameInput({
 
         <button
           type="button"
-          onClick={() => setIsTechnicalLoss(!isTechnicalLoss)}
+          disabled={!isPlayerSelected}
+          onClick={() => {
+            setIsTechnicalLoss(!isTechnicalLoss);
+            if (!isTechnicalLoss) setIsRepeat(false);
+          }}
           className={`py-2 px-2 rounded-xl border text-[10px] font-black transition flex items-center justify-center gap-1 ${
             isTechnicalLoss
               ? "bg-rose-500 text-white border-rose-500 shadow-sm cursor-pointer"
-              : "bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20 cursor-pointer"
+              : isPlayerSelected
+              ? "bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20 cursor-pointer"
+              : "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
           }`}
         >
           <AlertTriangle className="h-3 w-3" />

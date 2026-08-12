@@ -27,20 +27,33 @@ export function Section1Metadata({
   lateDecksB,
   setLateDecksB,
 }: Section1MetadataProps) {
-  // Opsi Pilihan 0 - 10 Deck berdasarkan Konfigurasi Terpusat
+  // Format Dropdown: 1 Deck (-2 Menit), 2 Deck (-4 Menit), dst.
   const options = Array.from(
     { length: TOURNAMENT_CONFIG.MAX_LATE_DECKS_OPTION + 1 },
-    (_, i) => `${i} (${i * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK} m)`
+    (_, i) => (i === 0 ? "0 Deck (Tepat Waktu)" : `${i} Deck (-${i * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK} Menit)`)
   );
 
   const handleSelectA = (val: string) => {
+    if (val.startsWith("0")) {
+      setLateDecksA(0);
+      return;
+    }
     const num = parseInt(val.split(" ")[0]) || 0;
     setLateDecksA(num);
   };
 
   const handleSelectB = (val: string) => {
+    if (val.startsWith("0")) {
+      setLateDecksB(0);
+      return;
+    }
     const num = parseInt(val.split(" ")[0]) || 0;
     setLateDecksB(num);
+  };
+
+  const getValueDisplay = (num: number) => {
+    if (num === 0) return "0 Deck (Tepat Waktu)";
+    return `${num} Deck (-${num * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK} Menit)`;
   };
 
   return (
@@ -57,7 +70,7 @@ export function Section1Metadata({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
         <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
           <span className="block text-[10px] font-bold text-muted-foreground uppercase">
-            Wasit (Referee)
+            Referee
           </span>
           <span className="font-extrabold text-foreground text-xs mt-0.5 block truncate">
             {referee || "Belum Ditugaskan"}
@@ -66,7 +79,7 @@ export function Section1Metadata({
 
         <div className="p-2.5 bg-muted/20 rounded-xl border border-border/30">
           <span className="block text-[10px] font-bold text-muted-foreground uppercase">
-            Caster / Streamer
+            Streamer
           </span>
           <span className="font-extrabold text-foreground text-xs mt-0.5 block truncate">
             {streamer || "Belum Ditugaskan"}
@@ -105,22 +118,22 @@ export function Section1Metadata({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div className="space-y-1">
-            <span className="text-[10px] font-bold text-primary truncate block">
+            <span className="text-[10px] font-bold text-muted-foreground truncate block">
               {teamAName}
             </span>
             <CustomSelect
-              value={`${lateDecksA} (${lateDecksA * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK} m)`}
+              value={getValueDisplay(lateDecksA)}
               onChange={handleSelectA}
               options={options}
             />
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] font-bold text-rose-500 truncate block">
+            <span className="text-[10px] font-bold text-muted-foreground truncate block">
               {teamBName}
             </span>
             <CustomSelect
-              value={`${lateDecksB} (${lateDecksB * TOURNAMENT_CONFIG.PENALTY_MINUTES_PER_DECK} m)`}
+              value={getValueDisplay(lateDecksB)}
               onChange={handleSelectB}
               options={options}
             />

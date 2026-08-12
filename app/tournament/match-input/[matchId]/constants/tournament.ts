@@ -6,8 +6,8 @@ export const TOURNAMENT_CONFIG = {
   // Aturan Waktu & Penalti
   PENALTY_MINUTES_PER_DECK: 2, // 1 Deck Telat = -2 Menit
   MAX_LATE_DECKS_OPTION: 10,  // Opsi pilihan telat 0 - 10 Deck (0-20 Menit)
-  TIMER_DEFAULT_SECONDS: 900,  // 15 Menit Standar Match Timer
-  TIMER_OVERTIME_SECONDS: 180, // 3 Menit Tambahan Pasca TL Timeout
+  TIMER_DEFAULT_SECONDS: 900,  // 15 Menit Standar Match Timer (900 detik)
+  TIMER_OVERTIME_SECONDS: 180, // 3 Menit Extra Timer Per Siklus (180 detik)
 
   // Aturan Pertandingan
   MAX_REPEAT_PER_TEAM: 2,      // Maksimal Mode Repeat per Tim

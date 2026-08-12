@@ -13,7 +13,7 @@ interface TeamRosterColumnProps {
   masterDecks: string[];
   masterSkills: string[];
   isLocked: boolean;
-  isTeamA: boolean;
+  maxSelectablePlayers?: number;
 }
 
 export function TeamRosterColumn({
@@ -25,7 +25,7 @@ export function TeamRosterColumn({
   masterDecks,
   masterSkills,
   isLocked,
-  isTeamA,
+  maxSelectablePlayers = TOURNAMENT_CONFIG.MAX_ROSTER_SIZE,
 }: TeamRosterColumnProps) {
   const togglePlayer = (item: { name: string; ign?: string; duellinksId?: string }) => {
     if (isLocked) return;
@@ -35,7 +35,7 @@ export function TeamRosterColumn({
     if (exists) {
       setLineup(lineup.filter((p) => p.playerName !== ign));
     } else {
-      if (lineup.length >= TOURNAMENT_CONFIG.MAX_ROSTER_SIZE) return;
+      if (lineup.length >= maxSelectablePlayers) return;
       setLineup([
         ...lineup,
         {
@@ -56,8 +56,17 @@ export function TeamRosterColumn({
     val: string
   ) => {
     if (isLocked) return;
+
     setLineup(
-      lineup.map((p) => (p.playerName === playerName ? { ...p, [field]: val } : p))
+      lineup.map((p) => {
+        if (p.playerName !== playerName) return p;
+
+        // Reset Deck 2 jika sama dengan Deck 1
+        if (field === "deck1" && p.deck2 === val) {
+          return { ...p, deck1: val, deck2: "" };
+        }
+        return { ...p, [field]: val };
+      })
     );
   };
 
@@ -68,12 +77,12 @@ export function TeamRosterColumn({
       }`}
     >
       <div className="flex items-center justify-between pb-2 border-b border-border/30">
-        <div className="flex items-center gap-2 font-black text-xs uppercase">
+        <div className="flex items-center gap-2 font-black text-xs uppercase text-foreground">
           <img src={teamLogo || "/logo.webp"} alt="" className="h-5 w-5 object-contain" />
-          <span className={isTeamA ? "text-primary" : "text-rose-500"}>{teamName}</span>
+          <span>{teamName}</span>
         </div>
         <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-500">
-          {lineup.length}/{TOURNAMENT_CONFIG.MAX_ROSTER_SIZE} Pemain
+          {lineup.length}/{maxSelectablePlayers} Pemain
         </span>
       </div>
 
@@ -82,8 +91,7 @@ export function TeamRosterColumn({
         {dbRoster.map((item) => {
           const ign = item.ign || item.name;
           const isChecked = lineup.some((p) => p.playerName === ign);
-          const isDisabled =
-            isLocked || (!isChecked && lineup.length >= TOURNAMENT_CONFIG.MAX_ROSTER_SIZE);
+          const isDisabled = isLocked || (!isChecked && lineup.length >= maxSelectablePlayers);
 
           return (
             <button
@@ -93,9 +101,7 @@ export function TeamRosterColumn({
               onClick={() => togglePlayer(item)}
               className={`w-full flex items-center justify-between p-2 rounded-xl border text-xs font-bold transition ${
                 isChecked
-                  ? isTeamA
-                    ? "bg-primary/15 border-primary text-primary"
-                    : "bg-rose-500/15 border-rose-500 text-rose-500"
+                  ? "bg-primary/15 border-primary text-primary"
                   : isDisabled
                   ? "bg-background/40 border-border/30 text-muted-foreground/40 cursor-not-allowed"
                   : "bg-background/60 border-border text-foreground hover:bg-muted cursor-pointer"
@@ -108,9 +114,7 @@ export function TeamRosterColumn({
               <div
                 className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
                   isChecked
-                    ? isTeamA
-                      ? "bg-primary border-primary text-white"
-                      : "bg-rose-500 border-rose-500 text-white"
+                    ? "bg-primary border-primary text-primary-foreground"
                     : "border-border bg-background"
                 }`}
               >
@@ -136,13 +140,14 @@ export function TeamRosterColumn({
                 <span className="text-primary">{idx + 1}.</span> {p.playerName}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                {/* DECK 1 */}
                 <div className="space-y-1 p-2 bg-muted/30 rounded-lg border border-border/20">
                   <span className="font-bold text-primary block text-[10px]">DECK 1</span>
                   <select
                     disabled={isLocked}
                     value={p.deck1}
                     onChange={(e) => updateDeckSkill(p.playerName, "deck1", e.target.value)}
-                    className="w-full rounded bg-background border border-input p-1 text-xs font-semibold"
+                    className="w-full rounded bg-background border border-input p-1 text-xs font-semibold cursor-pointer"
                   >
                     <option value="">-- Pilih Deck --</option>
                     {masterDecks.map((d) => (
@@ -155,7 +160,7 @@ export function TeamRosterColumn({
                     disabled={isLocked}
                     value={p.skill1}
                     onChange={(e) => updateDeckSkill(p.playerName, "skill1", e.target.value)}
-                    className="w-full rounded bg-background border border-input p-1 text-xs font-semibold"
+                    className="w-full rounded bg-background border border-input p-1 text-xs font-semibold cursor-pointer"
                   >
                     <option value="">-- Pilih Skill --</option>
                     {masterSkills.map((s) => (
@@ -166,18 +171,19 @@ export function TeamRosterColumn({
                   </select>
                 </div>
 
+                {/* DECK 2 (STRICT UNIQUE: DECK 1 DI-DISABLE) */}
                 <div className="space-y-1 p-2 bg-muted/30 rounded-lg border border-border/20">
-                  <span className="font-bold text-rose-500 block text-[10px]">DECK 2</span>
+                  <span className="font-bold text-primary block text-[10px]">DECK 2</span>
                   <select
                     disabled={isLocked}
                     value={p.deck2}
                     onChange={(e) => updateDeckSkill(p.playerName, "deck2", e.target.value)}
-                    className="w-full rounded bg-background border border-input p-1 text-xs font-semibold"
+                    className="w-full rounded bg-background border border-input p-1 text-xs font-semibold cursor-pointer"
                   >
                     <option value="">-- Pilih Deck --</option>
                     {masterDecks.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
+                      <option key={d} value={d} disabled={d === p.deck1}>
+                        {d} {d === p.deck1 ? "(Sudah Dipilih di Deck 1)" : ""}
                       </option>
                     ))}
                   </select>
@@ -185,7 +191,7 @@ export function TeamRosterColumn({
                     disabled={isLocked}
                     value={p.skill2}
                     onChange={(e) => updateDeckSkill(p.playerName, "skill2", e.target.value)}
-                    className="w-full rounded bg-background border border-input p-1 text-xs font-semibold"
+                    className="w-full rounded bg-background border border-input p-1 text-xs font-semibold cursor-pointer"
                   >
                     <option value="">-- Pilih Skill --</option>
                     {masterSkills.map((s) => (

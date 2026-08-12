@@ -74,10 +74,13 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         setStreamer(m.streamerName || m.streamer || "");
         setStreamLink(m.streamLink || "");
 
+        if (m.lateDecksA) setLateDecksA(m.lateDecksA);
+        if (m.lateDecksB) setLateDecksB(m.lateDecksB);
+
         if (m.lineupA?.length > 0) setLineupA(m.lineupA);
         if (m.lineupB?.length > 0) setLineupB(m.lineupB);
 
-        // BACA PERSISTENCE LOCK LINEUP DARI LOCALSTORAGE / API
+        // Persistent Lock Lineup
         const savedLockState = localStorage.getItem(`lineup_locked_${matchId}`);
         if (savedLockState === "true" || m.isLineupLocked) {
           setIsLineupLocked(true);
@@ -305,7 +308,13 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         <div className="w-full max-w-4xl space-y-6">
           <HeroHeader showDetails={false} />
 
-          {match && <ConsoleHeader match={match} onExit={() => router.push("/tournament")} />}
+          {match && (
+            <ConsoleHeader
+              match={match}
+              gameLogs={gameLogs}
+              onExit={() => router.push("/tournament")}
+            />
+          )}
 
           <Section1Metadata
             referee={referee}
@@ -330,6 +339,8 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
               dbRosterB={dbRosterB}
               masterDecks={masterDecks}
               masterSkills={masterSkills}
+              lateDecksA={lateDecksA}
+              lateDecksB={lateDecksB}
               onAddMasterItem={handleAddMasterItem}
               onSaveLineupToKV={handleSaveLineupToKV}
               isLineupLocked={isLineupLocked}
@@ -360,6 +371,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
               gameLogs={gameLogs}
               setGameLogs={setGameLogs}
               warningLogs={warningLogs}
+              setWarningLogs={setWarningLogs}
             />
           )}
 
