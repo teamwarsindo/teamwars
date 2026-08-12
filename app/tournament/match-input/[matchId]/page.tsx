@@ -8,7 +8,6 @@ import Swal from "sweetalert2";
 
 import { ConsoleHeader } from "./components/console-header";
 import { MetadataBlock } from "./components/metadata-block";
-import { SmartPasteBlock } from "./components/smart-paste-block";
 import { RosterLineupBlock, PlayerDeckInfo } from "./components/roster-lineup-block";
 import { GameLogsBlock } from "./components/game-logs-block";
 import { ReviewSubmitModal } from "./components/review-submit-modal";
@@ -48,14 +47,12 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
   const [isLineupLocked, setIsLineupLocked] = useState(false);
 
   const [gameLogs, setGameLogs] = useState<GameDetailLog[]>([]);
-  const [rawDiscordText, setRawDiscordText] = useState("");
 
   const [masterDecks, setMasterDecks] = useState<string[]>([]);
   const [masterSkills, setMasterSkills] = useState<string[]>([]);
 
   const LOCAL_STORAGE_KEY = `match_draft_logs_${matchId}`;
 
-  // 🟢 1. FETCH MATCH DETAILS & MASTER DATA
   const fetchMatchDetails = async () => {
     try {
       const res = await fetch(`/api/tournament?matchId=${matchId}&token=${token}`);
@@ -72,7 +69,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
         setStreamer(m.streamer || "");
         setStreamLink(m.streamLink || "");
 
-        // Warm up state lineup dari KV
         if ((m as any).lineupA && (m as any).lineupA.length > 0) {
           setLineupA((m as any).lineupA);
         }
@@ -80,12 +76,10 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
           setLineupB((m as any).lineupB);
         }
 
-        // Jika lineup sudah pernah di-save di KV, otomatis set lock
         if ((m as any).lineupA?.length === 5 && (m as any).lineupB?.length === 5) {
           setIsLineupLocked(true);
         }
 
-        // Restore game logs dari localStorage jika ter-refresh
         const savedLocal = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (savedLocal) {
           try {
@@ -132,15 +126,11 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
     }
   }, [matchId, token]);
 
-  // Auto-Save Draft Game Logs ke Local Storage
   useEffect(() => {
     if (matchId && gameLogs) {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(gameLogs));
     }
   }, [gameLogs, matchId]);
-
-  const activeListA = lineupA.map((p) => p.playerName);
-  const activeListB = lineupB.map((p) => p.playerName);
 
   const handleAddMasterItem = async (type: "DECK" | "SKILL", newItem: string) => {
     try {
@@ -168,7 +158,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
     }
   };
 
-  // Simpan Lineup & 10 Deck ke KV (Safe Overwrite)
   const handleSaveLineupToKV = async () => {
     if (!match) return;
 
@@ -208,7 +197,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
     }
   };
 
-  // Simpan Laporan Pertandingan Lengkap
   const handleSaveToKV = async () => {
     if (!match) return;
     setIsSaving(true);
@@ -315,11 +303,7 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
 
           {match && <ConsoleHeader match={match} onExit={() => router.push("/tournament")} />}
 
-          <MetadataBlock
-            referee={referee}
-            streamer={streamer}
-            streamLink={streamLink}
-          />
+          <MetadataBlock referee={referee} streamer={streamer} streamLink={streamLink} />
 
           {match && (
             <RosterLineupBlock
@@ -338,16 +322,6 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
               setIsLineupLocked={setIsLineupLocked}
             />
           )}
-
-          <SmartPasteBlock
-            rawText={rawDiscordText}
-            setRawText={setRawDiscordText}
-            match={match}
-            activeListA={activeListA}
-            activeListB={activeListB}
-            gameLogs={gameLogs}
-            setGameLogs={setGameLogs}
-          />
 
           {match && (
             <GameLogsBlock
@@ -388,4 +362,5 @@ export default function MatchInputConsolePage({ params }: { params: Promise<{ ma
       <Footer />
     </main>
   );
-}
+                           }
+          
