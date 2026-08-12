@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get('x-signature-ed25519');
     const timestamp = req.headers.get('x-signature-timestamp');
 
+    // 1. Verifikasi Signature Discord
     if (!verifySignature(rawBody, signature, timestamp)) {
       console.warn('⚠️ Request Discord ditolak: Signature Invalid!');
       return new NextResponse('Akses Ditolak', { status: 401 });
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
 
     const body = JSON.parse(rawBody);
 
+    // 2. PING TEST DARI DISCORD PORTAL (Type 1)
     if (body.type === 1) {
       return new NextResponse(JSON.stringify({ type: 1 }), {
         status: 200,
@@ -90,7 +92,7 @@ export async function POST(req: NextRequest) {
         return await handleBtTimer(body);
       }
 
-      // 🔄 HANDLER TOMBOL PARSE TRANSFER
+      // 🔄 HANDLER TOMBOL PARSE TRANSFER (SAFE KV SESSION)
       if (customId.startsWith('btn_parse_')) {
         if (customId === 'btn_parse_CANCEL') {
           return NextResponse.json({
@@ -99,23 +101,27 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        const parts = customId.split('_'); // btn_parse_{ACTION}_{TEAM}_{USERID}_{IGN}_{IDDL}
-        const action = parts[2] as 'ADD' | 'OUT' | 'EDIT';
-        const teamSlug = parts[3];
-        const targetDiscordId = parts[4];
-        const rawIgn = decodeURIComponent(parts[5] || '');
-        const rawIdDl = parts[6] || '';
+        // Format Custom ID: btn_parse_EXEC_{ACTION}_{INTERACTION_ID}
+        const parts = customId.split('_'); 
+        const action = parts[3] as 'ADD' | 'OUT' | 'EDIT';
+        const interactionId = parts[4];
 
-        // Ambil Data Username Discord dari API
-        const userRes = await fetch(`https://discord.com/api/v10/users/${targetDiscordId}`, {
-          headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
-        }).then((r) => r.json()).catch(() => ({}));
+        const sessionKey = `parse_session:${interactionId}`;
+        const session = await kv.get<any>(sessionKey);
 
-        const targetUsername = userRes.username || targetDiscordId;
+        if (!session) {
+          return NextResponse.json({
+            type: 4,
+            data: { content: '❌ **Sesi Telah Kadaluarsa!** Silakan jalankan ulang command `/transfer parse`.', flags: 64 },
+          });
+        }
+
+        const { teamSlug, targetDiscordId, targetUsername, ign, idDl } = session;
 
         try {
           if (action === 'OUT') {
             const res = await executeTransferOut(teamSlug, targetUsername);
+            await kv.del(sessionKey);
             return NextResponse.json({
               type: 7,
               data: {
@@ -127,13 +133,14 @@ export async function POST(req: NextRequest) {
           }
 
           if (action === 'EDIT') {
-            if (!rawIdDl) {
+            if (!idDl) {
               return NextResponse.json({
                 type: 4,
                 data: { content: '❌ **Gagal Exec Edit!** ID Duel Links Baru tidak ditemukan pada teks.', flags: 64 },
               });
             }
-            const res = await executeTransferEditDl(teamSlug, targetUsername, rawIdDl);
+            const res = await executeTransferEditDl(teamSlug, targetUsername, idDl);
+            await kv.del(sessionKey);
             return NextResponse.json({
               type: 7,
               data: {
@@ -145,11 +152,11 @@ export async function POST(req: NextRequest) {
           }
 
           // DEFAULT ACTION: ADD
-          if (!rawIgn || !rawIdDl) {
+          if (!ign || !idDl) {
             return NextResponse.json({
               type: 4,
               data: {
-                content: `❌ **Gagal Exec ADD!** Data IGN (\`${rawIgn || '-'}\`) atau ID DL (\`${rawIdDl || '-'}\`) kurang lengkap. Silakan gunakan \`/transfer add\` manual.`,
+                content: `❌ **Gagal Exec ADD!** Data IGN (\`${ign || '-'}\`) atau ID DL (\`${idDl || '-'}\`) kurang lengkap. Silakan gunakan \`/transfer add\` manual.`,
                 flags: 64,
               },
             });
@@ -159,14 +166,16 @@ export async function POST(req: NextRequest) {
             teamSlug,
             targetDiscordId,
             targetUsername,
-            ign: rawIgn,
-            rawIdDl,
+            ign,
+            rawIdDl: idDl,
           });
+
+          await kv.del(sessionKey);
 
           return NextResponse.json({
             type: 7,
             data: {
-              content: `✅ **Auto-Parse ADD Berhasil!**\n• Pemain: **${res.addedIgn}** (\`${rawIdDl}\`)\n• Tim: **${res.teamName}**\nℹ️ Sisa kuota transfer tim: **${2 - res.currentQuota}**`,
+              content: `✅ **Auto-Parse ADD Berhasil!**\n• Pemain: **${res.addedIgn}** (\`${idDl}\`)\n• Tim: **${res.teamName}**\nℹ️ Sisa kuota transfer tim: **${2 - res.currentQuota}**`,
               embeds: [],
               components: [],
             },
@@ -179,10 +188,12 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // 📜 Tombol Lihat Seluruh Log
       if (customId === 'btn_view_full_log') {
         return await handleViewFullLog();
       }
 
+      // 🏆 Tombol Bid Group A / B
       if (customId.startsWith('btn_bid_')) {
         if (Date.now() >= BID_DEADLINE_TIMESTAMP * 1000) {
           return NextResponse.json({
@@ -208,6 +219,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(getBidModal(groupTarget, minAmount));
       }
 
+      // 📝 EDIT MATCH REPORT
       if (customId.startsWith('btn_edit_match_')) {
         const matchId = customId.replace('btn_edit_match_', '');
         const schedules = (await kv.get<any[]>('twi:schedules')) || [];
@@ -232,6 +244,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // 📢 REQUEST RESCHEDULE
       if (customId.startsWith('btn_request_reschedule_')) {
         const matchId = customId.replace('btn_request_reschedule_', '');
         const suggestedDate = new Date();
@@ -265,6 +278,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // ✅ CONFIRM RESCHEDULE
       if (customId.startsWith('btn_confirm_reschedule_')) {
         const [, , matchId, newDateIso] = customId.split('_');
         const schedules = (await kv.get<any[]>('twi:schedules')) || [];
@@ -298,6 +312,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // ❌ REJECT RESCHEDULE
       if (customId.startsWith('btn_reject_reschedule_')) {
         return NextResponse.json({ type: 4, data: { content: '❌ **Pengajuan Reschedule Ditolak.**' } });
       }
@@ -329,5 +344,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-        }
-        
+}
