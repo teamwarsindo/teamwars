@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
 import { CustomSelect } from "./custom-select";
-import { Users, Lock, Unlock, PlusCircle } from "lucide-react";
+import { Lock, Unlock, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import Swal from "sweetalert2";
 
 export interface PlayerDeckInfo {
@@ -57,7 +57,9 @@ export function RosterLineupBlock({
   gameLogs,
   setGameLogs,
 }: RosterLineupBlockProps) {
-  const [activeTab, setActiveTab] = useState<"A" | "B">("A");
+  // State expanded per pemain untuk isi Deck & Skill
+  const [expandedA, setExpandedA] = useState<Record<string, boolean>>({});
+  const [expandedB, setExpandedB] = useState<Record<string, boolean>>({});
 
   const handleAddNewItemPrompt = async (type: "DECK" | "SKILL") => {
     const { value: name } = await Swal.fire({
@@ -74,55 +76,98 @@ export function RosterLineupBlock({
     }
   };
 
+  // HANDLER CHECK / UNCHECK PEMAIN
+  const handleTogglePlayer = (isTeamA: boolean, playerObj: PlayerItem) => {
+    if (isLineupLocked) return;
+
+    const currentLineup = isTeamA ? [...lineupA] : [...lineupB];
+    const setLineup = isTeamA ? setLineupA : setLineupB;
+    const playerName = playerObj.ign || playerObj.name;
+
+    const existsIndex = currentLineup.findIndex((p) => p.playerName === playerName);
+
+    if (existsIndex >= 0) {
+      // Uncheck / Hapus
+      currentLineup.splice(existsIndex, 1);
+    } else {
+      // Check / Tambah (Maksimal 5)
+      if (currentLineup.length >= 5) {
+        Swal.fire("Maksimal Roster", "Satu tim maksimal mendaftarkan 5 pemain!", "warning");
+        return;
+      }
+      currentLineup.push({
+        playerName,
+        duellinksId: playerObj.duellinksId,
+        deck1: "",
+        skill1: "",
+        deck2: "",
+        skill2: "",
+      });
+    }
+
+    setLineup(currentLineup);
+  };
+
+  const handleUpdateDeckSkill = (
+    isTeamA: boolean,
+    playerName: string,
+    field: keyof PlayerDeckInfo,
+    val: string
+  ) => {
+    const currentLineup = isTeamA ? [...lineupA] : [...lineupB];
+    const setLineup = isTeamA ? setLineupA : setLineupB;
+
+    const idx = currentLineup.findIndex((p) => p.playerName === playerName);
+    if (idx >= 0) {
+      currentLineup[idx][field] = val;
+      setLineup(currentLineup);
+    }
+  };
+
+  // KUNCI LINEUP & AUTO-TL PEMAIN KOSONG
   const handleLockLineupValidation = async () => {
-    // 1. Validasi: Pemain yang dipilih WAJIB mengisi Deck 1/2 & Skill 1/2 secara lengkap
-    const isIncompleteA = lineupA.some(
-      (p) => p?.playerName && (!p.deck1 || !p.skill1 || !p.deck2 || !p.skill2)
-    );
-    const isIncompleteB = lineupB.some(
-      (p) => p?.playerName && (!p.deck1 || !p.skill1 || !p.deck2 || !p.skill2)
-    );
+    // 1. Validasi Pemain Dicentang Wajib Isi Deck & Skill
+    const isIncompleteA = lineupA.some((p) => !p.deck1 || !p.skill1 || !p.deck2 || !p.skill2);
+    const isIncompleteB = lineupB.some((p) => !p.deck1 || !p.skill1 || !p.deck2 || !p.skill2);
 
     if (isIncompleteA || isIncompleteB) {
       Swal.fire({
         icon: "error",
         title: "Deck & Skill Belum Lengkap!",
-        text: "Pemain yang sudah dipilih WAJIB melengkapi Deck 1, Skill 1, Deck 2, dan Skill 2. Jika slot ini dianggap Deck Lose, kosongkan nama pemainnya.",
+        text: "Pemain yang dicentang WAJIB melengkapi Deck 1, Skill 1, Deck 2, dan Skill 2. Jika tidak bertanding, uncheck/jangan centang nama pemain tersebut.",
       });
       return;
     }
 
-    // 2. Kalkulasi Auto TL untuk slot pemain yang kosong
-    const filledA = lineupA.filter((p) => p?.playerName).length;
-    const filledB = lineupB.filter((p) => p?.playerName).length;
-    const missingA = 5 - filledA;
-    const missingB = 5 - filledB;
+    // 2. Kalkulasi Slot Kosong (Kurang dari 5)
+    const missingA = 5 - lineupA.length;
+    const missingB = 5 - lineupB.length;
 
     if (missingA > 0 || missingB > 0) {
       const confirm = await Swal.fire({
-        title: "Konfirmasi Lineup Roster",
+        title: "Konfirmasi Roster Pertandingan",
         html: `
           <div class="text-left text-xs space-y-2">
-            <p>Konfirmasi jumlah roster terisi:</p>
+            <p>Sistem mendeteksi roster kurang dari 5 pemain:</p>
             <ul class="list-disc pl-4 font-bold text-amber-500">
-              <li>${match.teamAName}: ${filledA}/5 Pemain (${missingA * 2} Deck Lose)</li>
-              <li>${match.teamBName}: ${filledB}/5 Pemain (${missingB * 2} Deck Lose)</li>
+              <li>${match.teamAName}: ${lineupA.length}/5 Pemain (${missingA * 2} Deck Lose)</li>
+              <li>${match.teamBName}: ${lineupB.length}/5 Pemain (${missingB * 2} Deck Lose)</li>
             </ul>
             <p class="text-muted-foreground mt-2">
-              Slot yang kosong akan otomatis di-generate sebagai Technical Loss (TL). Lanjutkan penguncian?
+              Slot yang tidak dipilih otomatis di-generate sebagai Technical Loss (TL). Lanjutkan penguncian?
             </p>
           </div>
         `,
         icon: "warning",
         showCancelButton: true,
         confirmButtonText: "Ya, Kunci Lineup",
-        cancelButtonText: "Batal",
+        cancelButtonText: "Batal / Lengkapi Pemain",
         confirmButtonColor: "#9333ea",
       });
 
       if (!confirm.isConfirmed) return;
 
-      // Generasi Auto TL Netto di awal match
+      // Auto TL Netto
       const autoTLLogs: GameDetailLog[] = [];
       let currentGameNum = gameLogs.length + 1;
 
@@ -134,17 +179,9 @@ export function RosterLineupBlock({
         for (let i = 0; i < netTL; i++) {
           autoTLLogs.push({
             gameNumber: currentGameNum++,
-            playerAId: "BYE Slot",
-            playerAName: "BYE / Slot Kosong",
-            deckA: "TL",
-            skillA: "TL",
-            playerBId: "BYE Slot",
-            playerBName: "BYE / Slot Kosong",
-            deckB: "TL",
-            skillB: "TL",
-            winnerTeamId: match.teamAId,
-            isTLA: false,
-            isTLB: true,
+            playerAId: "BYE Slot", playerAName: "BYE / Slot Kosong", deckA: "TL", skillA: "TL",
+            playerBId: "BYE Slot", playerBName: "BYE / Slot Kosong", deckB: "TL", skillB: "TL",
+            winnerTeamId: match.teamAId, isTLA: false, isTLB: true,
           } as any);
         }
       } else if (tlLossesA > tlLossesB) {
@@ -152,17 +189,9 @@ export function RosterLineupBlock({
         for (let i = 0; i < netTL; i++) {
           autoTLLogs.push({
             gameNumber: currentGameNum++,
-            playerAId: "BYE Slot",
-            playerAName: "BYE / Slot Kosong",
-            deckA: "TL",
-            skillA: "TL",
-            playerBId: "BYE Slot",
-            playerBName: "BYE / Slot Kosong",
-            deckB: "TL",
-            skillB: "TL",
-            winnerTeamId: match.teamBId,
-            isTLA: true,
-            isTLB: false,
+            playerAId: "BYE Slot", playerAName: "BYE / Slot Kosong", deckA: "TL", skillA: "TL",
+            playerBId: "BYE Slot", playerBName: "BYE / Slot Kosong", deckB: "TL", skillB: "TL",
+            winnerTeamId: match.teamBId, isTLA: true, isTLB: false,
           } as any);
         }
       }
@@ -175,51 +204,21 @@ export function RosterLineupBlock({
     try {
       setIsLineupLocked(true);
       await onSaveLineupToKV();
-      Swal.fire("Tersimpan!", "Lineup berhasil dikunci & disimpan.", "success");
+      Swal.fire("Tersimpan!", "Lineup berhasil dikunci & Auto-TL diproses.", "success");
     } catch {
       setIsLineupLocked(false);
       Swal.fire("Gagal", "Gagal menyimpan lineup ke KV", "error");
     }
   };
 
-  const handleUpdateLineupItem = (
-    isTeamA: boolean,
-    index: number,
-    field: keyof PlayerDeckInfo,
-    value: string
-  ) => {
-    const targetLineup = isTeamA ? [...lineupA] : [...lineupB];
-    const setTargetLineup = isTeamA ? setLineupA : setLineupB;
-
-    if (!targetLineup[index]) {
-      targetLineup[index] = { playerName: "", deck1: "", skill1: "", deck2: "", skill2: "" };
-    }
-
-    targetLineup[index][field] = value;
-
-    if (field === "playerName") {
-      const dbRoster = isTeamA ? dbRosterA : dbRosterB;
-      const pObj = dbRoster.find((x) => x.name === value || x.ign === value);
-      if (pObj?.duellinksId) targetLineup[index].duellinksId = pObj.duellinksId;
-      if (!value) {
-        targetLineup[index] = { playerName: "", deck1: "", skill1: "", deck2: "", skill2: "" };
-      }
-    }
-
-    setTargetLineup(targetLineup);
-  };
-
-  const currentTeamName = activeTab === "A" ? match.teamAName : match.teamBName;
-  const currentLineup = activeTab === "A" ? lineupA : lineupB;
-  const currentDbRoster = activeTab === "A" ? dbRosterA : dbRosterB;
-
   return (
     <section className="glass glow-border rounded-2xl border p-5 shadow-sm space-y-4">
+      {/* HEADER SECTION 2 */}
       <div className="flex items-center justify-between border-b border-border/40 pb-3">
         <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-primary" />
-          <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wide">
-            2. Registrasi Lineup &amp; Roster (5 Pemain - 10 Deck)
+          <span className="h-5 w-1 rounded-full bg-primary" />
+          <h3 className="text-sm font-extrabold text-foreground uppercase tracking-wide">
+            2. Lineup Bertanding
           </h3>
         </div>
 
@@ -227,183 +226,250 @@ export function RosterLineupBlock({
           <button
             type="button"
             onClick={() => handleAddNewItemPrompt("DECK")}
-            className="px-2 py-1 rounded-lg bg-muted text-[10px] font-bold hover:bg-muted/80 flex items-center gap-1 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-muted/60 hover:bg-muted text-[11px] font-extrabold text-foreground border border-border/40 flex items-center gap-1 cursor-pointer"
           >
-            <PlusCircle className="h-3 w-3 text-primary" /> + Deck
+            <Plus className="h-3 w-3 text-primary" /> Deck
           </button>
           <button
             type="button"
             onClick={() => handleAddNewItemPrompt("SKILL")}
-            className="px-2 py-1 rounded-lg bg-muted text-[10px] font-bold hover:bg-muted/80 flex items-center gap-1 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-muted/60 hover:bg-muted text-[11px] font-extrabold text-foreground border border-border/40 flex items-center gap-1 cursor-pointer"
           >
-            <PlusCircle className="h-3 w-3 text-primary" /> + Skill
-          </button>
-
-          <button
-            type="button"
-            onClick={isLineupLocked ? () => setIsLineupLocked(false) : handleLockLineupValidation}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer ${
-              isLineupLocked
-                ? "bg-amber-500/20 text-amber-500 border border-amber-500/40 hover:bg-amber-500/30"
-                : "bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
-            }`}
-          >
-            {isLineupLocked ? (
-              <>
-                <Unlock className="h-3.5 w-3.5" /> EDIT LINEUP
-              </>
-            ) : (
-              <>
-                <Lock className="h-3.5 w-3.5" /> LOCK LINEUP
-              </>
-            )}
+            <Plus className="h-3 w-3 text-primary" /> Skill
           </button>
         </div>
       </div>
 
-      {/* TAB SWITCH TIM A / TIM B */}
-      <div className="flex items-center gap-2 p-1 bg-muted/30 rounded-xl border border-border/30 max-w-xs">
-        <button
-          type="button"
-          onClick={() => setActiveTab("A")}
-          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-black transition cursor-pointer ${
-            activeTab === "A"
-              ? "bg-primary text-primary-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {match.teamAName} ({lineupA.filter((p) => p?.playerName).length}/5)
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("B")}
-          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-black transition cursor-pointer ${
-            activeTab === "B"
-              ? "bg-rose-500 text-white shadow-xs"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {match.teamBName} ({lineupB.filter((p) => p?.playerName).length}/5)
-        </button>
-      </div>
-
-      {/* FORM CARDS 5 SLOT PEMAIN */}
-      <div className="space-y-3">
-        {[0, 1, 2, 3, 4].map((idx) => {
-          const item = currentLineup[idx] || {
-            playerName: "",
-            deck1: "",
-            skill1: "",
-            deck2: "",
-            skill2: "",
-          };
-
-          const rosterOptions = [
-            "-- Kosongkan Slot (TL) --",
-            ...currentDbRoster.map(
-              (r) => `${r.ign || r.name}${r.duellinksId ? ` (${r.duellinksId})` : ""}`
-            ),
-          ];
-
-          const isPlayerSelected = Boolean(
-            item.playerName && item.playerName !== "-- Kosongkan Slot (TL) --"
-          );
-
-          return (
-            <div
-              key={idx}
-              className={`p-3 rounded-xl border bg-background/50 space-y-2 transition ${
-                isLineupLocked ? "opacity-75 pointer-events-none" : "border-border/40"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase text-primary">
-                  Pemain #{idx + 1} - {currentTeamName}
-                </span>
-                {item.duellinksId && (
-                  <span className="text-[9px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                    ID: {item.duellinksId}
-                  </span>
-                )}
-              </div>
-
-              {/* SELECT PEMAIN */}
-              <CustomSelect
-                value={
-                  item.playerName
-                    ? `${item.playerName}${item.duellinksId ? ` (${item.duellinksId})` : ""}`
-                    : ""
-                }
-                onChange={(v) => {
-                  const cleanedName =
-                    v === "-- Kosongkan Slot (TL) --"
-                      ? ""
-                      : v.replace(/\s*\([^)]*\)/g, "").trim();
-                  handleUpdateLineupItem(activeTab === "A", idx, "playerName", cleanedName);
-                }}
-                options={rosterOptions}
-                placeholder={`-- Pilih Pemain #${idx + 1} --`}
-                disabled={isLineupLocked}
-              />
-
-              {/* FORM DECK 1 & 2 HANYA MUNCUL JIKA PEMAIN SUDAH DIPILIH (PROGRESSIVE DISCLOSURE) */}
-              {isPlayerSelected && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1 transition-all">
-                  {/* DECK 1 */}
-                  <div className="p-2 bg-muted/20 rounded-lg border border-border/20 space-y-1.5">
-                    <span className="text-[9px] font-black uppercase text-emerald-500">
-                      Deck 1 (Wajib)
-                    </span>
-                    <CustomSelect
-                      value={item.deck1}
-                      onChange={(v) =>
-                        handleUpdateLineupItem(activeTab === "A", idx, "deck1", v)
-                      }
-                      options={masterDecks}
-                      placeholder="-- Archetype Deck 1 --"
-                      disabled={isLineupLocked}
-                    />
-                    <CustomSelect
-                      value={item.skill1}
-                      onChange={(v) =>
-                        handleUpdateLineupItem(activeTab === "A", idx, "skill1", v)
-                      }
-                      options={masterSkills}
-                      placeholder="-- Skill Deck 1 --"
-                      disabled={isLineupLocked}
-                    />
-                  </div>
-
-                  {/* DECK 2 */}
-                  <div className="p-2 bg-muted/20 rounded-lg border border-border/20 space-y-1.5">
-                    <span className="text-[9px] font-black uppercase text-amber-500">
-                      Deck 2 (Wajib)
-                    </span>
-                    <CustomSelect
-                      value={item.deck2}
-                      onChange={(v) =>
-                        handleUpdateLineupItem(activeTab === "A", idx, "deck2", v)
-                      }
-                      options={masterDecks}
-                      placeholder="-- Archetype Deck 2 --"
-                      disabled={isLineupLocked}
-                    />
-                    <CustomSelect
-                      value={item.skill2}
-                      onChange={(v) =>
-                        handleUpdateLineupItem(activeTab === "A", idx, "skill2", v)
-                      }
-                      options={masterSkills}
-                      placeholder="-- Skill Deck 2 --"
-                      disabled={isLineupLocked}
-                    />
-                  </div>
-                </div>
-              )}
+      {/* DUA KOLOM SIDE-BY-SIDE (TIM A DI KIRI, TIM B DI KANAN) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* TIM A (KIRI) */}
+        <div className="p-3.5 bg-muted/10 rounded-2xl border border-border/40 space-y-3">
+          <div className="flex items-center justify-between pb-1 border-b border-border/20">
+            <div className="flex items-center gap-2 font-black text-xs text-primary uppercase">
+              <img src={match.teamALogo || "/logo.webp"} className="h-4 w-4 object-contain" alt="" />
+              <span>{match.teamAName}</span>
             </div>
-          );
-        })}
+            <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+              {lineupA.length}/5 Pemain
+            </span>
+          </div>
+
+          <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+            {dbRosterA.map((player) => {
+              const playerName = player.ign || player.name;
+              const selectedObj = lineupA.find((p) => p.playerName === playerName);
+              const isChecked = Boolean(selectedObj);
+              const isExpanded = expandedA[playerName];
+
+              return (
+                <div
+                  key={player.id || playerName}
+                  className={`rounded-xl border transition-all ${
+                    isChecked
+                      ? "bg-primary/10 border-primary/50"
+                      : "bg-background/40 border-border/30 hover:border-border"
+                  } ${isLineupLocked ? "opacity-80 pointer-events-none" : ""}`}
+                >
+                  <div className="p-2.5 flex items-center justify-between">
+                    <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleTogglePlayer(true, player)}
+                        disabled={isLineupLocked}
+                        className="h-4 w-4 rounded accent-primary cursor-pointer shrink-0"
+                      />
+                      <div className="truncate text-xs font-black text-foreground">
+                        {playerName}
+                        {player.duellinksId && (
+                          <span className="text-[9px] font-mono text-muted-foreground ml-1 font-normal">
+                            ({player.duellinksId})
+                          </span>
+                        )}
+                      </div>
+                    </label>
+
+                    {isChecked && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedA({ ...expandedA, [playerName]: !isExpanded })
+                        }
+                        className="text-[10px] text-primary font-bold px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>{isExpanded ? "Tutup Deck" : "Isi Deck"}</span>
+                        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* EXPANDABLE DECK & SKILL FORM */}
+                  {isChecked && isExpanded && (
+                    <div className="p-2.5 border-t border-primary/20 bg-background/80 space-y-2 text-xs animate-in fade-in duration-150">
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-black uppercase text-emerald-500">Deck 1</span>
+                        <CustomSelect
+                          value={selectedObj?.deck1 || ""}
+                          onChange={(v) => handleUpdateDeckSkill(true, playerName, "deck1", v)}
+                          options={masterDecks}
+                          placeholder="-- Archetype Deck 1 --"
+                          disabled={isLineupLocked}
+                        />
+                        <CustomSelect
+                          value={selectedObj?.skill1 || ""}
+                          onChange={(v) => handleUpdateDeckSkill(true, playerName, "skill1", v)}
+                          options={masterSkills}
+                          placeholder="-- Skill Deck 1 --"
+                          disabled={isLineupLocked}
+                        />
+                      </div>
+
+                      <div className="space-y-1 pt-1 border-t border-border/20">
+                        <span className="text-[9px] font-black uppercase text-amber-500">Deck 2</span>
+                        <CustomSelect
+                          value={selectedObj?.deck2 || ""}
+                          onChange={(v) => handleUpdateDeckSkill(true, playerName, "deck2", v)}
+                          options={masterDecks}
+                          placeholder="-- Archetype Deck 2 --"
+                          disabled={isLineupLocked}
+                        />
+                        <CustomSelect
+                          value={selectedObj?.skill2 || ""}
+                          onChange={(v) => handleUpdateDeckSkill(true, playerName, "skill2", v)}
+                          options={masterSkills}
+                          placeholder="-- Skill Deck 2 --"
+                          disabled={isLineupLocked}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* TIM B (KANAN) */}
+        <div className="p-3.5 bg-muted/10 rounded-2xl border border-border/40 space-y-3">
+          <div className="flex items-center justify-between pb-1 border-b border-border/20">
+            <div className="flex items-center gap-2 font-black text-xs text-rose-500 uppercase">
+              <img src={match.teamBLogo || "/logo.webp"} className="h-4 w-4 object-contain" alt="" />
+              <span>{match.teamBName}</span>
+            </div>
+            <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+              {lineupB.length}/5 Pemain
+            </span>
+          </div>
+
+          <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+            {dbRosterB.map((player) => {
+              const playerName = player.ign || player.name;
+              const selectedObj = lineupB.find((p) => p.playerName === playerName);
+              const isChecked = Boolean(selectedObj);
+              const isExpanded = expandedB[playerName];
+
+              return (
+                <div
+                  key={player.id || playerName}
+                  className={`rounded-xl border transition-all ${
+                    isChecked
+                      ? "bg-rose-500/10 border-rose-500/50"
+                      : "bg-background/40 border-border/30 hover:border-border"
+                  } ${isLineupLocked ? "opacity-80 pointer-events-none" : ""}`}
+                >
+                  <div className="p-2.5 flex items-center justify-between">
+                    <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleTogglePlayer(false, player)}
+                        disabled={isLineupLocked}
+                        className="h-4 w-4 rounded accent-rose-500 cursor-pointer shrink-0"
+                      />
+                      <div className="truncate text-xs font-black text-foreground">
+                        {playerName}
+                        {player.duellinksId && (
+                          <span className="text-[9px] font-mono text-muted-foreground ml-1 font-normal">
+                            ({player.duellinksId})
+                          </span>
+                        )}
+                      </div>
+                    </label>
+
+                    {isChecked && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedB({ ...expandedB, [playerName]: !isExpanded })
+                        }
+                        className="text-[10px] text-rose-500 font-bold px-2 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>{isExpanded ? "Tutup Deck" : "Isi Deck"}</span>
+                        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* EXPANDABLE DECK & SKILL FORM */}
+                  {isChecked && isExpanded && (
+                    <div className="p-2.5 border-t border-rose-500/20 bg-background/80 space-y-2 text-xs animate-in fade-in duration-150">
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-black uppercase text-emerald-500">Deck 1</span>
+                        <CustomSelect
+                          value={selectedObj?.deck1 || ""}
+                          onChange={(v) => handleUpdateDeckSkill(false, playerName, "deck1", v)}
+                          options={masterDecks}
+                          placeholder="-- Archetype Deck 1 --"
+                          disabled={isLineupLocked}
+                        />
+                        <CustomSelect
+                          value={selectedObj?.skill1 || ""}
+                          onChange={(v) => handleUpdateDeckSkill(false, playerName, "skill1", v)}
+                          options={masterSkills}
+                          placeholder="-- Skill Deck 1 --"
+                          disabled={isLineupLocked}
+                        />
+                      </div>
+
+                      <div className="space-y-1 pt-1 border-t border-border/20">
+                        <span className="text-[9px] font-black uppercase text-amber-500">Deck 2</span>
+                        <CustomSelect
+                          value={selectedObj?.deck2 || ""}
+                          onChange={(v) => handleUpdateDeckSkill(false, playerName, "deck2", v)}
+                          options={masterDecks}
+                          placeholder="-- Archetype Deck 2 --"
+                          disabled={isLineupLocked}
+                        />
+                        <CustomSelect
+                          value={selectedObj?.skill2 || ""}
+                          onChange={(v) => handleUpdateDeckSkill(false, playerName, "skill2", v)}
+                          options={masterSkills}
+                          placeholder="-- Skill Deck 2 --"
+                          disabled={isLineupLocked}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
+
+      {/* TOMBOL LOCK LINEUP DI BAGIAN BOWA BANNER PANJANG */}
+      <button
+        type="button"
+        onClick={isLineupLocked ? () => setIsLineupLocked(false) : handleLockLineupValidation}
+        className={`w-full py-3.5 rounded-2xl font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
+          isLineupLocked
+            ? "bg-amber-500/20 text-amber-500 border border-amber-500/40 hover:bg-amber-500/30"
+            : "bg-emerald-600 hover:bg-emerald-500 text-white"
+        }`}
+      >
+        {isLineupLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+        <span>{isLineupLocked ? "EDIT LINEUP BERTANDING" : "🔒 LOCK LINEUP BERTANDING"}</span>
+      </button>
     </section>
   );
 }
