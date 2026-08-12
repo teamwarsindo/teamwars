@@ -9,7 +9,16 @@ export function getPlayerStats(
   lineup: PlayerDeckInfo[]
 ) {
   if (!gameLogs || gameLogs.length === 0 || !playerName) {
-    return { wins: 0, losses: 0, deck1Lost: false, deck2Lost: false, isEliminated: false, totalGames: 0, isLastGameRepeat: false };
+    return {
+      wins: 0,
+      losses: 0,
+      deck1Lost: false,
+      deck2Lost: false,
+      hasActivatedRepeat: false,
+      isEliminated: false,
+      totalGames: 0,
+      isLastGameRepeat: false,
+    };
   }
 
   const pLogs = gameLogs.filter((g) => (isTeamA ? g.playerAName : g.playerBName) === playerName);
@@ -19,6 +28,9 @@ export function getPlayerStats(
 
   const lastGame = pLogs[pLogs.length - 1];
   const isLastGameRepeat = lastGame ? Boolean(isTeamA ? (lastGame as any).isRepeatA : (lastGame as any).isRepeatB) : false;
+  
+  // Cek apakah pemain pernah mengaktifkan repeat di log mana pun
+  const hasActivatedRepeat = pLogs.some((g) => (isTeamA ? (g as any).isRepeatA : (g as any).isRepeatB));
 
   const deck1Lost = pLogs.some(
     (g) =>
@@ -36,6 +48,7 @@ export function getPlayerStats(
     losses,
     deck1Lost,
     deck2Lost,
+    hasActivatedRepeat,
     isEliminated: losses >= 2 || (deck1Lost && deck2Lost),
     totalGames: pLogs.length,
     isLastGameRepeat,
