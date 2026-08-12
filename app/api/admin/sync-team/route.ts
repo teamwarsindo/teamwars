@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI } from '@/lib/discord/utils';
+import { discordAPI, getFooterText, hexToDecimal } from '@/lib/discord/utils';
 import { createDiscordRole } from '@/lib/discord/roles';
 import { createDiscordChannel } from '@/lib/discord/channels';
 
@@ -13,7 +13,6 @@ export interface PlayerItem {
   ign?: string;
   idDuelLinks?: string;
   duelId?: string;
-  isVerified?: boolean;
 }
 
 export interface TeamKVData {
@@ -26,6 +25,7 @@ export interface TeamKVData {
   discordChannelId?: string;
   trackerMsgId?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 function parsePlayers(playersData: string | PlayerItem[] | undefined): PlayerItem[] {
@@ -51,35 +51,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'DISCORD_GUILD_ID tidak dikonfigurasi!' }, { status: 500 });
     }
 
-    // 1. AMBIL DATA TIM DARI KV REDIS
+    // 1. AMBIL DATA TIM SPESIFIK DARI KV REDIS
     const teamData = await kv.hgetall<TeamKVData>(`teams:${teamSlug}`);
     if (!teamData) {
-      return NextResponse.json({ error: `Tim "${teamSlug}" tidak ditemukan di database!` }, { status: 404 });
+      return NextResponse.json({ error: `Tim "${teamSlug}" tidak ditemukan di DB!` }, { status: 404 });
     }
 
     const players = parsePlayers(teamData.players);
-    const updatesKV: Record<string, any> = {};
 
-    // 2. SELF-HEALING: BUAT ROLE DENGAN FALLBACK JIKA BELUM ADA
+    // Ambil Timestamp Created & Updated Asli dari KV
+    const createdAt = teamData.createdAt || new Date().toISOString();
+    const updatedAt = new Date().toISOString(); // Set updated time ke sekarang karena baru di-sync
+    
+    const updatesKV: Record<string, any> = {
+      updatedAt: updatedAt,
+    };
+
+    // 2. SELF-HEALING: ROLE & CHANNEL DISCORD
     let roleId = teamData.discordRoleId;
     if (!roleId) {
       roleId = await createDiscordRole(teamData.namaTim || teamSlug, teamData.warna || '#3b82f6');
-      if (roleId) {
-        updatesKV.discordRoleId = roleId;
-      }
+      if (roleId) updatesKV.discordRoleId = roleId;
     }
 
-    // 3. SELF-HEALING: BUAT TEXT CHANNEL DENGAN FALLBACK JIKA BELUM ADA
     let channelId = teamData.discordChannelId;
     if (!channelId && roleId) {
       channelId = await createDiscordChannel(teamData.namaTim || teamSlug, roleId);
-      if (channelId) {
-        updatesKV.discordChannelId = channelId;
-      }
+      if (channelId) updatesKV.discordChannelId = channelId;
     }
 
-    // 4. SINKRONISASI INDEX GLOBAL REDIS & ROLE DISCORD MEMBER
-    let rolesAssignedCount = 0;
+    // 3. SINKRONISASI INDEX GLOBAL HASH & MEMBER ROLES
+    let rosterText = "";
+    let verifiedCount = 0;
 
     for (const player of players) {
       const rawIgn = (player.ign || '').trim();
@@ -87,70 +90,69 @@ export async function POST(req: NextRequest) {
       const discordUser = (player.discord || '').trim();
       const discordId = (player.discordId || '').trim();
 
-      // Indexing Global Hash (Mapping Casing Asli)
+      // Upsert ke Hash Index Global
       if (rawIgn) await kv.hset('global:ign', { [rawIgn]: teamSlug });
       if (rawDl) await kv.hset('global:duellinks', { [rawDl]: teamSlug });
       if (discordUser) await kv.hset('global:discord', { [discordUser]: teamSlug });
       if (discordId) await kv.hset('global:discord_ids', { [discordId]: teamSlug });
 
+      // 🔍 CEK STATUS VERIFIKASI DARI REDIS HASH `global:verified`
+      let isVerified = false;
+      if (rawIgn) {
+        const verifiedRecord = await kv.hexists('global:verified', rawIgn);
+        if (verifiedRecord === 1) isVerified = true;
+      }
+      if (!isVerified && discordId) {
+        const verifiedRecordByDiscord = await kv.hexists('global:verified', discordId);
+        if (verifiedRecordByDiscord === 1) isVerified = true;
+      }
+
+      if (isVerified) verifiedCount++;
+
+      const icon = isVerified ? "✅" : "❌";
+      rosterText += `${icon} **${rawIgn || '-'}** (\`@${discordUser || '-'}\`) - *${player.role || 'Player'}*\n`;
+
       // Assign Discord Role ke Member
       if (roleId && discordId) {
-        try {
-          // Cek apakah member sudah punya role tersebut untuk cegah redundant API call
-          const member = await discordAPI(`/guilds/${guildId}/members/${discordId}`, 'GET');
-          if (member && Array.isArray(member.roles)) {
-            if (!member.roles.includes(roleId)) {
-              const assigned = await discordAPI(`/guilds/${guildId}/members/${discordId}/roles/${roleId}`, 'PUT');
-              if (assigned) rolesAssignedCount++;
-            }
-          }
-        } catch (err) {
-          console.warn(`Gagal assign role ke Discord ID ${discordId}:`, err);
-        }
+        await discordAPI(`/guilds/${guildId}/members/${discordId}/roles/${roleId}`, 'PUT').catch(() => null);
       }
     }
 
-    // 5. UPDATE ATALU SEND EMBED TRACKER DI CHANNEL TIM (Satu Embed Saja)
+    // 4. UPDATE EMBED TRACKER DI CHANNEL TIM
     if (channelId) {
-      let rosterText = "";
-      let verifiedCount = 0;
-
-      players.forEach((p) => {
-        if (p.isVerified) verifiedCount++;
-        const icon = p.isVerified ? "✅" : "❌";
-        rosterText += `${icon} **${p.ign || '-'}** (\`@${p.discord || '-'}\`) - *${p.role || 'Player'}*\n`;
-      });
-
-      const trackerEmbed = {
+      const trackerEmbedPayload = {
         embeds: [{
           title: teamData.namaTim || teamSlug,
           description: `**DAFTAR ROSTER:**\n${rosterText || '*Belum ada roster.*'}`,
-          color: parseInt((teamData.warna || '#3b82f6').replace('#', ''), 16) || 3447003,
+          color: hexToDecimal(teamData.warna || '#3b82f6'),
           fields: [
             { name: "📌 Role Tim", value: roleId ? `<@&${roleId}>` : `*(Belum Ada)*`, inline: true },
             { name: "📊 Status Verifikasi", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true }
           ],
-          footer: { text: `Last Synced: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB` }
+          // 🔴 FOOTER MENGIKUTI FORMAT ASLI 'getFooterText' DENGAN DATA DARI KV
+          footer: {
+            text: getFooterText(createdAt, updatedAt)
+          }
         }]
       };
 
-      let currentTrackerMsgId = teamData.trackerMsgId;
+      const trackerMsgId = teamData.trackerMsgId;
 
-      if (currentTrackerMsgId) {
-        // Coba Edit Message yang Sudah Ada (PATCH)
-        const patchRes = await discordAPI(`/channels/${channelId}/messages/${currentTrackerMsgId}`, 'PATCH', trackerEmbed);
+      if (trackerMsgId) {
+        // PATCH (Edit Pesan Lama)
+        const patchRes = await discordAPI(`/channels/${channelId}/messages/${trackerMsgId}`, 'PATCH', trackerEmbedPayload);
         
-        // Jika pesan lama tidak ditemukan (404/null), buat pesan baru
+        // Fallback jika pesan lama hilang
         if (!patchRes) {
-          const newMsg = await discordAPI(`/channels/${channelId}/messages`, 'POST', trackerEmbed);
+          const newMsg = await discordAPI(`/channels/${channelId}/messages`, 'POST', trackerEmbedPayload);
           if (newMsg?.id) {
             updatesKV.trackerMsgId = newMsg.id;
             await discordAPI(`/channels/${channelId}/pins/${newMsg.id}`, 'PUT', {});
           }
         }
       } else {
-        // Kirim Pesan Baru jika belum pernah diset (POST)
-        const newMsg = await discordAPI(`/channels/${channelId}/messages`, 'POST', trackerEmbed);
+        // POST Baru jika belum ada trackerMsgId
+        const newMsg = await discordAPI(`/channels/${channelId}/messages`, 'POST', trackerEmbedPayload);
         if (newMsg?.id) {
           updatesKV.trackerMsgId = newMsg.id;
           await discordAPI(`/channels/${channelId}/pins/${newMsg.id}`, 'PUT', {});
@@ -158,17 +160,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 6. SIMPAN RECOVERED DATA BACK TO REDIS (Jika ada pembaruan roleId/channelId/trackerMsgId)
-    if (Object.keys(updatesKV).length > 0) {
-      await kv.hset(`teams:${teamSlug}`, updatesKV);
-    }
+    // 5. UPDATE DATA RECOVERED & UPDATED_AT KE KV REDIS
+    await kv.hset(`teams:${teamSlug}`, updatesKV);
 
     return NextResponse.json({
       success: true,
-      message: `Data tim "${teamData.namaTim || teamSlug}" berhasil disinkronkan total!`,
+      message: `Data tim "${teamData.namaTim || teamSlug}" berhasil disinkronkan!`,
       stats: {
         totalPlayers: players.length,
-        rolesAssigned: rolesAssignedCount,
+        verifiedPlayers: verifiedCount
       }
     });
 
@@ -176,4 +176,5 @@ export async function POST(req: NextRequest) {
     console.error('Error Force Sync Team:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-}
+  }
+  
