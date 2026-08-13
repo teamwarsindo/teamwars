@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { CH_REPORT } from "@/lib/discord/config"; // Importing CH_REPORT dari config Discord kamu
+import { DISCORD_CONFIG } from "@/lib/discord/config"; // <-- Import objek DISCORD_CONFIG
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Gunakan customChannelId jika dikirim, atau fallback otomatis ke CH_REPORT dari config
-    const targetChannelId = customChannelId || CH_REPORT;
+    // Ambil CH_REPORT langsung dari objek DISCORD_CONFIG
+    const targetChannelId = customChannelId || DISCORD_CONFIG.CH_REPORT;
     const botToken = process.env.DISCORD_BOT_TOKEN;
 
     if (!botToken || !targetChannelId) {
@@ -26,13 +26,12 @@ export async function POST(request: NextRequest) {
 
     const results = [];
 
-    // Pengiriman berurutan dengan jeda 300ms untuk menghindari Rate Limit Discord
     for (const report of reports) {
       const payload = {
         embeds: [
           {
             title: `${report.group.toUpperCase()} — WEEK ${report.week}`,
-            color: 0x3b82f6, // Warna Accent (Biru TWI)
+            color: 0x3b82f6,
             description: `⚔️ **Match Report #${report.matchNumber}**\n${report.teamA.emoji} **${report.teamA.name}**  VS  ${report.teamB.emoji} **${report.teamB.name}**\n\n📝 **Catatan Match:**\n${report.notes || "_Tidak ada catatan._"}`,
             image: {
               url: report.maskedImageUrl || report.imageUrl,
@@ -61,7 +60,6 @@ export async function POST(request: NextRequest) {
         results.push({ matchId: report.matchId, success: false, error: errorData });
       }
 
-      // Jeda 300 ms antar pengiriman agar tidak kena rate-limit
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
