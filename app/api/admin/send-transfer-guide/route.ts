@@ -3,10 +3,29 @@ import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
 
-// Target Channel ID & Key Penyimpanan KV
-// const TARGET_CHANNEL_ID = '635752052391411712';
-const TARGET_CHANNEL_ID = '1525775643168735344';
+// Target Channel ID
+const TARGET_CHANNEL_ID = '635752052391411712';
+// const TARGET_CHANNEL_ID = '1525775643168735344';
+
 const KV_GUIDE_MSG_KEY = 'config:transfer_guide_msg_id';
+
+// Helper untuk format tanggal WIB
+function getFormattedWibTimestamp(): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta',
+  });
+  const timeStr = now.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Jakarta',
+  });
+  return `${dateStr} at ${timeStr.replace('.', ':')} WIB`;
+}
 
 export async function GET() {
   try {
@@ -14,8 +33,16 @@ export async function GET() {
       ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>`
       : '';
 
+    // Content persis seperti permintaan kamu
+    const contentMessage =
+      `${roleDuelistTag}\n\n` +
+      `📌 **PENTING:**\n` +
+      `Slash command \`/transfer\` hanya dapat digunakan oleh **Ketua & Wakil Ketua** di **Channel Tim** masing-masing.`;
+
+    const formattedFooterText = `TWI Season 7 • ${getFormattedWibTimestamp()}`;
+
     const payload = {
-      content: roleDuelistTag ? `${roleDuelistTag}` : undefined,
+      content: contentMessage,
       embeds: [
         {
           title: '📋 TRANSFER REQUEST',
@@ -63,7 +90,7 @@ export async function GET() {
             },
           ],
           footer: {
-            text: 'Team Wars Indonesia System • Gunakan fitur ini dengan bijak.',
+            text: formattedFooterText,
           },
         },
       ],
@@ -97,7 +124,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       action: actionType,
-      message: `🚀 Embed berhasil di-${actionType.toLowerCase()} ke channel ${TARGET_CHANNEL_ID}!`,
+      message: `🚀 Embed & Content berhasil di-${actionType.toLowerCase()} ke channel ${TARGET_CHANNEL_ID}!`,
       messageId: response.id,
     });
   } catch (error: any) {
@@ -106,4 +133,5 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+            }
+  
