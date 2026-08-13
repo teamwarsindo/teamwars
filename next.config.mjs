@@ -17,6 +17,12 @@ const nextConfig = {
 
   async rewrites() {
     return [
+      // ⚡ FORMAT MASKING MATCH REPORT (Folder "report" di Cloudinary)
+      {
+        source: '/report/:path*',
+        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/report/:path*',
+      },
+      
       // Format URL Bukti
       {
         source: '/bukti/:path*',
