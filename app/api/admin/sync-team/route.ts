@@ -42,6 +42,15 @@ function parsePlayers(playersData: string | PlayerItem[] | undefined): PlayerIte
   }
 }
 
+// Helper merapikan nama role agar ringkas (1 baris)
+function formatRoleName(role?: string): string {
+  if (!role) return 'Anggota';
+  const r = role.toLowerCase();
+  if (r.includes('ketua') && !r.includes('wakil')) return 'Ketua';
+  if (r.includes('wakil')) return 'Wakil Ketua';
+  return 'Anggota';
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { teamSlug } = await req.json();
@@ -65,7 +74,6 @@ export async function POST(req: NextRequest) {
     const createdAt = teamData.createdAt || new Date().toISOString();
     const nowIso = new Date().toISOString();
 
-    // Pastikan Logo Terdeteksi (Cek berbagai nama atribut logo yang mungkin dipakai)
     const logoUrl = (teamData.logo || teamData.logoTim || teamData.logoUrl || '').trim();
 
     // Simpan updatedAt baru ke KV Redis
@@ -114,8 +122,10 @@ export async function POST(req: NextRequest) {
 
       if (isVerified) verifiedCount++;
 
+      // 🔴 FORMAT UNTUK TRACKER (TANPA BACKTICK DENGAN EMOJI KOTAK HIJAU AGAR RAPI 1 BARIS SEPERTI DS)
       const icon = isVerified ? "✅" : "❌";
-      trackerRosterText += `${icon} **${rawIgn || '-'}** (\`@${discordUser || '-'}\`) - *${player.role || 'Player'}*\n`;
+      const roleName = formatRoleName(player.role);
+      trackerRosterText += `${icon} **${rawIgn || '-'}** (@${discordUser || '-'}) - ${roleName}\n`;
 
       // Assign Discord Role
       if (roleId && discordId) {
@@ -123,17 +133,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. UPDATE / PATCH EMBED TRACKER INTERNAL TIM
+    // 4. UPDATE / PATCH EMBED TRACKER INTERNAL TIM (#kings-united / #ds-xernobyl)
     if (channelId) {
       const trackerEmbedPayload = {
         embeds: [{
           title: teamData.namaTim || teamSlug,
           description: `**DAFTAR ROSTER:**\n${trackerRosterText || '*Belum ada roster.*'}`,
           color: hexToDecimal(teamData.warna || '#3b82f6'),
-          ...(logoUrl ? { thumbnail: { url: logoUrl } } : {}), // 🔴 LOGO AMAN DENGAN CHECK
+          // 🔴 CATATAN: THUMBNAIL LOGO DISENGANJA DIHAPUS KHUSUS EMBED TRACKER
+          // AGAR LEBAR TEXT BOX BISA DIBUAT RAPI 1 BARIS SEPERTI DS XERNOBYL
           fields: [
             { name: "📌 Role Tim", value: roleId ? `<@&${roleId}>` : `*(Belum Ada)*`, inline: true },
-            { name: "📊 Status Verifikasi", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true }
+            { name: "📊 Status", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true }
           ],
           footer: { text: getFooterText(createdAt, nowIso) }
         }]
@@ -158,7 +169,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. UPDATE / PATCH EMBED ROSTER GLOBAL DI #team-roster
+    // 5. UPDATE / PATCH EMBED ROSTER GLOBAL DI CHANNEL #team-roster (LOGO TETAP ADA DI SINI)
     const rosterChannelId = DISCORD_CONFIG.CH_ROSTER;
     if (rosterChannelId) {
       const globalPlayerListString = players
@@ -169,7 +180,7 @@ export async function POST(req: NextRequest) {
         embeds: [{
           title: teamData.namaTim || teamSlug,
           color: hexToDecimal(teamData.warna || '#3b82f6'),
-          ...(logoUrl ? { thumbnail: { url: logoUrl } } : {}), // 🔴 AMANIN KEMBALI LOGO ROSTER
+          ...(logoUrl ? { thumbnail: { url: logoUrl } } : {}), // Logo tetap tampil di #team-roster global
           fields: [
             { name: "Ketua", value: ketuaPlayer?.ign || '-', inline: true },
             { name: "Wakil", value: wakilPlayer?.ign || '-', inline: true },
@@ -235,5 +246,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Force Sync Team:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-    }
-      
+  }
