@@ -29,7 +29,10 @@ function TeamRowActions({
   const [isDeleting, setIsDeleting] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
 
-  const handleSync = async () => {
+  const handleSync = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
     setIsSyncing(true);
     try {
       const res = await fetch('/api/admin/sync-team', {
@@ -40,7 +43,7 @@ function TeamRowActions({
       const data = await res.json();
 
       if (data.success) {
-        // 🔴 BIKIN LOG DETAIL SECARA OTOMATIS DARI STATS RESPON API
+        // Susun rincian log aktivitas berdasarkan data statistik dari backend
         const logs: string[] = [];
 
         if (data.stats) {
@@ -61,10 +64,8 @@ function TeamRowActions({
           type: 'success',
           title: 'Sinkronisasi Berhasil',
           message: `Data tim "${team.namaTim}" telah berhasil disinkronkan ke Database Global dan Discord.`,
-          details: logs, // 👈 DIKIRIM KE FEEDBACK MODAL
+          details: logs,
         });
-        
-        onRefreshData();
       } else {
         setFeedback({
           isOpen: true,
@@ -85,7 +86,10 @@ function TeamRowActions({
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
     const { value: confirmText, isDismissed } = await Swal.fire({
       title: 'PENGHAPUSAN PERMANEN',
       html: `Ketik <b>HAPUS</b> untuk mendiskualifikasi dan menghapus tim <span class="text-rose-500 font-bold">${team.namaTim}</span>`,
@@ -127,7 +131,6 @@ function TeamRowActions({
             `Discord Clean Up: Role dan Text Channel tim telah dihapus`,
           ],
         });
-        onRefreshData();
       } else {
         setFeedback({
           isOpen: true,
@@ -147,11 +150,20 @@ function TeamRowActions({
       setIsDeleting(false);
     }
   };
+
+  const handleCloseModal = () => {
+    const wasSuccess = feedback?.type === 'success';
+    setFeedback(null);
+    if (wasSuccess) {
+      onRefreshData();
+    }
+  };
   
   return (
     <>
       <div className="flex items-center justify-center gap-1.5">
         <button
+          type="button"
           onClick={() => onPreviewProof(team.buktiTransfer)}
           className="p-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-500 hover:text-white transition shrink-0"
           title="Lihat Bukti Transfer"
@@ -160,6 +172,7 @@ function TeamRowActions({
         </button>
 
         <button
+          type="button"
           onClick={() => onSelectRoster(team)}
           className="p-2 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-xl hover:bg-purple-500 hover:text-white transition shrink-0"
           title="Detail Roster"
@@ -188,6 +201,7 @@ function TeamRowActions({
         </a>
 
         <button
+          type="button"
           onClick={handleSync}
           disabled={isSyncing || isDeleting}
           className="p-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl hover:bg-indigo-500 hover:text-white transition disabled:opacity-50 shrink-0"
@@ -197,6 +211,7 @@ function TeamRowActions({
         </button>
 
         <button
+          type="button"
           onClick={handleDelete}
           disabled={isSyncing || isDeleting}
           className="p-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition disabled:opacity-50 shrink-0"
@@ -206,7 +221,7 @@ function TeamRowActions({
         </button>
       </div>
 
-      <FeedbackModal data={feedback} onClose={() => setFeedback(null)} />
+      <FeedbackModal data={feedback} onClose={handleCloseModal} />
     </>
   );
 }
@@ -218,7 +233,7 @@ export function AdminTable({
   onSelectRoster,
   onRefreshData,
 }: AdminTableProps) {
-  // 1. State untuk merekam tim mana saja yang emailnya sedang di-unhide
+  // State untuk merekam tim mana saja yang emailnya sedang di-unhide
   const [visibleEmails, setVisibleEmails] = useState<Record<string, boolean>>({});
 
   const formatDateWIB = (dateString: string) => {
@@ -239,13 +254,11 @@ export function AdminTable({
     );
   };
 
-  // 2. Fungsi cerdas untuk menyensor email
   const maskEmail = (email: string) => {
     if (!email) return '••••••••••••';
     return '••••••••••••••••'; 
   };
 
-  // 3. Fungsi untuk menyalakan/mematikan visibilitas email
   const toggleEmail = (teamId: string) => {
     setVisibleEmails((prev) => ({
       ...prev,
@@ -320,6 +333,7 @@ export function AdminTable({
                         {isEmailVisible ? team.email : maskEmail(team.email)}
                       </span>
                       <button
+                        type="button"
                         onClick={() => toggleEmail(team.id)}
                         className="text-neutral-500 hover:text-white transition p-1 rounded-md hover:bg-neutral-800"
                         title={isEmailVisible ? "Sembunyikan Email" : "Tampilkan Email"}
@@ -373,4 +387,5 @@ export function AdminTable({
       </table>
     </div>
   );
-}
+                                           }
+        
