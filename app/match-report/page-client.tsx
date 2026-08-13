@@ -57,8 +57,12 @@ export default function MatchReportPageClient({
             group: m?.groupName || "Group Stage",
             week: Number(m?.weekNumber) || 1,
             matchNumber: parseInt(matchNumberStr, 10) || index + 1,
-            teamA: { name: m?.teamAName || "Team A", code: m?.teamAName || "Team A", emoji: "🔵" },
-            teamB: { name: m?.teamBName || "Team B", code: m?.teamBName || "Team B", emoji: "🔴" },
+            scoreA: m?.scoreA ?? 0,
+            scoreB: m?.scoreB ?? 0,
+            teamALogo: m?.teamALogo || "/logo.webp",
+            teamBLogo: m?.teamBLogo || "/logo.webp",
+            teamA: { name: m?.teamAName || "Team A", code: m?.teamAName || "Team A" },
+            teamB: { name: m?.teamBName || "Team B", code: m?.teamBName || "Team B" },
           };
         });
         setMatches(formatted);
@@ -197,7 +201,7 @@ export default function MatchReportPageClient({
             }}
           />
 
-          {/* CHECKBOXES MATCH */}
+          {/* CHECKBOXES MATCH REPORT */}
           <div className="glass glow-border rounded-2xl border p-5 space-y-3">
             <span className="font-bold text-sm block">Pilih Match yang Ingin Dilaporkan:</span>
 
@@ -283,5 +287,4 @@ export default function MatchReportPageClient({
       </div>
     </main>
   );
-}
-  
+                                   }
