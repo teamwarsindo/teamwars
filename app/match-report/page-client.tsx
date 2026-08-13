@@ -39,6 +39,10 @@ export default function MatchReportPageClient({
     setIsSending,
   } = useMatchReport(matches);
 
+  // Helper Slug Generator Fallback
+  const getSlug = (str: string) =>
+    str ? str.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "") : "";
+
   // Sync Refresh Data KV
   const handleRefreshKvData = async () => {
     setIsRefreshingKv(true);
@@ -61,8 +65,16 @@ export default function MatchReportPageClient({
             scoreB: m?.scoreB ?? 0,
             teamALogo: m?.teamALogo || "/logo.webp",
             teamBLogo: m?.teamBLogo || "/logo.webp",
-            teamA: { name: m?.teamAName || "Team A", code: m?.teamAName || "Team A" },
-            teamB: { name: m?.teamBName || "Team B", code: m?.teamBName || "Team B" },
+            teamA: {
+              name: m?.teamAName || "Team A",
+              code: m?.teamACode || m?.teamAName || "Team A",
+              slug: m?.teamASlug || getSlug(m?.teamAName),
+            },
+            teamB: {
+              name: m?.teamBName || "Team B",
+              code: m?.teamBCode || m?.teamBName || "Team B",
+              slug: m?.teamBSlug || getSlug(m?.teamBName),
+            },
           };
         });
         setMatches(formatted);
@@ -287,4 +299,4 @@ export default function MatchReportPageClient({
       </div>
     </main>
   );
-                                   }
+}
