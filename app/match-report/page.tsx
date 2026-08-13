@@ -10,7 +10,6 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-// Helper kalkulasi nomor minggu jika weekNumber di KV kosong
 function computeWeekNumber(dateIsoString?: string): number {
   if (!dateIsoString) return 1;
   const startDateStr = process.env.TWI_START_DATE || "2026-08-03";
@@ -34,7 +33,6 @@ export default async function MatchReportPage() {
       const updatedSchedules = schedules.map((m, index) => {
         let week = m.weekNumber;
 
-        // Auto-correct jika weekNumber kosong di KV
         if (!week || typeof week !== "number" || week < 1) {
           week = computeWeekNumber(m.matchDate);
           m.weekNumber = week;
@@ -51,21 +49,22 @@ export default async function MatchReportPage() {
             group: m.groupName || "Group Stage",
             week: week,
             matchNumber: parseInt(matchNumberStr, 10) || index + 1,
+            scoreA: m.scoreA ?? 0,
+            scoreB: m.scoreB ?? 0,
+            teamALogo: m.teamALogo || "/logo.webp",
+            teamBLogo: m.teamBLogo || "/logo.webp",
             teamA: {
               name: m.teamAName || "Team A",
               code: m.teamAName || "Team A",
-              emoji: "🔵",
             },
             teamB: {
               name: m.teamBName || "Team B",
               code: m.teamBName || "Team B",
-              emoji: "🔴",
             },
           },
         };
       });
 
-      // Simpan permanen ke KV jika ada weekNumber yang baru terisi
       if (isKvUpdated) {
         const cleanSchedulesToSave = updatedSchedules.map((item) => item.scheduleItem);
         await kv.set("twi:schedules", cleanSchedulesToSave);
@@ -79,4 +78,4 @@ export default async function MatchReportPage() {
   }
 
   return <MatchReportPageClient initialMatches={matches} />;
-                                             }
+}
