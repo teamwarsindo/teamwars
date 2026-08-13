@@ -33,7 +33,6 @@ export async function GET() {
       ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>`
       : '';
 
-    // Content persis seperti permintaan kamu
     const contentMessage =
       `${roleDuelistTag}\n\n` +
       `📌 **PENTING:**\n` +
@@ -97,7 +96,7 @@ export async function GET() {
     };
 
     const existingMsgId = await kv.get<string>(KV_GUIDE_MSG_KEY);
-    let response: any;
+    let response: any = null;
     let actionType = '';
 
     if (existingMsgId) {
@@ -107,19 +106,32 @@ export async function GET() {
           'PATCH',
           payload
         );
-        actionType = 'UPDATED (PATCH)';
+        
+        // Cek jika response PATCH sukses dan mengembalikan ID
+        if (response && response.id) {
+          actionType = 'UPDATED (PATCH)';
+        } else {
+          // Jika PATCH return null (message lama dihapus/tidak ketemu), paksa POST
+          response = null;
+        }
       } catch (patchErr) {
-        response = await discordAPI(`/channels/${TARGET_CHANNEL_ID}/messages`, 'POST', payload);
-        actionType = 'RE-CREATED (POST)';
+        response = null;
       }
-    } else {
-      response = await discordAPI(`/channels/${TARGET_CHANNEL_ID}/messages`, 'POST', payload);
-      actionType = 'CREATED (POST)';
     }
 
-    if (response?.id) {
-      await kv.set(KV_GUIDE_MSG_KEY, response.id);
+    // Jika belum ada ID atau PATCH gagal/return null, buat pesan baru (POST)
+    if (!response || !response.id) {
+      response = await discordAPI(`/channels/${TARGET_CHANNEL_ID}/messages`, 'POST', payload);
+      actionType = existingMsgId ? 'RE-CREATED (POST)' : 'CREATED (POST)';
     }
+
+    // Validasi akhir sebelum membaca response.id
+    if (!response || !response.id) {
+      throw new Error('Gagal mendapatkan respon valid dari Discord API.');
+    }
+
+    // Simpan ID pesan terbaru ke KV
+    await kv.set(KV_GUIDE_MSG_KEY, response.id);
 
     return NextResponse.json({
       success: true,
@@ -133,5 +145,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-            }
-  
+}
