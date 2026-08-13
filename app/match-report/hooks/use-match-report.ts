@@ -9,20 +9,48 @@ export function useMatchReport(availableMatches: MatchItem[]) {
   const [reports, setReports] = useState<Record<string, MatchReportEntry>>({});
   const [isSending, setIsSending] = useState(false);
 
-  // Restore dari LocalStorage
+  // 1. Ambil semua weekNumber yang ada dari schedule
+  const availableWeeks = useMemo(() => {
+    if (!availableMatches || availableMatches.length === 0) return [1];
+    const weeks = Array.from(new Set(availableMatches.map((m) => m.week)));
+    return weeks.sort((a, b) => a - b);
+  }, [availableMatches]);
+
+  // 2. Tentukan Week aktif berdasarkan tanggal hari ini
+  const currentWeekBasedOnDate = useMemo(() => {
+    if (!availableMatches || availableMatches.length === 0) return 1;
+
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    
+    // Cari match terdekat yang tanggalnya matches hari ini atau di week aktif
+    const todayMatch = availableMatches.find((m: any) => m.date === today);
+    if (todayMatch) return todayMatch.week;
+
+    // Jika tidak ada match hari ini, ambil week dari match pertama yang belum lewat/terdekat
+    return availableWeeks[0] || 1;
+  }, [availableMatches, availableWeeks]);
+
+  // Restore dari LocalStorage / Default ke Week hari ini
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.selectedWeek) setSelectedWeek(parsed.selectedWeek);
+        if (parsed.selectedWeek && availableWeeks.includes(parsed.selectedWeek)) {
+          setSelectedWeek(parsed.selectedWeek);
+        } else {
+          setSelectedWeek(currentWeekBasedOnDate);
+        }
         if (parsed.selectedMatchIds) setSelectedMatchIds(parsed.selectedMatchIds);
         if (parsed.reports) setReports(parsed.reports);
       } catch (e) {
         console.error("Gagal load draft dari LocalStorage", e);
+        setSelectedWeek(currentWeekBasedOnDate);
       }
+    } else {
+      setSelectedWeek(currentWeekBasedOnDate);
     }
-  }, []);
+  }, [availableWeeks, currentWeekBasedOnDate]);
 
   // Sync ke LocalStorage
   useEffect(() => {
@@ -32,16 +60,10 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     );
   }, [selectedWeek, selectedMatchIds, reports]);
 
-  // Filter match secara dinamis berdasarkan week yang dipilih
+  // Filter match HANYA untuk weekNumber yang sedang dipilih
   const filteredMatches = useMemo(() => {
     return availableMatches.filter((m) => m.week === selectedWeek);
   }, [availableMatches, selectedWeek]);
-
-  // Ambil daftar week unik yang tersedia dari data match
-  const availableWeeks = useMemo(() => {
-    const weeks = Array.from(new Set(availableMatches.map((m) => m.week)));
-    return weeks.sort((a, b) => a - b);
-  }, [availableMatches]);
 
   const handleMatchToggle = (matchId: string) => {
     setSelectedMatchIds((prev) =>
