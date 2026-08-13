@@ -79,7 +79,7 @@ export async function executeTransferOut(teamSlug: string, targetDiscordUsername
   if (removed.role === 'Ketua') throw new Error('Gagal Transfer! Ketua Tim tidak dapat dikeluarkan.');
   if (removed.role === 'Wakil Ketua') throw new Error(`Gagal Transfer! **${removed.ign}** adalah Wakil Ketua.`);
 
-  // 🟢 FALLBACK LOOKUP DISCORD ID DARI CORE VERIFIED USERS
+  // 🟢 1. FALLBACK LOOKUP DISCORD ID DARI CORE VERIFIED USERS JIKA KOSONG
   let targetDiscordId = removed.discordId;
 
   if (!targetDiscordId && removed.discord) {
@@ -98,7 +98,7 @@ export async function executeTransferOut(teamSlug: string, targetDiscordUsername
     targetDiscordId ? kv.hdel('global:discord_ids', targetDiscordId) : Promise.resolve(),
   ]);
 
-  // Simpan data ke Pool Free Agent / Free Duelist (Lengkap dengan Discord ID jika ketemu)
+  // Simpan data ke Pool Free Agent / Free Duelist
   const freeDuelistKey = `global:free_duelists:${removed.discord.toLowerCase()}`;
   const existingFreeDuelist = await kv.hgetall<any>(freeDuelistKey);
   const currentJoinedCount = existingFreeDuelist?.teamsJoinedCount || 1;
@@ -107,18 +107,28 @@ export async function executeTransferOut(teamSlug: string, targetDiscordUsername
     ign: removed.ign,
     idDuelLinks: removed.idDuelLinks,
     discord: removed.discord,
-    discordId: targetDiscordId || '', // 👈 Terisi presisi jika terverifikasi
+    discordId: targetDiscordId || '', // Terisi presisi jika terverifikasi
     teamsJoinedCount: currentJoinedCount,
     lastTeam: teamSlug,
     releasedAt: new Date().toISOString(),
   });
 
-  // Cabut Role Tim di Server Discord
+  // 🟢 2. DISCORD REST API: CABUT ROLE TIM & RESET NICKNAME SERVER
   const guildId = DISCORD_CONFIG.GUILD_ID;
-  if (guildId && targetDiscordId && teamData.discordRoleId) {
+  if (guildId && targetDiscordId) {
+    // A. Cabut Role Tim
+    if (teamData.discordRoleId) {
+      await discordAPI(
+        `/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`,
+        'DELETE'
+      ).catch(() => null);
+    }
+
+    // B. Reset Server Nickname (Kembali ke Username Bawaan Discord)
     await discordAPI(
-      `/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`,
-      'DELETE'
+      `/guilds/${guildId}/members/${targetDiscordId}`,
+      'PATCH',
+      { nick: null }
     ).catch(() => null);
   }
 
