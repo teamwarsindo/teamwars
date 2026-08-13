@@ -1,30 +1,34 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { useMatchReport } from "./hooks/use-match-report";
 import { MatchFormCard } from "./components/match-form-card";
 import { DiscordPreview } from "./components/discord-preview";
+import { MatchFilterPanel } from "./components/match-filter-panel";
+import { ResetConfirmModal } from "./components/reset-confirm-modal";
 import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./utils/lib-match-report";
-import { ChevronDown, Check, RotateCcw } from "lucide-react";
 
 interface MatchReportPageClientProps {
   initialMatches?: MatchItem[];
+  isAdmin?: boolean;
 }
 
-export default function MatchReportPageClient({ initialMatches = [] }: MatchReportPageClientProps) {
+export default function MatchReportPageClient({
+  initialMatches = [],
+  isAdmin = false,
+}: MatchReportPageClientProps) {
   const [matches, setMatches] = useState<MatchItem[]>(initialMatches);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isRefreshingKv, setIsRefreshingKv] = useState<boolean>(false);
   const [isConfirmTrashOpen, setIsConfirmTrashOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Filter States
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "ALL">("ALL");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<"ALL" | "Group A" | "Group B">("ALL");
-  const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
-  const weekRef = useRef<HTMLDivElement>(null);
 
   const {
-    selectedWeek,
     setSelectedWeek,
     selectedMatchIds,
     handleMatchToggle,
@@ -35,91 +39,77 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
     setIsSending,
   } = useMatchReport(matches);
 
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  // Sync Refresh Data KV
+  const handleRefreshKvData = async () => {
+    setIsRefreshingKv(true);
+    try {
+      const res = await fetch("/api/tournament", { cache: "no-store" });
+      if (!res.ok) throw new Error("API Refresh Failed");
+      const data = await res.json();
 
-  // Handle Click Outside Dropdown Week
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (weekRef.current && !weekRef.current.contains(event.target as Node)) {
-        setIsWeekDropdownOpen(false);
+      if (data?.schedules && Array.isArray(data.schedules) && data.schedules.length > 0) {
+        const formatted: MatchItem[] = data.schedules.map((m: any, index: number) => {
+          const rawId = m?.id || `match-${index + 1}`;
+          const matchNumberStr = rawId.replace(/[^0-9]/g, "") || String(index + 1);
+
+          return {
+            id: rawId,
+            group: m?.groupName || "Group Stage",
+            week: Number(m?.weekNumber) || 1,
+            matchNumber: parseInt(matchNumberStr, 10) || index + 1,
+            teamA: { name: m?.teamAName || "Team A", code: m?.teamAName || "Team A", emoji: "🔵" },
+            teamB: { name: m?.teamBName || "Team B", code: m?.teamBName || "Team B", emoji: "🔴" },
+          };
+        });
+        setMatches(formatted);
       }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    } catch (err) {
+      console.error("Gagal refresh KV data:", err);
+    } finally {
+      setIsRefreshingKv(false);
+    }
+  };
 
-  // Fetch Client-side jika Server Data Kosong
   useEffect(() => {
     if (initialMatches && initialMatches.length > 0) {
       setMatches(initialMatches);
       return;
     }
-
-    async function fetchClientSchedules() {
-      setIsLoading(true);
-      try {
-        const res = await fetch("/api/tournament");
-        if (!res.ok) throw new Error("API Failed");
-        const data = await res.json();
-
-        if (data?.schedules && Array.isArray(data.schedules) && data.schedules.length > 0) {
-          const formatted: MatchItem[] = data.schedules.map((m: any, index: number) => {
-            const rawId = m?.id || `match-${index + 1}`;
-            const matchNumberStr = rawId.replace(/[^0-9]/g, "") || String(index + 1);
-
-            return {
-              id: rawId,
-              group: m?.groupName || "Group Stage",
-              week: Number(m?.weekNumber) || 1,
-              matchNumber: parseInt(matchNumberStr, 10) || index + 1,
-              teamA: {
-                name: m?.teamAName || "Team A",
-                code: m?.teamAName || "Team A",
-                emoji: "🔵",
-              },
-              teamB: {
-                name: m?.teamBName || "Team B",
-                code: m?.teamBName || "Team B",
-                emoji: "🔴",
-              },
-            };
-          });
-          setMatches(formatted);
-        }
-      } catch (err) {
-        console.error("Gagal fetch client schedules:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchClientSchedules();
+    handleRefreshKvData();
   }, [initialMatches]);
 
-  // Ekstrak Semua Week (Dinamis 1 - N)
-  const availableWeeks = useMemo(() => {
-    if (!matches || matches.length === 0) return [1, 2, 3, 4, 5, 6, 7];
-    const setW = new Set(matches.map((m) => m.week));
-    const arr = Array.from(setW).sort((a, b) => a - b);
-    return arr.length > 0 ? arr : [1, 2, 3, 4, 5, 6, 7];
-  }, [matches]);
+  // Current Week Calc
+  const currentWeekNumber = useMemo(() => {
+    const startDateStr = process.env.NEXT_PUBLIC_TWI_START_DATE || "2026-08-03";
+    const startDate = new Date(`${startDateStr}T00:00:00+07:00`).getTime();
+    const now = Date.now();
+    if (isNaN(startDate) || now < startDate) return 1;
+    const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+    return Math.max(1, Math.floor(diffDays / 7) + 1);
+  }, []);
 
-  // Update selectedWeek di Hook saat Dropdown Berubah
+  // Available Weeks Filter
+  const availableWeeksFilter = useMemo(() => {
+    if (!matches || matches.length === 0) return [1];
+    const allWeekNumbers = Array.from(new Set(matches.map((m) => m.week))).sort((a, b) => a - b);
+    if (isAdmin) return allWeekNumbers.length > 0 ? allWeekNumbers : [1];
+    const restrictedWeeks = allWeekNumbers.filter((w) => w <= currentWeekNumber);
+    return restrictedWeeks.length > 0 ? restrictedWeeks : [1];
+  }, [matches, isAdmin, currentWeekNumber]);
+
   useEffect(() => {
-    if (typeof selectedWeekFilter === "number") {
-      setSelectedWeek(selectedWeekFilter);
-    }
+    if (typeof selectedWeekFilter === "number") setSelectedWeek(selectedWeekFilter);
   }, [selectedWeekFilter, setSelectedWeek]);
 
-  // Filtering Logic
   const filteredMatches = useMemo(() => {
     if (!matches) return [];
     return matches.filter((m) => {
+      if (!isAdmin && m.week > currentWeekNumber) return false;
       if (selectedWeekFilter !== "ALL" && m.week !== selectedWeekFilter) return false;
       if (selectedGroupFilter !== "ALL" && m.group !== selectedGroupFilter) return false;
       return true;
     });
-  }, [matches, selectedWeekFilter, selectedGroupFilter]);
+  }, [matches, selectedWeekFilter, selectedGroupFilter, isAdmin, currentWeekNumber]);
 
   const selectedMatches = useMemo(() => {
     if (!matches) return [];
@@ -128,13 +118,9 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
 
   const handleSendAll = async () => {
     setIsSending(true);
-
     const formattedDate =
-      new Date().toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      }) + ` at ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
+      new Date().toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) +
+      ` at ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
 
     const payload = selectedMatches.map((m) => {
       const entry = reports[m.id];
@@ -179,166 +165,39 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
-      {/* TOP BAR */}
-      <TopBar
-        title="Official Match Report"
-        showTrash={true}
-        onClearStorage={() => setIsConfirmTrashOpen(true)}
+      <TopBar title="Official Match Report" showTrash={true} onClearStorage={() => setIsConfirmTrashOpen(true)} />
+
+      {/* MODAL RESET DRAFT */}
+      <ResetConfirmModal
+        isOpen={isConfirmTrashOpen}
+        onClose={() => setIsConfirmTrashOpen(false)}
+        onConfirm={() => {
+          localStorage.removeItem(STORAGE_KEY);
+          setIsConfirmTrashOpen(false);
+          window.location.reload();
+        }}
       />
 
-      {/* MODAL KONFIRMASI RESET DRAFT */}
-      {isConfirmTrashOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="glass glow-border w-full max-w-sm rounded-2xl border bg-popover/90 p-6 shadow-2xl scale-in-95 animate-in">
-            <h3 className="text-lg font-bold text-foreground">Reset Draft Match Report?</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Apakah Anda yakin ingin menghapus semua catatan dan upload gambar yang tersimpan sementara di browser?
-            </p>
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setIsConfirmTrashOpen(false)}
-                className="flex-1 rounded-xl border border-border bg-background py-2.5 text-sm font-medium hover:bg-muted transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.removeItem(STORAGE_KEY);
-                  window.location.reload();
-                }}
-                className="flex-1 rounded-xl bg-destructive py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-destructive/90 active:scale-[0.98] cursor-pointer"
-              >
-                Ya, Reset
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MAIN CONTENT WRAPPER */}
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6">
-        
-        {/* HERO HEADER */}
         <HeroHeader showDetails={false} />
 
         <section className="w-full max-w-4xl space-y-5">
-          
-          {/* FILTER PANEL */}
-          <div className="glass glow-border border border-border p-4 rounded-2xl shadow-sm space-y-3">
-            {/* BUTTON FILTER DIVISI */}
-            <div className="grid grid-cols-3 gap-2 w-full">
-              <button
-                type="button"
-                onClick={() => setSelectedGroupFilter("ALL")}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition cursor-pointer leading-snug ${
-                  selectedGroupFilter === "ALL"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40"
-                }`}
-              >
-                Semua Divisi
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedGroupFilter("Group A")}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition cursor-pointer leading-snug ${
-                  selectedGroupFilter === "Group A"
-                    ? "bg-sky-500 text-white shadow-sm"
-                    : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40"
-                }`}
-              >
-                Group A
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedGroupFilter("Group B")}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition cursor-pointer leading-snug ${
-                  selectedGroupFilter === "Group B"
-                    ? "bg-amber-500 text-white shadow-sm"
-                    : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40"
-                }`}
-              >
-                Group B
-              </button>
-            </div>
+          {/* PANEL FILTER MODULAR */}
+          <MatchFilterPanel
+            selectedGroup={selectedGroupFilter}
+            onSelectGroup={setSelectedGroupFilter}
+            selectedWeek={selectedWeekFilter}
+            onSelectWeek={setSelectedWeekFilter}
+            availableWeeks={availableWeeksFilter}
+            isRefreshingKv={isRefreshingKv}
+            onRefreshKv={handleRefreshKvData}
+            onResetFilter={() => {
+              setSelectedWeekFilter("ALL");
+              setSelectedGroupFilter("ALL");
+            }}
+          />
 
-            {/* CUSTOM DROPDOWN SELECT WEEK */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div className="relative" ref={weekRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsWeekDropdownOpen(!isWeekDropdownOpen)}
-                  className="w-full bg-background border border-input rounded-xl px-3 py-2.5 text-xs font-bold text-primary flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
-                >
-                  <span className="truncate">
-                    {selectedWeekFilter === "ALL" ? "Semua Week" : `Week ${selectedWeekFilter}`}
-                  </span>
-                  <ChevronDown className={`h-4 w-4 text-primary transition-transform ${isWeekDropdownOpen ? "rotate-180" : ""}`} />
-                </button>
-
-                {isWeekDropdownOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedWeekFilter("ALL");
-                        setIsWeekDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                        selectedWeekFilter === "ALL"
-                          ? "bg-primary/10 text-primary font-bold"
-                          : "text-popover-foreground hover:bg-accent"
-                      }`}
-                    >
-                      <span>Semua Week</span>
-                      {selectedWeekFilter === "ALL" && <Check className="h-3.5 w-3.5 text-primary" />}
-                    </button>
-
-                    {availableWeeks.map((w) => (
-                      <button
-                        key={w}
-                        type="button"
-                        onClick={() => {
-                          setSelectedWeekFilter(w);
-                          setIsWeekDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                          selectedWeekFilter === w
-                            ? "bg-primary/10 text-primary font-bold"
-                            : "text-popover-foreground hover:bg-accent"
-                        }`}
-                      >
-                        <span>Week {w}</span>
-                        {selectedWeekFilter === w && <Check className="h-3.5 w-3.5 text-primary" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* RESET FILTER */}
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedWeekFilter("ALL");
-                  setSelectedGroupFilter("ALL");
-                }}
-                disabled={selectedWeekFilter === "ALL" && selectedGroupFilter === "ALL"}
-                className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-                  selectedWeekFilter !== "ALL" || selectedGroupFilter !== "ALL"
-                    ? "bg-rose-500 text-white shadow-xs hover:bg-rose-600"
-                    : "bg-muted/30 text-muted-foreground/60 border border-border/30 cursor-not-allowed"
-                }`}
-              >
-                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-                <span>Reset Filter</span>
-              </button>
-            </div>
-          </div>
-
-          {/* CHECKBOXES DOKUMEN MATCH REPORT */}
+          {/* CHECKBOXES MATCH */}
           <div className="glass glow-border rounded-2xl border p-5 space-y-3">
             <span className="font-bold text-sm block">Pilih Match yang Ingin Dilaporkan:</span>
 
@@ -418,12 +277,11 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
               ))}
             </div>
           )}
-
         </section>
 
         <Footer />
       </div>
     </main>
   );
-          }
-            
+}
+  
