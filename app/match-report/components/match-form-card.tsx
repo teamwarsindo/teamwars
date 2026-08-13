@@ -13,9 +13,9 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
   const fileName = generateFileName(match);
 
   return (
-    <div className="glass glow-border rounded-2xl border p-5 sm:p-6 space-y-4">
+    <div className="glass glow-border rounded-2xl border p-4 sm:p-6 space-y-4">
       {/* HEADER ATAS: KIRI (MATCH ID), KANAN (GROUP) */}
-      <div className="flex items-center justify-between border-b border-border pb-3">
+      <div className="flex items-center justify-between border-b border-border pb-2.5">
         <span className="text-xs font-black uppercase tracking-wider text-primary">
           MATCH #{match.matchNumber}
         </span>
@@ -24,41 +24,43 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
         </span>
       </div>
 
-      {/* MATCH DISPLAY: LOGO TIM + SCORE TENGAH */}
-      <div className="grid grid-cols-7 items-center gap-2 py-1 text-center">
+      {/* MATCH DISPLAY: LOGO SELALU DI KIRI NAMA TIM (1 BARIS MOBILE FRIENDLY) */}
+      <div className="grid grid-cols-7 items-center gap-1 sm:gap-2 py-1 text-center">
         {/* TIM A (KIRI) */}
-        <div className="col-span-3 flex items-center justify-end gap-2 min-w-0">
-          <span className="font-extrabold text-sm sm:text-base text-foreground break-words text-right leading-snug">
-            {match.teamA.name}
-          </span>
+        <div className="col-span-3 flex items-center justify-start sm:justify-end gap-1.5 min-w-0">
+          {/* Logo Tim A (Selalu di Kiri) */}
           <img
             src={match.teamALogo || match.teamA.logo || "/logo.webp"}
             alt={match.teamA.name}
-            className="h-7 w-7 sm:h-8 sm:w-8 shrink-0 object-contain rounded-md"
+            className="h-6 w-6 sm:h-7 sm:w-7 shrink-0 object-contain rounded-md"
             onError={(e) => {
               (e.target as HTMLImageElement).src = "/logo.webp";
             }}
           />
+          <span className="font-extrabold text-[11px] sm:text-sm text-foreground truncate text-left leading-tight">
+            {match.teamA.name}
+          </span>
         </div>
 
         {/* SKOR TENGAH */}
-        <div className="col-span-1 flex justify-center">
-          <span className="px-3 py-1 rounded-xl bg-primary text-primary-foreground font-black text-xs sm:text-sm shadow-sm whitespace-nowrap">
+        <div className="col-span-1 flex justify-center px-0.5">
+          <span className="px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg sm:rounded-xl bg-primary text-primary-foreground font-black text-[10px] sm:text-xs shadow-xs whitespace-nowrap">
             {match.scoreA ?? 0} - {match.scoreB ?? 0}
           </span>
         </div>
 
         {/* TIM B (KANAN) */}
-        <div className="col-span-3 flex items-center justify-start gap-2 min-w-0">
+        <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0">
+          {/* Logo Tim B (Selalu di Kiri) */}
           <img
             src={match.teamBLogo || match.teamB.logo || "/logo.webp"}
             alt={match.teamB.name}
-            className="h-7 w-7 sm:h-8 sm:w-8 shrink-0 object-contain rounded-md"
+            className="h-6 w-6 sm:h-7 sm:w-7 shrink-0 object-contain rounded-md"
             onError={(e) => {
               (e.target as HTMLImageElement).src = "/logo.webp";
             }}
           />
-          <span className="font-extrabold text-sm sm:text-base text-foreground break-words text-left leading-snug">
+          <span className="font-extrabold text-[11px] sm:text-sm text-foreground truncate text-left leading-tight">
             {match.teamB.name}
           </span>
         </div>
@@ -83,7 +85,7 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
             </label>
           </div>
         ) : (
-          <label className="flex flex-col items-center justify-center h-36 border-2 border-dashed border-border/80 rounded-xl cursor-pointer hover:border-primary/50 transition-colors bg-muted/20 hover:bg-muted/30">
+          <label className="flex flex-col items-center justify-center h-32 sm:h-36 border-2 border-dashed border-border/80 rounded-xl cursor-pointer hover:border-primary/50 transition-colors bg-muted/20 hover:bg-muted/30">
             <span className="text-xs font-medium text-muted-foreground">
               {entry?.isUploading ? "Mengunggah ke Cloudinary..." : "Klik atau seret gambar ke sini"}
             </span>
@@ -97,10 +99,10 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
           </label>
         )}
 
-        {/* NAMA FILE MASKING DI BAWAH KOTAK UPLOAD */}
-        <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground/80 px-1 pt-1">
+        {/* NAMA FILE MASKING */}
+        <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-muted-foreground/80 px-1 pt-1">
           <span>Target File Masking:</span>
-          <span className="font-bold text-primary">{fileName}.png</span>
+          <span className="font-bold text-primary truncate max-w-[180px] sm:max-w-none">{fileName}.png</span>
         </div>
       </div>
 
@@ -112,7 +114,7 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
           value={entry?.notes || ""}
           onChange={(e) => onNotesChange(e.target.value)}
           placeholder="Tulis catatan singkat pertandingan..."
-          className="w-full rounded-xl border border-border bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          className="w-full rounded-xl border border-border bg-background p-2.5 sm:p-3 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
         />
       </div>
     </div>
