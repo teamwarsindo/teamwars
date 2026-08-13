@@ -25,43 +25,43 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
         </span>
       </div>
 
-      {/* MATCH DISPLAY: LOGO SELALU DI KIRI NAMA TIM (1 BARIS MOBILE FRIENDLY) */}
-      <div className="grid grid-cols-7 items-center gap-1 sm:gap-2 py-1 text-center">
-        {/* TIM A (KIRI) */}
-        <div className="col-span-3 flex items-center justify-start sm:justify-end gap-1.5 min-w-0">
+      {/* MATCH DISPLAY: TIM KIRI MEPET KIRI, TIM KANAN MEPET KANAN, SKOR RENAGANG */}
+      <div className="flex items-center justify-between py-1.5 w-full gap-2">
+        {/* TIM A (KIRI - MEPET KIRI) */}
+        <div className="flex items-center justify-start gap-2 min-w-0 flex-1">
           <img
             src={match.teamALogo || match.teamA.logo || "/logo.webp"}
             alt={match.teamA.name}
-            className="h-6 w-6 sm:h-7 sm:w-7 shrink-0 object-contain rounded-md"
+            className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 object-contain rounded-md"
             onError={(e) => {
               (e.target as HTMLImageElement).src = "/logo.webp";
             }}
           />
-          <span className="font-extrabold text-[11px] sm:text-sm text-foreground truncate text-left leading-tight">
+          <span className="font-extrabold text-xs sm:text-sm text-foreground truncate text-left leading-tight">
             {match.teamA.name}
           </span>
         </div>
 
-        {/* SKOR TENGAH */}
-        <div className="col-span-1 flex justify-center px-0.5">
-          <span className="px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg sm:rounded-xl bg-primary text-primary-foreground font-black text-[10px] sm:text-xs shadow-xs whitespace-nowrap">
+        {/* SKOR TENGAH (LEBIH RENGGANG & MENTOK TENGAH) */}
+        <div className="shrink-0 px-3 sm:px-6">
+          <span className="px-3 py-1 sm:px-4 sm:py-1.5 rounded-xl bg-primary text-primary-foreground font-black text-xs sm:text-sm shadow-sm whitespace-nowrap">
             {match.scoreA ?? 0} - {match.scoreB ?? 0}
           </span>
         </div>
 
-        {/* TIM B (KANAN) */}
-        <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0">
+        {/* TIM B (KANAN - MEPET KANAN) */}
+        <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
+          <span className="font-extrabold text-xs sm:text-sm text-foreground truncate text-right leading-tight">
+            {match.teamB.name}
+          </span>
           <img
             src={match.teamBLogo || match.teamB.logo || "/logo.webp"}
             alt={match.teamB.name}
-            className="h-6 w-6 sm:h-7 sm:w-7 shrink-0 object-contain rounded-md"
+            className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 object-contain rounded-md"
             onError={(e) => {
               (e.target as HTMLImageElement).src = "/logo.webp";
             }}
           />
-          <span className="font-extrabold text-[11px] sm:text-sm text-foreground truncate text-left leading-tight">
-            {match.teamB.name}
-          </span>
         </div>
       </div>
 
@@ -98,7 +98,7 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
           </label>
         )}
 
-        {/* 🟢 NAMA FILE MASKING BISA DIKLIK JIKA SUDAH ADA GAMBAR */}
+        {/* NAMA FILE MASKING BERBASED KODETIM */}
         <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-muted-foreground/80 px-1 pt-1">
           <span>Target File Masking:</span>
           {entry?.imageUrl && maskedUrl ? (
@@ -107,12 +107,12 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
               target="_blank"
               rel="noopener noreferrer"
               title={`Buka gambar: ${maskedUrl}`}
-              className="font-bold text-primary underline hover:text-primary/80 transition-all truncate max-w-[180px] sm:max-w-none cursor-pointer animate-pulse"
+              className="font-bold text-primary underline hover:text-primary/80 transition-all truncate max-w-[200px] sm:max-w-none cursor-pointer animate-pulse"
             >
               {fileName}.png 🔗
             </a>
           ) : (
-            <span className="font-bold text-muted-foreground/60 truncate max-w-[180px] sm:max-w-none">
+            <span className="font-bold text-muted-foreground/60 truncate max-w-[200px] sm:max-w-none">
               {fileName}.png
             </span>
           )}
@@ -132,4 +132,4 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
       </div>
     </div>
   );
-      }
+}
