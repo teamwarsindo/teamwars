@@ -28,7 +28,7 @@ export interface TeamKVData {
   discordChannelId?: string;
   trackerMsgId?: string;
   rosterMsgId?: string;
-  transferQuotaUsed?: number | string; // Key untuk kuota transfer
+  transferQuotaUsed?: number | string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -43,13 +43,13 @@ function parsePlayers(playersData: string | PlayerItem[] | undefined): PlayerIte
   }
 }
 
-// Helper mendapatkan Ikon Role singkat
+// 🔴 HELPER IKON ROLE (DI BELAKANG): KETUA & WAKIL SAJA, ANGGOTA KOSONG
 function getRoleIcon(role?: string): string {
-  if (!role) return '🛡️';
+  if (!role) return '';
   const r = role.toLowerCase();
-  if (r.includes('ketua') && !r.includes('wakil')) return '👑';
-  if (r.includes('wakil')) return '🪖';
-  return '🛡️';
+  if (r.includes('ketua') && !r.includes('wakil')) return ' 👑';
+  if (r.includes('wakil')) return ' 🎖️';
+  return '';
 }
 
 export async function POST(req: NextRequest) {
@@ -77,10 +77,10 @@ export async function POST(req: NextRequest) {
 
     const logoUrl = (teamData.logo || teamData.logoTim || teamData.logoUrl || '').trim();
 
-    // 🔴 BACA KUOTA TRANSFER DARI DB REDIS
+    // Baca Kuota Transfer dari DB Redis
     const rawQuotaUsed = teamData.transferQuotaUsed;
     const transferQuotaUsed = rawQuotaUsed !== undefined && rawQuotaUsed !== null ? Number(rawQuotaUsed) : 0;
-    const maxTransferQuota = 2; // Default batas maksimal transfer
+    const maxTransferQuota = 2;
     const remainingQuota = Math.max(0, maxTransferQuota - transferQuotaUsed);
 
     // Simpan updatedAt baru ke KV Redis
@@ -129,11 +129,11 @@ export async function POST(req: NextRequest) {
 
       if (isVerified) verifiedCount++;
 
-      // 🔴 FORMAT ROSTER 1 BARIS PAKAI IKON ROLE (👑 Ketua, 🪖 Wakil, 🛡️ Anggota)
+      // 🔴 FORMAT ROSTER: IKON ROLE TARUH DI BELAKANG NAMA/USERNAME
       const iconVerified = isVerified ? "✅" : "❌";
-      const roleIcon = getRoleIcon(player.role);
+      const roleIconSuffix = getRoleIcon(player.role);
       
-      trackerRosterText += `${iconVerified} ${roleIcon} **${rawIgn || '-'}** (@${discordUser || '-'})\n`;
+      trackerRosterText += `${iconVerified} **${rawIgn || '-'}** (@${discordUser || '-'})${roleIconSuffix}\n`;
 
       // Assign Discord Role
       if (roleId && discordId) {
@@ -141,16 +141,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Tambahkan Legenda/Keterangan Ikon di bawah Daftar Roster
-    trackerRosterText += `\n*Keterangan: 👑 Ketua | 🪖 Wakil | 🛡️ Anggota*`;
+    // Tambahkan Keterangan Legenda di Bawah Roster
+    trackerRosterText += `\n*Keterangan: 👑 Ketua | 🎖️ Wakil*`;
 
-    // 4. UPDATE / PATCH EMBED TRACKER INTERNAL TIM (#kings-united / #licht-dracarys)
+    // 4. UPDATE / PATCH EMBED TRACKER INTERNAL TIM (#kings-united / #ds-xernobyl)
     if (channelId) {
-      // Susun Fields Embed
       const trackerFields = [
         { name: "📌 Role Tim", value: roleId ? `<@&${roleId}>` : `*(Belum Ada)*`, inline: true },
-        { name: "📊 Status", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true },
-        // 🔴 FIELD KUOTA TRANSFER (Tampilkan Kuota Terpakai & Sisa)
+        { name: "📊 Status Verifikasi", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true },
         { 
           name: "🔄 Kuota Transfer", 
           value: `**${transferQuotaUsed} / ${maxTransferQuota}** Terpakai *(Sisa: ${remainingQuota})*`, 
@@ -265,4 +263,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Force Sync Team:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-          }
+  }
