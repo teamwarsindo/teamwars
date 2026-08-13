@@ -21,6 +21,8 @@ export interface TeamKVData {
   namaTim?: string;
   warna?: string;
   logo?: string;
+  logoTim?: string;
+  logoUrl?: string;
   players?: string | PlayerItem[];
   discordRoleId?: string;
   discordChannelId?: string;
@@ -62,6 +64,9 @@ export async function POST(req: NextRequest) {
     const players = parsePlayers(teamData.players);
     const createdAt = teamData.createdAt || new Date().toISOString();
     const nowIso = new Date().toISOString();
+
+    // Pastikan Logo Terdeteksi (Cek berbagai nama atribut logo yang mungkin dipakai)
+    const logoUrl = (teamData.logo || teamData.logoTim || teamData.logoUrl || '').trim();
 
     // Simpan updatedAt baru ke KV Redis
     const updatesKV: Record<string, any> = {
@@ -125,6 +130,7 @@ export async function POST(req: NextRequest) {
           title: teamData.namaTim || teamSlug,
           description: `**DAFTAR ROSTER:**\n${trackerRosterText || '*Belum ada roster.*'}`,
           color: hexToDecimal(teamData.warna || '#3b82f6'),
+          ...(logoUrl ? { thumbnail: { url: logoUrl } } : {}), // 🔴 LOGO AMAN DENGAN CHECK
           fields: [
             { name: "📌 Role Tim", value: roleId ? `<@&${roleId}>` : `*(Belum Ada)*`, inline: true },
             { name: "📊 Status Verifikasi", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true }
@@ -152,7 +158,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. UPDATE / PATCH EMBED ROSTER GLOBAL DI #team-roster MENGGUNAKAN 'rosterMsgId'
+    // 5. UPDATE / PATCH EMBED ROSTER GLOBAL DI #team-roster
     const rosterChannelId = DISCORD_CONFIG.CH_ROSTER;
     if (rosterChannelId) {
       const globalPlayerListString = players
@@ -163,7 +169,7 @@ export async function POST(req: NextRequest) {
         embeds: [{
           title: teamData.namaTim || teamSlug,
           color: hexToDecimal(teamData.warna || '#3b82f6'),
-          thumbnail: teamData.logo ? { url: teamData.logo } : undefined,
+          ...(logoUrl ? { thumbnail: { url: logoUrl } } : {}), // 🔴 AMANIN KEMBALI LOGO ROSTER
           fields: [
             { name: "Ketua", value: ketuaPlayer?.ign || '-', inline: true },
             { name: "Wakil", value: wakilPlayer?.ign || '-', inline: true },
@@ -175,7 +181,6 @@ export async function POST(req: NextRequest) {
 
       let rosterMsgId = teamData.rosterMsgId;
 
-      // Jika rosterMsgId belum tersimpan di KV, cari pesan eksisting di channel #team-roster
       if (!rosterMsgId) {
         try {
           const channelMessages = await discordAPI(`/channels/${rosterChannelId}/messages?limit=100`, 'GET');
@@ -195,13 +200,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Lakukan PATCH jika pesan ditemukan, jika tidak buat POST baru & simpan ID-nya ke rosterMsgId
       if (rosterMsgId) {
         const patchRosterRes = await discordAPI(`/channels/${rosterChannelId}/messages/${rosterMsgId}`, 'PATCH', rosterEmbedPayload);
         if (patchRosterRes) {
           updatesKV.rosterMsgId = rosterMsgId;
         } else {
-          // Fallback jika pesan lama terhapus di Discord
           const newRosterMsg = await discordAPI(`/channels/${rosterChannelId}/messages`, 'POST', rosterEmbedPayload);
           if (newRosterMsg?.id) {
             updatesKV.rosterMsgId = newRosterMsg.id;
@@ -232,4 +235,5 @@ export async function POST(req: NextRequest) {
     console.error('Error Force Sync Team:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-}
+    }
+      
