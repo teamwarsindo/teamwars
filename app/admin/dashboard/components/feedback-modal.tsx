@@ -18,7 +18,6 @@ interface FeedbackModalProps {
 
 export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
   useEffect(() => {
-    // Kunci scroll saat modal muncul
     if (data && data.isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -40,18 +39,20 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
       onClick={onClose}
     >
       <div
-        className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative flex flex-col items-center text-center overflow-hidden"
+        className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-sm sm:max-w-md p-6 shadow-2xl relative flex flex-col items-center text-center overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Tombol Silang Top-Right */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
+          className="absolute top-4 right-4 p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
         >
           <X className="w-5 h-5" />
         </button>
 
+        {/* Icon Status Presisi di Tengah */}
         <div
-          className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 border ${
+          className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 border shrink-0 ${
             isSuccess
               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
               : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
@@ -60,30 +61,34 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
           {isSuccess ? <CheckCircle2 className="w-8 h-8" /> : <AlertTriangle className="w-8 h-8" />}
         </div>
 
-        <h3 className="text-lg font-bold text-white mb-2">{data.title}</h3>
-        
-        {/* 🔴 PERBAIKAN DI SINI: Tambah break-words, w-full, px-2 */}
-        <p className="text-sm text-neutral-300 leading-relaxed mb-5 break-words w-full px-2">
+        {/* Judul Simetris */}
+        <h3 className="text-xl font-bold text-white mb-2 tracking-tight w-full text-center">
+          {data.title}
+        </h3>
+
+        {/* Deskripsi Simetris & Auto Wrap */}
+        <p className="text-sm text-neutral-300 leading-relaxed mb-6 break-words w-full text-center px-2">
           {data.message}
         </p>
 
         {data.details && data.details.length > 0 && (
-          <div className="w-full bg-neutral-950 border border-neutral-800/80 rounded-xl p-3 mb-5 text-left text-xs text-neutral-400 space-y-1.5">
+          <div className="w-full bg-neutral-950 border border-neutral-800/80 rounded-2xl p-4 mb-6 text-left text-xs text-neutral-400 space-y-2">
             {data.details.map((item, idx) => (
               <div key={idx} className="flex items-start gap-2">
-                <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSuccess ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                <span className="leading-snug break-words">{item}</span>
+                <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${isSuccess ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                <span className="leading-relaxed break-words">{item}</span>
               </div>
             ))}
           </div>
         )}
 
+        {/* Tombol Aksi Simetris Full Width */}
         <button
           onClick={onClose}
-          className={`w-full py-3 px-4 rounded-xl font-bold text-sm transition shadow-lg ${
+          className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm transition shadow-lg active:scale-[0.98] ${
             isSuccess
-              ? 'bg-emerald-500 hover:bg-emerald-600 text-neutral-950'
-              : 'bg-rose-500 hover:bg-rose-600 text-white'
+              ? 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-emerald-500/10'
+              : 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/10'
           }`}
         >
           Tutup Panel
@@ -91,5 +96,4 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
       </div>
     </div>
   );
-      }
-              
+}
