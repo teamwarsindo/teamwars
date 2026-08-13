@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { MatchItem, MatchReportEntry, STORAGE_KEY, generateFileName } from "../utils/lib-match-report";
-import { compressAndUpload } from "@/lib/cloudinary";
 
 export function useMatchReport(availableMatches: MatchItem[]) {
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
@@ -10,7 +9,6 @@ export function useMatchReport(availableMatches: MatchItem[]) {
   const [reports, setReports] = useState<Record<string, MatchReportEntry>>({});
   const [isSending, setIsSending] = useState(false);
 
-  // Restore Draft dari LocalStorage
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -25,7 +23,6 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     }
   }, []);
 
-  // Save State ke LocalStorage
   useEffect(() => {
     localStorage.setItem(
       STORAGE_KEY,
@@ -39,10 +36,10 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     );
   };
 
+  // 🟢 FUNGSI UPLOAD DENGAN SIGNED CLOUDINARY (/api/sign-cloudinary)
   const handleDirectUpload = async (match: MatchItem, file: File) => {
     const fileName = generateFileName(match);
 
-    // Set Loading State
     setReports((prev) => ({
       ...prev,
       [match.id]: {
@@ -54,52 +51,66 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     }));
 
     try {
-      let secureUrl = "";
+      const publicId = `report/${fileName}`;
 
-      // 🟢 STRATEGI 1: Panggil fungsi kompresi resmi project (@/lib/cloudinary)
-      try {
-        secureUrl = await compressAndUpload(file, "report" as any, fileName);
-      } catch (libErr) {
-        console.warn("Fungsi compressAndUpload gagal/tidak cocok, mencoba Direct Upload Preset...", libErr);
+      // 1. Minta Signature Resmi dari Backend API Next.js (/api/sign-cloudinary)
+      const signRes = await fetch("/api/sign-cloudinary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folder: "report",
+          public_id: publicId,
+        }),
+      });
 
-        // 🟢 STRATEGI 2: Fallback Direct API Upload dengan Limit Timeout & Preset
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "twi_unsigned");
-        formData.append("public_id", `report/${fileName}`);
-        formData.append("overwrite", "true");
-
-        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dhplw8rsd";
-        
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData?.error?.message || "Upload ke Cloudinary gagal.");
-        }
-
-        const data = await res.json();
-        secureUrl = data.secure_url;
+      if (!signRes.ok) {
+        throw new Error("Gagal mendapatkan verifikasi signature dari server.");
       }
 
-      if (secureUrl) {
+      const signData = await signRes.json();
+      const { timestamp, signature, apiKey, cloudName } = signData;
+
+      // 2. Upload Langsung ke Cloudinary Menggunakan Signed Payload (PASTI LOLOS OVERWRITE)
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("api_key", apiKey || process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || "");
+      formData.append("timestamp", String(timestamp));
+      formData.append("signature", signature);
+      formData.append("folder", "report");
+      formData.append("public_id", publicId);
+      formData.append("overwrite", "true"); // 🟢 Boleh pakai overwrite karena sudah SIGNED!
+
+      const targetCloudName = cloudName || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dhplw8rsd";
+      const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${targetCloudName}/image/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        const errJson = await uploadRes.json();
+        throw new Error(errJson?.error?.message || "Upload ke Cloudinary gagal.");
+      }
+
+      const uploadData = await uploadRes.json();
+
+      if (uploadData.secure_url) {
+        // Tambahkan timestamp query agar gambar ter-refresh instan di browser
+        const finalUrl = `${uploadData.secure_url}?t=${Date.now()}`;
+
         setReports((prev) => ({
           ...prev,
           [match.id]: {
             ...prev[match.id],
-            imageUrl: secureUrl,
+            imageUrl: finalUrl,
             isUploading: false,
           },
         }));
       } else {
-        throw new Error("Tidak menerima URL gambar dari Cloudinary.");
+        throw new Error("Respon Cloudinary tidak memiliki URL gambar.");
       }
     } catch (err: any) {
-      console.error("Gagal mengunggah gambar match report:", err);
-      alert(`Gagal mengunggah gambar: ${err.message || "Pastikan koneksi internet stabil."}`);
+      console.error("Gagal upload match report:", err);
+      alert(`Gagal Mengunggah: ${err.message || "Terjadi kesalahan jaringan."}`);
       setReports((prev) => ({
         ...prev,
         [match.id]: { ...prev[match.id], isUploading: false },
@@ -125,4 +136,4 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     isSending,
     setIsSending,
   };
-        }
+}
