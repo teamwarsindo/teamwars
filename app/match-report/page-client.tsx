@@ -1,17 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
+import { useState, useEffect } from "react";
+import { TopBar, Footer } from "@/components/layout-shared";
 import { useMatchReport } from "./hooks/use-match-report";
 import { MatchFormCard } from "./components/match-form-card";
 import { DiscordPreview } from "./components/discord-preview";
 import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./utils/lib-match-report";
 
-interface MatchReportPageClientProps {
-  initialMatches?: MatchItem[];
-}
+export default function MatchReportPageClient() {
+  const [matches, setMatches] = useState<MatchItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isConfirmTrashOpen, setIsConfirmTrashOpen] = useState(false);
 
-export default function MatchReportPageClient({ initialMatches = [] }: MatchReportPageClientProps) {
   const {
     selectedWeek,
     setSelectedWeek,
@@ -22,17 +22,80 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
     handleDirectUpload,
     isSending,
     setIsSending,
-    filteredMatches,
-    availableWeeks,
-  } = useMatchReport(initialMatches);
+  } = useMatchReport(matches);
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Ambil match yang dicentang HANYA dari filteredMatches
-  const selectedMatches = filteredMatches.filter((m) => selectedMatchIds.includes(m.id));
+  // 🟢 HELPER: KALKULASI WEEK NUMBER BERDASARKAN TANGGAL MATCH
+  const calculateWeekFromDate = (matchDateIso?: string): number => {
+    if (!matchDateIso) return 1;
+    // Gunakan TWI_START_DATE dari env public atau default 3 Agt 2026
+    const startDateStr = process.env.NEXT_PUBLIC_TWI_START_DATE || "2026-08-03";
+    const startDate = new Date(`${startDateStr}T00:00:00+07:00`).getTime();
+    const matchTime = new Date(matchDateIso).getTime();
 
-  // Cek jika ada upload sedang berjalan
-  const isAnyUploading = Object.values(reports).some((r) => r.isUploading);
+    if (isNaN(matchTime) || isNaN(startDate)) return 1;
+
+    const diffDays = Math.floor((matchTime - startDate) / (1000 * 60 * 60 * 24));
+    return Math.max(1, Math.floor(diffDays / 7) + 1);
+  };
+
+  // 🟢 FETCH & AUTOCORRECT SCHEDULES
+  useEffect(() => {
+    async function fetchSchedules() {
+      setIsLoading(true);
+      try {
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        const res = await fetch(`${origin}/api/tournament`, { cache: "no-store" });
+        const data = await res.json();
+
+        if (data.schedules && Array.isArray(data.schedules) && data.schedules.length > 0) {
+          const formatted: MatchItem[] = [];
+
+          for (const m of data.schedules) {
+            let finalWeek = m.weekNumber;
+
+            // Jika weekNumber tidak valid di KV, hitung otomatis dari tanggal
+            if (!finalWeek || typeof finalWeek !== "number" || finalWeek < 1) {
+              finalWeek = calculateWeekFromDate(m.matchDate);
+            }
+
+            const matchNumberStr = m.id ? m.id.replace(/[^0-9]/g, "") : "1";
+
+            formatted.push({
+              id: m.id,
+              group: m.groupName || "Group Stage",
+              week: finalWeek,
+              matchNumber: parseInt(matchNumberStr, 10) || 1,
+              teamA: {
+                name: m.teamAName || "Team A",
+                code: (m.teamAName || "TMA").substring(0, 3).toUpperCase(),
+                emoji: "🔵",
+              },
+              teamB: {
+                name: m.teamBName || "Team B",
+                code: (m.teamBName || "TMB").substring(0, 3).toUpperCase(),
+                emoji: "🔴",
+              },
+            });
+          }
+
+          setMatches(formatted);
+        } else {
+          console.warn("Jadwal di KV masih kosong.");
+        }
+      } catch (err) {
+        console.error("Gagal mengambil jadwal turnamen:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchSchedules();
+  }, []);
+
+  const matchesInSelectedWeek = matches.filter((m) => m.week === selectedWeek);
+  const selectedMatches = matches.filter((m) => selectedMatchIds.includes(m.id));
 
   const handleSendAll = async () => {
     setIsSending(true);
@@ -42,8 +105,7 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
         day: "numeric",
         month: "short",
         year: "numeric",
-      }) +
-      ` at ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
+      }) + ` at ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
 
     const payload = selectedMatches.map((m) => {
       const entry = reports[m.id];
@@ -91,17 +153,42 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
       <TopBar
         title="Match Report System"
         showTrash={true}
-        onClearStorage={() => {
-          localStorage.removeItem(STORAGE_KEY);
-          window.location.reload();
-        }}
+        onClearStorage={() => setIsConfirmTrashOpen(true)}
       />
 
-      <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6">
-        <HeroHeader showDetails={false} />
+      {/* MODAL KONFIRMASI RESET DRAFT */}
+      {isConfirmTrashOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="glass glow-border w-full max-w-sm rounded-2xl border bg-popover/90 p-6 shadow-2xl scale-in-95 animate-in">
+            <h3 className="text-lg font-bold text-foreground">Reset Draft Match Report?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Apakah Anda yakin ingin menghapus semua catatan dan upload gambar yang tersimpan sementara di browser?
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setIsConfirmTrashOpen(false)}
+                className="flex-1 rounded-xl border border-border bg-background py-2.5 text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.removeItem(STORAGE_KEY);
+                  window.location.reload();
+                }}
+                className="flex-1 rounded-xl bg-destructive py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-destructive/90 active:scale-[0.98]"
+              >
+                Ya, Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-        <section className="w-full max-w-2xl space-y-6">
-          {/* Week Selector Dinamis */}
+      <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6 mt-6">
+        <section className="w-full max-w-4xl space-y-6">
+
+          {/* Selector Week */}
           <div className="glass glow-border rounded-2xl border p-5 flex items-center justify-between">
             <span className="font-bold text-sm">Pilih Week Aktif:</span>
             <select
@@ -109,24 +196,31 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
               onChange={(e) => setSelectedWeek(Number(e.target.value))}
               className="rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold focus:outline-none"
             >
-              {availableWeeks.length > 0 ? (
-                availableWeeks.map((weekNum) => (
-                  <option key={weekNum} value={weekNum}>
-                    Week {weekNum}
-                  </option>
-                ))
-              ) : (
-                <option value={1}>Week 1</option>
-              )}
+              <option value={1}>Week 1</option>
+              <option value={2}>Week 2</option>
+              <option value={3}>Week 3</option>
+              <option value={4}>Week 4</option>
+              <option value={5}>Week 5</option>
+              <option value={6}>Week 6</option>
+              <option value={7}>Week 7</option>
             </select>
           </div>
 
-          {/* Match Checkboxes Sesuai Week */}
+          {/* Match Checkboxes List */}
           <div className="glass glow-border rounded-2xl border p-5 space-y-3">
-            <span className="font-bold text-sm block">Pilih Match yang Ingin Dilaporkan:</span>
-            {filteredMatches.length > 0 ? (
+            <span className="font-bold text-sm block">Pilih Match yang Ingin Dilaporkan (Week {selectedWeek}):</span>
+
+            {isLoading ? (
+              <div className="py-4 text-center text-sm text-muted-foreground animate-pulse">
+                Memuat jadwal pertandingan...
+              </div>
+            ) : matchesInSelectedWeek.length === 0 ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">
+                Belum ada jadwal pertandingan untuk Week {selectedWeek}.
+              </div>
+            ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {filteredMatches.map((m) => (
+                {matchesInSelectedWeek.map((m) => (
                   <label
                     key={m.id}
                     className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
@@ -142,19 +236,15 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
                       className="h-4 w-4 rounded accent-primary"
                     />
                     <span className="text-sm font-medium">
-                      Match #{m.matchNumber}: {m.teamA.name} vs {m.teamB.name}
+                      Match #{m.matchNumber} : {m.teamA.name} vs {m.teamB.name}
                     </span>
                   </label>
                 ))}
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">
-                Belum ada jadwal pertandingan untuk Week {selectedWeek}.
-              </p>
             )}
           </div>
 
-          {/* Dynamic Form Cards */}
+          {/* Form Dynamic Upload Cards */}
           {selectedMatches.map((m) => (
             <MatchFormCard
               key={m.id}
@@ -165,13 +255,13 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
             />
           ))}
 
-          {/* Tombol Aksi */}
+          {/* Action Buttons */}
           {selectedMatches.length > 0 && (
-            <div className="glass glow-border rounded-2xl border p-5 flex flex-col sm:flex-row gap-3">
+            <div className="glass glow-border rounded-2xl border p-5 flex gap-4">
               <button
                 type="button"
                 onClick={() => setIsPreviewOpen(!isPreviewOpen)}
-                className="flex-1 rounded-xl border border-border bg-background py-3 text-sm font-bold hover:bg-muted transition-colors"
+                className="flex-1 rounded-xl border border-border bg-background py-3 text-sm font-bold hover:bg-muted"
               >
                 {isPreviewOpen ? "Sembunyikan Preview" : "Preview Discord Embed"}
               </button>
@@ -179,19 +269,15 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
               <button
                 type="button"
                 onClick={handleSendAll}
-                disabled={isSending || isAnyUploading}
-                className="flex-1 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSending}
+                className="flex-1 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground shadow-lg hover:bg-primary/90 disabled:opacity-50"
               >
-                {isSending
-                  ? "Mengirim..."
-                  : isAnyUploading
-                  ? "Menunggu Upload Selesai..."
-                  : "Kirim Semua ke Discord"}
+                {isSending ? "Mengirim..." : "Kirim Semua ke Discord"}
               </button>
             </div>
           )}
 
-          {/* Discord Preview */}
+          {/* Live Discord Embed Preview */}
           {isPreviewOpen && selectedMatches.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-base font-bold">Live Preview Tampilan Discord</h3>
@@ -200,6 +286,7 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
               ))}
             </div>
           )}
+
         </section>
 
         <Footer />
