@@ -1,16 +1,16 @@
-import { cookies } from 'next/headers';
-import { Suspense } from 'react';
-import AuditClientContent from './audit-client';
-import { AdminLoginForm } from '@/components/admin-login-form';
-import { TopBar, HeroHeader, Footer } from '@/components/layout-shared';
+import { cookies } from "next/headers";
+import { Suspense } from "react";
+import AuditClientContent from "./audit-client";
+import { AdminLoginForm } from "@/components/admin-login-form";
+import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 
 export const metadata = {
-  title: 'KV Audit & Cleaner — TWI Season 7',
+  title: "KV Audit & Cleaner — TWI Season 7",
 };
 
 export default async function AdminAuditPage() {
   const cookieStore = await cookies();
-  const adminCookie = cookieStore.get('admin_session')?.value;
+  const adminCookie = cookieStore.get("admin_session")?.value;
   const isAuthorized = Boolean(adminCookie);
 
   if (!isAuthorized) {
@@ -20,6 +20,7 @@ export default async function AdminAuditPage() {
         <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4 pb-4 sm:px-6">
           <HeroHeader showDetails={false} />
           <Suspense fallback={<div className="py-6 text-xs text-muted-foreground">Loading Form...</div>}>
+            {/* Langsung panggil tanpa prop, dia bakal auto reload di halaman /admin/audit */}
             <AdminLoginForm />
           </Suspense>
           <Footer />

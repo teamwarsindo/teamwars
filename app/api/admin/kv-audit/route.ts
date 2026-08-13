@@ -5,24 +5,33 @@ import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
 
-// Helper: Cek Otorisasi Admin via Cookie
+// Helper: Cek Otorisasi Admin via Cookie Server
 async function isAuthorizedAdmin() {
   const cookieStore = await cookies();
   const adminCookie = cookieStore.get('admin_session')?.value;
   return Boolean(adminCookie);
 }
 
-// 🟢 GET: Audit Data & Scan Seluruh Key KV
-export async function GET() {
+// 🟢 GET: Audit Data Summary & Fetch Dynamic Key Value
+export async function GET(req: Request) {
   if (!(await isAuthorizedAdmin())) {
     return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
   }
 
   try {
-    // 1. Ambil Schedules Array
+    const { searchParams } = new URL(req.url);
+    const targetKey = searchParams.get('key');
+
+    // 1. Jika query parameter ?key=NAMA_KEY dikirim, kembalikan isi value key tersebut
+    if (targetKey) {
+      const val = await kv.get(targetKey);
+      return NextResponse.json({ success: true, key: targetKey, value: val });
+    }
+
+    // 2. Default: Ambil Schedules Array utama
     const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
-    // 2. Scan Seluruh Keys Global di Upstash KV
+    // 3. Scan Seluruh Keys Global di Upstash KV
     let allKeys: string[] = [];
     try {
       allKeys = await kv.keys('*');
@@ -30,7 +39,7 @@ export async function GET() {
       allKeys = [KV_KEY_SCHEDULES];
     }
 
-    // 3. Ambil Detail Meta Seluruh Key
+    // 4. Ambil Detail Meta Tipe Data Seluruh Key
     const keysMeta = await Promise.all(
       allKeys.map(async (key) => {
         const type = await kv.type(key);
@@ -38,7 +47,7 @@ export async function GET() {
       })
     );
 
-    // 4. Deteksi Mismatch groupName di Schedules
+    // 5. Deteksi Mismatch groupName di Schedules ("Group A/B" vs "Anda Yakin? / Sakurasawa Fighters")
     const mismatchedSchedules = schedules.filter((m) => {
       const isGroupAOld = m.groupName === 'Group A' || m.groupName === 'GROUP_A';
       const isGroupBOld = m.groupName === 'Group B' || m.groupName === 'GROUP_B';
@@ -56,11 +65,12 @@ export async function GET() {
       keysMeta,
     });
   } catch (error) {
+    console.error('Error GET KV Audit:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
-// 🔵 POST: Batch Normalisasi/Fix Group Name atau Save Custom Raw Data
+// 🔵 POST: Batch Normalisasi Nama Group / Save Custom Schedules / Set Raw Value Key
 export async function POST(req: Request) {
   if (!(await isAuthorizedAdmin())) {
     return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
@@ -99,7 +109,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // C. Set Custom Value Ke Key Apapun
+    // C. Set Custom Value Ke Key Apapun di KV
     if (action === 'SET_RAW_KEY' && rawKey) {
       await kv.set(rawKey, rawValue);
       return NextResponse.json({
@@ -108,13 +118,14 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json({ error: 'Aksi tidak valid' }, { status: 400 });
+    return NextResponse.json({ error: 'Aksi POST tidak valid' }, { status: 400 });
   } catch (error) {
+    console.error('Error POST KV Audit:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
-// 🟡 PATCH: Hapus Kolom/Property Tertentu Dari Seluruh Object Match
+// 🟡 PATCH: Hapus Kolom / Property Field Tertentu Dari Seluruh Data Object Match
 export async function PATCH(req: Request) {
   if (!(await isAuthorizedAdmin())) {
     return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
@@ -137,14 +148,15 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Kolom/Field "${fieldName}" berhasil dihapus dari seluruh data match!`,
+      message: `Kolom/Field "${fieldName}" berhasil dihapus dari seluruh item data!`,
     });
   } catch (error) {
+    console.error('Error PATCH KV Audit:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
-// 🔴 DELETE: Hapus Single Match (Baris) atau Hapus Key KV
+// 🔴 DELETE: Hapus 1 Baris Match ID atau Flush Key KV Global
 export async function DELETE(req: Request) {
   if (!(await isAuthorizedAdmin())) {
     return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
@@ -153,7 +165,7 @@ export async function DELETE(req: Request) {
   try {
     const { matchId, kvKey } = await req.json();
 
-    // A. Hapus 1 Baris Match dari Array
+    // A. Hapus 1 Baris Match Spesifik dari Array Schedules
     if (matchId) {
       const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
       const filtered = schedules.filter((m) => m.id !== matchId);
@@ -164,7 +176,7 @@ export async function DELETE(req: Request) {
       });
     }
 
-    // B. Hapus 1 Key KV Global
+    // B. Flush / Hapus 1 Key KV Global
     if (kvKey) {
       await kv.del(kvKey);
       return NextResponse.json({
@@ -175,6 +187,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ error: 'Parameter hapus tidak valid' }, { status: 400 });
   } catch (error) {
+    console.error('Error DELETE KV Audit:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
