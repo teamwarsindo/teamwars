@@ -12,8 +12,6 @@ interface MatchReportPageClientProps {
 }
 
 export default function MatchReportPageClient({ initialMatches = [] }: MatchReportPageClientProps) {
-  const matches = initialMatches;
-
   const {
     selectedWeek,
     setSelectedWeek,
@@ -24,12 +22,16 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
     handleDirectUpload,
     isSending,
     setIsSending,
-  } = useMatchReport(matches);
+    filteredMatches,
+    availableWeeks,
+  } = useMatchReport(initialMatches);
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const selectedMatches = matches.filter((m) => selectedMatchIds.includes(m.id));
 
-  // Cek apakah ada gambar yang sedang diunggah
+  // Ambil match yang dicentang HANYA dari filteredMatches
+  const selectedMatches = filteredMatches.filter((m) => selectedMatchIds.includes(m.id));
+
+  // Cek jika ada upload sedang berjalan
   const isAnyUploading = Object.values(reports).some((r) => r.isUploading);
 
   const handleSendAll = async () => {
@@ -99,7 +101,7 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
         <HeroHeader showDetails={false} />
 
         <section className="w-full max-w-2xl space-y-6">
-          {/* Week Selector */}
+          {/* Week Selector Dinamis */}
           <div className="glass glow-border rounded-2xl border p-5 flex items-center justify-between">
             <span className="font-bold text-sm">Pilih Week Aktif:</span>
             <select
@@ -107,18 +109,24 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
               onChange={(e) => setSelectedWeek(Number(e.target.value))}
               className="rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold focus:outline-none"
             >
-              <option value={1}>Week 1</option>
-              <option value={2}>Week 2</option>
-              <option value={3}>Week 3</option>
+              {availableWeeks.length > 0 ? (
+                availableWeeks.map((weekNum) => (
+                  <option key={weekNum} value={weekNum}>
+                    Week {weekNum}
+                  </option>
+                ))
+              ) : (
+                <option value={1}>Week 1</option>
+              )}
             </select>
           </div>
 
-          {/* Match Checkboxes */}
+          {/* Match Checkboxes Sesuai Week */}
           <div className="glass glow-border rounded-2xl border p-5 space-y-3">
             <span className="font-bold text-sm block">Pilih Match yang Ingin Dilaporkan:</span>
-            {matches.length > 0 ? (
+            {filteredMatches.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {matches.map((m) => (
+                {filteredMatches.map((m) => (
                   <label
                     key={m.id}
                     className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
@@ -140,11 +148,13 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground italic">Belum ada daftar pertandingan untuk dikirim.</p>
+              <p className="text-xs text-muted-foreground italic">
+                Belum ada jadwal pertandingan untuk Week {selectedWeek}.
+              </p>
             )}
           </div>
 
-          {/* Dynamic Cards */}
+          {/* Dynamic Form Cards */}
           {selectedMatches.map((m) => (
             <MatchFormCard
               key={m.id}

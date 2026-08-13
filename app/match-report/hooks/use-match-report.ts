@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MatchItem, MatchReportEntry, STORAGE_KEY, generateFileName } from "../utils/lib-match-report";
 
 export function useMatchReport(availableMatches: MatchItem[]) {
@@ -9,6 +9,7 @@ export function useMatchReport(availableMatches: MatchItem[]) {
   const [reports, setReports] = useState<Record<string, MatchReportEntry>>({});
   const [isSending, setIsSending] = useState(false);
 
+  // Restore dari LocalStorage
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -23,12 +24,24 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     }
   }, []);
 
+  // Sync ke LocalStorage
   useEffect(() => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({ selectedWeek, selectedMatchIds, reports })
     );
   }, [selectedWeek, selectedMatchIds, reports]);
+
+  // Filter match secara dinamis berdasarkan week yang dipilih
+  const filteredMatches = useMemo(() => {
+    return availableMatches.filter((m) => m.week === selectedWeek);
+  }, [availableMatches, selectedWeek]);
+
+  // Ambil daftar week unik yang tersedia dari data match
+  const availableWeeks = useMemo(() => {
+    const weeks = Array.from(new Set(availableMatches.map((m) => m.week)));
+    return weeks.sort((a, b) => a - b);
+  }, [availableMatches]);
 
   const handleMatchToggle = (matchId: string) => {
     setSelectedMatchIds((prev) =>
@@ -39,7 +52,6 @@ export function useMatchReport(availableMatches: MatchItem[]) {
   const handleDirectUpload = async (match: MatchItem, file: File) => {
     const fileName = generateFileName(match);
 
-    // Set state loading upload untuk match ini
     setReports((prev) => ({
       ...prev,
       [match.id]: {
@@ -80,7 +92,7 @@ export function useMatchReport(availableMatches: MatchItem[]) {
           },
         }));
       } else {
-        alert(data.error?.message || "Gagal mengunggah gambar ke Cloudinary. Cek Unsigned Preset kamu.");
+        alert(data.error?.message || "Gagal mengunggah gambar ke Cloudinary.");
         setReports((prev) => ({
           ...prev,
           [match.id]: { ...prev[match.id], isUploading: false },
@@ -113,5 +125,7 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     handleDirectUpload,
     isSending,
     setIsSending,
+    filteredMatches,
+    availableWeeks,
   };
 }
