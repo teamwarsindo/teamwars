@@ -18,6 +18,7 @@ interface FeedbackModalProps {
 
 export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
   useEffect(() => {
+    // Kunci scroll background saat modal muncul
     if (data && data.isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -67,17 +68,21 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
         </h3>
 
         {/* Deskripsi Memaksa Break Word agar Tidak Offscreen */}
-        <div className="w-full text-center mb-6 px-1">
+        <div className="w-full text-center mb-5 px-1">
           <p className="text-sm text-neutral-300 leading-relaxed whitespace-normal break-words break-all text-center">
             {data.message}
           </p>
         </div>
 
+        {/* Kotak Log Detail Rincian Aktivitas */}
         {data.details && data.details.length > 0 && (
-          <div className="w-full bg-neutral-950 border border-neutral-800/80 rounded-2xl p-4 mb-6 text-left text-xs text-neutral-400 space-y-2 whitespace-normal">
+          <div className="w-full bg-neutral-950 border border-neutral-800/80 rounded-2xl p-4 mb-6 text-left text-xs text-neutral-300 space-y-2 whitespace-normal">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2 border-b border-neutral-800/60 pb-1">
+              Rincian Pembaruan
+            </div>
             {data.details.map((item, idx) => (
-              <div key={idx} className="flex items-start gap-2">
-                <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${isSuccess ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+              <div key={idx} className="flex items-start gap-2.5">
+                <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${isSuccess ? 'bg-emerald-400' : 'bg-rose-400'}`} />
                 <span className="leading-relaxed break-words break-all">{item}</span>
               </div>
             ))}
