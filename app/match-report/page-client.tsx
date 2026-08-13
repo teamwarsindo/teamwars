@@ -1,33 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TopBar, Footer } from "@/components/layout-shared";
 import { useMatchReport } from "./hooks/use-match-report";
 import { MatchFormCard } from "./components/match-form-card";
 import { DiscordPreview } from "./components/discord-preview";
 import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./utils/lib-match-report";
 
-// Dummy Data Contoh (Bisa ditarik dari KV atau Props)
-const DUMMY_MATCHES: MatchItem[] = [
-  {
-    id: "m1",
-    group: "Group A",
-    week: 1,
-    matchNumber: 1,
-    teamA: { name: "Team Alpha", code: "TA", emoji: "🟦" },
-    teamB: { name: "Team Bravo", code: "TB", emoji: "🟥" },
-  },
-  {
-    id: "m2",
-    group: "Group A",
-    week: 1,
-    matchNumber: 2,
-    teamA: { name: "Team Charlie", code: "TC", emoji: "🟨" },
-    teamB: { name: "Team Delta", code: "TD", emoji: "🟩" },
-  },
-];
-
 export default function MatchReportPageClient() {
+  const [matches, setMatches] = useState<MatchItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isConfirmTrashOpen, setIsConfirmTrashOpen] = useState(false); // Modal Konfirmasi Sampah
+
   const {
     selectedWeek,
     setSelectedWeek,
@@ -38,11 +22,52 @@ export default function MatchReportPageClient() {
     handleDirectUpload,
     isSending,
     setIsSending,
-  } = useMatchReport(DUMMY_MATCHES);
+  } = useMatchReport(matches);
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  const selectedMatches = DUMMY_MATCHES.filter((m) => selectedMatchIds.includes(m.id));
+  // 🟢 FETCH DATA JADWAL REAL DARI API TOURNAMENT
+  useEffect(() => {
+    async function fetchSchedules() {
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/tournament");
+        const data = await res.json();
+
+        if (data.schedules && Array.isArray(data.schedules)) {
+          // Format data dari API ke struktur MatchItem
+          const formatted: MatchItem[] = data.schedules.map((m: any, index: number) => ({
+            id: m.id,
+            group: m.groupName || "Group Stage",
+            week: m.weekNumber || 1,
+            matchNumber: index + 1,
+            teamA: {
+              name: m.teamAName,
+              code: m.teamAName.substring(0, 3).toUpperCase(),
+              emoji: "🔵",
+            },
+            teamB: {
+              name: m.teamBName,
+              code: m.teamBName.substring(0, 3).toUpperCase(),
+              emoji: "🔴",
+            },
+          }));
+
+          setMatches(formatted);
+        }
+      } catch (err) {
+        console.error("Gagal mengambil jadwal turnamen:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchSchedules();
+  }, []);
+
+  // Filter match sesuai week yang dipilih
+  const matchesInSelectedWeek = matches.filter((m) => m.week === selectedWeek);
+  const selectedMatches = matches.filter((m) => selectedMatchIds.includes(m.id));
 
   const handleSendAll = async () => {
     setIsSending(true);
@@ -95,19 +120,46 @@ export default function MatchReportPageClient() {
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
-      
+
+      {/* TopBar dengan Trigger Modal Konfirmasi */}
       <TopBar
         title="Match Report System"
         showTrash={true}
-        onClearStorage={() => {
-          localStorage.removeItem(STORAGE_KEY);
-          window.location.reload();
-        }}
+        onClearStorage={() => setIsConfirmTrashOpen(true)}
       />
+
+      {/* MODAL KONFIRMASI HAPUS DRAFT */}
+      {isConfirmTrashOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="glass glow-border w-full max-w-sm rounded-2xl border bg-popover/90 p-6 shadow-2xl scale-in-95 animate-in">
+            <h3 className="text-lg font-bold text-foreground">Reset Draft Match Report?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Apakah Anda yakin ingin menghapus semua catatan dan upload gambar yang tersimpan sementara di browser?
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setIsConfirmTrashOpen(false)}
+                className="flex-1 rounded-xl border border-border bg-background py-2.5 text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.removeItem(STORAGE_KEY);
+                  window.location.reload();
+                }}
+                className="flex-1 rounded-xl bg-destructive py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-destructive/90 active:scale-[0.98]"
+              >
+                Ya, Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6 mt-6">
         <section className="w-full max-w-4xl space-y-6">
-          
+
           {/* Week Selector */}
           <div className="glass glow-border rounded-2xl border p-5 flex items-center justify-between">
             <span className="font-bold text-sm">Pilih Week Aktif:</span>
@@ -119,34 +171,43 @@ export default function MatchReportPageClient() {
               <option value={1}>Week 1</option>
               <option value={2}>Week 2</option>
               <option value={3}>Week 3</option>
+              <option value={4}>Week 4</option>
+              <option value={5}>Week 5</option>
             </select>
           </div>
 
           {/* Match Checkboxes */}
           <div className="glass glow-border rounded-2xl border p-5 space-y-3">
-            <span className="font-bold text-sm block">Pilih Match yang Ingin Dilaporkan:</span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {DUMMY_MATCHES.map((m) => (
-                <label
-                  key={m.id}
-                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                    selectedMatchIds.includes(m.id)
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-background/50 hover:bg-muted"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedMatchIds.includes(m.id)}
-                    onChange={() => handleMatchToggle(m.id)}
-                    className="h-4 w-4 rounded accent-primary"
-                  />
-                  <span className="text-sm font-medium">
-                    Match #{m.matchNumber}: {m.teamA.name} vs {m.teamB.name}
-                  </span>
-                </label>
-              ))}
-            </div>
+            <span className="font-bold text-sm block">Pilih Match yang Ingin Dilaporkan (Week {selectedWeek}):</span>
+            
+            {isLoading ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">Memuat jadwal pertandingan...</div>
+            ) : matchesInSelectedWeek.length === 0 ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">Tidak ada jadwal pertandingan di Week {selectedWeek}.</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {matchesInSelectedWeek.map((m) => (
+                  <label
+                    key={m.id}
+                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                      selectedMatchIds.includes(m.id)
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-background/50 hover:bg-muted"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedMatchIds.includes(m.id)}
+                      onChange={() => handleMatchToggle(m.id)}
+                      className="h-4 w-4 rounded accent-primary"
+                    />
+                    <span className="text-sm font-medium">
+                      [{m.group}] {m.teamA.name} vs {m.teamB.name}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Form Dynamic Cards */}
