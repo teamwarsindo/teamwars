@@ -6,7 +6,6 @@ import { useMatchReport } from "./hooks/use-match-report";
 import { MatchFormCard } from "./components/match-form-card";
 import { DiscordPreview } from "./components/discord-preview";
 import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./utils/lib-match-report";
-import { MatchScheduleItem } from "@/lib/types/tournament";
 import { ChevronDown, Check, RotateCcw } from "lucide-react";
 
 interface MatchReportPageClientProps {
@@ -15,7 +14,7 @@ interface MatchReportPageClientProps {
 
 export default function MatchReportPageClient({ initialMatches = [] }: MatchReportPageClientProps) {
   const [matches, setMatches] = useState<MatchItem[]>(initialMatches);
-  const [isLoading, setIsLoading] = useState(initialMatches.length === 0);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isConfirmTrashOpen, setIsConfirmTrashOpen] = useState(false);
 
   // Filter States
@@ -38,7 +37,7 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // 1. Handle Click Outside Dropdown
+  // Handle Click Outside Dropdown Week
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (weekRef.current && !weekRef.current.contains(event.target as Node)) {
@@ -49,67 +48,72 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 2. Fetch Data Jadwal Real dari API Tournament
+  // Fetch Client-side jika Server Data Kosong
   useEffect(() => {
-    async function fetchSchedules() {
+    if (initialMatches && initialMatches.length > 0) {
+      setMatches(initialMatches);
+      return;
+    }
+
+    async function fetchClientSchedules() {
       setIsLoading(true);
       try {
-        const origin = typeof window !== "undefined" ? window.location.origin : "";
-        const res = await fetch(`${origin}/api/tournament`, { cache: "no-store" });
+        const res = await fetch("/api/tournament");
+        if (!res.ok) throw new Error("API Failed");
         const data = await res.json();
 
-        if (data.schedules && Array.isArray(data.schedules) && data.schedules.length > 0) {
-          const formatted: MatchItem[] = data.schedules.map((m: MatchScheduleItem, index: number) => {
-            const matchNumberStr = m.id ? m.id.replace(/[^0-9]/g, "") : String(index + 1);
+        if (data?.schedules && Array.isArray(data.schedules) && data.schedules.length > 0) {
+          const formatted: MatchItem[] = data.schedules.map((m: any, index: number) => {
+            const rawId = m?.id || `match-${index + 1}`;
+            const matchNumberStr = rawId.replace(/[^0-9]/g, "") || String(index + 1);
 
             return {
-              id: m.id,
-              group: m.groupName || "Group Stage",
-              week: m.weekNumber || 1,
+              id: rawId,
+              group: m?.groupName || "Group Stage",
+              week: Number(m?.weekNumber) || 1,
               matchNumber: parseInt(matchNumberStr, 10) || index + 1,
               teamA: {
-                name: m.teamAName || "Team A",
-                code: m.teamAName || "Team A",
+                name: m?.teamAName || "Team A",
+                code: m?.teamAName || "Team A",
                 emoji: "🔵",
               },
               teamB: {
-                name: m.teamBName || "Team B",
-                code: m.teamBName || "Team B",
+                name: m?.teamBName || "Team B",
+                code: m?.teamBName || "Team B",
                 emoji: "🔴",
               },
             };
           });
-
           setMatches(formatted);
         }
       } catch (err) {
-        console.error("Gagal mengambil jadwal turnamen:", err);
+        console.error("Gagal fetch client schedules:", err);
       } finally {
         setIsLoading(false);
       }
     }
 
-    if (initialMatches.length === 0) {
-      fetchSchedules();
-    }
+    fetchClientSchedules();
   }, [initialMatches]);
 
-  // 3. Ekstrak Semua Daftar Week yang Ada Secara Dinamis (1 s/d N)
+  // Ekstrak Semua Week (Dinamis 1 - N)
   const availableWeeks = useMemo(() => {
-    const weeksSet = new Set(matches.map((m) => m.week));
-    const weeksArr = Array.from(weeksSet).sort((a, b) => a - b);
-    return weeksArr.length > 0 ? weeksArr : [1, 2, 3, 4, 5, 6, 7];
+    if (!matches || matches.length === 0) return [1, 2, 3, 4, 5, 6, 7];
+    const setW = new Set(matches.map((m) => m.week));
+    const arr = Array.from(setW).sort((a, b) => a - b);
+    return arr.length > 0 ? arr : [1, 2, 3, 4, 5, 6, 7];
   }, [matches]);
 
-  // Set default week jika terpilih angka
+  // Update selectedWeek di Hook saat Dropdown Berubah
   useEffect(() => {
     if (typeof selectedWeekFilter === "number") {
       setSelectedWeek(selectedWeekFilter);
     }
   }, [selectedWeekFilter, setSelectedWeek]);
 
-  // 4. Filtering Match
+  // Filtering Logic
   const filteredMatches = useMemo(() => {
+    if (!matches) return [];
     return matches.filter((m) => {
       if (selectedWeekFilter !== "ALL" && m.week !== selectedWeekFilter) return false;
       if (selectedGroupFilter !== "ALL" && m.group !== selectedGroupFilter) return false;
@@ -118,6 +122,7 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
   }, [matches, selectedWeekFilter, selectedGroupFilter]);
 
   const selectedMatches = useMemo(() => {
+    if (!matches) return [];
     return matches.filter((m) => selectedMatchIds.includes(m.id));
   }, [matches, selectedMatchIds]);
 
@@ -181,7 +186,7 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
         onClearStorage={() => setIsConfirmTrashOpen(true)}
       />
 
-      {/* MODAL KONFIRMASI HAPUS DRAFT */}
+      {/* MODAL KONFIRMASI RESET DRAFT */}
       {isConfirmTrashOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="glass glow-border w-full max-w-sm rounded-2xl border bg-popover/90 p-6 shadow-2xl scale-in-95 animate-in">
@@ -215,7 +220,7 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
       {/* MAIN CONTENT WRAPPER */}
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-4 sm:px-6">
         
-        {/* HERO HEADER (LOGO & JUDUL) */}
+        {/* HERO HEADER */}
         <HeroHeader showDetails={false} />
 
         <section className="w-full max-w-4xl space-y-5">
@@ -420,5 +425,5 @@ export default function MatchReportPageClient({ initialMatches = [] }: MatchRepo
       </div>
     </main>
   );
-    }
-      
+          }
+            
