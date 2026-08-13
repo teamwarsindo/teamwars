@@ -7,9 +7,13 @@ import { MatchFormCard } from "./components/match-form-card";
 import { DiscordPreview } from "./components/discord-preview";
 import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./utils/lib-match-report";
 
-export default function MatchReportPageClient() {
-  const [matches, setMatches] = useState<MatchItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+interface MatchReportPageClientProps {
+  initialMatches?: MatchItem[];
+}
+
+export default function MatchReportPageClient({ initialMatches = [] }: MatchReportPageClientProps) {
+  const [matches, setMatches] = useState<MatchItem[]>(initialMatches);
+  const [isLoading, setIsLoading] = useState(initialMatches.length === 0);
   const [isConfirmTrashOpen, setIsConfirmTrashOpen] = useState(false);
 
   const {
@@ -26,22 +30,14 @@ export default function MatchReportPageClient() {
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // 🟢 HELPER: KALKULASI WEEK NUMBER BERDASARKAN TANGGAL MATCH
-  const calculateWeekFromDate = (matchDateIso?: string): number => {
-    if (!matchDateIso) return 1;
-    // Gunakan TWI_START_DATE dari env public atau default 3 Agt 2026
-    const startDateStr = process.env.NEXT_PUBLIC_TWI_START_DATE || "2026-08-03";
-    const startDate = new Date(`${startDateStr}T00:00:00+07:00`).getTime();
-    const matchTime = new Date(matchDateIso).getTime();
-
-    if (isNaN(matchTime) || isNaN(startDate)) return 1;
-
-    const diffDays = Math.floor((matchTime - startDate) / (1000 * 60 * 60 * 24));
-    return Math.max(1, Math.floor(diffDays / 7) + 1);
-  };
-
-  // 🟢 FETCH & AUTOCORRECT SCHEDULES
+  // FETCH FALLBACK jika initialMatches kosong dari Server
   useEffect(() => {
+    if (initialMatches.length > 0) {
+      setMatches(initialMatches);
+      setIsLoading(false);
+      return;
+    }
+
     async function fetchSchedules() {
       setIsLoading(true);
       try {
@@ -50,39 +46,28 @@ export default function MatchReportPageClient() {
         const data = await res.json();
 
         if (data.schedules && Array.isArray(data.schedules) && data.schedules.length > 0) {
-          const formatted: MatchItem[] = [];
+          const formatted: MatchItem[] = data.schedules.map((m: any, index: number) => {
+            const matchNumberStr = m.id ? m.id.replace(/[^0-9]/g, "") : String(index + 1);
 
-          for (const m of data.schedules) {
-            let finalWeek = m.weekNumber;
-
-            // Jika weekNumber tidak valid di KV, hitung otomatis dari tanggal
-            if (!finalWeek || typeof finalWeek !== "number" || finalWeek < 1) {
-              finalWeek = calculateWeekFromDate(m.matchDate);
-            }
-
-            const matchNumberStr = m.id ? m.id.replace(/[^0-9]/g, "") : "1";
-
-            formatted.push({
+            return {
               id: m.id,
               group: m.groupName || "Group Stage",
-              week: finalWeek,
-              matchNumber: parseInt(matchNumberStr, 10) || 1,
+              week: m.weekNumber || 1,
+              matchNumber: parseInt(matchNumberStr, 10) || (index + 1),
               teamA: {
                 name: m.teamAName || "Team A",
-                code: (m.teamAName || "TMA").substring(0, 3).toUpperCase(),
+                code: m.teamAName || "Team A", // Pakai Nama Asli Utuh!
                 emoji: "🔵",
               },
               teamB: {
                 name: m.teamBName || "Team B",
-                code: (m.teamBName || "TMB").substring(0, 3).toUpperCase(),
+                code: m.teamBName || "Team B", // Pakai Nama Asli Utuh!
                 emoji: "🔴",
               },
-            });
-          }
+            };
+          });
 
           setMatches(formatted);
-        } else {
-          console.warn("Jadwal di KV masih kosong.");
         }
       } catch (err) {
         console.error("Gagal mengambil jadwal turnamen:", err);
@@ -92,7 +77,7 @@ export default function MatchReportPageClient() {
     }
 
     fetchSchedules();
-  }, []);
+  }, [initialMatches]);
 
   const matchesInSelectedWeek = matches.filter((m) => m.week === selectedWeek);
   const selectedMatches = matches.filter((m) => selectedMatchIds.includes(m.id));
@@ -293,4 +278,4 @@ export default function MatchReportPageClient() {
       </div>
     </main>
   );
-}
+            }
