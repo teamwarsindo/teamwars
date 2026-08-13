@@ -112,7 +112,7 @@ export function MatchFilterPanel({
           )}
         </div>
 
-        {/* REFRESH KV */}
+        {/* REFRESH KV DATA */}
         <button
           type="button"
           onClick={onRefreshKv}
@@ -140,4 +140,4 @@ export function MatchFilterPanel({
       </div>
     </div>
   );
-}
+          }
