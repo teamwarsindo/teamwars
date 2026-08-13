@@ -40,12 +40,31 @@ function TeamRowActions({
       const data = await res.json();
 
       if (data.success) {
+        // 🔴 BIKIN LOG DETAIL SECARA OTOMATIS DARI STATS RESPON API
+        const logs: string[] = [];
+
+        if (data.stats) {
+          logs.push(`Global Index Redis: ${data.stats.totalPlayers || 0} roster di-index ulang`);
+          logs.push(`Status Verifikasi: ${data.stats.verifiedPlayers || 0}/${data.stats.totalPlayers || 0} pemain terverifikasi (✅)`);
+          logs.push(`Role Discord: Pembagian role tim & izin akses diperbarui`);
+          logs.push(`Embed Discord: Tracker tim & #team-roster ter-update`);
+
+          if (data.stats.transferQuotaUsed !== undefined) {
+            logs.push(`Kuota Transfer: ${data.stats.transferQuotaUsed}/2 terpakai`);
+          }
+        } else {
+          logs.push('Data Redis, Role Discord, dan Embed Roster berhasil disinkronkan.');
+        }
+
         setFeedback({
           isOpen: true,
           type: 'success',
           title: 'Sinkronisasi Berhasil',
           message: `Data tim "${team.namaTim}" telah berhasil disinkronkan ke Database Global dan Discord.`,
+          details: logs, // 👈 DIKIRIM KE FEEDBACK MODAL
         });
+        
+        onRefreshData();
       } else {
         setFeedback({
           isOpen: true,
@@ -102,6 +121,11 @@ function TeamRowActions({
           type: 'success',
           title: 'Tim Berhasil Dihapus',
           message: data.message || `Tim "${team.namaTim}" telah didiskualifikasi dan seluruh data/role/channel terkait telah dibersihkan.`,
+          details: [
+            `Database Tim: Key 'teams:${team.id}' dihapus dari Redis`,
+            `Global Mapping: Index IGN, Discord, & Duel Links dibersihkan`,
+            `Discord Clean Up: Role dan Text Channel tim telah dihapus`,
+          ],
         });
         onRefreshData();
       } else {
@@ -218,8 +242,6 @@ export function AdminTable({
   // 2. Fungsi cerdas untuk menyensor email
   const maskEmail = (email: string) => {
     if (!email) return '••••••••••••';
-  
-    // Langsung kembalikan titik/bintang secara penuh tanpa peduli panjang aslinya
     return '••••••••••••••••'; 
   };
 
@@ -264,7 +286,6 @@ export function AdminTable({
               const [verified, total] = team.rosterStatus.split('/');
               const isComplete = verified === total;
               
-              // Cek status email untuk baris ini
               const isEmailVisible = visibleEmails[team.id];
 
               return (
@@ -293,7 +314,6 @@ export function AdminTable({
                   <td className="px-4 py-3 font-bold text-white whitespace-normal break-words max-w-[200px]">
                     {team.namaTim}
                   </td>
-                  {/* 👇 BAGIAN EMAIL YANG DIUBAH 👇 */}
                   <td className="px-4 py-3 text-neutral-400">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs">
