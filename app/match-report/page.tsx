@@ -10,6 +10,7 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
+// Helper kalkulasi nomor minggu jika weekNumber di KV kosong
 function computeWeekNumber(dateIsoString?: string): number {
   if (!dateIsoString) return 1;
   const startDateStr = process.env.TWI_START_DATE || "2026-08-03";
@@ -19,6 +20,17 @@ function computeWeekNumber(dateIsoString?: string): number {
 
   const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
   return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+// Helper untuk membuat slug/kode dari nama tim
+function getTeamSlug(teamName: string): string {
+  if (!teamName) return "";
+  return teamName
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
 }
 
 export default async function MatchReportPage() {
@@ -33,6 +45,7 @@ export default async function MatchReportPage() {
       const updatedSchedules = schedules.map((m, index) => {
         let week = m.weekNumber;
 
+        // Auto-correct jika weekNumber kosong di KV
         if (!week || typeof week !== "number" || week < 1) {
           week = computeWeekNumber(m.matchDate);
           m.weekNumber = week;
@@ -41,6 +54,9 @@ export default async function MatchReportPage() {
 
         const rawId = m.id || `match-${index + 1}`;
         const matchNumberStr = rawId.replace(/[^0-9]/g, "") || String(index + 1);
+
+        const slugA = getTeamSlug(m.teamAName);
+        const slugB = getTeamSlug(m.teamBName);
 
         return {
           scheduleItem: m,
@@ -55,16 +71,19 @@ export default async function MatchReportPage() {
             teamBLogo: m.teamBLogo || "/logo.webp",
             teamA: {
               name: m.teamAName || "Team A",
-              code: m.teamAName || "Team A",
+              code: (m as any).teamACode || m.teamAName || "Team A",
+              slug: (m as any).teamASlug || slugA,
             },
             teamB: {
               name: m.teamBName || "Team B",
-              code: m.teamBName || "Team B",
+              code: (m as any).teamBCode || m.teamBName || "Team B",
+              slug: (m as any).teamBSlug || slugB,
             },
           },
         };
       });
 
+      // Simpan permanen ke KV jika ada weekNumber yang baru terisi
       if (isKvUpdated) {
         const cleanSchedulesToSave = updatedSchedules.map((item) => item.scheduleItem);
         await kv.set("twi:schedules", cleanSchedulesToSave);
@@ -78,4 +97,4 @@ export default async function MatchReportPage() {
   }
 
   return <MatchReportPageClient initialMatches={matches} />;
-}
+        }
