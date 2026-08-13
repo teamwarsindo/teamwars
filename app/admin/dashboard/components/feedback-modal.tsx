@@ -35,11 +35,11 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[99999] p-4 animate-in fade-in duration-200 whitespace-normal"
       onClick={onClose}
     >
       <div
-        className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-sm sm:max-w-md p-6 shadow-2xl relative flex flex-col items-center text-center overflow-hidden"
+        className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-sm sm:max-w-md p-6 shadow-2xl relative flex flex-col items-center text-center overflow-hidden whitespace-normal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Tombol Silang Top-Right */}
@@ -62,21 +62,23 @@ export function FeedbackModal({ data, onClose }: FeedbackModalProps) {
         </div>
 
         {/* Judul Simetris */}
-        <h3 className="text-xl font-bold text-white mb-2 tracking-tight w-full text-center">
+        <h3 className="text-xl font-bold text-white mb-2 tracking-tight w-full text-center whitespace-normal break-words">
           {data.title}
         </h3>
 
-        {/* Deskripsi Simetris & Auto Wrap */}
-        <p className="text-sm text-neutral-300 leading-relaxed mb-6 break-words w-full text-center px-2">
-          {data.message}
-        </p>
+        {/* Deskripsi Memaksa Break Word agar Tidak Offscreen */}
+        <div className="w-full text-center mb-6 px-1">
+          <p className="text-sm text-neutral-300 leading-relaxed whitespace-normal break-words break-all text-center">
+            {data.message}
+          </p>
+        </div>
 
         {data.details && data.details.length > 0 && (
-          <div className="w-full bg-neutral-950 border border-neutral-800/80 rounded-2xl p-4 mb-6 text-left text-xs text-neutral-400 space-y-2">
+          <div className="w-full bg-neutral-950 border border-neutral-800/80 rounded-2xl p-4 mb-6 text-left text-xs text-neutral-400 space-y-2 whitespace-normal">
             {data.details.map((item, idx) => (
               <div key={idx} className="flex items-start gap-2">
                 <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${isSuccess ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                <span className="leading-relaxed break-words">{item}</span>
+                <span className="leading-relaxed break-words break-all">{item}</span>
               </div>
             ))}
           </div>
