@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchItem, MatchReportEntry, generateFileName } from "../utils/lib-match-report";
+import { MatchItem, MatchReportEntry, generateFileName, maskImageUrl } from "../utils/lib-match-report";
 
 interface MatchFormCardProps {
   match: MatchItem;
@@ -11,6 +11,7 @@ interface MatchFormCardProps {
 
 export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFormCardProps) {
   const fileName = generateFileName(match);
+  const maskedUrl = entry?.imageUrl ? maskImageUrl(entry.imageUrl, fileName) : null;
 
   return (
     <div className="glass glow-border rounded-2xl border p-4 sm:p-6 space-y-4">
@@ -28,7 +29,6 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
       <div className="grid grid-cols-7 items-center gap-1 sm:gap-2 py-1 text-center">
         {/* TIM A (KIRI) */}
         <div className="col-span-3 flex items-center justify-start sm:justify-end gap-1.5 min-w-0">
-          {/* Logo Tim A (Selalu di Kiri) */}
           <img
             src={match.teamALogo || match.teamA.logo || "/logo.webp"}
             alt={match.teamA.name}
@@ -51,7 +51,6 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
 
         {/* TIM B (KANAN) */}
         <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0">
-          {/* Logo Tim B (Selalu di Kiri) */}
           <img
             src={match.teamBLogo || match.teamB.logo || "/logo.webp"}
             alt={match.teamB.name}
@@ -99,10 +98,24 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
           </label>
         )}
 
-        {/* NAMA FILE MASKING */}
+        {/* 🟢 NAMA FILE MASKING BISA DIKLIK JIKA SUDAH ADA GAMBAR */}
         <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-muted-foreground/80 px-1 pt-1">
           <span>Target File Masking:</span>
-          <span className="font-bold text-primary truncate max-w-[180px] sm:max-w-none">{fileName}.png</span>
+          {entry?.imageUrl && maskedUrl ? (
+            <a
+              href={entry.imageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Buka gambar: ${maskedUrl}`}
+              className="font-bold text-primary underline hover:text-primary/80 transition-all truncate max-w-[180px] sm:max-w-none cursor-pointer animate-pulse"
+            >
+              {fileName}.png 🔗
+            </a>
+          ) : (
+            <span className="font-bold text-muted-foreground/60 truncate max-w-[180px] sm:max-w-none">
+              {fileName}.png
+            </span>
+          )}
         </div>
       </div>
 
@@ -119,4 +132,4 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
       </div>
     </div>
   );
-}
+      }
