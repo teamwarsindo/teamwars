@@ -28,10 +28,8 @@ export async function GET() {
             '• **Playoffs Transfer:**\n' +
             '  └ Roster di-*lock* (Dilarang merekrut pemain dari tim lain).\n' +
             '  └ Hanya diizinkan merekrut *Free Agent*.\n' +
-            '• **Waktu Pemrosesan:** Instan selama bot bekerja.\n\n' +
-            '**💡 Catatan Status:**\n' +
-            '• **Free Agent:** Belum pernah terdaftar di tim manapun pada Season 7.\n' +
-            '• **Free Duelist:** Pernah terdaftar di tim lain pada Season 7.\n\n' +
+            '• **Waktu Pemrosesan:**\n' +
+            '  └ Instan selama bot bekerja.\n\n' +
             '──────────',
           color: hexToDecimal('#3498db'),
           fields: [
@@ -99,7 +97,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       action: actionType,
-      message: `🚀 Embed dengan Tag Role Duelist berhasil di-${actionType.toLowerCase()} ke channel ${TARGET_CHANNEL_ID}!`,
+      message: `🚀 Embed berhasil di-${actionType.toLowerCase()} ke channel ${TARGET_CHANNEL_ID}!`,
       messageId: response.id,
     });
   } catch (error: any) {
@@ -108,5 +106,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-              }
-          
+}
