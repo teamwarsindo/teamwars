@@ -28,24 +28,31 @@ export interface MatchReportEntry {
   isUploading?: boolean;
 }
 
-// 🟢 MENGAMBIL KODE TIM / SLUG UTAMA DARI KV DB
+// 🟢 EKSTRAK KODETIM BERSIH (CONTOH: "Final Chapter" -> "fc", "DS SAKURAJIMA" -> "ds")
 export function getCleanTeamCode(team: TeamInfo): string {
-  // 1. Utamakan slug atau code jika ada (contoh: "fc", "dss", "uxe")
-  const rawCode = team.slug || team.code || team.name;
-  if (!rawCode) return "team";
+  // Priority 1: Jika slug / code khusus sudah ada
+  if (team.slug && team.slug.trim() !== "") {
+    const cleanSlug = team.slug.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (cleanSlug.length <= 5) return cleanSlug;
+  }
+  
+  if (team.code && team.code.trim() !== "" && team.code !== team.name) {
+    return team.code.toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
 
-  const cleaned = rawCode.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const name = team.name || "team";
+  const words = name.trim().split(/\s+/);
 
-  // Jika nama tim panjang tanpa slug khusus, ambil inisial kata
-  const words = team.name.trim().split(/\s+/);
-  if (words.length > 1 && cleaned.length > 5) {
+  // Jika nama tim terdiri dari beberapa kata (misal: "Final Chapter"), ambil inisial "fc"
+  if (words.length > 1) {
     return words.map((w) => w[0]).join("").toLowerCase().replace(/[^a-z0-9]/g, "");
   }
 
-  return cleaned;
+  // Jika 1 kata, ambil 3-4 huruf pertama
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 4);
 }
 
-// 🟢 FORMAT NAMA FILE MASKING: report_m1_fc_dss
+// 🟢 FORMAT NAMA FILE MASKING KODETIM: report_m1_fc_ds.png
 export function generateFileName(match: MatchItem): string {
   const codeA = getCleanTeamCode(match.teamA);
   const codeB = getCleanTeamCode(match.teamB);
