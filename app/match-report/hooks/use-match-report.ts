@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MatchItem, MatchReportEntry, STORAGE_KEY, generateFileName, maskImageUrl } from "../utils/lib-match-report";
+import { MatchItem, MatchReportEntry, STORAGE_KEY, generateFileName } from "../utils/lib-match-report";
 
 export function useMatchReport(availableMatches: MatchItem[]) {
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
@@ -9,7 +9,6 @@ export function useMatchReport(availableMatches: MatchItem[]) {
   const [reports, setReports] = useState<Record<string, MatchReportEntry>>({});
   const [isSending, setIsSending] = useState(false);
 
-  // Restore dari LocalStorage saat mount
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -24,7 +23,6 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     }
   }, []);
 
-  // Sync ke LocalStorage
   useEffect(() => {
     localStorage.setItem(
       STORAGE_KEY,
@@ -40,7 +38,8 @@ export function useMatchReport(availableMatches: MatchItem[]) {
 
   const handleDirectUpload = async (match: MatchItem, file: File) => {
     const fileName = generateFileName(match);
-    
+
+    // Set state loading upload untuk match ini
     setReports((prev) => ({
       ...prev,
       [match.id]: {
@@ -54,11 +53,15 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "twi_unsigned");
-      formData.append("public_id", fileName);
+      formData.append(
+        "upload_preset",
+        process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "twi_unsigned"
+      );
+      formData.append("public_id", `report/${fileName}`);
       formData.append("overwrite", "true");
 
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "your_cloud_name";
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dhplw8rsd";
+
       const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: "POST",
         body: formData,
@@ -66,7 +69,7 @@ export function useMatchReport(availableMatches: MatchItem[]) {
 
       const data = await res.json();
 
-      if (data.secure_url) {
+      if (res.ok && data.secure_url) {
         setReports((prev) => ({
           ...prev,
           [match.id]: {
@@ -76,9 +79,16 @@ export function useMatchReport(availableMatches: MatchItem[]) {
             isUploading: false,
           },
         }));
+      } else {
+        alert(data.error?.message || "Gagal mengunggah gambar ke Cloudinary. Cek Unsigned Preset kamu.");
+        setReports((prev) => ({
+          ...prev,
+          [match.id]: { ...prev[match.id], isUploading: false },
+        }));
       }
     } catch (err) {
       console.error("Direct upload gagal:", err);
+      alert("Terjadi kesalahan koneksi saat upload.");
       setReports((prev) => ({
         ...prev,
         [match.id]: { ...prev[match.id], isUploading: false },
