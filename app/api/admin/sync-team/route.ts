@@ -28,6 +28,7 @@ export interface TeamKVData {
   discordChannelId?: string;
   trackerMsgId?: string;
   rosterMsgId?: string;
+  transferQuotaUsed?: number | string; // Key untuk kuota transfer
   createdAt?: string;
   updatedAt?: string;
 }
@@ -42,13 +43,13 @@ function parsePlayers(playersData: string | PlayerItem[] | undefined): PlayerIte
   }
 }
 
-// Helper merapikan nama role agar ringkas (1 baris)
-function formatRoleName(role?: string): string {
-  if (!role) return 'Anggota';
+// Helper mendapatkan Ikon Role singkat
+function getRoleIcon(role?: string): string {
+  if (!role) return '🛡️';
   const r = role.toLowerCase();
-  if (r.includes('ketua') && !r.includes('wakil')) return 'Ketua';
-  if (r.includes('wakil')) return 'Wakil Ketua';
-  return 'Anggota';
+  if (r.includes('ketua') && !r.includes('wakil')) return '👑';
+  if (r.includes('wakil')) return '🪖';
+  return '🛡️';
 }
 
 export async function POST(req: NextRequest) {
@@ -75,6 +76,12 @@ export async function POST(req: NextRequest) {
     const nowIso = new Date().toISOString();
 
     const logoUrl = (teamData.logo || teamData.logoTim || teamData.logoUrl || '').trim();
+
+    // 🔴 BACA KUOTA TRANSFER DARI DB REDIS
+    const rawQuotaUsed = teamData.transferQuotaUsed;
+    const transferQuotaUsed = rawQuotaUsed !== undefined && rawQuotaUsed !== null ? Number(rawQuotaUsed) : 0;
+    const maxTransferQuota = 2; // Default batas maksimal transfer
+    const remainingQuota = Math.max(0, maxTransferQuota - transferQuotaUsed);
 
     // Simpan updatedAt baru ke KV Redis
     const updatesKV: Record<string, any> = {
@@ -122,10 +129,11 @@ export async function POST(req: NextRequest) {
 
       if (isVerified) verifiedCount++;
 
-      // 🔴 FORMAT UNTUK TRACKER (TANPA BACKTICK DENGAN EMOJI KOTAK HIJAU AGAR RAPI 1 BARIS SEPERTI DS)
-      const icon = isVerified ? "✅" : "❌";
-      const roleName = formatRoleName(player.role);
-      trackerRosterText += `${icon} **${rawIgn || '-'}** (@${discordUser || '-'}) - ${roleName}\n`;
+      // 🔴 FORMAT ROSTER 1 BARIS PAKAI IKON ROLE (👑 Ketua, 🪖 Wakil, 🛡️ Anggota)
+      const iconVerified = isVerified ? "✅" : "❌";
+      const roleIcon = getRoleIcon(player.role);
+      
+      trackerRosterText += `${iconVerified} ${roleIcon} **${rawIgn || '-'}** (@${discordUser || '-'})\n`;
 
       // Assign Discord Role
       if (roleId && discordId) {
@@ -133,19 +141,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. UPDATE / PATCH EMBED TRACKER INTERNAL TIM (#kings-united / #ds-xernobyl)
+    // Tambahkan Legenda/Keterangan Ikon di bawah Daftar Roster
+    trackerRosterText += `\n*Keterangan: 👑 Ketua | 🪖 Wakil | 🛡️ Anggota*`;
+
+    // 4. UPDATE / PATCH EMBED TRACKER INTERNAL TIM (#kings-united / #licht-dracarys)
     if (channelId) {
+      // Susun Fields Embed
+      const trackerFields = [
+        { name: "📌 Role Tim", value: roleId ? `<@&${roleId}>` : `*(Belum Ada)*`, inline: true },
+        { name: "📊 Status", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true },
+        // 🔴 FIELD KUOTA TRANSFER (Tampilkan Kuota Terpakai & Sisa)
+        { 
+          name: "🔄 Kuota Transfer", 
+          value: `**${transferQuotaUsed} / ${maxTransferQuota}** Terpakai *(Sisa: ${remainingQuota})*`, 
+          inline: false 
+        }
+      ];
+
       const trackerEmbedPayload = {
         embeds: [{
           title: teamData.namaTim || teamSlug,
-          description: `**DAFTAR ROSTER:**\n${trackerRosterText || '*Belum ada roster.*'}`,
+          description: `**DAFTAR ROSTER:**\n${trackerRosterText}`,
           color: hexToDecimal(teamData.warna || '#3b82f6'),
-          // 🔴 CATATAN: THUMBNAIL LOGO DISENGANJA DIHAPUS KHUSUS EMBED TRACKER
-          // AGAR LEBAR TEXT BOX BISA DIBUAT RAPI 1 BARIS SEPERTI DS XERNOBYL
-          fields: [
-            { name: "📌 Role Tim", value: roleId ? `<@&${roleId}>` : `*(Belum Ada)*`, inline: true },
-            { name: "📊 Status", value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true }
-          ],
+          fields: trackerFields,
           footer: { text: getFooterText(createdAt, nowIso) }
         }]
       };
@@ -169,7 +187,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. UPDATE / PATCH EMBED ROSTER GLOBAL DI CHANNEL #team-roster (LOGO TETAP ADA DI SINI)
+    // 5. UPDATE / PATCH EMBED ROSTER GLOBAL DI CHANNEL #team-roster
     const rosterChannelId = DISCORD_CONFIG.CH_ROSTER;
     if (rosterChannelId) {
       const globalPlayerListString = players
@@ -180,7 +198,7 @@ export async function POST(req: NextRequest) {
         embeds: [{
           title: teamData.namaTim || teamSlug,
           color: hexToDecimal(teamData.warna || '#3b82f6'),
-          ...(logoUrl ? { thumbnail: { url: logoUrl } } : {}), // Logo tetap tampil di #team-roster global
+          ...(logoUrl ? { thumbnail: { url: logoUrl } } : {}),
           fields: [
             { name: "Ketua", value: ketuaPlayer?.ign || '-', inline: true },
             { name: "Wakil", value: wakilPlayer?.ign || '-', inline: true },
@@ -229,7 +247,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 6. SIMPAN DATA UPDATED_AT DAN rosterMsgId KE REDIS KV
+    // 6. SIMPAN DATA UPDATED_AT DAN MAPPING KE REDIS KV
     await kv.hset(`teams:${teamSlug}`, updatesKV);
 
     return NextResponse.json({
@@ -238,6 +256,7 @@ export async function POST(req: NextRequest) {
       stats: {
         totalPlayers: players.length,
         verifiedPlayers: verifiedCount,
+        transferQuotaUsed: transferQuotaUsed,
         syncedAt: nowIso
       }
     });
@@ -246,4 +265,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Force Sync Team:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-  }
+          }
