@@ -4,9 +4,19 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { MatchScheduleItem, DIVISION_MAP } from "@/lib/types/tournament";
 import { calculateStandings } from "@/lib/tournament/calculator";
-import { ChevronRight, Trophy, Calendar, Sparkles, BookOpen, Layers } from "lucide-react";
+import { ChevronRight, Trophy, Calendar, BookOpen, Layers } from "lucide-react";
 
-function getCurrentWeek(): number {
+function getMatchWeekNumber(dateString: string): number {
+  if (!dateString) return 1;
+  const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
+  const matchDate = new Date(dateString).getTime();
+  if (isNaN(matchDate)) return 1;
+
+  const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+function getCurrentCalendarWeek(): number {
   const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
   const now = new Date().getTime();
   const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
@@ -18,7 +28,7 @@ export function TournamentHub() {
   const [masterTeams, setMasterTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const currentWeek = useMemo(() => getCurrentWeek(), []);
+  const currentWeek = useMemo(() => getCurrentCalendarWeek(), []);
 
   useEffect(() => {
     async function loadData() {
@@ -38,20 +48,34 @@ export function TournamentHub() {
     loadData();
   }, []);
 
-  // Ambil standing terkini (Top 2 per grup)
-  const { topGroupA, topGroupB } = useMemo(() => {
-    const standings = calculateStandings(schedules, masterTeams, currentWeek);
-    const grpA = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A).slice(0, 2);
-    const grpB = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B).slice(0, 2);
-    return { topGroupA: grpA, topGroupB: grpB };
-  }, [schedules, masterTeams, currentWeek]);
+  // Standardisasi schedules dengan weekNumber yang presisi
+  const schedulesWithWeek = useMemo(() => {
+    return schedules.map((m) => ({
+      ...m,
+      weekNumber: m.weekNumber || getMatchWeekNumber(m.matchDate),
+    }));
+  }, [schedules]);
 
-  // Ambil 3-4 jadwal pertandingan week aktif
+  // Standing dihitung konsisten sesuai currentWeek
+  const { topGroupA, topGroupB } = useMemo(() => {
+    const standings = calculateStandings(schedulesWithWeek, masterTeams, currentWeek);
+    const grpA = standings
+      .filter((s) => s.groupName === DIVISION_MAP.GROUP_A)
+      .slice(0, 2)
+      .map((item, idx) => ({ ...item, rank: idx + 1 }));
+
+    const grpB = standings
+      .filter((s) => s.groupName === DIVISION_MAP.GROUP_B)
+      .slice(0, 2)
+      .map((item, idx) => ({ ...item, rank: idx + 1 }));
+
+    return { topGroupA: grpA, topGroupB: grpB };
+  }, [schedulesWithWeek, masterTeams, currentWeek]);
+
+  // Match yang sesuai schedule week aktif
   const currentWeekMatches = useMemo(() => {
-    return schedules
-      .filter((m) => (m.weekNumber || 1) === currentWeek)
-      .slice(0, 4);
-  }, [schedules, currentWeek]);
+    return schedulesWithWeek.filter((m) => m.weekNumber === currentWeek);
+  }, [schedulesWithWeek, currentWeek]);
 
   const formatDate = (isoDate: string) => {
     if (!isoDate) return "";
@@ -66,13 +90,80 @@ export function TournamentHub() {
     }).format(d);
   };
 
+  const renderLeaderRow = (
+    item: any,
+    idx: number,
+    groupColor: "GROUP_A" | "GROUP_B"
+  ) => {
+    const isGroupA = groupColor === "GROUP_A";
+
+    return (
+      <div
+        key={item.teamId || item.teamName || idx}
+        className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs border transition ${
+          isGroupA
+            ? "bg-sky-500/10 border-sky-500/30 border-l-4 border-l-sky-500"
+            : "bg-amber-500/10 border-amber-500/30 border-l-4 border-l-amber-500"
+        }`}
+      >
+        {/* TIM & RANK */}
+        <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+          <span
+            className={`font-black text-xs shrink-0 ${
+              isGroupA ? "text-sky-500" : "text-amber-500"
+            }`}
+          >
+            #{idx + 1}
+          </span>
+          <img
+            src={item.teamLogo || "/logo.webp"}
+            alt=""
+            className="h-4 w-4 shrink-0 object-contain"
+          />
+          <span className="font-bold text-[11px] truncate text-foreground">
+            {item.teamName}
+          </span>
+        </div>
+
+        {/* STATS KONSISTEN DENGAN STANDING TAB */}
+        <div className="flex items-center gap-2.5 text-[10.5px] font-bold shrink-0">
+          <span className="text-muted-foreground w-11 text-center">
+            {item.matchWins}-{item.matchLosses}
+          </span>
+
+          <span
+            className={`w-6 text-center ${
+              item.roundDifference > 0
+                ? "text-emerald-500"
+                : item.roundDifference < 0
+                ? "text-rose-500"
+                : "text-muted-foreground"
+            }`}
+          >
+            {item.roundDifference > 0
+              ? `+${item.roundDifference}`
+              : item.roundDifference}
+          </span>
+
+          <span className="w-5 text-center text-foreground font-extrabold">
+            {item.setWins}
+          </span>
+
+          <span className="w-8 text-right font-black text-primary text-xs">
+            {item.points}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="w-full max-w-4xl space-y-6">
+    <div className="w-full max-w-4xl space-y-5">
       {/* 1. QUICK ACTION GRID */}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <Link
           href="/tournament?tab=schedule"
-          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3.5 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
             <Calendar className="h-5 w-5" />
@@ -85,7 +176,7 @@ export function TournamentHub() {
 
         <Link
           href="/tournament?tab=standing"
-          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3.5 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 group-hover:scale-110 transition-transform">
             <Trophy className="h-5 w-5" />
@@ -98,7 +189,7 @@ export function TournamentHub() {
 
         <Link
           href="/tournament/decks"
-          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3.5 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-sky-500 group-hover:scale-110 transition-transform">
             <Layers className="h-5 w-5" />
@@ -111,7 +202,7 @@ export function TournamentHub() {
 
         <Link
           href="/rules"
-          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3.5 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
+          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
             <BookOpen className="h-5 w-5" />
@@ -126,13 +217,13 @@ export function TournamentHub() {
       {/* 2. MATCH & STANDING HIGHLIGHTS */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         
-        {/* WIDGET: JADWAL MINGGU INI */}
+        {/* WIDGET: JADWAL MATCH SESUAI SCHEDULE */}
         <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
               <h2 className="text-xs font-black uppercase tracking-wider text-foreground">
-                Match Week {currentWeek}
+                MATCH WEEK {currentWeek}
               </h2>
             </div>
             <Link
@@ -144,12 +235,12 @@ export function TournamentHub() {
           </div>
 
           {loading ? (
-            <div className="py-6 text-center text-xs text-muted-foreground animate-pulse">
+            <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">
               Memuat data pertandingan...
             </div>
           ) : currentWeekMatches.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted-foreground">
-              Belum ada match tercatat untuk Week {currentWeek}.
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              Tidak ada jadwal pertandingan untuk Week {currentWeek}.
             </div>
           ) : (
             <div className="space-y-2">
@@ -159,8 +250,14 @@ export function TournamentHub() {
                   className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 p-2.5 text-xs hover:border-primary/40 transition"
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <img src={m.teamALogo || "/logo.webp"} alt="" className="h-5 w-5 shrink-0 object-contain" />
-                    <span className="truncate font-bold text-[11px]">{m.teamAName}</span>
+                    <img
+                      src={m.teamALogo || "/logo.webp"}
+                      alt=""
+                      className="h-5 w-5 shrink-0 object-contain"
+                    />
+                    <span className="truncate font-bold text-[11px]">
+                      {m.teamAName}
+                    </span>
                   </div>
 
                   <div className="px-3 text-center shrink-0">
@@ -179,8 +276,14 @@ export function TournamentHub() {
                   </div>
 
                   <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
-                    <span className="truncate font-bold text-[11px] text-right">{m.teamBName}</span>
-                    <img src={m.teamBLogo || "/logo.webp"} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                    <span className="truncate font-bold text-[11px] text-right">
+                      {m.teamBName}
+                    </span>
+                    <img
+                      src={m.teamBLogo || "/logo.webp"}
+                      alt=""
+                      className="h-5 w-5 shrink-0 object-contain"
+                    />
                   </div>
                 </div>
               ))}
@@ -188,13 +291,13 @@ export function TournamentHub() {
           )}
         </div>
 
-        {/* WIDGET: TOP LEADERS STANDING */}
+        {/* WIDGET: PUNCAK KLASEMEN */}
         <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
             <div className="flex items-center gap-2">
               <Trophy className="h-3.5 w-3.5 text-amber-500" />
               <h2 className="text-xs font-black uppercase tracking-wider text-foreground">
-                Pemuncak Klasemen
+                PUNCAK KLASEMEN
               </h2>
             </div>
             <Link
@@ -206,58 +309,46 @@ export function TournamentHub() {
           </div>
 
           {loading ? (
-            <div className="py-6 text-center text-xs text-muted-foreground animate-pulse">
+            <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">
               Menghitung klasemen...
             </div>
           ) : (
-            <div className="space-y-3">
-              {/* Group A Leaders */}
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-sky-500 block mb-1.5">
-                  Divisi {DIVISION_MAP.GROUP_A}
-                </span>
+            <div className="space-y-3.5">
+              {/* Group A */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-sky-500">
+                    Divisi {DIVISION_MAP.GROUP_A}
+                  </span>
+                  <div className="flex items-center gap-2.5 text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider pr-1">
+                    <span className="w-11 text-center">W-L</span>
+                    <span className="w-6 text-center">RD</span>
+                    <span className="w-5 text-center">SET</span>
+                    <span className="w-8 text-right text-primary">PTS</span>
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  {topGroupA.map((t, idx) => (
-                    <div
-                      key={t.teamId || idx}
-                      className="flex items-center justify-between rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-1.5 text-xs"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-black text-sky-500 text-[11px]">#{idx + 1}</span>
-                        <img src={t.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                        <span className="font-bold text-[11px] truncate">{t.teamName}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] font-bold">
-                        <span className="text-muted-foreground">{t.matchWins}W - {t.matchLosses}L</span>
-                        <span className="text-primary font-black">{t.points} Pts</span>
-                      </div>
-                    </div>
-                  ))}
+                  {topGroupA.map((t, idx) => renderLeaderRow(t, idx, "GROUP_A"))}
                 </div>
               </div>
 
-              {/* Group B Leaders */}
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-500 block mb-1.5">
-                  Divisi {DIVISION_MAP.GROUP_B}
-                </span>
+              {/* Group B */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-500">
+                    Divisi {DIVISION_MAP.GROUP_B}
+                  </span>
+                  <div className="flex items-center gap-2.5 text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider pr-1">
+                    <span className="w-11 text-center">W-L</span>
+                    <span className="w-6 text-center">RD</span>
+                    <span className="w-5 text-center">SET</span>
+                    <span className="w-8 text-right text-primary">PTS</span>
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  {topGroupB.map((t, idx) => (
-                    <div
-                      key={t.teamId || idx}
-                      className="flex items-center justify-between rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 text-xs"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-black text-amber-500 text-[11px]">#{idx + 1}</span>
-                        <img src={t.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                        <span className="font-bold text-[11px] truncate">{t.teamName}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] font-bold">
-                        <span className="text-muted-foreground">{t.matchWins}W - {t.matchLosses}L</span>
-                        <span className="text-primary font-black">{t.points} Pts</span>
-                      </div>
-                    </div>
-                  ))}
+                  {topGroupB.map((t, idx) => renderLeaderRow(t, idx, "GROUP_B"))}
                 </div>
               </div>
             </div>
@@ -270,7 +361,9 @@ export function TournamentHub() {
       <div className="flex items-center justify-between rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-xs">
         <div className="space-y-0.5">
           <p className="font-extrabold text-foreground">Gabung Komunitas Discord Resmi</p>
-          <p className="text-[11px] text-muted-foreground">Kordinasi referee, update live streaming, dan room match.</p>
+          <p className="text-[11px] text-muted-foreground">
+            Kordinasi referee, update live streaming, dan room match.
+          </p>
         </div>
         <a
           href="https://discord.gg/teamwarsindo"
@@ -283,4 +376,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-}
+              }
