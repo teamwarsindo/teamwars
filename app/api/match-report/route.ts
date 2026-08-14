@@ -24,13 +24,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Tarik data jadwal dari KV Redis untuk pengecekan Message ID
     const schedules = (await kv.get<any[]>("twi:schedules")) || [];
     let isSchedulesUpdated = false;
     const results = [];
 
+    // Format Tanggal Footer: 14 Agu 2026, 10.28 WIB
+    const now = new Date();
+    const formattedDate =
+      now.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }) +
+      ", " +
+      now.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).replace(":", ".") +
+      " WIB";
+
     for (const report of reports) {
-      // 🟢 Formatter Custom Emoji Discord (<:code:emojiId> atau emoji biasa)
       const renderTeamBadge = (team: any) => {
         if (team?.emojiId && team?.code) {
           return `<:${team.code}:${team.emojiId}>`;
@@ -44,24 +58,26 @@ export async function POST(request: NextRequest) {
       const titleA = `${teamABadge} **${report.teamA.name}**`.trim();
       const titleB = `${teamBBadge} **${report.teamB.name}**`.trim();
 
-      // Embed Payload Discord
+      // 🟢 BUSTER CACHE DISCORD: Paksa Discord mengunduh gambar terbaru
+      const rawImageUrl = report.maskedImageUrl || report.imageUrl;
+      const forceFreshImageUrl = rawImageUrl
+        ? `${rawImageUrl.split("?")[0]}?v=${Date.now()}`
+        : undefined;
+
       const payload = {
         embeds: [
           {
             title: `${report.group.toUpperCase()} — WEEK ${report.week}`,
             color: 0x3b82f6,
             description: `⚔️ **Match Report #${report.matchNumber}**\n${titleA}  VS  ${titleB}\n\n📝 **Catatan Match:**\n${report.notes || "_Tidak ada catatan._"}`,
-            image: {
-              url: report.maskedImageUrl || report.imageUrl,
-            },
+            image: forceFreshImageUrl ? { url: forceFreshImageUrl } : undefined,
             footer: {
-              text: `TWI Season 7 • ${report.formattedDate || new Date().toLocaleDateString("id-ID")}`,
+              text: `TWI Season 7 • ${report.formattedDate || formattedDate}`,
             },
           },
         ],
       };
 
-      // Cek apakah match ini sudah pernah dikirim (punya discordMessageId di KV)
       const scheduleIdx = schedules.findIndex(
         (s) => (s.id || `match-${s.matchNumber}`) === report.matchId
       );
@@ -70,7 +86,7 @@ export async function POST(request: NextRequest) {
       let res;
 
       if (existingMessageId) {
-        // 🟢 EDIT PESAN LAMA (PATCH)
+        // EDIT PESAN DISCORD LAMA
         res = await fetch(
           `https://discord.com/api/v10/channels/${targetChannelId}/messages/${existingMessageId}`,
           {
@@ -83,7 +99,7 @@ export async function POST(request: NextRequest) {
           }
         );
       } else {
-        // 🟢 KIRIM PESAN BARU (POST)
+        // KIRIM PESAN BARU
         res = await fetch(
           `https://discord.com/api/v10/channels/${targetChannelId}/messages`,
           {
@@ -101,7 +117,6 @@ export async function POST(request: NextRequest) {
         const resData = await res.json();
         results.push({ matchId: report.matchId, success: true, messageId: resData.id });
 
-        // Simpan discordMessageId baru ke KV Redis jika baru dibuat
         if (!existingMessageId && resData.id && scheduleIdx !== -1) {
           schedules[scheduleIdx].discordMessageId = resData.id;
           isSchedulesUpdated = true;
@@ -111,11 +126,9 @@ export async function POST(request: NextRequest) {
         results.push({ matchId: report.matchId, success: false, error: errorData });
       }
 
-      // Delay kecil untuk menghindari rate-limit Discord API
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
-    // Simpan pembaruan Message ID ke Vercel KV jika ada pesan baru
     if (isSchedulesUpdated) {
       await kv.set("twi:schedules", schedules);
     }
