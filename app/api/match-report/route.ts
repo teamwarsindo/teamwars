@@ -28,7 +28,6 @@ export async function POST(request: NextRequest) {
     let isSchedulesUpdated = false;
     const results = [];
 
-    // Format Tanggal Footer: 14 Agu 2026, 10.28 WIB
     const now = new Date();
     const formattedDate =
       now.toLocaleDateString("id-ID", {
@@ -58,7 +57,6 @@ export async function POST(request: NextRequest) {
       const titleA = `${teamABadge} **${report.teamA.name}**`.trim();
       const titleB = `${teamBBadge} **${report.teamB.name}**`.trim();
 
-      // 🟢 BUSTER CACHE DISCORD: Paksa Discord mengunduh gambar terbaru
       const rawImageUrl = report.maskedImageUrl || report.imageUrl;
       const forceFreshImageUrl = rawImageUrl
         ? `${rawImageUrl.split("?")[0]}?v=${Date.now()}`
@@ -86,7 +84,7 @@ export async function POST(request: NextRequest) {
       let res;
 
       if (existingMessageId) {
-        // EDIT PESAN DISCORD LAMA
+        // PATCH / EDIT PESAN DISCORD LAMA
         res = await fetch(
           `https://discord.com/api/v10/channels/${targetChannelId}/messages/${existingMessageId}`,
           {
@@ -99,7 +97,7 @@ export async function POST(request: NextRequest) {
           }
         );
       } else {
-        // KIRIM PESAN BARU
+        // POST PESAN BARU
         res = await fetch(
           `https://discord.com/api/v10/channels/${targetChannelId}/messages`,
           {
@@ -117,8 +115,13 @@ export async function POST(request: NextRequest) {
         const resData = await res.json();
         results.push({ matchId: report.matchId, success: true, messageId: resData.id });
 
-        if (!existingMessageId && resData.id && scheduleIdx !== -1) {
-          schedules[scheduleIdx].discordMessageId = resData.id;
+        if (scheduleIdx !== -1) {
+          if (!existingMessageId && resData.id) {
+            schedules[scheduleIdx].discordMessageId = resData.id;
+          }
+          // 🟢 SIMPAN GAMBAR & CATATAN PERMANEN KE KV
+          schedules[scheduleIdx].reportImageUrl = report.imageUrl;
+          schedules[scheduleIdx].reportNotes = report.notes;
           isSchedulesUpdated = true;
         }
       } else {

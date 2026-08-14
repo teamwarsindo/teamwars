@@ -9,19 +9,40 @@ export function useMatchReport(availableMatches: MatchItem[]) {
   const [reports, setReports] = useState<Record<string, MatchReportEntry>>({});
   const [isSending, setIsSending] = useState(false);
 
+  // Inisialisasi awal: Gabungkan data LocalStorage dengan data KV
   useEffect(() => {
+    let initialReports: Record<string, MatchReportEntry> = {};
+
+    // 1. Ambil data tersimpan dari KV database terlebih dahulu
+    if (availableMatches && availableMatches.length > 0) {
+      availableMatches.forEach((m: any) => {
+        if (m.reportImageUrl || m.reportNotes) {
+          initialReports[m.id] = {
+            matchId: m.id,
+            imageUrl: m.reportImageUrl || "",
+            notes: m.reportNotes || "",
+          };
+        }
+      });
+    }
+
+    // 2. Timpa dengan LocalStorage jika ada draft yang belum disubmit
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (parsed.selectedWeek) setSelectedWeek(parsed.selectedWeek);
         if (parsed.selectedMatchIds) setSelectedMatchIds(parsed.selectedMatchIds);
-        if (parsed.reports) setReports(parsed.reports);
+        if (parsed.reports) {
+          initialReports = { ...initialReports, ...parsed.reports };
+        }
       } catch (e) {
         console.error("Gagal load draft dari LocalStorage", e);
       }
     }
-  }, []);
+
+    setReports(initialReports);
+  }, [availableMatches]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -39,7 +60,7 @@ export function useMatchReport(availableMatches: MatchItem[]) {
   const handleDirectUpload = async (match: MatchItem, file: File) => {
     let fileName = "";
     try {
-      fileName = generateFileName(match); // Akan melempar error jika kodeTim tidak ada di DB
+      fileName = generateFileName(match);
     } catch (err: any) {
       alert(`[ERROR KODETIM DB]: ${err.message}`);
       return;
@@ -56,8 +77,6 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     }));
 
     try {
-      // 🟢 Minta Signature dari backend server
-      // public_id cukuplah 'fileName' saja karena folder sudah 'report' (Mencegah ganda report/report)
       const signRes = await fetch("/api/sign-cloudinary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,10 +94,9 @@ export function useMatchReport(availableMatches: MatchItem[]) {
       const { api_key, signature, timestamp, folder, format } = signData;
 
       if (!api_key || !signature) {
-        throw new Error("Respon dari /api/sign-cloudinary tidak menyertakan api_key atau signature!");
+        throw new Error("Respon signature tidak lengkap.");
       }
 
-      // 🟢 Kirim payload persis sama dengan signature
       const formData = new FormData();
       formData.append("file", file);
       formData.append("api_key", api_key);
@@ -147,4 +165,4 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     isSending,
     setIsSending,
   };
-  }
+}
