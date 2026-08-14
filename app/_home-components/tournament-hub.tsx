@@ -48,7 +48,7 @@ export function TournamentHub() {
     loadData();
   }, []);
 
-  // Standardisasi schedule
+  // 1. Standardisasi schedules dengan weekNumber yang presisi
   const schedulesWithWeek = useMemo(() => {
     return schedules.map((m) => ({
       ...m,
@@ -56,7 +56,7 @@ export function TournamentHub() {
     }));
   }, [schedules]);
 
-  // Klasemen Top 2 Per Group
+  // 2. Klasemen Top 2 Per Divisi Group
   const { topGroupA, topGroupB } = useMemo(() => {
     const standings = calculateStandings(schedulesWithWeek, masterTeams, currentWeek);
     const grpA = standings
@@ -72,35 +72,40 @@ export function TournamentHub() {
     return { topGroupA: grpA, topGroupB: grpB };
   }, [schedulesWithWeek, masterTeams, currentWeek]);
 
-  // Pisahkan match Hari Ini & Upcoming berdasarkan waktu server
+  // 3. FILTER PROTEKSI: Hanya membaca jadwal dari week yang aktif saat ini
   const { todayMatches, upcomingMatches } = useMemo(() => {
     const now = new Date();
-    // Konversi tanggal hari ini format YYYY-MM-DD lokal
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-    const sortedByDate = [...schedulesWithWeek]
+    // STRICT: Hanya ambil pertandingan di week aktif
+    const currentWeekOnlySchedules = schedulesWithWeek.filter(
+      (m) => m.weekNumber === currentWeek
+    );
+
+    const sortedByDate = [...currentWeekOnlySchedules]
       .filter((m) => m.matchDate)
       .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
+    // Main Hari Ini di Week Aktif
     const todayList = sortedByDate.filter((m) => {
       const d = new Date(m.matchDate);
       const matchDayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       return matchDayStr === todayStr;
     });
 
+    // Pertandingan Berikutnya di Week Aktif (Belum Main & Bukan Hari Ini)
     const upcomingList = sortedByDate
       .filter((m) => {
         const matchTime = new Date(m.matchDate).getTime();
         const isFuture = matchTime > now.getTime();
         const d = new Date(m.matchDate);
         const matchDayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        // Ambil yang di masa depan dan bukan hari ini
         return isFuture && matchDayStr !== todayStr && !m.isFinished;
       })
-      .slice(0, 3); // Ambil Top 3 match terdekat
+      .slice(0, 3);
 
     return { todayMatches: todayList, upcomingMatches: upcomingList };
-  }, [schedulesWithWeek]);
+  }, [schedulesWithWeek, currentWeek]);
 
   const formatDate = (isoDate: string) => {
     if (!isoDate) return "";
@@ -229,7 +234,7 @@ export function TournamentHub() {
 
   return (
     <div className="w-full max-w-4xl space-y-5">
-      {/* 1. QUICK ACTION GRID (3 MENU) */}
+      {/* 1. QUICK ACTION GRID */}
       <div className="grid grid-cols-3 gap-2.5">
         <Link
           href="/tournament?tab=schedule"
@@ -253,7 +258,7 @@ export function TournamentHub() {
           </div>
           <div>
             <span className="text-xs font-bold text-foreground block">Klasemen</span>
-            <span className="text-[9.5px] text-muted-foreground">Group & Playoff</span>
+            <span className="text-[9.5px] text-muted-foreground">Group &amp; Playoff</span>
           </div>
         </Link>
 
@@ -274,13 +279,13 @@ export function TournamentHub() {
       {/* 2. MATCH & STANDING HIGHLIGHTS */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         
-        {/* WIDGET: JADWAL MATCH (HARI INI & UPCOMING) */}
+        {/* WIDGET: JADWAL MATCH WEEK AKTIF */}
         <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
               <h2 className="text-xs font-black uppercase tracking-wider text-foreground">
-                Jadwal Pertandingan
+                Jadwal Pertandingan (Week {currentWeek})
               </h2>
             </div>
             <Link
@@ -310,14 +315,14 @@ export function TournamentHub() {
                 </div>
               )}
 
-              {/* UPCOMING MATCHES (TOP 3) */}
+              {/* UPCOMING MATCHES DI WEEK AKTIF */}
               <div className="space-y-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
                   Pertandingan Berikutnya
                 </span>
                 {upcomingMatches.length === 0 && todayMatches.length === 0 ? (
                   <div className="py-4 text-center text-xs text-muted-foreground">
-                    Tidak ada jadwal pertandingan terdekat.
+                    Semua jadwal Week {currentWeek} telah selesai atau belum tersedia.
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -404,4 +409,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-              }
+}
