@@ -25,14 +25,15 @@ export default async function RoulettePage({
   const isAdmin = wantsAdmin && isAuth;
 
   return (
-    // PERUBAHAN: overflow-hidden diganti menjadi overflow-clip
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
+      {/* Ambient glow yang sinkron */}
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
 
       <TopBar title={showLoginForm ? "Admin Portal" : "Official Group Draw"} />
 
-      <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center px-4 pb-4 sm:px-6 lg:px-12">
-        <HeroHeader showDetails={false} />
+      <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-12 sm:px-6 lg:px-12">
+        {/* Sinkronisasi Header */}
+        <HeroHeader showDetails={true} />
 
         {showLoginForm ? (
           <Suspense fallback={<div className="text-center py-6 text-xs text-muted-foreground">Loading Form...</div>}>
@@ -40,12 +41,12 @@ export default async function RoulettePage({
           </Suspense>
         ) : (
           <>
-            <section className="mb-6 w-full max-w-6xl rounded-xl border border-primary/20 bg-muted/40 p-3.5 text-center backdrop-blur-sm">
+            <section className="mb-6 w-full max-w-4xl rounded-xl border border-primary/20 bg-muted/40 p-3.5 text-center backdrop-blur-sm">
               <h2 className="text-xs font-bold uppercase tracking-wider text-primary">
                 ⚙️ System Random: Math.random()
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Pengundian acak adil berbasis <span className="font-mono text-cyan-400">Uniform Distribution</span>. Tim terpilih otomatis masuk grup & keluar dari roda.
+                Pengundian acak adil berbasis <span className="font-mono text-cyan-400">Uniform Distribution</span>. Tim terpilih otomatis masuk grup &amp; keluar dari roda.
               </p>
             </section>
 
@@ -59,4 +60,4 @@ export default async function RoulettePage({
       </div>
     </main>
   );
-            }
+}
