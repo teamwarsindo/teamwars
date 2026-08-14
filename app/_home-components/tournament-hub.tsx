@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { MatchScheduleItem, DIVISION_MAP } from "@/lib/types/tournament";
 import { calculateStandings } from "@/lib/tournament/calculator";
-import { ChevronRight, Trophy, Calendar, BookOpen, Layers } from "lucide-react";
+import { ChevronRight, Trophy, Calendar, BookOpen } from "lucide-react";
 
 function getMatchWeekNumber(dateString: string): number {
   if (!dateString) return 1;
@@ -48,7 +48,7 @@ export function TournamentHub() {
     loadData();
   }, []);
 
-  // Standardisasi schedules dengan weekNumber yang presisi
+  // Standardisasi schedule
   const schedulesWithWeek = useMemo(() => {
     return schedules.map((m) => ({
       ...m,
@@ -56,7 +56,7 @@ export function TournamentHub() {
     }));
   }, [schedules]);
 
-  // Standing dihitung konsisten sesuai currentWeek
+  // Klasemen Top 2 Per Group
   const { topGroupA, topGroupB } = useMemo(() => {
     const standings = calculateStandings(schedulesWithWeek, masterTeams, currentWeek);
     const grpA = standings
@@ -72,10 +72,35 @@ export function TournamentHub() {
     return { topGroupA: grpA, topGroupB: grpB };
   }, [schedulesWithWeek, masterTeams, currentWeek]);
 
-  // Match yang sesuai schedule week aktif
-  const currentWeekMatches = useMemo(() => {
-    return schedulesWithWeek.filter((m) => m.weekNumber === currentWeek);
-  }, [schedulesWithWeek, currentWeek]);
+  // Pisahkan match Hari Ini & Upcoming berdasarkan waktu server
+  const { todayMatches, upcomingMatches } = useMemo(() => {
+    const now = new Date();
+    // Konversi tanggal hari ini format YYYY-MM-DD lokal
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    const sortedByDate = [...schedulesWithWeek]
+      .filter((m) => m.matchDate)
+      .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+
+    const todayList = sortedByDate.filter((m) => {
+      const d = new Date(m.matchDate);
+      const matchDayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return matchDayStr === todayStr;
+    });
+
+    const upcomingList = sortedByDate
+      .filter((m) => {
+        const matchTime = new Date(m.matchDate).getTime();
+        const isFuture = matchTime > now.getTime();
+        const d = new Date(m.matchDate);
+        const matchDayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        // Ambil yang di masa depan dan bukan hari ini
+        return isFuture && matchDayStr !== todayStr && !m.isFinished;
+      })
+      .slice(0, 3); // Ambil Top 3 match terdekat
+
+    return { todayMatches: todayList, upcomingMatches: upcomingList };
+  }, [schedulesWithWeek]);
 
   const formatDate = (isoDate: string) => {
     if (!isoDate) return "";
@@ -90,126 +115,158 @@ export function TournamentHub() {
     }).format(d);
   };
 
-  const renderLeaderRow = (
-    item: any,
-    idx: number,
-    groupColor: "GROUP_A" | "GROUP_B"
-  ) => {
+  const renderMatchCard = (m: MatchScheduleItem) => (
+    <div
+      key={m.id}
+      className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 p-2.5 text-xs hover:border-primary/40 transition"
+    >
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <img
+          src={m.teamALogo || "/logo.webp"}
+          alt=""
+          className="h-5 w-5 shrink-0 object-contain"
+        />
+        <span className="truncate font-bold text-[11px]">{m.teamAName}</span>
+      </div>
+
+      <div className="px-2 text-center shrink-0 min-w-[75px]">
+        {m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0 ? (
+          <span className="rounded-md bg-primary/20 px-2 py-0.5 text-[10px] font-black text-primary">
+            {m.scoreA} - {m.scoreB}
+          </span>
+        ) : (
+          <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+            VS
+          </span>
+        )}
+        <span className="block text-[9px] text-muted-foreground mt-0.5">
+          {formatDate(m.matchDate)}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
+        <span className="truncate font-bold text-[11px] text-right">
+          {m.teamBName}
+        </span>
+        <img
+          src={m.teamBLogo || "/logo.webp"}
+          alt=""
+          className="h-5 w-5 shrink-0 object-contain"
+        />
+      </div>
+    </div>
+  );
+
+  const renderStandingTable = (items: any[], groupColor: "GROUP_A" | "GROUP_B") => {
     const isGroupA = groupColor === "GROUP_A";
 
     return (
-      <div
-        key={item.teamId || item.teamName || idx}
-        className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs border transition ${
-          isGroupA
-            ? "bg-sky-500/10 border-sky-500/30 border-l-4 border-l-sky-500"
-            : "bg-amber-500/10 border-amber-500/30 border-l-4 border-l-amber-500"
-        }`}
-      >
-        {/* TIM & RANK */}
-        <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
-          <span
-            className={`font-black text-xs shrink-0 ${
-              isGroupA ? "text-sky-500" : "text-amber-500"
-            }`}
-          >
-            #{idx + 1}
-          </span>
-          <img
-            src={item.teamLogo || "/logo.webp"}
-            alt=""
-            className="h-4 w-4 shrink-0 object-contain"
-          />
-          <span className="font-bold text-[11px] truncate text-foreground">
-            {item.teamName}
-          </span>
-        </div>
+      <table className="w-full text-left text-[11px] table-fixed">
+        <tbody className="space-y-1.5">
+          {items.map((item, idx) => (
+            <tr
+              key={item.teamId || item.teamName || idx}
+              className={`rounded-xl border transition flex items-center mb-1.5 px-2.5 py-1.5 ${
+                isGroupA
+                  ? "bg-sky-500/10 border-sky-500/30 border-l-4 border-l-sky-500"
+                  : "bg-amber-500/10 border-amber-500/30 border-l-4 border-l-amber-500"
+              }`}
+            >
+              {/* RANK + LOGO + NAMA TIM */}
+              <td className="w-[52%] flex items-center gap-2 min-w-0 pr-1">
+                <span
+                  className={`font-black text-xs shrink-0 ${
+                    isGroupA ? "text-sky-500" : "text-amber-500"
+                  }`}
+                >
+                  #{idx + 1}
+                </span>
+                <img
+                  src={item.teamLogo || "/logo.webp"}
+                  alt=""
+                  className="h-4 w-4 shrink-0 object-contain"
+                />
+                <span className="font-bold text-[11px] truncate text-foreground">
+                  {item.teamName}
+                </span>
+              </td>
 
-        {/* STATS KONSISTEN DENGAN STANDING TAB */}
-        <div className="flex items-center gap-2.5 text-[10.5px] font-bold shrink-0">
-          <span className="text-muted-foreground w-11 text-center">
-            {item.matchWins}-{item.matchLosses}
-          </span>
+              {/* MATCH W-L */}
+              <td className="w-[16%] text-center font-bold text-muted-foreground text-[10.5px]">
+                {item.matchWins}-{item.matchLosses}
+              </td>
 
-          <span
-            className={`w-6 text-center ${
-              item.roundDifference > 0
-                ? "text-emerald-500"
-                : item.roundDifference < 0
-                ? "text-rose-500"
-                : "text-muted-foreground"
-            }`}
-          >
-            {item.roundDifference > 0
-              ? `+${item.roundDifference}`
-              : item.roundDifference}
-          </span>
+              {/* RD */}
+              <td className="w-[11%] text-center font-bold text-[10.5px]">
+                <span
+                  className={
+                    item.roundDifference > 0
+                      ? "text-emerald-500"
+                      : item.roundDifference < 0
+                      ? "text-rose-500"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
+                </span>
+              </td>
 
-          <span className="w-5 text-center text-foreground font-extrabold">
-            {item.setWins}
-          </span>
+              {/* SET */}
+              <td className="w-[10%] text-center font-extrabold text-foreground text-[10.5px]">
+                {item.setWins}
+              </td>
 
-          <span className="w-8 text-right font-black text-primary text-xs">
-            {item.points}
-          </span>
-        </div>
-      </div>
+              {/* PTS */}
+              <td className="w-[11%] text-right font-black text-primary text-xs pr-1">
+                {item.points}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     );
   };
 
   return (
     <div className="w-full max-w-4xl space-y-5">
-      {/* 1. QUICK ACTION GRID */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      {/* 1. QUICK ACTION GRID (3 MENU) */}
+      <div className="grid grid-cols-3 gap-2.5">
         <Link
           href="/tournament?tab=schedule"
-          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
+          className="group flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
-            <Calendar className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+            <Calendar className="h-4 w-4" />
           </div>
           <div>
             <span className="text-xs font-bold text-foreground block">Jadwal Match</span>
-            <span className="text-[10px] text-muted-foreground">Week {currentWeek} Active</span>
+            <span className="text-[9.5px] text-muted-foreground">Week {currentWeek}</span>
           </div>
         </Link>
 
         <Link
           href="/tournament?tab=standing"
-          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
+          className="group flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 group-hover:scale-110 transition-transform">
-            <Trophy className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 group-hover:scale-110 transition-transform">
+            <Trophy className="h-4 w-4" />
           </div>
           <div>
             <span className="text-xs font-bold text-foreground block">Klasemen</span>
-            <span className="text-[10px] text-muted-foreground">Group & Global</span>
-          </div>
-        </Link>
-
-        <Link
-          href="/tournament/decks"
-          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 text-sky-500 group-hover:scale-110 transition-transform">
-            <Layers className="h-5 w-5" />
-          </div>
-          <div>
-            <span className="text-xs font-bold text-foreground block">Decklist Tim</span>
-            <span className="text-[10px] text-muted-foreground">Meta & Lineup</span>
+            <span className="text-[9.5px] text-muted-foreground">Group & Playoff</span>
           </div>
         </Link>
 
         <Link
           href="/rules"
-          className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
+          className="group flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
-            <BookOpen className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
+            <BookOpen className="h-4 w-4" />
           </div>
           <div>
             <span className="text-xs font-bold text-foreground block">Rulebook</span>
-            <span className="text-[10px] text-muted-foreground">Regulasi Resmi</span>
+            <span className="text-[9.5px] text-muted-foreground">Regulasi Resmi</span>
           </div>
         </Link>
       </div>
@@ -217,13 +274,13 @@ export function TournamentHub() {
       {/* 2. MATCH & STANDING HIGHLIGHTS */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         
-        {/* WIDGET: JADWAL MATCH SESUAI SCHEDULE */}
+        {/* WIDGET: JADWAL MATCH (HARI INI & UPCOMING) */}
         <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
               <h2 className="text-xs font-black uppercase tracking-wider text-foreground">
-                MATCH WEEK {currentWeek}
+                Jadwal Pertandingan
               </h2>
             </div>
             <Link
@@ -236,57 +293,38 @@ export function TournamentHub() {
 
           {loading ? (
             <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">
-              Memuat data pertandingan...
-            </div>
-          ) : currentWeekMatches.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground">
-              Tidak ada jadwal pertandingan untuk Week {currentWeek}.
+              Memuat jadwal tanding...
             </div>
           ) : (
-            <div className="space-y-2">
-              {currentWeekMatches.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 p-2.5 text-xs hover:border-primary/40 transition"
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <img
-                      src={m.teamALogo || "/logo.webp"}
-                      alt=""
-                      className="h-5 w-5 shrink-0 object-contain"
-                    />
-                    <span className="truncate font-bold text-[11px]">
-                      {m.teamAName}
-                    </span>
-                  </div>
-
-                  <div className="px-3 text-center shrink-0">
-                    {m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0 ? (
-                      <span className="rounded-md bg-primary/20 px-2 py-0.5 text-[10px] font-black text-primary">
-                        {m.scoreA} - {m.scoreB}
-                      </span>
-                    ) : (
-                      <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-                        VS
-                      </span>
-                    )}
-                    <span className="block text-[9px] text-muted-foreground mt-0.5">
-                      {formatDate(m.matchDate)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
-                    <span className="truncate font-bold text-[11px] text-right">
-                      {m.teamBName}
-                    </span>
-                    <img
-                      src={m.teamBLogo || "/logo.webp"}
-                      alt=""
-                      className="h-5 w-5 shrink-0 object-contain"
-                    />
+            <div className="space-y-3.5">
+              {/* MATCH HARI INI */}
+              {todayMatches.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    Sedang / Main Hari Ini
+                  </span>
+                  <div className="space-y-2">
+                    {todayMatches.map((m) => renderMatchCard(m))}
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* UPCOMING MATCHES (TOP 3) */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Pertandingan Berikutnya
+                </span>
+                {upcomingMatches.length === 0 && todayMatches.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-muted-foreground">
+                    Tidak ada jadwal pertandingan terdekat.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {upcomingMatches.map((m) => renderMatchCard(m))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -313,43 +351,33 @@ export function TournamentHub() {
               Menghitung klasemen...
             </div>
           ) : (
-            <div className="space-y-3.5">
-              {/* Group A */}
+            <div className="space-y-4">
+              {/* GROUP A */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-sky-500">
-                    Divisi {DIVISION_MAP.GROUP_A}
+                <div className="flex items-center justify-between px-2.5 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                  <span className="w-[52%] text-sky-500 font-black text-[10px]">
+                    {DIVISION_MAP.GROUP_A}
                   </span>
-                  <div className="flex items-center gap-2.5 text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider pr-1">
-                    <span className="w-11 text-center">W-L</span>
-                    <span className="w-6 text-center">RD</span>
-                    <span className="w-5 text-center">SET</span>
-                    <span className="w-8 text-right text-primary">PTS</span>
-                  </div>
+                  <span className="w-[16%] text-center">W-L</span>
+                  <span className="w-[11%] text-center">RD</span>
+                  <span className="w-[10%] text-center">SET</span>
+                  <span className="w-[11%] text-right text-primary pr-1">PTS</span>
                 </div>
-
-                <div className="space-y-1.5">
-                  {topGroupA.map((t, idx) => renderLeaderRow(t, idx, "GROUP_A"))}
-                </div>
+                {renderStandingTable(topGroupA, "GROUP_A")}
               </div>
 
-              {/* Group B */}
+              {/* GROUP B */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-500">
-                    Divisi {DIVISION_MAP.GROUP_B}
+                <div className="flex items-center justify-between px-2.5 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                  <span className="w-[52%] text-amber-500 font-black text-[10px]">
+                    {DIVISION_MAP.GROUP_B}
                   </span>
-                  <div className="flex items-center gap-2.5 text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider pr-1">
-                    <span className="w-11 text-center">W-L</span>
-                    <span className="w-6 text-center">RD</span>
-                    <span className="w-5 text-center">SET</span>
-                    <span className="w-8 text-right text-primary">PTS</span>
-                  </div>
+                  <span className="w-[16%] text-center">W-L</span>
+                  <span className="w-[11%] text-center">RD</span>
+                  <span className="w-[10%] text-center">SET</span>
+                  <span className="w-[11%] text-right text-primary pr-1">PTS</span>
                 </div>
-
-                <div className="space-y-1.5">
-                  {topGroupB.map((t, idx) => renderLeaderRow(t, idx, "GROUP_B"))}
-                </div>
+                {renderStandingTable(topGroupB, "GROUP_B")}
               </div>
             </div>
           )}
