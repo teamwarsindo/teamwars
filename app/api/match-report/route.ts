@@ -62,12 +62,13 @@ export async function POST(request: NextRequest) {
         ? `${rawImageUrl.split("?")[0]}?v=${Date.now()}`
         : undefined;
 
+      // 🟢 SUB-JUDUL '⚔️ Match Report #' DIHAPUS, LANGSUNG TIM VS TIM
       const payload = {
         embeds: [
           {
             title: `${report.group.toUpperCase()} — WEEK ${report.week}`,
             color: 0x3b82f6,
-            description: `⚔️ **Match Report #${report.matchNumber}**\n${titleA}  VS  ${titleB}\n\n📝 **Catatan Match:**\n${report.notes || "_Tidak ada catatan._"}`,
+            description: `${titleA}  VS  ${titleB}\n\n📝 **Catatan Match:**\n${report.notes || "_Tidak ada catatan._"}`,
             image: forceFreshImageUrl ? { url: forceFreshImageUrl } : undefined,
             footer: {
               text: `TWI Season 7 • ${report.formattedDate || formattedDate}`,
@@ -119,7 +120,6 @@ export async function POST(request: NextRequest) {
           if (!existingMessageId && resData.id) {
             schedules[scheduleIdx].discordMessageId = resData.id;
           }
-          // 🟢 SIMPAN GAMBAR & CATATAN PERMANEN KE KV
           schedules[scheduleIdx].reportImageUrl = report.imageUrl;
           schedules[scheduleIdx].reportNotes = report.notes;
           isSchedulesUpdated = true;

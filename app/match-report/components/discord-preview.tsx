@@ -13,32 +13,37 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
       day: "numeric",
       month: "short",
       year: "numeric",
-    }) + ` at ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
+    }) +
+    ", " +
+    new Date().toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).replace(":", ".") +
+    " WIB";
 
-  // Format custom emoji discord
   const renderTeamTitle = (team: any) => {
-    if (team.emojiId && team.code) {
+    if (team?.emojiId && team?.code) {
       return `<:${team.code}:${team.emojiId}> ${team.name}`;
     }
-    return team.name;
+    return team?.name || "Team";
   };
 
   return (
     <div className="bg-[#313338] text-[#dbdee1] p-4 rounded-lg font-sans text-sm border-l-4 border-[#3b82f6] shadow-xl space-y-3">
+      {/* HEADER UTAMA */}
       <div className="font-bold text-white text-base">
         {match.group.toUpperCase()} — WEEK {match.week}
       </div>
 
-      <div className="space-y-1">
-        <div className="font-semibold text-white">⚔️ Match Report #{match.matchNumber}</div>
-        
-        <div className="text-sm font-bold text-white">
-          <span>{renderTeamTitle(match.teamA)}</span>
-          <span className="mx-2 text-[#949ba4]">VS</span>
-          <span>{renderTeamTitle(match.teamB)}</span>
-        </div>
+      {/* 🟢 LANGSUNG NAMA TIM VS TIM (SUB-JUDUL DIHAPUS) */}
+      <div className="text-sm font-bold text-white">
+        <span>{renderTeamTitle(match.teamA)}</span>
+        <span className="mx-2 text-[#949ba4]">VS</span>
+        <span>{renderTeamTitle(match.teamB)}</span>
       </div>
 
+      {/* CATATAN MATCH */}
       <div className="space-y-1">
         <div className="font-semibold text-xs text-[#949ba4]">📝 Catatan Match:</div>
         <div className="text-xs bg-[#2b2d31] p-2 rounded border border-[#383a40]">
@@ -46,6 +51,7 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
         </div>
       </div>
 
+      {/* GAMBAR MATCH REPORT */}
       {entry?.imageUrl ? (
         <div className="rounded-md overflow-hidden border border-[#383a40] bg-black/40">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -57,8 +63,9 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
         </div>
       )}
 
+      {/* FOOTER */}
       <div className="text-[11px] text-[#949ba4] border-t border-[#383a40] pt-2 flex items-center gap-1">
-        🏆 Team Wars Indonesia • {nowFormatted}
+        🏆 TWI Season 7 • {nowFormatted}
       </div>
     </div>
   );
