@@ -63,6 +63,8 @@ export default function MatchReportPageClient({
             scoreB: m?.scoreB ?? 0,
             teamALogo: m?.teamALogo || "/logo.webp",
             teamBLogo: m?.teamBLogo || "/logo.webp",
+            reportImageUrl: m?.reportImageUrl || "",
+            reportNotes: m?.reportNotes || "",
             teamA: {
               name: m?.teamAName || "Team A",
               code: m?.teamACode || m?.teamAName || "Team A",
@@ -130,8 +132,8 @@ export default function MatchReportPageClient({
     return matches.filter((m) => selectedMatchIds.includes(m.id));
   }, [matches, selectedMatchIds]);
 
-  // 🟢 KIRIM SEMUA DENGAN SWEETALERT2 & AUTO-EDIT/PATCH DISCORD
-  const handleSendAll = async () => {
+  // 🟢 SIMPAN KE KV UNTUK CRON JOB
+  const handleSaveAll = async () => {
     if (selectedMatches.length === 0) return;
 
     setIsSending(true);
@@ -161,10 +163,10 @@ export default function MatchReportPageClient({
 
       if (res.ok) {
         localStorage.removeItem(STORAGE_KEY);
-        
+
         await Swal.fire({
-          title: "Berhasil Terkirim!",
-          text: "Seluruh Match Report telah terkirim / diperbarui di Discord!",
+          title: "Berhasil Disimpan!",
+          text: "Data Match Report tersimpan di KV dan siap diposting otomatis via Cron Job!",
           icon: "success",
           confirmButtonColor: "#AA1348",
           background: "#121212",
@@ -175,8 +177,8 @@ export default function MatchReportPageClient({
       } else {
         const errData = await res.json();
         Swal.fire({
-          title: "Gagal Mengirim!",
-          text: errData.error || "Gagal memproses Match Report ke Discord.",
+          title: "Gagal Menyimpan!",
+          text: errData.error || "Gagal menyimpan data ke database.",
           icon: "error",
           confirmButtonColor: "#AA1348",
           background: "#121212",
@@ -291,11 +293,11 @@ export default function MatchReportPageClient({
 
               <button
                 type="button"
-                onClick={handleSendAll}
+                onClick={handleSaveAll}
                 disabled={isSending}
                 className="flex-1 rounded-xl bg-primary py-3 text-xs sm:text-sm font-bold text-primary-foreground shadow-lg hover:bg-primary/90 disabled:opacity-50 transition cursor-pointer"
               >
-                {isSending ? "Mengirim..." : "Kirim Semua ke Discord"}
+                {isSending ? "Menyimpan Data..." : "Simpan Match Report"}
               </button>
             </div>
           )}

@@ -9,11 +9,10 @@ export function useMatchReport(availableMatches: MatchItem[]) {
   const [reports, setReports] = useState<Record<string, MatchReportEntry>>({});
   const [isSending, setIsSending] = useState(false);
 
-  // Inisialisasi awal: Gabungkan data LocalStorage dengan data KV
+  // Inisialisasi: Baca dari KV dahulu, lalu timpa jika ada draft LocalStorage
   useEffect(() => {
     let initialReports: Record<string, MatchReportEntry> = {};
 
-    // 1. Ambil data tersimpan dari KV database terlebih dahulu
     if (availableMatches && availableMatches.length > 0) {
       availableMatches.forEach((m: any) => {
         if (m.reportImageUrl || m.reportNotes) {
@@ -26,7 +25,6 @@ export function useMatchReport(availableMatches: MatchItem[]) {
       });
     }
 
-    // 2. Timpa dengan LocalStorage jika ada draft yang belum disubmit
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
@@ -87,14 +85,14 @@ export function useMatchReport(availableMatches: MatchItem[]) {
       });
 
       if (!signRes.ok) {
-        throw new Error("Gagal mendapatkan signature dari server /api/sign-cloudinary.");
+        throw new Error("Gagal mendapatkan signature dari server.");
       }
 
       const signData = await signRes.json();
       const { api_key, signature, timestamp, folder, format } = signData;
 
       if (!api_key || !signature) {
-        throw new Error("Respon signature tidak lengkap.");
+        throw new Error("Respon signature dari server tidak lengkap.");
       }
 
       const formData = new FormData();

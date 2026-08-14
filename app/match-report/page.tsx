@@ -67,7 +67,6 @@ export default async function MatchReportPage() {
             scoreB: m.scoreB ?? 0,
             teamALogo: m.teamALogo || teamDataA?.logoTim || "/logo.webp",
             teamBLogo: m.teamBLogo || teamDataB?.logoTim || "/logo.webp",
-            // 🟢 TERUSKAN DATA GAMBAR & CATATAN DARI KV
             reportImageUrl: m.reportImageUrl || "",
             reportNotes: m.reportNotes || "",
             teamA: {
