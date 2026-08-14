@@ -50,13 +50,11 @@ export default async function MatchReportPage() {
           const slugA = getTeamSlug(m.teamAName);
           const slugB = getTeamSlug(m.teamBName);
 
-          // Tarik Data Asli dari Upstash Redis Hash teams:{slug}
           const [teamDataA, teamDataB] = await Promise.all([
             slugA ? kv.hgetall<Record<string, any>>(`teams:${slugA}`) : null,
             slugB ? kv.hgetall<Record<string, any>>(`teams:${slugB}`) : null,
           ]);
 
-          // PAKSA Ambil 'kodeTim' & 'emoji' dari DB KV
           const kodeA = teamDataA?.kodeTim || (m as any).teamACode;
           const kodeB = teamDataB?.kodeTim || (m as any).teamBCode;
 
@@ -71,13 +69,15 @@ export default async function MatchReportPage() {
             teamBLogo: m.teamBLogo || teamDataB?.logoTim || "/logo.webp",
             teamA: {
               name: m.teamAName,
-              code: kodeA || "", // Kosong jika tidak ada, agar melempar error di validation
-              emoji: teamDataA?.emoji || "🔵",
+              code: kodeA || "",
+              emojiId: teamDataA?.emojiId || "",
+              emoji: teamDataA?.emoji || "",
             },
             teamB: {
               name: m.teamBName,
-              code: kodeB || "", // Kosong jika tidak ada, agar melempar error di validation
-              emoji: teamDataB?.emoji || "🔴",
+              code: kodeB || "",
+              emojiId: teamDataB?.emojiId || "",
+              emoji: teamDataB?.emoji || "",
             },
           };
         })

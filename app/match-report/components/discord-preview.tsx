@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchItem, MatchReportEntry, generateFileName } from "../utils/lib-match-report";
+import { MatchItem, MatchReportEntry } from "../utils/lib-match-report";
 
 interface DiscordPreviewProps {
   match: MatchItem;
@@ -15,9 +15,13 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
       year: "numeric",
     }) + ` at ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
 
-  // Cek apakah emoji ada dan sanitasikan (hapus bulatan 🔵/🔴 jika tidak ada custom emoji)
-  const emojiA = match.teamA.emoji && !["🔵", "🔴"].includes(match.teamA.emoji) ? `${match.teamA.emoji} ` : "";
-  const emojiB = match.teamB.emoji && !["🔵", "🔴"].includes(match.teamB.emoji) ? `${match.teamB.emoji} ` : "";
+  // Format custom emoji discord
+  const renderTeamTitle = (team: any) => {
+    if (team.emojiId && team.code) {
+      return `<:${team.code}:${team.emojiId}> ${team.name}`;
+    }
+    return team.name;
+  };
 
   return (
     <div className="bg-[#313338] text-[#dbdee1] p-4 rounded-lg font-sans text-sm border-l-4 border-[#3b82f6] shadow-xl space-y-3">
@@ -28,11 +32,10 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
       <div className="space-y-1">
         <div className="font-semibold text-white">⚔️ Match Report #{match.matchNumber}</div>
         
-        {/* NAMA TIM (TANPA BULATAN BIRU/MERAH MENGGANGGU) */}
         <div className="text-sm font-bold text-white">
-          <span>{emojiA}{match.teamA.name}</span>
+          <span>{renderTeamTitle(match.teamA)}</span>
           <span className="mx-2 text-[#949ba4]">VS</span>
-          <span>{emojiB}{match.teamB.name}</span>
+          <span>{renderTeamTitle(match.teamB)}</span>
         </div>
       </div>
 
@@ -43,7 +46,6 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
         </div>
       </div>
 
-      {/* GAMBAR DISCORD EMBED (BERSIH TANPA TEKS URL MASKED) */}
       {entry?.imageUrl ? (
         <div className="rounded-md overflow-hidden border border-[#383a40] bg-black/40">
           {/* eslint-disable-next-line @next/next/no-img-element */}

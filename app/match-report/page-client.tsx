@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Swal from "sweetalert2";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { useMatchReport } from "./hooks/use-match-report";
 import { MatchFormCard } from "./components/match-form-card";
@@ -24,7 +25,6 @@ export default function MatchReportPageClient({
   const [isConfirmTrashOpen, setIsConfirmTrashOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Filter States
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "ALL">("ALL");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<"ALL" | "Group A" | "Group B">("ALL");
 
@@ -39,11 +39,9 @@ export default function MatchReportPageClient({
     setIsSending,
   } = useMatchReport(matches);
 
-  // Helper Slug Generator Fallback
   const getSlug = (str: string) =>
     str ? str.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "") : "";
 
-  // Sync Refresh Data KV
   const handleRefreshKvData = async () => {
     setIsRefreshingKv(true);
     try {
@@ -68,12 +66,14 @@ export default function MatchReportPageClient({
             teamA: {
               name: m?.teamAName || "Team A",
               code: m?.teamACode || m?.teamAName || "Team A",
-              slug: m?.teamASlug || getSlug(m?.teamAName),
+              emojiId: m?.teamAEmojiId || "",
+              emoji: m?.teamAEmoji || "",
             },
             teamB: {
               name: m?.teamBName || "Team B",
               code: m?.teamBCode || m?.teamBName || "Team B",
-              slug: m?.teamBSlug || getSlug(m?.teamBName),
+              emojiId: m?.teamBEmojiId || "",
+              emoji: m?.teamBEmoji || "",
             },
           };
         });
@@ -94,7 +94,6 @@ export default function MatchReportPageClient({
     handleRefreshKvData();
   }, [initialMatches]);
 
-  // Current Week Calc
   const currentWeekNumber = useMemo(() => {
     const startDateStr = process.env.NEXT_PUBLIC_TWI_START_DATE || "2026-08-03";
     const startDate = new Date(`${startDateStr}T00:00:00+07:00`).getTime();
@@ -104,7 +103,6 @@ export default function MatchReportPageClient({
     return Math.max(1, Math.floor(diffDays / 7) + 1);
   }, []);
 
-  // Available Weeks Filter
   const availableWeeksFilter = useMemo(() => {
     if (!matches || matches.length === 0) return [1];
     const allWeekNumbers = Array.from(new Set(matches.map((m) => m.week))).sort((a, b) => a - b);
@@ -132,11 +130,11 @@ export default function MatchReportPageClient({
     return matches.filter((m) => selectedMatchIds.includes(m.id));
   }, [matches, selectedMatchIds]);
 
+  // 🟢 KIRIM SEMUA DENGAN SWEETALERT2 & AUTO-EDIT/PATCH DISCORD
   const handleSendAll = async () => {
+    if (selectedMatches.length === 0) return;
+
     setIsSending(true);
-    const formattedDate =
-      new Date().toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) +
-      ` at ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
 
     const payload = selectedMatches.map((m) => {
       const entry = reports[m.id];
@@ -151,7 +149,6 @@ export default function MatchReportPageClient({
         notes: entry?.notes || "",
         imageUrl: entry?.imageUrl || "",
         maskedImageUrl: maskImageUrl(entry?.imageUrl || "", fileName),
-        formattedDate,
       };
     });
 
@@ -164,14 +161,38 @@ export default function MatchReportPageClient({
 
       if (res.ok) {
         localStorage.removeItem(STORAGE_KEY);
-        alert("Semua Match Report berhasil terkirim ke Discord!");
+        
+        await Swal.fire({
+          title: "Berhasil Terkirim!",
+          text: "Seluruh Match Report telah terkirim / diperbarui di Discord!",
+          icon: "success",
+          confirmButtonColor: "#AA1348",
+          background: "#121212",
+          color: "#ffffff",
+        });
+
         window.location.reload();
       } else {
-        alert("Gagal mengirim sebagian atau seluruh Match Report.");
+        const errData = await res.json();
+        Swal.fire({
+          title: "Gagal Mengirim!",
+          text: errData.error || "Gagal memproses Match Report ke Discord.",
+          icon: "error",
+          confirmButtonColor: "#AA1348",
+          background: "#121212",
+          color: "#ffffff",
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Terjadi kesalahan koneksi.");
+      Swal.fire({
+        title: "Kesalahan Jaringan!",
+        text: err.message || "Gagal menghubungi server.",
+        icon: "error",
+        confirmButtonColor: "#AA1348",
+        background: "#121212",
+        color: "#ffffff",
+      });
     } finally {
       setIsSending(false);
     }
@@ -183,7 +204,6 @@ export default function MatchReportPageClient({
 
       <TopBar title="Official Match Report" showTrash={true} onClearStorage={() => setIsConfirmTrashOpen(true)} />
 
-      {/* MODAL RESET DRAFT */}
       <ResetConfirmModal
         isOpen={isConfirmTrashOpen}
         onClose={() => setIsConfirmTrashOpen(false)}
@@ -198,7 +218,6 @@ export default function MatchReportPageClient({
         <HeroHeader showDetails={false} />
 
         <section className="w-full max-w-4xl space-y-5">
-          {/* PANEL FILTER MODULAR */}
           <MatchFilterPanel
             selectedGroup={selectedGroupFilter}
             onSelectGroup={setSelectedGroupFilter}
@@ -213,7 +232,6 @@ export default function MatchReportPageClient({
             }}
           />
 
-          {/* CHECKBOXES MATCH REPORT */}
           <div className="glass glow-border rounded-2xl border p-5 space-y-3">
             <span className="font-bold text-sm block">Pilih Match yang Ingin Dilaporkan:</span>
 
@@ -251,7 +269,6 @@ export default function MatchReportPageClient({
             )}
           </div>
 
-          {/* DYNAMIC FORM CARDS */}
           {selectedMatches.map((m) => (
             <MatchFormCard
               key={m.id}
@@ -262,7 +279,6 @@ export default function MatchReportPageClient({
             />
           ))}
 
-          {/* ACTION BUTTONS */}
           {selectedMatches.length > 0 && (
             <div className="glass glow-border rounded-2xl border p-5 flex gap-4">
               <button
@@ -284,7 +300,6 @@ export default function MatchReportPageClient({
             </div>
           )}
 
-          {/* PREVIEW DISCORD */}
           {isPreviewOpen && selectedMatches.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-sm font-bold">Live Preview Tampilan Discord</h3>
