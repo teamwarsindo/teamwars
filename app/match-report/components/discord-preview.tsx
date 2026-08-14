@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchItem, MatchReportEntry, generateFileName } from "../utils/lib-match-report";
+import { MatchItem, MatchReportEntry, generateFileName, maskImageUrl } from "../utils/lib-match-report";
 
 interface DiscordPreviewProps {
   match: MatchItem;
@@ -9,6 +9,8 @@ interface DiscordPreviewProps {
 
 export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
   const fileName = generateFileName(match);
+  const maskedUrl = entry?.imageUrl ? maskImageUrl(entry.imageUrl, fileName) : "";
+
   const nowFormatted =
     new Date().toLocaleDateString("id-ID", {
       day: "numeric",
@@ -24,8 +26,12 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
 
       <div className="space-y-1">
         <div className="font-semibold text-white">⚔️ Match Report #{match.matchNumber}</div>
-        <div>
-          <strong>{match.teamA.name}</strong> &nbsp;VS&nbsp; <strong>{match.teamB.name}</strong>
+        
+        {/* 🟢 EMOJI TIM DI SEBELAH NAMA TIM */}
+        <div className="text-sm font-bold text-white">
+          <span>{match.teamA.emoji || "🔵"} {match.teamA.name}</span>
+          <span className="mx-2 text-[#949ba4]">VS</span>
+          <span>{match.teamB.emoji || "🔴"} {match.teamB.name}</span>
         </div>
       </div>
 
@@ -36,10 +42,16 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
         </div>
       </div>
 
+      {/* GAMBAR DENGAN URL MASKING PAKSA */}
       {entry?.imageUrl ? (
-        <div className="rounded-md overflow-hidden border border-[#383a40] bg-black/40">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={entry.imageUrl} alt="Match Report" className="w-full max-h-60 object-contain" />
+        <div className="space-y-1">
+          <div className="rounded-md overflow-hidden border border-[#383a40] bg-black/40">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={entry.imageUrl} alt="Match Report" className="w-full max-h-60 object-contain" />
+          </div>
+          <div className="text-[10px] font-mono text-[#949ba4] truncate">
+            URL Masked: <span className="text-[#5865f2] font-semibold">{maskedUrl}</span>
+          </div>
         </div>
       ) : (
         <div className="h-28 border border-dashed border-[#4e5058] rounded-md flex items-center justify-center text-xs text-[#949ba4]">
@@ -48,7 +60,7 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
       )}
 
       <div className="text-[11px] text-[#949ba4] border-t border-[#383a40] pt-2 flex items-center gap-1">
-        🏆 TWI Season 7 • {nowFormatted}
+        🏆 Team Wars Indonesia • {nowFormatted}
       </div>
     </div>
   );
