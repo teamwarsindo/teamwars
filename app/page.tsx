@@ -5,7 +5,8 @@ import { TournamentHub } from "./_home-components/tournament-hub";
 
 export default function Page() {
   return (
-    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
+    // PERUBAHAN DI SINI: overflow-hidden diganti jadi overflow-clip
+    <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       
       {/* Pengecekan Error / Alert terisolasi */}
       <Suspense fallback={null}>
@@ -28,4 +29,4 @@ export default function Page() {
       </div>
     </main>
   );
-}
+      }
