@@ -1,114 +1,131 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { kv } from "@vercel/kv";
+import { DISCORD_CONFIG } from "@/lib/discord/config";
 
-const DISCORD_WEBHOOK_URL = process.env.DISCORD_MATCH_REPORT_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL;
-
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { reports } = await request.json();
+    const data = await request.json();
+    const { reports, channelId: customChannelId } = data;
 
-    if (!Array.isArray(reports) || reports.length === 0) {
-      return NextResponse.json({ error: "Data report kosong" }, { status: 400 });
+    if (!reports || !Array.isArray(reports) || reports.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Tidak ada data match report yang dikirim!" },
+        { status: 400 }
+      );
     }
 
-    if (!DISCORD_WEBHOOK_URL) {
-      return NextResponse.json({ error: "Discord Webhook URL tidak dikonfigurasi di Environment Variable" }, { status: 500 });
+    const targetChannelId = customChannelId || DISCORD_CONFIG.CH_REPORT;
+    const botToken = process.env.DISCORD_BOT_TOKEN;
+
+    if (!botToken || !targetChannelId) {
+      return NextResponse.json(
+        { success: false, error: "Konfigurasi Discord Bot / CH_REPORT belum disetting." },
+        { status: 500 }
+      );
     }
 
+    // Tarik data jadwal dari KV Redis untuk pengecekan Message ID
     const schedules = (await kv.get<any[]>("twi:schedules")) || [];
     let isSchedulesUpdated = false;
+    const results = [];
 
-    for (const item of reports) {
-      const { matchId, group, week, matchNumber, teamA, teamB, notes, maskedImageUrl } = item;
-
-      // 🟢 FORMAT CUSTOM EMOJI DISCORD: <:kodeTim:emojiId>
-      const formatEmoji = (team: any) => {
-        if (team.emojiId && team.code) {
-          return `<:${team.code}:${team.emojiId}> `;
+    for (const report of reports) {
+      // 🟢 Formatter Custom Emoji Discord (<:code:emojiId> atau emoji biasa)
+      const renderTeamBadge = (team: any) => {
+        if (team?.emojiId && team?.code) {
+          return `<:${team.code}:${team.emojiId}>`;
         }
-        if (team.emoji && !["🔵", "🔴"].includes(team.emoji)) {
-          return `${team.emoji} `;
-        }
-        return "";
+        return team?.emoji || "";
       };
 
-      const titleA = `${formatEmoji(teamA)}${teamA.name}`;
-      const titleB = `${formatEmoji(teamB)}${teamB.name}`;
+      const teamABadge = renderTeamBadge(report.teamA);
+      const teamBBadge = renderTeamBadge(report.teamB);
 
-      // Payload Discord Embed
-      const discordPayload = {
+      const titleA = `${teamABadge} **${report.teamA.name}**`.trim();
+      const titleB = `${teamBBadge} **${report.teamB.name}**`.trim();
+
+      // Embed Payload Discord
+      const payload = {
         embeds: [
           {
-            title: `${group.toUpperCase()} — WEEK ${week}`,
-            color: 3883766, // Warna Biru Khas TWI
-            fields: [
-              {
-                name: `⚔️ Match Report #${matchNumber}`,
-                value: `**${titleA}** VS **${titleB}**`,
-                inline: false,
-              },
-              {
-                name: "📝 Catatan Match",
-                value: notes && notes.trim() !== "" ? notes : "_Tidak ada catatan._",
-                inline: false,
-              },
-            ],
-            image: maskedImageUrl ? { url: maskedImageUrl } : undefined,
+            title: `${report.group.toUpperCase()} — WEEK ${report.week}`,
+            color: 0x3b82f6,
+            description: `⚔️ **Match Report #${report.matchNumber}**\n${titleA}  VS  ${titleB}\n\n📝 **Catatan Match:**\n${report.notes || "_Tidak ada catatan._"}`,
+            image: {
+              url: report.maskedImageUrl || report.imageUrl,
+            },
             footer: {
-              text: `Team Wars Indonesia • ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}`,
+              text: `TWI Season 7 • ${report.formattedDate || new Date().toLocaleDateString("id-ID")}`,
             },
           },
         ],
       };
 
-      // Cek apakah match ini di KV sudah punya Message ID di Discord
-      const scheduleIdx = schedules.findIndex((s) => (s.id || `match-${s.matchNumber}`) === matchId);
-      const existingMsgId = scheduleIdx !== -1 ? schedules[scheduleIdx].discordMessageId : null;
+      // Cek apakah match ini sudah pernah dikirim (punya discordMessageId di KV)
+      const scheduleIdx = schedules.findIndex(
+        (s) => (s.id || `match-${s.matchNumber}`) === report.matchId
+      );
+      const existingMessageId = scheduleIdx !== -1 ? schedules[scheduleIdx].discordMessageId : null;
 
-      let resDiscord;
+      let res;
 
-      if (existingMsgId) {
-        // 🟢 JIKA SUDAH ADA: PATCH / EDIT PESAN DISCORD LAMA
-        resDiscord = await fetch(`${DISCORD_WEBHOOK_URL}/messages/${existingMsgId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(discordPayload),
-        });
-      } else {
-        // 🟢 JIKA BELUM ADA: POST PESAN BARU (dengan query ?wait=true agar dapat ID)
-        const webhookUrlWithWait = DISCORD_WEBHOOK_URL.includes("?") 
-          ? `${DISCORD_WEBHOOK_URL}&wait=true` 
-          : `${DISCORD_WEBHOOK_URL}?wait=true`;
-
-        resDiscord = await fetch(webhookUrlWithWait, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(discordPayload),
-        });
-
-        if (resDiscord.ok) {
-          const sentMsg = await resDiscord.json();
-          if (sentMsg?.id && scheduleIdx !== -1) {
-            // Simpan Message ID ke Vercel KV
-            schedules[scheduleIdx].discordMessageId = sentMsg.id;
-            isSchedulesUpdated = true;
+      if (existingMessageId) {
+        // 🟢 EDIT PESAN LAMA (PATCH)
+        res = await fetch(
+          `https://discord.com/api/v10/channels/${targetChannelId}/messages/${existingMessageId}`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bot ${botToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
           }
-        }
+        );
+      } else {
+        // 🟢 KIRIM PESAN BARU (POST)
+        res = await fetch(
+          `https://discord.com/api/v10/channels/${targetChannelId}/messages`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bot ${botToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }
+        );
       }
 
-      if (!resDiscord.ok) {
-        console.error("Gagal mengirim/mengedit ke Discord Webhook", await resDiscord.text());
+      if (res.ok) {
+        const resData = await res.json();
+        results.push({ matchId: report.matchId, success: true, messageId: resData.id });
+
+        // Simpan discordMessageId baru ke KV Redis jika baru dibuat
+        if (!existingMessageId && resData.id && scheduleIdx !== -1) {
+          schedules[scheduleIdx].discordMessageId = resData.id;
+          isSchedulesUpdated = true;
+        }
+      } else {
+        const errorData = await res.json();
+        results.push({ matchId: report.matchId, success: false, error: errorData });
       }
+
+      // Delay kecil untuk menghindari rate-limit Discord API
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
-    // Update Vercel KV jika ada discordMessageId baru yang tersimpan
+    // Simpan pembaruan Message ID ke Vercel KV jika ada pesan baru
     if (isSchedulesUpdated) {
       await kv.set("twi:schedules", schedules);
     }
 
-    return NextResponse.json({ success: true, message: "Match report berhasil diproses ke Discord" });
+    return NextResponse.json({ success: true, results });
   } catch (error: any) {
-    console.error("Error API Match Report:", error);
-    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+    console.error("Match Report API Error:", error);
+    return NextResponse.json(
+      { success: false, error: "Terjadi kesalahan server." },
+      { status: 500 }
+    );
   }
 }
