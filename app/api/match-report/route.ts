@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { kv } from "@vercel/kv";
 import { DISCORD_CONFIG } from "@/lib/discord/config";
+import { discordAPI } from "@/lib/discord/utils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,11 +16,10 @@ export async function POST(request: NextRequest) {
     }
 
     const targetChannelId = customChannelId || DISCORD_CONFIG.CH_REPORT;
-    const botToken = process.env.DISCORD_BOT_TOKEN;
 
-    if (!botToken || !targetChannelId) {
+    if (!targetChannelId) {
       return NextResponse.json(
-        { success: false, error: "Konfigurasi Discord Bot / CH_REPORT belum disetting." },
+        { success: false, error: "CH_REPORT belum disetting di discord config." },
         { status: 500 }
       );
     }
@@ -28,22 +28,24 @@ export async function POST(request: NextRequest) {
     let isSchedulesUpdated = false;
     const results = [];
 
+    // Format Tanggal Konsisten dengan lib/discord/utils
     const now = new Date();
-    const formattedDate =
-      now.toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      }) +
-      ", " +
-      now.toLocaleTimeString("id-ID", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).replace(":", ".") +
-      " WIB";
+    const dateStr = now.toLocaleDateString("en-GB", {
+      timeZone: "Asia/Jakarta",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    const timeStr = now.toLocaleTimeString("en-GB", {
+      timeZone: "Asia/Jakarta",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const formattedDate = `${dateStr} at ${timeStr} WIB`;
 
     for (const report of reports) {
+      // 🟢 Formatter Custom Emoji Discord (<:kodeTim:emojiId>)
       const renderTeamBadge = (team: any) => {
         if (team?.emojiId && team?.code) {
           return `<:${team.code}:${team.emojiId}>`;
@@ -57,12 +59,12 @@ export async function POST(request: NextRequest) {
       const titleA = `${teamABadge} **${report.teamA.name}**`.trim();
       const titleB = `${teamBBadge} **${report.teamB.name}**`.trim();
 
+      // Buster Cache Discord
       const rawImageUrl = report.maskedImageUrl || report.imageUrl;
       const forceFreshImageUrl = rawImageUrl
         ? `${rawImageUrl.split("?")[0]}?v=${Date.now()}`
         : undefined;
 
-      // 🟢 SUB-JUDUL '⚔️ Match Report #' DIHAPUS, LANGSUNG TIM VS TIM
       const payload = {
         embeds: [
           {
@@ -71,50 +73,39 @@ export async function POST(request: NextRequest) {
             description: `${titleA}  VS  ${titleB}\n\n📝 **Catatan Match:**\n${report.notes || "_Tidak ada catatan._"}`,
             image: forceFreshImageUrl ? { url: forceFreshImageUrl } : undefined,
             footer: {
-              text: `TWI Season 7 • ${report.formattedDate || formattedDate}`,
+              text: `Team Wars Indonesia • ${report.formattedDate || formattedDate}`,
             },
           },
         ],
       };
 
+      // Cek apakah match ini sudah punya ID pesan di KV
       const scheduleIdx = schedules.findIndex(
         (s) => (s.id || `match-${s.matchNumber}`) === report.matchId
       );
       const existingMessageId = scheduleIdx !== -1 ? schedules[scheduleIdx].discordMessageId : null;
 
-      let res;
+      let resData;
 
       if (existingMessageId) {
-        // PATCH / EDIT PESAN DISCORD LAMA
-        res = await fetch(
-          `https://discord.com/api/v10/channels/${targetChannelId}/messages/${existingMessageId}`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bot ${botToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          }
+        // 🟢 EDIT PESAN LAMA MENGGUNAKAN discordAPI
+        resData = await discordAPI(
+          `/channels/${targetChannelId}/messages/${existingMessageId}`,
+          "PATCH",
+          payload
         );
       } else {
-        // POST PESAN BARU
-        res = await fetch(
-          `https://discord.com/api/v10/channels/${targetChannelId}/messages`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bot ${botToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          }
+        // 🟢 KIRIM PESAN BARU MENGGUNAKAN discordAPI
+        resData = await discordAPI(
+          `/channels/${targetChannelId}/messages`,
+          "POST",
+          payload
         );
       }
 
-      if (res.ok) {
-        const resData = await res.json();
-        results.push({ matchId: report.matchId, success: true, messageId: resData.id });
+      if (resData && (resData.id || resData === true)) {
+        const msgId = resData.id || existingMessageId;
+        results.push({ matchId: report.matchId, success: true, messageId: msgId });
 
         if (scheduleIdx !== -1) {
           if (!existingMessageId && resData.id) {
@@ -125,8 +116,7 @@ export async function POST(request: NextRequest) {
           isSchedulesUpdated = true;
         }
       } else {
-        const errorData = await res.json();
-        results.push({ matchId: report.matchId, success: false, error: errorData });
+        results.push({ matchId: report.matchId, success: false, error: "Gagal memproses ke Discord API" });
       }
 
       await new Promise((resolve) => setTimeout(resolve, 300));

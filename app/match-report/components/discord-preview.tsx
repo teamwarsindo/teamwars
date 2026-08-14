@@ -8,19 +8,20 @@ interface DiscordPreviewProps {
 }
 
 export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
-  const nowFormatted =
-    new Date().toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }) +
-    ", " +
-    new Date().toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).replace(":", ".") +
-    " WIB";
+  const d = new Date();
+  const dateStr = d.toLocaleDateString("en-GB", {
+    timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const timeStr = d.toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const nowFormatted = `${dateStr} at ${timeStr} WIB`;
 
   const renderTeamTitle = (team: any) => {
     if (team?.emojiId && team?.code) {
@@ -36,7 +37,7 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
         {match.group.toUpperCase()} — WEEK {match.week}
       </div>
 
-      {/* 🟢 LANGSUNG NAMA TIM VS TIM (SUB-JUDUL DIHAPUS) */}
+      {/* TIM VS TIM */}
       <div className="text-sm font-bold text-white">
         <span>{renderTeamTitle(match.teamA)}</span>
         <span className="mx-2 text-[#949ba4]">VS</span>
@@ -65,7 +66,7 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
 
       {/* FOOTER */}
       <div className="text-[11px] text-[#949ba4] border-t border-[#383a40] pt-2 flex items-center gap-1">
-        🏆 TWI Season 7 • {nowFormatted}
+        🏆 Team Wars Indonesia • {nowFormatted}
       </div>
     </div>
   );
