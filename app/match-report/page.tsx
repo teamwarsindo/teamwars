@@ -10,7 +10,6 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-// Helper kalkulasi nomor minggu jika weekNumber di KV kosong
 function computeWeekNumber(dateIsoString?: string): number {
   if (!dateIsoString) return 1;
   const startDateStr = process.env.TWI_START_DATE || "2026-08-03";
@@ -22,15 +21,13 @@ function computeWeekNumber(dateIsoString?: string): number {
   return Math.max(1, Math.floor(diffDays / 7) + 1);
 }
 
-// Helper untuk membuat slug/kode dari nama tim
 function getTeamSlug(teamName: string): string {
   if (!teamName) return "";
   return teamName
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-+/, "")
-    .replace(/-+$/, "");
+    .replace(/^-+|-+$/g, "");
 }
 
 export default async function MatchReportPage() {
@@ -40,56 +37,53 @@ export default async function MatchReportPage() {
     const schedules = (await kv.get<MatchScheduleItem[]>("twi:schedules")) || [];
 
     if (Array.isArray(schedules) && schedules.length > 0) {
-      let isKvUpdated = false;
+      const enrichedMatches = await Promise.all(
+        schedules.map(async (m, index) => {
+          let week = m.weekNumber;
+          if (!week || typeof week !== "number" || week < 1) {
+            week = computeWeekNumber(m.matchDate);
+          }
 
-      const updatedSchedules = schedules.map((m, index) => {
-        let week = m.weekNumber;
+          const rawId = m.id || `match-${index + 1}`;
+          const matchNumberStr = rawId.replace(/[^0-9]/g, "") || String(index + 1);
 
-        // Auto-correct jika weekNumber kosong di KV
-        if (!week || typeof week !== "number" || week < 1) {
-          week = computeWeekNumber(m.matchDate);
-          m.weekNumber = week;
-          isKvUpdated = true;
-        }
+          const slugA = getTeamSlug(m.teamAName);
+          const slugB = getTeamSlug(m.teamBName);
 
-        const rawId = m.id || `match-${index + 1}`;
-        const matchNumberStr = rawId.replace(/[^0-9]/g, "") || String(index + 1);
+          // Tarik Data Asli dari Upstash Redis Hash teams:{slug}
+          const [teamDataA, teamDataB] = await Promise.all([
+            slugA ? kv.hgetall<Record<string, any>>(`teams:${slugA}`) : null,
+            slugB ? kv.hgetall<Record<string, any>>(`teams:${slugB}`) : null,
+          ]);
 
-        const slugA = getTeamSlug(m.teamAName);
-        const slugB = getTeamSlug(m.teamBName);
+          // PAKSA Ambil 'kodeTim' & 'emoji' dari DB KV
+          const kodeA = teamDataA?.kodeTim || (m as any).teamACode;
+          const kodeB = teamDataB?.kodeTim || (m as any).teamBCode;
 
-        return {
-          scheduleItem: m,
-          formatted: {
+          return {
             id: rawId,
             group: m.groupName || "Group Stage",
             week: week,
             matchNumber: parseInt(matchNumberStr, 10) || index + 1,
             scoreA: m.scoreA ?? 0,
             scoreB: m.scoreB ?? 0,
-            teamALogo: m.teamALogo || "/logo.webp",
-            teamBLogo: m.teamBLogo || "/logo.webp",
+            teamALogo: m.teamALogo || teamDataA?.logoTim || "/logo.webp",
+            teamBLogo: m.teamBLogo || teamDataB?.logoTim || "/logo.webp",
             teamA: {
-              name: m.teamAName || "Team A",
-              code: (m as any).teamACode || m.teamAName || "Team A",
-              slug: (m as any).teamASlug || slugA,
+              name: m.teamAName,
+              code: kodeA || "", // Kosong jika tidak ada, agar melempar error di validation
+              emoji: teamDataA?.emoji || "🔵",
             },
             teamB: {
-              name: m.teamBName || "Team B",
-              code: (m as any).teamBCode || m.teamBName || "Team B",
-              slug: (m as any).teamBSlug || slugB,
+              name: m.teamBName,
+              code: kodeB || "", // Kosong jika tidak ada, agar melempar error di validation
+              emoji: teamDataB?.emoji || "🔴",
             },
-          },
-        };
-      });
+          };
+        })
+      );
 
-      // Simpan permanen ke KV jika ada weekNumber yang baru terisi
-      if (isKvUpdated) {
-        const cleanSchedulesToSave = updatedSchedules.map((item) => item.scheduleItem);
-        await kv.set("twi:schedules", cleanSchedulesToSave);
-      }
-
-      matches = updatedSchedules.map((item) => item.formatted);
+      matches = enrichedMatches;
     }
   } catch (error) {
     console.error("Error reading KV in Server:", error);
@@ -97,4 +91,4 @@ export default async function MatchReportPage() {
   }
 
   return <MatchReportPageClient initialMatches={matches} />;
-        }
+}
