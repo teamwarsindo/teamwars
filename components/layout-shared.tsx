@@ -19,10 +19,12 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
   const pathname = usePathname();
 
   const navLinks = [
+    { label: "Home", href: "/" }, // Tambahan menu Home
     { label: "Tournament", href: "/tournament" },
     { label: "Roulette", href: "/roulette" },
     { label: "Rules", href: "/rules" },
   ];
+
 
   return (
     <header className="sticky top-0 z-50 flex w-full flex-col gap-2.5 border-b border-border/40 bg-background/85 px-4 py-3 backdrop-blur-md transition-all sm:px-6 lg:px-12">
