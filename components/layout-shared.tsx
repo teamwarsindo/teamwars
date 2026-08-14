@@ -20,7 +20,6 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
 
   const navLinks = [
     { label: "Tournament", href: "/tournament" },
-    { label: "Decks", href: "/tournament/decks" },
     { label: "Roulette", href: "/roulette" },
     { label: "Rules", href: "/rules" },
   ];
@@ -125,4 +124,4 @@ export function Footer() {
       © {new Date().getFullYear()} Team Wars Indonesia. All rights reserved.
     </footer>
   );
-      }
+}
