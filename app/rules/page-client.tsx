@@ -46,7 +46,8 @@ export default function RulebookClient() {
   const isFilterActive = searchQuery !== "" || activeCategory !== "ALL"
 
   return (
-    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
+    // PERUBAHAN: overflow-hidden diganti menjadi overflow-clip
+    <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
       <TopBar title="Official Rulebook" />
 
