@@ -12,7 +12,7 @@ const nextConfig = {
         destination: 'https://www.instagram.com/teamwarsindonesia',
         permanent: true,
       },
-    ]
+    ];
   },
 
   async rewrites() {
@@ -22,7 +22,7 @@ const nextConfig = {
         source: '/report/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/report/:path*',
       },
-      
+
       // Format URL Bukti
       {
         source: '/bukti/:path*',
@@ -30,7 +30,6 @@ const nextConfig = {
       },
 
       // ⚡ MASKING DOWNLOAD (Harus di ATAS /logo/:path*)
-      // Menambahkan fl_attachment agar browser langsung men-download otomatis
       {
         source: '/logo/:filename/download',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/fl_attachment/logo/:filename',
@@ -40,8 +39,23 @@ const nextConfig = {
       {
         source: '/logo/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/logo/:path*',
-      }
-    ]
+      },
+    ];
+  },
+
+  // 🟢 CEGAH CACHE AGAR GAMBAR HASIL OVERWRITE LANGSUNG TERUPDATE
+  async headers() {
+    return [
+      {
+        source: '/report/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          },
+        ],
+      },
+    ];
   },
 
   images: {
