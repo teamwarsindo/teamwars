@@ -36,9 +36,14 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     );
   };
 
-  // 🟢 FUNGSI UPLOAD YANG MATCH 100% DENGAN /api/sign-cloudinary
   const handleDirectUpload = async (match: MatchItem, file: File) => {
-    const fileName = generateFileName(match);
+    let fileName = "";
+    try {
+      fileName = generateFileName(match); // Akan melempar error jika kodeTim tidak ada di DB
+    } catch (err: any) {
+      alert(`[ERROR KODETIM DB]: ${err.message}`);
+      return;
+    }
 
     setReports((prev) => ({
       ...prev,
@@ -51,45 +56,43 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     }));
 
     try {
-      const publicId = `report/${fileName}`;
-
-      // 1. Minta Signature lengkap dari backend Next.js
+      // 🟢 Minta Signature dari backend server
+      // public_id cukuplah 'fileName' saja karena folder sudah 'report' (Mencegah ganda report/report)
       const signRes = await fetch("/api/sign-cloudinary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           folder: "report",
-          public_id: publicId,
+          public_id: fileName,
         }),
       });
 
       if (!signRes.ok) {
-        throw new Error("Gagal mendapatkan signature dari server.");
+        throw new Error("Gagal mendapatkan signature dari server /api/sign-cloudinary.");
       }
 
       const signData = await signRes.json();
       const { api_key, signature, timestamp, folder, format } = signData;
 
       if (!api_key || !signature) {
-        throw new Error("Respon API signature tidak lengkap.");
+        throw new Error("Respon dari /api/sign-cloudinary tidak menyertakan api_key atau signature!");
       }
 
-      // 2. Susun FormData SESUAI EXACT PARAMETER dari /api/sign-cloudinary
+      // 🟢 Kirim payload persis sama dengan signature
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("api_key", api_key); // 🟢 Diambil langsung dari return JSON /api/sign-cloudinary
+      formData.append("api_key", api_key);
       formData.append("timestamp", String(timestamp));
       formData.append("signature", signature);
       formData.append("folder", folder || "report");
-      formData.append("public_id", publicId);
+      formData.append("public_id", fileName);
       formData.append("overwrite", "true");
       if (format) {
-        formData.append("format", format); // 🟢 format "png" dari server
+        formData.append("format", format);
       }
 
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dhplw8rsd";
 
-      // 3. Eksekusi Signed Upload ke Cloudinary
       const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: "POST",
         body: formData,
@@ -103,7 +106,6 @@ export function useMatchReport(availableMatches: MatchItem[]) {
       const uploadData = await uploadRes.json();
 
       if (uploadData.secure_url) {
-        // Tambahkan query timestamp agar gambar baru langsung ke-refresh
         const finalUrl = `${uploadData.secure_url}?t=${Date.now()}`;
 
         setReports((prev) => ({
@@ -115,11 +117,11 @@ export function useMatchReport(availableMatches: MatchItem[]) {
           },
         }));
       } else {
-        throw new Error("Respon Cloudinary tidak memuat URL gambar.");
+        throw new Error("Cloudinary tidak mengembalikan URL gambar yang valid.");
       }
     } catch (err: any) {
       console.error("Gagal upload match report:", err);
-      alert(`Gagal Mengunggah: ${err.message || "Terjadi kesalahan jaringan."}`);
+      alert(`[UPLOAD ERROR]: ${err.message}`);
       setReports((prev) => ({
         ...prev,
         [match.id]: { ...prev[match.id], isUploading: false },
@@ -145,4 +147,4 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     isSending,
     setIsSending,
   };
-}
+  }
