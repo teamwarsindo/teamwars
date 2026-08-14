@@ -37,7 +37,7 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
               (e.target as HTMLImageElement).src = "/logo.webp";
             }}
           />
-          <span className="font-extrabold text-xs sm:text-sm text-foreground truncate text-left leading-tight">
+          <span className="font-extrabold text-xs sm:text-sm text-foreground text-left leading-tight break-words">
             {match.teamA.name}
           </span>
         </div>
@@ -51,7 +51,7 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
 
         {/* TIM B (KANAN - MEPET KANAN) */}
         <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
-          <span className="font-extrabold text-xs sm:text-sm text-foreground truncate text-right leading-tight">
+          <span className="font-extrabold text-xs sm:text-sm text-foreground text-right leading-tight break-words">
             {match.teamB.name}
           </span>
           <img
@@ -98,21 +98,21 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
           </label>
         )}
 
-        {/* NAMA FILE MASKING BERBASED KODETIM */}
+        {/* NAMA FILE MASKING - PAKSA KLIK DENGAN MASKED URL */}
         <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-muted-foreground/80 px-1 pt-1">
           <span>Target File Masking:</span>
           {entry?.imageUrl && maskedUrl ? (
             <a
-              href={entry.imageUrl}
+              href={maskedUrl}
               target="_blank"
               rel="noopener noreferrer"
               title={`Buka gambar: ${maskedUrl}`}
-              className="font-bold text-primary underline hover:text-primary/80 transition-all truncate max-w-[200px] sm:max-w-none cursor-pointer animate-pulse"
+              className="font-bold text-primary underline hover:text-primary/80 transition-all cursor-pointer animate-pulse"
             >
               {fileName}.png 🔗
             </a>
           ) : (
-            <span className="font-bold text-muted-foreground/60 truncate max-w-[200px] sm:max-w-none">
+            <span className="font-bold text-muted-foreground/60">
               {fileName}.png
             </span>
           )}

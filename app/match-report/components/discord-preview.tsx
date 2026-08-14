@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchItem, MatchReportEntry, generateFileName, maskImageUrl } from "../utils/lib-match-report";
+import { MatchItem, MatchReportEntry, generateFileName } from "../utils/lib-match-report";
 
 interface DiscordPreviewProps {
   match: MatchItem;
@@ -8,15 +8,16 @@ interface DiscordPreviewProps {
 }
 
 export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
-  const fileName = generateFileName(match);
-  const maskedUrl = entry?.imageUrl ? maskImageUrl(entry.imageUrl, fileName) : "";
-
   const nowFormatted =
     new Date().toLocaleDateString("id-ID", {
       day: "numeric",
       month: "short",
       year: "numeric",
     }) + ` at ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB`;
+
+  // Cek apakah emoji ada dan sanitasikan (hapus bulatan 🔵/🔴 jika tidak ada custom emoji)
+  const emojiA = match.teamA.emoji && !["🔵", "🔴"].includes(match.teamA.emoji) ? `${match.teamA.emoji} ` : "";
+  const emojiB = match.teamB.emoji && !["🔵", "🔴"].includes(match.teamB.emoji) ? `${match.teamB.emoji} ` : "";
 
   return (
     <div className="bg-[#313338] text-[#dbdee1] p-4 rounded-lg font-sans text-sm border-l-4 border-[#3b82f6] shadow-xl space-y-3">
@@ -27,11 +28,11 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
       <div className="space-y-1">
         <div className="font-semibold text-white">⚔️ Match Report #{match.matchNumber}</div>
         
-        {/* 🟢 EMOJI TIM DI SEBELAH NAMA TIM */}
+        {/* NAMA TIM (TANPA BULATAN BIRU/MERAH MENGGANGGU) */}
         <div className="text-sm font-bold text-white">
-          <span>{match.teamA.emoji || "🔵"} {match.teamA.name}</span>
+          <span>{emojiA}{match.teamA.name}</span>
           <span className="mx-2 text-[#949ba4]">VS</span>
-          <span>{match.teamB.emoji || "🔴"} {match.teamB.name}</span>
+          <span>{emojiB}{match.teamB.name}</span>
         </div>
       </div>
 
@@ -42,16 +43,11 @@ export function DiscordPreview({ match, entry }: DiscordPreviewProps) {
         </div>
       </div>
 
-      {/* GAMBAR DENGAN URL MASKING PAKSA */}
+      {/* GAMBAR DISCORD EMBED (BERSIH TANPA TEKS URL MASKED) */}
       {entry?.imageUrl ? (
-        <div className="space-y-1">
-          <div className="rounded-md overflow-hidden border border-[#383a40] bg-black/40">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={entry.imageUrl} alt="Match Report" className="w-full max-h-60 object-contain" />
-          </div>
-          <div className="text-[10px] font-mono text-[#949ba4] truncate">
-            URL Masked: <span className="text-[#5865f2] font-semibold">{maskedUrl}</span>
-          </div>
+        <div className="rounded-md overflow-hidden border border-[#383a40] bg-black/40">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={entry.imageUrl} alt="Match Report" className="w-full max-h-60 object-contain" />
         </div>
       ) : (
         <div className="h-28 border border-dashed border-[#4e5058] rounded-md flex items-center justify-center text-xs text-[#949ba4]">
