@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { DIVISION_MAP } from "@/lib/types/tournament";
-import { ChevronRight, Trophy } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 interface StandingsSnapshotProps {
   loading: boolean;
@@ -107,7 +107,7 @@ export function StandingsSnapshot({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Top Playoff
+            Top 8 Global
           </button>
         </div>
 
@@ -157,7 +157,7 @@ export function StandingsSnapshot({
         <div className="space-y-2">
           <div className="flex items-center justify-between px-2.5 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
             <span className="w-[52%] font-black text-[10px] text-emerald-500">
-              Kandidat Playoff (Kecuali Top Group)
+              Klasemen Top 8 Playoff
             </span>
             <span className="w-[16%] text-center">W-L</span>
             <span className="w-[11%] text-center">RD</span>
@@ -168,11 +168,11 @@ export function StandingsSnapshot({
             renderTable(topGlobal, false, true)
           ) : (
             <p className="py-4 text-center text-xs text-muted-foreground">
-              Belum ada data tim playoff.
+              Belum ada data klasemen global.
             </p>
           )}
         </div>
       )}
     </div>
   );
-}
+                }
