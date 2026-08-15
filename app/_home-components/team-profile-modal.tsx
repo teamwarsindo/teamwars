@@ -3,360 +3,142 @@
 import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { MatchScheduleItem } from "@/lib/types/tournament";
-import {
-  X,
-  Trophy,
-  Swords,
-  Users,
-  Loader2,
-  Crown,
-  Activity,
-  CreditCard,
-} from "lucide-react";
+import { X, Trophy, Swords, Users, Loader2, Crown, Activity, Copy, Check } from "lucide-react";
 
-interface TeamProfileModalProps {
-  team: any;
-  allSchedules: MatchScheduleItem[];
-  onClose: () => void;
-}
-
-export function TeamProfileModal({
-  team,
-  allSchedules,
-  onClose,
-}: TeamProfileModalProps) {
+export function TeamProfileModal({ team, allSchedules, onClose }: { team: any; allSchedules: MatchScheduleItem[]; onClose: () => void }) {
   const [roster, setRoster] = useState<any[]>([]);
-  const [loadingRoster, setLoadingRoster] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const original = document.body.style.overflow;
+    const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
     fetch(`/api/tournament/team-roster?teamName=${encodeURIComponent(team.teamName)}`)
-      .then((res) => res.json())
-      .then((json) => {
-        if (isMounted && json.success && json.data) {
-          setRoster(json.data.players || []);
-        }
-      })
-      .catch((err) => console.error("Gagal load roster:", err))
-      .finally(() => {
-        if (isMounted) setLoadingRoster(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
+      .then((r) => r.json())
+      .then((j) => j.success && setRoster(j.data.players || []))
+      .finally(() => setLoading(false));
+    return () => { document.body.style.overflow = prev; };
   }, [team.teamName]);
 
-  const { history, nextMatch, formStreak } = useMemo(() => {
-    const currentName = team.teamName.toLowerCase();
-    const teamMatches = allSchedules.filter(
-      (m) =>
-        m.teamAName.toLowerCase() === currentName ||
-        m.teamBName.toLowerCase() === currentName
-    );
+  const copy = (id: string) => {
+    if (!id) return;
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
-    const historyItems = teamMatches
-      .filter((m) => m.isFinished)
-      .sort(
-        (a, b) =>
-          new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime()
-      )
-      .map((m) => {
-        const isTeamA = m.teamAName.toLowerCase() === currentName;
-        const myScore = isTeamA ? m.scoreA || 0 : m.scoreB || 0;
-        const oppScore = isTeamA ? m.scoreB || 0 : m.scoreA || 0;
-        const oppName = isTeamA ? m.teamBName : m.teamAName;
-        const oppLogo = isTeamA ? m.teamBLogo : m.teamALogo;
-        const isWin = myScore > oppScore;
-
-        return {
-          id: m.id,
-          weekNumber: m.weekNumber,
-          isWin,
-          myScore,
-          oppScore,
-          oppName,
-          oppLogo,
-        };
-      });
-
-    const next = teamMatches
-      .filter((m) => !m.isFinished)
-      .sort(
-        (a, b) =>
-          new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
-      )[0];
-
-    const forms = [...historyItems]
-      .slice(0, 5)
-      .reverse()
-      .map((h) => (h.isWin ? "W" : "L"));
-
-    return { history: historyItems, nextMatch: next, formStreak: forms };
+  const { history, nextMatch, streak } = useMemo(() => {
+    const q = team.teamName.toLowerCase();
+    const matches = allSchedules.filter((m) => m.teamAName.toLowerCase() === q || m.teamBName.toLowerCase() === q);
+    const hist = matches.filter((m) => m.isFinished).sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime()).map((m) => {
+      const isA = m.teamAName.toLowerCase() === q;
+      return { id: m.id, week: m.weekNumber, isWin: (isA ? m.scoreA : m.scoreB)! > (isA ? m.scoreB : m.scoreA)!, myScore: isA ? m.scoreA : m.scoreB, oppScore: isA ? m.scoreB : m.scoreA, oppName: isA ? m.teamBName : m.teamAName, oppLogo: isA ? m.teamBLogo : m.teamALogo };
+    });
+    return { history: hist, nextMatch: matches.find((m) => !m.isFinished), streak: [...hist].slice(0, 5).reverse().map((h) => (h.isWin ? "W" : "L")) };
   }, [team.teamName, allSchedules]);
 
-  const totalMatches = (team.matchWins || 0) + (team.matchLosses || 0);
-  const winRate =
-    totalMatches > 0 ? Math.round(((team.matchWins || 0) / totalMatches) * 100) : 0;
+  const total = (team.matchWins || 0) + (team.matchLosses || 0);
+  const wr = total > 0 ? Math.round((team.matchWins / total) * 100) : 0;
 
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 p-3 sm:p-5 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 p-3 sm:p-5 backdrop-blur-md">
       <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl border border-border/70 bg-slate-950 text-foreground shadow-2xl overflow-hidden">
         
-        {/* HEADER PROFIL */}
-        <div className="flex items-center justify-between border-b border-border/40 bg-slate-900/95 px-4 py-3.5 sm:px-5">
+        {/* HEADER */}
+        <div className="flex items-center justify-between border-b border-border/40 bg-slate-900/95 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-2xl border border-border bg-muted/40 p-1 flex items-center justify-center">
-              <img
-                src={team.teamLogo || "/logo.webp"}
-                alt=""
-                className="h-full w-full object-contain"
-              />
-            </div>
+            <img src={team.teamLogo || "/logo.webp"} alt="" className="h-9 w-9 object-contain shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-black truncate text-foreground">
-                {team.teamName}
-              </h2>
-              <p className="text-[10.5px] font-semibold text-primary">
-                {team.groupName}
-              </p>
+              <h2 className="text-sm sm:text-base font-black truncate">{team.teamName}</h2>
+              <p className="text-[10.5px] font-semibold text-primary">{team.groupName}</p>
             </div>
           </div>
-
-          <button
-            onClick={onClose}
-            className="rounded-xl p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <button onClick={onClose} className="rounded-xl p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
 
-        {/* BODY KONTEN */}
+        {/* BODY */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
           
-          {/* 1. STATISTIK PERFORMA (SESUAI ATURAN TIE BREAKER RESMI) */}
-          <div className="space-y-2 rounded-2xl border border-border/50 bg-slate-900/50 p-3.5">
-            <div className="flex items-center justify-between text-[10.5px] font-bold text-muted-foreground">
-              <span className="flex items-center gap-1.5 text-foreground uppercase tracking-wider text-[9.5px]">
-                <Activity className="h-3.5 w-3.5 text-primary" /> Performa Tim
-              </span>
-              <div className="flex items-center gap-1">
-                {formStreak.length > 0 ? (
-                  formStreak.map((f, i) => (
-                    <span
-                      key={i}
-                      className={`flex h-4 w-4 items-center justify-center rounded-sm text-[8.5px] font-black ${
-                        f === "W"
-                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                          : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                      }`}
-                    >
-                      {f}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-[9.5px] text-muted-foreground">0 Match</span>
-                )}
+          {/* STATS */}
+          <div className="space-y-2 rounded-2xl border border-border/50 bg-slate-900/50 p-3">
+            <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+              <span className="font-bold flex items-center gap-1 text-foreground"><Activity className="h-3.5 w-3.5 text-primary" /> PERFORMA</span>
+              <div className="flex gap-1">
+                {streak.map((s, i) => (
+                  <span key={i} className={`h-4 w-4 flex items-center justify-center rounded text-[8.5px] font-black ${s === "W" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>{s}</span>
+                ))}
               </div>
             </div>
-
-            <div className="grid grid-cols-4 gap-2 pt-1 text-center">
-              <div className="rounded-xl bg-primary/10 border border-primary/20 py-2">
-                <span className="block text-[8.5px] font-bold text-muted-foreground">POIN</span>
-                <span className="text-sm font-black text-primary">{team.points}</span>
-              </div>
-              <div className="rounded-xl bg-muted/20 border border-border/40 py-2">
-                <span className="block text-[8.5px] font-bold text-muted-foreground">SET WINS</span>
-                <span className="text-xs font-black text-foreground">{team.setWins} Set</span>
-              </div>
-              <div className="rounded-xl bg-muted/20 border border-border/40 py-2">
-                <span className="block text-[8.5px] font-bold text-muted-foreground">SELISIH (RD)</span>
-                <span className={`text-xs font-black ${team.roundDifference > 0 ? "text-emerald-400" : team.roundDifference < 0 ? "text-rose-400" : ""}`}>
-                  {team.roundDifference > 0 ? `+${team.roundDifference}` : team.roundDifference}
-                </span>
-              </div>
-              <div className="rounded-xl bg-muted/20 border border-border/40 py-2">
-                <span className="block text-[8.5px] font-bold text-muted-foreground">WIN RATE</span>
-                <span className="text-xs font-black text-amber-400">{winRate}%</span>
-              </div>
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="rounded-xl bg-primary/10 border border-primary/20 py-1.5"><span className="block text-[8.5px] text-muted-foreground font-bold">POIN</span><span className="text-sm font-black text-primary">{team.points}</span></div>
+              <div className="rounded-xl bg-muted/20 border border-border/40 py-1.5"><span className="block text-[8.5px] text-muted-foreground font-bold">SET</span><span className="text-xs font-black">{team.setWins || 0}</span></div>
+              <div className="rounded-xl bg-muted/20 border border-border/40 py-1.5"><span className="block text-[8.5px] text-muted-foreground font-bold">RD</span><span className={`text-xs font-black ${team.roundDifference > 0 ? "text-emerald-400" : team.roundDifference < 0 ? "text-rose-400" : ""}`}>{team.roundDifference > 0 ? `+${team.roundDifference}` : team.roundDifference}</span></div>
+              <div className="rounded-xl bg-muted/20 border border-border/40 py-1.5"><span className="block text-[8.5px] text-muted-foreground font-bold">WIN RATE</span><span className="text-xs font-black text-amber-400">{wr}%</span></div>
             </div>
-
-            <div className="pt-1">
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-rose-500/30 flex">
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-500"
-                  style={{ width: `${winRate}%` }}
-                />
-              </div>
-            </div>
+            <div className="h-1.5 w-full rounded-full bg-rose-500/30 overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${wr}%` }} /></div>
           </div>
 
-          {/* 2. LAGA BERIKUTNYA */}
+          {/* NEXT MATCH */}
           {nextMatch && (
-            <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-3">
-              <span className="text-[9.5px] font-black uppercase text-sky-400 block mb-2 flex items-center gap-1.5">
-                <Swords className="h-3 w-3" /> Laga Mendatang (Week {nextMatch.weekNumber})
-              </span>
-              <div className="flex items-center justify-between gap-2 bg-slate-950/90 p-2.5 rounded-xl border border-sky-500/20">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <img
-                    src={nextMatch.teamALogo || "/logo.webp"}
-                    alt=""
-                    className="h-5 w-5 object-contain shrink-0"
-                  />
-                  <span className="font-bold text-[11px] truncate text-foreground">
-                    {nextMatch.teamAName}
-                  </span>
-                </div>
-                <span className="text-[9.5px] font-black px-2 py-0.5 rounded bg-muted text-sky-400 shrink-0">
-                  VS
-                </span>
-                <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
-                  <span className="font-bold text-[11px] truncate text-right text-foreground">
-                    {nextMatch.teamBName}
-                  </span>
-                  <img
-                    src={nextMatch.teamBLogo || "/logo.webp"}
-                    alt=""
-                    className="h-5 w-5 object-contain shrink-0"
-                  />
-                </div>
+            <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-2.5 space-y-1.5">
+              <span className="text-[9.5px] font-black text-sky-400 flex items-center gap-1"><Swords className="h-3 w-3" /> Laga Berikutnya (Week {nextMatch.weekNumber})</span>
+              <div className="flex items-center justify-between bg-slate-950/90 p-2 rounded-xl border border-sky-500/20 text-[11px] font-bold">
+                <span className="truncate flex-1">{nextMatch.teamAName}</span>
+                <span className="text-[9px] px-2 text-sky-400">VS</span>
+                <span className="truncate flex-1 text-right">{nextMatch.teamBName}</span>
               </div>
             </div>
           )}
 
-          {/* 3. RIWAYAT MATCH (SUSUNAN: [BADGE] vs [LOGO] [NAMA] --- [WEEK] --- [SKOR]) */}
+          {/* HISTORY */}
           <div className="space-y-1.5">
-            <span className="text-[9.5px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
-              <Trophy className="h-3 w-3 text-amber-500" /> Riwayat Pertandingan
-            </span>
-            {history.length > 0 ? (
-              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                {history.map((m) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between rounded-xl border border-border/40 bg-slate-900/60 px-3 py-2 text-[11px]"
-                  >
-                    {/* Sisi Kiri: Status & Lawan */}
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[8.5px] font-black shrink-0 ${
-                          m.isWin
-                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                            : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                        }`}
-                      >
-                        {m.isWin ? "WIN" : "LOSE"}
-                      </span>
-                      <span className="text-muted-foreground text-[10.5px] shrink-0 font-medium">
-                        vs
-                      </span>
-                      <div className="flex items-center gap-1.5 min-w-0 truncate">
-                        <img
-                          src={m.oppLogo || "/logo.webp"}
-                          alt=""
-                          className="h-4 w-4 object-contain shrink-0"
-                        />
-                        <span className="truncate font-bold text-foreground">
-                          {m.oppName}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Tengah: Badge Pekan Proporsional */}
-                    <div className="px-3 shrink-0 text-center">
-                      <span className="rounded-md bg-slate-950 border border-border/50 px-2 py-0.5 font-bold text-[9px] text-muted-foreground">
-                        Week {m.weekNumber}
-                      </span>
-                    </div>
-
-                    {/* Sisi Kanan: Papan Skor */}
-                    <div className="font-black text-xs shrink-0 text-right min-w-[45px]">
-                      <span className={m.isWin ? "text-emerald-400" : "text-foreground"}>
-                        {m.myScore}
-                      </span>
-                      <span className="text-muted-foreground mx-1">-</span>
-                      <span className={!m.isWin ? "text-rose-400" : "text-foreground"}>
-                        {m.oppScore}
-                      </span>
-                    </div>
+            <span className="text-[9.5px] font-black uppercase text-muted-foreground flex items-center gap-1"><Trophy className="h-3 w-3 text-amber-500" /> Riwayat Pertandingan</span>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              {history.map((m) => (
+                <div key={m.id} className="flex items-center justify-between rounded-xl bg-slate-900/60 border border-border/40 px-3 py-1.5 text-[11px]">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-black ${m.isWin ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>{m.isWin ? "WIN" : "LOSE"}</span>
+                    <span className="text-muted-foreground text-[10px]">vs</span>
+                    <img src={m.oppLogo || "/logo.webp"} alt="" className="h-4 w-4 object-contain" />
+                    <span className="truncate font-bold">{m.oppName}</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-xl border border-border/30 bg-muted/10 p-3 text-center text-[10.5px] text-muted-foreground">
-                Belum ada pertandingan yang selesai.
-              </p>
-            )}
+                  <span className="rounded bg-slate-950 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground mx-2">Week {m.week}</span>
+                  <span className="font-black text-xs min-w-[40px] text-right"><span className={m.isWin ? "text-emerald-400" : ""}>{m.myScore}</span> - <span className={!m.isWin ? "text-rose-400" : ""}>{m.oppScore}</span></span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* 4. SKUAD / ROSTER ANGGOTA (CSS COLUMNS: ATAS KE BAWAH TANPA BUG TUMPANGAN) */}
+          {/* ROSTER */}
           <div className="space-y-1.5">
-            <span className="text-[9.5px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
-              <Users className="h-3 w-3 text-primary" /> Roster Anggota
-            </span>
-
-            {loadingRoster ? (
-              <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                Memuat data pemain...
-              </div>
-            ) : roster.length > 0 ? (
-              <div className="columns-1 sm:columns-2 gap-1.5 max-h-48 overflow-y-auto pr-1 space-y-1.5">
+            <span className="text-[9.5px] font-black uppercase text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3 text-primary" /> Roster Anggota</span>
+            {loading ? (
+              <div className="py-3 text-center text-muted-foreground flex items-center justify-center gap-2"><Loader2 className="h-3 w-3 animate-spin text-primary" /> Memuat roster...</div>
+            ) : (
+              <div className="flex flex-col sm:grid sm:grid-cols-2 gap-1.5 max-h-44 overflow-y-auto">
                 {roster.map((p, idx) => {
-                  const isLeader = p.role === "Ketua" || p.role === "Kapten";
-                  const isCoLeader = p.role === "Wakil Ketua";
-                  const ign = p.ign || p.playerName || p.namaLengkap;
-                  const dlId = p.idDuelLinks || p.duelId;
-
+                  const dl = p.idDuelLinks || p.duelId;
+                  const isCap = p.role === "Ketua" || p.role === "Kapten";
                   return (
-                    <div
-                      key={idx}
-                      className="break-inside-avoid flex items-center justify-between rounded-xl border border-border/40 bg-slate-900/60 px-2.5 py-1.5"
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1.5">
-                        {isLeader ? (
-                          <Crown className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                        ) : isCoLeader ? (
-                          <Crown className="h-3.5 w-3.5 text-sky-400 shrink-0" />
-                        ) : (
-                          <span className="text-[9px] font-bold text-muted-foreground shrink-0 w-3 text-center">
-                            {idx + 1}
-                          </span>
-                        )}
-                        <span className="font-bold text-[11px] truncate text-foreground">
-                          {ign}
-                        </span>
+                    <div key={idx} className="flex items-center justify-between rounded-xl border border-border/40 bg-slate-900/60 px-2.5 py-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1">
+                        {isCap ? <Crown className="h-3.5 w-3.5 text-amber-400 shrink-0" /> : <span className="text-[9px] text-muted-foreground w-3 text-center shrink-0">{idx + 1}</span>}
+                        <span className="font-bold text-[11px] truncate">{p.ign || p.playerName || p.namaLengkap}</span>
                       </div>
-
-                      {dlId ? (
-                        <div className="flex items-center gap-1 rounded bg-slate-950 border border-border/40 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground shrink-0">
-                          <CreditCard className="h-2.5 w-2.5 text-primary" />
-                          <span>{dlId}</span>
-                        </div>
-                      ) : (
-                        <span className="text-[9px] text-muted-foreground font-mono shrink-0">-</span>
+                      {dl && (
+                        <button onClick={() => copy(dl)} className="flex items-center gap-1 bg-slate-950 border border-border/40 px-1.5 py-0.5 rounded font-mono text-[9px] text-muted-foreground hover:text-foreground">
+                          {copiedId === dl ? <Check className="h-2.5 w-2.5 text-emerald-400" /> : <Copy className="h-2.5 w-2.5 text-primary" />}
+                          <span>{copiedId === dl ? "Disalin" : dl}</span>
+                        </button>
                       )}
                     </div>
                   );
                 })}
               </div>
-            ) : (
-              <p className="rounded-xl border border-dashed border-border/60 bg-muted/10 p-3 text-center text-[10.5px] text-muted-foreground">
-                Roster belum terdaftar di database.
-              </p>
             )}
           </div>
 
@@ -364,17 +146,11 @@ export function TeamProfileModal({
 
         {/* FOOTER */}
         <div className="border-t border-border/40 bg-slate-900/95 p-3">
-          <button
-            onClick={onClose}
-            className="w-full rounded-2xl bg-primary py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition cursor-pointer"
-          >
-            Tutup Profil Tim
-          </button>
+          <button onClick={onClose} className="w-full rounded-2xl bg-primary py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90">Tutup Profil Tim</button>
         </div>
 
       </div>
     </div>,
     document.body
   );
-            }
-          
+}
