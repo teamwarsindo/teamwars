@@ -50,9 +50,11 @@ export function TournamentHub() {
     }));
   }, [schedules]);
 
-  // Standings Data
+  // Standings Data: Pisahkan Top Group vs Wildcard Top Playoff
   const { topGroupA, topGroupB, topGlobal, allStandings } = useMemo(() => {
     const standings = calculateStandings(schedulesWithWeek, masterTeams, currentWeek);
+
+    // 1. Top 2 dari masing-masing grup (Lolos Otomatis)
     const grpA = standings
       .filter((s) => s.groupName === DIVISION_MAP.GROUP_A)
       .slice(0, 2)
@@ -63,7 +65,15 @@ export function TournamentHub() {
       .slice(0, 2)
       .map((item, idx) => ({ ...item, rank: idx + 1 }));
 
-    const globalTop = [...standings]
+    // Kumpulan nama tim yang sudah masuk Top Group (Juara/Runner-up Grup)
+    const topGroupTeamNames = new Set([
+      ...grpA.map((t) => t.teamName.toLowerCase()),
+      ...grpB.map((t) => t.teamName.toLowerCase()),
+    ]);
+
+    // 2. Top Playoff (Kecuali Top Group): Ambil 4 tim terbaik berikutnya
+    const playoffCandidates = [...standings]
+      .filter((t) => !topGroupTeamNames.has(t.teamName.toLowerCase()))
       .sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
         if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
@@ -72,7 +82,12 @@ export function TournamentHub() {
       .slice(0, 4)
       .map((item, idx) => ({ ...item, rank: idx + 1 }));
 
-    return { topGroupA: grpA, topGroupB: grpB, topGlobal: globalTop, allStandings: standings };
+    return {
+      topGroupA: grpA,
+      topGroupB: grpB,
+      topGlobal: playoffCandidates,
+      allStandings: standings,
+    };
   }, [schedulesWithWeek, masterTeams, currentWeek]);
 
   // Matches Categorization
@@ -108,7 +123,12 @@ export function TournamentHub() {
       .sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime())
       .slice(0, 4);
 
-    return { liveMatches: live, todayMatches: today, upcomingMatches: upcoming, recentResults: results };
+    return {
+      liveMatches: live,
+      todayMatches: today,
+      upcomingMatches: upcoming,
+      recentResults: results,
+    };
   }, [schedulesWithWeek, currentWeek]);
 
   // Quick Team Search Handler
@@ -116,16 +136,22 @@ export function TournamentHub() {
     if (!teamSearchQuery.trim()) return null;
     const q = teamSearchQuery.toLowerCase();
 
-    const matchedTeam = allStandings.find((t) => t.teamName.toLowerCase().includes(q));
+    const matchedTeam = allStandings.find((t) =>
+      t.teamName.toLowerCase().includes(q)
+    );
     if (!matchedTeam) return "NOT_FOUND";
 
     const nextMatch = schedulesWithWeek
       .filter((m) => {
         const isTeamPlaying =
-          m.teamAName.toLowerCase().includes(q) || m.teamBName.toLowerCase().includes(q);
+          m.teamAName.toLowerCase().includes(q) ||
+          m.teamBName.toLowerCase().includes(q);
         return isTeamPlaying && !m.isFinished;
       })
-      .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime())[0];
+      .sort(
+        (a, b) =>
+          new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
+      )[0];
 
     return { team: matchedTeam, nextMatch };
   }, [teamSearchQuery, allStandings, schedulesWithWeek]);
@@ -181,8 +207,12 @@ export function TournamentHub() {
       {/* 4. DISCORD BANNER */}
       <div className="flex items-center justify-between rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-xs">
         <div className="space-y-0.5">
-          <p className="font-extrabold text-foreground">Gabung Komunitas Discord Resmi</p>
-          <p className="text-[11px] text-muted-foreground">Kordinasi referee, update live streaming, dan room match.</p>
+          <p className="font-extrabold text-foreground">
+            Gabung Komunitas Discord Resmi
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Kordinasi referee, update live streaming, dan room match.
+          </p>
         </div>
         <Link
           href="/invite"
@@ -193,4 +223,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-    }
+      }
