@@ -16,6 +16,53 @@ function getCurrentCalendarWeek(): number {
   return Math.max(1, Math.floor(diffDays / 7) + 1);
 }
 
+// Helper untuk menyusun struktur Standing Global
+function buildGlobalStandings(
+  standings: ExtendedStandingItem[]
+): (ExtendedStandingItem & { globalRank: number; globalRankTrend?: "up" | "down" | "stay" })[] {
+  const groupA = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A);
+  const groupB = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B);
+
+  const topGroupA = groupA.slice(0, 2).map((t, i) => ({
+    ...t,
+    isTopGroup: true,
+    groupColor: "GROUP_A",
+    customRankLabel: `Top ${i + 1}`,
+  }));
+
+  const topGroupB = groupB.slice(0, 2).map((t, i) => ({
+    ...t,
+    isTopGroup: true,
+    groupColor: "GROUP_B",
+    customRankLabel: `Top ${i + 1}`,
+  }));
+
+  const top4Combined = [...topGroupA, ...topGroupB];
+  const top4Names = new Set(top4Combined.map((t) => t.teamName));
+
+  const remainingTeams = standings
+    .filter((t) => !top4Names.has(t.teamName))
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
+      return b.roundDifference - a.roundDifference;
+    })
+    .map((t, idx) => ({
+      ...t,
+      rank: idx + 1,
+      isTopGroup: false,
+      groupColor: t.groupName === DIVISION_MAP.GROUP_A ? "GROUP_A" : "GROUP_B",
+      customRankLabel: `${idx + 1}`,
+    }));
+
+  const fullCombined = [...top4Combined, ...remainingTeams];
+
+  return fullCombined.map((item, index) => ({
+    ...item,
+    globalRank: index + 1,
+  }));
+}
+
 export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabProps) {
   const currentWeek = useMemo(() => getCurrentCalendarWeek(), []);
 
@@ -39,52 +86,46 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   }, [schedules, masterTeams, selectedWeek]);
 
   const groupAStandings = useMemo(() => {
-    const list = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A);
-    list.forEach((item, idx) => (item.rank = idx + 1));
-    return list;
+    return standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A);
   }, [standings]);
 
   const groupBStandings = useMemo(() => {
-    const list = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B);
-    list.forEach((item, idx) => (item.rank = idx + 1));
-    return list;
+    return standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B);
   }, [standings]);
 
   const globalStandings = useMemo(() => {
-    const topGroupA = groupAStandings.slice(0, 2).map((t, i) => ({
-      ...t,
-      isTopGroup: true,
-      groupColor: "GROUP_A",
-      customRankLabel: `Top ${i + 1}`,
+    const currentGlobal = buildGlobalStandings(standings);
+
+    if (selectedWeek > 1) {
+      const prevStandings = calculateStandings(schedules, masterTeams, selectedWeek - 1);
+      const prevGlobal = buildGlobalStandings(prevStandings);
+      const prevGlobalRankMap = new Map<string, number>();
+
+      prevGlobal.forEach((item) => {
+        prevGlobalRankMap.set(item.teamName, item.globalRank);
+      });
+
+      return currentGlobal.map((item) => {
+        const prevRank = prevGlobalRankMap.get(item.teamName);
+        let trend: "up" | "down" | "stay" = "stay";
+
+        if (typeof prevRank === "number") {
+          if (item.globalRank < prevRank) trend = "up";
+          else if (item.globalRank > prevRank) trend = "down";
+        }
+
+        return {
+          ...item,
+          globalRankTrend: trend,
+        };
+      });
+    }
+
+    return currentGlobal.map((item) => ({
+      ...item,
+      globalRankTrend: "stay" as const,
     }));
-
-    const topGroupB = groupBStandings.slice(0, 2).map((t, i) => ({
-      ...t,
-      isTopGroup: true,
-      groupColor: "GROUP_B",
-      customRankLabel: `Top ${i + 1}`,
-    }));
-
-    const top4Combined = [...topGroupA, ...topGroupB];
-    const top4Names = new Set(top4Combined.map((t) => t.teamName));
-
-    const remainingTeams = standings
-      .filter((t) => !top4Names.has(t.teamName))
-      .sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
-        if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-        return b.roundDifference - a.roundDifference;
-      })
-      .map((t, idx) => ({
-        ...t,
-        rank: idx + 1,
-        isTopGroup: false,
-        groupColor: t.groupName === DIVISION_MAP.GROUP_A ? "GROUP_A" : "GROUP_B",
-        customRankLabel: `${idx + 1}`,
-      }));
-
-    return [...top4Combined, ...remainingTeams];
-  }, [standings, groupAStandings, groupBStandings]);
+  }, [standings, schedules, masterTeams, selectedWeek]);
 
   const renderTrendIcon = (trend?: "up" | "down" | "stay") => {
     if (trend === "up") return <span className="text-emerald-500 font-bold text-[9px]">▲</span>;
@@ -92,7 +133,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return <span className="text-muted-foreground/40 font-bold text-[9px]">➖</span>;
   };
 
-  const renderTable = (items: ExtendedStandingItem[], title: string, isGlobal = false) => (
+  const renderTable = (items: any[], title: string, isGlobal = false) => (
     <div className="space-y-2">
       <h3 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
         <span>🏆</span> {title}
@@ -117,7 +158,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
               let rowStyle = "hover:bg-muted/20 transition";
 
               if (isGlobal) {
-                // WALIKAN WARNA DI STANDING GLOBAL
                 if (item.isTopGroup) {
                   rowStyle =
                     item.groupColor === "GROUP_A"
@@ -127,7 +167,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   rowStyle = "bg-emerald-500/15 hover:bg-emerald-500/20 transition border-l-4 border-l-emerald-500";
                 }
               } else {
-                // 🟢 PEWARNAAN KONSISTEN TOP 2 DI STANDING GROUP
                 if (item.rank <= 2) {
                   rowStyle =
                     item.groupName === DIVISION_MAP.GROUP_A
@@ -136,12 +175,14 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                 }
               }
 
+              const trend = isGlobal ? item.globalRankTrend : item.rankTrend;
+
               return (
                 <tr key={item.teamId || item.teamName || idx} className={rowStyle}>
                   {/* RANK */}
                   <td className="py-2 px-1 text-center font-bold">
                     <div className="flex items-center justify-center gap-0.5">
-                      {!isGlobal && renderTrendIcon(item.rankTrend)}
+                      {renderTrendIcon(trend)}
                       <span
                         className={
                           isGlobal && item.isTopGroup
@@ -292,4 +333,5 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       )}
     </div>
   );
-                    }
+          }
+      
