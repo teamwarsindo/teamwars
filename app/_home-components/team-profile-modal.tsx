@@ -94,7 +94,7 @@ export function TeamProfileModal({
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 p-3 sm:p-5 backdrop-blur-sm">
       <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden">
         
-        {/* HEADER PROFIL */}
+        {/* HEADER PROFIL (DENGAN BADGE PERINGKAT GRUP) */}
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-2xl border border-border bg-background p-1 flex items-center justify-center">
@@ -108,9 +108,16 @@ export function TeamProfileModal({
               <h2 className="text-sm sm:text-base font-black truncate text-foreground">
                 {team.teamName}
               </h2>
-              <p className="text-[10.5px] font-semibold text-primary">
-                {team.groupName}
-              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {team.rank && (
+                  <span className="rounded-md bg-primary/15 border border-primary/25 px-1.5 py-0.2 text-[9px] font-black text-primary">
+                    #{team.rank}
+                  </span>
+                )}
+                <p className="text-[10.5px] font-semibold text-muted-foreground">
+                  {team.groupName}
+                </p>
+              </div>
             </div>
           </div>
           <button
@@ -374,5 +381,5 @@ export function TeamProfileModal({
     </div>,
     document.body
   );
-                                                                     }
-           
+        }
+                
