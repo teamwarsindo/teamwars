@@ -5,6 +5,7 @@ export interface ExtendedStandingItem extends TeamStandingItem {
   rankTrend?: "up" | "down" | "stay";
   isTopGroup?: boolean;
   customRankLabel?: string;
+  groupColor?: string;
 }
 
 function getMatchWeek(m: MatchScheduleItem): number {
@@ -12,12 +13,10 @@ function getMatchWeek(m: MatchScheduleItem): number {
     return m.weekNumber;
   }
 
-  // Cek m.matchDate DAN process.env.TWI_START_DATE agar TypeScript tahu env tidak undefined
   if (m.matchDate && process.env.TWI_START_DATE) {
     const startTime = new Date(process.env.TWI_START_DATE).getTime();
     const matchTime = new Date(m.matchDate).getTime();
 
-    // Lakukan pengecekan angka/timestamp murni
     if (!isNaN(matchTime) && !isNaN(startTime)) {
       const diffDays = Math.floor((matchTime - startTime) / (1000 * 60 * 60 * 24));
       return Math.max(1, Math.floor(diffDays / 7) + 1);
@@ -30,13 +29,12 @@ function getMatchWeek(m: MatchScheduleItem): number {
 export function calculateStandings(
   schedules: MatchScheduleItem[] = [],
   masterTeams: any[] = [],
-  upToWeek?: number // 0 atau undefined berarti 'Semua Week'
+  upToWeek?: number
 ): ExtendedStandingItem[] {
   const allMatchWeeks = schedules.map((m) => getMatchWeek(m));
   const maxWeek = allMatchWeeks.length ? Math.max(...allMatchWeeks) : 1;
   const targetWeek: number = typeof upToWeek === "number" && upToWeek > 0 ? upToWeek : maxWeek;
 
-  // Filter match berdasarkan minggu
   const filteredMatches = schedules.filter((m) => {
     const isPlayed = Boolean(m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0);
     if (!isPlayed) return false;
@@ -105,7 +103,6 @@ export function calculateStandings(
 
   const standingsList = Array.from(statsMap.values());
 
-  // Helper Check Head-to-Head (H2H)
   const getH2HWinnerScore = (teamA: string, teamB: string): number => {
     const directMatch = filteredMatches.find(
       (m) =>
@@ -120,8 +117,7 @@ export function calculateStandings(
     }
   };
 
-  // Poin -> Match Wins -> Round Difference -> H2H -> Alfabet
-  standingsList.sort((a, b) => {
+  const sortComparator = (a: ExtendedStandingItem, b: ExtendedStandingItem) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
     if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
@@ -129,22 +125,38 @@ export function calculateStandings(
     const h2h = getH2HWinnerScore(a.teamName, b.teamName);
     if (h2h !== 0) return h2h > 0 ? -1 : 1;
 
-    return a.groupName.localeCompare(b.groupName) || a.teamName.localeCompare(b.teamName);
+    return a.teamName.localeCompare(b.teamName);
+  };
+
+  // Kelompokkan dan urutkan per grup secara mandiri
+  const groupedTeams = new Map<string, ExtendedStandingItem[]>();
+  standingsList.forEach((item) => {
+    const group = item.groupName;
+    if (!groupedTeams.has(group)) {
+      groupedTeams.set(group, []);
+    }
+    groupedTeams.get(group)!.push(item);
   });
 
-  standingsList.forEach((item, index) => {
-    item.rank = index + 1;
+  const finalStandings: ExtendedStandingItem[] = [];
+
+  groupedTeams.forEach((teamsInGroup) => {
+    teamsInGroup.sort(sortComparator);
+    teamsInGroup.forEach((item, index) => {
+      item.rank = index + 1;
+    });
+    finalStandings.push(...teamsInGroup);
   });
 
-  // Hitung tren naik/turun rank
+  // Evaluasi tren rank per grup terhadap minggu sebelumnya
   if (targetWeek > 1) {
     const prevStandings = calculateStandings(schedules, masterTeams, targetWeek - 1);
     const prevRankMap = new Map<string, number>();
     prevStandings.forEach((item) => prevRankMap.set(item.teamName, item.rank));
 
-    standingsList.forEach((item) => {
+    finalStandings.forEach((item) => {
       const prevRank = prevRankMap.get(item.teamName);
-      if (prevRank) {
+      if (typeof prevRank === "number") {
         item.previousRank = prevRank;
         if (item.rank < prevRank) item.rankTrend = "up";
         else if (item.rank > prevRank) item.rankTrend = "down";
@@ -154,8 +166,8 @@ export function calculateStandings(
       }
     });
   } else {
-    standingsList.forEach((item) => (item.rankTrend = "stay"));
+    finalStandings.forEach((item) => (item.rankTrend = "stay"));
   }
 
-  return standingsList;
-}
+  return finalStandings;
+        }
