@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Calendar, Trophy, BookOpen, Search, Eye } from "lucide-react";
 import { MatchScheduleItem } from "@/lib/types/tournament";
@@ -28,6 +28,23 @@ export function QuickActions({
     { href: "/tournament?tab=standing", icon: Trophy, title: "Klasemen", sub: "Group & Playoff", color: "text-amber-500 bg-amber-500/10" },
     { href: "/rules", icon: BookOpen, title: "Rulebook", sub: "Regulasi Resmi", color: "text-emerald-500 bg-emerald-500/10" },
   ];
+
+  // Hitung form streak [W, L] untuk preview di kartu pencarian
+  const searchTeamForm = useMemo(() => {
+    if (!searchResult || searchResult === "NOT_FOUND") return [];
+    const q = searchResult.team.teamName.toLowerCase();
+    return allSchedules
+      .filter((m) => m.isFinished && (m.teamAName.toLowerCase() === q || m.teamBName.toLowerCase() === q))
+      .sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime())
+      .slice(0, 5)
+      .reverse()
+      .map((m) => {
+        const isTeamA = m.teamAName.toLowerCase() === q;
+        const myScore = isTeamA ? m.scoreA || 0 : m.scoreB || 0;
+        const oppScore = isTeamA ? m.scoreB || 0 : m.scoreA || 0;
+        return myScore > oppScore ? "W" : "L";
+      });
+  }, [searchResult, allSchedules]);
 
   return (
     <div className="space-y-2.5">
@@ -71,7 +88,7 @@ export function QuickActions({
           )}
         </div>
 
-        {/* FLOATING CARD PENCARIAN (Solid Latar Adaptif & Anti Tembus/Numpuk) */}
+        {/* FLOATING CARD PENCARIAN */}
         {searchResult && (
           <div className="absolute left-0 right-0 top-full mt-2 z-40 rounded-2xl border-2 border-primary/50 bg-card p-3.5 shadow-2xl">
             {searchResult === "NOT_FOUND" ? (
@@ -100,17 +117,40 @@ export function QuickActions({
                           <Eye className="h-2.5 w-2.5" /> Buka Profil
                         </span>
                       </div>
-                      <p className="text-[10px] text-muted-foreground font-semibold">
-                        {searchResult.team.groupName}
-                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {searchResult.team.rank && (
+                          <span className="rounded bg-primary/15 px-1 py-0.2 text-[8.5px] font-black text-primary">
+                            #{searchResult.team.rank}
+                          </span>
+                        )}
+                        <p className="text-[10px] text-muted-foreground font-semibold">
+                          {searchResult.team.groupName}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
+                  {/* Nilai Poin & Form Streak Seragam */}
+                  <div className="text-right shrink-0 space-y-1">
                     <p className="text-xs font-black text-primary">{searchResult.team.points} Pts</p>
-                    <p className="text-[10px] text-muted-foreground font-bold">
-                      {searchResult.team.matchWins}W - {searchResult.team.matchLosses}L
-                    </p>
+                    <div className="flex items-center justify-end gap-1">
+                      {searchTeamForm.length > 0 ? (
+                        searchTeamForm.map((f, idx) => (
+                          <span
+                            key={idx}
+                            className={`flex h-3.5 w-3.5 items-center justify-center rounded text-[8px] font-black ${
+                              f === "W"
+                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                            }`}
+                          >
+                            {f}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-[9px] text-muted-foreground">0 Match</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -169,4 +209,4 @@ export function QuickActions({
       )}
     </div>
   );
-                      }
+                  }
