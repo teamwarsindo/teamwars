@@ -109,14 +109,11 @@ export function TeamProfileModal({
   const winRate =
     totalMatches > 0 ? Math.round(((team.matchWins || 0) / totalMatches) * 100) : 0;
 
-  // Hitung baris untuk grid column-flow (urutan atas ke bawah lalu samping)
-  const rosterRows = Math.ceil(roster.length / 2);
-
   if (!mounted) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 p-3 sm:p-5 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative flex max-h-[92vh] w-full max-w-lg flex-col rounded-3xl border border-border/70 bg-slate-950 text-foreground shadow-2xl overflow-hidden">
+      <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl border border-border/70 bg-slate-950 text-foreground shadow-2xl overflow-hidden">
         
         {/* HEADER PROFIL */}
         <div className="flex items-center justify-between border-b border-border/40 bg-slate-900/95 px-4 py-3.5 sm:px-5">
@@ -149,7 +146,7 @@ export function TeamProfileModal({
         {/* BODY KONTEN */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
           
-          {/* 1. STATISTIK PERFORMA */}
+          {/* 1. STATISTIK PERFORMA (SESUAI ATURAN TIE BREAKER RESMI) */}
           <div className="space-y-2 rounded-2xl border border-border/50 bg-slate-900/50 p-3.5">
             <div className="flex items-center justify-between text-[10.5px] font-bold text-muted-foreground">
               <span className="flex items-center gap-1.5 text-foreground uppercase tracking-wider text-[9.5px]">
@@ -181,8 +178,8 @@ export function TeamProfileModal({
                 <span className="text-sm font-black text-primary">{team.points}</span>
               </div>
               <div className="rounded-xl bg-muted/20 border border-border/40 py-2">
-                <span className="block text-[8.5px] font-bold text-muted-foreground">REKOR MATCH</span>
-                <span className="text-xs font-black">{team.matchWins}W - {team.matchLosses}L</span>
+                <span className="block text-[8.5px] font-bold text-muted-foreground">SET WINS</span>
+                <span className="text-xs font-black text-foreground">{team.setWins} Set</span>
               </div>
               <div className="rounded-xl bg-muted/20 border border-border/40 py-2">
                 <span className="block text-[8.5px] font-bold text-muted-foreground">SELISIH (RD)</span>
@@ -240,7 +237,7 @@ export function TeamProfileModal({
             </div>
           )}
 
-          {/* 3. RIWAYAT MATCH (TEAM-CENTRIC DENGAN BADGE PEKAN DI TENGAH) */}
+          {/* 3. RIWAYAT MATCH (SUSUNAN: [BADGE] vs [LOGO] [NAMA] --- [WEEK] --- [SKOR]) */}
           <div className="space-y-1.5">
             <span className="text-[9.5px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
               <Trophy className="h-3 w-3 text-amber-500" /> Riwayat Pertandingan
@@ -252,7 +249,8 @@ export function TeamProfileModal({
                     key={m.id}
                     className="flex items-center justify-between rounded-xl border border-border/40 bg-slate-900/60 px-3 py-2 text-[11px]"
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                    {/* Sisi Kiri: Status & Lawan */}
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <span
                         className={`rounded px-1.5 py-0.5 text-[8.5px] font-black shrink-0 ${
                           m.isWin
@@ -262,25 +260,30 @@ export function TeamProfileModal({
                       >
                         {m.isWin ? "WIN" : "LOSE"}
                       </span>
+                      <span className="text-muted-foreground text-[10.5px] shrink-0 font-medium">
+                        vs
+                      </span>
                       <div className="flex items-center gap-1.5 min-w-0 truncate">
                         <img
                           src={m.oppLogo || "/logo.webp"}
                           alt=""
                           className="h-4 w-4 object-contain shrink-0"
                         />
-                        <span className="truncate font-semibold text-foreground">
-                          vs {m.oppName}
+                        <span className="truncate font-bold text-foreground">
+                          {m.oppName}
                         </span>
                       </div>
                     </div>
 
-                    {/* Badge Pekan di Tengah */}
-                    <span className="rounded bg-muted/60 px-1.5 py-0.5 font-bold text-[9px] text-muted-foreground shrink-0 mr-3">
-                      W{m.weekNumber}
-                    </span>
+                    {/* Tengah: Badge Pekan Proporsional */}
+                    <div className="px-3 shrink-0 text-center">
+                      <span className="rounded-md bg-slate-950 border border-border/50 px-2 py-0.5 font-bold text-[9px] text-muted-foreground">
+                        Week {m.weekNumber}
+                      </span>
+                    </div>
 
-                    {/* Skor Berorientasi Tim */}
-                    <div className="font-black text-xs shrink-0">
+                    {/* Sisi Kanan: Papan Skor */}
+                    <div className="font-black text-xs shrink-0 text-right min-w-[45px]">
                       <span className={m.isWin ? "text-emerald-400" : "text-foreground"}>
                         {m.myScore}
                       </span>
@@ -299,7 +302,7 @@ export function TeamProfileModal({
             )}
           </div>
 
-          {/* 4. SKUAD / ROSTER ANGGOTA (DESKTOP: FLOW ATAS KE BAWAH DULU BARU KE SAMPING) */}
+          {/* 4. SKUAD / ROSTER ANGGOTA (CSS COLUMNS: ATAS KE BAWAH TANPA BUG TUMPANGAN) */}
           <div className="space-y-1.5">
             <span className="text-[9.5px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
               <Users className="h-3 w-3 text-primary" /> Roster Anggota
@@ -311,12 +314,7 @@ export function TeamProfileModal({
                 Memuat data pemain...
               </div>
             ) : roster.length > 0 ? (
-              <div
-                className="grid grid-cols-1 sm:grid-flow-col gap-1.5 max-h-48 overflow-y-auto pr-1"
-                style={{
-                  gridTemplateRows: `repeat(${rosterRows || 1}, minmax(0, 1fr))`,
-                }}
-              >
+              <div className="columns-1 sm:columns-2 gap-1.5 max-h-48 overflow-y-auto pr-1 space-y-1.5">
                 {roster.map((p, idx) => {
                   const isLeader = p.role === "Ketua" || p.role === "Kapten";
                   const isCoLeader = p.role === "Wakil Ketua";
@@ -326,7 +324,7 @@ export function TeamProfileModal({
                   return (
                     <div
                       key={idx}
-                      className="flex items-center justify-between rounded-xl border border-border/40 bg-slate-900/60 px-2.5 py-1.5"
+                      className="break-inside-avoid flex items-center justify-between rounded-xl border border-border/40 bg-slate-900/60 px-2.5 py-1.5"
                     >
                       <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1.5">
                         {isLeader ? (
@@ -379,3 +377,4 @@ export function TeamProfileModal({
     document.body
   );
             }
+          
