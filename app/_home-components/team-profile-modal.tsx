@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { MatchScheduleItem } from "@/lib/types/tournament";
 import {
   X,
@@ -11,6 +11,8 @@ import {
   Users,
   Layers,
   Wrench,
+  Loader2,
+  Crown,
 } from "lucide-react";
 
 interface TeamProfileModalProps {
@@ -24,18 +26,60 @@ export function TeamProfileModal({
   allSchedules,
   onClose,
 }: TeamProfileModalProps) {
-  // 1. Ekstraksi riwayat pertandingan tim & form streak
+  const [rosterData, setRosterData] = useState<{
+    players: any[];
+    ketua: any;
+    wakil: any;
+  } | null>(null);
+  const [loadingRoster, setLoadingRoster] = useState(true);
+
+  // 1. SCROLL LOCK EFFECT: Kunci background scroll saat modal terbuka
+  useEffect(() => {
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, []);
+
+  // 2. Fetch Data Roster Resmi secara on-demand
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchRoster() {
+      try {
+        setLoadingRoster(true);
+        const res = await fetch(
+          `/api/tournament/team-roster?teamName=${encodeURIComponent(
+            team.teamName
+          )}`
+        );
+        const json = await res.json();
+        if (isMounted && json.success && json.data) {
+          setRosterData(json.data);
+        }
+      } catch (err) {
+        console.error("Gagal load roster:", err);
+      } finally {
+        if (isMounted) setLoadingRoster(false);
+      }
+    }
+
+    fetchRoster();
+    return () => {
+      isMounted = false;
+    };
+  }, [team.teamName]);
+
+  // 3. Ekstraksi riwayat pertandingan tim & form streak
   const { matchHistory, nextMatch, formStreak } = useMemo(() => {
     const teamNameLower = team.teamName.toLowerCase();
 
-    // Ambil semua match yang melibatkan tim ini
     const teamMatches = allSchedules.filter(
       (m) =>
         m.teamAName.toLowerCase() === teamNameLower ||
         m.teamBName.toLowerCase() === teamNameLower
     );
 
-    // Riwayat match yang sudah selesai
     const history = teamMatches
       .filter((m) => m.isFinished)
       .sort(
@@ -61,7 +105,6 @@ export function TeamProfileModal({
         };
       });
 
-    // Jadwal pertandingan berikutnya yang belum selesai
     const next = teamMatches
       .filter((m) => !m.isFinished)
       .sort(
@@ -69,8 +112,10 @@ export function TeamProfileModal({
           new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
       )[0];
 
-    // Recent Form (5 match terakhir, urutan kronologis)
-    const forms = [...history].slice(0, 5).reverse().map((h) => (h.isWin ? "W" : "L"));
+    const forms = [...history]
+      .slice(0, 5)
+      .reverse()
+      .map((h) => (h.isWin ? "W" : "L"));
 
     return {
       matchHistory: history,
@@ -86,11 +131,10 @@ export function TeamProfileModal({
       : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border border-border/80 bg-slate-950 text-foreground shadow-2xl overflow-hidden">
-        
         {/* MODAL HEADER */}
-        <div className="flex items-center justify-between border-b border-border/50 bg-slate-900/80 px-4 py-3.5 sm:px-5">
+        <div className="flex items-center justify-between border-b border-border/50 bg-slate-900/90 px-4 py-3.5 sm:px-5">
           <div className="flex items-center gap-3 min-w-0">
             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-primary/30 bg-muted/40 p-1">
               <img
@@ -119,7 +163,6 @@ export function TeamProfileModal({
 
         {/* MODAL CONTENT BODY */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-          
           {/* 1. STATISTIK UTAMA */}
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-2">
@@ -127,22 +170,46 @@ export function TeamProfileModal({
             </span>
             <div className="grid grid-cols-4 gap-2">
               <div className="rounded-xl border border-primary/20 bg-primary/10 p-2 text-center">
-                <span className="block text-[9px] font-bold text-muted-foreground">POINTS</span>
-                <span className="text-sm sm:text-base font-black text-primary">{team.points}</span>
-              </div>
-              <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
-                <span className="block text-[9px] font-bold text-muted-foreground">MATCH (W-L)</span>
-                <span className="text-xs sm:text-sm font-black text-foreground">{team.matchWins}-{team.matchLosses}</span>
-              </div>
-              <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
-                <span className="block text-[9px] font-bold text-muted-foreground">ROUND DIFF</span>
-                <span className={`text-xs sm:text-sm font-black ${team.roundDifference > 0 ? "text-emerald-400" : team.roundDifference < 0 ? "text-rose-400" : "text-foreground"}`}>
-                  {team.roundDifference > 0 ? `+${team.roundDifference}` : team.roundDifference}
+                <span className="block text-[9px] font-bold text-muted-foreground">
+                  POINTS
+                </span>
+                <span className="text-sm sm:text-base font-black text-primary">
+                  {team.points}
                 </span>
               </div>
               <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
-                <span className="block text-[9px] font-bold text-muted-foreground">WIN RATE</span>
-                <span className="text-xs sm:text-sm font-black text-amber-400">{winRate}%</span>
+                <span className="block text-[9px] font-bold text-muted-foreground">
+                  MATCH (W-L)
+                </span>
+                <span className="text-xs sm:text-sm font-black text-foreground">
+                  {team.matchWins}-{team.matchLosses}
+                </span>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
+                <span className="block text-[9px] font-bold text-muted-foreground">
+                  ROUND DIFF
+                </span>
+                <span
+                  className={`text-xs sm:text-sm font-black ${
+                    team.roundDifference > 0
+                      ? "text-emerald-400"
+                      : team.roundDifference < 0
+                      ? "text-rose-400"
+                      : "text-foreground"
+                  }`}
+                >
+                  {team.roundDifference > 0
+                    ? `+${team.roundDifference}`
+                    : team.roundDifference}
+                </span>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
+                <span className="block text-[9px] font-bold text-muted-foreground">
+                  WIN RATE
+                </span>
+                <span className="text-xs sm:text-sm font-black text-amber-400">
+                  {winRate}%
+                </span>
               </div>
             </div>
           </div>
@@ -167,7 +234,9 @@ export function TeamProfileModal({
                   </span>
                 ))
               ) : (
-                <span className="text-[10px] text-muted-foreground">Belum ada match</span>
+                <span className="text-[10px] text-muted-foreground">
+                  Belum ada match
+                </span>
               )}
             </div>
           </div>
@@ -189,7 +258,9 @@ export function TeamProfileModal({
                     {nextMatch.teamAName}
                   </span>
                 </div>
-                <span className="px-2 text-[10px] font-black text-sky-400 shrink-0">VS</span>
+                <span className="px-2 text-[10px] font-black text-sky-400 shrink-0">
+                  VS
+                </span>
                 <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
                   <span className="text-[11px] font-bold truncate text-right text-foreground">
                     {nextMatch.teamBName}
@@ -204,7 +275,7 @@ export function TeamProfileModal({
             </div>
           )}
 
-          {/* 4. RIWAYAT PERTANDINGAN (MATCH HISTORY) */}
+          {/* 4. RIWAYAT PERTANDINGAN */}
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-2">
               <Trophy className="h-3 w-3 text-amber-500" /> Riwayat Pertandingan
@@ -226,7 +297,9 @@ export function TeamProfileModal({
                       >
                         {m.isWin ? "WIN" : "LOSE"}
                       </span>
-                      <span className="text-muted-foreground text-[10px]">W{m.weekNumber}</span>
+                      <span className="text-muted-foreground text-[10px]">
+                        W{m.weekNumber}
+                      </span>
                       <span className="truncate text-foreground font-semibold">
                         vs {m.opponentName}
                       </span>
@@ -244,31 +317,77 @@ export function TeamProfileModal({
             )}
           </div>
 
-          {/* 5. DECK ARCHETYPES & ROSTER (STATUS MAINTENANCE / UNDER DEVELOPMENT) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-            <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-3 text-center space-y-1">
-              <div className="flex items-center justify-center gap-1 text-amber-400 font-bold text-[10.5px]">
-                <Layers className="h-3.5 w-3.5" /> Deck Archetypes
-              </div>
-              <p className="text-[9.5px] text-muted-foreground flex items-center justify-center gap-1">
-                <Wrench className="h-2.5 w-2.5" /> Integrasi Report Match
-              </p>
-            </div>
+          {/* 5. SKUAD & ROSTER RESMI */}
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-2">
+              <Users className="h-3 w-3 text-primary" /> Skuad & Roster Pemain
+            </span>
 
-            <div className="rounded-xl border border-dashed border-sky-500/30 bg-sky-500/5 p-3 text-center space-y-1">
-              <div className="flex items-center justify-center gap-1 text-sky-400 font-bold text-[10.5px]">
-                <Users className="h-3.5 w-3.5" /> Skuad & Roster Resmi
+            {loadingRoster ? (
+              <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                Memuat daftar pemain dari database...
               </div>
-              <p className="text-[9.5px] text-muted-foreground flex items-center justify-center gap-1">
-                <Wrench className="h-2.5 w-2.5" /> Menunggu Sinkronisasi
+            ) : rosterData && rosterData.players && rosterData.players.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                {rosterData.players.map((p: any, idx: number) => {
+                  const isLeader = p.role === "Ketua" || p.role === "Kapten";
+                  const isCoLeader = p.role === "Wakil Ketua";
+
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between rounded-xl border border-border/40 bg-muted/20 px-2.5 py-1.5 text-xs"
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {isLeader ? (
+                          <Crown className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                        ) : isCoLeader ? (
+                          <Crown className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                        ) : (
+                          <span className="text-[10px] font-bold text-muted-foreground shrink-0">
+                            #{idx + 1}
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-[11px] truncate text-foreground">
+                            {p.namaLengkap || p.ign || p.playerName}
+                          </p>
+                          {p.role && (
+                            <p className="text-[9px] text-muted-foreground">{p.role}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {(p.idDuelLinks || p.duelId) && (
+                        <span className="font-mono text-[9px] text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/30 shrink-0 ml-1">
+                          DL: {p.idDuelLinks || p.duelId}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-border/60 bg-muted/10 p-3 text-center text-[10.5px] text-muted-foreground">
+                Roster tim ini belum terdaftar di database.
               </p>
-            </div>
+            )}
           </div>
 
+          {/* 6. DECK ARCHETYPES (STATUS MAINTENANCE) */}
+          <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-3 text-center space-y-1">
+            <div className="flex items-center justify-center gap-1 text-amber-400 font-bold text-[10.5px]">
+              <Layers className="h-3.5 w-3.5" /> Deck Archetypes
+            </div>
+            <p className="text-[9.5px] text-muted-foreground flex items-center justify-center gap-1">
+              <Wrench className="h-2.5 w-2.5" /> Maintenance Integrasi Match Report
+            </p>
+          </div>
         </div>
 
         {/* MODAL FOOTER */}
-        <div className="border-t border-border/50 bg-slate-900/80 p-3">
+        <div className="border-t border-border/50 bg-slate-900/90 p-3">
           <button
             onClick={onClose}
             className="w-full rounded-xl bg-primary py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition cursor-pointer"
@@ -279,4 +398,5 @@ export function TeamProfileModal({
       </div>
     </div>
   );
-              }
+           }
+              
