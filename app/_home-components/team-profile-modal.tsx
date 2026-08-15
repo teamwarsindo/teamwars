@@ -2,18 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { MatchScheduleItem } from "@/lib/types/tournament";
-import {
-  X,
-  Trophy,
-  Activity,
-  Flame,
-  Swords,
-  Users,
-  Layers,
-  Wrench,
-  Loader2,
-  Crown,
-} from "lucide-react";
+import { X, Trophy, Activity, Flame, Swords, Users, Loader2, Crown } from "lucide-react";
 
 interface TeamProfileModalProps {
   team: any;
@@ -21,382 +10,149 @@ interface TeamProfileModalProps {
   onClose: () => void;
 }
 
-export function TeamProfileModal({
-  team,
-  allSchedules,
-  onClose,
-}: TeamProfileModalProps) {
-  const [rosterData, setRosterData] = useState<{
-    players: any[];
-    ketua: any;
-    wakil: any;
-  } | null>(null);
+export function TeamProfileModal({ team, allSchedules, onClose }: TeamProfileModalProps) {
+  const [roster, setRoster] = useState<any[]>([]);
   const [loadingRoster, setLoadingRoster] = useState(true);
 
-  // 1. SCROLL LOCK EFFECT: Kunci background scroll saat modal terbuka
+  // Lock scroll background saat modal aktif
   useEffect(() => {
-    const originalStyle = window.getComputedStyle(document.body).overflow;
+    const original = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = originalStyle;
-    };
+    return () => { document.body.style.overflow = original; };
   }, []);
 
-  // 2. Fetch Data Roster Resmi secara on-demand
+  // Fetch data roster resmi secara on-demand
   useEffect(() => {
-    let isMounted = true;
-    async function fetchRoster() {
-      try {
-        setLoadingRoster(true);
-        const res = await fetch(
-          `/api/tournament/team-roster?teamName=${encodeURIComponent(
-            team.teamName
-          )}`
-        );
-        const json = await res.json();
-        if (isMounted && json.success && json.data) {
-          setRosterData(json.data);
-        }
-      } catch (err) {
-        console.error("Gagal load roster:", err);
-      } finally {
-        if (isMounted) setLoadingRoster(false);
-      }
-    }
-
-    fetchRoster();
-    return () => {
-      isMounted = false;
-    };
+    fetch(`/api/tournament/team-roster?teamName=${encodeURIComponent(team.teamName)}`)
+      .then((res) => res.json())
+      .then((json) => json.success && setRoster(json.data?.players || []))
+      .catch((err) => console.error("Gagal load roster:", err))
+      .finally(() => setLoadingRoster(false));
   }, [team.teamName]);
 
-  // 3. Ekstraksi riwayat pertandingan tim & form streak
-  const { matchHistory, nextMatch, formStreak } = useMemo(() => {
-    const teamNameLower = team.teamName.toLowerCase();
-
+  // Cukup filter jadwal & riwayat (tanpa hitung ulang statistik)
+  const { history, nextMatch } = useMemo(() => {
+    const q = team.teamName.toLowerCase();
     const teamMatches = allSchedules.filter(
-      (m) =>
-        m.teamAName.toLowerCase() === teamNameLower ||
-        m.teamBName.toLowerCase() === teamNameLower
+      (m) => m.teamAName.toLowerCase() === q || m.teamBName.toLowerCase() === q
     );
 
-    const history = teamMatches
-      .filter((m) => m.isFinished)
-      .sort(
-        (a, b) =>
-          new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime()
-      )
-      .map((m) => {
-        const isTeamA = m.teamAName.toLowerCase() === teamNameLower;
-        const myScore = isTeamA ? m.scoreA || 0 : m.scoreB || 0;
-        const oppScore = isTeamA ? m.scoreB || 0 : m.scoreA || 0;
-        const opponentName = isTeamA ? m.teamBName : m.teamAName;
-        const opponentLogo = isTeamA ? m.teamBLogo : m.teamALogo;
-        const isWin = myScore > oppScore;
-
-        return {
-          id: m.id,
-          weekNumber: m.weekNumber,
-          isWin,
-          myScore,
-          oppScore,
-          opponentName,
-          opponentLogo,
-        };
-      });
-
-    const next = teamMatches
-      .filter((m) => !m.isFinished)
-      .sort(
-        (a, b) =>
-          new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
-      )[0];
-
-    const forms = [...history]
-      .slice(0, 5)
-      .reverse()
-      .map((h) => (h.isWin ? "W" : "L"));
-
     return {
-      matchHistory: history,
-      nextMatch: next,
-      formStreak: forms,
+      history: teamMatches.filter((m) => m.isFinished),
+      nextMatch: teamMatches.find((m) => !m.isFinished),
     };
-  }, [team, allSchedules]);
+  }, [team.teamName, allSchedules]);
 
   const totalMatches = (team.matchWins || 0) + (team.matchLosses || 0);
-  const winRate =
-    totalMatches > 0
-      ? Math.round(((team.matchWins || 0) / totalMatches) * 100)
-      : 0;
+  const winRate = totalMatches > 0 ? Math.round((team.matchWins / totalMatches) * 100) : 0;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-sm">
       <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border border-border/80 bg-slate-950 text-foreground shadow-2xl overflow-hidden">
-        {/* MODAL HEADER */}
-        <div className="flex items-center justify-between border-b border-border/50 bg-slate-900/90 px-4 py-3.5 sm:px-5">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-primary/30 bg-muted/40 p-1">
-              <img
-                src={team.teamLogo || "/logo.webp"}
-                alt=""
-                className="h-full w-full object-contain"
-              />
-            </div>
+        
+        {/* HEADER */}
+        <div className="flex items-center justify-between border-b border-border/50 bg-slate-900/90 px-4 py-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img src={team.teamLogo || "/logo.webp"} alt="" className="h-8 w-8 object-contain shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-black truncate text-foreground">
-                {team.teamName}
-              </h2>
-              <p className="text-[11px] font-semibold text-primary">
-                {team.groupName}
-              </p>
+              <h2 className="text-sm font-black truncate">{team.teamName}</h2>
+              <p className="text-[10px] font-bold text-primary">{team.groupName}</p>
             </div>
           </div>
-
-          <button
-            onClick={onClose}
-            className="rounded-xl p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
-          >
+          <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* MODAL CONTENT BODY */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-          {/* 1. STATISTIK UTAMA */}
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-2">
-              <Activity className="h-3 w-3 text-primary" /> Statistik Performa
-            </span>
-            <div className="grid grid-cols-4 gap-2">
-              <div className="rounded-xl border border-primary/20 bg-primary/10 p-2 text-center">
-                <span className="block text-[9px] font-bold text-muted-foreground">
-                  POINTS
-                </span>
-                <span className="text-sm sm:text-base font-black text-primary">
-                  {team.points}
-                </span>
-              </div>
-              <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
-                <span className="block text-[9px] font-bold text-muted-foreground">
-                  MATCH (W-L)
-                </span>
-                <span className="text-xs sm:text-sm font-black text-foreground">
-                  {team.matchWins}-{team.matchLosses}
-                </span>
-              </div>
-              <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
-                <span className="block text-[9px] font-bold text-muted-foreground">
-                  ROUND DIFF
-                </span>
-                <span
-                  className={`text-xs sm:text-sm font-black ${
-                    team.roundDifference > 0
-                      ? "text-emerald-400"
-                      : team.roundDifference < 0
-                      ? "text-rose-400"
-                      : "text-foreground"
-                  }`}
-                >
-                  {team.roundDifference > 0
-                    ? `+${team.roundDifference}`
-                    : team.roundDifference}
-                </span>
-              </div>
-              <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
-                <span className="block text-[9px] font-bold text-muted-foreground">
-                  WIN RATE
-                </span>
-                <span className="text-xs sm:text-sm font-black text-amber-400">
-                  {winRate}%
-                </span>
-              </div>
+        {/* CONTENT */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+          {/* STATISTIK DARI STANDING */}
+          <div className="grid grid-cols-4 gap-2">
+            <div className="rounded-xl border border-primary/20 bg-primary/10 p-2 text-center">
+              <span className="block text-[8.5px] font-bold text-muted-foreground">POINTS</span>
+              <span className="text-sm font-black text-primary">{team.points}</span>
             </div>
-          </div>
-
-          {/* 2. RECENT FORM STREAK */}
-          <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-3.5 py-2.5">
-            <span className="text-[10.5px] font-bold text-muted-foreground flex items-center gap-1.5">
-              <Flame className="h-3.5 w-3.5 text-amber-500" /> Recent Form:
-            </span>
-            <div className="flex items-center gap-1.5">
-              {formStreak.length > 0 ? (
-                formStreak.map((res, i) => (
-                  <span
-                    key={i}
-                    className={`flex h-5 w-5 items-center justify-center rounded-md text-[10px] font-black ${
-                      res === "W"
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                        : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
-                    }`}
-                  >
-                    {res}
-                  </span>
-                ))
-              ) : (
-                <span className="text-[10px] text-muted-foreground">
-                  Belum ada match
-                </span>
-              )}
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
+              <span className="block text-[8.5px] font-bold text-muted-foreground">MATCH (W-L)</span>
+              <span className="text-xs font-black">{team.matchWins}-{team.matchLosses}</span>
             </div>
-          </div>
-
-          {/* 3. JADWAL LAGA BERIKUTNYA */}
-          {nextMatch && (
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-2">
-                <Swords className="h-3 w-3 text-sky-400" /> Laga Berikutnya
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
+              <span className="block text-[8.5px] font-bold text-muted-foreground">ROUND DIFF</span>
+              <span className={`text-xs font-black ${team.roundDifference > 0 ? "text-emerald-400" : team.roundDifference < 0 ? "text-rose-400" : ""}`}>
+                {team.roundDifference > 0 ? `+${team.roundDifference}` : team.roundDifference}
               </span>
-              <div className="flex items-center justify-between rounded-xl border border-sky-500/30 bg-sky-500/10 p-2.5">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <img
-                    src={nextMatch.teamALogo || "/logo.webp"}
-                    alt=""
-                    className="h-5 w-5 object-contain shrink-0"
-                  />
-                  <span className="text-[11px] font-bold truncate text-foreground">
-                    {nextMatch.teamAName}
-                  </span>
-                </div>
-                <span className="px-2 text-[10px] font-black text-sky-400 shrink-0">
-                  VS
-                </span>
-                <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
-                  <span className="text-[11px] font-bold truncate text-right text-foreground">
-                    {nextMatch.teamBName}
-                  </span>
-                  <img
-                    src={nextMatch.teamBLogo || "/logo.webp"}
-                    alt=""
-                    className="h-5 w-5 object-contain shrink-0"
-                  />
-                </div>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
+              <span className="block text-[8.5px] font-bold text-muted-foreground">WIN RATE</span>
+              <span className="text-xs font-black text-amber-400">{winRate}%</span>
+            </div>
+          </div>
+
+          {/* LAGA BERIKUTNYA */}
+          {nextMatch && (
+            <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-2.5">
+              <span className="text-[9px] font-black uppercase text-sky-400 block mb-1.5 flex items-center gap-1">
+                <Swords className="h-3 w-3" /> Laga Berikutnya
+              </span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold truncate">{nextMatch.teamAName}</span>
+                <span className="text-[10px] font-black text-sky-400">VS</span>
+                <span className="font-bold truncate text-right">{nextMatch.teamBName}</span>
               </div>
             </div>
           )}
 
-          {/* 4. RIWAYAT PERTANDINGAN */}
+          {/* RIWAYAT MATCH */}
           <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-2">
+            <span className="text-[9.5px] font-black uppercase text-muted-foreground block mb-2 flex items-center gap-1">
               <Trophy className="h-3 w-3 text-amber-500" /> Riwayat Pertandingan
             </span>
-            {matchHistory.length > 0 ? (
-              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                {matchHistory.map((m) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between rounded-xl border border-border/40 bg-muted/20 px-3 py-2 text-[11px]"
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[9px] font-black ${
-                          m.isWin
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : "bg-rose-500/20 text-rose-400"
-                        }`}
-                      >
-                        {m.isWin ? "WIN" : "LOSE"}
-                      </span>
-                      <span className="text-muted-foreground text-[10px]">
-                        W{m.weekNumber}
-                      </span>
-                      <span className="truncate text-foreground font-semibold">
-                        vs {m.opponentName}
-                      </span>
-                    </div>
-                    <span className="font-black text-foreground shrink-0 ml-2">
-                      {m.myScore} - {m.oppScore}
-                    </span>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              {history.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground text-center py-2">Belum ada riwayat match.</p>
+              ) : (
+                history.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between rounded-xl bg-muted/20 px-3 py-1.5 text-[11px] border border-border/30">
+                    <span className="text-muted-foreground font-semibold">W{m.weekNumber} vs {m.teamAName === team.teamName ? m.teamBName : m.teamAName}</span>
+                    <span className="font-black">{m.scoreA} - {m.scoreB}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* SKUAD / ROSTER */}
+          <div>
+            <span className="text-[9.5px] font-black uppercase text-muted-foreground block mb-2 flex items-center gap-1">
+              <Users className="h-3 w-3 text-primary" /> Roster Pemain
+            </span>
+            {loadingRoster ? (
+              <div className="flex items-center justify-center gap-2 py-3 text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memuat data...
+              </div>
+            ) : roster.length > 0 ? (
+              <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto">
+                {roster.map((p, idx) => (
+                  <div key={idx} className="flex items-center justify-between rounded-lg bg-muted/20 border border-border/30 px-2 py-1">
+                    <span className="font-bold truncate text-[10.5px]">{p.namaLengkap || p.ign || p.playerName}</span>
+                    {p.role && <span className="text-[8.5px] text-muted-foreground shrink-0">{p.role}</span>}
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl border border-border/30 bg-muted/10 p-3 text-center text-[10.5px] text-muted-foreground">
-                Belum ada data riwayat pertandingan.
-              </p>
+              <p className="text-[10px] text-muted-foreground text-center py-2">Roster belum terdaftar.</p>
             )}
-          </div>
-
-          {/* 5. SKUAD & ROSTER RESMI */}
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-2">
-              <Users className="h-3 w-3 text-primary" /> Skuad & Roster Pemain
-            </span>
-
-            {loadingRoster ? (
-              <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                Memuat daftar pemain dari database...
-              </div>
-            ) : rosterData && rosterData.players && rosterData.players.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-                {rosterData.players.map((p: any, idx: number) => {
-                  const isLeader = p.role === "Ketua" || p.role === "Kapten";
-                  const isCoLeader = p.role === "Wakil Ketua";
-
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between rounded-xl border border-border/40 bg-muted/20 px-2.5 py-1.5 text-xs"
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        {isLeader ? (
-                          <Crown className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                        ) : isCoLeader ? (
-                          <Crown className="h-3.5 w-3.5 text-sky-400 shrink-0" />
-                        ) : (
-                          <span className="text-[10px] font-bold text-muted-foreground shrink-0">
-                            #{idx + 1}
-                          </span>
-                        )}
-                        <div className="min-w-0">
-                          <p className="font-bold text-[11px] truncate text-foreground">
-                            {p.namaLengkap || p.ign || p.playerName}
-                          </p>
-                          {p.role && (
-                            <p className="text-[9px] text-muted-foreground">{p.role}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {(p.idDuelLinks || p.duelId) && (
-                        <span className="font-mono text-[9px] text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/30 shrink-0 ml-1">
-                          DL: {p.idDuelLinks || p.duelId}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="rounded-xl border border-dashed border-border/60 bg-muted/10 p-3 text-center text-[10.5px] text-muted-foreground">
-                Roster tim ini belum terdaftar di database.
-              </p>
-            )}
-          </div>
-
-          {/* 6. DECK ARCHETYPES (STATUS MAINTENANCE) */}
-          <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-3 text-center space-y-1">
-            <div className="flex items-center justify-center gap-1 text-amber-400 font-bold text-[10.5px]">
-              <Layers className="h-3.5 w-3.5" /> Deck Archetypes
-            </div>
-            <p className="text-[9.5px] text-muted-foreground flex items-center justify-center gap-1">
-              <Wrench className="h-2.5 w-2.5" /> Maintenance Integrasi Match Report
-            </p>
           </div>
         </div>
 
-        {/* MODAL FOOTER */}
-        <div className="border-t border-border/50 bg-slate-900/90 p-3">
-          <button
-            onClick={onClose}
-            className="w-full rounded-xl bg-primary py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition cursor-pointer"
-          >
-            Tutup Profil Tim
+        {/* FOOTER */}
+        <div className="border-t border-border/50 bg-slate-900/90 p-2.5">
+          <button onClick={onClose} className="w-full rounded-xl bg-primary py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90">
+            Tutup
           </button>
         </div>
+
       </div>
     </div>
   );
-           }
-              
+}
