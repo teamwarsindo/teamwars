@@ -75,7 +75,7 @@ export function TournamentHub() {
     return { topGroupA: grpA, topGroupB: grpB, topGlobal: globalTop, allStandings: standings };
   }, [schedulesWithWeek, masterTeams, currentWeek]);
 
-  // Matches Categorization (Murni Menggunakan Flag isFinished)
+  // Matches Categorization
   const { liveMatches, todayMatches, upcomingMatches, recentResults } = useMemo(() => {
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -111,7 +111,7 @@ export function TournamentHub() {
     return { liveMatches: live, todayMatches: today, upcomingMatches: upcoming, recentResults: results };
   }, [schedulesWithWeek, currentWeek]);
 
-  // Quick Team Search Handler (Murni Menggunakan Flag isFinished)
+  // Quick Team Search Handler
   const searchResult = useMemo(() => {
     if (!teamSearchQuery.trim()) return null;
     const q = teamSearchQuery.toLowerCase();
@@ -119,7 +119,6 @@ export function TournamentHub() {
     const matchedTeam = allStandings.find((t) => t.teamName.toLowerCase().includes(q));
     if (!matchedTeam) return "NOT_FOUND";
 
-    // Ekstrak Roster Tim
     const masterInfo = masterTeams.find(
       (mt) =>
         (mt.teamName && mt.teamName.toLowerCase().includes(q)) ||
@@ -133,7 +132,6 @@ export function TournamentHub() {
       masterInfo?.members ||
       [];
 
-    // Cari match mendatang yang belum finished
     const nextMatch = schedulesWithWeek
       .filter((m) => {
         const isTeamPlaying =
@@ -144,6 +142,21 @@ export function TournamentHub() {
 
     return { team: matchedTeam, nextMatch, roster: rosterList };
   }, [teamSearchQuery, allStandings, schedulesWithWeek, masterTeams]);
+
+  // Fungsi Format Tanggal
+  const formatDate = (isoDate: string) => {
+    if (!isoDate) return "";
+    const d = new Date(isoDate);
+    return isNaN(d.getTime())
+      ? ""
+      : new Intl.DateTimeFormat("id-ID", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(d);
+  };
 
   return (
     <div className="w-full max-w-4xl space-y-6">
@@ -167,6 +180,7 @@ export function TournamentHub() {
           todayMatches={todayMatches}
           upcomingMatches={upcomingMatches}
           recentResults={recentResults}
+          formatDate={formatDate}
         />
 
         <StandingsSnapshot
@@ -192,5 +206,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-      }
-                                                                                                 
+}
