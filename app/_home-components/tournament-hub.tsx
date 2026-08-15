@@ -119,19 +119,6 @@ export function TournamentHub() {
     const matchedTeam = allStandings.find((t) => t.teamName.toLowerCase().includes(q));
     if (!matchedTeam) return "NOT_FOUND";
 
-    const masterInfo = masterTeams.find(
-      (mt) =>
-        (mt.teamName && mt.teamName.toLowerCase().includes(q)) ||
-        (mt.name && mt.name.toLowerCase().includes(q)) ||
-        mt.id === matchedTeam.teamId
-    );
-
-    const rosterList =
-      masterInfo?.roster ||
-      masterInfo?.players ||
-      masterInfo?.members ||
-      [];
-
     const nextMatch = schedulesWithWeek
       .filter((m) => {
         const isTeamPlaying =
@@ -140,10 +127,9 @@ export function TournamentHub() {
       })
       .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime())[0];
 
-    return { team: matchedTeam, nextMatch, roster: rosterList };
-  }, [teamSearchQuery, allStandings, schedulesWithWeek, masterTeams]);
+    return { team: matchedTeam, nextMatch };
+  }, [teamSearchQuery, allStandings, schedulesWithWeek]);
 
-  // Fungsi Format Tanggal
   const formatDate = (isoDate: string) => {
     if (!isoDate) return "";
     const d = new Date(isoDate);
@@ -163,12 +149,13 @@ export function TournamentHub() {
       {/* 1. TIMELINE PROGRES */}
       <PhaseTimeline currentWeek={currentWeek} />
 
-      {/* 2. MENU & PENCARIAN DENGAN ROSTER POPUP */}
+      {/* 2. MENU & PENCARIAN DENGAN TEAM PROFILE MODAL */}
       <QuickActions
         currentWeek={currentWeek}
         searchQuery={teamSearchQuery}
         onSearchChange={setTeamSearchQuery}
         searchResult={searchResult}
+        allSchedules={schedulesWithWeek}
       />
 
       {/* 3. GRID MATCH & STANDINGS */}
@@ -206,4 +193,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-}
+    }
