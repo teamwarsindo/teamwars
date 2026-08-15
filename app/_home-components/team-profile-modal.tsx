@@ -88,13 +88,73 @@ export function TeamProfileModal({
   const total = (team.matchWins || 0) + (team.matchLosses || 0);
   const wr = total > 0 ? Math.round((team.matchWins / total) * 100) : 0;
 
+  // Pemisahan kolom roster: Mengalir ke bawah di kiri, lalu lanjut ke kanan
+  const { leftColumn, rightColumn } = useMemo(() => {
+    const mid = Math.ceil(roster.length / 2);
+    return {
+      leftColumn: roster.slice(0, mid),
+      rightColumn: roster.slice(mid),
+    };
+  }, [roster]);
+
+  const renderPlayerItem = (p: any, displayIndex: number) => {
+    const dl = p.idDuelLinks || p.duelId;
+    const isCap = p.role === "Ketua" || p.role === "Kapten";
+    const isCoCap = p.role === "Wakil Ketua";
+
+    return (
+      <div
+        key={displayIndex}
+        className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-2.5 py-1.5"
+      >
+        <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1.5">
+          {isCap ? (
+            <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+          ) : isCoCap ? (
+            <Crown className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+          ) : (
+            <span className="text-[9px] text-muted-foreground w-3.5 text-center shrink-0 font-bold">
+              {displayIndex + 1}
+            </span>
+          )}
+          <span className="font-bold text-[11px] truncate text-foreground">
+            {p.ign || p.playerName || p.namaLengkap}
+          </span>
+        </div>
+
+        {dl ? (
+          <button
+            type="button"
+            onClick={() => copy(dl)}
+            title="Klik untuk menyalin Duel Links ID"
+            className="flex items-center gap-1 bg-card hover:bg-muted border border-border hover:border-primary/50 px-1.5 py-0.5 rounded font-mono text-[9px] text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
+          >
+            {copiedId === dl ? (
+              <>
+                <Check className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">Disalin</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-2.5 w-2.5 text-primary" />
+                <span>{dl}</span>
+              </>
+            )}
+          </button>
+        ) : (
+          <span className="text-[9px] text-muted-foreground font-mono shrink-0">-</span>
+        )}
+      </div>
+    );
+  };
+
   if (!mounted) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 p-3 sm:p-5 backdrop-blur-sm">
       <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden">
         
-        {/* HEADER PROFIL (DENGAN BADGE PERINGKAT GRUP) */}
+        {/* HEADER PROFIL */}
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-2xl border border-border bg-background p-1 flex items-center justify-center">
@@ -295,7 +355,7 @@ export function TeamProfileModal({
             </div>
           </div>
 
-          {/* 4. SKUAD / ROSTER ANGGOTA */}
+          {/* 4. SKUAD / ROSTER ANGGOTA (MOBILE: 1 KOLOM | DESKTOP: FLOW KE BAWAH LALU KE SAMPING) */}
           <div className="space-y-1.5">
             <span className="text-[9.5px] font-black uppercase text-muted-foreground flex items-center gap-1">
               <Users className="h-3 w-3 text-primary" /> Roster Anggota
@@ -306,57 +366,23 @@ export function TeamProfileModal({
                 Memuat data pemain...
               </div>
             ) : roster.length > 0 ? (
-              <div className="flex flex-col sm:grid sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-                {roster.map((p, idx) => {
-                  const dl = p.idDuelLinks || p.duelId;
-                  const isCap = p.role === "Ketua" || p.role === "Kapten";
-                  const isCoCap = p.role === "Wakil Ketua";
+              <div className="max-h-48 overflow-y-auto pr-1">
+                {/* Mobile View: 1 Kolom Vertikal Lurus */}
+                <div className="flex flex-col gap-1.5 sm:hidden">
+                  {roster.map((p, idx) => renderPlayerItem(p, idx))}
+                </div>
 
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-2.5 py-1.5"
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1.5">
-                        {isCap ? (
-                          <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                        ) : isCoCap ? (
-                          <Crown className="h-3.5 w-3.5 text-sky-500 shrink-0" />
-                        ) : (
-                          <span className="text-[9px] text-muted-foreground w-3.5 text-center shrink-0 font-bold">
-                            {idx + 1}
-                          </span>
-                        )}
-                        <span className="font-bold text-[11px] truncate text-foreground">
-                          {p.ign || p.playerName || p.namaLengkap}
-                        </span>
-                      </div>
-
-                      {dl ? (
-                        <button
-                          type="button"
-                          onClick={() => copy(dl)}
-                          title="Klik untuk menyalin Duel Links ID"
-                          className="flex items-center gap-1 bg-card hover:bg-muted border border-border hover:border-primary/50 px-1.5 py-0.5 rounded font-mono text-[9px] text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
-                        >
-                          {copiedId === dl ? (
-                            <>
-                              <Check className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
-                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">Disalin</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-2.5 w-2.5 text-primary" />
-                              <span>{dl}</span>
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <span className="text-[9px] text-muted-foreground font-mono shrink-0">-</span>
-                      )}
-                    </div>
-                  );
-                })}
+                {/* Desktop View: 2 Kolom (1-5 di kiri, 6-10 di kanan) */}
+                <div className="hidden sm:grid sm:grid-cols-2 gap-1.5">
+                  <div className="flex flex-col gap-1.5">
+                    {leftColumn.map((p, idx) => renderPlayerItem(p, idx))}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {rightColumn.map((p, idx) =>
+                      renderPlayerItem(p, idx + leftColumn.length)
+                    )}
+                  </div>
+                </div>
               </div>
             ) : (
               <p className="rounded-xl border border-dashed border-border bg-muted/10 p-3 text-center text-[10.5px] text-muted-foreground">
@@ -381,5 +407,4 @@ export function TeamProfileModal({
     </div>,
     document.body
   );
-        }
-                
+              }
