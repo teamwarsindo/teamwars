@@ -50,10 +50,11 @@ export function TournamentHub() {
     }));
   }, [schedules]);
 
-  // Standings: Top Group & Penuh Top 8 Global
+  // Standings: Top Divisi vs Top 8 Playoff (Kecuali Top Divisi)
   const { topGroupA, topGroupB, topGlobal, allStandings } = useMemo(() => {
     const standings = calculateStandings(schedulesWithWeek, masterTeams, currentWeek);
 
+    // 1. Ambil 2 Teratas dari Masing-Masing Grup (Top Divisi)
     const grpA = standings
       .filter((s) => s.groupName === DIVISION_MAP.GROUP_A)
       .slice(0, 2)
@@ -64,8 +65,15 @@ export function TournamentHub() {
       .slice(0, 2)
       .map((item, idx) => ({ ...item, rank: idx + 1 }));
 
-    // Tampilkan penuh Top 8 Global (urutan 1 sampai 8)
-    const globalTop8 = [...standings]
+    // 2. Kumpulkan seluruh tim Top Divisi agar dikecualikan dari Top Playoff
+    const topDivisionTeamNames = new Set([
+      ...grpA.map((t) => t.teamName.toLowerCase()),
+      ...grpB.map((t) => t.teamName.toLowerCase()),
+    ]);
+
+    // 3. Ambil 8 Tim Terbaik DI LUAR Top Divisi
+    const playoffCandidatesTop8 = standings
+      .filter((t) => !topDivisionTeamNames.has(t.teamName.toLowerCase()))
       .sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
         if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
@@ -77,12 +85,12 @@ export function TournamentHub() {
     return {
       topGroupA: grpA,
       topGroupB: grpB,
-      topGlobal: globalTop8,
+      topGlobal: playoffCandidatesTop8,
       allStandings: standings,
     };
   }, [schedulesWithWeek, masterTeams, currentWeek]);
 
-  // Matches Categorization: Hasil Terbaru Dibatasi Maksimal 3 Match
+  // Matches Categorization: Hasil Terbaru Maksimal 3 Match
   const { liveMatches, todayMatches, upcomingMatches, recentResults } = useMemo(() => {
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -110,7 +118,6 @@ export function TournamentHub() {
       })
       .slice(0, 3);
 
-    // Maksimal 3 match hasil terbaru yang selesai
     const results = [...schedulesWithWeek]
       .filter((m) => m.isFinished)
       .sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime())
@@ -124,6 +131,7 @@ export function TournamentHub() {
     };
   }, [schedulesWithWeek, currentWeek]);
 
+  // Quick Team Search
   const searchResult = useMemo(() => {
     if (!teamSearchQuery.trim()) return null;
     const q = teamSearchQuery.toLowerCase();
@@ -167,7 +175,7 @@ export function TournamentHub() {
       {/* 1. TIMELINE PROGRES */}
       <PhaseTimeline currentWeek={currentWeek} />
 
-      {/* 2. MENU & PENCARIAN DENGAN PORTAL MODAL */}
+      {/* 2. MENU & PENCARIAN DENGAN TEAM PROFILE MODAL */}
       <QuickActions
         currentWeek={currentWeek}
         searchQuery={teamSearchQuery}
@@ -215,4 +223,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-      }
+}
