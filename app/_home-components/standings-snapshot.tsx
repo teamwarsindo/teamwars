@@ -46,8 +46,14 @@ export function StandingsSnapshot({
               >
                 #{idx + 1}
               </span>
-              <img src={item.teamLogo || "/logo.webp"} alt="" className="h-4 w-4 shrink-0 object-contain" />
-              <span className="font-bold text-[11px] truncate text-foreground">{item.teamName}</span>
+              <img
+                src={item.teamLogo || "/logo.webp"}
+                alt=""
+                className="h-4 w-4 shrink-0 object-contain"
+              />
+              <span className="font-bold text-[11px] truncate text-foreground">
+                {item.teamName}
+              </span>
             </td>
             <td className="w-[16%] text-center font-bold text-muted-foreground text-[10.5px]">
               {item.matchWins}-{item.matchLosses}
@@ -62,7 +68,9 @@ export function StandingsSnapshot({
                     : "text-muted-foreground"
                 }
               >
-                {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
+                {item.roundDifference > 0
+                  ? `+${item.roundDifference}`
+                  : item.roundDifference}
               </span>
             </td>
             <td className="w-[10%] text-center font-extrabold text-foreground text-[10.5px]">
@@ -118,12 +126,24 @@ export function StandingsSnapshot({
       ) : tab === "GROUP" ? (
         <div className="space-y-4">
           {[
-            { title: DIVISION_MAP.GROUP_A, data: topGroupA, isGroupA: true, color: "text-sky-500" },
-            { title: DIVISION_MAP.GROUP_B, data: topGroupB, isGroupA: false, color: "text-amber-500" },
+            {
+              title: DIVISION_MAP.GROUP_A,
+              data: topGroupA,
+              isGroupA: true,
+              color: "text-sky-500",
+            },
+            {
+              title: DIVISION_MAP.GROUP_B,
+              data: topGroupB,
+              isGroupA: false,
+              color: "text-amber-500",
+            },
           ].map((grp) => (
             <div key={grp.title} className="space-y-1.5">
               <div className="flex items-center justify-between px-2.5 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                <span className={`w-[52%] font-black text-[10px] ${grp.color}`}>{grp.title}</span>
+                <span className={`w-[52%] font-black text-[10px] ${grp.color}`}>
+                  {grp.title}
+                </span>
                 <span className="w-[16%] text-center">W-L</span>
                 <span className="w-[11%] text-center">RD</span>
                 <span className="w-[10%] text-center">SET</span>
@@ -136,16 +156,23 @@ export function StandingsSnapshot({
       ) : (
         <div className="space-y-2">
           <div className="flex items-center justify-between px-2.5 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
-            <span className="w-[52%] font-black text-[10px] text-emerald-500">Kualifikasi Playoff Global</span>
+            <span className="w-[52%] font-black text-[10px] text-emerald-500">
+              Kandidat Playoff (Kecuali Top Group)
+            </span>
             <span className="w-[16%] text-center">W-L</span>
             <span className="w-[11%] text-center">RD</span>
             <span className="w-[10%] text-center">SET</span>
             <span className="w-[11%] text-right text-primary pr-1">PTS</span>
           </div>
-          {renderTable(topGlobal, false, true)}
+          {topGlobal.length > 0 ? (
+            renderTable(topGlobal, false, true)
+          ) : (
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              Belum ada data tim playoff.
+            </p>
+          )}
         </div>
       )}
     </div>
   );
-              }
-                  
+}
