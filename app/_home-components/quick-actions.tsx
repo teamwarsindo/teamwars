@@ -56,7 +56,7 @@ export function QuickActions({
           <Search className="h-4 w-4 text-muted-foreground shrink-0 mr-2" />
           <input
             type="text"
-            placeholder="Cari profil tim & statistik lengkap..."
+            placeholder="Cari profil tim & statistik..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none text-xs"
@@ -71,19 +71,19 @@ export function QuickActions({
           )}
         </div>
 
-        {/* FLOATING CARD HASIL PENCARIAN (Solid Dark Slate + Border Kontras) */}
+        {/* FLOATING CARD HASIL PENCARIAN (Locked Fixed Dark Slate & Kontras Terang) */}
         {searchResult && (
-          <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-2xl border-2 border-primary/60 bg-slate-950 p-3.5 shadow-2xl backdrop-blur-md">
+          <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-2xl border-2 border-sky-500/60 bg-slate-950 p-3.5 shadow-2xl backdrop-blur-md">
             {searchResult === "NOT_FOUND" ? (
-              <p className="text-center text-xs text-muted-foreground py-2 font-medium">
+              <p className="text-center text-xs text-slate-400 py-2 font-medium">
                 Tim tidak ditemukan. Coba ketik nama tim lainnya.
               </p>
             ) : (
               <div className="space-y-3">
-                {/* Header Profil Tim */}
+                {/* Header Tim */}
                 <div
                   onClick={() => setSelectedTeam(searchResult.team)}
-                  className="flex items-center justify-between border-b border-border/50 pb-2.5 cursor-pointer hover:bg-slate-900/80 p-2 rounded-xl transition"
+                  className="flex items-center justify-between border-b border-slate-800 pb-2.5 cursor-pointer hover:bg-slate-900/80 p-2 rounded-xl transition"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <img
@@ -93,31 +93,31 @@ export function QuickActions({
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <p className="text-xs font-black text-foreground hover:text-primary transition truncate">
+                        <p className="text-xs font-black text-white hover:text-sky-400 transition truncate">
                           {searchResult.team.teamName}
                         </p>
-                        <span className="inline-flex items-center gap-0.5 rounded-md bg-primary/20 px-1.5 py-0.5 text-[9px] font-black text-primary shrink-0">
+                        <span className="inline-flex items-center gap-0.5 rounded-md bg-sky-500/20 px-1.5 py-0.5 text-[9px] font-black text-sky-400 shrink-0">
                           <Eye className="h-2.5 w-2.5" /> Buka Profil
                         </span>
                       </div>
-                      <p className="text-[10px] text-muted-foreground font-semibold">
+                      <p className="text-[10px] text-slate-400 font-semibold">
                         {searchResult.team.groupName}
                       </p>
                     </div>
                   </div>
 
                   <div className="text-right shrink-0">
-                    <p className="text-xs font-black text-primary">{searchResult.team.points} Pts</p>
-                    <p className="text-[10px] text-muted-foreground font-bold">
+                    <p className="text-xs font-black text-sky-400">{searchResult.team.points} Pts</p>
+                    <p className="text-[10px] text-slate-400 font-bold">
                       {searchResult.team.matchWins}W - {searchResult.team.matchLosses}L
                     </p>
                   </div>
                 </div>
 
-                {/* Match Mendatang (Logo vs Logo tanpa Tanggal Clutter) */}
+                {/* Match Mendatang */}
                 {searchResult.nextMatch ? (
-                  <div className="rounded-xl bg-slate-900/90 border border-border/50 p-2.5 text-xs">
-                    <span className="text-[9.5px] font-black uppercase tracking-wider text-muted-foreground block mb-2">
+                  <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-2.5 text-xs">
+                    <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 block mb-2">
                       Laga Mendatang:
                     </span>
                     <div className="flex items-center justify-between gap-2">
@@ -127,17 +127,17 @@ export function QuickActions({
                           alt=""
                           className="h-4 w-4 object-contain shrink-0"
                         />
-                        <span className="truncate font-bold text-[11px] text-foreground">
+                        <span className="truncate font-bold text-[11px] text-white">
                           {searchResult.nextMatch.teamAName}
                         </span>
                       </div>
 
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded bg-muted/60 text-muted-foreground shrink-0">
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">
                         VS
                       </span>
 
                       <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1">
-                        <span className="truncate font-bold text-[11px] text-right text-foreground">
+                        <span className="truncate font-bold text-[11px] text-right text-white">
                           {searchResult.nextMatch.teamBName}
                         </span>
                         <img
@@ -149,7 +149,7 @@ export function QuickActions({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[10px] text-muted-foreground text-center py-1">
+                  <p className="text-[10px] text-slate-400 text-center py-1">
                     Semua match grup tim ini telah selesai.
                   </p>
                 )}
@@ -170,3 +170,4 @@ export function QuickActions({
     </div>
   );
 }
+  
