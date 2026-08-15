@@ -4,7 +4,10 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { MatchScheduleItem, DIVISION_MAP } from "@/lib/types/tournament";
 import { calculateStandings } from "@/lib/tournament/calculator";
-import { ChevronRight, Trophy, Calendar, BookOpen } from "lucide-react";
+import { PhaseTimeline } from "./phase-timeline";
+import { QuickActions } from "./quick-actions";
+import { MatchCenter } from "./match-center";
+import { StandingsSnapshot } from "./standings-snapshot";
 
 function getMatchWeekNumber(dateString: string): number {
   if (!dateString) return 1;
@@ -23,6 +26,7 @@ export function TournamentHub() {
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [masterTeams, setMasterTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [teamSearchQuery, setTeamSearchQuery] = useState("");
 
   const currentWeek = useMemo(() => getCurrentCalendarWeek(), []);
 
@@ -46,43 +50,83 @@ export function TournamentHub() {
     }));
   }, [schedules]);
 
-  const { topGroupA, topGroupB } = useMemo(() => {
+  // Standings Data
+  const { topGroupA, topGroupB, topGlobal, allStandings } = useMemo(() => {
     const standings = calculateStandings(schedulesWithWeek, masterTeams, currentWeek);
-    const getTop = (group: string) =>
-      standings
-        .filter((s) => s.groupName === group)
-        .slice(0, 2)
-        .map((item, idx) => ({ ...item, rank: idx + 1 }));
+    const grpA = standings
+      .filter((s) => s.groupName === DIVISION_MAP.GROUP_A)
+      .slice(0, 2)
+      .map((item, idx) => ({ ...item, rank: idx + 1 }));
 
-    return {
-      topGroupA: getTop(DIVISION_MAP.GROUP_A),
-      topGroupB: getTop(DIVISION_MAP.GROUP_B),
-    };
+    const grpB = standings
+      .filter((s) => s.groupName === DIVISION_MAP.GROUP_B)
+      .slice(0, 2)
+      .map((item, idx) => ({ ...item, rank: idx + 1 }));
+
+    const globalTop = [...standings]
+      .sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
+        return b.roundDifference - a.roundDifference;
+      })
+      .slice(0, 4)
+      .map((item, idx) => ({ ...item, rank: idx + 1 }));
+
+    return { topGroupA: grpA, topGroupB: grpB, topGlobal: globalTop, allStandings: standings };
   }, [schedulesWithWeek, masterTeams, currentWeek]);
 
-  const { todayMatches, upcomingMatches } = useMemo(() => {
+  // Matches Categorization
+  const { liveMatches, todayMatches, upcomingMatches, recentResults } = useMemo(() => {
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-    const currentWeekOnly = schedulesWithWeek
-      .filter((m) => m.weekNumber === currentWeek && m.matchDate)
-      .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+    const currentWeekOnly = schedulesWithWeek.filter(
+      (m) => m.weekNumber === currentWeek && m.matchDate
+    );
 
-    const todayList = currentWeekOnly.filter((m) => {
+    const live = currentWeekOnly.filter((m) => Boolean(m.streamLink) && !m.isFinished);
+    const sortedAsc = [...currentWeekOnly].sort(
+      (a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
+    );
+
+    const today = sortedAsc.filter((m) => {
       const d = new Date(m.matchDate);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` === todayStr;
+      const matchDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return matchDay === todayStr && !m.isFinished && !m.streamLink;
     });
 
-    const upcomingList = currentWeekOnly
+    const upcoming = sortedAsc
       .filter((m) => {
         const d = new Date(m.matchDate);
-        const matchDayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return d.getTime() > now.getTime() && matchDayStr !== todayStr && !m.isFinished;
+        const matchDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return d.getTime() > now.getTime() && matchDay !== todayStr && !m.isFinished;
       })
       .slice(0, 3);
 
-    return { todayMatches: todayList, upcomingMatches: upcomingList };
+    const results = [...schedulesWithWeek]
+      .filter((m) => m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0)
+      .sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime())
+      .slice(0, 4);
+
+    return { liveMatches: live, todayMatches: today, upcomingMatches: upcoming, recentResults: results };
   }, [schedulesWithWeek, currentWeek]);
+
+  // Quick Team Search Handler
+  const searchResult = useMemo(() => {
+    if (!teamSearchQuery.trim()) return null;
+    const q = teamSearchQuery.toLowerCase();
+
+    const matchedTeam = allStandings.find((t) => t.teamName.toLowerCase().includes(q));
+    if (!matchedTeam) return "NOT_FOUND";
+
+    const nextMatch = schedulesWithWeek.find(
+      (m) =>
+        (m.teamAName.toLowerCase().includes(q) || m.teamBName.toLowerCase().includes(q)) &&
+        !m.isFinished
+    );
+
+    return { team: matchedTeam, nextMatch };
+  }, [teamSearchQuery, allStandings, schedulesWithWeek]);
 
   const formatDate = (isoDate: string) => {
     if (!isoDate) return "";
@@ -98,183 +142,41 @@ export function TournamentHub() {
         }).format(d);
   };
 
-  const renderMatchCard = (m: MatchScheduleItem) => (
-    <div
-      key={m.id}
-      className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 p-2.5 text-xs hover:border-primary/40 transition"
-    >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <img src={m.teamALogo || "/logo.webp"} alt="" className="h-5 w-5 shrink-0 object-contain" />
-        <span className="truncate font-bold text-[11px]">{m.teamAName}</span>
-      </div>
-
-      <div className="px-2 text-center shrink-0 min-w-[75px]">
-        <span
-          className={`rounded-md px-2 py-0.5 text-[10px] font-black ${
-            m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0
-              ? "bg-primary/20 text-primary"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          {m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0 ? `${m.scoreA} - ${m.scoreB}` : "VS"}
-        </span>
-        <span className="block text-[9px] text-muted-foreground mt-0.5">{formatDate(m.matchDate)}</span>
-      </div>
-
-      <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
-        <span className="truncate font-bold text-[11px] text-right">{m.teamBName}</span>
-        <img src={m.teamBLogo || "/logo.webp"} alt="" className="h-5 w-5 shrink-0 object-contain" />
-      </div>
-    </div>
-  );
-
-  const renderStandingTable = (items: any[], isGroupA: boolean) => (
-    <table className="w-full text-left text-[11px] table-fixed">
-      <tbody className="space-y-1.5">
-        {items.map((item, idx) => (
-          <tr
-            key={item.teamId || item.teamName || idx}
-            className={`rounded-xl border transition flex items-center mb-1.5 px-2.5 py-1.5 ${
-              isGroupA
-                ? "bg-sky-500/10 border-sky-500/30 border-l-4 border-l-sky-500"
-                : "bg-amber-500/10 border-amber-500/30 border-l-4 border-l-amber-500"
-            }`}
-          >
-            <td className="w-[52%] flex items-center gap-2 min-w-0 pr-1">
-              <span className={`font-black text-xs shrink-0 ${isGroupA ? "text-sky-500" : "text-amber-500"}`}>
-                #{idx + 1}
-              </span>
-              <img src={item.teamLogo || "/logo.webp"} alt="" className="h-4 w-4 shrink-0 object-contain" />
-              <span className="font-bold text-[11px] truncate text-foreground">{item.teamName}</span>
-            </td>
-            <td className="w-[16%] text-center font-bold text-muted-foreground text-[10.5px]">
-              {item.matchWins}-{item.matchLosses}
-            </td>
-            <td className="w-[11%] text-center font-bold text-[10.5px]">
-              <span className={item.roundDifference > 0 ? "text-emerald-500" : item.roundDifference < 0 ? "text-rose-500" : "text-muted-foreground"}>
-                {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
-              </span>
-            </td>
-            <td className="w-[10%] text-center font-extrabold text-foreground text-[10.5px]">
-              {item.setWins}
-            </td>
-            <td className="w-[11%] text-right font-black text-primary text-xs pr-1">
-              {item.points}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-
   return (
-    <div className="w-full max-w-4xl space-y-5">
-      {/* QUICK ACTIONS */}
-      <div className="grid grid-cols-3 gap-2.5">
-        {[
-          { href: "/tournament?tab=schedule", icon: Calendar, title: "Jadwal Match", sub: `Week ${currentWeek}`, color: "text-primary bg-primary/10" },
-          { href: "/tournament?tab=standing", icon: Trophy, title: "Klasemen", sub: "Group & Playoff", color: "text-amber-500 bg-amber-500/10" },
-          { href: "/rules", icon: BookOpen, title: "Rulebook", sub: "Regulasi Resmi", color: "text-emerald-500 bg-emerald-500/10" },
-        ].map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="group flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-card p-3 text-center transition hover:border-primary/60 hover:bg-muted/30 shadow-xs"
-          >
-            <div className={`flex h-9 w-9 items-center justify-center rounded-xl transition-transform group-hover:scale-110 ${item.color}`}>
-              <item.icon className="h-4 w-4" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-foreground block">{item.title}</span>
-              <span className="text-[9.5px] text-muted-foreground">{item.sub}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
+    <div className="w-full max-w-4xl space-y-6">
+      {/* 1. TIMELINE PROGRES */}
+      <PhaseTimeline currentWeek={currentWeek} />
 
-      {/* HIGHLIGHTS GRID */}
+      {/* 2. MENU & PENCARIAN */}
+      <QuickActions
+        currentWeek={currentWeek}
+        searchQuery={teamSearchQuery}
+        onSearchChange={setTeamSearchQuery}
+        searchResult={searchResult}
+        formatDate={formatDate}
+      />
+
+      {/* 3. GRID MATCH & STANDINGS */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* MATCH SCHEDULE */}
-        <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
-              <h2 className="text-xs font-black uppercase tracking-wider text-foreground">
-                Jadwal Pertandingan (Week {currentWeek})
-              </h2>
-            </div>
-            <Link href="/tournament?tab=schedule" className="flex items-center gap-0.5 text-[11px] font-bold text-primary hover:underline">
-              Lihat Semua <ChevronRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
+        <MatchCenter
+          currentWeek={currentWeek}
+          loading={loading}
+          liveMatches={liveMatches}
+          todayMatches={todayMatches}
+          upcomingMatches={upcomingMatches}
+          recentResults={recentResults}
+          formatDate={formatDate}
+        />
 
-          {loading ? (
-            <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">Memuat jadwal...</div>
-          ) : (
-            <div className="space-y-3.5">
-              {todayMatches.length > 0 && (
-                <div className="space-y-2">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    Sedang / Main Hari Ini
-                  </span>
-                  <div className="space-y-2">{todayMatches.map(renderMatchCard)}</div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-                  Pertandingan Berikutnya
-                </span>
-                {upcomingMatches.length === 0 && todayMatches.length === 0 ? (
-                  <div className="py-4 text-center text-xs text-muted-foreground">
-                    Semua jadwal Week {currentWeek} telah selesai atau belum tersedia.
-                  </div>
-                ) : (
-                  <div className="space-y-2">{upcomingMatches.map(renderMatchCard)}</div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* PUNCAK KLASEMEN */}
-        <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-3.5 w-3.5 text-amber-500" />
-              <h2 className="text-xs font-black uppercase tracking-wider text-foreground">PUNCAK KLASEMEN</h2>
-            </div>
-            <Link href="/tournament?tab=standing" className="flex items-center gap-0.5 text-[11px] font-bold text-primary hover:underline">
-              Full Standings <ChevronRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          {loading ? (
-            <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">Menghitung klasemen...</div>
-          ) : (
-            <div className="space-y-4">
-              {[
-                { title: DIVISION_MAP.GROUP_A, data: topGroupA, isGroupA: true, color: "text-sky-500" },
-                { title: DIVISION_MAP.GROUP_B, data: topGroupB, isGroupA: false, color: "text-amber-500" },
-              ].map((grp) => (
-                <div key={grp.title} className="space-y-1.5">
-                  <div className="flex items-center justify-between px-2.5 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                    <span className={`w-[52%] font-black text-[10px] ${grp.color}`}>{grp.title}</span>
-                    <span className="w-[16%] text-center">W-L</span>
-                    <span className="w-[11%] text-center">RD</span>
-                    <span className="w-[10%] text-center">SET</span>
-                    <span className="w-[11%] text-right text-primary pr-1">PTS</span>
-                  </div>
-                  {renderStandingTable(grp.data, grp.isGroupA)}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <StandingsSnapshot
+          loading={loading}
+          topGroupA={topGroupA}
+          topGroupB={topGroupB}
+          topGlobal={topGlobal}
+        />
       </div>
 
-      {/* DISCORD BANNER */}
+      {/* 4. DISCORD BANNER */}
       <div className="flex items-center justify-between rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-xs">
         <div className="space-y-0.5">
           <p className="font-extrabold text-foreground">Gabung Komunitas Discord Resmi</p>
