@@ -19,10 +19,11 @@ import { handleTransferCommand, handleTransferAutocomplete } from '@/lib/discord
 // Transfer Execution Services
 import { executeTransferAdd, executeTransferOut, executeTransferEditDl } from '@/lib/discord/services/transfer-service';
 
-// Assign & Unassign Handlers
+// Assign, Unassign & Cancel-Assign Handlers
 import { handleAssignAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
 import { handleAssignCommand } from '@/lib/discord/handlers/assign-handler';
 import { handleUnassignCommand } from '@/lib/discord/handlers/unassign-handler';
+import { handleCancelAssignCommand } from '@/lib/discord/handlers/cancel-assign-handler';
 
 // Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
       const commandName = body.data.name;
       if (commandName === 'assign') return NextResponse.json(await handleAssignCommand(body));
       if (commandName === 'unassign') return NextResponse.json(await handleUnassignCommand(body));
+      if (commandName === 'cancel-assign') return NextResponse.json(await handleCancelAssignCommand(body));
       if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
@@ -92,16 +94,14 @@ export async function POST(req: NextRequest) {
         return await handleBtTimer(body);
       }
 
-      // 🔄 HANDLER TOMBOL PARSE TRANSFER (SAFE KV SESSION)
       if (customId.startsWith('btn_parse_')) {
         if (customId === 'btn_parse_CANCEL') {
           return NextResponse.json({
-            type: 7, // UPDATE_MESSAGE
+            type: 7,
             data: { content: '❌ **Proses Auto-Parse Transfer Dibatalkan.**', embeds: [], components: [] },
           });
         }
 
-        // Format Custom ID: btn_parse_EXEC_{ACTION}_{INTERACTION_ID}
         const parts = customId.split('_'); 
         const action = parts[3] as 'ADD' | 'OUT' | 'EDIT';
         const interactionId = parts[4];
@@ -151,7 +151,6 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // DEFAULT ACTION: ADD
           if (!ign || !idDl) {
             return NextResponse.json({
               type: 4,
@@ -188,20 +187,15 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 📜 Tombol Lihat Seluruh Log
       if (customId === 'btn_view_full_log') {
         return await handleViewFullLog();
       }
 
-      // 🏆 Tombol Bid Group A / B
       if (customId.startsWith('btn_bid_')) {
         if (Date.now() >= BID_DEADLINE_TIMESTAMP * 1000) {
           return NextResponse.json({
             type: 4,
-            data: {
-              content: '❌ **Bidding telah resmi ditutup!**',
-              flags: 64,
-            },
+            data: { content: '❌ **Bidding telah resmi ditutup!**', flags: 64 },
           });
         }
 
@@ -219,7 +213,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(getBidModal(groupTarget, minAmount));
       }
 
-      // 📝 EDIT MATCH REPORT
       if (customId.startsWith('btn_edit_match_')) {
         const matchId = customId.replace('btn_edit_match_', '');
         const schedules = (await kv.get<any[]>('twi:schedules')) || [];
@@ -244,7 +237,6 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // 📢 REQUEST RESCHEDULE
       if (customId.startsWith('btn_request_reschedule_')) {
         const matchId = customId.replace('btn_request_reschedule_', '');
         const suggestedDate = new Date();
@@ -278,7 +270,6 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // ✅ CONFIRM RESCHEDULE
       if (customId.startsWith('btn_confirm_reschedule_')) {
         const [, , matchId, newDateIso] = customId.split('_');
         const schedules = (await kv.get<any[]>('twi:schedules')) || [];
@@ -312,7 +303,6 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ❌ REJECT RESCHEDULE
       if (customId.startsWith('btn_reject_reschedule_')) {
         return NextResponse.json({ type: 4, data: { content: '❌ **Pengajuan Reschedule Ditolak.**' } });
       }
@@ -320,7 +310,7 @@ export async function POST(req: NextRequest) {
 
     // 🔎 Autocomplete Interactions (Type 4)
     if (body.type === 4) {
-      if (body.data?.name === 'assign' || body.data?.name === 'unassign') {
+      if (body.data?.name === 'assign' || body.data?.name === 'unassign' || body.data?.name === 'cancel-assign') {
         const autocompleteResponse = await handleAssignAutocomplete(body);
         return NextResponse.json(autocompleteResponse);
       }
@@ -344,4 +334,5 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-}
+  }
+                                                
