@@ -77,6 +77,9 @@ function buildGlobalStandings(
   const remainingTeams = standings
     .filter((t) => !top4Names.has(t.teamName))
     .sort((a, b) => {
+      const totalMatchA = a.matchWins + a.matchLosses;
+      const totalMatchB = b.matchWins + b.matchLosses;
+      if (totalMatchB !== totalMatchA) return totalMatchB - totalMatchA;
       if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
       if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
       return b.setWins - a.setWins;
@@ -133,7 +136,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const standings = useMemo(() => {
     const current = calculateStandings(schedules, masterTeams, selectedWeek);
 
-    // Hitung rankTrend untuk Standing Grup jika selectedWeek > 1
     if (selectedWeek > 1) {
       const prev = calculateStandings(schedules, masterTeams, selectedWeek - 1);
       const prevRankMap = new Map<string, number>();
@@ -334,7 +336,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     {item.setWins}
                   </td>
 
-                  {/* FORM (KOLOM TERAKHIR) */}
+                  {/* FORM */}
                   <td className="py-1.5 pl-0.5 pr-2 text-center">
                     <MatchFormGrid form={item.form} totalMatches={8} />
                   </td>
@@ -349,7 +351,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
   return (
     <div className="space-y-4">
-      {/* 2 TOMBOL SUB-TAB STANDINGS */}
+      {/* SUB-TAB STANDINGS */}
       <div className="flex flex-col gap-3 bg-card border border-border p-3 rounded-2xl shadow-sm">
         <div className="grid grid-cols-2 gap-2 w-full">
           <button
@@ -391,27 +393,27 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       </div>
 
-      {/* KOTAK KETENTUAN BERSIH */}
+      {/* KETENTUAN KUALIFIKASI BABAK LANJUTAN (SESUAI RULES BAB B) */}
       <div className="p-3 bg-card border border-border rounded-xl text-[11px] space-y-1.5 shadow-sm">
         <p className="font-bold text-foreground flex items-center gap-1.5">
-          💡 <span>Ketentuan Kualifikasi Playoff:</span>
+          💡 <span>Mekanisme Kualifikasi Babak Lanjutan:</span>
         </p>
         <div className="flex flex-col gap-1 pl-3 text-muted-foreground font-semibold">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0"></span>
-            <span>Lolos Otomatis Quarter Finals (Top 2 {DIVISION_MAP.GROUP_A})</span>
+            <span>Top 2 {DIVISION_MAP.GROUP_A} (Rank 1 & 2): Lolos otomatis langsung menuju babak Quarter Finals.</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
-            <span>Lolos Otomatis Quarter Finals (Top 2 {DIVISION_MAP.GROUP_B})</span>
+            <span>Top 2 {DIVISION_MAP.GROUP_B} (Rank 1 & 2): Lolos otomatis langsung menuju babak Quarter Finals.</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-            <span>Wildcard Playoff Round 1 (Rank 1-8 Global)</span>
+            <span>Top 8 Wildcard (Rank 1 s/d 8): Lolos playoff menuju babak Round 1 (Play-Ins).</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>
-            <span>Tidak Lolos Playoff (Rank 9+ Global)</span>
+            <span>Rank 9+ Wildcard: Tereliminasi dari turnamen.</span>
           </div>
         </div>
       </div>
@@ -424,9 +426,9 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       ) : (
         <div className="space-y-3">
-          {renderTable(globalStandings, "Standing Global Kualifikasi Playoff", true)}
+          {renderTable(globalStandings, "Klasemen Standing Global Wildcard", true)}
         </div>
       )}
     </div>
-  );
-}
+  );                            
+} 
