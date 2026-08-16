@@ -69,41 +69,53 @@ export function QuickActions({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleSelectTeam = (team: any) => {
+    setSelectedTeam(team);
+    setIsDropdownOpen(false);
+    onSearchChange("");
+  };
+
+  const handleCloseModal = () => {
+    setSelectedTeam(null);
+    onSearchChange("");
+    setIsDropdownOpen(false);
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       {/* 3 MENU NAVIGASI UTAMA */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
         <Link
           href="/tournament?tab=schedule"
-          className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-card p-4 text-center shadow-xs transition hover:border-primary/50 hover:bg-muted/30"
+          className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-card p-3 sm:p-3.5 text-center shadow-xs transition hover:border-primary/50 hover:bg-muted/30"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-            <Calendar className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+            <Calendar className="h-4.5 w-4.5" />
           </div>
-          <span className="mt-2 text-xs font-black text-foreground">Jadwal Match</span>
-          <span className="text-[10px] text-muted-foreground">Week {currentWeek}</span>
+          <span className="mt-1.5 text-[11.5px] font-bold text-foreground">Jadwal Match</span>
+          <span className="text-[9.5px] font-medium text-muted-foreground">Week {currentWeek}</span>
         </Link>
 
         <Link
           href="/tournament?tab=standings"
-          className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-card p-4 text-center shadow-xs transition hover:border-primary/50 hover:bg-muted/30"
+          className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-card p-3 sm:p-3.5 text-center shadow-xs transition hover:border-primary/50 hover:bg-muted/30"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-            <Trophy className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <Trophy className="h-4.5 w-4.5" />
           </div>
-          <span className="mt-2 text-xs font-black text-foreground">Klasemen</span>
-          <span className="text-[10px] text-muted-foreground">Group &amp; Global</span>
+          <span className="mt-1.5 text-[11.5px] font-bold text-foreground">Klasemen</span>
+          <span className="text-[9.5px] font-medium text-muted-foreground">Divisi &amp; Wildcard</span>
         </Link>
 
         <Link
           href="/rules"
-          className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-card p-4 text-center shadow-xs transition hover:border-primary/50 hover:bg-muted/30"
+          className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-card p-3 sm:p-3.5 text-center shadow-xs transition hover:border-primary/50 hover:bg-muted/30"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-            <BookOpen className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <BookOpen className="h-4.5 w-4.5" />
           </div>
-          <span className="mt-2 text-xs font-black text-foreground">Rulebook</span>
-          <span className="text-[10px] text-muted-foreground">Regulasi Resmi</span>
+          <span className="mt-1.5 text-[11.5px] font-bold text-foreground">Rulebook</span>
+          <span className="text-[9.5px] font-medium text-muted-foreground">Regulasi Resmi</span>
         </Link>
       </div>
 
@@ -122,7 +134,7 @@ export function QuickActions({
               if (searchQuery.trim().length > 0) setIsDropdownOpen(true);
             }}
             placeholder="Cari profil tim & statistik..."
-            className="w-full rounded-2xl border border-border/80 bg-card py-2.5 pl-10 pr-10 text-xs font-medium text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none shadow-xs"
+            className="w-full rounded-2xl border border-border/80 bg-card py-2.5 pl-10 pr-10 text-[11px] font-medium text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none shadow-xs"
           />
           {searchQuery && (
             <button
@@ -153,29 +165,26 @@ export function QuickActions({
                   <button
                     key={team.teamId || tName}
                     type="button"
-                    onClick={() => {
-                      setSelectedTeam(team);
-                      setIsDropdownOpen(false);
-                    }}
-                    className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-muted/70 transition cursor-pointer text-left"
+                    onClick={() => handleSelectTeam(team)}
+                    className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-muted/70 transition cursor-pointer text-left"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
                       <img
                         src={team.teamLogo || team.logo || "/logo.webp"}
                         alt=""
-                        className="h-6 w-6 object-contain shrink-0"
+                        className="h-5.5 w-5.5 object-contain shrink-0"
                       />
                       <div className="truncate">
-                        <span className="font-bold text-xs text-foreground block truncate">
+                        <span className="font-semibold text-[11px] text-foreground block truncate">
                           {tName}
                         </span>
-                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-[9.5px] text-muted-foreground">
                           <span>{team.groupName}</span>
                           <span>•</span>
                           {matches.length === 0 ? (
-                            <span className="text-muted-foreground font-semibold">Belum bertanding</span>
+                            <span className="font-medium">Belum bertanding</span>
                           ) : (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-0.5">
                               {matches.slice(0, 5).map((m, idx) => {
                                 const isTeamA = m.teamAName === tName;
                                 const myScore = isTeamA ? m.scoreA || 0 : m.scoreB || 0;
@@ -185,7 +194,7 @@ export function QuickActions({
                                 return (
                                   <span
                                     key={idx}
-                                    className={`px-1 py-0.2 rounded font-black text-[8.5px] ${
+                                    className={`px-1 py-0.2 rounded font-bold text-[8px] ${
                                       isWin
                                         ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
                                         : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
@@ -215,9 +224,10 @@ export function QuickActions({
           team={selectedTeam}
           allTeams={allTeams}
           allSchedules={allSchedules}
-          onClose={() => setSelectedTeam(null)}
+          onClose={handleCloseModal}
         />
       )}
     </div>
   );
-}
+  }
+        
