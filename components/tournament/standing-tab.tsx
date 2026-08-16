@@ -16,7 +16,6 @@ function getCurrentCalendarWeek(): number {
   return Math.max(1, Math.floor(diffDays / 7) + 1);
 }
 
-// Helper untuk menyusun struktur Standing Global
 function buildGlobalStandings(
   standings: ExtendedStandingItem[]
 ): (ExtendedStandingItem & { globalRank: number; globalRankTrend?: "up" | "down" | "stay" })[] {
@@ -127,7 +126,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     }));
   }, [standings, schedules, masterTeams, selectedWeek]);
 
-  // Set tim yang masuk zona kualifikasi playoff global (Top 8 di luar Top Divisi)
   const playoffQualifiedTeamNames = useMemo(() => {
     return new Set(
       globalStandings
@@ -175,7 +173,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                 } else if (item.rank <= 8) {
                   rowStyle = "bg-emerald-500/15 hover:bg-emerald-500/20 transition border-l-4 border-l-emerald-500";
                 } else {
-                  // 🔴 ZONA MERAH GLOBAL
                   rowStyle = "bg-rose-500/10 hover:bg-rose-500/15 transition border-l-4 border-l-rose-500/60";
                 }
               } else {
@@ -185,10 +182,8 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                       ? "bg-sky-500/15 hover:bg-sky-500/20 transition border-l-4 border-l-sky-500"
                       : "bg-amber-500/15 hover:bg-amber-500/20 transition border-l-4 border-l-amber-500";
                 } else if (playoffQualifiedTeamNames.has(item.teamName.toLowerCase())) {
-                  // 🟢 LOLOS WILDCARD GLOBAL
                   rowStyle = "bg-emerald-500/10 hover:bg-emerald-500/15 transition border-l-4 border-l-emerald-500";
                 } else {
-                  // 🔴 TIDAK MASUK TOP 8 GLOBAL (ZONA GUGUR)
                   rowStyle = "bg-rose-500/10 hover:bg-rose-500/15 transition border-l-4 border-l-rose-500/60";
                 }
               }
@@ -233,7 +228,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   <td className="py-2 pl-1 pr-1">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <img src={item.teamLogo || "/logo.webp"} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                      <span className={`font-bold text-[10.5px] leading-snug break-words ${isEliminatedInGroup || isEliminatedInGlobal ? "text-muted-foreground" : "text-foreground"}`}>
+                      <span className="font-bold text-[10.5px] leading-snug break-words text-foreground">
                         {item.teamName}
                       </span>
                     </div>
@@ -328,34 +323,27 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="p-3 bg-card border border-border rounded-xl text-[11px] space-y-1">
+          {/* ✅ KETERANGAN BERSIH TANPA TEKS NAMA WARNA */}
+          <div className="p-3 bg-card border border-border rounded-xl text-[11px] space-y-1.5 shadow-sm">
             <p className="font-bold text-foreground flex items-center gap-1.5">
               💡 <span>Ketentuan Kualifikasi Playoff:</span>
             </p>
             <div className="flex flex-col gap-1 pl-3 text-muted-foreground font-semibold">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0"></span>
-                <span>
-                  <strong className="text-sky-400 font-bold">Biru:</strong> Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_A}).
-                </span>
+                <span>Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_A})</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
-                <span>
-                  <strong className="text-amber-500 font-bold">Kuning:</strong> Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_B}).
-                </span>
+                <span>Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_B})</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-                <span>
-                  <strong className="text-emerald-500 font-bold">Hijau Soft:</strong> Wildcard Playoff (Rank 1-8 Global).
-                </span>
+                <span>Wildcard Playoff (Rank 1-8 Global)</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>
-                <span>
-                  <strong className="text-rose-500 font-bold">Merah Soft:</strong> Tidak Lolos Playoff (Rank 9+ Global).
-                </span>
+                <span>Tidak Lolos Playoff (Rank 9+ Global)</span>
               </div>
             </div>
           </div>
@@ -365,4 +353,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       )}
     </div>
   );
-                }
+                    }
