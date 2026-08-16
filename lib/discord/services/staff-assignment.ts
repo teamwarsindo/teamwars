@@ -89,10 +89,8 @@ export async function executeAssignStaff(params: {
   const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
   const staffObj = staffList.find((s) => s.discordId === targetStaffId);
 
-  // Ambil nama/nickname asli staf
   const staffDisplayName = staffObj?.discordName || targetStaffId;
 
-  // 1. Simpan Nickname ke match.referee / match.streamer dan Raw Snowflake ID ke DiscordId
   if (assignType === 'REFEREE') {
     match.referee = staffDisplayName;
     match.refereeDiscordId = targetStaffId;
@@ -101,7 +99,6 @@ export async function executeAssignStaff(params: {
     match.streamerDiscordId = targetStaffId;
   }
 
-  // Sanitasi jika data ID rusak
   if (!isValidSnowflake(match.refereeDiscordId)) {
     match.referee = undefined;
     match.refereeDiscordId = undefined;
@@ -148,7 +145,7 @@ export async function executeAssignStaff(params: {
     }
   }
 
-  // 2. Format Tag Mention (<@ID>) khusus untuk payload Embed Discord
+  // Kirim / Update Embed Opening di Channel Match saat Assign
   const finalRefereeMention = isValidSnowflake(match.refereeDiscordId) ? `<@${match.refereeDiscordId}>` : undefined;
   const finalStreamerMention = isValidSnowflake(match.streamerDiscordId) ? `<@${match.streamerDiscordId}>` : undefined;
 
@@ -179,6 +176,7 @@ export async function executeAssignStaff(params: {
     if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
   }
 
+  // Kirim Log Assign ke #CH_ASSIGN
   const chAssign = DISCORD_CONFIG.CH_ASSIGN;
   if (chAssign) {
     const logParams = {
@@ -251,8 +249,6 @@ export async function executeUnassignStaff(params: {
     kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
   ]);
 
-  const kodeTimA = teamA?.kodeTim || teamA?.abbreviation || slugA.toUpperCase();
-  const kodeTimB = teamB?.kodeTim || teamB?.abbreviation || slugB.toUpperCase();
   const roleAId = teamA?.discordRoleId || teamA?.roleId || '';
   const roleBId = teamB?.discordRoleId || teamB?.roleId || '';
   const calculatedWeek = (match as any).weekName || `Week ${(match as any).calculatedWeekNumber || 1}`;
@@ -288,57 +284,21 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // Simpan streamLink baru jika disediakan
+  // 2. Simpan Data Baru ke KV (Tanpa sentuh/post ulang opening embed)
   if (streamLink) {
     match.streamLink = streamLink.trim();
   }
 
-  // 2. HANYA REFEREE: Update Skor & Set isFinished = true
   if (assignType === 'REFEREE') {
     match.scoreA = scoreA;
     match.scoreB = scoreB;
-    match.isFinished = true; // ✅ Hanya isFinished yang digunakan
-
-    const finalStreamerMention = isValidSnowflake(match.streamerDiscordId) ? `<@${match.streamerDiscordId}>` : undefined;
-
-    if (matchChannelId) {
-      const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
-        channelId: matchChannelId,
-        matchId: match.id,
-        groupName: match.groupName,
-        teamAName: match.teamAName,
-        teamBName: match.teamBName,
-        teamAEmoji,
-        teamBEmoji,
-        kodeTimA,
-        kodeTimB,
-        roleAId,
-        roleBId,
-        weekName: calculatedWeek,
-        matchDateIso: match.matchDate,
-        refereeName: undefined,
-        refereeDiscordId: undefined,
-        streamerName: finalStreamerMention,
-        streamerDiscordId: match.streamerDiscordId,
-        streamLink: match.streamLink,
-        existingMsgId: (match as any).openingMsgId,
-        isFinished: true,
-        scoreA,
-        scoreB,
-      });
-
-      if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
-    }
-  }
-
-  // 3. Cabut Discord ID Saja (Nickname Tetap Disimpan Sebagai Arsip di match.referee / match.streamer)
-  if (assignType === 'REFEREE') {
-    match.refereeDiscordId = undefined;
+    match.isFinished = true;
+    match.refereeDiscordId = undefined; // Cabut ID Discord agar tidak ada tag aktif
   } else {
-    match.streamerDiscordId = undefined;
+    match.streamerDiscordId = undefined; // Cabut ID Discord streamer
   }
 
-  // 4. Kirim Log Selesai ke #CH_ASSIGN
+  // 3. Kirim Log Selesai ke #CH_ASSIGN
   const chAssign = DISCORD_CONFIG.CH_ASSIGN;
   const targetLogMsgId = assignType === 'REFEREE' ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId;
 
@@ -362,7 +322,7 @@ export async function executeUnassignStaff(params: {
     });
   }
 
-  // 5. HANYA REFEREE: Kirim Score Log ke #CH_SCORE
+  // 4. HANYA REFEREE: Kirim Score Log ke #CH_SCORE
   if (assignType === 'REFEREE') {
     const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
     if (chScore) {
@@ -378,11 +338,10 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // Hapus dari riwayat aktif staff di KV & simpan match
+  // 5. Hapus dari riwayat penugasan aktif staf di KV & simpan match
   await updateStaffHistory(assignType, targetStaffId, match.id, 'REMOVE');
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
   return { match, targetStaffName: targetStaffName || `<@${targetStaffId}>`, targetStaffId };
-                                           }
-      
+}
