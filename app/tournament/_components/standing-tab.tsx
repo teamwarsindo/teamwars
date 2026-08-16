@@ -8,7 +8,11 @@ import {
   getCurrentServerWeek,
   TOURNAMENT_RULES,
 } from "@/app/tournament/_library";
-import { calculateStandings, ExtendedStandingItem } from "@/app/tournament/_library/calculator";
+import {
+  calculateStandings,
+  buildGlobalStandings,
+  ExtendedStandingItem,
+} from "@/app/tournament/_library/calculator";
 
 interface StandingTabProps {
   schedules: MatchScheduleItem[];
@@ -55,59 +59,6 @@ function MatchFormGrid({
       })}
     </div>
   );
-}
-
-function buildGlobalStandings(
-  standings: ExtendedStandingItem[]
-): (ExtendedStandingItem & { globalRank: number; globalRankTrend?: "up" | "down" | "stay" })[] {
-  const groupA = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A);
-  const groupB = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B);
-
-  const topGroupA = groupA
-    .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP)
-    .map((t, i) => ({
-      ...t,
-      isTopGroup: true,
-      groupColor: "GROUP_A" as const,
-      customRankLabel: `Top ${i + 1}`,
-    }));
-
-  const topGroupB = groupB
-    .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP)
-    .map((t, i) => ({
-      ...t,
-      isTopGroup: true,
-      groupColor: "GROUP_B" as const,
-      customRankLabel: `Top ${i + 1}`,
-    }));
-
-  const top4Combined = [...topGroupA, ...topGroupB];
-  const top4Names = new Set(top4Combined.map((t) => t.teamName));
-
-  const remainingTeams = standings
-    .filter((t) => !top4Names.has(t.teamName))
-    .sort((a, b) => {
-      const totalMatchA = a.matchWins + a.matchLosses;
-      const totalMatchB = b.matchWins + b.matchLosses;
-      if (totalMatchB !== totalMatchA) return totalMatchB - totalMatchA;
-      if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-      if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
-      return b.setWins - a.setWins;
-    })
-    .map((t, idx) => ({
-      ...t,
-      rank: idx + 1,
-      isTopGroup: false,
-      groupColor: (t.groupName === DIVISION_MAP.GROUP_A ? "GROUP_A" : "GROUP_B") as "GROUP_A" | "GROUP_B",
-      customRankLabel: `${idx + 1}`,
-    }));
-
-  const fullCombined = [...top4Combined, ...remainingTeams];
-
-  return fullCombined.map((item, index) => ({
-    ...item,
-    globalRank: index + 1,
-  }));
 }
 
 export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabProps) {
@@ -440,5 +391,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       )}
     </div>
-  );
-    }
+  ); 
+}
+          
