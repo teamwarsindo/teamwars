@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
+import { MatchScheduleItem, DIVISION_MAP } from '@/lib/tournament';
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
 

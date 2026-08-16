@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { MatchScheduleItem, DIVISION_MAP } from "@/lib/types/tournament";
+import { MatchScheduleItem, DIVISION_MAP, getCurrentServerWeek, TOURNAMENT_RULES } from "@/lib/tournament";
 import { calculateStandings } from "@/lib/tournament/calculator";
 import { PhaseTimeline } from "./phase-timeline";
 import { QuickActions } from "./quick-actions";

@@ -1,6 +1,6 @@
 import { discordAPI } from '../utils';
 import { DISCORD_CONFIG } from '../config';
-import { DIVISION_MAP } from '@/lib/types/tournament';
+import { DIVISION_MAP } from '@/lib/tournament';
 
 export interface ScheduleMatch {
   matchDateIso: string;

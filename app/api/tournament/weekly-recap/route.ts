@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem, DIVISION_MAP } from '@/lib/types/tournament';
+import { MatchScheduleItem, DIVISION_MAP, getCurrentServerWeek, getMatchWeekNumber } from '@/lib/tournament';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import {
   sendOrUpdateWeeklyScheduleAndRecap,
