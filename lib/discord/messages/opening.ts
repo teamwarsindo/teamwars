@@ -1,6 +1,6 @@
 import { discordAPI } from '../utils';
 import { DISCORD_CONFIG } from '../config';
-import { DIVISION_MAP } from '@/lib/types/tournament'; // 🟢 Import DIVISION_MAP
+import { DIVISION_MAP } from '@/lib/types/tournament';
 
 export interface OpeningEmbedParams {
   channelId: string;
@@ -24,7 +24,7 @@ export interface OpeningEmbedParams {
   streamerDiscordId?: string;
   streamLink?: string;
   existingMsgId?: string | null;
-  isCompleted?: boolean;
+  isFinished?: boolean; // ✅ RESMI DIGANTI MENJADI isFinished
   scoreA?: number;
   scoreB?: number;
 }
@@ -60,7 +60,7 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   const isFirstOpening = !params.existingMsgId;
 
-  // Resolusi Emoji
+  // Resolusi Emoji Tim
   const emojiA =
     params.teamAEmoji ||
     (params.emojiAId ? `<:${(params.kodeTimA || 'team').replace(/\s+/g, '')}:${params.emojiAId}>` : '');
@@ -86,7 +86,7 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   }
 
   const liveStreamText = params.streamLink || 'Belum tersedia';
-  const isFinished = params.isCompleted || false;
+  const isFinished = params.isFinished || false; // ✅ Menggunakan isFinished
 
   const scheduleChannelMention = DISCORD_CONFIG.CH_SCHEDULE 
     ? `<#${DISCORD_CONFIG.CH_SCHEDULE}>` 
@@ -122,7 +122,7 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const teamADisplay = `${emojiA ? emojiA + ' ' : ''}**${params.teamAName}**`;
   const teamBDisplay = `${emojiB ? emojiB + ' ' : ''}**${params.teamBName}**`;
 
-  // 🟢 PERBARUAN UTAMA: RESOLUSI NAMA DIVISI RESMI DILAKUKAN DI SINI!
+  // Resolusi Nama Divisi Resmi
   let groupDisplayName = params.groupName || 'Group Stage';
   if (groupDisplayName === 'Group A') {
     groupDisplayName = DIVISION_MAP.GROUP_A;
@@ -133,7 +133,7 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const weekDisplayName = params.weekName || 'Week 1';
 
   const embedData = {
-    title: `🏆 ${groupDisplayName} - ${weekDisplayName}`, // 👈 Otomatis jadi "🏆 SAKURASAWA FIGHTERS - Week 2"
+    title: `🏆 ${groupDisplayName} - ${weekDisplayName}`,
     description: `${teamADisplay} **VS** ${teamBDisplay}\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
     color: isFinished ? 0x2ecc71 : 0x00a8fc,
     fields,
@@ -162,4 +162,4 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', postPayload).catch(() => null);
   return res?.id || null;
-}
+    }
