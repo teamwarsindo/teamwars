@@ -38,10 +38,10 @@ export function calculateStandings(
       matchPlayed: 0,
       matchWins: 0,
       matchLosses: 0,
-      setWins: 0, // Akumulasi Points Scored (Total Game / Deck Won)
-      setLosses: 0, // Akumulasi Game / Deck Lost
-      roundDifference: 0, // Points Difference (PTS DIFF)
-      points: 0, // Match Points (1 Match Win = 1 Pt)
+      setWins: 0,
+      setLosses: 0,
+      roundDifference: 0,
+      points: 0,
       form: [],
     });
     teamFormMap.set(tName, []);
@@ -109,17 +109,14 @@ export function calculateStandings(
     itemA.matchPlayed += 1;
     itemB.matchPlayed += 1;
 
-    // Scored akumulatif (Total Deck / Game Menang & Kalah)
     itemA.setWins += scoreA;
     itemA.setLosses += scoreB;
     itemB.setWins += scoreB;
     itemB.setLosses += scoreA;
 
-    // Points Difference (PTS DIFF)
     itemA.roundDifference += scoreA - scoreB;
     itemB.roundDifference += scoreB - scoreA;
 
-    // Match W-L & Riwayat Form
     const formsA = teamFormMap.get(m.teamAName) || [];
     const formsB = teamFormMap.get(m.teamBName) || [];
 
@@ -140,7 +137,6 @@ export function calculateStandings(
     }
   });
 
-  // Assign array form ke setiap tim
   teamMap.forEach((item, tName) => {
     const list = teamFormMap.get(tName) || [];
     item.form = list.map((f) => f.result);
@@ -148,10 +144,14 @@ export function calculateStandings(
 
   const allTeams = Array.from(teamMap.values());
 
-  // 4. Sortir Klasemen Berdasarkan Bab B:
-  // 1. Match Wins -> 2. PTS DIFF (roundDifference) -> 3. SCORED (setWins) -> 4. Head to Head
+  // 4. Urutan Sortir:
+  // 1. Total Match (W+L) -> 2. Match Wins -> 3. PTS DIFF -> 4. SCORED -> 5. H2H
   const sortTeams = (teams: ExtendedStandingItem[]) => {
     return teams.sort((a, b) => {
+      const totalMatchA = a.matchWins + a.matchLosses;
+      const totalMatchB = b.matchWins + b.matchLosses;
+
+      if (totalMatchB !== totalMatchA) return totalMatchB - totalMatchA;
       if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
       if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
       if (b.setWins !== a.setWins) return b.setWins - a.setWins;
