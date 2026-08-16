@@ -33,6 +33,12 @@ export function MatchCenter({
     const displayStreamerName =
       m.streamer?.replace(/<@!?\d+>/g, "").trim() || "Streamer Resmi";
 
+    const scoreA = m.scoreA ?? 0;
+    const scoreB = m.scoreB ?? 0;
+    const isFinished = Boolean(m.isFinished);
+    const teamAWins = isFinished && scoreA > scoreB;
+    const teamBWins = isFinished && scoreB > scoreA;
+
     return (
       <div
         key={m.id}
@@ -40,30 +46,42 @@ export function MatchCenter({
           isLive
             ? "border-rose-500/50 bg-rose-500/10 shadow-xs"
             : hasStreamer
-            ? "border-purple-500/30 bg-purple-500/5 hover:border-purple-500/50"
+            ? "border-orange-500/30 bg-orange-500/5 hover:border-orange-500/50"
             : "border-border/60 bg-muted/20 hover:border-primary/40"
         }`}
       >
         <div className="flex items-center justify-between min-w-0">
+          {/* TIM A */}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <img
               src={m.teamALogo || "/logo.webp"}
               alt=""
               className="h-5 w-5 shrink-0 object-contain"
             />
-            <span className="truncate font-bold text-[11px] text-foreground">
+            <span
+              className={`truncate text-[11px] ${
+                teamAWins
+                  ? "font-black text-emerald-600 dark:text-emerald-400"
+                  : isFinished
+                  ? "font-medium text-muted-foreground line-through opacity-75"
+                  : "font-bold text-foreground"
+              }`}
+            >
               {m.teamAName}
             </span>
           </div>
 
+          {/* SKOR / STATUS */}
           <div className="px-2 text-center shrink-0 min-w-[75px]">
             {isLive ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-rose-500 px-2 py-0.5 text-[9.5px] font-black text-white animate-pulse">
                 <Flame className="h-3 w-3" /> LIVE
               </span>
-            ) : m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0 ? (
-              <span className="rounded-md bg-primary/20 px-2 py-0.5 text-[10px] font-black text-primary">
-                {m.scoreA} - {m.scoreB}
+            ) : isFinished || scoreA + scoreB > 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                <span className={teamAWins ? "font-black" : "opacity-80"}>{scoreA}</span>
+                <span>-</span>
+                <span className={teamBWins ? "font-black" : "opacity-80"}>{scoreB}</span>
               </span>
             ) : (
               <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
@@ -75,8 +93,17 @@ export function MatchCenter({
             </span>
           </div>
 
+          {/* TIM B */}
           <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
-            <span className="truncate font-bold text-[11px] text-right text-foreground">
+            <span
+              className={`truncate text-[11px] text-right ${
+                teamBWins
+                  ? "font-black text-emerald-600 dark:text-emerald-400"
+                  : isFinished
+                  ? "font-medium text-muted-foreground line-through opacity-75"
+                  : "font-bold text-foreground"
+              }`}
+            >
               {m.teamBName}
             </span>
             <img
@@ -87,12 +114,12 @@ export function MatchCenter({
           </div>
         </div>
 
-        {/* STATUS STREAMING & OPEN CALL BRANDING */}
+        {/* FOOTER STATUS STREAMING */}
         {!m.isFinished && (
           <>
             {isLive && m.streamLink ? (
               <div className="flex items-center justify-between border-t border-rose-500/20 pt-1.5 mt-0.5">
-                <span className="text-[10px] font-semibold text-rose-400 flex items-center gap-1">
+                <span className="text-[10px] font-semibold text-rose-500 dark:text-rose-400 flex items-center gap-1">
                   <Tv className="h-3 w-3" /> Streamer: {displayStreamerName}
                 </span>
                 <a
@@ -105,14 +132,14 @@ export function MatchCenter({
                 </a>
               </div>
             ) : hasStreamer ? (
-              <div className="flex items-center justify-between border-t border-purple-500/20 pt-1.5 mt-0.5">
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-purple-500 dark:text-purple-300">
+              <div className="flex items-center justify-between border-t border-orange-500/20 pt-1.5 mt-0.5">
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-orange-600 dark:text-orange-400">
                   <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-500"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
                   </span>
                   <span className="flex items-center gap-1">
-                    <Radio className="h-3 w-3" /> Live by {displayStreamerName}
+                    <Radio className="h-3 w-3" /> Akan Live by {displayStreamerName}
                   </span>
                 </div>
                 <span className="text-[9px] text-muted-foreground italic">
@@ -124,8 +151,8 @@ export function MatchCenter({
                 <span className="text-[9.5px] font-medium text-muted-foreground flex items-center gap-1">
                   <Tv className="h-2.5 w-2.5 text-muted-foreground/70" /> Siaran Langsung:
                 </span>
-                <span className="rounded-md bg-muted/60 px-1.5 py-0.5 text-[9px] font-bold text-amber-500/90 dark:text-amber-400 border border-amber-500/20">
-                  🎙️ Open Streamer
+                <span className="rounded-md bg-muted/80 px-2 py-0.5 text-[9.5px] font-bold text-muted-foreground border border-border/60">
+                  🎙️ Butuh Streamer
                 </span>
               </div>
             )}
@@ -197,14 +224,19 @@ export function MatchCenter({
             <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
               Pertandingan Berikutnya
             </span>
-            {upcomingMatches.length === 0 &&
-            todayMatches.length === 0 &&
-            liveMatches.length === 0 ? (
-              <div className="py-4 text-center text-xs text-muted-foreground">
-                Semua jadwal Week {currentWeek} telah selesai.
-              </div>
-            ) : (
+
+            {upcomingMatches.length > 0 ? (
               <div className="space-y-2">{upcomingMatches.map(renderCard)}</div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-3 text-center">
+                <p className="text-[11px] font-bold text-foreground">
+                  📅 Tidak ada jadwal lanjutan di Week {currentWeek}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Jadwal pertandingan Week berikutnya akan dirilis resmi pada hari{" "}
+                  <strong className="text-primary">Senin pukul 07.00 WIB</strong>.
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -224,4 +256,4 @@ export function MatchCenter({
       )}
     </div>
   );
-                        }
+}
