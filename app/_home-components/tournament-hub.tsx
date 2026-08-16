@@ -222,7 +222,6 @@ export function TournamentHub() {
           todayMatches={todayMatches}
           upcomingMatches={upcomingMatches}
           recentResults={recentResults}
-          formatDate={formatDate}
         />
 
         <StandingsSnapshot
