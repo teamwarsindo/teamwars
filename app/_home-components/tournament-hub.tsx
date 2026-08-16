@@ -5,8 +5,9 @@ import {
   MatchScheduleItem,
   DIVISION_MAP,
   getCurrentServerWeek,
+  TOURNAMENT_RULES,
 } from "@/app/tournament/_library";
-import { calculateStandings, ExtendedStandingItem } from "@/app/tournament/_library/calculator";
+import { calculateStandings, buildGlobalStandings } from "@/app/tournament/_library/calculator";
 import { PhaseTimeline } from "./phase-timeline";
 import { QuickActions } from "./quick-actions";
 import { MatchCenter } from "./match-center";
@@ -42,36 +43,31 @@ export function TournamentHub() {
     return calculateStandings(schedules, masterTeams, currentWeek);
   }, [schedules, masterTeams, currentWeek]);
 
-  // Top 2 Divisi A & B
+  // 1. Top 2 Divisi A & B langsung dari data standing grup
   const topGroupA = useMemo(() => {
     return standings
       .filter((s) => s.groupName === DIVISION_MAP.GROUP_A)
-      .slice(0, 2);
+      .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP);
   }, [standings]);
 
   const topGroupB = useMemo(() => {
     return standings
       .filter((s) => s.groupName === DIVISION_MAP.GROUP_B)
-      .slice(0, 2);
+      .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP);
   }, [standings]);
 
-  // Top 4 Global (Sortir: Match Wins -> PTS DIFF -> SCORED)
+  // 2. Ambil langsung dari Standing Global resmi (murni tim wildcard peringkat 1-4)
   const topGlobal = useMemo(() => {
-    return [...standings]
-      .sort((a, b) => {
-        if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-        if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
-        return b.setWins - a.setWins;
-      })
+    const globalStandingData = buildGlobalStandings(standings);
+    return globalStandingData
+      .filter((item) => !item.isTopGroup)
       .slice(0, 4);
   }, [standings]);
 
-  // Live Matches
   const liveMatches = useMemo(() => {
     return schedules.filter((m) => Boolean(m.streamLink) && !m.isFinished);
   }, [schedules]);
 
-  // Main Hari Ini
   const todayMatches = useMemo(() => {
     const todayStr = new Date().toISOString().split("T")[0];
     return schedules.filter(
@@ -82,7 +78,6 @@ export function TournamentHub() {
     );
   }, [schedules]);
 
-  // Pertandingan Berikutnya (Hanya match di masa depan, urut waktu terdekat, max 3)
   const upcomingMatches = useMemo(() => {
     const nowTime = Date.now();
     return schedules
@@ -95,7 +90,6 @@ export function TournamentHub() {
       .slice(0, 3);
   }, [schedules]);
 
-  // 3 Match Terakhir yang Selesai (Diurutkan dari yang paling baru)
   const recentResults = useMemo(() => {
     return schedules
       .filter((m) => m.isFinished)
@@ -105,10 +99,8 @@ export function TournamentHub() {
 
   return (
     <div className="space-y-6">
-      {/* 1. TIMELINE FASE TURNAMEN */}
       <PhaseTimeline currentWeek={currentWeek} />
 
-      {/* 2. MENU CEPAT & PENCARIAN PROFIL TIM */}
       <QuickActions
         currentWeek={currentWeek}
         searchQuery={searchQuery}
@@ -117,7 +109,6 @@ export function TournamentHub() {
         allSchedules={schedules}
       />
 
-      {/* 3. MATCH CENTER & STANDINGS SNAPSHOT */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MatchCenter
           currentWeek={currentWeek}
