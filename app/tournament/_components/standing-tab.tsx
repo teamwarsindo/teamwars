@@ -305,7 +305,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                 : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40"
             }`}
           >
-            🌐 Standing Global (Playoff)
+            🌐 Standing Global
           </button>
         </div>
 
