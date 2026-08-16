@@ -7,8 +7,8 @@ import {
   DIVISION_MAP,
   getCurrentServerWeek,
   TOURNAMENT_RULES,
-} from "@/lib/tournament";
-import { calculateStandings, ExtendedStandingItem } from "@/lib/tournament/calculator";
+} from "@/app/tournament/_library";
+import { calculateStandings, ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 
 interface StandingTabProps {
   schedules: MatchScheduleItem[];

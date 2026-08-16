@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MatchScheduleItem, formatMatchWIB } from "@/lib/tournament";
+import { MatchScheduleItem, formatMatchWIB } from "@/app/tournament/_library";
 import { ChevronRight, Flame, Tv, ExternalLink, Radio } from "lucide-react";
 
 interface MatchCenterProps {

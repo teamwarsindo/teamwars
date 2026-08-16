@@ -5,8 +5,8 @@ import {
   MatchScheduleItem,
   DIVISION_MAP,
   getCurrentServerWeek,
-} from "@/lib/tournament";
-import { calculateStandings, ExtendedStandingItem } from "@/lib/tournament/calculator";
+} from "@/app/tournament/_library";
+import { calculateStandings, ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 import { PhaseTimeline } from "./phase-timeline";
 import { QuickActions } from "./quick-actions";
 import { MatchCenter } from "./match-center";

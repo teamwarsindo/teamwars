@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { DIVISION_MAP } from "@/lib/tournament";
-import { ExtendedStandingItem } from "@/lib/tournament/calculator";
+import { DIVISION_MAP } from "@/app/tournament/_library";
+import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 import { ChevronRight } from "lucide-react";
 
 interface StandingsSnapshotProps {

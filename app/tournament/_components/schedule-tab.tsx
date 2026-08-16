@@ -6,7 +6,7 @@ import {
   MatchScheduleItem,
   DIVISION_MAP,
   formatMatchWIB,
-} from "@/lib/tournament";
+} from "@/app/tournament/_library";
 import { ChevronDown, Check, RotateCcw } from "lucide-react";
 
 export interface ScheduleTabProps {

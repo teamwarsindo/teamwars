@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { MatchScheduleItem } from "@/lib/tournament";
+import { MatchScheduleItem } from "@/app/tournament/_library";
 import {
   X,
   Trophy,

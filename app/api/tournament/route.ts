@@ -8,8 +8,8 @@ import {
   TWI_START_DATETIME,
   getMatchWeekNumber,
   getTeamSlug,
-} from '@/lib/tournament';
-import { calculateStandings } from '@/lib/tournament/calculator';
+} from '@/app/tournament/_library';
+import { calculateStandings } from '@/app/tournament/_library/calculator';
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
 const KV_KEY_ROULETTE = 'twi:roulette_state';

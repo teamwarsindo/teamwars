@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/lib/tournament';
+import { MatchScheduleItem } from '@/app/tournament/_library';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { executeAssignStaff } from '@/lib/discord/services/staff-assignment';
 

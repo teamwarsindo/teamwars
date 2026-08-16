@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { MatchScheduleItem } from "@/lib/tournament";
+import { MatchScheduleItem } from "@/app/tournament/_library";
 import {
   Search,
   Calendar,

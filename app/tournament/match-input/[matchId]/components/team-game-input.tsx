@@ -1,6 +1,6 @@
 "use client";
 
-import { PlayerDeckInfo } from "@/lib/tournament";
+import { PlayerDeckInfo } from "@/app/tournament/_library";
 import { CustomSelect } from "./custom-select";
 import { RotateCcw, Lock, Play, Pause, RefreshCw, AlertTriangle, CheckSquare, Square } from "lucide-react";
 

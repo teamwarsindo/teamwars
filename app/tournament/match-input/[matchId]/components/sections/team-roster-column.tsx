@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { PlayerDeckInfo } from "@/lib/tournament";
+import { PlayerDeckInfo } from "@/app/tournament/_library";
 import { TOURNAMENT_CONFIG } from "../../constants/tournament";
 
 interface TeamRosterColumnProps {

@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/lib/tournament';
+import { MatchScheduleItem } from '@/app/tournament/_library';
 import { isValidSnowflake } from '@/lib/discord/utils';
 
 export interface StaffItem {

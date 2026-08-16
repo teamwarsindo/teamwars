@@ -5,8 +5,8 @@ import {
   MatchScheduleItem,
   DIVISION_MAP,
   TOURNAMENT_RULES,
-} from "@/lib/tournament";
-import { calculateStandings, ExtendedStandingItem } from "@/lib/tournament/calculator";
+} from "@/app/tournament/_library";
+import { calculateStandings, ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 import { CircleCheckBig } from "lucide-react";
 
 interface PlayoffTabProps {

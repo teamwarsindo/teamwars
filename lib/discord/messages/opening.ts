@@ -1,6 +1,6 @@
 import { discordAPI } from '../utils';
 import { DISCORD_CONFIG } from '../config';
-import { DIVISION_MAP } from '@/lib/tournament';
+import { DIVISION_MAP } from '@/app/tournament/_library';
 
 export interface OpeningEmbedParams {
   channelId: string;

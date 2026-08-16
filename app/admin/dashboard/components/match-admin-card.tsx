@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MatchScheduleItem, DIVISION_MAP } from '@/lib/tournament';
+import { MatchScheduleItem, DIVISION_MAP } from '@/app/tournament/_library';
 import { Pencil, FileText, Copy, RotateCcw, Trash2, ExternalLink } from 'lucide-react';
 
 interface StaffItem {

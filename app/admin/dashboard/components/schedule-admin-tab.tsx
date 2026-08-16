@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { MatchScheduleItem, DIVISION_MAP } from '@/lib/tournament';
+import { MatchScheduleItem, DIVISION_MAP } from '@/app/tournament/_library';
 import { MatchAdminCard } from './match-admin-card';
 import { ChevronDown, Check, RotateCcw, Radio, Zap } from 'lucide-react';
 import Swal from 'sweetalert2';

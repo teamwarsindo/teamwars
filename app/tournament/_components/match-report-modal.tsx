@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MatchScheduleItem } from "@/lib/tournament";
+import { MatchScheduleItem } from "@/app/tournament/_library";
 
 interface MatchReportModalProps {
   open?: boolean;

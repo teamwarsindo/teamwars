@@ -8,7 +8,7 @@ import {
   DIVISION_MAP,
   getCurrentServerWeek,
   TOURNAMENT_RULES,
-} from "@/lib/tournament";
+} from "@/app/tournament/_library";
 import { ScheduleTab } from "./schedule-tab";
 import { StandingTab } from "./standing-tab";
 import { PlayoffTab } from "./playoff-tab";
