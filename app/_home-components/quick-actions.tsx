@@ -137,7 +137,7 @@ export function QuickActions({
           )}
         </div>
 
-        {/* DROPDOWN LIST TIM (Form W/L) */}
+        {/* DROPDOWN LIST TIM */}
         {isDropdownOpen && searchQuery.trim().length > 0 && (
           <div className="absolute left-0 right-0 top-full mt-1.5 z-40 max-h-64 overflow-y-auto rounded-2xl border border-border bg-popover/95 p-1.5 shadow-xl backdrop-blur-md">
             {matchingTeams.length === 0 ? (
@@ -213,11 +213,11 @@ export function QuickActions({
       {selectedTeam && (
         <TeamProfileModal
           team={selectedTeam}
+          allTeams={allTeams}
           allSchedules={allSchedules}
           onClose={() => setSelectedTeam(null)}
         />
       )}
     </div>
   );
-                }
-      
+}
