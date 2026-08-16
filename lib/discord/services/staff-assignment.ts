@@ -89,8 +89,10 @@ export async function executeAssignStaff(params: {
   const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
   const staffObj = staffList.find((s) => s.discordId === targetStaffId);
 
+  // Ambil nama/nickname asli staf
   const staffDisplayName = staffObj?.discordName || targetStaffId;
 
+  // 1. Simpan Nickname ke match.referee / match.streamer dan Raw Snowflake ID ke DiscordId
   if (assignType === 'REFEREE') {
     match.referee = staffDisplayName;
     match.refereeDiscordId = targetStaffId;
@@ -99,6 +101,7 @@ export async function executeAssignStaff(params: {
     match.streamerDiscordId = targetStaffId;
   }
 
+  // Sanitasi jika data ID rusak
   if (!isValidSnowflake(match.refereeDiscordId)) {
     match.referee = undefined;
     match.refereeDiscordId = undefined;
@@ -126,18 +129,33 @@ export async function executeAssignStaff(params: {
   const teamBEmoji = resolveTeamEmoji(teamB);
 
   const guildId = DISCORD_CONFIG.GUILD_ID;
+  const matchChannelId = (match as any).discordChannelId;
+  const rolePengawas = (DISCORD_CONFIG as any).ROLE_PENGAWAS;
 
+  // 2. Kelola Hak Akses / Role Discord
   if (guildId && isValidSnowflake(targetStaffId)) {
     if (assignType === 'REFEREE') {
+      // Wasit dapat role kedua tim untuk briefing
       if (isValidSnowflake(roleAId)) {
         await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleAId}`, 'PUT').catch(() => null);
       }
       if (isValidSnowflake(roleBId)) {
         await discordAPI(`/guilds/${guildId}/members/${targetStaffId}/roles/${roleBId}`, 'PUT').catch(() => null);
       }
+
+      // 👁️ Berikan izin akses ROLE PENGAWAS ke Channel Match (Type 0 = Role)
+      if (matchChannelId && isValidSnowflake(rolePengawas)) {
+        await discordAPI(`/channels/${matchChannelId}/permissions/${rolePengawas}`, 'PUT', {
+          type: 0,
+          allow: '66560', // View Channel + Send Messages + Read Message History
+          deny: '0',
+        }).catch(() => null);
+      }
     }
-    if (assignType === 'STREAMER' && (match as any).discordChannelId) {
-      await discordAPI(`/channels/${(match as any).discordChannelId}/permissions/${targetStaffId}`, 'PUT', {
+
+    if (assignType === 'STREAMER' && matchChannelId) {
+      // Streamer dapat akses ke match channel (Type 1 = Member)
+      await discordAPI(`/channels/${matchChannelId}/permissions/${targetStaffId}`, 'PUT', {
         type: 1,
         allow: '66560',
         deny: '0',
@@ -145,13 +163,13 @@ export async function executeAssignStaff(params: {
     }
   }
 
-  // Kirim / Update Embed Opening di Channel Match saat Assign
+  // 3. Format Tag Mention (<@ID>) khusus untuk payload Embed Discord
   const finalRefereeMention = isValidSnowflake(match.refereeDiscordId) ? `<@${match.refereeDiscordId}>` : undefined;
   const finalStreamerMention = isValidSnowflake(match.streamerDiscordId) ? `<@${match.streamerDiscordId}>` : undefined;
 
-  if ((match as any).discordChannelId) {
+  if (matchChannelId) {
     const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
-      channelId: (match as any).discordChannelId,
+      channelId: matchChannelId,
       matchId: match.id,
       groupName: match.groupName,
       teamAName: match.teamAName,
@@ -176,7 +194,7 @@ export async function executeAssignStaff(params: {
     if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
   }
 
-  // Kirim Log Assign ke #CH_ASSIGN
+  // 4. Kirim Log Assign ke #CH_ASSIGN
   const chAssign = DISCORD_CONFIG.CH_ASSIGN;
   if (chAssign) {
     const logParams = {
@@ -188,7 +206,7 @@ export async function executeAssignStaff(params: {
       teamBName: match.teamBName,
       teamAEmoji,
       teamBEmoji,
-      matchChannelId: (match as any).discordChannelId,
+      matchChannelId: matchChannelId,
       matchDateIso: match.matchDate,
       staffName: `<@${targetStaffId}>`,
       staffDiscordId: targetStaffId,
@@ -258,6 +276,7 @@ export async function executeUnassignStaff(params: {
 
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const matchChannelId = (match as any).discordChannelId;
+  const rolePengawas = (DISCORD_CONFIG as any).ROLE_PENGAWAS;
 
   // 1. Cabut Role / Izin Akses Channel Discord
   if (guildId && isValidSnowflake(targetStaffId)) {
@@ -276,6 +295,10 @@ export async function executeUnassignStaff(params: {
         if (isValidSnowflake(roleBId)) {
           await discordAPI(`/channels/${matchChannelId}/permissions/${roleBId}`, 'DELETE').catch(() => null);
         }
+        // Cabut izin channel ROLE PENGAWAS saat match selesai
+        if (isValidSnowflake(rolePengawas)) {
+          await discordAPI(`/channels/${matchChannelId}/permissions/${rolePengawas}`, 'DELETE').catch(() => null);
+        }
       }
     }
 
@@ -284,21 +307,22 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // 2. Simpan Data Baru ke KV (Tanpa sentuh/post ulang opening embed)
+  // 2. Simpan streamLink baru jika ada input
   if (streamLink) {
     match.streamLink = streamLink.trim();
   }
 
+  // 3. Update Status Match & Cabut Discord ID (Nama/Nickname tetap dipertahankan)
   if (assignType === 'REFEREE') {
     match.scoreA = scoreA;
     match.scoreB = scoreB;
     match.isFinished = true;
-    match.refereeDiscordId = undefined; // Cabut ID Discord agar tidak ada tag aktif
+    match.refereeDiscordId = undefined;
   } else {
-    match.streamerDiscordId = undefined; // Cabut ID Discord streamer
+    match.streamerDiscordId = undefined;
   }
 
-  // 3. Kirim Log Selesai ke #CH_ASSIGN
+  // 4. Kirim Log Selesai ke #CH_ASSIGN
   const chAssign = DISCORD_CONFIG.CH_ASSIGN;
   const targetLogMsgId = assignType === 'REFEREE' ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId;
 
@@ -322,7 +346,7 @@ export async function executeUnassignStaff(params: {
     });
   }
 
-  // 4. HANYA REFEREE: Kirim Score Log ke #CH_SCORE
+  // 5. HANYA REFEREE: Kirim Score Log ke #CH_SCORE
   if (assignType === 'REFEREE') {
     const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
     if (chScore) {
@@ -338,7 +362,7 @@ export async function executeUnassignStaff(params: {
     }
   }
 
-  // 5. Hapus dari riwayat penugasan aktif staf di KV & simpan match
+  // 6. Hapus dari riwayat aktif staff di KV & simpan match
   await updateStaffHistory(assignType, targetStaffId, match.id, 'REMOVE');
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
