@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { MatchScheduleItem } from "@/app/tournament/_library";
+import { MatchScheduleItem, DIVISION_MAP, TOURNAMENT_RULES } from "@/app/tournament/_library";
+import { buildGlobalStandings } from "@/app/tournament/_library/calculator";
 import {
   X,
   Trophy,
-  Swords,
   Users,
   Loader2,
   Crown,
@@ -17,13 +17,15 @@ import {
 
 interface TeamProfileModalProps {
   team: any;
+  allTeams?: any[];
   allSchedules: MatchScheduleItem[];
   onClose: () => void;
 }
 
 export function TeamProfileModal({
   team,
-  allSchedules,
+  allTeams = [],
+  allSchedules = [],
   onClose,
 }: TeamProfileModalProps) {
   const [roster, setRoster] = useState<any[]>([]);
@@ -60,7 +62,38 @@ export function TeamProfileModal({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const { history, nextMatch, streak } = useMemo(() => {
+  // Hitung status peringkat divisi dan wildcard
+  const teamRankInfo = useMemo(() => {
+    if (!allTeams || allTeams.length === 0) {
+      return {
+        isTopGroup: (team.rank || 1) <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP,
+        divRank: team.rank || 1,
+        wildcardRank: null,
+      };
+    }
+
+    const globalStandings = buildGlobalStandings(allTeams);
+    const found = globalStandings.find(
+      (t) => t.teamName.toLowerCase() === teamName.toLowerCase()
+    );
+
+    if (!found) {
+      return {
+        isTopGroup: (team.rank || 1) <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP,
+        divRank: team.rank || 1,
+        wildcardRank: null,
+      };
+    }
+
+    return {
+      isTopGroup: found.isTopGroup ?? false,
+      divRank: found.rank,
+      wildcardRank: found.isTopGroup ? null : found.rank,
+    };
+  }, [team, allTeams, teamName]);
+
+  // Riwayat match dan form
+  const { history, streak } = useMemo(() => {
     const q = teamName.toLowerCase();
     const matches = allSchedules.filter(
       (m) =>
@@ -86,7 +119,6 @@ export function TeamProfileModal({
       });
     return {
       history: hist,
-      nextMatch: matches.find((m) => !m.isFinished),
       streak: [...hist]
         .slice(0, 5)
         .reverse()
@@ -94,8 +126,8 @@ export function TeamProfileModal({
     };
   }, [teamName, allSchedules]);
 
-  const total = (team.matchWins || 0) + (team.matchLosses || 0);
-  const wr = total > 0 ? Math.round((team.matchWins / total) * 100) : 0;
+  const totalMatches = (team.matchWins || 0) + (team.matchLosses || 0);
+  const wr = totalMatches > 0 ? Math.round(((team.matchWins || 0) / totalMatches) * 100) : 0;
 
   const { leftColumn, rightColumn } = useMemo(() => {
     const mid = Math.ceil(roster.length / 2);
@@ -158,6 +190,8 @@ export function TeamProfileModal({
 
   if (!mounted || !team) return null;
 
+  const isGroupA = team.groupName === DIVISION_MAP.GROUP_A;
+
   return createPortal(
     <div
       onClick={(e) => {
@@ -185,15 +219,30 @@ export function TeamProfileModal({
               <h2 className="text-sm sm:text-base font-black truncate text-foreground">
                 {teamName}
               </h2>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {team.rank && (
-                  <span className="rounded-md bg-primary/15 border border-primary/25 px-1.5 py-0.2 text-[9px] font-black text-primary">
-                    #{team.rank}
+              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                {/* 1. BADGE DIVISI */}
+                <span
+                  className={`rounded-md border px-1.5 py-0.2 text-[9px] font-black ${
+                    isGroupA
+                      ? "bg-sky-500/15 border-sky-500/30 text-sky-600 dark:text-sky-400"
+                      : "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                  }`}
+                >
+                  #{teamRankInfo.divRank} {team.groupName}
+                </span>
+
+                {/* 2. BADGE WILDCARD (JIKA BUKAN TOP GROUP) */}
+                {!teamRankInfo.isTopGroup && typeof teamRankInfo.wildcardRank === "number" && (
+                  <span
+                    className={`rounded-md border px-1.5 py-0.2 text-[9px] font-black ${
+                      teamRankInfo.wildcardRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
+                        ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                        : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                    }`}
+                  >
+                    #{teamRankInfo.wildcardRank} Wildcard
                   </span>
                 )}
-                <p className="text-[10.5px] font-semibold text-muted-foreground">
-                  {team.groupName}
-                </p>
               </div>
             </div>
           </div>
@@ -234,24 +283,17 @@ export function TeamProfileModal({
               </div>
             </div>
 
+            {/* 4 KOTAK STATISTIK: WINS - PTS DIFF - SCORED - WIN RATE */}
             <div className="grid grid-cols-4 gap-2 text-center pt-1">
               <div className="rounded-xl bg-primary/10 border border-primary/20 py-2">
                 <span className="block text-[8px] sm:text-[8.5px] text-muted-foreground font-bold uppercase">
-                  POIN
+                  WINS
                 </span>
-                <span className="text-sm font-black text-primary">{team.points ?? 0}</span>
+                <span className="text-sm font-black text-primary">{team.matchWins ?? 0}</span>
               </div>
               <div className="rounded-xl bg-muted/40 border border-border py-2">
                 <span className="block text-[8px] sm:text-[8.5px] text-muted-foreground font-bold uppercase">
-                  SET WIN
-                </span>
-                <span className="text-xs font-black text-foreground">
-                  {team.setWins || 0}
-                </span>
-              </div>
-              <div className="rounded-xl bg-muted/40 border border-border py-2">
-                <span className="block text-[8px] sm:text-[8.5px] text-muted-foreground font-bold uppercase">
-                  ROUND DIFF
+                  PTS DIFF
                 </span>
                 <span
                   className={`text-xs font-black ${
@@ -265,6 +307,14 @@ export function TeamProfileModal({
                   {(team.roundDifference ?? 0) > 0
                     ? `+${team.roundDifference}`
                     : team.roundDifference ?? 0}
+                </span>
+              </div>
+              <div className="rounded-xl bg-muted/40 border border-border py-2">
+                <span className="block text-[8px] sm:text-[8.5px] text-muted-foreground font-bold uppercase">
+                  SCORED
+                </span>
+                <span className="text-xs font-black text-foreground">
+                  {team.setWins ?? 0}
                 </span>
               </div>
               <div className="rounded-xl bg-muted/40 border border-border py-2">
@@ -283,42 +333,12 @@ export function TeamProfileModal({
             </div>
           </div>
 
-          {/* 2. LAGA BERIKUTNYA */}
-          {nextMatch && (
-            <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-3 space-y-1.5">
-              <span className="text-[9.5px] font-black text-sky-600 dark:text-sky-400 flex items-center gap-1.5 uppercase">
-                <Swords className="h-3 w-3" /> Laga Mendatang (Week {nextMatch.weekNumber})
-              </span>
-              <div className="flex items-center justify-between bg-card p-2.5 rounded-xl border border-sky-500/20 text-[11px] font-bold">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <img
-                    src={nextMatch.teamALogo || "/logo.webp"}
-                    alt=""
-                    className="h-5 w-5 object-contain shrink-0"
-                  />
-                  <span className="truncate text-foreground">{nextMatch.teamAName}</span>
-                </div>
-                <span className="text-[9px] font-black px-2 py-0.5 rounded bg-muted text-sky-600 dark:text-sky-400 shrink-0">
-                  VS
-                </span>
-                <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
-                  <span className="truncate text-right text-foreground">{nextMatch.teamBName}</span>
-                  <img
-                    src={nextMatch.teamBLogo || "/logo.webp"}
-                    alt=""
-                    className="h-5 w-5 object-contain shrink-0"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 3. RIWAYAT PERTANDINGAN */}
+          {/* 2. RIWAYAT PERTANDINGAN */}
           <div className="space-y-1.5">
             <span className="text-[9.5px] font-black uppercase text-muted-foreground flex items-center gap-1">
               <Trophy className="h-3 w-3 text-amber-500" /> Riwayat Pertandingan
             </span>
-            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
               {history.map((m) => (
                 <div
                   key={m.id}
@@ -372,7 +392,7 @@ export function TeamProfileModal({
             </div>
           </div>
 
-          {/* 4. ROSTER ANGGOTA */}
+          {/* 3. ROSTER ANGGOTA */}
           <div className="space-y-1.5 pb-2">
             <span className="text-[9.5px] font-black uppercase text-muted-foreground flex items-center gap-1">
               <Users className="h-3 w-3 text-primary" /> Roster Anggota
@@ -411,4 +431,5 @@ export function TeamProfileModal({
     </div>,
     document.body
   );
-                }
+    }
+        
