@@ -23,6 +23,7 @@ export function calculateStandings(
 
   const teamMap = new Map<string, ExtendedStandingItem>();
 
+  // 1. Inisialisasi data master tim
   masterTeams.forEach((t) => {
     const groupName =
       t.groupName === 'Group A' || t.groupName === DIVISION_MAP.GROUP_A
@@ -46,6 +47,7 @@ export function calculateStandings(
     });
   });
 
+  // 2. Akumulasi hasil pertandingan
   filteredSchedules.forEach((m) => {
     const isFinished = Boolean(m.isFinished);
     const scoreA = m.scoreA || 0;
@@ -95,25 +97,27 @@ export function calculateStandings(
     itemA.matchPlayed += 1;
     itemB.matchPlayed += 1;
 
-    // Akumulasi set per match
-    itemA.setWins += scoreA;
-    itemA.setLosses += scoreB;
-    itemB.setWins += scoreB;
-    itemB.setLosses += scoreA;
+    // Hitung Round Difference (selisih total skor game)
+    itemA.roundDifference += scoreA - scoreB;
+    itemB.roundDifference += scoreB - scoreA;
 
-    itemA.roundDifference = itemA.setWins - itemA.setLosses;
-    itemB.roundDifference = itemB.setWins - itemB.setLosses;
-
+    // 🟢 SET WIN = TOTAL MATCH WIN (Angka W dari Match W-L)
     if (scoreA > scoreB) {
       itemA.matchWins += 1;
+      itemA.setWins += 1; // Menang 1 Set/Match
       itemA.points += 10;
+
       itemB.matchLosses += 1;
-      itemB.points += scoreB;
+      itemB.setLosses += 1;
+      itemB.points += scoreB; // Kalah dapat poin dari skor yang dicetak
     } else if (scoreB > scoreA) {
       itemB.matchWins += 1;
+      itemB.setWins += 1; // Menang 1 Set/Match
       itemB.points += 10;
+
       itemA.matchLosses += 1;
-      itemA.points += scoreA;
+      itemA.setLosses += 1;
+      itemA.points += scoreA; // Kalah dapat poin dari skor yang dicetak
     }
   });
 
@@ -151,4 +155,5 @@ export function calculateStandings(
   );
 
   return [...groupATeams, ...groupBTeams];
-        }
+  }
+    
