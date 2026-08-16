@@ -58,6 +58,7 @@ export function QuickActions({
           <span className="text-[10px] text-muted-foreground">Week {currentWeek}</span>
         </Link>
 
+        {/* ✅ FIX: Arahkan ke tab standings */}
         <Link
           href="/tournament?tab=standings"
           className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-card p-4 text-center shadow-xs transition hover:border-primary/50 hover:bg-muted/30"
@@ -139,7 +140,7 @@ export function QuickActions({
 
                     return (
                       <span
-                        className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold border ${
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold border ${
                           isTopDivisi
                             ? "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400"
                             : isPlayoffWildcard
@@ -279,5 +280,4 @@ export function QuickActions({
       )}
     </div>
   );
-                }
-                          
+}
