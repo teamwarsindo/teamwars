@@ -83,7 +83,7 @@ export function TeamProfileModal({
     // 3. Jika bukan top group, cari nomor urut di standing global wildcard
     const globalStandings = buildGlobalStandings(allTeams);
     const wildcardItem = globalStandings.find(
-      (t) => !t.isTopGroup && (t.teamName || t.name || "").toLowerCase() === teamName.toLowerCase()
+      (t) => !t.isTopGroup && (t.teamName || "").toLowerCase() === teamName.toLowerCase()
     );
 
     return {
@@ -432,4 +432,5 @@ export function TeamProfileModal({
     </div>,
     document.body
   );
-  }
+}
+  
