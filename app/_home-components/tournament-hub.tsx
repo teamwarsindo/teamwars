@@ -39,11 +39,12 @@ export function TournamentHub() {
     fetchTournament();
   }, []);
 
+  // 1. Kalkulasi standing utama
   const standings = useMemo(() => {
     return calculateStandings(schedules, masterTeams, currentWeek);
   }, [schedules, masterTeams, currentWeek]);
 
-  // 1. Top 2 Divisi A & B langsung dari data standing grup
+  // 2. Top Divisi A & B (Langsung ambil dari standing grup)
   const topGroupA = useMemo(() => {
     return standings
       .filter((s) => s.groupName === DIVISION_MAP.GROUP_A)
@@ -56,10 +57,10 @@ export function TournamentHub() {
       .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP);
   }, [standings]);
 
-  // 2. Ambil langsung dari Standing Global resmi (murni tim wildcard peringkat 1-4)
+  // 3. Top Wildcard (Langsung ambil 4 teratas dari Standing Global resmi di luar Top Divisi)
   const topGlobal = useMemo(() => {
-    const globalStandingData = buildGlobalStandings(standings);
-    return globalStandingData
+    const globalData = buildGlobalStandings(standings);
+    return globalData
       .filter((item) => !item.isTopGroup)
       .slice(0, 4);
   }, [standings]);
