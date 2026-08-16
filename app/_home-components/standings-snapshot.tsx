@@ -28,36 +28,36 @@ export function StandingsSnapshot({
   ) => {
     return items.map((item, idx) => (
       <tr key={item.teamName || idx} className={`${rowBgColor} transition`}>
-        {/* RANK BADGE */}
-        <td className="py-1 px-1 w-[10%] text-center">
+        {/* RANK # */}
+        <td className="py-1.5 px-1 w-[10%] text-center">
           <span
-            className={`inline-flex h-4 w-4 items-center justify-center rounded-sm font-semibold text-[9px] ${badgeBgColor}`}
+            className={`inline-flex h-4 w-4 items-center justify-center rounded-sm font-bold text-[9px] ${badgeBgColor}`}
           >
             {idx + 1}
           </span>
         </td>
 
-        {/* LOGO & NAMA TIM */}
-        <td className="py-1 pl-1 pr-1 w-[50%]">
+        {/* NAMA TIM & LOGO */}
+        <td className="py-1.5 pl-1 pr-1 w-[50%]">
           <div className="flex items-center gap-1.5 min-w-0">
             <img
               src={item.teamLogo || "/logo.webp"}
               alt=""
               className="h-3.5 w-3.5 shrink-0 object-contain"
             />
-            <span className="truncate font-medium text-[10px] text-foreground">
+            <span className="truncate font-semibold text-[10.5px] text-foreground">
               {item.teamName}
             </span>
           </div>
         </td>
 
-        {/* MATCH W-L */}
-        <td className="py-1 px-0.5 text-center font-semibold text-primary text-[10px] w-[14%]">
+        {/* W-L */}
+        <td className="py-1.5 px-0.5 text-center font-bold text-primary text-[10px] w-[14%]">
           {item.matchWins}-{item.matchLosses}
         </td>
 
         {/* PTS DIFF */}
-        <td className="py-1 px-0.5 text-center font-medium text-[10px] w-[13%]">
+        <td className="py-1.5 px-0.5 text-center font-medium text-[10px] w-[13%]">
           <span
             className={
               item.roundDifference > 0
@@ -72,7 +72,7 @@ export function StandingsSnapshot({
         </td>
 
         {/* SCORED */}
-        <td className="py-1 pl-0.5 pr-2 text-center font-medium text-foreground text-[10px] w-[13%]">
+        <td className="py-1.5 pl-0.5 pr-2 text-center font-medium text-foreground text-[10px] w-[13%]">
           {item.setWins}
         </td>
       </tr>
@@ -80,13 +80,13 @@ export function StandingsSnapshot({
   };
 
   return (
-    <div className="space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-4 shadow-sm">
+    <div className="space-y-3 rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-sm">
       {/* TAB SWITCHER & LINK */}
-      <div className="flex items-center justify-between border-b border-border/40 pb-2">
+      <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setTab("DIVISION")}
-            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
               tab === "DIVISION"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
@@ -96,7 +96,7 @@ export function StandingsSnapshot({
           </button>
           <button
             onClick={() => setTab("GLOBAL")}
-            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
               tab === "GLOBAL"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
@@ -131,7 +131,7 @@ export function StandingsSnapshot({
             </span>
             <div className="overflow-hidden rounded-lg border border-sky-500/20">
               <table className="w-full text-left table-fixed">
-                <thead className="bg-sky-500/10 border-b border-sky-500/20 text-[8.5px] font-semibold uppercase text-muted-foreground">
+                <thead className="bg-sky-500/10 border-b border-sky-500/20 text-[8.5px] font-bold uppercase text-muted-foreground">
                   <tr>
                     <th className="py-1 px-1 text-center w-[10%]">#</th>
                     <th className="py-1 pl-1 pr-1 w-[50%]">TEAM</th>
@@ -158,7 +158,7 @@ export function StandingsSnapshot({
             </span>
             <div className="overflow-hidden rounded-lg border border-amber-500/20">
               <table className="w-full text-left table-fixed">
-                <thead className="bg-amber-500/10 border-b border-amber-500/20 text-[8.5px] font-semibold uppercase text-muted-foreground">
+                <thead className="bg-amber-500/10 border-b border-amber-500/20 text-[8.5px] font-bold uppercase text-muted-foreground">
                   <tr>
                     <th className="py-1 px-1 text-center w-[10%]">#</th>
                     <th className="py-1 pl-1 pr-1 w-[50%]">TEAM</th>
@@ -179,14 +179,14 @@ export function StandingsSnapshot({
           </div>
         </div>
       ) : (
-        /* TAB TOP WILDCARD */
+        /* TAB: TOP 4 WILDCARD PLAYOFF */
         <div className="space-y-1">
           <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 px-1">
             Top 4 Wildcard Playoff
           </span>
           <div className="overflow-hidden rounded-lg border border-emerald-500/20">
             <table className="w-full text-left table-fixed">
-              <thead className="bg-emerald-500/10 border-b border-emerald-500/20 text-[8.5px] font-semibold uppercase text-muted-foreground">
+              <thead className="bg-emerald-500/10 border-b border-emerald-500/20 text-[8.5px] font-bold uppercase text-muted-foreground">
                 <tr>
                   <th className="py-1 px-1 text-center w-[10%]">#</th>
                   <th className="py-1 pl-1 pr-1 w-[50%]">TEAM</th>
