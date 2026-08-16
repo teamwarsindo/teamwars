@@ -196,5 +196,5 @@ export function MatchCenter({
       )}
     </div>
   );
-              }
-          
+                           }
+              
