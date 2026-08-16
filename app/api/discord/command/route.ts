@@ -38,10 +38,10 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔴 2. UNASSIGN COMMAND (DENGAN OPSIONAL STREAM_LINK)
+    // 🔴 2. UNASSIGN COMMAND (MATCH SELESAI)
     {
       name: 'unassign',
-      description: 'Selesaikan penugasan Referee/Streamer (Chief/Admin)',
+      description: 'Selesaikan penugasan Referee/Streamer saat Match Selesai (Chief/Admin)',
       options: [
         {
           type: 3,
@@ -81,19 +81,50 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 📣 3. REMINDER COMMAND
+    // ❌ 3. CANCEL ASSIGN COMMAND (BATAL TUGAS SEBELUM SELESAI)
+    {
+      name: 'cancel-assign',
+      description: 'Batalkan penugasan Referee/Streamer yang berhalangan (Chief/Admin)',
+      options: [
+        {
+          type: 3,
+          name: 'match',
+          description: 'Pilih pertandingan yang ingin dibatalkan stafnya',
+          required: true,
+          autocomplete: true,
+        },
+        {
+          type: 3,
+          name: 'type',
+          description: 'Pilih peran yang dibatalkan',
+          required: true,
+          choices: [
+            { name: '⚖️ Referee', value: 'REFEREE' },
+            { name: '🎥 Streamer', value: 'STREAMER' },
+          ],
+        },
+        {
+          type: 3,
+          name: 'reason',
+          description: 'Ketik alasan pembatalan tugas (Contoh: Ada urusan mendadak / kendala jaringan)',
+          required: true,
+        },
+      ],
+    },
+
+    // 📣 4. REMINDER COMMAND
     {
       name: 'reminder',
       description: 'Kirim pengingat aturan submit deck di channel tim.',
     },
 
-    // 📋 4. PREPARE COMMAND
+    // 📋 5. PREPARE COMMAND
     {
       name: 'prepare',
       description: 'Kirim briefing in-game dan info Room ID di channel match.',
     },
 
-    // ℹ️ 5. INFO COMMAND
+    // ℹ️ 6. INFO COMMAND
     {
       name: 'info',
       description: 'Lihat informasi profil Discord kamu atau pemain lain',
@@ -107,13 +138,13 @@ export async function GET(req: Request) {
       ],
     },
 
-    // ⏱️ 6. TIMER COMMAND
+    // ⏱️ 7. TIMER COMMAND
     {
       name: 'timer',
       description: 'Tampilkan Panel Timer Kontrol Waktu Match TWI S7',
     },
 
-    // 🔍 7. CEK ID COMMAND
+    // 🔍 8. CEK ID COMMAND
     {
       name: 'cek-id',
       description: 'Cek pemilik ID Game di database TWI',
@@ -137,7 +168,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // ⛔ 8. BLACKLIST COMMAND
+    // ⛔ 9. BLACKLIST COMMAND
     {
       name: 'blacklist',
       description: '[ADMIN] Kelola ID Duel Links yang di-blacklist',
@@ -162,7 +193,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 👥 9. CEK ROSTER COMMAND
+    // 👥 10. CEK ROSTER COMMAND
     {
       name: 'cek-roster',
       description: '[REFEREE] Cek roster tim berdasarkan Tag Role Tim Discord (Privat)',
@@ -182,7 +213,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🚫 10. CANCEL BID COMMAND
+    // 🚫 11. CANCEL BID COMMAND
     {
       name: 'cancel-bid',
       description: '[ADMIN] Batal/Anulir bid tertinggi group tertentu',
@@ -206,26 +237,25 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔄 11. TRANSFER COMMAND
+    // 🔄 12. TRANSFER COMMAND
     {
       name: 'transfer',
       description: 'Kelola transfer, penambahan, dan pembaruan roster tim',
       options: [
-        // SUBCOMMAND 1: OUT
         {
           type: 1, // SUB_COMMAND
           name: 'out',
           description: 'Keluarkan pemain dari roster tim',
           options: [
             {
-              type: 3, // STRING (REQUIRED)
+              type: 3,
               name: 'user',
               description: 'Pilih nama/IGN pemain yang ingin dikeluarkan dari tim',
               required: true,
               autocomplete: true,
             },
             {
-              type: 3, // STRING (OPTIONAL)
+              type: 3,
               name: 'team',
               description: 'Pilih tim target (Wajib diisi jika dijalankan oleh Admin)',
               required: false,
@@ -233,32 +263,31 @@ export async function GET(req: Request) {
             },
           ],
         },
-        // SUBCOMMAND 2: ADD
         {
           type: 1, // SUB_COMMAND
           name: 'add',
           description: 'Tambahkan pemain baru ke dalam roster tim',
           options: [
             {
-              type: 6, // USER Mention (REQUIRED)
+              type: 6,
               name: 'user',
               description: 'Tag (@mention) akun Discord pemain baru',
               required: true,
             },
             {
-              type: 3, // STRING (REQUIRED)
+              type: 3,
               name: 'ign',
               description: 'Ketik In-Game Name (IGN) Duel Links pemain baru',
               required: true,
             },
             {
-              type: 3, // STRING (REQUIRED)
+              type: 3,
               name: 'id_dl',
               description: 'Ketik 9 digit ID Duel Links pemain (contoh: 123456789)',
               required: true,
             },
             {
-              type: 3, // STRING (OPTIONAL)
+              type: 3,
               name: 'team',
               description: 'Pilih tim tujuan (Wajib diisi jika dijalankan oleh Admin)',
               required: false,
@@ -266,27 +295,26 @@ export async function GET(req: Request) {
             },
           ],
         },
-        // SUBCOMMAND 3: EDIT
         {
           type: 1, // SUB_COMMAND
           name: 'edit',
           description: 'Perbarui ID Duel Links atau Jabatan (Ketua/Wakil) pemain',
           options: [
             {
-              type: 3, // STRING (REQUIRED)
+              type: 3,
               name: 'user',
               description: 'Pilih nama/IGN pemain yang data/jabatannya ingin diubah',
               required: true,
               autocomplete: true,
             },
             {
-              type: 3, // STRING (OPTIONAL)
+              type: 3,
               name: 'new_id_dl',
               description: 'Ketik ID Duel Links baru (kosongkan jika tidak mengubah ID)',
               required: false,
             },
             {
-              type: 3, // STRING (OPTIONAL)
+              type: 3,
               name: 'position',
               description: 'Pilih posisi baru (Ketua khusus Admin, Wakil bisa oleh Ketua)',
               required: false,
@@ -296,7 +324,7 @@ export async function GET(req: Request) {
               ],
             },
             {
-              type: 3, // STRING (OPTIONAL)
+              type: 3,
               name: 'team',
               description: 'Pilih tim target (Opsional jika pemain sudah terdeteksi di tim)',
               required: false,
@@ -304,26 +332,25 @@ export async function GET(req: Request) {
             },
           ],
         },
-        // SUBCOMMAND 4: PARSE (COPAS OTOMATIS FOR ADMIN)
         {
           type: 1, // SUB_COMMAND
           name: 'parse',
           description: '[ADMIN] Copas teks request transfer untuk diproses otomatis',
           options: [
             {
-              type: 3, // STRING (REQUIRED)
+              type: 3,
               name: 'text',
               description: 'Paste/Copas seluruh teks pesan request dari channel di sini',
               required: true,
             },
             {
-              type: 6, // USER Mention (REQUIRED)
+              type: 6,
               name: 'user',
               description: 'Tag (@mention) akun Discord pemain target',
               required: true,
             },
             {
-              type: 3, // STRING (OPTIONAL)
+              type: 3,
               name: 'team',
               description: 'Pilih tim target (Wajib diisi jika Admin)',
               required: false,
@@ -348,4 +375,4 @@ export async function GET(req: Request) {
       details: slashResult || 'Discord API mengembalikan null.' 
     }, { status: 500 });
   }
-}
+              }
