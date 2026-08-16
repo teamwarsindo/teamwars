@@ -62,8 +62,6 @@ export function MatchCenter({
               className={`truncate text-[11px] ${
                 teamAWins
                   ? "font-black text-emerald-600 dark:text-emerald-400"
-                  : isFinished
-                  ? "font-medium text-muted-foreground line-through opacity-75"
                   : "font-bold text-foreground"
               }`}
             >
@@ -79,9 +77,13 @@ export function MatchCenter({
               </span>
             ) : isFinished || scoreA + scoreB > 0 ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
-                <span className={teamAWins ? "font-black" : "opacity-80"}>{scoreA}</span>
-                <span>-</span>
-                <span className={teamBWins ? "font-black" : "opacity-80"}>{scoreB}</span>
+                <span className={teamAWins ? "font-black text-emerald-600 dark:text-emerald-400" : "text-muted-foreground font-semibold"}>
+                  {scoreA}
+                </span>
+                <span className="text-muted-foreground">-</span>
+                <span className={teamBWins ? "font-black text-emerald-600 dark:text-emerald-400" : "text-muted-foreground font-semibold"}>
+                  {scoreB}
+                </span>
               </span>
             ) : (
               <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
@@ -99,8 +101,6 @@ export function MatchCenter({
               className={`truncate text-[11px] text-right ${
                 teamBWins
                   ? "font-black text-emerald-600 dark:text-emerald-400"
-                  : isFinished
-                  ? "font-medium text-muted-foreground line-through opacity-75"
                   : "font-bold text-foreground"
               }`}
             >
@@ -256,4 +256,5 @@ export function MatchCenter({
       )}
     </div>
   );
-}
+    }
+          
