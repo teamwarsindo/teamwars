@@ -15,6 +15,8 @@ interface StandingTabProps {
   masterTeams: any[];
 }
 
+const WILDCARD_QUOTA = 4; // Top 4 Wildcard Playoff
+
 function MatchFormGrid({ form = [], totalMatches = 8 }: { form?: ("W" | "L")[]; totalMatches?: number }) {
   const slots = Array.from({ length: totalMatches }, (_, i) => form[i] || null);
 
@@ -200,7 +202,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const playoffQualifiedTeamNames = useMemo(() => {
     return new Set(
       globalStandings
-        .filter((item) => !item.isTopGroup && item.rank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA)
+        .filter((item) => !item.isTopGroup && item.rank <= WILDCARD_QUOTA)
         .map((item) => item.teamName.toLowerCase())
     );
   }, [globalStandings]);
@@ -221,9 +223,9 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         <table className="w-full text-left text-[11px] table-fixed">
           <thead className="bg-muted/60 border-b border-border text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider">
             <tr>
-              <th className={`py-2 px-1 text-center ${isGlobal ? "w-[15%]" : "w-[12%]"}`}>RANK</th>
-              <th className={`py-2 pl-1 pr-1 ${isGlobal ? "w-[31%]" : "w-[34%]"}`}>TEAMS</th>
-              <th className="py-2 px-0.5 text-center w-[15%] text-primary leading-tight">
+              <th className={`py-2 px-1 text-center ${isGlobal ? "w-[16%]" : "w-[12%]"}`}>RANK</th>
+              <th className={`py-2 pl-1 pr-1 ${isGlobal ? "w-[30%]" : "w-[34%]"}`}>TEAMS</th>
+              <th className="py-2 px-0.5 text-center w-[14%] text-primary leading-tight">
                 MATCH<br />W-L
               </th>
               <th className="py-2 px-0.5 text-center w-[12%] leading-tight">
@@ -243,7 +245,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     item.groupColor === "GROUP_A"
                       ? "bg-sky-500/15 hover:bg-sky-500/20 transition border-l-4 border-l-sky-500"
                       : "bg-amber-500/15 hover:bg-amber-500/20 transition border-l-4 border-l-amber-500";
-                } else if (item.rank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA) {
+                } else if (item.rank <= WILDCARD_QUOTA) {
                   rowStyle = "bg-emerald-500/15 hover:bg-emerald-500/20 transition border-l-4 border-l-emerald-500";
                 } else {
                   rowStyle = "bg-rose-500/10 hover:bg-rose-500/15 transition border-l-4 border-l-rose-500/60";
@@ -267,7 +269,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                 item.rank > TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP &&
                 !playoffQualifiedTeamNames.has(item.teamName.toLowerCase());
               const isEliminatedInGlobal =
-                isGlobal && !item.isTopGroup && item.rank > TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA;
+                isGlobal && !item.isTopGroup && item.rank > WILDCARD_QUOTA;
 
               return (
                 <tr key={item.teamId || item.teamName || idx} className={rowStyle}>
@@ -281,7 +283,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                             ? item.groupColor === "GROUP_A"
                               ? "text-[10px] font-black text-sky-500"
                               : "text-[10px] font-black text-amber-500"
-                            : isGlobal && item.rank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
+                            : isGlobal && item.rank <= WILDCARD_QUOTA
                             ? "text-[10px] font-black text-emerald-500"
                             : isEliminatedInGlobal
                             ? "text-[10px] font-black text-rose-500"
@@ -393,27 +395,27 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       </div>
 
-      {/* KETENTUAN KUALIFIKASI BABAK LANJUTAN (SESUAI RULES BAB B) */}
+      {/* KETENTUAN KUALIFIKASI BABAK LANJUTAN */}
       <div className="p-3 bg-card border border-border rounded-xl text-[11px] space-y-1.5 shadow-sm">
         <p className="font-bold text-foreground flex items-center gap-1.5">
-          💡 <span>Mekanisme Kualifikasi Babak Lanjutan:</span>
+          💡 <span>Ketentuan Kualifikasi Playoff:</span>
         </p>
         <div className="flex flex-col gap-1 pl-3 text-muted-foreground font-semibold">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0"></span>
-            <span>Top 2 {DIVISION_MAP.GROUP_A} (Rank 1 & 2): Lolos otomatis langsung menuju babak Quarter Finals.</span>
+            <span><strong>Top 2 {DIVISION_MAP.GROUP_A}</strong>: Lolos ke Quarter Finals</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
-            <span>Top 2 {DIVISION_MAP.GROUP_B} (Rank 1 & 2): Lolos otomatis langsung menuju babak Quarter Finals.</span>
+            <span><strong>Top 2 {DIVISION_MAP.GROUP_B}</strong>: Lolos ke Quarter Finals</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-            <span>Top 8 Wildcard (Rank 1 s/d 8): Lolos playoff menuju babak Round 1 (Play-Ins).</span>
+            <span><strong>Rank 1–4 Wildcard</strong>: Lolos Play-Ins (Round 1)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>
-            <span>Rank 9+ Wildcard: Tereliminasi dari turnamen.</span>
+            <span><strong>Rank 5+ Wildcard</strong>: Tereliminasi</span>
           </div>
         </div>
       </div>
@@ -430,5 +432,5 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       )}
     </div>
-  );                            
-} 
+  );
+      }
