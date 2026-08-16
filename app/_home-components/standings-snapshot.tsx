@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { DIVISION_MAP } from "@/lib/tournament";
 import { ExtendedStandingItem } from "@/lib/tournament/calculator";
 import { ChevronRight } from "lucide-react";
 
@@ -70,7 +71,7 @@ export function StandingsSnapshot({
 
   return (
     <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-      {/* HEADER TAB SWITCHER */}
+      {/* TAB SWITCHER */}
       <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
         <div className="flex items-center gap-1.5">
           <button
@@ -95,9 +96,13 @@ export function StandingsSnapshot({
           </button>
         </div>
 
-        {/* ✅ FIX: Arahkan ke tab standings */}
+        {/* LINK FULL STANDINGS MENGARAH KE SUB-VIEW TEPAT */}
         <Link
-          href="/tournament?tab=standings"
+          href={
+            tab === "DIVISION"
+              ? "/tournament?tab=standings&view=groups"
+              : "/tournament?tab=standings&view=global"
+          }
           className="flex items-center gap-0.5 text-[11px] font-bold text-primary hover:underline"
         >
           Full Standings <ChevronRight className="h-3.5 w-3.5" />
@@ -113,7 +118,7 @@ export function StandingsSnapshot({
           {/* GRUP A - BIRU */}
           <div className="space-y-2">
             <span className="text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">
-              Anda Yakin? (Top 2 Auto-Lolos)
+              {DIVISION_MAP.GROUP_A} (Top 2 Auto-Lolos)
             </span>
             <div className="space-y-1.5">
               {topGroupA.map((item, idx) =>
@@ -130,7 +135,7 @@ export function StandingsSnapshot({
           {/* GRUP B - KUNING / AMBER */}
           <div className="space-y-2">
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
-              Sakurasawa Fighters (Top 2 Auto-Lolos)
+              {DIVISION_MAP.GROUP_B} (Top 2 Auto-Lolos)
             </span>
             <div className="space-y-1.5">
               {topGroupB.map((item, idx) =>

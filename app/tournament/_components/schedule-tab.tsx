@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { MatchScheduleItem } from "@/lib/types/tournament";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import {
+  MatchScheduleItem,
+  DIVISION_MAP,
+  formatMatchWIB,
+} from "@/lib/tournament";
 import { ChevronDown, Check, RotateCcw } from "lucide-react";
 
 export interface ScheduleTabProps {
@@ -25,32 +30,43 @@ export function ScheduleTab({
   isAdmin,
   onResetSchedules,
   onSelectMatch,
-  selectedGroupFilter,
-  setSelectedGroupFilter,
-  groupAName = "Divisi Group A",
-  groupBName = "Divisi Group B",
+  groupAName = DIVISION_MAP.GROUP_A,
+  groupBName = DIVISION_MAP.GROUP_B,
   defaultWeek = 1,
 }: ScheduleTabProps) {
-  // Filter Week untuk Admin vs Penonton
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Sinkronisasi group dari query URL (?tab=schedule&group=A | B)
+  const groupQuery = searchParams.get("group");
+  const selectedGroupFilter: "ALL" | "Group A" | "Group B" =
+    groupQuery === "A" ? "Group A" : groupQuery === "B" ? "Group B" : "ALL";
+
+  const handleGroupChange = (groupVal: "ALL" | "Group A" | "Group B") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "schedule");
+    if (groupVal === "Group A") params.set("group", "A");
+    else if (groupVal === "Group B") params.set("group", "B");
+    else params.delete("group");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
   const availableWeeksFilter = useMemo(() => {
     const allWeekNumbers = Array.from(
       new Set([...schedules.map((s) => s.weekNumber || 1), ...allWeeks])
     ).sort((a, b) => a - b);
 
-    if (isAdmin) {
-      return allWeekNumbers.length > 0 ? allWeekNumbers : [1];
-    }
+    if (isAdmin) return allWeekNumbers.length > 0 ? allWeekNumbers : [1];
 
     const activeWeekNum = typeof defaultWeek === "number" && defaultWeek > 0 ? defaultWeek : 1;
     const restrictedWeeks = allWeekNumbers.filter((w) => w <= activeWeekNum);
-
     return restrictedWeeks.length > 0 ? restrictedWeeks : [1];
   }, [schedules, allWeeks, defaultWeek, isAdmin]);
 
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "ALL">(defaultWeek);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
 
-  // State Kontrol Custom Dropdown Popover
   const [isTeamDropdownOpen, setIsTeamDropdownOpen] = useState(false);
   const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
 
@@ -63,7 +79,6 @@ export function ScheduleTab({
     }
   }, [defaultWeek]);
 
-  // Handle klik di luar area dropdown untuk menutup menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (teamRef.current && !teamRef.current.contains(event.target as Node)) {
@@ -95,7 +110,13 @@ export function ScheduleTab({
         return false;
       }
 
-      if (selectedGroupFilter !== "ALL" && m.groupName !== selectedGroupFilter) return false;
+      if (selectedGroupFilter !== "ALL") {
+        const isGroupAMatch = m.groupName === "Group A" || m.groupName === groupAName;
+        const isGroupBMatch = m.groupName === "Group B" || m.groupName === groupBName;
+        if (selectedGroupFilter === "Group A" && !isGroupAMatch) return false;
+        if (selectedGroupFilter === "Group B" && !isGroupBMatch) return false;
+      }
+
       if (
         selectedTeamFilter !== "ALL" &&
         m.teamAName !== selectedTeamFilter &&
@@ -112,6 +133,8 @@ export function ScheduleTab({
     selectedTeamFilter,
     defaultWeek,
     isAdmin,
+    groupAName,
+    groupBName,
   ]);
 
   const groupedByWeek = useMemo(() => {
@@ -126,21 +149,8 @@ export function ScheduleTab({
 
   const handleResetFilters = () => {
     setSelectedWeekFilter(defaultWeek);
-    setSelectedGroupFilter("ALL");
     setSelectedTeamFilter("ALL");
-  };
-
-  const formatDateLabel = (isoDate: string) => {
-    if (!isoDate) return "";
-    const d = new Date(isoDate);
-    if (isNaN(d.getTime())) return "";
-    return new Intl.DateTimeFormat("id-ID", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(d);
+    handleGroupChange("ALL");
   };
 
   const renderMatchCard = (match: MatchScheduleItem) => {
@@ -165,7 +175,7 @@ export function ScheduleTab({
           >
             {groupDisplayName}
           </span>
-          <span className="text-muted-foreground">{formatDateLabel(match.matchDate)}</span>
+          <span className="text-muted-foreground">{formatMatchWIB(match.matchDate)}</span>
         </div>
 
         <div className="grid grid-cols-7 items-center gap-1 text-center">
@@ -211,10 +221,10 @@ export function ScheduleTab({
     <div className="space-y-4">
       {/* FILTER PANEL */}
       <div className="bg-card border border-border p-3.5 rounded-2xl shadow-sm space-y-3">
-        {/* BARIS 1: BUTTON FILTER DIVISI */}
+        {/* 3 BUTTON FILTER DIVISI TERHUBUNG ROUTE */}
         <div className="grid grid-cols-3 gap-1.5 w-full">
           <button
-            onClick={() => setSelectedGroupFilter("ALL")}
+            onClick={() => handleGroupChange("ALL")}
             className={`py-2 px-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer leading-snug break-words ${
               selectedGroupFilter === "ALL"
                 ? "bg-primary text-primary-foreground shadow-sm"
@@ -224,7 +234,7 @@ export function ScheduleTab({
             Semua Divisi
           </button>
           <button
-            onClick={() => setSelectedGroupFilter("Group A")}
+            onClick={() => handleGroupChange("Group A")}
             className={`py-2 px-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer leading-snug break-words ${
               selectedGroupFilter === "Group A"
                 ? "bg-sky-500 text-white shadow-sm"
@@ -234,7 +244,7 @@ export function ScheduleTab({
             {groupAName}
           </button>
           <button
-            onClick={() => setSelectedGroupFilter("Group B")}
+            onClick={() => handleGroupChange("Group B")}
             className={`py-2 px-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer leading-snug break-words ${
               selectedGroupFilter === "Group B"
                 ? "bg-amber-500 text-white shadow-sm"
@@ -245,10 +255,9 @@ export function ScheduleTab({
           </button>
         </div>
 
-        {/* BARIS 2: DROPDOWN TIM, WEEK & RESET FILTER (CUSTOM POPOVER SELECT) */}
+        {/* DROPDOWN TIM, WEEK & RESET FILTER */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          
-          {/* CUSTOM DROPDOWN 1: FILTER TIM */}
+          {/* FILTER TIM */}
           <div className="relative" ref={teamRef}>
             <button
               type="button"
@@ -304,7 +313,7 @@ export function ScheduleTab({
             )}
           </div>
 
-          {/* CUSTOM DROPDOWN 2: FILTER WEEK */}
+          {/* FILTER WEEK */}
           <div className="relative" ref={weekRef}>
             <button
               type="button"
@@ -360,7 +369,7 @@ export function ScheduleTab({
             )}
           </div>
 
-          {/* TOMBOL RESET FILTER (TANPA EMOJI, MENGGUNAKAN LUCIDE ROTATECCW) */}
+          {/* RESET FILTER */}
           <button
             onClick={handleResetFilters}
             disabled={!isFilterActive}
@@ -388,7 +397,7 @@ export function ScheduleTab({
         )}
       </div>
 
-      {/* LIST KARTU JADWAL PER WEEK */}
+      {/* LIST KARTU JADWAL */}
       {groupedByWeek.length === 0 ? (
         <div className="p-8 text-center text-xs font-bold text-muted-foreground bg-card border border-border rounded-2xl">
           Tidak ada jadwal pertandingan yang sesuai dengan filter.

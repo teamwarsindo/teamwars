@@ -5,32 +5,16 @@ import {
   MatchDetailsKV,
   GameDetailLog,
   DIVISION_MAP,
-} from '@/lib/types/tournament';
+  TWI_START_DATETIME,
+  getMatchWeekNumber,
+  getTeamSlug,
+} from '@/lib/tournament';
 import { calculateStandings } from '@/lib/tournament/calculator';
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
 const KV_KEY_ROULETTE = 'twi:roulette_state';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
-function getTeamSlug(teamName: string) {
-  return teamName
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '');
-}
-
-function computeWeekNumber(dateIsoString?: string): number {
-  if (!dateIsoString) return 1;
-  const startDate = new Date('2026-08-03T00:00:00+07:00').getTime();
-  const matchDate = new Date(dateIsoString).getTime();
-  if (isNaN(matchDate)) return 1;
-
-  const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
-  return Math.max(1, Math.floor(diffDays / 7) + 1);
-}
 
 function verifyRefereeTokenOnly(match: MatchScheduleItem, token?: string) {
   if (!match.refereeToken || token !== match.refereeToken) {
@@ -192,13 +176,12 @@ export async function POST(req: Request) {
       }
 
       const existingMatch = schedules[targetIndex];
-      // 🟢 KODE BARU (PERBAIKAN TYPE CHECK)
       const existingDetails = (await kv.get<MatchDetailsKV>(`twi:match_details:${matchId}`)) || ({} as Partial<MatchDetailsKV>);
 
-      // 1. Dapatkan gameLogs terbaru (jika ada di payload, pakai yang baru)
+      // 1. Dapatkan gameLogs terbaru
       const incomingLogs: GameDetailLog[] = matchData.gameLogs ?? existingDetails.gameLogs ?? existingMatch.gameLogs ?? [];
 
-      // 2. KALKULASI SKOR AUTOMATIS DARI GAME LOGS
+      // 2. KALKULASI SKOR OTOMATIS DARI GAME LOGS
       let calculatedScoreA = 0;
       let calculatedScoreB = 0;
 
@@ -207,13 +190,13 @@ export async function POST(req: Request) {
         else if (log.winnerTeamId === existingMatch.teamBId) calculatedScoreB++;
       });
 
-      // Tentukan apakah match sudah selesai (misal salah satu tim menang 10 game / ditentukan manual)
+      // Tentukan apakah match sudah selesai
       const isFinishedCalculated = matchData.isFinished ?? (calculatedScoreA >= 10 || calculatedScoreB >= 10);
 
       const newMatchDate = matchData.matchDate || existingMatch.matchDate;
-      const calculatedWeek = computeWeekNumber(newMatchDate);
+      const calculatedWeek = getMatchWeekNumber(newMatchDate);
 
-      // Preserve Data Referee/Streamer jika payload hanya update lineup
+      // Preserve Data Referee/Streamer
       const finalReferee = matchData.referee !== undefined ? matchData.referee : (existingDetails.referee || existingMatch.referee || '');
       const finalRefereeDiscordId = matchData.refereeDiscordId !== undefined ? matchData.refereeDiscordId : (existingDetails.refereeDiscordId || existingMatch.refereeDiscordId || '');
       const finalStreamer = matchData.streamer !== undefined ? matchData.streamer : (existingDetails.streamer || existingMatch.streamer || '');
@@ -256,7 +239,7 @@ export async function POST(req: Request) {
         streamLink: finalStreamLink,
       };
 
-      // BERSIHKAN FIELD HEAVY DARI SCHEDULES UTAMA (AUTO-MIGRATE / STRIP HEAVY DATA)
+      // Bersihkan field heavy dari schedules utama
       delete (updatedScheduleItem as any).gameLogs;
       delete (updatedScheduleItem as any).lineupA;
       delete (updatedScheduleItem as any).lineupB;
@@ -264,7 +247,7 @@ export async function POST(req: Request) {
       schedules[targetIndex] = updatedScheduleItem;
       await kv.set(KV_KEY_SCHEDULES, schedules);
 
-      // 5. HITUNG UANG KLASEMEN REALTME
+      // 5. HITUNG ULANG KLASEMEN REALTIME
       const rouletteState = (await kv.get<any>(KV_KEY_ROULETTE)) || {};
       const masterTeams = [
         ...(rouletteState.groupA || []).map((t: any) => ({ ...t, groupName: DIVISION_MAP.GROUP_A })),
@@ -290,6 +273,7 @@ export async function POST(req: Request) {
   }
 }
 
+// 🟢 GENERATOR ROUND-ROBIN CHALLONGE RESMI
 function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): MatchScheduleItem[] {
   const schedules: MatchScheduleItem[] = [];
   let idCounter = 1;
@@ -322,8 +306,7 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
   const roundsB = generateRounds(groupB);
   const totalRounds = Math.max(roundsA.length, roundsB.length);
 
-  const startDateStr = process.env.TWI_START_DATE || '2026-08-03';
-  const startWednesdayUTC = new Date(`${startDateStr}T13:00:00.000Z`);
+  const startWednesdayUTC = new Date(TWI_START_DATETIME);
 
   for (let r = 0; r < totalRounds; r++) {
     const roundMatchesA = roundsA[r] || [];
@@ -332,7 +315,7 @@ function generateChallongeRoundRobinSchedules(groupA: any[], groupB: any[]): Mat
 
     for (let dayOffset = 0; dayOffset < 4; dayOffset++) {
       const matchDate = new Date(startWednesdayUTC);
-      matchDate.setDate(matchDate.getDate() + (r * 7) + dayOffset);
+      matchDate.setDate(matchDate.getDate() + r * 7 + dayOffset);
 
       if (dayOffset < roundMatchesA.length) {
         const pairA = roundMatchesA[dayOffset];

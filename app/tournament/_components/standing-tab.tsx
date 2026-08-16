@@ -1,19 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { MatchScheduleItem, DIVISION_MAP } from "@/lib/types/tournament";
+import { useMemo } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import {
+  MatchScheduleItem,
+  DIVISION_MAP,
+  getCurrentServerWeek,
+  TOURNAMENT_RULES,
+} from "@/lib/tournament";
 import { calculateStandings, ExtendedStandingItem } from "@/lib/tournament/calculator";
 
 interface StandingTabProps {
   schedules: MatchScheduleItem[];
   masterTeams: any[];
-}
-
-function getCurrentCalendarWeek(): number {
-  const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
-  const now = new Date().getTime();
-  const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-  return Math.max(1, Math.floor(diffDays / 7) + 1);
 }
 
 function buildGlobalStandings(
@@ -22,14 +21,14 @@ function buildGlobalStandings(
   const groupA = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A);
   const groupB = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B);
 
-  const topGroupA = groupA.slice(0, 2).map((t, i) => ({
+  const topGroupA = groupA.slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP).map((t, i) => ({
     ...t,
     isTopGroup: true,
     groupColor: "GROUP_A",
     customRankLabel: `Top ${i + 1}`,
   }));
 
-  const topGroupB = groupB.slice(0, 2).map((t, i) => ({
+  const topGroupB = groupB.slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP).map((t, i) => ({
     ...t,
     isTopGroup: true,
     groupColor: "GROUP_B",
@@ -63,22 +62,38 @@ function buildGlobalStandings(
 }
 
 export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabProps) {
-  const currentWeek = useMemo(() => getCurrentCalendarWeek(), []);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Otomatis week berjalan aktif (Senin 08.00 WIB)
+  const currentWeek = useMemo(() => getCurrentServerWeek(), []);
+  const activeView = searchParams.get("view") === "global" ? "GLOBAL" : "GROUPS";
+
+  const rawWeekParam = searchParams.get("week");
+  const selectedWeek = rawWeekParam ? Number(rawWeekParam) : currentWeek;
 
   const availableWeeksUpToCurrent = useMemo(() => {
     const weeksInSchedules = Array.from(
       new Set(schedules.map((s) => s.weekNumber || 1))
     ).filter((w) => w <= currentWeek);
 
-    const fullRange = Array.from(
+    return Array.from(
       new Set([...weeksInSchedules, ...Array.from({ length: currentWeek }, (_, i) => i + 1)])
     ).sort((a, b) => a - b);
-
-    return fullRange;
   }, [schedules, currentWeek]);
 
-  const [selectedWeek, setSelectedWeek] = useState<number>(currentWeek);
-  const [activeTab, setActiveTab] = useState<"GROUPS" | "GLOBAL">("GROUPS");
+  const updateRoute = (viewTarget: "groups" | "global", weekTarget?: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "standings");
+    params.set("view", viewTarget);
+    if (weekTarget && weekTarget !== currentWeek) {
+      params.set("week", weekTarget.toString());
+    } else {
+      params.delete("week");
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   const standings = useMemo(() => {
     return calculateStandings(schedules, masterTeams, selectedWeek);
@@ -113,10 +128,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
           else if (item.globalRank > prevRank) trend = "down";
         }
 
-        return {
-          ...item,
-          globalRankTrend: trend,
-        };
+        return { ...item, globalRankTrend: trend };
       });
     }
 
@@ -129,7 +141,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const playoffQualifiedTeamNames = useMemo(() => {
     return new Set(
       globalStandings
-        .filter((item) => !item.isTopGroup && item.rank <= 8)
+        .filter((item) => !item.isTopGroup && item.rank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA)
         .map((item) => item.teamName.toLowerCase())
     );
   }, [globalStandings]);
@@ -170,13 +182,13 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     item.groupColor === "GROUP_A"
                       ? "bg-sky-500/15 hover:bg-sky-500/20 transition border-l-4 border-l-sky-500"
                       : "bg-amber-500/15 hover:bg-amber-500/20 transition border-l-4 border-l-amber-500";
-                } else if (item.rank <= 8) {
+                } else if (item.rank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA) {
                   rowStyle = "bg-emerald-500/15 hover:bg-emerald-500/20 transition border-l-4 border-l-emerald-500";
                 } else {
                   rowStyle = "bg-rose-500/10 hover:bg-rose-500/15 transition border-l-4 border-l-rose-500/60";
                 }
               } else {
-                if (item.rank <= 2) {
+                if (item.rank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP) {
                   rowStyle =
                     item.groupName === DIVISION_MAP.GROUP_A
                       ? "bg-sky-500/15 hover:bg-sky-500/20 transition border-l-4 border-l-sky-500"
@@ -189,12 +201,15 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
               }
 
               const trend = isGlobal ? item.globalRankTrend : item.rankTrend;
-              const isEliminatedInGroup = !isGlobal && item.rank > 2 && !playoffQualifiedTeamNames.has(item.teamName.toLowerCase());
-              const isEliminatedInGlobal = isGlobal && !item.isTopGroup && item.rank > 8;
+              const isEliminatedInGroup =
+                !isGlobal &&
+                item.rank > TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP &&
+                !playoffQualifiedTeamNames.has(item.teamName.toLowerCase());
+              const isEliminatedInGlobal =
+                isGlobal && !item.isTopGroup && item.rank > TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA;
 
               return (
                 <tr key={item.teamId || item.teamName || idx} className={rowStyle}>
-                  {/* RANK */}
                   <td className="py-2 px-1 text-center font-bold">
                     <div className="flex items-center justify-center gap-0.5">
                       {renderTrendIcon(trend)}
@@ -204,11 +219,11 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                             ? item.groupColor === "GROUP_A"
                               ? "text-[10px] font-black text-sky-500"
                               : "text-[10px] font-black text-amber-500"
-                            : isGlobal && item.rank <= 8
+                            : isGlobal && item.rank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
                             ? "text-[10px] font-black text-emerald-500"
                             : isEliminatedInGlobal
                             ? "text-[10px] font-black text-rose-500"
-                            : !isGlobal && item.rank <= 2
+                            : !isGlobal && item.rank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP
                             ? item.groupName === DIVISION_MAP.GROUP_A
                               ? "text-[10px] font-black text-sky-500"
                               : "text-[10px] font-black text-amber-500"
@@ -224,7 +239,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     </div>
                   </td>
 
-                  {/* TEAMS */}
                   <td className="py-2 pl-1 pr-1">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <img src={item.teamLogo || "/logo.webp"} alt="" className="h-4 w-4 shrink-0 object-contain" />
@@ -234,12 +248,10 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     </div>
                   </td>
 
-                  {/* MATCH W-L */}
                   <td className="py-2 px-0.5 text-center font-bold text-[10.5px]">
                     {item.matchWins}-{item.matchLosses}
                   </td>
 
-                  {/* RD */}
                   <td className="py-2 px-0.5 text-center font-bold text-[10.5px]">
                     <span
                       className={
@@ -254,12 +266,10 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     </span>
                   </td>
 
-                  {/* SET WINS */}
                   <td className="py-2 px-0.5 text-center font-extrabold text-foreground text-[10.5px]">
                     {item.setWins}
                   </td>
 
-                  {/* POINTS */}
                   <td className="py-2 pl-0.5 pr-2 text-center font-black text-primary text-xs">
                     {item.points}
                   </td>
@@ -274,13 +284,13 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
   return (
     <div className="space-y-4">
-      {/* SWITCHER TAB */}
+      {/* 2 TOMBOL SUB-TAB STANDINGS */}
       <div className="flex flex-col gap-3 bg-card border border-border p-3 rounded-2xl shadow-sm">
         <div className="grid grid-cols-2 gap-2 w-full">
           <button
-            onClick={() => setActiveTab("GROUPS")}
+            onClick={() => updateRoute("groups")}
             className={`py-2 px-2 rounded-xl text-xs font-bold transition text-center cursor-pointer ${
-              activeTab === "GROUPS"
+              activeView === "GROUPS"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40"
             }`}
@@ -288,9 +298,9 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
             📊 Divisi Group
           </button>
           <button
-            onClick={() => setActiveTab("GLOBAL")}
+            onClick={() => updateRoute("global")}
             className={`py-2 px-2 rounded-xl text-xs font-bold transition text-center cursor-pointer ${
-              activeTab === "GLOBAL"
+              activeView === "GLOBAL"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40"
             }`}
@@ -299,58 +309,59 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
           </button>
         </div>
 
-        {/* FILTER WEEK */}
+        {/* FILTER PEKAN */}
         <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/30">
-          <label className="text-xs font-semibold text-muted-foreground">Filter:</label>
+          <label className="text-xs font-semibold text-muted-foreground">Pekan:</label>
           <select
             value={selectedWeek}
-            onChange={(e) => setSelectedWeek(Number(e.target.value))}
+            onChange={(e) => updateRoute(activeView === "GLOBAL" ? "global" : "groups", Number(e.target.value))}
             className="bg-background border border-input rounded-xl px-3 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer"
           >
             {availableWeeksUpToCurrent.map((w) => (
               <option key={w} value={w}>
-                Week {w}
+                Week {w} {w === currentWeek ? "(Aktif)" : ""}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {activeTab === "GROUPS" ? (
+      {/* KOTAK KETENTUAN BERSIH */}
+      <div className="p-3 bg-card border border-border rounded-xl text-[11px] space-y-1.5 shadow-sm">
+        <p className="font-bold text-foreground flex items-center gap-1.5">
+          💡 <span>Ketentuan Kualifikasi Playoff:</span>
+        </p>
+        <div className="flex flex-col gap-1 pl-3 text-muted-foreground font-semibold">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0"></span>
+            <span>Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_A})</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
+            <span>Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_B})</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+            <span>Wildcard Playoff (Rank 1-8 Global)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>
+            <span>Tidak Lolos Playoff (Rank 9+ Global)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* TABEL DATA */}
+      {activeView === "GROUPS" ? (
         <div className="space-y-6">
           {renderTable(groupAStandings, `Divisi ${DIVISION_MAP.GROUP_A}`)}
           {renderTable(groupBStandings, `Divisi ${DIVISION_MAP.GROUP_B}`)}
         </div>
       ) : (
         <div className="space-y-3">
-          {/* ✅ KETERANGAN BERSIH TANPA TEKS NAMA WARNA */}
-          <div className="p-3 bg-card border border-border rounded-xl text-[11px] space-y-1.5 shadow-sm">
-            <p className="font-bold text-foreground flex items-center gap-1.5">
-              💡 <span>Ketentuan Kualifikasi Playoff:</span>
-            </p>
-            <div className="flex flex-col gap-1 pl-3 text-muted-foreground font-semibold">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0"></span>
-                <span>Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_A})</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
-                <span>Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_B})</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-                <span>Wildcard Playoff (Rank 1-8 Global)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>
-                <span>Tidak Lolos Playoff (Rank 9+ Global)</span>
-              </div>
-            </div>
-          </div>
-
           {renderTable(globalStandings, "Standing Global Kualifikasi Playoff", true)}
         </div>
       )}
     </div>
   );
-                    }
+}

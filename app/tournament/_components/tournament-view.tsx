@@ -2,19 +2,18 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { MatchScheduleItem, TeamStandingItem, DIVISION_MAP } from "@/lib/types/tournament";
+import {
+  MatchScheduleItem,
+  TeamStandingItem,
+  DIVISION_MAP,
+  getCurrentServerWeek,
+  TOURNAMENT_RULES,
+} from "@/lib/tournament";
 import { ScheduleTab } from "./schedule-tab";
 import { StandingTab } from "./standing-tab";
 import { PlayoffTab } from "./playoff-tab";
 import { MatchReportModal } from "./match-report-modal";
 import Swal from "sweetalert2";
-
-function getCurrentServerWeek(): number {
-  const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
-  const now = new Date().getTime();
-  const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-  return Math.max(1, Math.floor(diffDays / 7) + 1);
-}
 
 export function TournamentView({
   isAdmin,
@@ -33,19 +32,26 @@ export function TournamentView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // 🟢 ROUTING NAVIGASI DENGAN REDIRECT OTOMATIS KE ?tab=schedule
-  const rawTabParam = searchParams.get("tab")?.toUpperCase();
-  const activeMainTab: "SCHEDULE" | "STANDING" | "PLAYOFF" =
-    rawTabParam === "STANDING" || rawTabParam === "PLAYOFF" ? rawTabParam : "SCHEDULE";
+  // Dukung ?tab=schedule, ?tab=standings, ?tab=standing, dan ?tab=playoff
+  const rawTabParam = searchParams.get("tab")?.toLowerCase();
+  const activeMainTab: "SCHEDULE" | "STANDINGS" | "PLAYOFF" =
+    rawTabParam === "standings" || rawTabParam === "standing"
+      ? "STANDINGS"
+      : rawTabParam === "playoff"
+      ? "PLAYOFF"
+      : "SCHEDULE";
 
-  useEffect(() => {
-    if (!searchParams.get("tab")) {
-      router.replace(`${pathname}?tab=schedule`, { scroll: false });
+  const handleTabChange = (tabKey: "SCHEDULE" | "STANDINGS" | "PLAYOFF") => {
+    const params = new URLSearchParams();
+    if (tabKey === "SCHEDULE") {
+      params.set("tab", "schedule");
+    } else if (tabKey === "STANDINGS") {
+      params.set("tab", "standings");
+      params.set("view", "groups");
+    } else {
+      params.set("tab", "playoff");
     }
-  }, [searchParams, pathname, router]);
-
-  const handleTabChange = (tabKey: "SCHEDULE" | "STANDING" | "PLAYOFF") => {
-    router.push(`${pathname}?tab=${tabKey.toLowerCase()}`, { scroll: false });
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
@@ -54,12 +60,9 @@ export function TournamentView({
   const [isLoading, setIsLoading] = useState(true);
   const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
 
+  // Single Source of Truth Week (Baseline Senin 08.00 WIB)
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
-
-  // 🟢 DETEKSI MINGGU PLAYOFF (DIPATOK MINGGU 8 KE ATAS)
-  const isPlayoffWeek = useMemo(() => {
-    return currentWeek >= 8;
-  }, [currentWeek]);
+  const isPlayoffWeek = useMemo(() => currentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK, [currentWeek]);
 
   const fetchTournamentData = async () => {
     try {
@@ -126,33 +129,18 @@ export function TournamentView({
     );
   }
 
-  const getMatchWeekNumber = (dateString: string) => {
-    if (!dateString) return 1;
-    const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
-    const matchDate = new Date(dateString).getTime();
-    if (isNaN(matchDate)) return 1;
-
-    const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
-    return Math.max(1, Math.floor(diffDays / 7) + 1);
-  };
-
-  const schedulesWithWeek = schedules.map((m) => ({
-    ...m,
-    weekNumber: m.weekNumber || getMatchWeekNumber(m.matchDate),
-  }));
-
   const allTeamNames = Array.from(new Set(standings.map((s) => s.teamName)));
   const allWeeks = Array.from(
-    new Set([...schedulesWithWeek.map((m) => m.weekNumber), currentWeek])
+    new Set([...schedules.map((m) => m.weekNumber || 1), currentWeek])
   ).sort((a, b) => a - b);
 
   return (
     <div className="w-full flex flex-col gap-5">
-      {/* MAIN TABS NAVIGATION */}
+      {/* 3 TOMBOL UTAMA */}
       <div className="grid grid-cols-3 gap-2 w-full">
         {[
           { key: "SCHEDULE", label: "Group Stage" },
-          { key: "STANDING", label: "Standing Group" },
+          { key: "STANDINGS", label: "Standing Group" },
           { key: "PLAYOFF", label: "Playoff Stage" },
         ].map((tab) => (
           <button
@@ -172,7 +160,7 @@ export function TournamentView({
       {/* VIEW TAB SCHEDULE */}
       {activeMainTab === "SCHEDULE" && (
         <ScheduleTab
-          schedules={schedulesWithWeek}
+          schedules={schedules}
           allTeamNames={allTeamNames}
           allWeeks={allWeeks}
           isAdmin={isAdmin}
@@ -187,11 +175,11 @@ export function TournamentView({
       )}
 
       {/* VIEW TAB STANDING */}
-      {activeMainTab === "STANDING" && (
+      {activeMainTab === "STANDINGS" && (
         <StandingTab schedules={schedules} masterTeams={masterTeams} />
       )}
 
-      {/* VIEW TAB PLAYOFF: HANYA MEMBUKA DATA JIKA USER ADALAH ADMIN ATAU SUDAH MASUK WEEK PLAYOFF */}
+      {/* VIEW TAB PLAYOFF */}
       {activeMainTab === "PLAYOFF" && (
         <PlayoffTab
           schedules={isAdmin || isPlayoffWeek ? schedules : []}
@@ -211,4 +199,4 @@ export function TournamentView({
       )}
     </div>
   );
-    }
+}

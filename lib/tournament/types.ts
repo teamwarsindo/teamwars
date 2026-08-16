@@ -1,8 +1,3 @@
-export const DIVISION_MAP = {
-  GROUP_A: 'Anda Yakin?',
-  GROUP_B: 'Sakurasawa Fighters',
-} as const;
-
 export interface PlayerDeckInfo {
   playerName: string;
   duellinksId?: string;

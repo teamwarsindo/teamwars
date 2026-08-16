@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { MatchScheduleItem, DIVISION_MAP } from "@/lib/types/tournament";
+import {
+  MatchScheduleItem,
+  DIVISION_MAP,
+  TOURNAMENT_RULES,
+} from "@/lib/tournament";
 import { calculateStandings, ExtendedStandingItem } from "@/lib/tournament/calculator";
 import { CircleCheckBig } from "lucide-react";
 
@@ -15,8 +19,8 @@ interface PlayoffTabProps {
 export function PlayoffTab({
   schedules = [],
   masterTeams = [],
-  groupAName = "Anda Yakin?",
-  groupBName = "Sakurasawa Fighters",
+  groupAName = DIVISION_MAP.GROUP_A,
+  groupBName = DIVISION_MAP.GROUP_B,
 }: PlayoffTabProps) {
   // Hitung Standing Akumulatif
   const standings = useMemo(() => {
@@ -26,11 +30,17 @@ export function PlayoffTab({
 
   // Kelompokkan Tim Per Divisi
   const groupAStandings = useMemo(
-    () => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A || s.groupName === groupAName),
+    () =>
+      standings.filter(
+        (s) => s.groupName === DIVISION_MAP.GROUP_A || s.groupName === groupAName
+      ),
     [standings, groupAName]
   );
   const groupBStandings = useMemo(
-    () => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B || s.groupName === groupBName),
+    () =>
+      standings.filter(
+        (s) => s.groupName === DIVISION_MAP.GROUP_B || s.groupName === groupBName
+      ),
     [standings, groupBName]
   );
 
@@ -44,11 +54,16 @@ export function PlayoffTab({
   const wildcardSeeds = useMemo(() => {
     if (!standings.length) return [];
     const directNames = new Set(
-      [top1GroupA?.teamName, top2GroupA?.teamName, top1GroupB?.teamName, top2GroupB?.teamName].filter(
-        Boolean
-      )
+      [
+        top1GroupA?.teamName,
+        top2GroupA?.teamName,
+        top1GroupB?.teamName,
+        top2GroupB?.teamName,
+      ].filter(Boolean)
     );
-    return standings.filter((t) => !directNames.has(t.teamName)).slice(0, 8);
+    return standings
+      .filter((t) => !directNames.has(t.teamName))
+      .slice(0, TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA);
   }, [standings, top1GroupA, top2GroupA, top1GroupB, top2GroupB]);
 
   return (
@@ -65,15 +80,42 @@ export function PlayoffTab({
 
       {/* GRID FASE DENGAN KOTAK BLOK PEMBUNGKUS KONSISTEN */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative">
-        
         {/* ================= FASE 1: ROUND 1 (PLAY-INS) - TEMA BIRU ================= */}
         <div className="rounded-2xl border-2 border-sky-500/40 bg-sky-950/10 p-4 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="ROUND 1 (PLAY-INS)" colorTheme="sky" />
           <div className="space-y-3 flex-1 flex flex-col justify-around">
-            <TimelineMatchCard team1={wildcardSeeds[0]} fallback1="Wildcard Seed 1" team2={wildcardSeeds[7]} fallback2="Wildcard Seed 8" label="Play-Ins #1" colorTheme="sky" />
-            <TimelineMatchCard team1={wildcardSeeds[3]} fallback1="Wildcard Seed 4" team2={wildcardSeeds[4]} fallback2="Wildcard Seed 5" label="Play-Ins #2" colorTheme="sky" />
-            <TimelineMatchCard team1={wildcardSeeds[1]} fallback1="Wildcard Seed 2" team2={wildcardSeeds[6]} fallback2="Wildcard Seed 7" label="Play-Ins #3" colorTheme="sky" />
-            <TimelineMatchCard team1={wildcardSeeds[2]} fallback1="Wildcard Seed 3" team2={wildcardSeeds[5]} fallback2="Wildcard Seed 6" label="Play-Ins #4" colorTheme="sky" />
+            <TimelineMatchCard
+              team1={wildcardSeeds[0]}
+              fallback1="Wildcard Seed 1"
+              team2={wildcardSeeds[7]}
+              fallback2="Wildcard Seed 8"
+              label="Play-Ins #1"
+              colorTheme="sky"
+            />
+            <TimelineMatchCard
+              team1={wildcardSeeds[3]}
+              fallback1="Wildcard Seed 4"
+              team2={wildcardSeeds[4]}
+              fallback2="Wildcard Seed 5"
+              label="Play-Ins #2"
+              colorTheme="sky"
+            />
+            <TimelineMatchCard
+              team1={wildcardSeeds[1]}
+              fallback1="Wildcard Seed 2"
+              team2={wildcardSeeds[6]}
+              fallback2="Wildcard Seed 7"
+              label="Play-Ins #3"
+              colorTheme="sky"
+            />
+            <TimelineMatchCard
+              team1={wildcardSeeds[2]}
+              fallback1="Wildcard Seed 3"
+              team2={wildcardSeeds[5]}
+              fallback2="Wildcard Seed 6"
+              label="Play-Ins #4"
+              colorTheme="sky"
+            />
           </div>
         </div>
 
@@ -99,7 +141,7 @@ export function PlayoffTab({
             />
             <TimelineMatchCard
               team1={top1GroupB}
-              fallback1={`Top 2 ${groupBName}`}
+              fallback1={`Top 1 ${groupBName}`}
               fallback2="Winner Play-Ins #3"
               label="Quarter-Final #3"
               isDirect
@@ -120,8 +162,18 @@ export function PlayoffTab({
         <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-950/10 p-4 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="SEMI-FINAL" colorTheme="emerald" />
           <div className="space-y-3 flex-1 flex flex-col justify-around my-auto">
-            <TimelineMatchCard fallback1="Winner Quarter-Final #1" fallback2="Winner Quarter-Final #2" label="Semi-Final #1" colorTheme="emerald" />
-            <TimelineMatchCard fallback1="Winner Quarter-Final #3" fallback2="Winner Quarter-Final #4" label="Semi-Final #2" colorTheme="emerald" />
+            <TimelineMatchCard
+              fallback1="Winner Quarter-Final #1"
+              fallback2="Winner Quarter-Final #2"
+              label="Semi-Final #1"
+              colorTheme="emerald"
+            />
+            <TimelineMatchCard
+              fallback1="Winner Quarter-Final #3"
+              fallback2="Winner Quarter-Final #4"
+              label="Semi-Final #2"
+              colorTheme="emerald"
+            />
           </div>
         </div>
 
@@ -134,23 +186,24 @@ export function PlayoffTab({
             </p>
             <div className="border-t border-purple-500/30 my-1" />
             <div className="space-y-2 py-1 text-[11px] font-bold text-muted-foreground/70">
-              <p className="leading-tight">
-                Winner Semi-Final #1
-              </p>
+              <p className="leading-tight">Winner Semi-Final #1</p>
               <p className="text-[10px] text-amber-500 font-black uppercase">VS</p>
-              <p className="leading-tight">
-                Winner Semi-Final #2
-              </p>
+              <p className="leading-tight">Winner Semi-Final #2</p>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
 }
 
-function PhaseHeader({ title, colorTheme }: { title: string; colorTheme: "sky" | "amber" | "emerald" | "purple" }) {
+function PhaseHeader({
+  title,
+  colorTheme,
+}: {
+  title: string;
+  colorTheme: "sky" | "amber" | "emerald" | "purple";
+}) {
   const colorMap = {
     sky: "text-sky-400 border-sky-500/30 bg-sky-500",
     amber: "text-amber-400 border-amber-500/30 bg-amber-500",
@@ -163,7 +216,9 @@ function PhaseHeader({ title, colorTheme }: { title: string; colorTheme: "sky" |
   return (
     <div className={`flex items-center justify-center gap-2 pb-2.5 border-b ${currentTheme.split(" ")[1]}`}>
       <div className={`h-2.5 w-2.5 rounded-full ${currentTheme.split(" ")[2]}`}></div>
-      <h4 className={`text-xs font-black uppercase tracking-widest ${currentTheme.split(" ")[0]}`}>{title}</h4>
+      <h4 className={`text-xs font-black uppercase tracking-widest ${currentTheme.split(" ")[0]}`}>
+        {title}
+      </h4>
     </div>
   );
 }
@@ -199,7 +254,7 @@ function TimelineMatchCard({
       const isWinner = teamData.teamName.includes("✓") || false;
       return (
         <div className="flex items-center gap-1.5 truncate">
-          <img src={teamData.teamLogo} alt="" className="h-4.5 w-4.5 shrink-0 object-contain" />
+          <img src={teamData.teamLogo || "/logo.webp"} alt="" className="h-4.5 w-4.5 shrink-0 object-contain" />
           <span className="truncate leading-tight text-[11px] font-extrabold text-foreground">
             {isWinner ? teamData.teamName.replace(" ✓", "") : teamData.teamName}
           </span>

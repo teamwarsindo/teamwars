@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MatchScheduleItem } from "@/lib/types/tournament";
+import { MatchScheduleItem, formatMatchWIB } from "@/lib/tournament";
 import { ChevronRight, Flame, Tv, ExternalLink, Radio } from "lucide-react";
 
 interface MatchCenterProps {
@@ -12,7 +12,6 @@ interface MatchCenterProps {
   todayMatches: MatchScheduleItem[];
   upcomingMatches: MatchScheduleItem[];
   recentResults: MatchScheduleItem[];
-  formatDate: (d: string) => string;
 }
 
 export function MatchCenter({
@@ -22,7 +21,6 @@ export function MatchCenter({
   todayMatches,
   upcomingMatches,
   recentResults,
-  formatDate,
 }: MatchCenterProps) {
   const [tab, setTab] = useState<"SCHEDULE" | "RESULTS">("SCHEDULE");
 
@@ -91,7 +89,7 @@ export function MatchCenter({
               </span>
             )}
             <span className="block text-[9px] text-muted-foreground mt-0.5">
-              {formatDate(m.matchDate)}
+              {formatMatchWIB(m.matchDate)}
             </span>
           </div>
 
@@ -114,7 +112,7 @@ export function MatchCenter({
           </div>
         </div>
 
-        {/* FOOTER STATUS STREAMING */}
+        {/* STATUS STREAMING */}
         {!m.isFinished && (
           <>
             {isLive && m.streamLink ? (
@@ -234,7 +232,7 @@ export function MatchCenter({
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
                   Jadwal pertandingan Week berikutnya akan dirilis resmi pada hari{" "}
-                  <strong className="text-primary">Senin pukul 07.00 WIB</strong>.
+                  <strong className="text-primary">Senin pukul 08.00 WIB</strong>.
                 </p>
               </div>
             )}
@@ -256,5 +254,4 @@ export function MatchCenter({
       )}
     </div>
   );
-    }
-          
+}

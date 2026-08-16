@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MatchScheduleItem } from "@/lib/types/tournament";
+import { MatchScheduleItem } from "@/lib/tournament";
 
 interface MatchReportModalProps {
   open?: boolean;
@@ -80,7 +80,7 @@ export function MatchReportModal({
           {/* SKOR AKHIR & LOGO */}
           <div className="flex items-center justify-between p-4 bg-primary/10 rounded-xl border border-primary/20">
             <div className="flex items-center gap-2.5">
-              <img src={match.teamALogo} alt="" className="h-8 w-8 object-contain" />
+              <img src={match.teamALogo || "/logo.webp"} alt="" className="h-8 w-8 object-contain" />
               <span className="font-extrabold text-foreground text-sm">{match.teamAName}</span>
             </div>
             <div className="text-center">
@@ -93,7 +93,7 @@ export function MatchReportModal({
             </div>
             <div className="flex items-center gap-2.5">
               <span className="font-extrabold text-foreground text-sm">{match.teamBName}</span>
-              <img src={match.teamBLogo} alt="" className="h-8 w-8 object-contain" />
+              <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-8 w-8 object-contain" />
             </div>
           </div>
 
@@ -151,17 +151,28 @@ export function MatchReportModal({
                         <span className="font-bold text-primary block">Game #{idx + 1}</span>
                         {isAutoTL ? (
                           <div className="text-muted-foreground italic">
-                            <span className="text-rose-500 font-bold">[Technical Loss]</span> {log.deckA === "Line-up kurang" ? `${match.teamAName} Line-up kurang` : `${match.teamBName} Line-up kurang`}
+                            <span className="text-rose-500 font-bold">[Technical Loss]</span>{" "}
+                            {log.deckA === "Line-up kurang"
+                              ? `${match.teamAName} Line-up kurang`
+                              : `${match.teamBName} Line-up kurang`}
                           </div>
                         ) : (
                           <div className="text-muted-foreground">
                             <strong className="text-foreground">{log.playerAName}</strong> ({log.deckA} / {log.skillA})
-                            {log.isRepeatA && <span className="ml-1 text-[8px] font-black bg-amber-500 text-black px-1 rounded">R</span>}
-                            {log.isTLA && <span className="ml-1 text-[8px] font-black bg-rose-500 text-white px-1 rounded">TL</span>}
+                            {log.isRepeatA && (
+                              <span className="ml-1 text-[8px] font-black bg-amber-500 text-black px-1 rounded">R</span>
+                            )}
+                            {log.isTLA && (
+                              <span className="ml-1 text-[8px] font-black bg-rose-500 text-white px-1 rounded">TL</span>
+                            )}
                             <span className="mx-1 text-muted-foreground/60">vs</span>
                             <strong className="text-foreground">{log.playerBName}</strong> ({log.deckB} / {log.skillB})
-                            {log.isRepeatB && <span className="ml-1 text-[8px] font-black bg-amber-500 text-black px-1 rounded">R</span>}
-                            {log.isTLB && <span className="ml-1 text-[8px] font-black bg-rose-500 text-white px-1 rounded">TL</span>}
+                            {log.isRepeatB && (
+                              <span className="ml-1 text-[8px] font-black bg-amber-500 text-black px-1 rounded">R</span>
+                            )}
+                            {log.isTLB && (
+                              <span className="ml-1 text-[8px] font-black bg-rose-500 text-white px-1 rounded">TL</span>
+                            )}
                           </div>
                         )}
                       </div>

@@ -1,59 +1,79 @@
-import { MatchScheduleItem, TeamStandingItem } from "@/lib/types/tournament";
+import {
+  MatchScheduleItem,
+  TeamStandingItem,
+} from './types';
+import { DIVISION_MAP, TOURNAMENT_RULES } from './constants';
 
 export interface ExtendedStandingItem extends TeamStandingItem {
-  previousRank?: number;
-  rankTrend?: "up" | "down" | "stay";
   isTopGroup?: boolean;
+  groupColor?: 'GROUP_A' | 'GROUP_B';
   customRankLabel?: string;
-  groupColor?: string;
+  rankTrend?: 'up' | 'down' | 'stay';
 }
 
-function getMatchWeek(m: MatchScheduleItem): number {
-  if (typeof m.weekNumber === "number" && m.weekNumber > 0) {
-    return m.weekNumber;
-  }
-
-  if (m.matchDate && process.env.TWI_START_DATE) {
-    const startTime = new Date(process.env.TWI_START_DATE).getTime();
-    const matchTime = new Date(m.matchDate).getTime();
-
-    if (!isNaN(matchTime) && !isNaN(startTime)) {
-      const diffDays = Math.floor((matchTime - startTime) / (1000 * 60 * 60 * 24));
-      return Math.max(1, Math.floor(diffDays / 7) + 1);
-    }
-  }
-
-  return 1;
-}
-
+/**
+ * Algoritma Resmi Kalkulasi Klasemen Turnamen:
+ * 1. Filter match hingga maxWeek yang dipilih (jika ada).
+ * 2. Hitung Match Win-Loss, Set Win-Loss, Round Difference (RD), dan Poin (Win = 10, Lose = 0).
+ * 3. Tie-breaker bertingkat:
+ *    a. Total Poin (Tertinggi)
+ *    b. Total Match Wins (Tertinggi)
+ *    c. Round Difference / RD (Tertinggi)
+ *    d. Total Set Wins (Tertinggi)
+ *    e. Head-to-Head (Jika 2 tim berimbang persis)
+ */
 export function calculateStandings(
   schedules: MatchScheduleItem[] = [],
   masterTeams: any[] = [],
-  upToWeek?: number
+  maxWeek?: number
 ): ExtendedStandingItem[] {
-  const allMatchWeeks = schedules.map((m) => getMatchWeek(m));
-  const maxWeek = allMatchWeeks.length ? Math.max(...allMatchWeeks) : 1;
-  const targetWeek: number = typeof upToWeek === "number" && upToWeek > 0 ? upToWeek : maxWeek;
+  const filteredSchedules = typeof maxWeek === 'number' && maxWeek > 0
+    ? schedules.filter((m) => (m.weekNumber || 1) <= maxWeek)
+    : schedules;
 
-  const filteredMatches = schedules.filter((m) => {
-    const isPlayed = Boolean(m.isFinished || (m.scoreA || 0) + (m.scoreB || 0) > 0);
-    if (!isPlayed) return false;
+  const teamMap = new Map<string, ExtendedStandingItem>();
 
-    if (!upToWeek || upToWeek === 0 || targetWeek >= maxWeek) return true;
-    return getMatchWeek(m) <= targetWeek;
+  // 1. Inisialisasi semua master team ke Map
+  masterTeams.forEach((t) => {
+    const groupName =
+      t.groupName === 'Group A' || t.groupName === DIVISION_MAP.GROUP_A
+        ? DIVISION_MAP.GROUP_A
+        : DIVISION_MAP.GROUP_B;
+
+    teamMap.set(t.name || t.teamName, {
+      rank: 1,
+      teamId: t.id || t.name || t.teamName,
+      teamName: t.name || t.teamName,
+      teamLogo: t.logo || t.teamLogo || '/logo.webp',
+      groupName,
+      matchPlayed: 0,
+      matchWins: 0,
+      matchLosses: 0,
+      setWins: 0,
+      setLosses: 0,
+      roundDifference: 0,
+      points: 0,
+    });
   });
 
-  const statsMap = new Map<string, ExtendedStandingItem>();
+  // 2. Akumulasi hasil setiap pertandingan yang sudah selesai atau memiliki skor
+  filteredSchedules.forEach((m) => {
+    const isFinished = Boolean(m.isFinished);
+    const scoreA = m.scoreA || 0;
+    const scoreB = m.scoreB || 0;
 
-  masterTeams.forEach((team) => {
-    const tName = team.name || team.teamName || "";
-    if (tName) {
-      statsMap.set(tName, {
-        rank: 0,
-        teamId: tName,
-        teamName: tName,
-        teamLogo: team.logo || team.teamLogo || "/logo.webp",
-        groupName: team.groupName || "Group A",
+    if (!isFinished && scoreA === 0 && scoreB === 0) return;
+
+    let itemA = teamMap.get(m.teamAName);
+    let itemB = teamMap.get(m.teamBName);
+
+    if (!itemA) {
+      itemA = {
+        rank: 1,
+        teamId: m.teamAId || m.teamAName,
+        teamName: m.teamAName,
+        teamLogo: m.teamALogo || '/logo.webp',
+        groupName: m.groupName === 'Group A' ? DIVISION_MAP.GROUP_A : m.groupName,
         matchPlayed: 0,
         matchWins: 0,
         matchLosses: 0,
@@ -61,113 +81,86 @@ export function calculateStandings(
         setLosses: 0,
         roundDifference: 0,
         points: 0,
-      });
+      };
+      teamMap.set(m.teamAName, itemA);
+    }
+
+    if (!itemB) {
+      itemB = {
+        rank: 1,
+        teamId: m.teamBId || m.teamBName,
+        teamName: m.teamBName,
+        teamLogo: m.teamBLogo || '/logo.webp',
+        groupName: m.groupName === 'Group B' ? DIVISION_MAP.GROUP_B : m.groupName,
+        matchPlayed: 0,
+        matchWins: 0,
+        matchLosses: 0,
+        setWins: 0,
+        setLosses: 0,
+        roundDifference: 0,
+        points: 0,
+      };
+      teamMap.set(m.teamBName, itemB);
+    }
+
+    itemA.matchPlayed += 1;
+    itemB.matchPlayed += 1;
+
+    itemA.setWins += scoreA;
+    itemA.setLosses += scoreB;
+    itemB.setWins += scoreB;
+    itemB.setLosses += scoreA;
+
+    itemA.roundDifference = itemA.setWins - itemA.setLosses;
+    itemB.roundDifference = itemB.setWins - itemB.setLosses;
+
+    if (scoreA > scoreB) {
+      itemA.matchWins += 1;
+      itemA.points += TOURNAMENT_RULES.POINTS_WIN;
+      itemB.matchLosses += 1;
+      itemB.points += TOURNAMENT_RULES.POINTS_LOSE;
+    } else if (scoreB > scoreA) {
+      itemB.matchWins += 1;
+      itemB.points += TOURNAMENT_RULES.POINTS_WIN;
+      itemA.matchLosses += 1;
+      itemA.points += TOURNAMENT_RULES.POINTS_LOSE;
     }
   });
 
-  filteredMatches.forEach((m) => {
-    const teamA = statsMap.get(m.teamAName);
-    const teamB = statsMap.get(m.teamBName);
+  const allTeams = Array.from(teamMap.values());
 
-    const sA = Number(m.scoreA) || 0;
-    const sB = Number(m.scoreB) || 0;
+  // 3. Helper Sorting Tie-Breaker
+  const sortTeams = (teams: ExtendedStandingItem[]) => {
+    return teams.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
+      if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
+      if (b.setWins !== a.setWins) return b.setWins - a.setWins;
 
-    if (teamA) {
-      teamA.matchPlayed += 1;
-      teamA.points += sA;
-      teamA.setLosses += sB;
-      teamA.roundDifference += sA - sB;
+      // Head to Head check
+      const h2hMatch = filteredSchedules.find(
+        (m) =>
+          (m.teamAName === a.teamName && m.teamBName === b.teamName) ||
+          (m.teamAName === b.teamName && m.teamBName === a.teamName)
+      );
 
-      if (sA > sB) {
-        teamA.matchWins += 1;
-      } else if (sA < sB) {
-        teamA.matchLosses += 1;
+      if (h2hMatch && (h2hMatch.scoreA > 0 || h2hMatch.scoreB > 0)) {
+        const aScore = h2hMatch.teamAName === a.teamName ? h2hMatch.scoreA : h2hMatch.scoreB;
+        const bScore = h2hMatch.teamBName === b.teamName ? h2hMatch.scoreB : h2hMatch.scoreA;
+        if (aScore !== bScore) return bScore - aScore;
       }
-      teamA.setWins = teamA.matchWins;
-    }
 
-    if (teamB) {
-      teamB.matchPlayed += 1;
-      teamB.points += sB;
-      teamB.setLosses += sA;
-      teamB.roundDifference += sB - sA;
-
-      if (sB > sA) {
-        teamB.matchWins += 1;
-      } else if (sB < sA) {
-        teamB.matchLosses += 1;
-      }
-      teamB.setWins = teamB.matchWins;
-    }
-  });
-
-  const standingsList = Array.from(statsMap.values());
-
-  const getH2HWinnerScore = (teamA: string, teamB: string): number => {
-    const directMatch = filteredMatches.find(
-      (m) =>
-        (m.teamAName === teamA && m.teamBName === teamB) ||
-        (m.teamAName === teamB && m.teamBName === teamA)
-    );
-    if (!directMatch) return 0;
-    if (directMatch.teamAName === teamA) {
-      return (directMatch.scoreA || 0) - (directMatch.scoreB || 0);
-    } else {
-      return (directMatch.scoreB || 0) - (directMatch.scoreA || 0);
-    }
+      return a.teamName.localeCompare(b.teamName);
+    });
   };
 
-  const sortComparator = (a: ExtendedStandingItem, b: ExtendedStandingItem) => {
-    if (b.points !== a.points) return b.points - a.points;
-    if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-    if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
+  const groupATeams = sortTeams(allTeams.filter((t) => t.groupName === DIVISION_MAP.GROUP_A)).map(
+    (t, idx) => ({ ...t, rank: idx + 1 })
+  );
 
-    const h2h = getH2HWinnerScore(a.teamName, b.teamName);
-    if (h2h !== 0) return h2h > 0 ? -1 : 1;
+  const groupBTeams = sortTeams(allTeams.filter((t) => t.groupName === DIVISION_MAP.GROUP_B)).map(
+    (t, idx) => ({ ...t, rank: idx + 1 })
+  );
 
-    return a.teamName.localeCompare(b.teamName);
-  };
-
-  // Kelompokkan dan urutkan per grup secara mandiri
-  const groupedTeams = new Map<string, ExtendedStandingItem[]>();
-  standingsList.forEach((item) => {
-    const group = item.groupName;
-    if (!groupedTeams.has(group)) {
-      groupedTeams.set(group, []);
-    }
-    groupedTeams.get(group)!.push(item);
-  });
-
-  const finalStandings: ExtendedStandingItem[] = [];
-
-  groupedTeams.forEach((teamsInGroup) => {
-    teamsInGroup.sort(sortComparator);
-    teamsInGroup.forEach((item, index) => {
-      item.rank = index + 1;
-    });
-    finalStandings.push(...teamsInGroup);
-  });
-
-  // Evaluasi tren rank per grup terhadap minggu sebelumnya
-  if (targetWeek > 1) {
-    const prevStandings = calculateStandings(schedules, masterTeams, targetWeek - 1);
-    const prevRankMap = new Map<string, number>();
-    prevStandings.forEach((item) => prevRankMap.set(item.teamName, item.rank));
-
-    finalStandings.forEach((item) => {
-      const prevRank = prevRankMap.get(item.teamName);
-      if (typeof prevRank === "number") {
-        item.previousRank = prevRank;
-        if (item.rank < prevRank) item.rankTrend = "up";
-        else if (item.rank > prevRank) item.rankTrend = "down";
-        else item.rankTrend = "stay";
-      } else {
-        item.rankTrend = "stay";
-      }
-    });
-  } else {
-    finalStandings.forEach((item) => (item.rankTrend = "stay"));
-  }
-
-  return finalStandings;
-        }
+  return [...groupATeams, ...groupBTeams];
+}

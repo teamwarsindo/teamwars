@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MatchScheduleItem } from "@/lib/types/tournament";
+import { MatchScheduleItem } from "@/lib/tournament";
 import {
   Search,
   Calendar,
@@ -27,7 +27,6 @@ export function QuickActions({
   searchQuery,
   onSearchChange,
   searchResult,
-  allSchedules = [],
 }: QuickActionsProps) {
   const [selectedTeam, setSelectedTeam] = useState<any>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -45,7 +44,7 @@ export function QuickActions({
 
   return (
     <div className="space-y-4">
-      {/* MENU NAVIGASI UTAMA */}
+      {/* 3 MENU NAVIGASI UTAMA */}
       <div className="grid grid-cols-3 gap-3">
         <Link
           href="/tournament?tab=schedule"
@@ -58,7 +57,7 @@ export function QuickActions({
           <span className="text-[10px] text-muted-foreground">Week {currentWeek}</span>
         </Link>
 
-        {/* ✅ FIX: Arahkan ke tab standings */}
+        {/* LINK KLASEMEN PRESISI */}
         <Link
           href="/tournament?tab=standings"
           className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-card p-4 text-center shadow-xs transition hover:border-primary/50 hover:bg-muted/30"
@@ -67,7 +66,7 @@ export function QuickActions({
             <Trophy className="h-5 w-5" />
           </div>
           <span className="mt-2 text-xs font-black text-foreground">Klasemen</span>
-          <span className="text-[10px] text-muted-foreground">Group & Playoff</span>
+          <span className="text-[10px] text-muted-foreground">Group &amp; Playoff</span>
         </Link>
 
         <Link
@@ -82,7 +81,7 @@ export function QuickActions({
         </Link>
       </div>
 
-      {/* INPUT PENCARIAN PROFIL TIM */}
+      {/* INPUT CARI TIM */}
       <div className="relative">
         <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
@@ -106,7 +105,6 @@ export function QuickActions({
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
           <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl space-y-4">
-            {/* TOMBOL CLOSE */}
             <button
               onClick={() => {
                 setSelectedTeam(null);
@@ -140,7 +138,7 @@ export function QuickActions({
 
                     return (
                       <span
-                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold border ${
+                        className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold border ${
                           isTopDivisi
                             ? "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400"
                             : isPlayoffWildcard
@@ -161,7 +159,7 @@ export function QuickActions({
               </div>
             </div>
 
-            {/* KOTAK STATISTIK TIM */}
+            {/* KOTAK STATISTIK */}
             <div className="grid grid-cols-4 gap-2 rounded-2xl bg-muted/30 p-3 text-center border border-border/40">
               <div>
                 <span className="block text-[10px] font-bold text-muted-foreground">POIN</span>
@@ -213,7 +211,7 @@ export function QuickActions({
               </div>
             )}
 
-            {/* DAFTAR ROSTER TIM */}
+            {/* DAFTAR ROSTER */}
             <div className="space-y-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
                 Roster Anggota ({activeTeam.players?.length || 0})
@@ -265,7 +263,7 @@ export function QuickActions({
               </div>
             </div>
 
-            {/* TOMBOL TUTUP MODAL */}
+            {/* BUTTON TUTUP */}
             <button
               onClick={() => {
                 setSelectedTeam(null);
