@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
+import { MatchScheduleItem, GameDetailLog } from "@/lib/tournament";
 
 export function ReviewSubmitModal({
   open,

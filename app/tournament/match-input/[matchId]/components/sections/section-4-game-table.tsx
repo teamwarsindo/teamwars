@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchScheduleItem, GameDetailLog, WarningLogItem } from "@/lib/types/tournament";
+import { MatchScheduleItem, GameDetailLog, WarningLogItem } from "@/lib/tournament";
 
 interface Section4GameTableProps {
   match: MatchScheduleItem;

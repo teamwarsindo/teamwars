@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MatchScheduleItem, GameDetailLog, PlayerDeckInfo, WarningLogItem } from "@/lib/types/tournament";
+import { MatchScheduleItem, GameDetailLog, PlayerDeckInfo, WarningLogItem } from "@/lib/tournament";
 import { TeamGameInput } from "../team-game-input";
 import { WinnerSelector } from "../winner-selector";
 import { useMatchTimer } from "../../hooks/use-match-timer";

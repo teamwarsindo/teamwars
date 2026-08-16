@@ -1,4 +1,4 @@
-import { GameDetailLog, PlayerDeckInfo } from "@/lib/types/tournament";
+import { GameDetailLog, PlayerDeckInfo } from "@/lib/tournament";
 
 export function getPlayerStats(
   playerName: string,

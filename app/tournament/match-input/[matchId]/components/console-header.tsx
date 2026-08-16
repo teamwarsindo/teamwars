@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchScheduleItem, GameDetailLog } from "@/lib/types/tournament";
+import { MatchScheduleItem, GameDetailLog } from "@/lib/tournament";
 
 interface ConsoleHeaderProps {
   match: MatchScheduleItem;

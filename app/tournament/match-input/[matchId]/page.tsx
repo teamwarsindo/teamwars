@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MatchScheduleItem, GameDetailLog, PlayerDeckInfo, WarningLogItem } from "@/lib/types/tournament";
+import { MatchScheduleItem, GameDetailLog, PlayerDeckInfo, WarningLogItem } from "@/lib/tournament";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import Swal from "sweetalert2";
 

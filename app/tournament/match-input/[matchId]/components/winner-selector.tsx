@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchScheduleItem } from "@/lib/types/tournament";
+import { MatchScheduleItem } from "@/lib/tournament";
 
 interface WinnerSelectorProps {
   match: MatchScheduleItem;

@@ -1,7 +1,7 @@
 import { kv } from "@vercel/kv";
 import MatchReportPageClient from "./page-client";
 import { MatchItem } from "./utils/lib-match-report";
-import { MatchScheduleItem } from "@/lib/types/tournament";
+import { MatchScheduleItem } from "@/lib/tournament";
 
 export const metadata = {
   title: "Match Report — Team Wars Indonesia",

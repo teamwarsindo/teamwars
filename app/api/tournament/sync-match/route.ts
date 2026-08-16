@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/lib/types/tournament';
+import { MatchScheduleItem } from '@/lib/tournament';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { executeAssignStaff, executeUnassignStaff } from '@/lib/discord/services/staff-assignment';
 
