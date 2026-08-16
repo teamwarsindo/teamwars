@@ -1,5 +1,5 @@
 import { MatchScheduleItem, TeamStandingItem } from "./types";
-import { DIVISION_MAP } from "./constants";
+import { DIVISION_MAP, TOURNAMENT_RULES } from "./constants";
 
 export interface ExtendedStandingItem extends TeamStandingItem {
   isTopGroup?: boolean;
@@ -21,7 +21,6 @@ export function calculateStandings(
   const teamMap = new Map<string, ExtendedStandingItem>();
   const teamFormMap = new Map<string, { dateStr: string; result: "W" | "L" }[]>();
 
-  // 1. Inisialisasi data master tim
   masterTeams.forEach((t) => {
     const groupName =
       t.groupName === "Group A" || t.groupName === DIVISION_MAP.GROUP_A
@@ -47,7 +46,6 @@ export function calculateStandings(
     teamFormMap.set(tName, []);
   });
 
-  // 2. Sort schedule berdasarkan waktu/week untuk urutan form W/L
   const sortedMatches = [...filteredSchedules].sort((a, b) => {
     const dateA = new Date(a.matchDate || 0).getTime();
     const dateB = new Date(b.matchDate || 0).getTime();
@@ -55,7 +53,6 @@ export function calculateStandings(
     return (a.weekNumber || 1) - (b.weekNumber || 1);
   });
 
-  // 3. Akumulasi hasil pertandingan
   sortedMatches.forEach((m) => {
     const isFinished = Boolean(m.isFinished);
     const scoreA = m.scoreA || 0;
@@ -124,14 +121,12 @@ export function calculateStandings(
       itemA.matchWins += 1;
       itemA.points += 1;
       itemB.matchLosses += 1;
-
       formsA.push({ dateStr: m.matchDate, result: "W" });
       formsB.push({ dateStr: m.matchDate, result: "L" });
     } else if (scoreB > scoreA) {
       itemB.matchWins += 1;
       itemB.points += 1;
       itemA.matchLosses += 1;
-
       formsB.push({ dateStr: m.matchDate, result: "W" });
       formsA.push({ dateStr: m.matchDate, result: "L" });
     }
@@ -144,13 +139,10 @@ export function calculateStandings(
 
   const allTeams = Array.from(teamMap.values());
 
-  // 4. Urutan Sortir:
-  // 1. Total Match (W+L) -> 2. Match Wins -> 3. PTS DIFF -> 4. SCORED -> 5. H2H
   const sortTeams = (teams: ExtendedStandingItem[]) => {
     return teams.sort((a, b) => {
       const totalMatchA = a.matchWins + a.matchLosses;
       const totalMatchB = b.matchWins + b.matchLosses;
-
       if (totalMatchB !== totalMatchA) return totalMatchB - totalMatchA;
       if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
       if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
@@ -182,3 +174,58 @@ export function calculateStandings(
 
   return [...groupATeams, ...groupBTeams];
 }
+
+// Fungsi Terpusat: Membangun Standing Global Wildcard
+export function buildGlobalStandings(
+  standings: ExtendedStandingItem[]
+): (ExtendedStandingItem & { globalRank: number; globalRankTrend?: "up" | "down" | "stay" })[] {
+  const groupA = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A);
+  const groupB = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B);
+
+  const topGroupA = groupA
+    .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP)
+    .map((t, i) => ({
+      ...t,
+      isTopGroup: true,
+      groupColor: "GROUP_A" as const,
+      customRankLabel: `Top ${i + 1}`,
+    }));
+
+  const topGroupB = groupB
+    .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP)
+    .map((t, i) => ({
+      ...t,
+      isTopGroup: true,
+      groupColor: "GROUP_B" as const,
+      customRankLabel: `Top ${i + 1}`,
+    }));
+
+  const top4Combined = [...topGroupA, ...topGroupB];
+  const top4Names = new Set(top4Combined.map((t) => t.teamName));
+
+  const remainingTeams = standings
+    .filter((t) => !top4Names.has(t.teamName))
+    .sort((a, b) => {
+      const totalMatchA = a.matchWins + a.matchLosses;
+      const totalMatchB = b.matchWins + b.matchLosses;
+      if (totalMatchB !== totalMatchA) return totalMatchB - totalMatchA;
+      if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
+      if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
+      return b.setWins - a.setWins;
+    })
+    .map((t, idx) => ({
+      ...t,
+      rank: idx + 1,
+      isTopGroup: false,
+      groupColor: (t.groupName === DIVISION_MAP.GROUP_A ? "GROUP_A" : "GROUP_B") as "GROUP_A" | "GROUP_B",
+      customRankLabel: `${idx + 1}`,
+    }));
+
+  const fullCombined = [...top4Combined, ...remainingTeams];
+
+  return fullCombined.map((item, index) => ({
+    ...item,
+    globalRank: index + 1,
+  }));
+      }
+                   
