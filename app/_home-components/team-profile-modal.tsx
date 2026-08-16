@@ -221,28 +221,53 @@ export function TeamProfileModal({
                 {teamName}
               </h2>
               <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                {/* 1. BADGE DIVISI RESMI */}
-                <span
-                  className={`rounded-md border px-1.5 py-0.2 text-[9px] font-black ${
-                    isGroupA
-                      ? "bg-sky-500/15 border-sky-500/30 text-sky-600 dark:text-sky-400"
-                      : "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400"
-                  }`}
-                >
-                  #{teamRankInfo.divRank} {team.groupName}
-                </span>
+                {/* KONDISI 1: TOP 2 DIVISI (LOLOS QUARTER FINALS) */}
+                {teamRankInfo.isTopGroup ? (
+                  <>
+                    <span
+                      className={`rounded-md border px-1.5 py-0.5 text-[9px] font-black flex items-center gap-1 ${
+                        isGroupA
+                          ? "bg-sky-500/15 border-sky-500/30 text-sky-600 dark:text-sky-400"
+                          : "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                      }`}
+                    >
+                      🏆 #{teamRankInfo.divRank} {team.groupName}
+                    </span>
+                    <span className="text-[9px] font-bold text-sky-600 dark:text-sky-400">
+                      • Lolos Quarter Finals
+                    </span>
+                  </>
+                ) : (
+                  /* KONDISI 2: BUKAN TOP GROUP (DIVISI NETRAL + STATUS WILDCARD) */
+                  <>
+                    <span className="rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">
+                      #{teamRankInfo.divRank} {team.groupName}
+                    </span>
 
-                {/* 2. BADGE WILDCARD (HANYA JIKA BUKAN TOP GROUP) */}
-                {!teamRankInfo.isTopGroup && typeof teamRankInfo.wildcardRank === "number" && (
-                  <span
-                    className={`rounded-md border px-1.5 py-0.2 text-[9px] font-black ${
-                      teamRankInfo.wildcardRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
-                        ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                        : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400"
-                    }`}
-                  >
-                    #{teamRankInfo.wildcardRank} Wildcard
-                  </span>
+                    {typeof teamRankInfo.wildcardRank === "number" && (
+                      <>
+                        <span
+                          className={`rounded-md border px-1.5 py-0.5 text-[9px] font-black ${
+                            teamRankInfo.wildcardRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
+                              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                              : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                          }`}
+                        >
+                          #{teamRankInfo.wildcardRank} Wildcard
+                        </span>
+
+                        <span
+                          className={`text-[9px] font-bold ${
+                            teamRankInfo.wildcardRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-rose-600 dark:text-rose-400"
+                          }`}
+                        >
+                          • {teamRankInfo.wildcardRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA ? "Zona Play-Ins" : "Tereliminasi"}
+                        </span>
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -433,4 +458,3 @@ export function TeamProfileModal({
     document.body
   );
 }
-  
