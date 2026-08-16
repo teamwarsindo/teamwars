@@ -19,7 +19,6 @@ export function TournamentHub() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Baseline pekan server (Senin 08.00 WIB)
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
 
   useEffect(() => {
@@ -45,6 +44,7 @@ export function TournamentHub() {
     return calculateStandings(schedules, masterTeams, currentWeek);
   }, [schedules, masterTeams, currentWeek]);
 
+  // Top 2 Divisi A & B
   const topGroupA = useMemo(() => {
     return standings
       .filter((s) => s.groupName === DIVISION_MAP.GROUP_A)
@@ -57,6 +57,7 @@ export function TournamentHub() {
       .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP);
   }, [standings]);
 
+  // Top 4 Wildcard (Di luar Top 2 masing-masing grup)
   const topGlobal = useMemo(() => {
     const globalData = buildGlobalStandings(standings);
     return globalData
@@ -74,7 +75,7 @@ export function TournamentHub() {
     return currentWeekSchedules.filter((m) => Boolean(m.streamLink) && !m.isFinished);
   }, [currentWeekSchedules]);
 
-  // Format tanggal hari ini dalam format WIB (YYYY-MM-DD)
+  // Tanggal Hari Ini (WIB)
   const todayDateStrWIB = useMemo(() => {
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Jakarta",
@@ -94,20 +95,20 @@ export function TournamentHub() {
     );
   }, [currentWeekSchedules, todayDateStrWIB]);
 
-  // 5. Pertandingan Berikutnya: Khusus match di HARI SELANJUTNYA (> today) dalam currentWeek
+  // 5. Pertandingan Berikutnya: Hanya match hari selanjutnya (> today) di currentWeek
   const upcomingMatches = useMemo(() => {
     return currentWeekSchedules
       .filter((m) => {
         if (m.isFinished) return false;
         if (!m.matchDate) return false;
         const matchDayStr = m.matchDate.slice(0, 10);
-        // Hanya ambil match hari esok / selanjutnya di pekan ini
         return matchDayStr > todayDateStrWIB;
       })
       .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime())
       .slice(0, 3);
   }, [currentWeekSchedules, todayDateStrWIB]);
 
+  // 6. Hasil Terakhir Pekan Ini (Maksimal 3 Match)
   const recentResults = useMemo(() => {
     return currentWeekSchedules
       .filter((m) => m.isFinished)
@@ -116,7 +117,7 @@ export function TournamentHub() {
   }, [currentWeekSchedules]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <PhaseTimeline currentWeek={currentWeek} />
 
       <QuickActions
@@ -146,4 +147,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-                            }
+    }
