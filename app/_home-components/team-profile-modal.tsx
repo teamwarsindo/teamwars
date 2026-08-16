@@ -62,37 +62,38 @@ export function TeamProfileModal({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Hitung status peringkat divisi dan wildcard
+  // Hitung status peringkat divisi dan wildcard secara tepat
   const teamRankInfo = useMemo(() => {
-    if (!allTeams || allTeams.length === 0) {
+    // 1. Ambil rank divisi asli dari allTeams (calculateStandings)
+    const originalTeam = allTeams.find(
+      (t) => (t.teamName || t.name || "").toLowerCase() === teamName.toLowerCase()
+    );
+    const divRank = originalTeam?.rank ?? team?.rank ?? 1;
+    const isTopGroup = divRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP;
+
+    // 2. Jika Top 2 grup, jangan pernah tampilkan wildcard
+    if (isTopGroup) {
       return {
-        isTopGroup: (team.rank || 1) <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP,
-        divRank: team.rank || 1,
+        isTopGroup: true,
+        divRank,
         wildcardRank: null,
       };
     }
 
+    // 3. Jika bukan top group, cari nomor urut di standing global wildcard
     const globalStandings = buildGlobalStandings(allTeams);
-    const found = globalStandings.find(
-      (t) => t.teamName.toLowerCase() === teamName.toLowerCase()
+    const wildcardItem = globalStandings.find(
+      (t) => !t.isTopGroup && (t.teamName || t.name || "").toLowerCase() === teamName.toLowerCase()
     );
 
-    if (!found) {
-      return {
-        isTopGroup: (team.rank || 1) <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP,
-        divRank: team.rank || 1,
-        wildcardRank: null,
-      };
-    }
-
     return {
-      isTopGroup: found.isTopGroup ?? false,
-      divRank: found.rank,
-      wildcardRank: found.isTopGroup ? null : found.rank,
+      isTopGroup: false,
+      divRank,
+      wildcardRank: wildcardItem ? wildcardItem.rank : null,
     };
   }, [team, allTeams, teamName]);
 
-  // Riwayat match dan form
+  // Riwayat match dan streak W/L
   const { history, streak } = useMemo(() => {
     const q = teamName.toLowerCase();
     const matches = allSchedules.filter(
@@ -220,7 +221,7 @@ export function TeamProfileModal({
                 {teamName}
               </h2>
               <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                {/* 1. BADGE DIVISI */}
+                {/* 1. BADGE DIVISI RESMI */}
                 <span
                   className={`rounded-md border px-1.5 py-0.2 text-[9px] font-black ${
                     isGroupA
@@ -231,7 +232,7 @@ export function TeamProfileModal({
                   #{teamRankInfo.divRank} {team.groupName}
                 </span>
 
-                {/* 2. BADGE WILDCARD (JIKA BUKAN TOP GROUP) */}
+                {/* 2. BADGE WILDCARD (HANYA JIKA BUKAN TOP GROUP) */}
                 {!teamRankInfo.isTopGroup && typeof teamRankInfo.wildcardRank === "number" && (
                   <span
                     className={`rounded-md border px-1.5 py-0.2 text-[9px] font-black ${
@@ -431,5 +432,4 @@ export function TeamProfileModal({
     </div>,
     document.body
   );
-    }
-        
+  }
