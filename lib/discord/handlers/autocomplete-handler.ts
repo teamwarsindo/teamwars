@@ -1,5 +1,9 @@
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/app/tournament/_library';
+import {
+  MatchScheduleItem,
+  getCurrentServerWeek,
+  TWI_START_DATETIME,
+} from '@/app/tournament/_library';
 import { isValidSnowflake } from '@/lib/discord/utils';
 
 export interface StaffItem {
@@ -8,8 +12,8 @@ export interface StaffItem {
   assignMatch?: string[];
 }
 
-// 🟢 Mengambil Start Date dari Env (Fallback ISO untuk keamanan TypeScript)
-const START_DATE_ENV = process.env.TWI_START_DATE || '2026-08-03T00:00:00+07:00';
+// 🟢 Baseline Resmi: Senin Pukul 08.00 WIB
+const START_DATE_ENV = process.env.TWI_START_DATE || TWI_START_DATETIME;
 
 function getMatchWeekNumber(matchDateIso: string): number {
   if (!matchDateIso) return 1;
@@ -18,27 +22,34 @@ function getMatchWeekNumber(matchDateIso: string): number {
 
   if (isNaN(matchDate) || isNaN(startDate)) return 1;
 
-  const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
-  return Math.max(1, Math.floor(diffDays / 7) + 1);
+  // Dihitung berdasarkan interval 7 hari (168 jam) dari Senin 08.00 WIB
+  const diffMs = matchDate - startDate;
+  return Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7)) + 1);
 }
 
-// Helper untuk hitung minggu aktif saat ini
+// Helper sinkron dengan getCurrentServerWeek (Pukul 08.00 WIB)
 function getCurrentWeekNumber(): number {
-  const now = Date.now();
-  const startDate = new Date(START_DATE_ENV).getTime();
-
-  if (isNaN(startDate)) return 1;
-
-  const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-  return Math.max(1, Math.floor(diffDays / 7) + 1);
+  return getCurrentServerWeek();
 }
 
 function formatWIBShort(isoString: string): string {
   if (!isoString) return 'TBA';
   const d = new Date(isoString);
   if (isNaN(d.getTime())) return 'TBA';
-  const day = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Jakarta' });
-  const time = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).replace('.', ':');
+  const day = d.toLocaleDateString('id-ID', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'Asia/Jakarta',
+  });
+  const time = d
+    .toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Jakarta',
+    })
+    .replace('.', ':');
   return `${day} • ${time} WIB`;
 }
 
@@ -60,15 +71,17 @@ export async function handleAssignAutocomplete(interaction: any) {
       calculatedWeekNumber: m.weekNumber || getMatchWeekNumber(m.matchDate),
     }));
 
-    // 2. Hitung Minggu Aktif Hari Ini
+    // 2. Hitung Minggu Aktif Hari Ini (Baru ganti ke Week 3 setelah Senin 08.00 WIB)
     const currentWeek = getCurrentWeekNumber();
 
     // 3. Filter Match Khusus Week Aktif Hari Ini
-    let activeWeekMatches = schedulesWithWeek.filter((m) => m.calculatedWeekNumber === currentWeek);
+    let activeWeekMatches = schedulesWithWeek.filter(
+      (m) => m.calculatedWeekNumber === currentWeek
+    );
 
-    // Fallback: Jika minggu aktif kosong/tidak ada match, tampilkan match yang belum completed
+    // Fallback: Jika minggu aktif kosong/tidak ada match, tampilkan match yang belum selesai
     if (activeWeekMatches.length === 0) {
-      activeWeekMatches = schedulesWithWeek.filter((m) => !(m as any).isCompleted);
+      activeWeekMatches = schedulesWithWeek.filter((m) => !m.isFinished);
     }
 
     // 4. Urutkan berdasarkan Nomor Match (MATCH-1, MATCH-2 ...)
@@ -80,7 +93,9 @@ export async function handleAssignAutocomplete(interaction: any) {
 
     // 5. Filter Query Pencarian
     const choices = sortedByMatchId
-      .filter((m) => `${m.id} ${m.teamAName} vs ${m.teamBName}`.toLowerCase().includes(query))
+      .filter((m) =>
+        `${m.id} ${m.teamAName} vs ${m.teamBName}`.toLowerCase().includes(query)
+      )
       .slice(0, 25)
       .map((m) => ({
         name: `[W${m.calculatedWeekNumber}] ${m.id.toUpperCase()}: ${m.teamAName} vs ${m.teamBName} (${formatWIBShort(m.matchDate)})`,
@@ -93,12 +108,17 @@ export async function handleAssignAutocomplete(interaction: any) {
   // B. AUTO-COMPLETE USER (Filter Staf & Validasi Discord ID)
   if (focusedOption.name === 'user') {
     const typeOption = options.find((opt: any) => opt.name === 'type')?.value;
-    const kvKey = typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
+    const kvKey =
+      typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
     const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
 
     // 🟢 Filter: Wajib memiliki Discord ID valid (Snowflake) dan sesuai query pencarian
     const choices = staffList
-      .filter((s) => isValidSnowflake(s.discordId) && s.discordName.toLowerCase().includes(query))
+      .filter(
+        (s) =>
+          isValidSnowflake(s.discordId) &&
+          s.discordName.toLowerCase().includes(query)
+      )
       .slice(0, 25)
       .map((s) => ({ name: s.discordName, value: s.discordId }));
 
