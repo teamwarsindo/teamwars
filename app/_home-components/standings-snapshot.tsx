@@ -48,7 +48,7 @@ export function StandingsSnapshot({
       </div>
 
       <div className="flex items-center gap-3 text-right">
-        <span className="text-[10.5px] font-semibold text-muted-foreground">
+        <span className="text-[10.5px] font-semibold text-muted-foreground w-8">
           {item.matchWins}-{item.matchLosses}
         </span>
         <span
@@ -96,7 +96,6 @@ export function StandingsSnapshot({
           </button>
         </div>
 
-        {/* LINK FULL STANDINGS MENGARAH KE SUB-VIEW TEPAT */}
         <Link
           href={
             tab === "DIVISION"
@@ -115,49 +114,59 @@ export function StandingsSnapshot({
         </div>
       ) : tab === "DIVISION" ? (
         <div className="space-y-4">
-          {/* GRUP A - BIRU */}
+          {/* GRUP A */}
           <div className="space-y-2">
-            <span className="text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">
-              {DIVISION_MAP.GROUP_A} (Top 2 Auto-Lolos)
-            </span>
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400 px-1">
+              <span>{DIVISION_MAP.GROUP_A} (Top 2 Auto-Lolos)</span>
+              <span className="flex gap-4 text-muted-foreground">
+                <span className="w-8 text-right">W-L</span>
+                <span className="w-6 text-right">RD</span>
+                <span className="w-6 text-right text-primary">PTS</span>
+              </span>
+            </div>
             <div className="space-y-1.5">
               {topGroupA.map((item, idx) =>
                 renderTeamRow(
                   item,
                   "border-sky-500/30 bg-sky-500/10 hover:border-sky-500/50",
                   "bg-sky-500/20 text-sky-600 dark:text-sky-400",
-                  `#${idx + 1}`
+                  `${idx + 1}` // Tanpa simbol '#'
                 )
               )}
             </div>
           </div>
 
-          {/* GRUP B - KUNING / AMBER */}
+          {/* GRUP B */}
           <div className="space-y-2">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
-              {DIVISION_MAP.GROUP_B} (Top 2 Auto-Lolos)
-            </span>
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 px-1">
+              <span>{DIVISION_MAP.GROUP_B} (Top 2 Auto-Lolos)</span>
+              <span className="flex gap-4 text-muted-foreground">
+                <span className="w-8 text-right">W-L</span>
+                <span className="w-6 text-right">RD</span>
+                <span className="w-6 text-right text-primary">PTS</span>
+              </span>
+            </div>
             <div className="space-y-1.5">
               {topGroupB.map((item, idx) =>
                 renderTeamRow(
                   item,
                   "border-amber-500/30 bg-amber-500/10 hover:border-amber-500/50",
                   "bg-amber-500/20 text-amber-600 dark:text-amber-400",
-                  `#${idx + 1}`
+                  `${idx + 1}` // Tanpa simbol '#'
                 )
               )}
             </div>
           </div>
         </div>
       ) : (
-        /* TOP 8 GLOBAL WILDCARD - HIJAU (Lolos) & MERAH (Gugur) */
+        /* TOP 8 GLOBAL */
         <div className="space-y-2">
           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground px-1">
             <span>Rank 1-8 Lolos Playoff</span>
-            <span className="flex gap-4">
-              <span>W-L</span>
-              <span>RD</span>
-              <span>PTS</span>
+            <span className="flex gap-4 text-muted-foreground">
+              <span className="w-8 text-right">W-L</span>
+              <span className="w-6 text-right">RD</span>
+              <span className="w-6 text-right text-primary">PTS</span>
             </span>
           </div>
           <div className="space-y-1.5">

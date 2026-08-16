@@ -12,6 +12,7 @@ interface MatchCenterProps {
   todayMatches: MatchScheduleItem[];
   upcomingMatches: MatchScheduleItem[];
   recentResults: MatchScheduleItem[];
+  formatDate?: (d: string) => string;
 }
 
 export function MatchCenter({
@@ -54,12 +55,16 @@ export function MatchCenter({
             <img
               src={m.teamALogo || "/logo.webp"}
               alt=""
-              className="h-5 w-5 shrink-0 object-contain"
+              className={`h-5 w-5 shrink-0 object-contain ${
+                teamBWins ? "opacity-40 grayscale" : "opacity-100"
+              }`}
             />
             <span
               className={`truncate text-[11px] ${
                 teamAWins
                   ? "font-black text-emerald-600 dark:text-emerald-400"
+                  : teamBWins
+                  ? "font-medium text-muted-foreground/50 dark:text-neutral-500"
                   : "font-bold text-foreground"
               }`}
             >
@@ -74,12 +79,24 @@ export function MatchCenter({
                 <Flame className="h-3 w-3" /> LIVE
               </span>
             ) : isFinished || scoreA + scoreB > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
-                <span className={teamAWins ? "font-black text-emerald-600 dark:text-emerald-400" : "text-muted-foreground font-semibold"}>
+              <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 border border-border/80 px-2 py-0.5 text-[10px] font-black">
+                <span
+                  className={
+                    teamAWins
+                      ? "font-black text-emerald-600 dark:text-emerald-400"
+                      : "text-muted-foreground/50 dark:text-neutral-500 font-semibold"
+                  }
+                >
                   {scoreA}
                 </span>
-                <span className="text-muted-foreground">-</span>
-                <span className={teamBWins ? "font-black text-emerald-600 dark:text-emerald-400" : "text-muted-foreground font-semibold"}>
+                <span className="text-muted-foreground/60">-</span>
+                <span
+                  className={
+                    teamBWins
+                      ? "font-black text-emerald-600 dark:text-emerald-400"
+                      : "text-muted-foreground/50 dark:text-neutral-500 font-semibold"
+                  }
+                >
                   {scoreB}
                 </span>
               </span>
@@ -99,6 +116,8 @@ export function MatchCenter({
               className={`truncate text-[11px] text-right ${
                 teamBWins
                   ? "font-black text-emerald-600 dark:text-emerald-400"
+                  : teamAWins
+                  ? "font-medium text-muted-foreground/50 dark:text-neutral-500"
                   : "font-bold text-foreground"
               }`}
             >
@@ -107,7 +126,9 @@ export function MatchCenter({
             <img
               src={m.teamBLogo || "/logo.webp"}
               alt=""
-              className="h-5 w-5 shrink-0 object-contain"
+              className={`h-5 w-5 shrink-0 object-contain ${
+                teamAWins ? "opacity-40 grayscale" : "opacity-100"
+              }`}
             />
           </div>
         </div>

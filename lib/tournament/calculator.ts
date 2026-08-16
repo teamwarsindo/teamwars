@@ -2,7 +2,7 @@ import {
   MatchScheduleItem,
   TeamStandingItem,
 } from './types';
-import { DIVISION_MAP, TOURNAMENT_RULES } from './constants';
+import { DIVISION_MAP } from './constants';
 
 export interface ExtendedStandingItem extends TeamStandingItem {
   isTopGroup?: boolean;
@@ -11,17 +11,6 @@ export interface ExtendedStandingItem extends TeamStandingItem {
   rankTrend?: 'up' | 'down' | 'stay';
 }
 
-/**
- * Algoritma Resmi Kalkulasi Klasemen Turnamen:
- * 1. Filter match hingga maxWeek yang dipilih (jika ada).
- * 2. Hitung Match Win-Loss, Set Win-Loss, Round Difference (RD), dan Poin (Win = 10, Lose = 0).
- * 3. Tie-breaker bertingkat:
- *    a. Total Poin (Tertinggi)
- *    b. Total Match Wins (Tertinggi)
- *    c. Round Difference / RD (Tertinggi)
- *    d. Total Set Wins (Tertinggi)
- *    e. Head-to-Head (Jika 2 tim berimbang persis)
- */
 export function calculateStandings(
   schedules: MatchScheduleItem[] = [],
   masterTeams: any[] = [],
@@ -33,7 +22,6 @@ export function calculateStandings(
 
   const teamMap = new Map<string, ExtendedStandingItem>();
 
-  // 1. Inisialisasi semua master team ke Map
   masterTeams.forEach((t) => {
     const groupName =
       t.groupName === 'Group A' || t.groupName === DIVISION_MAP.GROUP_A
@@ -56,7 +44,6 @@ export function calculateStandings(
     });
   });
 
-  // 2. Akumulasi hasil setiap pertandingan yang sudah selesai atau memiliki skor
   filteredSchedules.forEach((m) => {
     const isFinished = Boolean(m.isFinished);
     const scoreA = m.scoreA || 0;
@@ -114,22 +101,22 @@ export function calculateStandings(
     itemA.roundDifference = itemA.setWins - itemA.setLosses;
     itemB.roundDifference = itemB.setWins - itemB.setLosses;
 
+    // 🟢 LOGIKA POIN BARU (MENANG = 10 POIN, KALAH = POIN SESUAI SKOR)
     if (scoreA > scoreB) {
       itemA.matchWins += 1;
-      itemA.points += TOURNAMENT_RULES.POINTS_WIN;
+      itemA.points += 10;
       itemB.matchLosses += 1;
-      itemB.points += TOURNAMENT_RULES.POINTS_LOSE;
+      itemB.points += scoreB; // Tim kalah mendapat poin dari skor set-nya
     } else if (scoreB > scoreA) {
       itemB.matchWins += 1;
-      itemB.points += TOURNAMENT_RULES.POINTS_WIN;
+      itemB.points += 10;
       itemA.matchLosses += 1;
-      itemA.points += TOURNAMENT_RULES.POINTS_LOSE;
+      itemA.points += scoreA; // Tim kalah mendapat poin dari skor set-nya
     }
   });
 
   const allTeams = Array.from(teamMap.values());
 
-  // 3. Helper Sorting Tie-Breaker
   const sortTeams = (teams: ExtendedStandingItem[]) => {
     return teams.sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
@@ -137,7 +124,6 @@ export function calculateStandings(
       if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
       if (b.setWins !== a.setWins) return b.setWins - a.setWins;
 
-      // Head to Head check
       const h2hMatch = filteredSchedules.find(
         (m) =>
           (m.teamAName === a.teamName && m.teamBName === b.teamName) ||
