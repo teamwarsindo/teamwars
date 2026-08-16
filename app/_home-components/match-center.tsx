@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { MatchScheduleItem } from "@/lib/types/tournament";
-import { ChevronRight, Flame, Tv, ExternalLink } from "lucide-react";
+import { ChevronRight, Flame, Tv, ExternalLink, Radio } from "lucide-react";
 
 interface MatchCenterProps {
   currentWeek: number;
@@ -28,6 +28,10 @@ export function MatchCenter({
 
   const renderCard = (m: MatchScheduleItem) => {
     const isLive = Boolean(m.streamLink) && !m.isFinished;
+    const hasStreamer = Boolean(m.streamer) && !m.isFinished;
+    
+    // Sanitasi jika data streamer masih berformat mention <@123456>
+    const displayStreamerName = m.streamer?.replace(/<@!?\d+>/g, "").trim() || "Streamer Resmi";
 
     return (
       <div
@@ -35,6 +39,8 @@ export function MatchCenter({
         className={`flex flex-col gap-2 rounded-xl border p-2.5 text-xs transition ${
           isLive
             ? "border-rose-500/50 bg-rose-500/10 shadow-xs"
+            : hasStreamer
+            ? "border-purple-500/30 bg-purple-500/5 hover:border-purple-500/50"
             : "border-border/60 bg-muted/20 hover:border-primary/40"
         }`}
       >
@@ -67,10 +73,11 @@ export function MatchCenter({
           </div>
         </div>
 
+        {/* 🎥 STATUS 1: LINK AKTIF / SEDANG LIVE */}
         {isLive && m.streamLink && (
           <div className="flex items-center justify-between border-t border-rose-500/20 pt-1.5 mt-0.5">
             <span className="text-[10px] font-semibold text-rose-400 flex items-center gap-1">
-              <Tv className="h-3 w-3" /> Streamer: {m.streamer || "Official Stream"}
+              <Tv className="h-3 w-3" /> Streamer: {displayStreamerName}
             </span>
             <a
               href={m.streamLink}
@@ -80,6 +87,22 @@ export function MatchCenter({
             >
               Watch <ExternalLink className="h-2.5 w-2.5" />
             </a>
+          </div>
+        )}
+
+        {/* 📺 STATUS 2: ADA STREAMER TAPI LINK BELUM DISHARE (AKAN DISIARKAN) */}
+        {!isLive && hasStreamer && (
+          <div className="flex items-center justify-between border-t border-purple-500/20 pt-1.5 mt-0.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-purple-500 dark:text-purple-300">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-500"></span>
+              </span>
+              <span className="flex items-center gap-1">
+                <Radio className="h-3 w-3" /> Akan Live by {displayStreamerName}
+              </span>
+            </div>
+            <span className="text-[9px] text-muted-foreground italic">Link 30 mnt sblm match</span>
           </div>
         )}
       </div>
@@ -173,5 +196,5 @@ export function MatchCenter({
       )}
     </div>
   );
-          }
-              
+              }
+          
