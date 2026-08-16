@@ -38,7 +38,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔴 2. UNASSIGN COMMAND
+    // 🔴 2. UNASSIGN COMMAND (DENGAN OPSIONAL STREAM_LINK)
     {
       name: 'unassign',
       description: 'Selesaikan penugasan Referee/Streamer (Chief/Admin)',
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
           required: true,
           choices: [
             { name: '⚖️ Referee (Wajib isi Skor)', value: 'REFEREE' },
-            { name: '🎥 Streamer (Opsional Skor)', value: 'STREAMER' },
+            { name: '🎥 Streamer (Wajib isi Link Stream)', value: 'STREAMER' },
           ],
         },
         {
@@ -70,6 +70,12 @@ export async function GET(req: Request) {
           type: 4, // INTEGER
           name: 'score_b',
           description: 'Masukkan Skor Tim B (Wajib untuk Referee)',
+          required: false,
+        },
+        {
+          type: 3, // STRING
+          name: 'stream_link',
+          description: 'Link Live Stream / VOD YouTube / Twitch (Wajib untuk Streamer)',
           required: false,
         },
       ],
