@@ -162,8 +162,9 @@ export async function sendCompletedAssignmentLog(params: {
   if (params.roleType === 'REFEREE') {
     const scoreA = params.scoreA ?? 0;
     const scoreB = params.scoreB ?? 0;
-    const winnerDisplay = scoreA > scoreB ? teamADisplay : teamBDisplay;
-    const loserDisplay = scoreA > scoreB ? teamBDisplay : teamADisplay;
+    const isWinA = scoreA > scoreB;
+    const winnerDisplay = isWinA ? teamADisplay : teamBDisplay;
+    const loserDisplay = isWinA ? teamBDisplay : teamADisplay;
     const winScore = Math.max(scoreA, scoreB);
     const loseScore = Math.min(scoreA, scoreB);
 
@@ -224,7 +225,7 @@ export async function sendCancelledAssignmentLog(params: {
   const embedData = {
     title: `❌ ${roleTitle} Assignment - CANCELLED`,
     description: `${params.groupName || 'Group Stage'} • ${params.weekName || 'Week 1'}\n${teamADisplay} **vs** ${teamBDisplay}`,
-    color: 0xed4245, // Merah Pembatalan
+    color: 0xed4245,
     fields: [
       {
         name: '📅 Waktu Pertandingan',
@@ -253,7 +254,7 @@ export async function sendCancelledAssignmentLog(params: {
   return res?.id || null;
 }
 
-// 5. Score Log Resmi ke #CH_SCORE
+// 5. Score Log Resmi ke #CH_SCORE (#schedule-results)
 export async function sendOfficialScoreLog(params: {
   channelId: string;
   teamAName: string;
@@ -263,15 +264,21 @@ export async function sendOfficialScoreLog(params: {
   scoreA: number;
   scoreB: number;
 }): Promise<string | null> {
-  const teamADisplay = `${params.teamAEmoji ? params.teamAEmoji + ' ' : ''}**${params.teamAName}**`;
-  const teamBDisplay = `${params.teamBEmoji ? params.teamBEmoji + ' ' : ''}**${params.teamBName}**`;
+  const isTeamAWin = params.scoreA > params.scoreB;
+  const winnerName = isTeamAWin ? params.teamAName : params.teamBName;
+  const loserName = isTeamAWin ? params.teamBName : params.teamAName;
+  const winnerEmoji = isTeamAWin ? params.teamAEmoji : params.teamBEmoji;
+  const loserEmoji = isTeamAWin ? params.teamBEmoji : params.teamAEmoji;
+
+  const winScore = Math.max(params.scoreA, params.scoreB);
+  const loseScore = Math.min(params.scoreA, params.scoreB);
+
+  const winnerDisplay = `${winnerEmoji ? winnerEmoji + ' ' : ''}**${winnerName}**`;
+  const loserDisplay = `${loserEmoji ? loserEmoji + ' ' : ''}**${loserName}**`;
 
   const embedData = {
-    title: '🏆 Hasil Resmi Pertandingan',
-    description: `${teamADisplay} [ **${params.scoreA} - ${params.scoreB}** ] ${teamBDisplay}`,
-    color: 0xf1c40f,
-    footer: { text: 'Team Wars Indonesia Season 7' },
-    timestamp: new Date().toISOString(),
+    description: `${winnerDisplay} defeated ${loserDisplay}\nwith a score of **${winScore}-${loseScore}**`,
+    color: 0x22c55e, // Hijau emerald konsisten
   };
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
@@ -279,5 +286,4 @@ export async function sendOfficialScoreLog(params: {
   }).catch(() => null);
 
   return res?.id || null;
-  }
-                                                           
+          }
