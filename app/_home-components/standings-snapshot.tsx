@@ -22,21 +22,17 @@ export function StandingsSnapshot({
 
   const renderTeamRow = (
     item: ExtendedStandingItem,
-    rankBadgeColor: string,
-    rankText: string,
-    isEliminated = false
+    rowBgColor: string,
+    badgeBgColor: string,
+    rankText: string
   ) => (
     <div
       key={item.teamName}
-      className={`flex items-center justify-between p-2 rounded-xl border text-xs transition ${
-        isEliminated
-          ? "border-rose-500/20 bg-rose-500/5 hover:border-rose-500/40"
-          : "border-border/60 bg-muted/20 hover:border-primary/40"
-      }`}
+      className={`flex items-center justify-between p-2 rounded-xl border text-xs transition ${rowBgColor}`}
     >
       <div className="flex items-center gap-2 min-w-0 flex-1">
         <span
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-black text-[10px] ${rankBadgeColor}`}
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-black text-[10px] ${badgeBgColor}`}
         >
           {rankText}
         </span>
@@ -45,11 +41,7 @@ export function StandingsSnapshot({
           alt=""
           className="h-5 w-5 shrink-0 object-contain"
         />
-        <span
-          className={`truncate font-bold text-[11px] ${
-            isEliminated ? "text-muted-foreground" : "text-foreground"
-          }`}
-        >
+        <span className="truncate font-bold text-[11px] text-foreground">
           {item.teamName}
         </span>
       </div>
@@ -103,6 +95,7 @@ export function StandingsSnapshot({
           </button>
         </div>
 
+        {/* ✅ FIX: Arahkan ke tab standings */}
         <Link
           href="/tournament?tab=standings"
           className="flex items-center gap-0.5 text-[11px] font-bold text-primary hover:underline"
@@ -117,7 +110,7 @@ export function StandingsSnapshot({
         </div>
       ) : tab === "DIVISION" ? (
         <div className="space-y-4">
-          {/* GRUP A */}
+          {/* GRUP A - BIRU */}
           <div className="space-y-2">
             <span className="text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">
               Anda Yakin? (Top 2 Auto-Lolos)
@@ -126,14 +119,15 @@ export function StandingsSnapshot({
               {topGroupA.map((item, idx) =>
                 renderTeamRow(
                   item,
-                  "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+                  "border-sky-500/30 bg-sky-500/10 hover:border-sky-500/50",
+                  "bg-sky-500/20 text-sky-600 dark:text-sky-400",
                   `#${idx + 1}`
                 )
               )}
             </div>
           </div>
 
-          {/* GRUP B */}
+          {/* GRUP B - KUNING / AMBER */}
           <div className="space-y-2">
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
               Sakurasawa Fighters (Top 2 Auto-Lolos)
@@ -142,7 +136,8 @@ export function StandingsSnapshot({
               {topGroupB.map((item, idx) =>
                 renderTeamRow(
                   item,
-                  "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                  "border-amber-500/30 bg-amber-500/10 hover:border-amber-500/50",
+                  "bg-amber-500/20 text-amber-600 dark:text-amber-400",
                   `#${idx + 1}`
                 )
               )}
@@ -150,7 +145,7 @@ export function StandingsSnapshot({
           </div>
         </div>
       ) : (
-        /* TOP 8 GLOBAL WILDCARD */
+        /* TOP 8 GLOBAL WILDCARD - HIJAU (Lolos) & MERAH (Gugur) */
         <div className="space-y-2">
           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground px-1">
             <span>Rank 1-8 Lolos Playoff</span>
@@ -163,15 +158,18 @@ export function StandingsSnapshot({
           <div className="space-y-1.5">
             {topGlobal.map((item, idx) => {
               const isPlayoffZone = idx < 8;
+              const rowStyle = isPlayoffZone
+                ? "border-emerald-500/30 bg-emerald-500/10 hover:border-emerald-500/50"
+                : "border-rose-500/30 bg-rose-500/10 hover:border-rose-500/50";
               const badgeStyle = isPlayoffZone
-                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                : "bg-rose-500/15 text-rose-600 dark:text-rose-400";
+                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                : "bg-rose-500/20 text-rose-600 dark:text-rose-400";
 
-              return renderTeamRow(item, badgeStyle, `${idx + 1}`, !isPlayoffZone);
+              return renderTeamRow(item, rowStyle, badgeStyle, `${idx + 1}`);
             })}
           </div>
         </div>
       )}
     </div>
   );
-              }
+}
