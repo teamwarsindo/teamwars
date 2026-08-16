@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { DIVISION_MAP } from "@/lib/types/tournament";
+import { ExtendedStandingItem } from "@/lib/tournament/calculator";
 import { ChevronRight } from "lucide-react";
 
 interface StandingsSnapshotProps {
   loading: boolean;
-  topGroupA: any[];
-  topGroupB: any[];
-  topGlobal: any[];
+  topGroupA: ExtendedStandingItem[];
+  topGroupB: ExtendedStandingItem[];
+  topGlobal: ExtendedStandingItem[];
 }
 
 export function StandingsSnapshot({
@@ -18,82 +18,74 @@ export function StandingsSnapshot({
   topGroupB,
   topGlobal,
 }: StandingsSnapshotProps) {
-  const [tab, setTab] = useState<"GROUP" | "GLOBAL">("GROUP");
+  const [tab, setTab] = useState<"DIVISION" | "GLOBAL">("DIVISION");
 
-  const renderTable = (items: any[], isGroupA: boolean, isGlobal = false) => (
-    <table className="w-full text-left text-[11px] table-fixed">
-      <tbody className="space-y-1.5">
-        {items.map((item, idx) => (
-          <tr
-            key={item.teamId || item.teamName || idx}
-            className={`rounded-xl border transition flex items-center mb-1.5 px-2.5 py-1.5 ${
-              isGlobal
-                ? "bg-emerald-500/10 border-emerald-500/30 border-l-4 border-l-emerald-500"
-                : isGroupA
-                ? "bg-sky-500/10 border-sky-500/30 border-l-4 border-l-sky-500"
-                : "bg-amber-500/10 border-amber-500/30 border-l-4 border-l-amber-500"
-            }`}
-          >
-            <td className="w-[52%] flex items-center gap-2 min-w-0 pr-1">
-              <span
-                className={`font-black text-xs shrink-0 ${
-                  isGlobal
-                    ? "text-emerald-500"
-                    : isGroupA
-                    ? "text-sky-500"
-                    : "text-amber-500"
-                }`}
-              >
-                #{idx + 1}
-              </span>
-              <img
-                src={item.teamLogo || "/logo.webp"}
-                alt=""
-                className="h-4 w-4 shrink-0 object-contain"
-              />
-              <span className="font-bold text-[11px] truncate text-foreground">
-                {item.teamName}
-              </span>
-            </td>
-            <td className="w-[16%] text-center font-bold text-muted-foreground text-[10.5px]">
-              {item.matchWins}-{item.matchLosses}
-            </td>
-            <td className="w-[11%] text-center font-bold text-[10.5px]">
-              <span
-                className={
-                  item.roundDifference > 0
-                    ? "text-emerald-500"
-                    : item.roundDifference < 0
-                    ? "text-rose-500"
-                    : "text-muted-foreground"
-                }
-              >
-                {item.roundDifference > 0
-                  ? `+${item.roundDifference}`
-                  : item.roundDifference}
-              </span>
-            </td>
-            <td className="w-[10%] text-center font-extrabold text-foreground text-[10.5px]">
-              {item.setWins}
-            </td>
-            <td className="w-[11%] text-right font-black text-primary text-xs pr-1">
-              {item.points}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+  const renderTeamRow = (
+    item: ExtendedStandingItem,
+    rankBadgeColor: string,
+    rankText: string,
+    isEliminated = false
+  ) => (
+    <div
+      key={item.teamName}
+      className={`flex items-center justify-between p-2 rounded-xl border text-xs transition ${
+        isEliminated
+          ? "border-rose-500/20 bg-rose-500/5 hover:border-rose-500/40"
+          : "border-border/60 bg-muted/20 hover:border-primary/40"
+      }`}
+    >
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-black text-[10px] ${rankBadgeColor}`}
+        >
+          {rankText}
+        </span>
+        <img
+          src={item.teamLogo || "/logo.webp"}
+          alt=""
+          className="h-5 w-5 shrink-0 object-contain"
+        />
+        <span
+          className={`truncate font-bold text-[11px] ${
+            isEliminated ? "text-muted-foreground" : "text-foreground"
+          }`}
+        >
+          {item.teamName}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3 text-right">
+        <span className="text-[10.5px] font-semibold text-muted-foreground">
+          {item.matchWins}-{item.matchLosses}
+        </span>
+        <span
+          className={`text-[10.5px] font-bold w-6 ${
+            item.roundDifference > 0
+              ? "text-emerald-500"
+              : item.roundDifference < 0
+              ? "text-rose-500"
+              : "text-muted-foreground"
+          }`}
+        >
+          {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
+        </span>
+        <span className="text-[11px] font-black text-primary w-6">
+          {item.points}
+        </span>
+      </div>
+    </div>
   );
 
   return (
     <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      {/* HEADER TAB SWITCHER */}
       <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setTab("GROUP")}
+            onClick={() => setTab("DIVISION")}
             className={`rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition ${
-              tab === "GROUP"
-                ? "bg-amber-500 text-white shadow-xs"
+              tab === "DIVISION"
+                ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -103,7 +95,7 @@ export function StandingsSnapshot({
             onClick={() => setTab("GLOBAL")}
             className={`rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition ${
               tab === "GLOBAL"
-                ? "bg-emerald-600 text-white shadow-xs"
+                ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -112,7 +104,7 @@ export function StandingsSnapshot({
         </div>
 
         <Link
-          href="/tournament?tab=standing"
+          href="/tournament?tab=standings"
           className="flex items-center gap-0.5 text-[11px] font-bold text-primary hover:underline"
         >
           Full Standings <ChevronRight className="h-3.5 w-3.5" />
@@ -121,58 +113,65 @@ export function StandingsSnapshot({
 
       {loading ? (
         <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">
-          Menghitung klasemen...
+          Memuat klasemen...
         </div>
-      ) : tab === "GROUP" ? (
+      ) : tab === "DIVISION" ? (
         <div className="space-y-4">
-          {[
-            {
-              title: DIVISION_MAP.GROUP_A,
-              data: topGroupA,
-              isGroupA: true,
-              color: "text-sky-500",
-            },
-            {
-              title: DIVISION_MAP.GROUP_B,
-              data: topGroupB,
-              isGroupA: false,
-              color: "text-amber-500",
-            },
-          ].map((grp) => (
-            <div key={grp.title} className="space-y-1.5">
-              <div className="flex items-center justify-between px-2.5 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                <span className={`w-[52%] font-black text-[10px] ${grp.color}`}>
-                  {grp.title}
-                </span>
-                <span className="w-[16%] text-center">W-L</span>
-                <span className="w-[11%] text-center">RD</span>
-                <span className="w-[10%] text-center">SET</span>
-                <span className="w-[11%] text-right text-primary pr-1">PTS</span>
-              </div>
-              {renderTable(grp.data, grp.isGroupA)}
+          {/* GRUP A */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">
+              Anda Yakin? (Top 2 Auto-Lolos)
+            </span>
+            <div className="space-y-1.5">
+              {topGroupA.map((item, idx) =>
+                renderTeamRow(
+                  item,
+                  "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+                  `#${idx + 1}`
+                )
+              )}
             </div>
-          ))}
+          </div>
+
+          {/* GRUP B */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              Sakurasawa Fighters (Top 2 Auto-Lolos)
+            </span>
+            <div className="space-y-1.5">
+              {topGroupB.map((item, idx) =>
+                renderTeamRow(
+                  item,
+                  "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                  `#${idx + 1}`
+                )
+              )}
+            </div>
+          </div>
         </div>
       ) : (
+        /* TOP 8 GLOBAL WILDCARD */
         <div className="space-y-2">
-          <div className="flex items-center justify-between px-2.5 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
-            <span className="w-[52%] font-black text-[10px] text-emerald-500">
-              Klasemen Top 8 Playoff
+          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground px-1">
+            <span>Rank 1-8 Lolos Playoff</span>
+            <span className="flex gap-4">
+              <span>W-L</span>
+              <span>RD</span>
+              <span>PTS</span>
             </span>
-            <span className="w-[16%] text-center">W-L</span>
-            <span className="w-[11%] text-center">RD</span>
-            <span className="w-[10%] text-center">SET</span>
-            <span className="w-[11%] text-right text-primary pr-1">PTS</span>
           </div>
-          {topGlobal.length > 0 ? (
-            renderTable(topGlobal, false, true)
-          ) : (
-            <p className="py-4 text-center text-xs text-muted-foreground">
-              Belum ada data klasemen global.
-            </p>
-          )}
+          <div className="space-y-1.5">
+            {topGlobal.map((item, idx) => {
+              const isPlayoffZone = idx < 8;
+              const badgeStyle = isPlayoffZone
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                : "bg-rose-500/15 text-rose-600 dark:text-rose-400";
+
+              return renderTeamRow(item, badgeStyle, `${idx + 1}`, !isPlayoffZone);
+            })}
+          </div>
         </div>
       )}
     </div>
   );
-                }
+              }
