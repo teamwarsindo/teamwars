@@ -19,6 +19,7 @@ export function TournamentHub() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Baseline pekan server (Senin 08.00 WIB)
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
 
   useEffect(() => {
@@ -39,12 +40,11 @@ export function TournamentHub() {
     fetchTournament();
   }, []);
 
-  // 1. Kalkulasi standing utama
+  // 1. Single Source of Truth: Standing dihitung berdasar currentWeek
   const standings = useMemo(() => {
     return calculateStandings(schedules, masterTeams, currentWeek);
   }, [schedules, masterTeams, currentWeek]);
 
-  // 2. Top Divisi A & B (Langsung ambil dari standing grup)
   const topGroupA = useMemo(() => {
     return standings
       .filter((s) => s.groupName === DIVISION_MAP.GROUP_A)
@@ -57,7 +57,6 @@ export function TournamentHub() {
       .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP);
   }, [standings]);
 
-  // 3. Top Wildcard (Langsung ambil 4 teratas dari Standing Global resmi di luar Top Divisi)
   const topGlobal = useMemo(() => {
     const globalData = buildGlobalStandings(standings);
     return globalData
@@ -65,38 +64,56 @@ export function TournamentHub() {
       .slice(0, 4);
   }, [standings]);
 
-  const liveMatches = useMemo(() => {
-    return schedules.filter((m) => Boolean(m.streamLink) && !m.isFinished);
-  }, [schedules]);
+  // 2. Kunci seluruh match ke currentWeek
+  const currentWeekSchedules = useMemo(() => {
+    return schedules.filter((m) => (m.weekNumber || 1) === currentWeek);
+  }, [schedules, currentWeek]);
 
+  // 3. Live Matches di currentWeek
+  const liveMatches = useMemo(() => {
+    return currentWeekSchedules.filter((m) => Boolean(m.streamLink) && !m.isFinished);
+  }, [currentWeekSchedules]);
+
+  // Format tanggal hari ini dalam format WIB (YYYY-MM-DD)
+  const todayDateStrWIB = useMemo(() => {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  }, []);
+
+  // 4. Main Hari Ini di currentWeek
   const todayMatches = useMemo(() => {
-    const todayStr = new Date().toISOString().split("T")[0];
-    return schedules.filter(
+    return currentWeekSchedules.filter(
       (m) =>
         !m.isFinished &&
         Boolean(m.matchDate) &&
-        m.matchDate.startsWith(todayStr)
+        m.matchDate.startsWith(todayDateStrWIB)
     );
-  }, [schedules]);
+  }, [currentWeekSchedules, todayDateStrWIB]);
 
+  // 5. Pertandingan Berikutnya: Khusus match di HARI SELANJUTNYA (> today) dalam currentWeek
   const upcomingMatches = useMemo(() => {
-    const nowTime = Date.now();
-    return schedules
+    return currentWeekSchedules
       .filter((m) => {
         if (m.isFinished) return false;
-        const mTime = new Date(m.matchDate).getTime();
-        return !isNaN(mTime) && mTime >= nowTime;
+        if (!m.matchDate) return false;
+        const matchDayStr = m.matchDate.slice(0, 10);
+        // Hanya ambil match hari esok / selanjutnya di pekan ini
+        return matchDayStr > todayDateStrWIB;
       })
       .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime())
       .slice(0, 3);
-  }, [schedules]);
+  }, [currentWeekSchedules, todayDateStrWIB]);
 
   const recentResults = useMemo(() => {
-    return schedules
+    return currentWeekSchedules
       .filter((m) => m.isFinished)
       .sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime())
       .slice(0, 3);
-  }, [schedules]);
+  }, [currentWeekSchedules]);
 
   return (
     <div className="space-y-6">
@@ -129,4 +146,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-}
+                            }
