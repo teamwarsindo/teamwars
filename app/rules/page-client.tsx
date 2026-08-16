@@ -1,17 +1,39 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, Suspense } from "react"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared"
 
-// Import komponen lokal yang baru dibuat
 import { BackToTop } from "./components/back-to-top"
 import { ruleCategories } from "./components/rules-data"
 import { RulesSearchBar } from "./components/rules-search-bar"
 import { RulesList } from "./components/rules-list"
 
-export default function RulebookClient() {
+function RulebookContent() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const queryCategory = searchParams.get("category")?.toUpperCase() || "ALL"
+  
   const [searchQuery, setSearchQuery] = useState("")
-  const [activeCategory, setActiveCategory] = useState("ALL")
+  const [activeCategory, setActiveCategory] = useState(queryCategory)
+
+  // Sinkronkan jika URL berubah
+  useEffect(() => {
+    setActiveCategory(queryCategory)
+  }, [queryCategory])
+
+  const handleCategoryChange = (cat: string) => {
+    setActiveCategory(cat)
+    const params = new URLSearchParams(searchParams.toString())
+    if (cat === "ALL") {
+      params.delete("category")
+    } else {
+      params.set("category", cat.toLowerCase())
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
 
   const filteredRules = useMemo(() => {
     return ruleCategories
@@ -40,13 +62,12 @@ export default function RulebookClient() {
 
   const handleClearFilters = () => {
     setSearchQuery("")
-    setActiveCategory("ALL")
+    handleCategoryChange("ALL")
   }
 
   const isFilterActive = searchQuery !== "" || activeCategory !== "ALL"
 
   return (
-    // PERUBAHAN: overflow-hidden diganti menjadi overflow-clip
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
       <TopBar title="Official Rulebook" />
@@ -55,24 +76,29 @@ export default function RulebookClient() {
         <HeroHeader />
 
         <section className="flex w-full max-w-4xl flex-col items-center">
-          
           <RulesSearchBar 
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             activeCategory={activeCategory}
-            setActiveCategory={setActiveCategory}
+            setActiveCategory={handleCategoryChange}
             onClearFilters={handleClearFilters}
             isFilterActive={isFilterActive}
           />
 
           <RulesList filteredRules={filteredRules} />
-
         </section>
 
         <Footer />
         <BackToTop />
-        
       </div>
     </main>
+  )
+}
+
+export default function RulebookClient() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <RulebookContent />
+    </Suspense>
   )
 }
