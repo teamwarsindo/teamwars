@@ -131,7 +131,29 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   };
 
   const standings = useMemo(() => {
-    return calculateStandings(schedules, masterTeams, selectedWeek);
+    const current = calculateStandings(schedules, masterTeams, selectedWeek);
+
+    // Hitung rankTrend untuk Standing Grup jika selectedWeek > 1
+    if (selectedWeek > 1) {
+      const prev = calculateStandings(schedules, masterTeams, selectedWeek - 1);
+      const prevRankMap = new Map<string, number>();
+      prev.forEach((t) => prevRankMap.set(t.teamName, t.rank));
+
+      return current.map((item) => {
+        const prevRank = prevRankMap.get(item.teamName);
+        let trend: "up" | "down" | "stay" = "stay";
+        if (typeof prevRank === "number") {
+          if (item.rank < prevRank) trend = "up";
+          else if (item.rank > prevRank) trend = "down";
+        }
+        return { ...item, rankTrend: trend };
+      });
+    }
+
+    return current.map((item) => ({
+      ...item,
+      rankTrend: "stay" as const,
+    }));
   }, [schedules, masterTeams, selectedWeek]);
 
   const groupAStandings = useMemo(() => {
@@ -202,11 +224,11 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
               <th className="py-2 px-0.5 text-center w-[15%] text-primary leading-tight">
                 MATCH<br />W-L
               </th>
-              <th className="py-2 px-0.5 text-center w-[16%]">FORM</th>
               <th className="py-2 px-0.5 text-center w-[12%] leading-tight">
                 PTS<br />DIFF
               </th>
-              <th className="py-2 pl-0.5 pr-2 text-center w-[12%] leading-tight">SCORED</th>
+              <th className="py-2 px-0.5 text-center w-[12%] leading-tight">SCORED</th>
+              <th className="py-2 pl-0.5 pr-2 text-center w-[16%]">FORM</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40 font-semibold text-foreground">
@@ -247,6 +269,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
               return (
                 <tr key={item.teamId || item.teamName || idx} className={rowStyle}>
+                  {/* RANK */}
                   <td className="py-2 px-1 text-center font-bold">
                     <div className="flex items-center justify-center gap-0.5">
                       {renderTrendIcon(trend)}
@@ -276,6 +299,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     </div>
                   </td>
 
+                  {/* TEAMS */}
                   <td className="py-2 pl-1 pr-1">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <img src={item.teamLogo || "/logo.webp"} alt="" className="h-4 w-4 shrink-0 object-contain" />
@@ -288,11 +312,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   {/* MATCH W-L */}
                   <td className="py-2 px-0.5 text-center font-black text-primary text-[10.5px]">
                     {item.matchWins}-{item.matchLosses}
-                  </td>
-
-                  {/* FORM GRID (4x2) */}
-                  <td className="py-1.5 px-0.5 text-center">
-                    <MatchFormGrid form={item.form} totalMatches={8} />
                   </td>
 
                   {/* PTS DIFF */}
@@ -310,9 +329,14 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     </span>
                   </td>
 
-                  {/* SCORED (Total Decks Won) */}
-                  <td className="py-2 pl-0.5 pr-2 text-center font-extrabold text-foreground text-[10.5px]">
+                  {/* SCORED */}
+                  <td className="py-2 px-0.5 text-center font-extrabold text-foreground text-[10.5px]">
                     {item.setWins}
+                  </td>
+
+                  {/* FORM (KOLOM TERAKHIR) */}
+                  <td className="py-1.5 pl-0.5 pr-2 text-center">
+                    <MatchFormGrid form={item.form} totalMatches={8} />
                   </td>
                 </tr>
               );
