@@ -21,62 +21,72 @@ export function StandingsSnapshot({
 }: StandingsSnapshotProps) {
   const [tab, setTab] = useState<"DIVISION" | "GLOBAL">("DIVISION");
 
-  const renderTeamRow = (
-    item: ExtendedStandingItem,
+  const renderTableRows = (
+    items: ExtendedStandingItem[],
     rowBgColor: string,
-    badgeBgColor: string,
-    rankText: string
-  ) => (
-    <div
-      key={item.teamName}
-      className={`flex items-center justify-between p-2 rounded-xl border text-xs transition ${rowBgColor}`}
-    >
-      <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
-        <span
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-black text-[10px] ${badgeBgColor}`}
-        >
-          {rankText}
-        </span>
-        <img
-          src={item.teamLogo || "/logo.webp"}
-          alt=""
-          className="h-5 w-5 shrink-0 object-contain"
-        />
-        <span className="truncate font-bold text-[11px] text-foreground">
-          {item.teamName}
-        </span>
-      </div>
+    badgeBgColor: string
+  ) => {
+    return items.map((item, idx) => (
+      <tr key={item.teamName || idx} className={`${rowBgColor} transition`}>
+        {/* RANK BADGE */}
+        <td className="py-1 px-1 w-[10%] text-center">
+          <span
+            className={`inline-flex h-4 w-4 items-center justify-center rounded-sm font-semibold text-[9px] ${badgeBgColor}`}
+          >
+            {idx + 1}
+          </span>
+        </td>
 
-      <div className="flex items-center gap-2.5 text-right shrink-0">
-        <span className="text-[10.5px] font-black text-primary w-9 text-center">
+        {/* LOGO & NAMA TIM */}
+        <td className="py-1 pl-1 pr-1 w-[50%]">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <img
+              src={item.teamLogo || "/logo.webp"}
+              alt=""
+              className="h-3.5 w-3.5 shrink-0 object-contain"
+            />
+            <span className="truncate font-medium text-[10px] text-foreground">
+              {item.teamName}
+            </span>
+          </div>
+        </td>
+
+        {/* MATCH W-L */}
+        <td className="py-1 px-0.5 text-center font-semibold text-primary text-[10px] w-[14%]">
           {item.matchWins}-{item.matchLosses}
-        </span>
-        <span
-          className={`text-[10.5px] font-bold w-7 text-center ${
-            item.roundDifference > 0
-              ? "text-emerald-500"
-              : item.roundDifference < 0
-              ? "text-rose-500"
-              : "text-muted-foreground"
-          }`}
-        >
-          {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
-        </span>
-        <span className="text-[10.5px] font-extrabold text-foreground w-6 text-center">
+        </td>
+
+        {/* PTS DIFF */}
+        <td className="py-1 px-0.5 text-center font-medium text-[10px] w-[13%]">
+          <span
+            className={
+              item.roundDifference > 0
+                ? "text-emerald-500"
+                : item.roundDifference < 0
+                ? "text-rose-500"
+                : "text-muted-foreground"
+            }
+          >
+            {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
+          </span>
+        </td>
+
+        {/* SCORED */}
+        <td className="py-1 pl-0.5 pr-2 text-center font-medium text-foreground text-[10px] w-[13%]">
           {item.setWins}
-        </span>
-      </div>
-    </div>
-  );
+        </td>
+      </tr>
+    ));
+  };
 
   return (
-    <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-      {/* TAB SWITCHER */}
-      <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
-        <div className="flex items-center gap-1.5">
+    <div className="space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-4 shadow-sm">
+      {/* TAB SWITCHER & LINK */}
+      <div className="flex items-center justify-between border-b border-border/40 pb-2">
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setTab("DIVISION")}
-            className={`rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition cursor-pointer ${
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
               tab === "DIVISION"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
@@ -86,13 +96,13 @@ export function StandingsSnapshot({
           </button>
           <button
             onClick={() => setTab("GLOBAL")}
-            className={`rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition cursor-pointer ${
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
               tab === "GLOBAL"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Preview Wildcard
+            Top Wildcard
           </button>
         </div>
 
@@ -102,82 +112,97 @@ export function StandingsSnapshot({
               ? "/tournament?tab=standings&view=groups"
               : "/tournament?tab=standings&view=global"
           }
-          className="flex items-center gap-0.5 text-[11px] font-bold text-primary hover:underline"
+          className="flex items-center gap-0.5 text-[10.5px] font-medium text-primary hover:underline"
         >
-          Full Standings <ChevronRight className="h-3.5 w-3.5" />
+          Full Standings <ChevronRight className="h-3 w-3" />
         </Link>
       </div>
 
       {loading ? (
-        <div className="py-8 text-center text-xs text-muted-foreground animate-pulse">
+        <div className="py-6 text-center text-xs text-muted-foreground animate-pulse">
           Memuat klasemen...
         </div>
       ) : tab === "DIVISION" ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* GRUP A */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400 px-1">
-              <span>{DIVISION_MAP.GROUP_A}</span>
-              <span className="flex gap-2.5 text-muted-foreground">
-                <span className="w-9 text-center text-primary">W-L</span>
-                <span className="w-7 text-center">DIFF</span>
-                <span className="w-6 text-center">SCORED</span>
-              </span>
-            </div>
-            <div className="space-y-1.5">
-              {topGroupA.map((item, idx) =>
-                renderTeamRow(
-                  item,
-                  "border-sky-500/30 bg-sky-500/10 hover:border-sky-500/50",
-                  "bg-sky-500/20 text-sky-600 dark:text-sky-400",
-                  `${idx + 1}`
-                )
-              )}
+          <div className="space-y-1">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 px-1">
+              Divisi {DIVISION_MAP.GROUP_A}
+            </span>
+            <div className="overflow-hidden rounded-lg border border-sky-500/20">
+              <table className="w-full text-left table-fixed">
+                <thead className="bg-sky-500/10 border-b border-sky-500/20 text-[8.5px] font-semibold uppercase text-muted-foreground">
+                  <tr>
+                    <th className="py-1 px-1 text-center w-[10%]">#</th>
+                    <th className="py-1 pl-1 pr-1 w-[50%]">TEAM</th>
+                    <th className="py-1 px-0.5 text-center w-[14%] text-primary">W-L</th>
+                    <th className="py-1 px-0.5 text-center w-[13%]">DIFF</th>
+                    <th className="py-1 pl-0.5 pr-2 text-center w-[13%]">SCORED</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-sky-500/10">
+                  {renderTableRows(
+                    topGroupA,
+                    "bg-sky-500/5 hover:bg-sky-500/10",
+                    "bg-sky-500/20 text-sky-600 dark:text-sky-400"
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
 
           {/* GRUP B */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 px-1">
-              <span>{DIVISION_MAP.GROUP_B}</span>
-              <span className="flex gap-2.5 text-muted-foreground">
-                <span className="w-9 text-center text-primary">W-L</span>
-                <span className="w-7 text-center">DIFF</span>
-                <span className="w-6 text-center">SCORED</span>
-              </span>
-            </div>
-            <div className="space-y-1.5">
-              {topGroupB.map((item, idx) =>
-                renderTeamRow(
-                  item,
-                  "border-amber-500/30 bg-amber-500/10 hover:border-amber-500/50",
-                  "bg-amber-500/20 text-amber-600 dark:text-amber-400",
-                  `${idx + 1}`
-                )
-              )}
+          <div className="space-y-1">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-1">
+              Divisi {DIVISION_MAP.GROUP_B}
+            </span>
+            <div className="overflow-hidden rounded-lg border border-amber-500/20">
+              <table className="w-full text-left table-fixed">
+                <thead className="bg-amber-500/10 border-b border-amber-500/20 text-[8.5px] font-semibold uppercase text-muted-foreground">
+                  <tr>
+                    <th className="py-1 px-1 text-center w-[10%]">#</th>
+                    <th className="py-1 pl-1 pr-1 w-[50%]">TEAM</th>
+                    <th className="py-1 px-0.5 text-center w-[14%] text-primary">W-L</th>
+                    <th className="py-1 px-0.5 text-center w-[13%]">DIFF</th>
+                    <th className="py-1 pl-0.5 pr-2 text-center w-[13%]">SCORED</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-500/10">
+                  {renderTableRows(
+                    topGroupB,
+                    "bg-amber-500/5 hover:bg-amber-500/10",
+                    "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
       ) : (
-        /* PREVIEW WILDCARD (TOP 4 DI REKAPAN HOME) */
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground px-1">
-            <span>Rank 1–4 Wildcard Preview</span>
-            <span className="flex gap-2.5 text-muted-foreground">
-              <span className="w-9 text-center text-primary">W-L</span>
-              <span className="w-7 text-center">DIFF</span>
-              <span className="w-6 text-center">SCORED</span>
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            {topGlobal.map((item, idx) => (
-              renderTeamRow(
-                item,
-                "border-emerald-500/30 bg-emerald-500/10 hover:border-emerald-500/50",
-                "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-                `${idx + 1}`
-              )
-            ))}
+        /* TAB TOP WILDCARD */
+        <div className="space-y-1">
+          <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 px-1">
+            Top 4 Wildcard Playoff
+          </span>
+          <div className="overflow-hidden rounded-lg border border-emerald-500/20">
+            <table className="w-full text-left table-fixed">
+              <thead className="bg-emerald-500/10 border-b border-emerald-500/20 text-[8.5px] font-semibold uppercase text-muted-foreground">
+                <tr>
+                  <th className="py-1 px-1 text-center w-[10%]">#</th>
+                  <th className="py-1 pl-1 pr-1 w-[50%]">TEAM</th>
+                  <th className="py-1 px-0.5 text-center w-[14%] text-primary">W-L</th>
+                  <th className="py-1 px-0.5 text-center w-[13%]">DIFF</th>
+                  <th className="py-1 pl-0.5 pr-2 text-center w-[13%]">SCORED</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-500/10">
+                {renderTableRows(
+                  topGlobal,
+                  "bg-emerald-500/5 hover:bg-emerald-500/10",
+                  "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
