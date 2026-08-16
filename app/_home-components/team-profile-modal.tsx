@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { MatchScheduleItem } from "@/lib/tournament";
 import {
@@ -30,19 +30,28 @@ export function TeamProfileModal({
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const modalContentRef = useRef<HTMLDivElement>(null);
+
+  const teamName = team?.teamName || team?.name || "";
 
   useEffect(() => {
     setMounted(true);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    fetch(`/api/tournament/team-roster?teamName=${encodeURIComponent(team.teamName)}`)
-      .then((r) => r.json())
-      .then((j) => j.success && setRoster(j.data.players || []))
-      .finally(() => setLoading(false));
+
+    if (teamName) {
+      fetch(`/api/tournament/team-roster?teamName=${encodeURIComponent(teamName)}`)
+        .then((r) => r.json())
+        .then((j) => j.success && setRoster(j.data.players || []))
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [team.teamName]);
+  }, [teamName]);
 
   const copy = (id: string) => {
     if (!id) return;
@@ -52,7 +61,7 @@ export function TeamProfileModal({
   };
 
   const { history, nextMatch, streak } = useMemo(() => {
-    const q = team.teamName.toLowerCase();
+    const q = teamName.toLowerCase();
     const matches = allSchedules.filter(
       (m) =>
         m.teamAName.toLowerCase() === q || m.teamBName.toLowerCase() === q
@@ -83,12 +92,11 @@ export function TeamProfileModal({
         .reverse()
         .map((h) => (h.isWin ? "W" : "L")),
     };
-  }, [team.teamName, allSchedules]);
+  }, [teamName, allSchedules]);
 
   const total = (team.matchWins || 0) + (team.matchLosses || 0);
   const wr = total > 0 ? Math.round((team.matchWins / total) * 100) : 0;
 
-  // Pemisahan kolom roster: Mengalir ke bawah di kiri, lalu lanjut ke kanan
   const { leftColumn, rightColumn } = useMemo(() => {
     const mid = Math.ceil(roster.length / 2);
     return {
@@ -98,7 +106,7 @@ export function TeamProfileModal({
   }, [roster]);
 
   const renderPlayerItem = (p: any, displayIndex: number) => {
-    const dl = p.idDuelLinks || p.duelId;
+    const dl = p.idDuelLinks || p.duelId || p.idDl || p.id;
     const isCap = p.role === "Ketua" || p.role === "Kapten";
     const isCoCap = p.role === "Wakil Ketua";
 
@@ -148,25 +156,34 @@ export function TeamProfileModal({
     );
   };
 
-  if (!mounted) return null;
+  if (!mounted || !team) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 p-3 sm:p-5 backdrop-blur-sm">
-      <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden">
-        
+    <div
+      onClick={(e) => {
+        if (modalContentRef.current && !modalContentRef.current.contains(e.target as Node)) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 p-3 sm:p-5 backdrop-blur-sm animate-in fade-in"
+    >
+      <div
+        ref={modalContentRef}
+        className="relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden"
+      >
         {/* HEADER PROFIL */}
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-2xl border border-border bg-background p-1 flex items-center justify-center">
               <img
-                src={team.teamLogo || "/logo.webp"}
+                src={team.teamLogo || team.logo || "/logo.webp"}
                 alt=""
                 className="h-full w-full object-contain"
               />
             </div>
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-black truncate text-foreground">
-                {team.teamName}
+                {teamName}
               </h2>
               <div className="flex items-center gap-1.5 mt-0.5">
                 {team.rank && (
@@ -222,7 +239,7 @@ export function TeamProfileModal({
                 <span className="block text-[8px] sm:text-[8.5px] text-muted-foreground font-bold uppercase">
                   POIN
                 </span>
-                <span className="text-sm font-black text-primary">{team.points}</span>
+                <span className="text-sm font-black text-primary">{team.points ?? 0}</span>
               </div>
               <div className="rounded-xl bg-muted/40 border border-border py-2">
                 <span className="block text-[8px] sm:text-[8.5px] text-muted-foreground font-bold uppercase">
@@ -238,16 +255,16 @@ export function TeamProfileModal({
                 </span>
                 <span
                   className={`text-xs font-black ${
-                    team.roundDifference > 0
+                    (team.roundDifference ?? 0) > 0
                       ? "text-emerald-600 dark:text-emerald-400"
-                      : team.roundDifference < 0
+                      : (team.roundDifference ?? 0) < 0
                       ? "text-rose-600 dark:text-rose-400"
                       : "text-foreground"
                   }`}
                 >
-                  {team.roundDifference > 0
+                  {(team.roundDifference ?? 0) > 0
                     ? `+${team.roundDifference}`
-                    : team.roundDifference}
+                    : team.roundDifference ?? 0}
                 </span>
               </div>
               <div className="rounded-xl bg-muted/40 border border-border py-2">
@@ -355,8 +372,8 @@ export function TeamProfileModal({
             </div>
           </div>
 
-          {/* 4. SKUAD / ROSTER ANGGOTA (MOBILE: 1 KOLOM | DESKTOP: FLOW KE BAWAH LALU KE SAMPING) */}
-          <div className="space-y-1.5">
+          {/* 4. ROSTER ANGGOTA */}
+          <div className="space-y-1.5 pb-2">
             <span className="text-[9.5px] font-black uppercase text-muted-foreground flex items-center gap-1">
               <Users className="h-3 w-3 text-primary" /> Roster Anggota
             </span>
@@ -367,12 +384,10 @@ export function TeamProfileModal({
               </div>
             ) : roster.length > 0 ? (
               <div className="max-h-48 overflow-y-auto pr-1">
-                {/* Mobile View: 1 Kolom Vertikal Lurus */}
                 <div className="flex flex-col gap-1.5 sm:hidden">
                   {roster.map((p, idx) => renderPlayerItem(p, idx))}
                 </div>
 
-                {/* Desktop View: 2 Kolom (1-5 di kiri, 6-10 di kanan) */}
                 <div className="hidden sm:grid sm:grid-cols-2 gap-1.5">
                   <div className="flex flex-col gap-1.5">
                     {leftColumn.map((p, idx) => renderPlayerItem(p, idx))}
@@ -392,19 +407,8 @@ export function TeamProfileModal({
           </div>
 
         </div>
-
-        {/* FOOTER */}
-        <div className="border-t border-border bg-muted/30 p-3">
-          <button
-            onClick={onClose}
-            className="w-full rounded-2xl bg-primary py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition cursor-pointer"
-          >
-            Tutup Profil Tim
-          </button>
-        </div>
-
       </div>
     </div>,
     document.body
   );
-              }
+                }
