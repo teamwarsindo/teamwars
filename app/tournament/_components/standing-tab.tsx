@@ -24,14 +24,14 @@ function buildGlobalStandings(
   const topGroupA = groupA.slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP).map((t, i) => ({
     ...t,
     isTopGroup: true,
-    groupColor: "GROUP_A",
+    groupColor: "GROUP_A" as const,
     customRankLabel: `Top ${i + 1}`,
   }));
 
   const topGroupB = groupB.slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP).map((t, i) => ({
     ...t,
     isTopGroup: true,
-    groupColor: "GROUP_B",
+    groupColor: "GROUP_B" as const,
     customRankLabel: `Top ${i + 1}`,
   }));
 
@@ -49,7 +49,7 @@ function buildGlobalStandings(
       ...t,
       rank: idx + 1,
       isTopGroup: false,
-      groupColor: t.groupName === DIVISION_MAP.GROUP_A ? "GROUP_A" : "GROUP_B",
+      groupColor: (t.groupName === DIVISION_MAP.GROUP_A ? "GROUP_A" : "GROUP_B") as "GROUP_A" | "GROUP_B",
       customRankLabel: `${idx + 1}`,
     }));
 
@@ -66,7 +66,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Otomatis week berjalan aktif (Senin 08.00 WIB)
+  // Baseline aktif Senin 08.00 WIB
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
   const activeView = searchParams.get("view") === "global" ? "GLOBAL" : "GROUPS";
 
