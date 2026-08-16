@@ -23,7 +23,6 @@ export function calculateStandings(
 
   const teamMap = new Map<string, ExtendedStandingItem>();
 
-  // 1. Inisialisasi tim master
   masterTeams.forEach((t) => {
     const groupName =
       t.groupName === 'Group A' || t.groupName === DIVISION_MAP.GROUP_A
@@ -47,7 +46,6 @@ export function calculateStandings(
     });
   });
 
-  // 2. Akumulasi hasil pertandingan
   filteredSchedules.forEach((m) => {
     const isFinished = Boolean(m.isFinished);
     const scoreA = m.scoreA || 0;
@@ -97,6 +95,7 @@ export function calculateStandings(
     itemA.matchPlayed += 1;
     itemB.matchPlayed += 1;
 
+    // Akumulasi set per match
     itemA.setWins += scoreA;
     itemA.setLosses += scoreB;
     itemB.setWins += scoreB;
@@ -105,7 +104,6 @@ export function calculateStandings(
     itemA.roundDifference = itemA.setWins - itemA.setLosses;
     itemB.roundDifference = itemB.setWins - itemB.setLosses;
 
-    // 🟢 REGULASI POIN: Menang = 10 Poin, Kalah = Poin dari skor set yang dimenangkan
     if (scoreA > scoreB) {
       itemA.matchWins += 1;
       itemA.points += 10;
@@ -153,4 +151,4 @@ export function calculateStandings(
   );
 
   return [...groupATeams, ...groupBTeams];
-}
+        }
