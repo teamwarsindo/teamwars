@@ -16,22 +16,25 @@ export function calculateStandings(
   masterTeams: any[] = [],
   maxWeek?: number
 ): ExtendedStandingItem[] {
-  const filteredSchedules = typeof maxWeek === 'number' && maxWeek > 0
-    ? schedules.filter((m) => (m.weekNumber || 1) <= maxWeek)
-    : schedules;
+  const filteredSchedules =
+    typeof maxWeek === 'number' && maxWeek > 0
+      ? schedules.filter((m) => (m.weekNumber || 1) <= maxWeek)
+      : schedules;
 
   const teamMap = new Map<string, ExtendedStandingItem>();
 
+  // 1. Inisialisasi tim master
   masterTeams.forEach((t) => {
     const groupName =
       t.groupName === 'Group A' || t.groupName === DIVISION_MAP.GROUP_A
         ? DIVISION_MAP.GROUP_A
         : DIVISION_MAP.GROUP_B;
 
-    teamMap.set(t.name || t.teamName, {
+    const tName = t.name || t.teamName;
+    teamMap.set(tName, {
       rank: 1,
-      teamId: t.id || t.name || t.teamName,
-      teamName: t.name || t.teamName,
+      teamId: t.id || tName,
+      teamName: tName,
       teamLogo: t.logo || t.teamLogo || '/logo.webp',
       groupName,
       matchPlayed: 0,
@@ -44,6 +47,7 @@ export function calculateStandings(
     });
   });
 
+  // 2. Akumulasi hasil pertandingan
   filteredSchedules.forEach((m) => {
     const isFinished = Boolean(m.isFinished);
     const scoreA = m.scoreA || 0;
@@ -101,17 +105,17 @@ export function calculateStandings(
     itemA.roundDifference = itemA.setWins - itemA.setLosses;
     itemB.roundDifference = itemB.setWins - itemB.setLosses;
 
-    // 🟢 LOGIKA POIN BARU (MENANG = 10 POIN, KALAH = POIN SESUAI SKOR)
+    // 🟢 REGULASI POIN: Menang = 10 Poin, Kalah = Poin dari skor set yang dimenangkan
     if (scoreA > scoreB) {
       itemA.matchWins += 1;
       itemA.points += 10;
       itemB.matchLosses += 1;
-      itemB.points += scoreB; // Tim kalah mendapat poin dari skor set-nya
+      itemB.points += scoreB;
     } else if (scoreB > scoreA) {
       itemB.matchWins += 1;
       itemB.points += 10;
       itemA.matchLosses += 1;
-      itemA.points += scoreA; // Tim kalah mendapat poin dari skor set-nya
+      itemA.points += scoreA;
     }
   });
 

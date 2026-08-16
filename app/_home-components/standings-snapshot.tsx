@@ -76,7 +76,7 @@ export function StandingsSnapshot({
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setTab("DIVISION")}
-            className={`rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition ${
+            className={`rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition cursor-pointer ${
               tab === "DIVISION"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
@@ -86,7 +86,7 @@ export function StandingsSnapshot({
           </button>
           <button
             onClick={() => setTab("GLOBAL")}
-            className={`rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition ${
+            className={`rounded-lg px-2.5 py-1 text-xs font-black uppercase tracking-wider transition cursor-pointer ${
               tab === "GLOBAL"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
@@ -117,7 +117,7 @@ export function StandingsSnapshot({
           {/* GRUP A */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400 px-1">
-              <span>{DIVISION_MAP.GROUP_A} (Top 2 Auto-Lolos)</span>
+              <span>{DIVISION_MAP.GROUP_A}</span>
               <span className="flex gap-4 text-muted-foreground">
                 <span className="w-8 text-right">W-L</span>
                 <span className="w-6 text-right">RD</span>
@@ -130,7 +130,7 @@ export function StandingsSnapshot({
                   item,
                   "border-sky-500/30 bg-sky-500/10 hover:border-sky-500/50",
                   "bg-sky-500/20 text-sky-600 dark:text-sky-400",
-                  `${idx + 1}` // Tanpa simbol '#'
+                  `${idx + 1}`
                 )
               )}
             </div>
@@ -139,7 +139,7 @@ export function StandingsSnapshot({
           {/* GRUP B */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 px-1">
-              <span>{DIVISION_MAP.GROUP_B} (Top 2 Auto-Lolos)</span>
+              <span>{DIVISION_MAP.GROUP_B}</span>
               <span className="flex gap-4 text-muted-foreground">
                 <span className="w-8 text-right">W-L</span>
                 <span className="w-6 text-right">RD</span>
@@ -152,7 +152,7 @@ export function StandingsSnapshot({
                   item,
                   "border-amber-500/30 bg-amber-500/10 hover:border-amber-500/50",
                   "bg-amber-500/20 text-amber-600 dark:text-amber-400",
-                  `${idx + 1}` // Tanpa simbol '#'
+                  `${idx + 1}`
                 )
               )}
             </div>
@@ -162,7 +162,7 @@ export function StandingsSnapshot({
         /* TOP 8 GLOBAL */
         <div className="space-y-2">
           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground px-1">
-            <span>Rank 1-8 Lolos Playoff</span>
+            <span>Rank 1-8 Playoff</span>
             <span className="flex gap-4 text-muted-foreground">
               <span className="w-8 text-right">W-L</span>
               <span className="w-6 text-right">RD</span>
