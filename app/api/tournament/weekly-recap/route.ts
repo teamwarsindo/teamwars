@@ -1,60 +1,12 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem, DIVISION_MAP, getCurrentServerWeek, getMatchWeekNumber } from '@/lib/tournament';
+import { MatchScheduleItem, DIVISION_MAP, getCurrentServerWeek, getMatchWeekNumber, getTeamSlug, getWibDateKey } from '@/lib/tournament';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import {
-  sendOrUpdateWeeklyScheduleAndRecap,
-  deleteWeeklyScheduleAndRecap,
-} from '@/lib/discord/messages/weekly-recap';
+import { sendOrUpdateWeeklyScheduleAndRecap, deleteWeeklyScheduleAndRecap } from '@/lib/discord/messages/weekly-recap';
 
 const KV_KEY_SCHEDULES = 'twi:schedules';
 // CACHE RECAP GLOBAL DI LUAR (DELETE & RE-POST DI POSISI PALING BAWAH)
 const KV_KEY_GLOBAL_RECAP = 'twi:global_recap_msg_id';
-
-// Helper mengambil tanggal start turnamen dari Environment Variable Vercel
-function getTournamentStartDate(): number {
-  const startDateStr = process.env.TWI_START_DATE || '2026-08-03';
-  return new Date(`${startDateStr}T00:00:00+07:00`).getTime();
-}
-
-// Helper hitung minggu berjalan otomatis dari TWI_START_DATE
-function getCurrentServerWeek(): number {
-  const startDate = getTournamentStartDate();
-  const now = Date.now();
-  const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-  return Math.max(1, Math.floor(diffDays / 7) + 1);
-}
-
-// Helper hitung minggu berbasis tanggal jika Vercel KV belum menyimpan field weekNumber
-function getMatchWeekNumber(dateString?: string): number {
-  if (!dateString) return 1;
-  const startDate = getTournamentStartDate();
-  const matchDate = new Date(dateString).getTime();
-  if (isNaN(matchDate)) return 1;
-
-  const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
-  return Math.max(1, Math.floor(diffDays / 7) + 1);
-}
-
-// Helper format YYYY-MM-DD berbasis WIB (Asia/Jakarta)
-function getWibDateKey(dateObj: Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(dateObj);
-}
-
-// Helper slug nama tim untuk pencocokan key KV Redis
-function getTeamSlug(teamName: string) {
-  return teamName
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '');
-}
 
 // 🟢 LOGIKA UTAMA BROADCAST RECAP
 async function executeWeeklyBroadcast(targetWeekStr: string) {
