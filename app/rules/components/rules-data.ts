@@ -56,29 +56,22 @@ export const ruleCategories: RuleCategory[] = [
         ]
       },
       {
-        title: "2. Perhitungan Poin Klasemen",
+        title: "2. Sistem Perhitungan Klasemen",
         points: [
-          "a. Menang match: Mendapatkan 3 Poin.",
-          "b. Kalah match: Mendapatkan 0 Poin.",
-          "c. Menang W.O (walkover): Mendapatkan 3 poin dan 10 points scored (skor match otomatis dianggap 10-0).",
-          "d. Kalah W.O (walkover): Mendapatkan 0 poin dan 0 points scored (skor match otomatis dianggap 0-10, tim yang kalah tidak berhak mendapatkan poin kemenangan deck)."
+          "a. Match Win: Setiap kemenangan seri pertandingan (match) bernilai 1 Match Win yang menjadi penentu utama posisi klasemen.",
+          "b. Match Loss: Tim yang kalah dalam seri pertandingan tidak memperoleh kemenangan (0 Match Win).",
+          "c. Menang W.O (Walkover): Dihitung sebagai 1 Match Win dengan skor kemenangan otomatis 10-0 (memperoleh +10 Points Difference dan 10 Points Scored).",
+          "d. Kalah W.O (Walkover): Dihitung sebagai 0 Match Win dengan skor otomatis 0-10 (memperoleh -10 Points Difference dan 0 Points Scored)."
         ]
       },
       {
-        title: "3. Ketentuan Tiebreakers (Penentuan Peringkat Klasemen)",
+        title: "3. Ketentuan Tiebreakers (Pemecah Kedudukan Seri)",
         points: [
-          "Apabila terdapat dua tim atau lebih yang memiliki total poin klasemen yang sama di akhir fase, peringkat final akan ditentukan secara berurutan oleh sistem otomatis platform challonge berdasarkan kriteria berikut:",
-          "a. Match Wins: Jumlah total kemenangan pertandingan (match) yang diraih oleh tim sepanjang musim",
-          {
-            text: "b. Indikator Efisiensi Fase (Sesuai Format Fase Grup):",
-            subPoints: [
-              "i. Jika menggunakan round robin: Ditentukan berdasarkan points difference.",
-              "ii. Jika menggunakan swiss system: Ditentukan berdasarkan median-buchholz system."
-            ]
-          },
-          "c. Points Scored: Total akumulasi poin kemenangan deck/ game yang berhasil dikumpulkan oleh tim sepanjang musim.",
-          "d. Head-to-Head (H2H)",
-          "e. Tiebreaker Match: Jika masih seri setelah 3 kriteria di atas, diadakan laga ekstra. Masing-masing tim mengirim 3 pemain dengan 2 deck (total 6 deck), menggunakan aturan TWI Season 7 yang berlaku."
+          "Apabila terdapat dua tim atau lebih yang memiliki rekor kemenangan pertandingan (Match Win) yang sama di akhir fase grup, peringkat klasemen ditentukan berurutan berdasarkan kriteria berikut:",
+          "a. Points Difference (Round Difference / RD): Selisih total kemenangan deck/game yang dicetak dikurangi kebobolan (Points Scored - Points Allowed) sepanjang fase grup.",
+          "b. Points Scored (PS): Total akumulasi jumlah deck/game yang berhasil dimenangkan oleh tim sepanjang fase grup.",
+          "c. Head-to-Head (H2H): Hasil pertandingan langsung antara tim-tim yang memiliki catatan statistik identik. Tim pemenang duel langsung berhak menempati posisi lebih tinggi.",
+          "d. Tiebreaker Match: Apabila seluruh kriteria di atas masih bernilai sama persis (deadlock), diadakan laga ekstra. Masing-masing tim mengirim 3 pemain dengan 2 deck (total 6 deck), menggunakan aturan resmi TWI Season 7 yang berlaku."
         ]
       }
     ]
