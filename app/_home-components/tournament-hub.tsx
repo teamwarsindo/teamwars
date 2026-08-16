@@ -9,6 +9,9 @@ import { QuickActions } from "./quick-actions";
 import { MatchCenter } from "./match-center";
 import { StandingsSnapshot } from "./standings-snapshot";
 
+const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+const THIRTY_MINUTES_MS = 30 * 60 * 1000;
+
 function getMatchWeekNumber(dateString: string): number {
   if (!dateString) return 1;
   const startDate = new Date("2026-08-03T00:00:00+07:00").getTime();
@@ -90,8 +93,9 @@ export function TournamentHub() {
     };
   }, [schedulesWithWeek, masterTeams, currentWeek]);
 
-  // Matches Categorization: Hasil Terbaru Maksimal 3 Match
+  // Matches Categorization: Dengan Batasan 5 Jam (Auto-Expiry)
   const { liveMatches, todayMatches, upcomingMatches, recentResults } = useMemo(() => {
+    const nowTime = Date.now();
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -99,25 +103,39 @@ export function TournamentHub() {
       (m) => m.weekNumber === currentWeek && m.matchDate
     );
 
-    const live = currentWeekOnly.filter((m) => Boolean(m.streamLink) && !m.isFinished);
+    // 1. LIVE MATCH: Harus ada streamLink, belum finish, mulai 30 menit sebelum s.d. maksimal 5 jam setelah tanding
+    const live = currentWeekOnly.filter((m) => {
+      if (!m.streamLink || m.isFinished) return false;
+      const mTime = new Date(m.matchDate).getTime();
+      return nowTime >= mTime - THIRTY_MINUTES_MS && nowTime <= mTime + FIVE_HOURS_MS;
+    });
+
     const sortedAsc = [...currentWeekOnly].sort(
       (a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()
     );
 
+    // 2. MAIN HARI INI: Tanggal hari ini, belum finish, belum lewat 5 jam, dan bukan yang sedang live
+    const liveIds = new Set(live.map((l) => l.id));
     const today = sortedAsc.filter((m) => {
       const d = new Date(m.matchDate);
+      const mTime = d.getTime();
       const matchDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      return matchDay === todayStr && !m.isFinished && !m.streamLink;
+      const isWithin5Hours = nowTime <= mTime + FIVE_HOURS_MS;
+
+      return matchDay === todayStr && !m.isFinished && isWithin5Hours && !liveIds.has(m.id);
     });
 
+    // 3. PERTANDINGAN BERIKUTNYA (UPCOMING): Belum lewat batas waktu dan bukan hari ini
     const upcoming = sortedAsc
       .filter((m) => {
         const d = new Date(m.matchDate);
+        const mTime = d.getTime();
         const matchDay = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return d.getTime() > now.getTime() && matchDay !== todayStr && !m.isFinished;
+        return mTime > nowTime && matchDay !== todayStr && !m.isFinished;
       })
       .slice(0, 3);
 
+    // 4. HASIL TERBARU (Maksimal 3 Match)
     const results = [...schedulesWithWeek]
       .filter((m) => m.isFinished)
       .sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime())
@@ -131,21 +149,32 @@ export function TournamentHub() {
     };
   }, [schedulesWithWeek, currentWeek]);
 
-  // Quick Team Search
+  // Quick Team Search: Akurat Berdasarkan Target Tim
   const searchResult = useMemo(() => {
     if (!teamSearchQuery.trim()) return null;
-    const q = teamSearchQuery.toLowerCase();
+    const q = teamSearchQuery.toLowerCase().trim();
 
-    const matchedTeam = allStandings.find((t) =>
-      t.teamName.toLowerCase().includes(q)
-    );
+    // Prioritaskan tim yang berawalan kata pencarian (starts-with), baru kemudian contains
+    const matchedTeams = allStandings
+      .filter((t) => t.teamName.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const aStarts = a.teamName.toLowerCase().startsWith(q);
+        const bStarts = b.teamName.toLowerCase().startsWith(q);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return 0;
+      });
+
+    const matchedTeam = matchedTeams[0];
     if (!matchedTeam) return "NOT_FOUND";
 
+    // Kunci pencarian nextMatch secara presisi ke targetTeamName
+    const targetTeamName = matchedTeam.teamName.toLowerCase();
     const nextMatch = schedulesWithWeek
       .filter((m) => {
         const isTeamPlaying =
-          m.teamAName.toLowerCase().includes(q) ||
-          m.teamBName.toLowerCase().includes(q);
+          m.teamAName.toLowerCase() === targetTeamName ||
+          m.teamBName.toLowerCase() === targetTeamName;
         return isTeamPlaying && !m.isFinished;
       })
       .sort(
@@ -223,4 +252,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-}
+            }
