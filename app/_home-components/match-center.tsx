@@ -29,9 +29,9 @@ export function MatchCenter({
   const renderCard = (m: MatchScheduleItem) => {
     const isLive = Boolean(m.streamLink) && !m.isFinished;
     const hasStreamer = Boolean(m.streamer) && !m.isFinished;
-    
-    // Sanitasi jika data streamer masih berformat mention <@123456>
-    const displayStreamerName = m.streamer?.replace(/<@!?\d+>/g, "").trim() || "Streamer Resmi";
+
+    const displayStreamerName =
+      m.streamer?.replace(/<@!?\d+>/g, "").trim() || "Streamer Resmi";
 
     return (
       <div
@@ -46,8 +46,14 @@ export function MatchCenter({
       >
         <div className="flex items-center justify-between min-w-0">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <img src={m.teamALogo || "/logo.webp"} alt="" className="h-5 w-5 shrink-0 object-contain" />
-            <span className="truncate font-bold text-[11px] text-foreground">{m.teamAName}</span>
+            <img
+              src={m.teamALogo || "/logo.webp"}
+              alt=""
+              className="h-5 w-5 shrink-0 object-contain"
+            />
+            <span className="truncate font-bold text-[11px] text-foreground">
+              {m.teamAName}
+            </span>
           </div>
 
           <div className="px-2 text-center shrink-0 min-w-[75px]">
@@ -64,46 +70,66 @@ export function MatchCenter({
                 VS
               </span>
             )}
-            <span className="block text-[9px] text-muted-foreground mt-0.5">{formatDate(m.matchDate)}</span>
+            <span className="block text-[9px] text-muted-foreground mt-0.5">
+              {formatDate(m.matchDate)}
+            </span>
           </div>
 
           <div className="flex items-center justify-end gap-2 min-w-0 flex-1">
-            <span className="truncate font-bold text-[11px] text-right text-foreground">{m.teamBName}</span>
-            <img src={m.teamBLogo || "/logo.webp"} alt="" className="h-5 w-5 shrink-0 object-contain" />
+            <span className="truncate font-bold text-[11px] text-right text-foreground">
+              {m.teamBName}
+            </span>
+            <img
+              src={m.teamBLogo || "/logo.webp"}
+              alt=""
+              className="h-5 w-5 shrink-0 object-contain"
+            />
           </div>
         </div>
 
-        {/* 🎥 STATUS 1: LINK AKTIF / SEDANG LIVE */}
-        {isLive && m.streamLink && (
-          <div className="flex items-center justify-between border-t border-rose-500/20 pt-1.5 mt-0.5">
-            <span className="text-[10px] font-semibold text-rose-400 flex items-center gap-1">
-              <Tv className="h-3 w-3" /> Streamer: {displayStreamerName}
-            </span>
-            <a
-              href={m.streamLink}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-rose-500 transition"
-            >
-              Watch <ExternalLink className="h-2.5 w-2.5" />
-            </a>
-          </div>
-        )}
-
-        {/* 📺 STATUS 2: ADA STREAMER TAPI LINK BELUM DISHARE (AKAN DISIARKAN) */}
-        {!isLive && hasStreamer && (
-          <div className="flex items-center justify-between border-t border-purple-500/20 pt-1.5 mt-0.5">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-purple-500 dark:text-purple-300">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-500"></span>
-              </span>
-              <span className="flex items-center gap-1">
-                <Radio className="h-3 w-3" /> Akan Live by {displayStreamerName}
-              </span>
-            </div>
-            <span className="text-[9px] text-muted-foreground italic">Link 30 mnt sblm match</span>
-          </div>
+        {/* STATUS STREAMING & OPEN CALL BRANDING */}
+        {!m.isFinished && (
+          <>
+            {isLive && m.streamLink ? (
+              <div className="flex items-center justify-between border-t border-rose-500/20 pt-1.5 mt-0.5">
+                <span className="text-[10px] font-semibold text-rose-400 flex items-center gap-1">
+                  <Tv className="h-3 w-3" /> Streamer: {displayStreamerName}
+                </span>
+                <a
+                  href={m.streamLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-rose-500 transition shadow-xs"
+                >
+                  Watch <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              </div>
+            ) : hasStreamer ? (
+              <div className="flex items-center justify-between border-t border-purple-500/20 pt-1.5 mt-0.5">
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-purple-500 dark:text-purple-300">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-500"></span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Radio className="h-3 w-3" /> Live by {displayStreamerName}
+                  </span>
+                </div>
+                <span className="text-[9px] text-muted-foreground italic">
+                  Link rilis 30 mnt sblm match
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between border-t border-border/40 pt-1.5 mt-0.5">
+                <span className="text-[9.5px] font-medium text-muted-foreground flex items-center gap-1">
+                  <Tv className="h-2.5 w-2.5 text-muted-foreground/70" /> Siaran Langsung:
+                </span>
+                <span className="rounded-md bg-muted/60 px-1.5 py-0.5 text-[9px] font-bold text-amber-500/90 dark:text-amber-400 border border-amber-500/20">
+                  🎙️ Open Streamer
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -171,7 +197,9 @@ export function MatchCenter({
             <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
               Pertandingan Berikutnya
             </span>
-            {upcomingMatches.length === 0 && todayMatches.length === 0 && liveMatches.length === 0 ? (
+            {upcomingMatches.length === 0 &&
+            todayMatches.length === 0 &&
+            liveMatches.length === 0 ? (
               <div className="py-4 text-center text-xs text-muted-foreground">
                 Semua jadwal Week {currentWeek} telah selesai.
               </div>
@@ -196,5 +224,4 @@ export function MatchCenter({
       )}
     </div>
   );
-                           }
-              
+                        }
