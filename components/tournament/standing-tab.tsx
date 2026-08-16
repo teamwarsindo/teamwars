@@ -127,6 +127,15 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     }));
   }, [standings, schedules, masterTeams, selectedWeek]);
 
+  // Set tim yang masuk zona kualifikasi playoff global (Top 8 di luar Top Divisi)
+  const playoffQualifiedTeamNames = useMemo(() => {
+    return new Set(
+      globalStandings
+        .filter((item) => !item.isTopGroup && item.rank <= 8)
+        .map((item) => item.teamName.toLowerCase())
+    );
+  }, [globalStandings]);
+
   const renderTrendIcon = (trend?: "up" | "down" | "stay") => {
     if (trend === "up") return <span className="text-emerald-500 font-bold text-[9px]">▲</span>;
     if (trend === "down") return <span className="text-rose-500 font-bold text-[9px]">▼</span>;
@@ -165,6 +174,9 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                       : "bg-amber-500/15 hover:bg-amber-500/20 transition border-l-4 border-l-amber-500";
                 } else if (item.rank <= 8) {
                   rowStyle = "bg-emerald-500/15 hover:bg-emerald-500/20 transition border-l-4 border-l-emerald-500";
+                } else {
+                  // 🔴 ZONA MERAH GLOBAL
+                  rowStyle = "bg-rose-500/10 hover:bg-rose-500/15 transition border-l-4 border-l-rose-500/60";
                 }
               } else {
                 if (item.rank <= 2) {
@@ -172,10 +184,18 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     item.groupName === DIVISION_MAP.GROUP_A
                       ? "bg-sky-500/15 hover:bg-sky-500/20 transition border-l-4 border-l-sky-500"
                       : "bg-amber-500/15 hover:bg-amber-500/20 transition border-l-4 border-l-amber-500";
+                } else if (playoffQualifiedTeamNames.has(item.teamName.toLowerCase())) {
+                  // 🟢 LOLOS WILDCARD GLOBAL
+                  rowStyle = "bg-emerald-500/10 hover:bg-emerald-500/15 transition border-l-4 border-l-emerald-500";
+                } else {
+                  // 🔴 TIDAK MASUK TOP 8 GLOBAL (ZONA GUGUR)
+                  rowStyle = "bg-rose-500/10 hover:bg-rose-500/15 transition border-l-4 border-l-rose-500/60";
                 }
               }
 
               const trend = isGlobal ? item.globalRankTrend : item.rankTrend;
+              const isEliminatedInGroup = !isGlobal && item.rank > 2 && !playoffQualifiedTeamNames.has(item.teamName.toLowerCase());
+              const isEliminatedInGlobal = isGlobal && !item.isTopGroup && item.rank > 8;
 
               return (
                 <tr key={item.teamId || item.teamName || idx} className={rowStyle}>
@@ -191,10 +211,16 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                               : "text-[10px] font-black text-amber-500"
                             : isGlobal && item.rank <= 8
                             ? "text-[10px] font-black text-emerald-500"
+                            : isEliminatedInGlobal
+                            ? "text-[10px] font-black text-rose-500"
                             : !isGlobal && item.rank <= 2
                             ? item.groupName === DIVISION_MAP.GROUP_A
                               ? "text-[10px] font-black text-sky-500"
                               : "text-[10px] font-black text-amber-500"
+                            : !isGlobal && playoffQualifiedTeamNames.has(item.teamName.toLowerCase())
+                            ? "text-[10px] font-black text-emerald-500"
+                            : isEliminatedInGroup
+                            ? "text-[10px] font-black text-rose-500"
                             : ""
                         }
                       >
@@ -206,8 +232,8 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   {/* TEAMS */}
                   <td className="py-2 pl-1 pr-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <img src={item.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                      <span className="font-bold text-foreground text-[10.5px] leading-snug break-words">
+                      <img src={item.teamLogo || "/logo.webp"} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <span className={`font-bold text-[10.5px] leading-snug break-words ${isEliminatedInGroup || isEliminatedInGlobal ? "text-muted-foreground" : "text-foreground"}`}>
                         {item.teamName}
                       </span>
                     </div>
@@ -325,6 +351,12 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   <strong className="text-emerald-500 font-bold">Hijau Soft:</strong> Wildcard Playoff (Rank 1-8 Global).
                 </span>
               </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>
+                <span>
+                  <strong className="text-rose-500 font-bold">Merah Soft:</strong> Tidak Lolos Playoff (Rank 9+ Global).
+                </span>
+              </div>
             </div>
           </div>
 
@@ -333,5 +365,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       )}
     </div>
   );
-          }
-      
+                }
