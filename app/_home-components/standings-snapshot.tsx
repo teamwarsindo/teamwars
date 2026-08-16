@@ -92,7 +92,7 @@ export function StandingsSnapshot({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Top 8 Global
+            Top 4 Wildcard
           </button>
         </div>
 
@@ -159,10 +159,10 @@ export function StandingsSnapshot({
           </div>
         </div>
       ) : (
-        /* TOP 8 GLOBAL */
+        /* TOP 4 WILDCARD */
         <div className="space-y-2">
           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground px-1">
-            <span>Rank 1-8 Playoff</span>
+            <span>Rank 1–4 Wildcard</span>
             <span className="flex gap-3 text-muted-foreground">
               <span className="w-8 text-right text-primary">W-L</span>
               <span className="w-6 text-right">DIFF</span>
@@ -170,16 +170,13 @@ export function StandingsSnapshot({
             </span>
           </div>
           <div className="space-y-1.5">
-            {topGlobal.map((item, idx) => {
-              const isPlayoffZone = idx < 8;
-              const rowStyle = isPlayoffZone
-                ? "border-emerald-500/30 bg-emerald-500/10 hover:border-emerald-500/50"
-                : "border-rose-500/30 bg-rose-500/10 hover:border-rose-500/50";
-              const badgeStyle = isPlayoffZone
-                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                : "bg-rose-500/20 text-rose-600 dark:text-rose-400";
-
-              return renderTeamRow(item, rowStyle, badgeStyle, `${idx + 1}`);
+            {topGlobal.slice(0, 4).map((item, idx) => {
+              return renderTeamRow(
+                item,
+                "border-emerald-500/30 bg-emerald-500/10 hover:border-emerald-500/50",
+                "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+                `${idx + 1}`
+              );
             })}
           </div>
         </div>
