@@ -48,7 +48,7 @@ export function StandingsSnapshot({
       </div>
 
       <div className="flex items-center gap-3 text-right">
-        <span className="text-[10.5px] font-semibold text-muted-foreground w-8">
+        <span className="text-[10.5px] font-black text-primary w-8">
           {item.matchWins}-{item.matchLosses}
         </span>
         <span
@@ -62,8 +62,8 @@ export function StandingsSnapshot({
         >
           {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
         </span>
-        <span className="text-[11px] font-black text-primary w-6">
-          {item.points}
+        <span className="text-[10.5px] font-extrabold text-foreground w-6">
+          {item.setWins}
         </span>
       </div>
     </div>
@@ -118,10 +118,10 @@ export function StandingsSnapshot({
           <div className="space-y-2">
             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400 px-1">
               <span>{DIVISION_MAP.GROUP_A}</span>
-              <span className="flex gap-4 text-muted-foreground">
-                <span className="w-8 text-right">W-L</span>
-                <span className="w-6 text-right">RD</span>
-                <span className="w-6 text-right text-primary">PTS</span>
+              <span className="flex gap-3 text-muted-foreground">
+                <span className="w-8 text-right text-primary">W-L</span>
+                <span className="w-6 text-right">DIFF</span>
+                <span className="w-6 text-right">SCORED</span>
               </span>
             </div>
             <div className="space-y-1.5">
@@ -140,10 +140,10 @@ export function StandingsSnapshot({
           <div className="space-y-2">
             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 px-1">
               <span>{DIVISION_MAP.GROUP_B}</span>
-              <span className="flex gap-4 text-muted-foreground">
-                <span className="w-8 text-right">W-L</span>
-                <span className="w-6 text-right">RD</span>
-                <span className="w-6 text-right text-primary">PTS</span>
+              <span className="flex gap-3 text-muted-foreground">
+                <span className="w-8 text-right text-primary">W-L</span>
+                <span className="w-6 text-right">DIFF</span>
+                <span className="w-6 text-right">SCORED</span>
               </span>
             </div>
             <div className="space-y-1.5">
@@ -163,10 +163,10 @@ export function StandingsSnapshot({
         <div className="space-y-2">
           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground px-1">
             <span>Rank 1-8 Playoff</span>
-            <span className="flex gap-4 text-muted-foreground">
-              <span className="w-8 text-right">W-L</span>
-              <span className="w-6 text-right">RD</span>
-              <span className="w-6 text-right text-primary">PTS</span>
+            <span className="flex gap-3 text-muted-foreground">
+              <span className="w-8 text-right text-primary">W-L</span>
+              <span className="w-6 text-right">DIFF</span>
+              <span className="w-6 text-right">SCORED</span>
             </span>
           </div>
           <div className="space-y-1.5">

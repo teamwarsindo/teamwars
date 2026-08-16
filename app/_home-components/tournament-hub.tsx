@@ -55,11 +55,10 @@ export function TournamentHub() {
       .slice(0, 2);
   }, [standings]);
 
-  // Top 4 Global (Sortir Poin -> Match Wins -> RD -> Set Wins)
+  // Top 4 Global (Sortir: Match Wins -> PTS DIFF -> SCORED)
   const topGlobal = useMemo(() => {
     return [...standings]
       .sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
         if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
         if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
         return b.setWins - a.setWins;
@@ -139,4 +138,3 @@ export function TournamentHub() {
     </div>
   );
 }
-  

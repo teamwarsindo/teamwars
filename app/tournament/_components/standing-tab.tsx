@@ -15,6 +15,42 @@ interface StandingTabProps {
   masterTeams: any[];
 }
 
+function MatchFormGrid({ form = [], totalMatches = 8 }: { form?: ("W" | "L")[]; totalMatches?: number }) {
+  const slots = Array.from({ length: totalMatches }, (_, i) => form[i] || null);
+
+  return (
+    <div className="grid grid-cols-4 gap-1 w-fit mx-auto">
+      {slots.map((res, idx) => {
+        if (!res) {
+          return (
+            <span
+              key={idx}
+              className="flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded-sm bg-muted/40 text-muted-foreground/30 text-[8px] sm:text-[9px] font-bold border border-dashed border-border/50"
+              title={`Match ${idx + 1}: Belum bertanding`}
+            >
+              ·
+            </span>
+          );
+        }
+
+        return (
+          <span
+            key={idx}
+            className={`flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded-sm text-[8px] sm:text-[9px] font-black ${
+              res === "W"
+                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+            }`}
+            title={`Match ${idx + 1}: ${res === "W" ? "Win" : "Lose"}`}
+          >
+            {res}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function buildGlobalStandings(
   standings: ExtendedStandingItem[]
 ): (ExtendedStandingItem & { globalRank: number; globalRankTrend?: "up" | "down" | "stay" })[] {
@@ -41,9 +77,9 @@ function buildGlobalStandings(
   const remainingTeams = standings
     .filter((t) => !top4Names.has(t.teamName))
     .sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
       if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-      return b.roundDifference - a.roundDifference;
+      if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
+      return b.setWins - a.setWins;
     })
     .map((t, idx) => ({
       ...t,
@@ -66,7 +102,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Baseline aktif Senin 08.00 WIB
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
   const activeView = searchParams.get("view") === "global" ? "GLOBAL" : "GROUPS";
 
@@ -162,14 +197,16 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         <table className="w-full text-left text-[11px] table-fixed">
           <thead className="bg-muted/60 border-b border-border text-[9px] font-extrabold uppercase text-muted-foreground tracking-wider">
             <tr>
-              <th className={`py-2 px-1 text-center ${isGlobal ? "w-[18%]" : "w-[12%]"}`}>RANK</th>
-              <th className={`py-2 pl-1 pr-1 ${isGlobal ? "w-[32%]" : "w-[38%]"}`}>TEAMS</th>
-              <th className="py-2 px-0.5 text-center w-[16%] leading-tight">
+              <th className={`py-2 px-1 text-center ${isGlobal ? "w-[15%]" : "w-[12%]"}`}>RANK</th>
+              <th className={`py-2 pl-1 pr-1 ${isGlobal ? "w-[31%]" : "w-[34%]"}`}>TEAMS</th>
+              <th className="py-2 px-0.5 text-center w-[15%] text-primary leading-tight">
                 MATCH<br />W-L
               </th>
-              <th className="py-2 px-0.5 text-center w-[11%]">RD</th>
-              <th className="py-2 px-0.5 text-center w-[11%]">SET WINS</th>
-              <th className="py-2 pl-0.5 pr-2 text-center w-[12%] text-primary">POINTS</th>
+              <th className="py-2 px-0.5 text-center w-[16%]">FORM</th>
+              <th className="py-2 px-0.5 text-center w-[12%] leading-tight">
+                PTS<br />DIFF
+              </th>
+              <th className="py-2 pl-0.5 pr-2 text-center w-[12%] leading-tight">SCORED</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40 font-semibold text-foreground">
@@ -248,10 +285,17 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     </div>
                   </td>
 
-                  <td className="py-2 px-0.5 text-center font-bold text-[10.5px]">
+                  {/* MATCH W-L */}
+                  <td className="py-2 px-0.5 text-center font-black text-primary text-[10.5px]">
                     {item.matchWins}-{item.matchLosses}
                   </td>
 
+                  {/* FORM GRID (4x2) */}
+                  <td className="py-1.5 px-0.5 text-center">
+                    <MatchFormGrid form={item.form} totalMatches={8} />
+                  </td>
+
+                  {/* PTS DIFF */}
                   <td className="py-2 px-0.5 text-center font-bold text-[10.5px]">
                     <span
                       className={
@@ -266,12 +310,9 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     </span>
                   </td>
 
-                  <td className="py-2 px-0.5 text-center font-extrabold text-foreground text-[10.5px]">
+                  {/* SCORED (Total Decks Won) */}
+                  <td className="py-2 pl-0.5 pr-2 text-center font-extrabold text-foreground text-[10.5px]">
                     {item.setWins}
-                  </td>
-
-                  <td className="py-2 pl-0.5 pr-2 text-center font-black text-primary text-xs">
-                    {item.points}
                   </td>
                 </tr>
               );
@@ -334,15 +375,15 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         <div className="flex flex-col gap-1 pl-3 text-muted-foreground font-semibold">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0"></span>
-            <span>Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_A})</span>
+            <span>Lolos Otomatis Quarter Finals (Top 2 {DIVISION_MAP.GROUP_A})</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
-            <span>Lolos Otomatis (Top 2 {DIVISION_MAP.GROUP_B})</span>
+            <span>Lolos Otomatis Quarter Finals (Top 2 {DIVISION_MAP.GROUP_B})</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-            <span>Wildcard Playoff (Rank 1-8 Global)</span>
+            <span>Wildcard Playoff Round 1 (Rank 1-8 Global)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>

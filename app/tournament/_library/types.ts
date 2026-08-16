@@ -111,4 +111,5 @@ export interface TeamStandingItem {
   setLosses: number;
   roundDifference: number;
   points: number;
+  form?: ("W" | "L")[];
 }
