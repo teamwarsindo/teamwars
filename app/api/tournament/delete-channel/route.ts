@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/lib/types/tournament';
+import { MatchScheduleItem } from '@/lib/tournament';
 import { deleteMatchDiscordChannel } from '@/lib/discord/channels';
 
 function getTeamSlug(teamName: string) {
