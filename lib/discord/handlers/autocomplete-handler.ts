@@ -127,3 +127,32 @@ export async function handleAssignAutocomplete(interaction: any) {
 
   return { type: 8, data: { choices: [] } };
 }
+
+// Tambahkan potongan logika berikut di dalam handleAssignAutocomplete (atau buat export baru):
+export async function handleRescheduleAutocomplete(interaction: any) {
+  const channelId = interaction.channel_id;
+  const options = interaction.data?.options || [];
+  const focusedOption = options.find((opt: any) => opt.focused);
+  if (!focusedOption) return { type: 8, data: { choices: [] } };
+
+  const query = (focusedOption.value || '').toLowerCase();
+
+  // Autocomplete Tanggal Pilihan Sesuai Channel Match
+  if (focusedOption.name === 'tanggal') {
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const match = schedules.find((m) => (m as any).discordChannelId === channelId);
+
+    if (!match) return { type: 8, data: { choices: [] } };
+
+    const { getAvailableRescheduleSlots } = await import('@/app/tournament/_library/reschedule-helper');
+    const availableSlots = getAvailableRescheduleSlots(schedules, match);
+
+    const choices = availableSlots
+      .filter((s) => s.name.toLowerCase().includes(query))
+      .slice(0, 25);
+
+    return { type: 8, data: { choices } };
+  }
+
+  return { type: 8, data: { choices: [] } };
+}
