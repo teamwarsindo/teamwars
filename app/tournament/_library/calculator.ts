@@ -1,11 +1,29 @@
 import { MatchScheduleItem, TeamStandingItem } from "./types";
-import { DIVISION_MAP, TOURNAMENT_RULES } from "./constants";
+import { DIVISION_MAP, TOURNAMENT_RULES, TWI_START_DATETIME } from "./constants";
 
 export interface ExtendedStandingItem extends TeamStandingItem {
   isTopGroup?: boolean;
   groupColor?: "GROUP_A" | "GROUP_B";
   customRankLabel?: string;
   rankTrend?: "up" | "down" | "stay";
+}
+
+/**
+ * 🟢 Helper resmi menghitung nomor minggu turnamen (1-indexed)
+ * Berdasarkan baseline kick-off resmi dari TWI_START_DATETIME (Senin Pukul 08.00 WIB)
+ * @param dateString ISO string tanggal yang ingin dicek (opsional, default: waktu sekarang)
+ */
+export function getTournamentWeekNumber(dateString?: string): number {
+  const startDate = new Date(TWI_START_DATETIME).getTime();
+  const targetDate = dateString ? new Date(dateString).getTime() : Date.now();
+
+  if (isNaN(targetDate)) return 1;
+
+  const diffMs = targetDate - startDate;
+  if (diffMs < 0) return 1; // Sebelum kick-off resmi tetap dihitung Week 1
+
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
 }
 
 export function calculateStandings(
@@ -227,5 +245,4 @@ export function buildGlobalStandings(
     ...item,
     globalRank: index + 1,
   }));
-      }
-                   
+          }
