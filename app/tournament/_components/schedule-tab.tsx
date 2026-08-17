@@ -7,7 +7,7 @@ import {
   DIVISION_MAP,
   formatMatchWIB,
 } from "@/app/tournament/_library";
-import { ChevronDown, Check, RotateCcw } from "lucide-react";
+import { ChevronDown, Check, RotateCcw, Radio, Tv, ExternalLink } from "lucide-react";
 
 export interface ScheduleTabProps {
   schedules: MatchScheduleItem[];
@@ -100,32 +100,39 @@ export function ScheduleTab({
     );
   }, [selectedWeekFilter, selectedGroupFilter, selectedTeamFilter, defaultWeek]);
 
+  // Filter & Sort Kronologis Waktu Otomatis
   const filteredSchedules = useMemo(() => {
-    return schedules.filter((m) => {
-      const mWeek = m.weekNumber || 1;
+    return schedules
+      .filter((m) => {
+        const mWeek = m.weekNumber || 1;
 
-      if (selectedWeekFilter === "ALL") {
-        if (!isAdmin && mWeek > defaultWeek) return false;
-      } else if (mWeek !== selectedWeekFilter) {
-        return false;
-      }
+        if (selectedWeekFilter === "ALL") {
+          if (!isAdmin && mWeek > defaultWeek) return false;
+        } else if (mWeek !== selectedWeekFilter) {
+          return false;
+        }
 
-      if (selectedGroupFilter !== "ALL") {
-        const isGroupAMatch = m.groupName === "Group A" || m.groupName === groupAName;
-        const isGroupBMatch = m.groupName === "Group B" || m.groupName === groupBName;
-        if (selectedGroupFilter === "Group A" && !isGroupAMatch) return false;
-        if (selectedGroupFilter === "Group B" && !isGroupBMatch) return false;
-      }
+        if (selectedGroupFilter !== "ALL") {
+          const isGroupAMatch = m.groupName === "Group A" || m.groupName === groupAName;
+          const isGroupBMatch = m.groupName === "Group B" || m.groupName === groupBName;
+          if (selectedGroupFilter === "Group A" && !isGroupAMatch) return false;
+          if (selectedGroupFilter === "Group B" && !isGroupBMatch) return false;
+        }
 
-      if (
-        selectedTeamFilter !== "ALL" &&
-        m.teamAName !== selectedTeamFilter &&
-        m.teamBName !== selectedTeamFilter
-      ) {
-        return false;
-      }
-      return true;
-    });
+        if (
+          selectedTeamFilter !== "ALL" &&
+          m.teamAName !== selectedTeamFilter &&
+          m.teamBName !== selectedTeamFilter
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const timeA = a.matchDate ? new Date(a.matchDate).getTime() : 0;
+        const timeB = b.matchDate ? new Date(b.matchDate).getTime() : 0;
+        return timeA - timeB; // Urut otomatis dari yang paling awal ke yang paling akhir
+      });
   }, [
     schedules,
     selectedWeekFilter,
@@ -156,62 +163,124 @@ export function ScheduleTab({
   const renderMatchCard = (match: MatchScheduleItem) => {
     const isGroupA = match.groupName === "Group A" || match.groupName === groupAName;
     const groupDisplayName = isGroupA ? groupAName : groupBName;
+    const isLive = Boolean(match.streamLink) && !match.isFinished;
+    const isPlayed = match.isFinished || (match.scoreA || 0) + (match.scoreB || 0) > 0;
+
+    const isWinA = match.isFinished && (match.scoreA || 0) > (match.scoreB || 0);
+    const isWinB = match.isFinished && (match.scoreB || 0) > (match.scoreA || 0);
 
     return (
       <div
         key={match.id}
         onClick={() => onSelectMatch(match)}
-        className={`border transition p-3 rounded-2xl shadow-sm cursor-pointer space-y-2.5 ${
+        className={`border transition p-3 rounded-2xl shadow-xs cursor-pointer space-y-2 relative ${
           isGroupA
-            ? "bg-sky-500/5 border-sky-500/40 hover:border-sky-500"
-            : "bg-amber-500/5 border-amber-500/40 hover:border-amber-500"
+            ? "bg-sky-500/[0.04] border-sky-500/30 hover:border-sky-500/60"
+            : "bg-amber-500/[0.04] border-amber-500/30 hover:border-amber-500/60"
         }`}
       >
-        <div className="flex items-center justify-between text-[10px] font-bold">
+        {/* CARD HEADER */}
+        <div className="flex items-center justify-between text-[10px]">
           <span
-            className={`text-[10px] font-black uppercase ${
-              isGroupA ? "text-sky-500" : "text-amber-500"
+            className={`font-bold uppercase tracking-wider text-[9.5px] ${
+              isGroupA ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400"
             }`}
           >
             {groupDisplayName}
           </span>
-          <span className="text-muted-foreground">{formatMatchWIB(match.matchDate)}</span>
+          <span className="text-muted-foreground font-medium">
+            {formatMatchWIB(match.matchDate)}
+          </span>
         </div>
 
-        <div className="grid grid-cols-7 items-center gap-1 text-center">
-          <div className="col-span-3 flex items-center justify-end gap-1.5 min-w-0 pr-1">
-            <span className="font-bold text-[11px] text-foreground break-words text-right leading-snug">
+        {/* TEAMS & SCORE CENTER */}
+        <div className="grid grid-cols-7 items-center gap-1.5 text-center py-0.5">
+          {/* TEAM A */}
+          <div className="col-span-3 flex items-center justify-end gap-1.5 min-w-0 pr-0.5">
+            <span
+              className={`text-[10.5px] truncate text-right leading-snug ${
+                isPlayed
+                  ? isWinA
+                    ? "font-bold text-foreground"
+                    : "font-normal text-muted-foreground"
+                  : "font-semibold text-foreground"
+              }`}
+            >
               {match.teamAName}
             </span>
             <img
               src={match.teamALogo || "/logo.webp"}
               alt=""
-              className="h-5 w-5 shrink-0 object-contain"
+              className="h-4.5 w-4.5 shrink-0 object-contain"
             />
           </div>
 
+          {/* BADGE SKOR / VS / LIVE */}
           <div className="col-span-1 flex justify-center">
-            {match.isFinished || (match.scoreA || 0) + (match.scoreB || 0) > 0 ? (
-              <span className="px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-xs shadow-xs whitespace-nowrap">
+            {isLive ? (
+              <span className="flex items-center gap-1 rounded bg-rose-500 px-2 py-0.5 text-[8.5px] font-black text-white uppercase tracking-wider animate-pulse shadow-xs">
+                <Radio className="h-2.5 w-2.5" /> LIVE
+              </span>
+            ) : isPlayed ? (
+              <span
+                className={`px-2 py-0.5 rounded-md font-bold text-[11px] shadow-2xs whitespace-nowrap text-white ${
+                  isGroupA ? "bg-sky-600 dark:bg-sky-500" : "bg-amber-600 dark:bg-amber-500"
+                }`}
+              >
                 {match.scoreA} - {match.scoreB}
               </span>
             ) : (
-              <span className="px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-[11px] shadow-xs whitespace-nowrap">
+              <span className="px-2 py-0.5 rounded-md bg-muted/80 text-muted-foreground font-bold text-[10px] whitespace-nowrap border border-border/40">
                 VS
               </span>
             )}
           </div>
 
-          <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0 pl-1">
+          {/* TEAM B */}
+          <div className="col-span-3 flex items-center justify-start gap-1.5 min-w-0 pl-0.5">
             <img
               src={match.teamBLogo || "/logo.webp"}
               alt=""
-              className="h-5 w-5 shrink-0 object-contain"
+              className="h-4.5 w-4.5 shrink-0 object-contain"
             />
-            <span className="font-bold text-[11px] text-foreground break-words text-left leading-snug">
+            <span
+              className={`text-[10.5px] truncate text-left leading-snug ${
+                isPlayed
+                  ? isWinB
+                    ? "font-bold text-foreground"
+                    : "font-normal text-muted-foreground"
+                  : "font-semibold text-foreground"
+              }`}
+            >
               {match.teamBName}
             </span>
           </div>
+        </div>
+
+        {/* CARD FOOTER (STREAMER / REFEREE / LINK ACTION) */}
+        <div className="flex items-center justify-between border-t border-border/30 pt-1 text-[9px] text-muted-foreground">
+          <span className="truncate flex items-center gap-1">
+            {match.streamer ? (
+              <>
+                <Tv className="h-3 w-3 text-primary shrink-0" />
+                <span className="truncate">Streamer: {match.streamer}</span>
+              </>
+            ) : (
+              <span>🎙️ Official Match</span>
+            )}
+          </span>
+
+          {match.streamLink && (
+            <a
+              href={match.streamLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-0.5 font-bold text-rose-500 hover:text-rose-600 transition"
+            >
+              Live <ExternalLink className="h-2.5 w-2.5" />
+            </a>
+          )}
         </div>
       </div>
     );
@@ -220,14 +289,14 @@ export function ScheduleTab({
   return (
     <div className="space-y-4">
       {/* FILTER PANEL */}
-      <div className="bg-card border border-border p-3.5 rounded-2xl shadow-sm space-y-3">
-        {/* 3 BUTTON FILTER DIVISI TERHUBUNG ROUTE */}
+      <div className="bg-card border border-border p-3 sm:p-3.5 rounded-2xl shadow-xs space-y-2.5">
+        {/* 3 BUTTON FILTER DIVISI */}
         <div className="grid grid-cols-3 gap-1.5 w-full">
           <button
             onClick={() => handleGroupChange("ALL")}
-            className={`py-2 px-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer leading-snug break-words ${
+            className={`py-1.5 px-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer leading-snug break-words ${
               selectedGroupFilter === "ALL"
-                ? "bg-primary text-primary-foreground shadow-sm"
+                ? "bg-primary text-primary-foreground shadow-xs"
                 : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40"
             }`}
           >
@@ -235,9 +304,9 @@ export function ScheduleTab({
           </button>
           <button
             onClick={() => handleGroupChange("Group A")}
-            className={`py-2 px-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer leading-snug break-words ${
+            className={`py-1.5 px-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer leading-snug break-words ${
               selectedGroupFilter === "Group A"
-                ? "bg-sky-500 text-white shadow-sm"
+                ? "bg-sky-500 text-white shadow-xs"
                 : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40"
             }`}
           >
@@ -245,9 +314,9 @@ export function ScheduleTab({
           </button>
           <button
             onClick={() => handleGroupChange("Group B")}
-            className={`py-2 px-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer leading-snug break-words ${
+            className={`py-1.5 px-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer leading-snug break-words ${
               selectedGroupFilter === "Group B"
-                ? "bg-amber-500 text-white shadow-sm"
+                ? "bg-amber-500 text-white shadow-xs"
                 : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40"
             }`}
           >
@@ -265,12 +334,12 @@ export function ScheduleTab({
                 setIsTeamDropdownOpen(!isTeamDropdownOpen);
                 setIsWeekDropdownOpen(false);
               }}
-              className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-foreground flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
+              className="w-full bg-background border border-input rounded-xl px-3 py-2 text-[11px] font-medium text-foreground flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
             >
               <span className="truncate">
                 {selectedTeamFilter === "ALL" ? "Semua Tim" : selectedTeamFilter}
               </span>
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isTeamDropdownOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isTeamDropdownOpen ? "rotate-180" : ""}`} />
             </button>
 
             {isTeamDropdownOpen && (
@@ -281,7 +350,7 @@ export function ScheduleTab({
                     setSelectedTeamFilter("ALL");
                     setIsTeamDropdownOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] font-medium transition cursor-pointer ${
                     selectedTeamFilter === "ALL"
                       ? "bg-primary/10 text-primary font-bold"
                       : "text-popover-foreground hover:bg-accent"
@@ -299,7 +368,7 @@ export function ScheduleTab({
                       setSelectedTeamFilter(team);
                       setIsTeamDropdownOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] font-medium transition cursor-pointer ${
                       selectedTeamFilter === team
                         ? "bg-primary/10 text-primary font-bold"
                         : "text-popover-foreground hover:bg-accent"
@@ -321,12 +390,12 @@ export function ScheduleTab({
                 setIsWeekDropdownOpen(!isWeekDropdownOpen);
                 setIsTeamDropdownOpen(false);
               }}
-              className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs font-bold text-primary flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
+              className="w-full bg-background border border-input rounded-xl px-3 py-2 text-[11px] font-bold text-primary flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
             >
               <span className="truncate">
                 {selectedWeekFilter === "ALL" ? "Semua Week" : `Week ${selectedWeekFilter}`}
               </span>
-              <ChevronDown className={`h-4 w-4 text-primary transition-transform ${isWeekDropdownOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`h-3.5 w-3.5 text-primary transition-transform ${isWeekDropdownOpen ? "rotate-180" : ""}`} />
             </button>
 
             {isWeekDropdownOpen && (
@@ -337,7 +406,7 @@ export function ScheduleTab({
                     setSelectedWeekFilter("ALL");
                     setIsWeekDropdownOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] font-medium transition cursor-pointer ${
                     selectedWeekFilter === "ALL"
                       ? "bg-primary/10 text-primary font-bold"
                       : "text-popover-foreground hover:bg-accent"
@@ -355,7 +424,7 @@ export function ScheduleTab({
                       setSelectedWeekFilter(w);
                       setIsWeekDropdownOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] font-medium transition cursor-pointer ${
                       selectedWeekFilter === w
                         ? "bg-primary/10 text-primary font-bold"
                         : "text-popover-foreground hover:bg-accent"
@@ -373,7 +442,7 @@ export function ScheduleTab({
           <button
             onClick={handleResetFilters}
             disabled={!isFilterActive}
-            className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+            className={`w-full py-2 px-3 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
               isFilterActive
                 ? "bg-rose-500 text-white shadow-xs hover:bg-rose-600"
                 : "bg-muted/30 text-muted-foreground/60 border border-border/30 cursor-not-allowed"
@@ -386,10 +455,10 @@ export function ScheduleTab({
 
         {/* ADMIN SYNC BUTTON */}
         {isAdmin && (
-          <div className="pt-2 border-t border-border/30 text-right">
+          <div className="pt-1.5 border-t border-border/30 text-right">
             <button
               onClick={onResetSchedules}
-              className="text-[11px] font-black text-rose-500 hover:text-rose-400 transition cursor-pointer"
+              className="text-[10.5px] font-black text-rose-500 hover:text-rose-400 transition cursor-pointer"
             >
               ⚡ Sync Roulette &amp; Jadwal
             </button>
@@ -399,14 +468,14 @@ export function ScheduleTab({
 
       {/* LIST KARTU JADWAL */}
       {groupedByWeek.length === 0 ? (
-        <div className="p-8 text-center text-xs font-bold text-muted-foreground bg-card border border-border rounded-2xl">
+        <div className="p-8 text-center text-[11px] font-semibold text-muted-foreground bg-card border border-border rounded-2xl">
           Tidak ada jadwal pertandingan yang sesuai dengan filter.
         </div>
       ) : (
         groupedByWeek.map(([weekNum, matches]) => (
-          <div key={weekNum} className="space-y-3">
+          <div key={weekNum} className="space-y-2.5">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-black uppercase text-primary tracking-wider flex items-center gap-1">
+              <span className="text-[11px] font-bold uppercase text-primary tracking-wider">
                 WEEK {weekNum}
               </span>
               <div className="h-[1px] flex-1 bg-border/60"></div>
@@ -419,5 +488,5 @@ export function ScheduleTab({
         ))
       )}
     </div>
-  );
+  );                   
 }
