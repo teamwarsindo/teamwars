@@ -129,7 +129,7 @@ export async function handleRescheduleCommand(interaction: any) {
     streamerName: match.streamerDiscordId ? `<@${match.streamerDiscordId}>` : match.streamer,
     streamerDiscordId: match.streamerDiscordId,
     streamLink: match.streamLink,
-    existingMsgId: (match as any).openingMsgId, // Mengirimkan ID lama memastikan tidak ada mention/tag role tim
+    existingMsgId: (match as any).openingMsgId,
     isFinished: false,
     scoreA: match.scoreA,
     scoreB: match.scoreB,
@@ -140,14 +140,18 @@ export async function handleRescheduleCommand(interaction: any) {
     await kv.set('twi:schedules', schedules);
   }
 
-  // 🚀 8. Trigger Recap di Latar Belakang (Non-Blocking)
+  // 🚀 8. Eksekusi Weekly Recap (Ditunggu dengan await agar tidak dihentikan Vercel)
   if (optUpdateRecap) {
     const targetWeekStr = `Week ${match.weekNumber || 1}`;
-    fetch(`${APP_URL}/api/tournament/weekly-recap`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetWeek: targetWeekStr }),
-    }).catch((err) => console.error('[RESCHEDULE RECAP ASYNC ERROR]:', err));
+    try {
+      await fetch(`${APP_URL}/api/tournament/weekly-recap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetWeek: targetWeekStr }),
+      });
+    } catch (err) {
+      console.error('[RESCHEDULE RECAP ERROR]:', err);
+    }
   }
 
   // 📝 9. Respons Konfirmasi Instan
@@ -159,8 +163,8 @@ export async function handleRescheduleCommand(interaction: any) {
         `⚔️ **Match:** \`${match.id.toUpperCase()}\` (${match.teamAName} vs ${match.teamBName})\n` +
         `⏱️ **Jadwal Semula:** ${oldScheduleFormatted}\n` +
         `📅 **Jadwal Baru:** **${newScheduleFormatted}**\n\n` +
-        `📌 *Opening message telah diperbarui${optUpdateRecap ? ' & sinkronisasi recap sedang berjalan' : ''}.*`,
+        `📌 *Opening message telah diperbarui${optUpdateRecap ? ' & jadwal di channel rekap telah disinkronkan' : ''}.*`,
       flags: 64,
     },
   };
-}
+    }
