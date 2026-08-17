@@ -3,8 +3,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
-import { ScheduleFilter } from "./schedule/schedule-filter";
-import { ScheduleCard } from "./schedule/schedule-card";
+import { ScheduleFilter } from "./schedule-filter";
+import { ScheduleCard } from "./schedule-card";
 
 export interface ScheduleTabProps {
   schedules: MatchScheduleItem[];
