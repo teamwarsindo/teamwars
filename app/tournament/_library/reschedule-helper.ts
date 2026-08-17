@@ -58,8 +58,7 @@ export function getAvailableRescheduleSlots(
       year: 'numeric',
       timeZone: 'Asia/Jakarta',
     });
-
-    const isCurrentMatchDate = getWibDateKey(new Date(targetMatch.matchDate)) === dateKey;
+    
     const statusLabel = isCurrentMatchDate
       ? '(Jadwal Saat Ini)'
       : `(Sisa ${remainingSlots} Match)`;
