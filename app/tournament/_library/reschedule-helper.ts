@@ -44,10 +44,13 @@ export function getAvailableRescheduleSlots(
     const dateKey = getWibDateKey(d); // YYYY-MM-DD
     const count = matchCountByDate.get(dateKey) || 0;
     const remainingSlots = Math.max(0, 3 - count); // Maksimal 3 match per hari
+    const isCurrentMatchDate = getWibDateKey(new Date(targetMatch.matchDate)) === dateKey;
 
-    // 🔴 Abaikan (jangan tampilkan) hari jika kuotanya sudah habis / sisa 0
-    if (remainingSlots <= 0) continue;
-
+    // 🔴 Abaikan jika kuota penuh (sisa <= 0) ATAU merupakan tanggal match saat ini
+    if (remainingSlots <= 0 || isCurrentMatchDate) {
+      continue;
+    }
+    
     const formattedDay = d.toLocaleDateString('id-ID', {
       weekday: 'short',
       day: 'numeric',
