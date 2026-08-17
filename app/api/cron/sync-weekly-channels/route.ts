@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
-import { getTournamentWeekNumber } from "@/app/tournament/_library";
+import { getTournamentWeekNumber } from "@/app/tournament/_library/calculator";
 
 export async function GET(req: NextRequest) {
   try {
