@@ -2,36 +2,41 @@ import { NextResponse } from 'next/server';
 import { discordAPI } from '@/lib/discord/utils';
 
 export async function GET(req: Request) {
-  const appId = process.env.DISCORD_CLIENT_ID; 
-  if (!appId) return NextResponse.json({ error: 'Missing Client ID in Environment Variables' }, { status: 500 });
+  const appId = process.env.DISCORD_CLIENT_ID;
+  if (!appId) {
+    return NextResponse.json(
+      { error: 'Missing Client ID in Environment Variables' },
+      { status: 500 }
+    );
+  }
 
   const commands = [
     // 🟢 1. ASSIGN COMMAND
     {
       name: 'assign',
-      description: 'Tugaskan Referee atau Streamer ke Pertandingan (Chief/Admin)',
+      description: '[PANITIA] Tugaskan Referee atau Streamer ke jadwal pertandingan aktif',
       options: [
         {
-          type: 3,
+          type: 3, // STRING
           name: 'match',
-          description: 'Pilih pertandingan pada Week Aktif',
+          description: 'Pilih pertandingan pada minggu aktif',
           required: true,
           autocomplete: true,
         },
         {
-          type: 3,
+          type: 3, // STRING
           name: 'type',
-          description: 'Pilih peran penugasan',
+          description: 'Pilih peran penugasan staf',
           required: true,
           choices: [
-            { name: '⚖️ Referee', value: 'REFEREE' },
-            { name: '🎥 Streamer', value: 'STREAMER' },
+            { name: '⚖️ Referee (Wasit Pertandingan)', value: 'REFEREE' },
+            { name: '🎥 Streamer (Kreator / Caster)', value: 'STREAMER' },
           ],
         },
         {
-          type: 3,
+          type: 3, // STRING
           name: 'user',
-          description: 'Pilih nama staf (terfilter sesuai role)',
+          description: 'Pilih staf bertugas sesuai ketersediaan role',
           required: true,
           autocomplete: true,
         },
@@ -41,62 +46,62 @@ export async function GET(req: Request) {
     // 🔴 2. UNASSIGN COMMAND (MATCH SELESAI)
     {
       name: 'unassign',
-      description: 'Selesaikan penugasan Referee/Streamer saat Match Selesai (Chief/Admin)',
+      description: '[PANITIA] Konfirmasi penyelesaian tugas staf dan rekap hasil pertandingan',
       options: [
         {
-          type: 3,
+          type: 3, // STRING
           name: 'match',
-          description: 'Pilih pertandingan yang selesai',
+          description: 'Pilih pertandingan yang telah selesai',
           required: true,
           autocomplete: true,
         },
         {
-          type: 3,
+          type: 3, // STRING
           name: 'type',
-          description: 'Pilih peran yang selesai',
+          description: 'Pilih peran staf yang menyelesaikan tugas',
           required: true,
           choices: [
-            { name: '⚖️ Referee (Wajib isi Skor)', value: 'REFEREE' },
-            { name: '🎥 Streamer (Wajib isi Link Stream)', value: 'STREAMER' },
+            { name: '⚖️ Referee (Wajib menyertakan skor akhir)', value: 'REFEREE' },
+            { name: '🎥 Streamer (Wajib menyertakan tautan stream/VOD)', value: 'STREAMER' },
           ],
         },
         {
           type: 4, // INTEGER
           name: 'score_a',
-          description: 'Masukkan Skor Tim A (Wajib untuk Referee)',
+          description: 'Skor akhir Tim A (Wajib diisi jika peran Referee)',
           required: false,
         },
         {
           type: 4, // INTEGER
           name: 'score_b',
-          description: 'Masukkan Skor Tim B (Wajib untuk Referee)',
+          description: 'Skor akhir Tim B (Wajib diisi jika peran Referee)',
           required: false,
         },
         {
           type: 3, // STRING
           name: 'stream_link',
-          description: 'Link Live Stream / VOD YouTube / Twitch (Wajib untuk Streamer)',
+          description: 'Tautan siaran langsung / VOD (Wajib diisi jika peran Streamer)',
           required: false,
         },
       ],
     },
 
-    // ❌ 3. CANCEL ASSIGN COMMAND (BATAL TUGAS SEBELUM SELESAI)
+    // ❌ 3. CANCEL ASSIGN COMMAND
     {
       name: 'cancel-assign',
-      description: 'Batalkan penugasan Referee/Streamer yang berhalangan (Chief/Admin)',
+      description: '[PANITIA] Batalkan penugasan staf pertandingan yang berhalangan hadir',
       options: [
         {
-          type: 3,
+          type: 3, // STRING
           name: 'match',
-          description: 'Pilih pertandingan yang ingin dibatalkan stafnya',
+          description: 'Pilih pertandingan target',
           required: true,
           autocomplete: true,
         },
         {
-          type: 3,
+          type: 3, // STRING
           name: 'type',
-          description: 'Pilih peran yang dibatalkan',
+          description: 'Pilih peran penugasan yang dibatalkan',
           required: true,
           choices: [
             { name: '⚖️ Referee', value: 'REFEREE' },
@@ -104,160 +109,169 @@ export async function GET(req: Request) {
           ],
         },
         {
-          type: 3,
+          type: 3, // STRING
           name: 'reason',
-          description: 'Ketik alasan pembatalan tugas (Contoh: Ada urusan mendadak / kendala jaringan)',
+          description: 'Uraikan alasan pembatalan penugasan tugas secara jelas',
           required: true,
         },
       ],
     },
 
-    // 📣 4. REMINDER COMMAND
+    // 📅 4. RESCHEDULE COMMAND
     {
-      name: 'reminder',
-      description: 'Kirim pengingat aturan submit deck di channel tim.',
-    },
-
-    // 📋 5. PREPARE COMMAND
-    {
-      name: 'prepare',
-      description: 'Kirim briefing in-game dan info Room ID di channel match.',
-    },
-
-    // ℹ️ 6. INFO COMMAND
-    {
-      name: 'info',
-      description: 'Lihat informasi profil Discord kamu atau pemain lain',
+      name: 'reschedule',
+      description: '[ADMIN] Perbarui jadwal (hari/jam) pertandingan di channel match ini',
       options: [
         {
-          type: 6,
-          name: 'target',
-          description: 'Pilih user yang ingin dilihat infonya (kosongkan untuk diri sendiri)',
+          type: 3, // STRING
+          name: 'tanggal',
+          description: 'Pilih slot tanggal bertanding (Rabu s/d Minggu pada minggu berjalan)',
+          required: false,
+          autocomplete: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'jam',
+          description: 'Waktu pertandingan baru dalam format WIB (Contoh: 20.00, 20:30, 21.00)',
+          required: false,
+        },
+        {
+          type: 5, // BOOLEAN
+          name: 'update_recap',
+          description: 'Perbarui pesan jadwal dan rekap di #jadwal-pertandingan (Default: Benar)',
           required: false,
         },
       ],
     },
 
-    // ⏱️ 7. TIMER COMMAND
-    {
-      name: 'timer',
-      description: 'Tampilkan Panel Timer Kontrol Waktu Match TWI S7',
-    },
-
-    // 🔍 8. CEK ID COMMAND
-    {
-      name: 'cek-id',
-      description: 'Cek pemilik ID Game di database TWI',
-      options: [
-        {
-          type: 3,
-          name: 'game',
-          description: 'Pilih jenis game',
-          required: true,
-          choices: [
-            { name: 'Duel Links', value: 'dl' },
-            { name: 'Master Duel', value: 'md' },
-          ],
-        },
-        {
-          type: 3,
-          name: 'id',
-          description: 'Masukkan angka ID Game',
-          required: true,
-        },
-      ],
-    },
-
-    // ⛔ 9. BLACKLIST COMMAND
-    {
-      name: 'blacklist',
-      description: '[ADMIN] Kelola ID Duel Links yang di-blacklist',
-      options: [
-        {
-          type: 3,
-          name: 'action',
-          description: 'Pilih aksi yang ingin dilakukan',
-          required: true,
-          choices: [
-            { name: 'Tambah ke Blacklist (Add)', value: 'add' },
-            { name: 'Hapus dari Blacklist (Remove)', value: 'remove' },
-            { name: 'Lihat Semua Blacklist (List)', value: 'list' },
-          ],
-        },
-        {
-          type: 3,
-          name: 'id',
-          description: 'Masukkan angka ID Duel Links',
-          required: false,
-        },
-      ],
-    },
-
-    // 👥 10. CEK ROSTER COMMAND
+    // 👥 5. CEK ROSTER COMMAND
     {
       name: 'cek-roster',
-      description: '[REFEREE] Cek roster tim berdasarkan Tag Role Tim Discord (Privat)',
+      description: '[REFEREE] Periksa daftar roster resmi tim berdasarkan role Discord',
       options: [
         {
-          type: 8,
+          type: 8, // ROLE
           name: 'team1',
-          description: 'Tag Role Tim Pertama',
+          description: 'Pilih role Discord untuk Tim Pertama',
           required: true,
         },
         {
-          type: 8,
+          type: 8, // ROLE
           name: 'team2',
-          description: 'Tag Role Tim Kedua',
+          description: 'Pilih role Discord untuk Tim Kedua (Opsional)',
           required: false,
         },
       ],
     },
 
-    // 🚫 11. CANCEL BID COMMAND
+    // 🔍 6. CEK ID COMMAND
     {
-      name: 'cancel-bid',
-      description: '[ADMIN] Batal/Anulir bid tertinggi group tertentu',
+      name: 'cek-id',
+      description: '[UMUM] Verifikasi kepemilikan Game ID di database resmi Team Wars',
       options: [
         {
-          type: 3,
-          name: 'group',
-          description: 'Pilih Group yang ingin dibatalkan bid-nya',
+          type: 3, // STRING
+          name: 'game',
+          description: 'Pilih kategori game yang ingin diperiksa',
           required: true,
           choices: [
-            { name: 'Group A', value: 'A' },
-            { name: 'Group B', value: 'B' },
+            { name: 'Yu-Gi-Oh! Duel Links', value: 'dl' },
+            { name: 'Yu-Gi-Oh! Master Duel', value: 'md' },
           ],
         },
         {
-          type: 3,
-          name: 'alasan',
-          description: 'Alasan pembatalan',
+          type: 3, // STRING
+          name: 'id',
+          description: 'Masukkan nomor Game ID target',
+          required: true,
+        },
+      ],
+    },
+
+    // ℹ️ 7. INFO COMMAND
+    {
+      name: 'info',
+      description: '[UMUM] Tampilkan rincian data profil peserta turnamen',
+      options: [
+        {
+          type: 6, // USER
+          name: 'target',
+          description: 'Pilih akun peserta (Kosongkan untuk memeriksa profil diri sendiri)',
           required: false,
         },
       ],
     },
 
-    // 🔄 12. TRANSFER COMMAND
+    // ⛔ 8. BLACKLIST COMMAND
+    {
+      name: 'blacklist',
+      description: '[ADMIN] Kelola basis data larangan bermain (Blacklist Game ID)',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'action',
+          description: 'Pilih operasi pengelolaan blacklist',
+          required: true,
+          choices: [
+            { name: '➕ Tambah ke Blacklist (Add)', value: 'add' },
+            { name: '➖ Hapus dari Blacklist (Remove)', value: 'remove' },
+            { name: '📋 Tampilkan Seluruh Blacklist (List)', value: 'list' },
+          ],
+        },
+        {
+          type: 3, // STRING
+          name: 'id',
+          description: 'Masukkan Duel Links ID (Diperlukan untuk opsi Add / Remove)',
+          required: false,
+        },
+      ],
+    },
+
+    // 🚫 9. CANCEL BID COMMAND
+    {
+      name: 'cancel-bid',
+      description: '[ADMIN] Anulir penawaran (bid) tertinggi pada divisi tertentu',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'group',
+          description: 'Pilih divisi sasaran',
+          required: true,
+          choices: [
+            { name: 'Divisi Group A', value: 'A' },
+            { name: 'Divisi Group B', value: 'B' },
+          ],
+        },
+        {
+          type: 3, // STRING
+          name: 'alasan',
+          description: 'Uraikan dasar pembatalan penawaran',
+          required: false,
+        },
+      ],
+    },
+
+    // 🔄 10. TRANSFER COMMAND
     {
       name: 'transfer',
-      description: 'Kelola transfer, penambahan, dan pembaruan roster tim',
+      description: '[ROSTER] Pengelolaan bursa transfer, pendaftaran, dan mutasi pemain tim',
       options: [
         {
           type: 1, // SUB_COMMAND
           name: 'out',
-          description: 'Keluarkan pemain dari roster tim',
+          description: 'Keluarkan peserta dari komposisi roster tim aktif',
           options: [
             {
-              type: 3,
+              type: 3, // STRING
               name: 'user',
-              description: 'Pilih nama/IGN pemain yang ingin dikeluarkan dari tim',
+              description: 'Pilih nama peserta yang akan dilepas dari tim',
               required: true,
               autocomplete: true,
             },
             {
-              type: 3,
+              type: 3, // STRING
               name: 'team',
-              description: 'Pilih tim target (Wajib diisi jika dijalankan oleh Admin)',
+              description: 'Pilih nama tim target (Wajib ditentukan oleh Admin)',
               required: false,
               autocomplete: true,
             },
@@ -266,30 +280,30 @@ export async function GET(req: Request) {
         {
           type: 1, // SUB_COMMAND
           name: 'add',
-          description: 'Tambahkan pemain baru ke dalam roster tim',
+          description: 'Daftarkan peserta baru ke dalam komposisi roster tim',
           options: [
             {
-              type: 6,
+              type: 6, // USER
               name: 'user',
-              description: 'Tag (@mention) akun Discord pemain baru',
+              description: 'Sebut (@mention) akun Discord peserta baru',
               required: true,
             },
             {
-              type: 3,
+              type: 3, // STRING
               name: 'ign',
-              description: 'Ketik In-Game Name (IGN) Duel Links pemain baru',
+              description: 'Nama in-game resmi (IGN Duel Links) peserta',
               required: true,
             },
             {
-              type: 3,
+              type: 3, // STRING
               name: 'id_dl',
-              description: 'Ketik 9 digit ID Duel Links pemain (contoh: 123456789)',
+              description: 'Nomor identifikasi 9 digit Duel Links ID',
               required: true,
             },
             {
-              type: 3,
+              type: 3, // STRING
               name: 'team',
-              description: 'Pilih tim tujuan (Wajib diisi jika dijalankan oleh Admin)',
+              description: 'Pilih tim tujuan registrasi (Wajib ditentukan oleh Admin)',
               required: false,
               autocomplete: true,
             },
@@ -298,35 +312,35 @@ export async function GET(req: Request) {
         {
           type: 1, // SUB_COMMAND
           name: 'edit',
-          description: 'Perbarui ID Duel Links atau Jabatan (Ketua/Wakil) pemain',
+          description: 'Perbarui Game ID atau struktur kepengurusan (Ketua/Wakil) pemain',
           options: [
             {
-              type: 3,
+              type: 3, // STRING
               name: 'user',
-              description: 'Pilih nama/IGN pemain yang data/jabatannya ingin diubah',
+              description: 'Pilih nama peserta yang datanya akan disesuaikan',
               required: true,
               autocomplete: true,
             },
             {
-              type: 3,
+              type: 3, // STRING
               name: 'new_id_dl',
-              description: 'Ketik ID Duel Links baru (kosongkan jika tidak mengubah ID)',
+              description: 'Duel Links ID baru (Kosongkan jika hanya mengubah jabatan)',
               required: false,
             },
             {
-              type: 3,
+              type: 3, // STRING
               name: 'position',
-              description: 'Pilih posisi baru (Ketua khusus Admin, Wakil bisa oleh Ketua)',
+              description: 'Pilih penetapan jabatan struktural baru',
               required: false,
               choices: [
-                { name: 'Ketua', value: 'Ketua' },
-                { name: 'Wakil Ketua', value: 'Wakil Ketua' },
+                { name: 'Ketua Tim (Khusus Admin)', value: 'Ketua' },
+                { name: 'Wakil Ketua Tim', value: 'Wakil Ketua' },
               ],
             },
             {
-              type: 3,
+              type: 3, // STRING
               name: 'team',
-              description: 'Pilih tim target (Opsional jika pemain sudah terdeteksi di tim)',
+              description: 'Pilih tim peserta terkait (Opsional jika data tim terdeteksi)',
               required: false,
               autocomplete: true,
             },
@@ -335,24 +349,24 @@ export async function GET(req: Request) {
         {
           type: 1, // SUB_COMMAND
           name: 'parse',
-          description: '[ADMIN] Copas teks request transfer untuk diproses otomatis',
+          description: '[ADMIN] Pemrosesan otomatis berdasarkan salinan format pesan registrasi',
           options: [
             {
-              type: 3,
+              type: 3, // STRING
               name: 'text',
-              description: 'Paste/Copas seluruh teks pesan request dari channel di sini',
+              description: 'Tempelkan seluruh isi pesan permohonan transfer',
               required: true,
             },
             {
-              type: 6,
+              type: 6, // USER
               name: 'user',
-              description: 'Tag (@mention) akun Discord pemain target',
+              description: 'Sebut (@mention) akun Discord peserta target',
               required: true,
             },
             {
-              type: 3,
+              type: 3, // STRING
               name: 'team',
-              description: 'Pilih tim target (Wajib diisi jika Admin)',
+              description: 'Pilih tim target yang bersangkutan',
               required: false,
               autocomplete: true,
             },
@@ -365,14 +379,17 @@ export async function GET(req: Request) {
   const slashResult = await discordAPI(`/applications/${appId}/commands`, 'PUT', commands);
 
   if (slashResult && !slashResult.error) {
-    return NextResponse.json({ 
-      message: '✅ Setup Slash Commands Berhasil Dijalankan!', 
-      commands: slashResult
+    return NextResponse.json({
+      message: '✅ Setup Slash Commands Berhasil Dijalankan!',
+      commands: slashResult,
     });
   } else {
-    return NextResponse.json({ 
-      error: '❌ Gagal mendaftarkan commands', 
-      details: slashResult || 'Discord API mengembalikan null.' 
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: '❌ Gagal mendaftarkan commands',
+        details: slashResult || 'Discord API mengembalikan null.',
+      },
+      { status: 500 }
+    );
   }
-              }
+}
