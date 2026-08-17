@@ -68,6 +68,8 @@ export interface MatchScheduleItem {
     teamLogo: string;
     mainPlayers: Array<{ playerId: string; playerName: string }>;
   };
+  discordChannelId?: string;
+  openingMsgId?: string;
 }
 
 export interface MatchDetailsKV {
