@@ -25,7 +25,7 @@ export async function handleRescheduleCommand(interaction: any) {
     };
   }
 
-  // 🔒 2. Validasi Channel & Cari Data Match
+  // 🔒 2. Validasi Channel & Temukan Data Match
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
   const matchIndex = schedules.findIndex((m) => (m as any).discordChannelId === channelId);
 
@@ -41,7 +41,7 @@ export async function handleRescheduleCommand(interaction: any) {
 
   const match = schedules[matchIndex];
 
-  // 🔒 3. Proteksi Match Selesai
+  // 🔒 3. Proteksi Match yang Sudah Selesai
   if (match.isFinished) {
     return {
       type: 4,
@@ -83,12 +83,12 @@ export async function handleRescheduleCommand(interaction: any) {
   const oldScheduleFormatted = formatConfirmationWIB(match.matchDate);
   const newScheduleFormatted = formatConfirmationWIB(newMatchDateIso);
 
-  // 🚀 6. Simpan Mutasi ke KV
+  // 🚀 6. Simpan Perubahan ke KV
   match.matchDate = newMatchDateIso;
   schedules[matchIndex] = match;
   await kv.set('twi:schedules', schedules);
 
-  // ⚡ 7. Update Opening Embed (Blocking agar data konsisten)
+  // ⚡ 7. Ambil Data Tim & Update Opening Embed
   const slugA = getTeamSlug(match.teamAName);
   const slugB = getTeamSlug(match.teamBName);
 
@@ -96,6 +96,17 @@ export async function handleRescheduleCommand(interaction: any) {
     kv.hgetall<any>(`teams:${slugA}`),
     kv.hgetall<any>(`teams:${slugB}`),
   ]);
+
+  // Resolusi Emoji Tim persis seperti setup channel awal
+  const emojiA =
+    teamA?.discordEmoji ||
+    teamA?.emoji ||
+    (teamA?.emojiId ? `<:${teamA?.kodeTim || 'team'}:${teamA?.emojiId}>` : undefined);
+
+  const emojiB =
+    teamB?.discordEmoji ||
+    teamB?.emoji ||
+    (teamB?.emojiId ? `<:${teamB?.kodeTim || 'team'}:${teamB?.emojiId}>` : undefined);
 
   const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
     channelId,
@@ -105,17 +116,23 @@ export async function handleRescheduleCommand(interaction: any) {
     teamBName: match.teamBName,
     kodeTimA: teamA?.kodeTim || slugA.toUpperCase(),
     kodeTimB: teamB?.kodeTim || slugB.toUpperCase(),
+    teamAEmoji: emojiA,
+    teamBEmoji: emojiB,
+    emojiAId: teamA?.emojiId,
+    emojiBId: teamB?.emojiId,
     roleAId: teamA?.discordRoleId || teamA?.roleId || '',
     roleBId: teamB?.discordRoleId || teamB?.roleId || '',
     weekName: `Week ${match.weekNumber || 1}`,
     matchDateIso: newMatchDateIso,
-    refereeName: match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : undefined,
+    refereeName: match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : match.referee,
     refereeDiscordId: match.refereeDiscordId,
-    streamerName: match.streamerDiscordId ? `<@${match.streamerDiscordId}>` : undefined,
+    streamerName: match.streamerDiscordId ? `<@${match.streamerDiscordId}>` : match.streamer,
     streamerDiscordId: match.streamerDiscordId,
     streamLink: match.streamLink,
-    existingMsgId: (match as any).openingMsgId,
+    existingMsgId: (match as any).openingMsgId, // Mengirimkan ID lama memastikan tidak ada mention/tag role tim
     isFinished: false,
+    scoreA: match.scoreA,
+    scoreB: match.scoreB,
   });
 
   if (newOpeningMsgId && (match as any).openingMsgId !== newOpeningMsgId) {
@@ -123,7 +140,7 @@ export async function handleRescheduleCommand(interaction: any) {
     await kv.set('twi:schedules', schedules);
   }
 
-  // 🚀 8. Trigger Recap (Non-Blocking / Background Process)
+  // 🚀 8. Trigger Recap di Latar Belakang (Non-Blocking)
   if (optUpdateRecap) {
     const targetWeekStr = `Week ${match.weekNumber || 1}`;
     fetch(`${APP_URL}/api/tournament/weekly-recap`, {
@@ -133,7 +150,7 @@ export async function handleRescheduleCommand(interaction: any) {
     }).catch((err) => console.error('[RESCHEDULE RECAP ASYNC ERROR]:', err));
   }
 
-  // 📝 9. Respons Konfirmasi
+  // 📝 9. Respons Konfirmasi Instan
   return {
     type: 4,
     data: {
@@ -146,4 +163,4 @@ export async function handleRescheduleCommand(interaction: any) {
       flags: 64,
     },
   };
-                                    }
+}
