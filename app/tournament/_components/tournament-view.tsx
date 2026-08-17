@@ -32,7 +32,6 @@ export function TournamentView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Dukung ?tab=schedule, ?tab=standings, ?tab=standing, dan ?tab=playoff
   const rawTabParam = searchParams.get("tab")?.toLowerCase();
   const activeMainTab: "SCHEDULE" | "STANDINGS" | "PLAYOFF" =
     rawTabParam === "standings" || rawTabParam === "standing"
@@ -60,7 +59,6 @@ export function TournamentView({
   const [isLoading, setIsLoading] = useState(true);
   const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
 
-  // Single Source of Truth Week (Baseline Senin 08.00 WIB)
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
   const isPlayoffWeek = useMemo(() => currentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK, [currentWeek]);
 
@@ -135,21 +133,21 @@ export function TournamentView({
   ).sort((a, b) => a - b);
 
   return (
-    <div className="w-full flex flex-col gap-5">
-      {/* 3 TOMBOL UTAMA */}
+    <div className="w-full flex flex-col gap-4">
+      {/* 3 TAB NAVIGASI UTAMA (Selaras dengan Home) */}
       <div className="grid grid-cols-3 gap-2 w-full">
         {[
           { key: "SCHEDULE", label: "Group Stage" },
-          { key: "STANDINGS", label: "Standing Group" },
-          { key: "PLAYOFF", label: "Playoff Stage" },
+          { key: "STANDINGS", label: "Klasemen" },
+          { key: "PLAYOFF", label: "Playoff" },
         ].map((tab) => (
           <button
             key={tab.key}
             onClick={() => handleTabChange(tab.key as any)}
-            className={`rounded-xl py-3 px-2 text-center text-xs font-black uppercase tracking-wider border transition-all cursor-pointer ${
+            className={`rounded-2xl py-2.5 px-2 text-center text-xs font-bold transition-all cursor-pointer ${
               activeMainTab === tab.key
-                ? "bg-primary text-primary-foreground border-primary shadow-md"
-                : "bg-card text-muted-foreground border-border hover:text-foreground"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-card text-muted-foreground border border-border/80 hover:text-foreground hover:bg-muted/30"
             }`}
           >
             {tab.label}
@@ -199,4 +197,4 @@ export function TournamentView({
       )}
     </div>
   );
-}
+      }
