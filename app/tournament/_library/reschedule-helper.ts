@@ -8,7 +8,7 @@ export interface RescheduleSlotChoice {
 
 /**
  * 🟢 Helper Autocomplete: Menghitung slot tanggal Rabu - Minggu pada week match bersangkutan.
- * Jika kuota hari sudah >= 3 match, diberi tanda [PENUH].
+ * Hanya menampilkan hari yang masih memiliki sisa kuota (maksimal 3 match per hari).
  */
 export function getAvailableRescheduleSlots(
   schedules: MatchScheduleItem[],
@@ -19,7 +19,6 @@ export function getAvailableRescheduleSlots(
     (m) => (m.weekNumber || getMatchWeekNumber(m.matchDate)) === matchWeek
   );
 
-  // Ambil tanggal paling awal di week ini untuk mencari baseline hari Rabu
   const matchTimestamps = weekMatches.map((m) => new Date(m.matchDate).getTime()).sort((a, b) => a - b);
   const earliestDate = new Date(matchTimestamps[0] || targetMatch.matchDate);
 
@@ -44,21 +43,23 @@ export function getAvailableRescheduleSlots(
 
     const dateKey = getWibDateKey(d); // YYYY-MM-DD
     const count = matchCountByDate.get(dateKey) || 0;
-    const isFull = count >= 3;
+    const remainingSlots = Math.max(0, 3 - count); // Maksimal 3 match per hari
+
+    // 🔴 Abaikan (jangan tampilkan) hari jika kuotanya sudah habis / sisa 0
+    if (remainingSlots <= 0) continue;
 
     const formattedDay = d.toLocaleDateString('id-ID', {
       weekday: 'short',
-      day: '2-digit',
-      month: 'short',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
       timeZone: 'Asia/Jakarta',
     });
 
     const isCurrentMatchDate = getWibDateKey(new Date(targetMatch.matchDate)) === dateKey;
     const statusLabel = isCurrentMatchDate
       ? '(Jadwal Saat Ini)'
-      : isFull
-      ? `[PENUH - ${count}/4 Match]`
-      : `(${count}/4 Match)`;
+      : `(Sisa ${remainingSlots} Match)`;
 
     slots.push({
       name: `${formattedDay} ${statusLabel}`,
@@ -78,8 +79,8 @@ export function parseTimeInput(timeStr?: string): { hour: number; minute: number
   const clean = timeStr.trim().replace('.', ':');
   const parts = clean.split(':');
 
-  let hour = parseInt(parts[0], 10);
-  let minute = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+  const hour = parseInt(parts[0], 10);
+  const minute = parts.length > 1 ? parseInt(parts[1], 10) : 0;
 
   if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
     throw new Error(`Format jam "${timeStr}" tidak valid! Gunakan format contoh: 20.00 atau 20:30.`);
@@ -135,12 +136,11 @@ export function formatConfirmationWIB(isoString: string): string {
   const d = new Date(isoString);
   return d.toLocaleDateString('id-ID', {
     weekday: 'long',
-    day: '2-digit',
-    month: 'short',
+    day: 'numeric',
+    month: 'long',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     timeZone: 'Asia/Jakarta',
   }) + ' WIB';
-      }
-  
+}
