@@ -58,7 +58,7 @@ export async function handleRescheduleCommand(interaction: any) {
   const options = interaction.data?.options || [];
   const optTanggal = options.find((o: any) => o.name === 'tanggal')?.value;
   const optJam = options.find((o: any) => o.name === 'jam')?.value;
-  const optUpdateRecap = options.find((o: any) => o.name === 'update_recap')?.value ?? true;
+  const optUpdateRecap = options.find((o: any) => o.name === 'update_recap')?.value ?? false;
 
   // 🔒 4. VALIDASI MINIMAL SATU OPSI TERISI
   if (!optTanggal && !optJam) {
