@@ -3,12 +3,12 @@
 import { useState, useEffect, useMemo } from "react";
 import Swal from "sweetalert2";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
-import { useMatchReport } from "./_hooks/use-match-report";
-import { MatchFormCard } from "./_components/match-form-card";
-import { DiscordPreview } from "./_components/discord-preview";
-import { MatchFilterPanel } from "./_components/match-filter-panel";
-import { ResetConfirmModal } from "./_components/reset-confirm-modal";
-import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./_utils/lib-match-report";
+import { useMatchReport } from "./hooks/use-match-report";
+import { MatchFormCard } from "./components/match-form-card";
+import { DiscordPreview } from "./components/discord-preview";
+import { MatchFilterPanel } from "./components/match-filter-panel";
+import { ResetConfirmModal } from "./components/reset-confirm-modal";
+import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./utils/lib-match-report";
 import { DIVISION_MAP } from "@/app/tournament/_library";
 
 interface MatchReportPageClientProps {
@@ -95,6 +95,9 @@ export default function MatchReportPageClient({
     const payload = selectedMatches.map((m) => {
       const entry = reports[m.id];
       const fileName = generateFileName(m);
+      const imageUrl = entry?.imageUrl || "";
+      const maskedUrl = imageUrl ? maskImageUrl(imageUrl, fileName) : "";
+
       return {
         matchId: m.id,
         group: m.group,
@@ -103,8 +106,8 @@ export default function MatchReportPageClient({
         teamA: m.teamA,
         teamB: m.teamB,
         notes: entry?.notes || "",
-        imageUrl: entry?.imageUrl || "",
-        maskedImageUrl: maskImageUrl(entry?.imageUrl || "", fileName),
+        imageUrl: imageUrl,
+        maskedImageUrl: maskedUrl,
       };
     });
 
