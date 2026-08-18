@@ -9,20 +9,22 @@ cloudinary.config({
 
 export async function POST(request: Request) {
   try {
-    const { folder, public_id } = await request.json();
+    const { folder = "report", public_id } = await request.json();
     const timestamp = Math.round(new Date().getTime() / 1000);
     
-    // PERUBAHAN POIN 5: Folder sekarang namanya "bukti"
     const isBukti = folder === "bukti"; 
 
     const paramsToSign: Record<string, any> = {
       timestamp,
       folder,
-      public_id,
       overwrite: true,
-      // PERUBAHAN POIN 3 & 4: Paksa format dari server
+      invalidate: true, // 🟢 Wajib ada agar match dengan signature frontend
       format: isBukti ? "jpg" : "png" 
     };
+
+    if (public_id) {
+      paramsToSign.public_id = public_id;
+    }
 
     if (isBukti) {
       paramsToSign.transformation = "c_limit,w_1920,h_1920,q_auto";
@@ -41,4 +43,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: "Gagal membuat signature" }, { status: 500 });
   }
-}
+      }
