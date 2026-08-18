@@ -22,12 +22,15 @@ export async function POST(request: NextRequest) {
       );
 
       if (scheduleIdx !== -1) {
-        schedules[scheduleIdx].reportImageUrl = report.imageUrl;
-        schedules[scheduleIdx].reportNotes = report.notes;
-        schedules[scheduleIdx].maskedImageUrl = report.maskedImageUrl;
+        const hasReportImage = Boolean(report.imageUrl && report.imageUrl.trim() !== "");
+
+        schedules[scheduleIdx].reportImageUrl = report.imageUrl || "";
+        schedules[scheduleIdx].reportNotes = report.notes || "";
+        schedules[scheduleIdx].maskedImageUrl = report.maskedImageUrl || "";
         schedules[scheduleIdx].reportUpdatedAt = new Date().toISOString();
-        schedules[scheduleIdx].isReadyToPublish = true; // Siap publish
-        schedules[scheduleIdx].discordSynced = false;   // Antrekan ke Cron Job
+        schedules[scheduleIdx].isReadyToPublish = hasReportImage;
+        schedules[scheduleIdx].discordSynced = false;
+        schedules[scheduleIdx].isCompleted = hasReportImage;
 
         isUpdated = true;
       }
@@ -39,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Data report berhasil disimpan. Masuk antrean publish otomatis!",
+      message: "Data report berhasil diperbarui!",
     });
   } catch (error: any) {
     console.error("Match Report Save Error:", error);

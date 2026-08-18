@@ -9,6 +9,7 @@ import { DiscordPreview } from "./components/discord-preview";
 import { MatchFilterPanel } from "./components/match-filter-panel";
 import { ResetConfirmModal } from "./components/reset-confirm-modal";
 import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./utils/lib-match-report";
+import { DIVISION_MAP } from "@/app/tournament/_library";
 
 interface MatchReportPageClientProps {
   initialMatches?: MatchItem[];
@@ -20,8 +21,6 @@ export default function MatchReportPageClient({
   isAdmin = false,
 }: MatchReportPageClientProps) {
   const [matches, setMatches] = useState<MatchItem[]>(initialMatches);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isRefreshingKv, setIsRefreshingKv] = useState<boolean>(false);
   const [isConfirmTrashOpen, setIsConfirmTrashOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -39,61 +38,10 @@ export default function MatchReportPageClient({
     setIsSending,
   } = useMatchReport(matches);
 
-  const getSlug = (str: string) =>
-    str ? str.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "") : "";
-
-  const handleRefreshKvData = async () => {
-    setIsRefreshingKv(true);
-    try {
-      const res = await fetch("/api/tournament", { cache: "no-store" });
-      if (!res.ok) throw new Error("API Refresh Failed");
-      const data = await res.json();
-
-      if (data?.schedules && Array.isArray(data.schedules) && data.schedules.length > 0) {
-        const formatted: MatchItem[] = data.schedules.map((m: any, index: number) => {
-          const rawId = m?.id || `match-${index + 1}`;
-          const matchNumberStr = rawId.replace(/[^0-9]/g, "") || String(index + 1);
-
-          return {
-            id: rawId,
-            group: m?.groupName || "Group Stage",
-            week: Number(m?.weekNumber) || 1,
-            matchNumber: parseInt(matchNumberStr, 10) || index + 1,
-            scoreA: m?.scoreA ?? 0,
-            scoreB: m?.scoreB ?? 0,
-            teamALogo: m?.teamALogo || "/logo.webp",
-            teamBLogo: m?.teamBLogo || "/logo.webp",
-            reportImageUrl: m?.reportImageUrl || "",
-            reportNotes: m?.reportNotes || "",
-            teamA: {
-              name: m?.teamAName || "Team A",
-              code: m?.teamACode || m?.teamAName || "Team A",
-              emojiId: m?.teamAEmojiId || "",
-              emoji: m?.teamAEmoji || "",
-            },
-            teamB: {
-              name: m?.teamBName || "Team B",
-              code: m?.teamBCode || m?.teamBName || "Team B",
-              emojiId: m?.teamBEmojiId || "",
-              emoji: m?.teamBEmoji || "",
-            },
-          };
-        });
-        setMatches(formatted);
-      }
-    } catch (err) {
-      console.error("Gagal refresh KV data:", err);
-    } finally {
-      setIsRefreshingKv(false);
-    }
-  };
-
   useEffect(() => {
     if (initialMatches && initialMatches.length > 0) {
       setMatches(initialMatches);
-      return;
     }
-    handleRefreshKvData();
   }, [initialMatches]);
 
   const currentWeekNumber = useMemo(() => {
@@ -122,7 +70,14 @@ export default function MatchReportPageClient({
     return matches.filter((m) => {
       if (!isAdmin && m.week > currentWeekNumber) return false;
       if (selectedWeekFilter !== "ALL" && m.week !== selectedWeekFilter) return false;
-      if (selectedGroupFilter !== "ALL" && m.group !== selectedGroupFilter) return false;
+
+      if (selectedGroupFilter !== "ALL") {
+        const isGroupAMatch = m.group === "Group A" || m.group === DIVISION_MAP.GROUP_A;
+        const isGroupBMatch = m.group === "Group B" || m.group === DIVISION_MAP.GROUP_B;
+        if (selectedGroupFilter === "Group A" && !isGroupAMatch) return false;
+        if (selectedGroupFilter === "Group B" && !isGroupBMatch) return false;
+      }
+
       return true;
     });
   }, [matches, selectedWeekFilter, selectedGroupFilter, isAdmin, currentWeekNumber]);
@@ -132,7 +87,6 @@ export default function MatchReportPageClient({
     return matches.filter((m) => selectedMatchIds.includes(m.id));
   }, [matches, selectedMatchIds]);
 
-  // 🟢 SIMPAN KE KV UNTUK CRON JOB
   const handleSaveAll = async () => {
     if (selectedMatches.length === 0) return;
 
@@ -165,8 +119,8 @@ export default function MatchReportPageClient({
         localStorage.removeItem(STORAGE_KEY);
 
         await Swal.fire({
-          title: "Berhasil Disimpan!",
-          text: "Data Match Report tersimpan di KV dan siap diposting otomatis via Cron Job!",
+          title: "Berhasil Diperbarui!",
+          text: "Data Match Report berhasil diperbarui di KV!",
           icon: "success",
           confirmButtonColor: "#AA1348",
           background: "#121212",
@@ -177,7 +131,7 @@ export default function MatchReportPageClient({
       } else {
         const errData = await res.json();
         Swal.fire({
-          title: "Gagal Menyimpan!",
+          title: "Gagal Memperbarui!",
           text: errData.error || "Gagal menyimpan data ke database.",
           icon: "error",
           confirmButtonColor: "#AA1348",
@@ -226,8 +180,6 @@ export default function MatchReportPageClient({
             selectedWeek={selectedWeekFilter}
             onSelectWeek={setSelectedWeekFilter}
             availableWeeks={availableWeeksFilter}
-            isRefreshingKv={isRefreshingKv}
-            onRefreshKv={handleRefreshKvData}
             onResetFilter={() => {
               setSelectedWeekFilter("ALL");
               setSelectedGroupFilter("ALL");
@@ -237,11 +189,7 @@ export default function MatchReportPageClient({
           <div className="glass glow-border rounded-2xl border p-5 space-y-3">
             <span className="font-bold text-sm block">Pilih Match yang Ingin Dilaporkan:</span>
 
-            {isLoading ? (
-              <div className="py-6 text-center text-xs font-bold text-muted-foreground animate-pulse">
-                Memuat jadwal pertandingan...
-              </div>
-            ) : filteredMatches.length === 0 ? (
+            {filteredMatches.length === 0 ? (
               <div className="py-6 text-center text-xs font-bold text-muted-foreground">
                 Tidak ada jadwal pertandingan yang sesuai dengan filter.
               </div>
@@ -297,7 +245,7 @@ export default function MatchReportPageClient({
                 disabled={isSending}
                 className="flex-1 rounded-xl bg-primary py-3 text-xs sm:text-sm font-bold text-primary-foreground shadow-lg hover:bg-primary/90 disabled:opacity-50 transition cursor-pointer"
               >
-                {isSending ? "Menyimpan Data..." : "Simpan Match Report"}
+                {isSending ? "Memperbarui Data..." : "Update Match Report"}
               </button>
             </div>
           )}
