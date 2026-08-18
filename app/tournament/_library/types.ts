@@ -46,6 +46,14 @@ export interface MatchScheduleItem {
   scoreA: number;
   scoreB: number;
   isFinished: boolean;
+  isCompleted?: boolean;
+  isReadyToPublish?: boolean;
+  reportImageUrl?: string;
+  reportNotes?: string;
+  maskedImageUrl?: string;
+  reportUpdatedAt?: string;
+  discordSynced?: boolean;
+  discordMessageId?: string;
   weekNumber?: number;
   referee?: string;
   refereeDiscordId?: string;
