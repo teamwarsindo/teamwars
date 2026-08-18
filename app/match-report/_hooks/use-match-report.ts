@@ -9,10 +9,8 @@ export function useMatchReport(availableMatches: MatchItem[]) {
   const [reports, setReports] = useState<Record<string, MatchReportEntry>>({});
   const [isSending, setIsSending] = useState(false);
 
-  // Inisialisasi: Baca dari KV dahulu, lalu timpa jika ada draft LocalStorage
   useEffect(() => {
     let initialReports: Record<string, MatchReportEntry> = {};
-
     if (availableMatches && availableMatches.length > 0) {
       availableMatches.forEach((m: any) => {
         if (m.reportImageUrl || m.reportNotes) {
@@ -38,15 +36,11 @@ export function useMatchReport(availableMatches: MatchItem[]) {
         console.error("Gagal load draft dari LocalStorage", e);
       }
     }
-
     setReports(initialReports);
   }, [availableMatches]);
 
   useEffect(() => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ selectedWeek, selectedMatchIds, reports })
-    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ selectedWeek, selectedMatchIds, reports }));
   }, [selectedWeek, selectedMatchIds, reports]);
 
   const handleMatchToggle = (matchId: string) => {
@@ -78,23 +72,12 @@ export function useMatchReport(availableMatches: MatchItem[]) {
       const signRes = await fetch("/api/sign-cloudinary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          folder: "report",
-          public_id: fileName,
-        }),
+        body: JSON.stringify({ folder: "report", public_id: fileName }),
       });
 
-      if (!signRes.ok) {
-        throw new Error("Gagal mendapatkan signature dari server.");
-      }
+      if (!signRes.ok) throw new Error("Gagal mendapatkan signature.");
 
-      const signData = await signRes.json();
-      const { api_key, signature, timestamp, folder, format } = signData;
-
-      if (!api_key || !signature) {
-        throw new Error("Respon signature dari server tidak lengkap.");
-      }
-
+      const { api_key, signature, timestamp, folder, format } = await signRes.json();
       const formData = new FormData();
       formData.append("file", file);
       formData.append("api_key", api_key);
@@ -103,40 +86,26 @@ export function useMatchReport(availableMatches: MatchItem[]) {
       formData.append("folder", folder || "report");
       formData.append("public_id", fileName);
       formData.append("overwrite", "true");
-      if (format) {
-        formData.append("format", format);
-      }
+      formData.append("invalidate", "true"); // 🟢 Paksa purge cache di Cloudinary
+      if (format) formData.append("format", format);
 
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dhplw8rsd";
-
       const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: "POST",
         body: formData,
       });
 
-      if (!uploadRes.ok) {
-        const errJson = await uploadRes.json();
-        throw new Error(errJson?.error?.message || "Upload ke Cloudinary gagal.");
-      }
+      if (!uploadRes.ok) throw new Error("Upload gagal.");
 
       const uploadData = await uploadRes.json();
-
       if (uploadData.secure_url) {
-        const finalUrl = `${uploadData.secure_url}?t=${Date.now()}`;
-
         setReports((prev) => ({
           ...prev,
-          [match.id]: {
-            ...prev[match.id],
-            imageUrl: finalUrl,
-            isUploading: false,
-          },
+          [match.id]: { ...prev[match.id], imageUrl: uploadData.secure_url, isUploading: false },
         }));
-      } else {
-        throw new Error("Cloudinary tidak mengembalikan URL gambar yang valid.");
       }
     } catch (err: any) {
-      console.error("Gagal upload match report:", err);
+      console.error(err);
       alert(`[UPLOAD ERROR]: ${err.message}`);
       setReports((prev) => ({
         ...prev,
@@ -152,15 +121,5 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     }));
   };
 
-  return {
-    selectedWeek,
-    setSelectedWeek,
-    selectedMatchIds,
-    handleMatchToggle,
-    reports,
-    updateNotes,
-    handleDirectUpload,
-    isSending,
-    setIsSending,
-  };
+  return { selectedWeek, setSelectedWeek, selectedMatchIds, handleMatchToggle, reports, updateNotes, handleDirectUpload, isSending, setIsSending };
 }
