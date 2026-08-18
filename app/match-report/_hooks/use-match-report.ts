@@ -86,7 +86,7 @@ export function useMatchReport(availableMatches: MatchItem[]) {
       formData.append("folder", folder || "report");
       formData.append("public_id", fileName);
       formData.append("overwrite", "true");
-      formData.append("invalidate", "true"); // 🟢 Paksa purge cache di Cloudinary
+      formData.append("invalidate", "true");
       if (format) formData.append("format", format);
 
       const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dhplw8rsd";
@@ -95,7 +95,10 @@ export function useMatchReport(availableMatches: MatchItem[]) {
         body: formData,
       });
 
-      if (!uploadRes.ok) throw new Error("Upload gagal.");
+      if (!uploadRes.ok) {
+        const errorData = await uploadRes.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || "Upload gagal.");
+      }
 
       const uploadData = await uploadRes.json();
       if (uploadData.secure_url) {
@@ -121,5 +124,15 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     }));
   };
 
-  return { selectedWeek, setSelectedWeek, selectedMatchIds, handleMatchToggle, reports, updateNotes, handleDirectUpload, isSending, setIsSending };
+  return { 
+    selectedWeek, 
+    setSelectedWeek, 
+    selectedMatchIds, 
+    handleMatchToggle, 
+    reports, 
+    updateNotes, 
+    handleDirectUpload, 
+    isSending, 
+    setIsSending 
+  };
 }
