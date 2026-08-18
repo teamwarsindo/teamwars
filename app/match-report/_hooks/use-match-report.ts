@@ -54,7 +54,16 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     try {
       fileName = generateFileName(match);
     } catch (err: any) {
-      alert(`[ERROR KODETIM DB]: ${err.message}`);
+      setReports((prev) => ({
+        ...prev,
+        [match.id]: {
+          ...(prev[match.id] || { notes: "" }),
+          matchId: match.id,
+          isUploading: false,
+          uploadStatus: "error",
+          errorMessage: err.message || "Kode tim tidak valid.",
+        },
+      }));
       return;
     }
 
@@ -65,6 +74,8 @@ export function useMatchReport(availableMatches: MatchItem[]) {
         matchId: match.id,
         imageUrl: prev[match.id]?.imageUrl || "",
         isUploading: true,
+        uploadStatus: "idle",
+        errorMessage: undefined,
       },
     }));
 
@@ -75,7 +86,7 @@ export function useMatchReport(availableMatches: MatchItem[]) {
         body: JSON.stringify({ folder: "report", public_id: fileName }),
       });
 
-      if (!signRes.ok) throw new Error("Gagal mendapatkan signature.");
+      if (!signRes.ok) throw new Error("Gagal generate signature.");
 
       const { api_key, signature, timestamp, folder, format } = await signRes.json();
       const formData = new FormData();
@@ -97,22 +108,31 @@ export function useMatchReport(availableMatches: MatchItem[]) {
 
       if (!uploadRes.ok) {
         const errorData = await uploadRes.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || "Upload gagal.");
+        throw new Error(errorData.error?.message || "Gagal upload ke Cloudinary.");
       }
 
       const uploadData = await uploadRes.json();
       if (uploadData.secure_url) {
         setReports((prev) => ({
           ...prev,
-          [match.id]: { ...prev[match.id], imageUrl: uploadData.secure_url, isUploading: false },
+          [match.id]: {
+            ...prev[match.id],
+            imageUrl: uploadData.secure_url,
+            isUploading: false,
+            uploadStatus: "success",
+            errorMessage: undefined,
+          },
         }));
       }
     } catch (err: any) {
-      console.error(err);
-      alert(`[UPLOAD ERROR]: ${err.message}`);
       setReports((prev) => ({
         ...prev,
-        [match.id]: { ...prev[match.id], isUploading: false },
+        [match.id]: {
+          ...prev[match.id],
+          isUploading: false,
+          uploadStatus: "error",
+          errorMessage: err.message || "Upload gagal.",
+        },
       }));
     }
   };
@@ -124,15 +144,15 @@ export function useMatchReport(availableMatches: MatchItem[]) {
     }));
   };
 
-  return { 
-    selectedWeek, 
-    setSelectedWeek, 
-    selectedMatchIds, 
-    handleMatchToggle, 
-    reports, 
-    updateNotes, 
-    handleDirectUpload, 
-    isSending, 
-    setIsSending 
+  return {
+    selectedWeek,
+    setSelectedWeek,
+    selectedMatchIds,
+    handleMatchToggle,
+    reports,
+    updateNotes,
+    handleDirectUpload,
+    isSending,
+    setIsSending,
   };
 }

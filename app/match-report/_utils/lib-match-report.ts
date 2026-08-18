@@ -22,10 +22,11 @@ export interface MatchItem {
 
 export interface MatchReportEntry {
   matchId: string;
-  imageUrl: string;
-  imagePublicId?: string;
-  notes: string;
+  imageUrl?: string;
+  notes?: string;
   isUploading?: boolean;
+  uploadStatus?: "idle" | "success" | "error";
+  errorMessage?: string;
 }
 
 // 🟢 PAKSA MENGGUNAKAN KODETIM DARI DB (TANPA FALLBACK PEMOTONGAN NAMA)

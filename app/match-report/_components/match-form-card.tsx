@@ -25,7 +25,7 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
         </span>
       </div>
 
-      {/* MATCH DISPLAY: TIM KIRI MEPET KIRI, TIM KANAN MEPET KANAN, SKOR RENAGANG */}
+      {/* MATCH DISPLAY: TIM KIRI MEPET KIRI, TIM KANAN MEPET KANAN, SKOR RENGGANG */}
       <div className="flex items-center justify-between py-1.5 w-full gap-2">
         {/* TIM A (KIRI - MEPET KIRI) */}
         <div className="flex items-center justify-start gap-2 min-w-0 flex-1">
@@ -42,7 +42,7 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
           </span>
         </div>
 
-        {/* SKOR TENGAH (LEBIH RENGGANG & MENTOK TENGAH) */}
+        {/* SKOR TENGAH */}
         <div className="shrink-0 px-3 sm:px-6">
           <span className="px-3 py-1 sm:px-4 sm:py-1.5 rounded-xl bg-primary text-primary-foreground font-black text-xs sm:text-sm shadow-sm whitespace-nowrap">
             {match.scoreA ?? 0} - {match.scoreB ?? 0}
@@ -79,6 +79,7 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
                 type="file"
                 accept="image/*"
                 className="hidden"
+                disabled={entry?.isUploading}
                 onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
               />
             </label>
@@ -98,7 +99,26 @@ export function MatchFormCard({ match, entry, onUpload, onNotesChange }: MatchFo
           </label>
         )}
 
-        {/* NAMA FILE MASKING - PAKSA KLIK DENGAN MASKED URL */}
+        {/* STATUS UPLOAD INLINE */}
+        {entry?.isUploading && (
+          <p className="text-[11px] font-semibold text-blue-500 animate-pulse flex items-center gap-1.5 px-1">
+            <span>⏳</span> Mengunggah gambar ke server...
+          </p>
+        )}
+
+        {!entry?.isUploading && entry?.uploadStatus === "success" && (
+          <p className="text-[11px] font-medium text-emerald-500 flex items-center gap-1.5 px-1">
+            <span>✓</span> Gambar berhasil diperbarui & disimpan.
+          </p>
+        )}
+
+        {!entry?.isUploading && entry?.uploadStatus === "error" && (
+          <p className="text-[11px] font-medium text-rose-500 flex items-center gap-1.5 px-1">
+            <span>✕</span> {entry.errorMessage || "Gagal mengunggah gambar."}
+          </p>
+        )}
+
+        {/* NAMA FILE MASKING */}
         <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-muted-foreground/80 px-1 pt-1">
           <span>Target File Masking:</span>
           {entry?.imageUrl && maskedUrl ? (
