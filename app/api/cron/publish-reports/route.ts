@@ -3,6 +3,7 @@ import { kv } from "@vercel/kv";
 import { DISCORD_CONFIG } from "@/lib/discord/config";
 import { discordAPI } from "@/lib/discord/utils";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
+import { formatFullWIB } from "@/app/tournament/_library/utils"; // 🟢 Import fungsi utilitas Anda
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     if (!targetMatch) return NextResponse.json({ status: "idle", message: "Tidak ada antrean baru." });
 
-    // 🟢 STRIP QUERY LAMA & BERI TIMESTAMP BARU (Anti-Cache Discord)
+    // 🟢 FORCE CACHE REFRESH: Menggunakan timestamp agar Discord fetch ulang gambar
     const rawUrl = targetMatch.maskedImageUrl || targetMatch.reportImageUrl;
     const cleanBaseUrl = rawUrl ? rawUrl.split("?")[0] : undefined;
     const freshUrl = cleanBaseUrl ? `${cleanBaseUrl}?t=${Date.now()}` : undefined;
@@ -64,13 +65,16 @@ export async function GET(request: NextRequest) {
 
     const formatBadge = (d: any, n: string) => d?.emojiId && d?.kodeTim ? `<:${d.kodeTim}:${d.emojiId}> **${n}**` : `**${n}**`;
     
+    // 🟢 MENGGUNAKAN FUNGSI FORMAT TANGGAL RESMI ANDA
+    const formattedDate = formatFullWIB(new Date());
+
     const payload = {
       embeds: [{
         title: `${(targetMatch.groupName || "GROUP STAGE").toUpperCase()} — WEEK ${targetMatch.weekNumber || 1}`,
         color: 0x3b82f6,
         description: `${formatBadge(teamDataA, targetMatch.teamAName)}  VS  ${formatBadge(teamDataB, targetMatch.teamBName)}\n\n📝 **Catatan Match:**\n${targetMatch.reportNotes || "_Tidak ada catatan._"}`,
         image: freshUrl ? { url: freshUrl } : undefined,
-        footer: { text: `Team Wars Indonesia • ${new Date().toLocaleDateString()} WIB` },
+        footer: { text: `Team Wars Indonesia • ${formattedDate}` },
       }],
     };
 
@@ -91,4 +95,4 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-                   }
+}
