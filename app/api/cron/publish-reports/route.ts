@@ -2,13 +2,15 @@ import { NextResponse, NextRequest } from "next/server";
 import { kv } from "@vercel/kv";
 import { DISCORD_CONFIG } from "@/lib/discord/config";
 import { discordAPI } from "@/lib/discord/utils";
+import { MatchScheduleItem } from "@/app/tournament/_library/types";
 
 export const dynamic = "force-dynamic";
 
-// Helper ekstraksi nomor urut integer dari id (contoh: "match-2" -> 2)
-function getMatchIndexNumber(match: any, defaultIdx: number): number {
-  if (typeof match.matchNumber === "number" && !isNaN(match.matchNumber)) {
-    return match.matchNumber;
+function getMatchIndexNumber(match: MatchScheduleItem, defaultIdx: number): number {
+  if (typeof match.weekNumber === "number" && !isNaN(match.weekNumber)) {
+    // Tetap ambil nomor urut spesifik match dari id jika ada
+    const parsed = parseInt(String(match.id || "").replace(/[^0-9]/g, ""), 10);
+    return !isNaN(parsed) ? parsed : defaultIdx + 1;
   }
   const parsed = parseInt(String(match.id || "").replace(/[^0-9]/g, ""), 10);
   return !isNaN(parsed) ? parsed : defaultIdx + 1;
@@ -20,7 +22,6 @@ export async function GET(request: NextRequest) {
     const targetMatchId = searchParams.get("matchId");
     const targetMatchNumber = searchParams.get("matchNumber");
 
-    // 🔒 Proteksi Token Opsional (jika CRON_SECRET diset di env)
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
@@ -35,16 +36,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const schedules = (await kv.get<any[]>("twi:schedules")) || [];
+    const schedules = (await kv.get<MatchScheduleItem[]>("twi:schedules")) || [];
     if (!Array.isArray(schedules) || schedules.length === 0) {
       return NextResponse.json({ message: "Data jadwal pertandingan kosong di KV." });
     }
 
-    let targetMatch: any = null;
+    let targetMatch: MatchScheduleItem | null = null;
     let targetIndex = -1;
 
     if (targetMatchId || targetMatchNumber) {
-      // 🟢 MODE 1: MANUAL PATCH SPESIFIK MATCH (Contoh: "match-2" atau 2)
       targetIndex = schedules.findIndex((m, idx) => {
         const currentId = m.id || `match-${idx + 1}`;
         const currentNum = String(getMatchIndexNumber(m, idx));
@@ -70,23 +70,28 @@ export async function GET(request: NextRequest) {
         );
       }
     } else {
-      // 🟢 MODE 2: CRON OTOMATIS BERURUTAN (1 per 1 dari match id terkecil)
       const pendingItems = schedules
         .map((m, originalIndex) => ({
           ...m,
           _originalIndex: originalIndex,
           _matchNum: getMatchIndexNumber(m, originalIndex),
         }))
-        .filter((m) => m.isReadyToPublish === true && m.discordSynced !== true && m.reportImageUrl);
+        .filter((m) => {
+          return (
+            m.isFinished === true &&
+            m.isCompleted === true &&
+            Boolean(m.reportImageUrl) &&
+            m.discordSynced !== true
+          );
+        });
 
       if (pendingItems.length === 0) {
         return NextResponse.json({
           status: "idle",
-          message: "Semua antrean match report sudah selesai diposting ke Discord.",
+          message: "Semua antrean match report yang selesai sudah selesai diposting ke Discord.",
         });
       }
 
-      // Urutkan dari Match terkecil (match-1, match-2, ...)
       pendingItems.sort((a, b) => a._matchNum - b._matchNum);
 
       const selectedItem = pendingItems[0];
@@ -96,14 +101,12 @@ export async function GET(request: NextRequest) {
 
     const matchNumber = getMatchIndexNumber(targetMatch, targetIndex);
 
-    // Helper Slug
     const getSlug = (str: string) =>
       str ? str.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "") : "";
 
-    const slugA = targetMatch.teamASlug || getSlug(targetMatch.teamAName);
-    const slugB = targetMatch.teamBSlug || getSlug(targetMatch.teamBName);
+    const slugA = getSlug(targetMatch.teamAName);
+    const slugB = getSlug(targetMatch.teamBName);
 
-    // Tarik Kode Tim & Emoji Id dari KV Hash
     const [teamDataA, teamDataB] = await Promise.all([
       slugA ? kv.hgetall<Record<string, any>>(`teams:${slugA}`) : null,
       slugB ? kv.hgetall<Record<string, any>>(`teams:${slugB}`) : null,
@@ -120,7 +123,6 @@ export async function GET(request: NextRequest) {
     const titleA = formatBadge(teamDataA, targetMatch.teamAName);
     const titleB = formatBadge(teamDataB, targetMatch.teamBName);
 
-    // Format Tanggal Footer
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-GB", {
       timeZone: "Asia/Jakarta",
@@ -138,11 +140,12 @@ export async function GET(request: NextRequest) {
 
     const rawUrl = targetMatch.maskedImageUrl || targetMatch.reportImageUrl;
     const freshUrl = rawUrl ? `${rawUrl.split("?")[0]}?v=${Date.now()}` : undefined;
+    const displayGroupName = targetMatch.groupName || "GROUP STAGE";
 
     const payload = {
       embeds: [
         {
-          title: `${(targetMatch.groupName || "GROUP").toUpperCase()} — WEEK ${targetMatch.weekNumber || 1}`,
+          title: `${displayGroupName.toUpperCase()} — WEEK ${targetMatch.weekNumber || 1}`,
           color: 0x3b82f6,
           description: `${titleA}  VS  ${titleB}\n\n📝 **Catatan Match:**\n${targetMatch.reportNotes || "_Tidak ada catatan._"}`,
           image: freshUrl ? { url: freshUrl } : undefined,
