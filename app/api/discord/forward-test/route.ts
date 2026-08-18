@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const sourceChannelId = DISCORD_CONFIG.CH_REPORT;
-    const targetChannelId = DISCORD_CONFIG.CH_LOG; // Pastikan CH_LOG sudah ada di config
+    const targetChannelId = DISCORD_CONFIG.CH_LOG || "1525775643168735344";
     const messageId = "1539260135631757423";
 
     if (!sourceChannelId || !targetChannelId) {
@@ -17,27 +17,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 1. Ambil detail pesan asli dari channel sumber
-    const originalMessage = await discordAPI(
-      `/channels/${sourceChannelId}/messages/${messageId}`,
-      "GET"
-    );
-
-    if (!originalMessage || !originalMessage.id) {
-      return NextResponse.json(
-        { error: "Pesan asli tidak ditemukan di channel sumber" },
-        { status: 404 }
-      );
-    }
-
-    // 2. Teruskan pesan ke target channel
-    // Discord API mendukung message_reference tipe forward (type: 1) atau replikasi embed
+    // Payload native Discord Forward (type: 1 = FORWARD)
     const payload = {
-      content: `📨 **Forwarded Report Log:**`,
-      embeds: originalMessage.embeds || [],
       message_reference: {
-        message_id: messageId,
+        type: 1, // 🟢 Tipe 1 menandakan aksi FORWARD, bukan REPLY
         channel_id: sourceChannelId,
+        message_id: messageId,
         fail_if_not_exists: false,
       },
     };
@@ -51,16 +36,16 @@ export async function GET(request: NextRequest) {
     if (forwardRes && forwardRes.id) {
       return NextResponse.json({
         success: true,
-        message: `Pesan ${messageId} berhasil diteruskan ke channel log`,
+        message: `Pesan ${messageId} berhasil di-forward ke channel log`,
         forwardedMessageId: forwardRes.id,
       });
     }
 
     return NextResponse.json(
-      { success: false, error: "Gagal mengirim forward ke Discord API" },
+      { success: false, error: "Gagal memproses forward ke Discord API" },
       { status: 500 }
     );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  }
+}
