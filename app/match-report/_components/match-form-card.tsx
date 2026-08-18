@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchItem, MatchReportEntry, generateFileName, maskImageUrl } from "../utils/lib-match-report";
+import { MatchItem, MatchReportEntry, generateFileName, maskImageUrl } from "../_utils/lib-match-report";
 
 interface MatchFormCardProps {
   match: MatchItem;

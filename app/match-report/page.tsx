@@ -1,6 +1,6 @@
 import { kv } from "@vercel/kv";
 import MatchReportPageClient from "./page-client";
-import { MatchItem } from "./utils/lib-match-report";
+import { MatchItem } from "./_utils/lib-match-report";
 import { MatchScheduleItem } from "@/app/tournament/_library";
 
 export const metadata = {

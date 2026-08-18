@@ -3,12 +3,12 @@
 import { useState, useEffect, useMemo } from "react";
 import Swal from "sweetalert2";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
-import { useMatchReport } from "./hooks/use-match-report";
-import { MatchFormCard } from "./components/match-form-card";
-import { DiscordPreview } from "./components/discord-preview";
-import { MatchFilterPanel } from "./components/match-filter-panel";
-import { ResetConfirmModal } from "./components/reset-confirm-modal";
-import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./utils/lib-match-report";
+import { useMatchReport } from "./_hooks/use-match-report";
+import { MatchFormCard } from "./_components/match-form-card";
+import { DiscordPreview } from "./_components/discord-preview";
+import { MatchFilterPanel } from "./_components/match-filter-panel";
+import { ResetConfirmModal } from "./_components/reset-confirm-modal";
+import { MatchItem, STORAGE_KEY, generateFileName, maskImageUrl } from "./_utils/lib-match-report";
 import { DIVISION_MAP } from "@/app/tournament/_library";
 
 interface MatchReportPageClientProps {

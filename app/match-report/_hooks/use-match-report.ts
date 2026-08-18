@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MatchItem, MatchReportEntry, STORAGE_KEY, generateFileName } from "../utils/lib-match-report";
+import { MatchItem, MatchReportEntry, STORAGE_KEY, generateFileName } from "../_utils/lib-match-report";
 
 export function useMatchReport(availableMatches: MatchItem[]) {
   const [selectedWeek, setSelectedWeek] = useState<number>(1);

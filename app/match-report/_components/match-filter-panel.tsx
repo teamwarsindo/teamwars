@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { ChevronDown, Check, RefreshCw, RotateCcw } from "lucide-react";
+import { ChevronDown, Check, RotateCcw } from "lucide-react";
 
 interface MatchFilterPanelProps {
   selectedGroup: "ALL" | "Group A" | "Group B";
@@ -9,8 +9,6 @@ interface MatchFilterPanelProps {
   selectedWeek: number | "ALL";
   onSelectWeek: (week: number | "ALL") => void;
   availableWeeks: number[];
-  isRefreshingKv: boolean;
-  onRefreshKv: () => void;
   onResetFilter: () => void;
 }
 
@@ -20,8 +18,6 @@ export function MatchFilterPanel({
   selectedWeek,
   onSelectWeek,
   availableWeeks,
-  isRefreshingKv,
-  onRefreshKv,
   onResetFilter,
 }: MatchFilterPanelProps) {
   const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
@@ -63,8 +59,8 @@ export function MatchFilterPanel({
         ))}
       </div>
 
-      {/* DROPDOWN WEEK, REFRESH, RESET */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      {/* DROPDOWN WEEK & RESET FILTER */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {/* DROPDOWN WEEK */}
         <div className="relative" ref={weekRef}>
           <button
@@ -112,17 +108,6 @@ export function MatchFilterPanel({
           )}
         </div>
 
-        {/* REFRESH KV DATA */}
-        <button
-          type="button"
-          onClick={onRefreshKv}
-          disabled={isRefreshingKv}
-          className="w-full py-2.5 px-3 rounded-xl border border-border bg-background/80 text-xs font-bold text-foreground transition flex items-center justify-center gap-2 hover:bg-muted cursor-pointer active:scale-[0.98]"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${isRefreshingKv ? "animate-spin text-primary" : ""}`} />
-          <span>{isRefreshingKv ? "Syncing..." : "Refresh KV Data"}</span>
-        </button>
-
         {/* RESET FILTER */}
         <button
           type="button"
@@ -140,4 +125,4 @@ export function MatchFilterPanel({
       </div>
     </div>
   );
-          }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchItem, MatchReportEntry } from "../utils/lib-match-report";
+import { MatchItem, MatchReportEntry } from "../_utils/lib-match-report";
 
 interface DiscordPreviewProps {
   match: MatchItem;
