@@ -32,6 +32,9 @@ import { handleBtRole } from '@/lib/discord/buttons/btRole';
 import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
 import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 
+// Tambahkan import di bagian atas file app/api/discord/route.ts
+import { handleStreamCommand } from '@/lib/discord/commands/stream';
+
 // Bidding Module
 import { getBidModal } from '@/lib/discord/buttons/bidding';
 import { processBidSubmission, handleViewFullLog, KV_BID_KEY, BidStore } from '@/lib/discord/bidding';
@@ -77,6 +80,7 @@ export async function POST(req: NextRequest) {
       if (commandName === 'reschedule') return NextResponse.json(await handleRescheduleCommand(body));
       if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
       if (commandName === 'match-report') return NextResponse.json(await handleMatchReportCommand(body));
+      if (commandName === 'stream') return NextResponse.json(await handleStreamCommand(body));
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body);

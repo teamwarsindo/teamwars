@@ -77,12 +77,6 @@ export async function GET(req: Request) {
           description: 'Skor akhir Tim B (Wajib diisi jika peran Referee)',
           required: false,
         },
-        {
-          type: 3, // STRING
-          name: 'stream_link',
-          description: 'Tautan siaran langsung / VOD (Wajib diisi jika peran Streamer)',
-          required: false,
-        },
       ],
     },
 
@@ -387,6 +381,20 @@ export async function GET(req: Request) {
           description: 'Pilih nama tim untuk melihat daftar match report',
           required: true,
           autocomplete: true,
+        },
+      ],
+    },
+
+    // 🎥 12. STREAM COMMAND (INPUT LINK & BROADCAST LIVE)
+    {
+      name: 'stream',
+      description: '[STREAMER] Masukkan link siaran langsung pertandingan ini dan kirim broadcast',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'link',
+          description: 'Masukkan URL siaran langsung (YouTube, TikTok, Twitch, dsb.)',
+          required: true,
         },
       ],
     },
