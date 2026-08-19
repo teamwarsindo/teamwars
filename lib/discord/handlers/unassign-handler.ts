@@ -22,7 +22,6 @@ export async function handleUnassignCommand(interaction: any) {
   const assignType = opts.find((o: any) => o.name === 'type')?.value as 'REFEREE' | 'STREAMER';
   const scoreAOpt = opts.find((o: any) => o.name === 'score_a')?.value;
   const scoreBOpt = opts.find((o: any) => o.name === 'score_b')?.value;
-  const streamLinkOpt = opts.find((o: any) => o.name === 'stream_link' || o.name === 'link')?.value;
 
   if (!matchId || !assignType) {
     return { type: 4, data: { content: '❌ Option `match` dan `type` wajib diisi!', flags: 64 } };
@@ -36,17 +35,6 @@ export async function handleUnassignCommand(interaction: any) {
     };
   }
 
-  // 2. Validasi Wajib untuk Streamer
-  if (assignType === 'STREAMER' && (!streamLinkOpt || !streamLinkOpt.trim().startsWith('http'))) {
-    return {
-      type: 4,
-      data: {
-        content: '❌ Unassign Streamer WAJIB menyertakan `stream_link` yang valid (contoh: https://youtube.com/...)!',
-        flags: 64,
-      },
-    };
-  }
-
   const scoreA = scoreAOpt !== undefined ? parseInt(scoreAOpt, 10) : 0;
   const scoreB = scoreBOpt !== undefined ? parseInt(scoreBOpt, 10) : 0;
 
@@ -57,13 +45,12 @@ export async function handleUnassignCommand(interaction: any) {
       assignType,
       scoreA,
       scoreB,
-      streamLink: streamLinkOpt,
     });
 
     const extraMsg =
       assignType === 'REFEREE'
         ? `\n🏆 Skor Akhir: **${scoreA} - ${scoreB}** (Terkirim ke #CH_SCORE)`
-        : `\n🎥 Link Streaming: ${streamLinkOpt}`;
+        : '';
 
     return {
       type: 4,
