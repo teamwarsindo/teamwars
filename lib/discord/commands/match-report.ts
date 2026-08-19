@@ -1,7 +1,7 @@
 import { kv } from '@vercel/kv';
 import { NextResponse } from 'next/server';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI } from '@/lib/discord/utils';
+import { discordAPI, isValidSnowflake } from '@/lib/discord/utils';
 import { MatchScheduleItem } from '@/app/tournament/_library/types';
 
 export async function handleMatchReportCommand(interaction: any) {
@@ -18,7 +18,7 @@ export async function handleMatchReportCommand(interaction: any) {
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
-    // Filter match yang melibatkan tim dan sudah memiliki match report (discordMessageId)
+    // 1. Filter match yang melibatkan tim dan sudah memiliki report
     const availableReports = schedules.filter((m) => {
       const isTeamInvolved =
         m.teamAName?.toLowerCase() === teamInput ||
@@ -39,13 +39,37 @@ export async function handleMatchReportCommand(interaction: any) {
       };
     }
 
+    // 2. Ambil data tim untuk custom emoji jika tersedia
+    const allTeamSlugs = (await kv.smembers('global:teams')) || [];
+    const teamMetadataMap = new Map<string, { emojiId?: string; kodeTim?: string }>();
+
+    for (const slug of allTeamSlugs) {
+      const t = await kv.hgetall<any>(`teams:${slug}`);
+      if (t && t.namaTim) {
+        teamMetadataMap.set(t.namaTim.toLowerCase(), {
+          emojiId: t.emojiId,
+          kodeTim: t.kodeTim || slug.toUpperCase(),
+        });
+      }
+    }
+
+    // 3. Susun opsi Select Menu
     const selectOptions = availableReports.slice(0, 25).map((m) => {
-      const weekLabel = m.weekNumber ? `W${m.weekNumber}` : 'Match';
-      const scoreLabel = m.scoreA !== undefined && m.scoreB !== undefined ? `(${m.scoreA} - ${m.scoreB})` : '';
+      const weekNumber = m.weekNumber || 1;
+      const scoreLabel = m.scoreA !== undefined && m.scoreB !== undefined ? `${m.scoreA} - ${m.scoreB}` : 'Selesai';
+      
+      // Deteksi emoji tim target atau tim lawan
+      const currentTeamMeta = teamMetadataMap.get(teamInput);
+      const emojiPayload =
+        currentTeamMeta?.emojiId && isValidSnowflake(currentTeamMeta.emojiId)
+          ? { id: currentTeamMeta.emojiId, name: currentTeamMeta.kodeTim || 'twi' }
+          : undefined;
+
       return {
-        label: `[${weekLabel}] ${m.id.toUpperCase()}: ${m.teamAName} vs ${m.teamBName} ${scoreLabel}`,
+        label: `${m.id.toUpperCase()} (${scoreLabel})`,
         value: m.id,
-        description: `Laporan resmi ID: ${m.discordMessageId}`,
+        description: `Week ${weekNumber} • ${m.teamAName} vs ${m.teamBName}`.slice(0, 100),
+        ...(emojiPayload ? { emoji: emojiPayload } : {}),
       };
     });
 
@@ -53,7 +77,7 @@ export async function handleMatchReportCommand(interaction: any) {
       type: 4,
       data: {
         flags: 64,
-        content: `📋 Ditemukan **${availableReports.length}** match report untuk **${teamInput}**.\nSilakan pilih satu atau beberapa match di bawah untuk diteruskan ke channel ini:`,
+        content: `📋 Ditemukan **${availableReports.length}** match report untuk **${teamInput}**.\nSilakan pilih match di bawah untuk diteruskan:`,
         components: [
           {
             type: 1,
@@ -61,7 +85,7 @@ export async function handleMatchReportCommand(interaction: any) {
               {
                 type: 3, // String Select Menu
                 custom_id: 'select_forward_match_report',
-                placeholder: 'Pilih match report yang ingin di-forward...',
+                placeholder: 'Pilih match report...',
                 min_values: 1,
                 max_values: selectOptions.length,
                 options: selectOptions,
@@ -135,7 +159,7 @@ export async function handleMatchReportSelect(interaction: any) {
     }
 
     return NextResponse.json({
-      type: 7, // Update Message
+      type: 7, // Update Interaction Message
       data: {
         content: summaryText,
         embeds: [],

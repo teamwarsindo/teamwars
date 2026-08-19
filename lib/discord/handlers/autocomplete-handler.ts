@@ -177,10 +177,12 @@ export async function handleMatchReportAutocomplete(interaction: any) {
             choices.push({ name: teamData.namaTim, value: teamData.namaTim });
           }
         }
-        if (choices.length >= 25) break;
       }
 
-      return { type: 8, data: { choices } };
+      // 🟢 Urutkan nama tim secara alfabetis (A - Z)
+      choices.sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+
+      return { type: 8, data: { choices: choices.slice(0, 25) } };
     }
 
     return { type: 8, data: { choices: [] } };
