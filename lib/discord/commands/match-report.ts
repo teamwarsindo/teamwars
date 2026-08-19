@@ -4,8 +4,43 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, isValidSnowflake } from '@/lib/discord/utils';
 import { MatchScheduleItem } from '@/app/tournament/_library/types';
 
+/**
+ * Helper untuk memvalidasi apakah channel berada di bawah Kategori Camp Tim (CT_TEAM_ID)
+ */
+async function isInsideCampCategory(interaction: any): Promise<boolean> {
+  const targetChannelId = interaction.channel_id;
+  if (!targetChannelId || !DISCORD_CONFIG.CT_TEAM_ID) return false;
+
+  // 1. Cek langsung dari payload interaction.channel jika tersedia
+  const directParentId = interaction.channel?.parent_id;
+  if (directParentId) {
+    return directParentId === DISCORD_CONFIG.CT_TEAM_ID;
+  }
+
+  // 2. Fallback: Fetch channel data langsung via Discord REST API
+  try {
+    const channelData = await discordAPI(`/channels/${targetChannelId}`, 'GET');
+    return channelData?.parent_id === DISCORD_CONFIG.CT_TEAM_ID;
+  } catch (err) {
+    console.error('Error memverifikasi kategori channel:', err);
+    return false;
+  }
+}
+
 export async function handleMatchReportCommand(interaction: any) {
   try {
+    // 🛡️ GUARD CHECK: Validasi Kategori Channel Camp
+    const isCampChannel = await isInsideCampCategory(interaction);
+    if (!isCampChannel) {
+      return {
+        type: 4,
+        data: {
+          content: '❌ **Akses Ditolak!** Command `/match-report` hanya dapat dijalankan di dalam channel camp tim.',
+          flags: 64,
+        },
+      };
+    }
+
     const options = interaction.data?.options || [];
     const teamInput = (options.find((o: any) => o.name === 'team')?.value || '').trim().toLowerCase();
 
@@ -18,7 +53,7 @@ export async function handleMatchReportCommand(interaction: any) {
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
-    // 1. Filter match yang melibatkan tim dan sudah memiliki report
+    // 1. Filter match yang melibatkan tim dan sudah memiliki report (discordMessageId)
     const availableReports = schedules.filter((m) => {
       const isTeamInvolved =
         m.teamAName?.toLowerCase() === teamInput ||
@@ -57,8 +92,7 @@ export async function handleMatchReportCommand(interaction: any) {
     const selectOptions = availableReports.slice(0, 25).map((m) => {
       const weekNumber = m.weekNumber || 1;
       const scoreLabel = m.scoreA !== undefined && m.scoreB !== undefined ? `${m.scoreA} - ${m.scoreB}` : 'Selesai';
-      
-      // Deteksi emoji tim target atau tim lawan
+
       const currentTeamMeta = teamMetadataMap.get(teamInput);
       const emojiPayload =
         currentTeamMeta?.emojiId && isValidSnowflake(currentTeamMeta.emojiId)
@@ -77,7 +111,7 @@ export async function handleMatchReportCommand(interaction: any) {
       type: 4,
       data: {
         flags: 64,
-        content: `📋 Ditemukan **${availableReports.length}** match report untuk **${teamInput}**.\nSilakan pilih match di bawah untuk diteruskan:`,
+        content: `📋 Ditemukan **${availableReports.length}** match report untuk **${teamInput}**.\nSilakan pilih match di bawah untuk diteruskan ke channel ini:`,
         components: [
           {
             type: 1,
@@ -106,6 +140,19 @@ export async function handleMatchReportCommand(interaction: any) {
 
 export async function handleMatchReportSelect(interaction: any) {
   try {
+    // 🛡️ GUARD CHECK: Validasi Kategori Channel Camp pada aksi Select
+    const isCampChannel = await isInsideCampCategory(interaction);
+    if (!isCampChannel) {
+      return NextResponse.json({
+        type: 7,
+        data: {
+          content: '❌ **Akses Ditolak!** Fitur ini hanya dapat diproses di dalam channel camp tim.',
+          embeds: [],
+          components: [],
+        },
+      });
+    }
+
     const selectedMatchIds: string[] = interaction.data?.values || [];
     const targetChannelId = interaction.channel_id;
     const sourceChannelId = DISCORD_CONFIG.CH_REPORT;
@@ -113,14 +160,14 @@ export async function handleMatchReportSelect(interaction: any) {
     if (!sourceChannelId) {
       return NextResponse.json({
         type: 7,
-        data: { content: '❌ Konfigurasi `CH_REPORT` belum ditentukan di server.', components: [] },
+        data: { content: '❌ Konfigurasi `CH_REPORT` belum ditentukan di server.', embeds: [], components: [] },
       });
     }
 
     if (!selectedMatchIds.length) {
       return NextResponse.json({
         type: 7,
-        data: { content: '❌ Tidak ada match yang dipilih.', components: [] },
+        data: { content: '❌ Tidak ada match yang dipilih.', embeds: [], components: [] },
       });
     }
 
@@ -172,5 +219,5 @@ export async function handleMatchReportSelect(interaction: any) {
       type: 4,
       data: { content: `❌ Gagal memproses forward: ${error.message || 'Error internal'}`, flags: 64 },
     });
-  }
+  }                           
 }
