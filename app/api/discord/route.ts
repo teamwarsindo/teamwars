@@ -36,6 +36,10 @@ import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 import { getBidModal } from '@/lib/discord/buttons/bidding';
 import { processBidSubmission, handleViewFullLog, KV_BID_KEY, BidStore } from '@/lib/discord/bidding';
 
+// 1. Tambahkan import di bagian atas file app/api/discord/route.ts
+import { handleMatchReportCommand, handleMatchReportSelect } from '@/lib/discord/commands/match-report';
+import { handleMatchReportAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
+
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
@@ -72,6 +76,7 @@ export async function POST(req: NextRequest) {
       if (commandName === 'cancel-assign') return NextResponse.json(await handleCancelAssignCommand(body));
       if (commandName === 'reschedule') return NextResponse.json(await handleRescheduleCommand(body));
       if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
+      if (commandName === 'match-report') return NextResponse.json(await handleMatchReportCommand(body));
       if (commandName === 'reminder') return await handleReminder(body);
       if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body);
@@ -92,9 +97,8 @@ export async function POST(req: NextRequest) {
       if (customId === 'bt_verified') return await handleBtVerified(body);
       if (customId === 'bt_role') return await handleBtRole(body);
       if (customId === 'btn_edit_team') return await handleBtEditTeam(body);
-      if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') {
-        return await handleBtTimer(body);
-      }
+      if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') return await handleBtTimer(body);
+      if (customId === 'select_forward_match_report') return await handleMatchReportSelect(body);
 
       if (customId.startsWith('btn_parse_')) {
         if (customId === 'btn_parse_CANCEL') {
@@ -322,6 +326,10 @@ export async function POST(req: NextRequest) {
       }
       if (body.data?.name === 'transfer') {
         const autocompleteResponse = await handleTransferAutocomplete(body);
+        return NextResponse.json(autocompleteResponse);
+      }
+      if (body.data?.name === 'match-report') {
+        const autocompleteResponse = await handleMatchReportAutocomplete(body);
         return NextResponse.json(autocompleteResponse);
       }
     }

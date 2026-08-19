@@ -374,6 +374,22 @@ export async function GET(req: Request) {
         },
       ],
     },
+
+    // Tambahkan di dalam array commands pada file app/api/discord/command/route.ts:
+    // 📊 11. MATCH REPORT FORWARD COMMAND
+    {
+      name: 'match-report',
+      description: '[CAMP] Teruskan match report resmi ke channel camp ini',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'team',
+          description: 'Pilih nama tim untuk melihat daftar match report',
+          required: true,
+          autocomplete: true,
+        },
+      ],
+    },
   ];
 
   const slashResult = await discordAPI(`/applications/${appId}/commands`, 'PUT', commands);

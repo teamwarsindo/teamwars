@@ -1,0 +1,152 @@
+import { kv } from '@vercel/kv';
+import { NextResponse } from 'next/server';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { discordAPI } from '@/lib/discord/utils';
+import { MatchScheduleItem } from '@/app/tournament/_library/types';
+
+export async function handleMatchReportCommand(interaction: any) {
+  try {
+    const options = interaction.data?.options || [];
+    const teamInput = (options.find((o: any) => o.name === 'team')?.value || '').trim().toLowerCase();
+
+    if (!teamInput) {
+      return {
+        type: 4,
+        data: { content: '❌ Mohon pilih tim terlebih dahulu.', flags: 64 },
+      };
+    }
+
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+
+    // Filter match yang melibatkan tim dan sudah memiliki match report (discordMessageId)
+    const availableReports = schedules.filter((m) => {
+      const isTeamInvolved =
+        m.teamAName?.toLowerCase() === teamInput ||
+        m.teamBName?.toLowerCase() === teamInput ||
+        m.teamAId?.toLowerCase() === teamInput ||
+        m.teamBId?.toLowerCase() === teamInput;
+
+      return isTeamInvolved && !!m.discordMessageId;
+    });
+
+    if (availableReports.length === 0) {
+      return {
+        type: 4,
+        data: {
+          content: `⚠️ Tidak ditemukan **Match Report** yang sudah dipublikasikan untuk tim **${teamInput}**.`,
+          flags: 64,
+        },
+      };
+    }
+
+    const selectOptions = availableReports.slice(0, 25).map((m) => {
+      const weekLabel = m.weekNumber ? `W${m.weekNumber}` : 'Match';
+      const scoreLabel = m.scoreA !== undefined && m.scoreB !== undefined ? `(${m.scoreA} - ${m.scoreB})` : '';
+      return {
+        label: `[${weekLabel}] ${m.id.toUpperCase()}: ${m.teamAName} vs ${m.teamBName} ${scoreLabel}`,
+        value: m.id,
+        description: `Laporan resmi ID: ${m.discordMessageId}`,
+      };
+    });
+
+    return {
+      type: 4,
+      data: {
+        flags: 64,
+        content: `📋 Ditemukan **${availableReports.length}** match report untuk **${teamInput}**.\nSilakan pilih satu atau beberapa match di bawah untuk diteruskan ke channel ini:`,
+        components: [
+          {
+            type: 1,
+            components: [
+              {
+                type: 3, // String Select Menu
+                custom_id: 'select_forward_match_report',
+                placeholder: 'Pilih match report yang ingin di-forward...',
+                min_values: 1,
+                max_values: selectOptions.length,
+                options: selectOptions,
+              },
+            ],
+          },
+        ],
+      },
+    };
+  } catch (error: any) {
+    console.error('Error Handle Match Report Command:', error);
+    return {
+      type: 4,
+      data: { content: `❌ Gagal memproses data report: ${error.message || 'Error internal'}`, flags: 64 },
+    };
+  }
+}
+
+export async function handleMatchReportSelect(interaction: any) {
+  try {
+    const selectedMatchIds: string[] = interaction.data?.values || [];
+    const targetChannelId = interaction.channel_id;
+    const sourceChannelId = DISCORD_CONFIG.CH_REPORT;
+
+    if (!sourceChannelId) {
+      return NextResponse.json({
+        type: 7,
+        data: { content: '❌ Konfigurasi `CH_REPORT` belum ditentukan di server.', components: [] },
+      });
+    }
+
+    if (!selectedMatchIds.length) {
+      return NextResponse.json({
+        type: 7,
+        data: { content: '❌ Tidak ada match yang dipilih.', components: [] },
+      });
+    }
+
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    let successCount = 0;
+    const failedMatches: string[] = [];
+
+    for (const matchId of selectedMatchIds) {
+      const match = schedules.find((m) => m.id === matchId);
+      if (!match || !match.discordMessageId) {
+        failedMatches.push(matchId);
+        continue;
+      }
+
+      const payload = {
+        message_reference: {
+          type: 1, // Type 1 = FORWARD
+          channel_id: sourceChannelId,
+          message_id: match.discordMessageId,
+          fail_if_not_exists: false,
+        },
+      };
+
+      const forwardRes = await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', payload);
+
+      if (forwardRes && forwardRes.id) {
+        successCount++;
+      } else {
+        failedMatches.push(matchId);
+      }
+    }
+
+    let summaryText = `✅ Berhasil meneruskan **${successCount}** match report ke channel ini!`;
+    if (failedMatches.length > 0) {
+      summaryText += `\n⚠️ Gagal meneruskan match: ${failedMatches.join(', ')}`;
+    }
+
+    return NextResponse.json({
+      type: 7, // Update Message
+      data: {
+        content: summaryText,
+        embeds: [],
+        components: [],
+      },
+    });
+  } catch (error: any) {
+    console.error('Error Handle Match Report Select:', error);
+    return NextResponse.json({
+      type: 4,
+      data: { content: `❌ Gagal memproses forward: ${error.message || 'Error internal'}`, flags: 64 },
+    });
+  }
+}

@@ -156,3 +156,36 @@ export async function handleRescheduleAutocomplete(interaction: any) {
 
   return { type: 8, data: { choices: [] } };
 }
+
+// Tambahkan fungsi handleMatchReportAutocomplete
+export async function handleMatchReportAutocomplete(interaction: any) {
+  try {
+    const options = interaction.data?.options || [];
+    const focusedOption = options.find((opt: any) => opt.focused);
+    if (!focusedOption) return { type: 8, data: { choices: [] } };
+
+    const query = (focusedOption.value || '').toLowerCase();
+
+    if (focusedOption.name === 'team') {
+      const allTeamSlugs = (await kv.smembers('global:teams')) || [];
+      const choices: Array<{ name: string; value: string }> = [];
+
+      for (const slug of allTeamSlugs) {
+        const teamData = await kv.hgetall<any>(`teams:${slug}`);
+        if (teamData && teamData.namaTim) {
+          if (teamData.namaTim.toLowerCase().includes(query) || slug.toLowerCase().includes(query)) {
+            choices.push({ name: teamData.namaTim, value: teamData.namaTim });
+          }
+        }
+        if (choices.length >= 25) break;
+      }
+
+      return { type: 8, data: { choices } };
+    }
+
+    return { type: 8, data: { choices: [] } };
+  } catch (error) {
+    console.error('Error Match Report Autocomplete:', error);
+    return { type: 8, data: { choices: [] } };
+  }
+}
