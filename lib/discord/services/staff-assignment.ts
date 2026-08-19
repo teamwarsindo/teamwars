@@ -241,13 +241,8 @@ export async function executeUnassignStaff(params: {
   assignType: 'REFEREE' | 'STREAMER';
   scoreA?: number;
   scoreB?: number;
-  streamLink?: string;
 }) {
-  const { matchId, assignType, scoreA = 0, scoreB = 0, streamLink } = params;
-
-  if (assignType === 'STREAMER' && (!streamLink || !streamLink.trim().startsWith('http'))) {
-    throw new Error('Link streaming (YouTube/Twitch) yang valid wajib disertakan saat unassign Streamer!');
-  }
+  const { matchId, assignType, scoreA = 0, scoreB = 0 } = params;
 
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
   const idx = schedules.findIndex((m) => m.id === matchId);
@@ -305,10 +300,6 @@ export async function executeUnassignStaff(params: {
     if (assignType === 'STREAMER' && matchChannelId) {
       await discordAPI(`/channels/${matchChannelId}/permissions/${targetStaffId}`, 'DELETE').catch(() => null);
     }
-  }
-
-  if (streamLink) {
-    match.streamLink = streamLink.trim();
   }
 
   if (assignType === 'REFEREE') {
