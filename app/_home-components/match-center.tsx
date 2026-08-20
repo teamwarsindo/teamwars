@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MatchScheduleItem, formatDateTimeWIB } from "@/app/tournament/_library";
+import { MatchScheduleItem, formatDateTimeWIB, formatMatchWIB } from "@/app/tournament/_library";
 import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 import { MatchH2HModal } from "./match-h2h-modal";
 import { Calendar, Radio, Sparkles, ChevronRight, Mic } from "lucide-react";
@@ -157,7 +157,7 @@ export function MatchCenter({
                       <div className="flex flex-col items-center shrink-0 px-2">
                         <span className="text-[9px] font-bold text-muted-foreground uppercase">VS</span>
                         <span className="text-[9.5px] font-extrabold text-sky-600 dark:text-sky-400">
-                          {formatDateTimeWIB(m.matchDate, { timeOnly: true })} WIB
+                          {formatDateTimeWIB(m.matchDate, { includeDate: false })}
                         </span>
                       </div>
                       <div className="flex items-center justify-end gap-2 min-w-0 flex-1 text-right">
@@ -208,7 +208,7 @@ export function MatchCenter({
                       <div className="flex flex-col items-center shrink-0 px-2 text-center">
                         <span className="text-[9px] font-bold text-muted-foreground uppercase">VS</span>
                         <span className="text-[9.5px] font-medium text-muted-foreground">
-                          {formatDateTimeWIB(m.matchDate, { includeDay: true })}
+                          {formatMatchWIB(m.matchDate)}
                         </span>
                       </div>
                       <div className="flex items-center justify-end gap-2 min-w-0 flex-1 text-right">
@@ -241,7 +241,7 @@ export function MatchCenter({
           )}
         </div>
       ) : (
-        /* TAB HASIL TERBARU (NAMA & SKOR PEMENANG HIJAU) */
+        /* TAB HASIL TERBARU */
         <div className="space-y-2">
           {recentResults.length > 0 ? (
             recentResults.map((m) => {
@@ -279,7 +279,9 @@ export function MatchCenter({
                     <div className="flex items-center gap-1.5 shrink-0 px-2 font-black text-sm">
                       <span
                         className={
-                          winA ? "text-emerald-600 dark:text-emerald-400 font-black" : "text-muted-foreground"
+                          winA
+                            ? "text-emerald-600 dark:text-emerald-400 font-black"
+                            : "text-muted-foreground"
                         }
                       >
                         {sA}
@@ -287,7 +289,9 @@ export function MatchCenter({
                       <span className="text-muted-foreground/40 text-xs">-</span>
                       <span
                         className={
-                          winB ? "text-emerald-600 dark:text-emerald-400 font-black" : "text-muted-foreground"
+                          winB
+                            ? "text-emerald-600 dark:text-emerald-400 font-black"
+                            : "text-muted-foreground"
                         }
                       >
                         {sB}
@@ -342,5 +346,4 @@ export function MatchCenter({
       )}
     </div>
   );
-                            }
-                                 
+                          }
