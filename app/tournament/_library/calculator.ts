@@ -268,6 +268,9 @@ export function getNextDateMatches(
 
 export interface TeamComparisonStats {
   rank: number | string;
+  groupRankLabel: string;
+  wildcardRankLabel: string;
+  isTopGroup: boolean;
   groupName: string;
   teamColor?: string;
   matchPlayed: number;
@@ -300,8 +303,26 @@ export function getTeamStatsFromStandings(
   const ptsDiffRateLabel = ptsDiffRate > 0 ? `+${ptsDiffRate}` : `${ptsDiffRate}`;
   const teamColor = explicitColor || t?.teamColor;
 
+  const divRankNum = typeof t?.rank === "number" ? t.rank : 99;
+  const isTopGroup = divRankNum <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP;
+  const groupRankLabel = t ? `Rank #${t.rank}` : "-";
+
+  let wildcardRankLabel = "Lolos QF";
+  if (!isTopGroup) {
+    const globalStandings = buildGlobalStandings(standings);
+    const wildcardItem = globalStandings.find(
+      (item) =>
+        !item.isTopGroup &&
+        item.teamName.toLowerCase().trim() === teamName.toLowerCase().trim()
+    );
+    wildcardRankLabel = wildcardItem ? `Rank #${wildcardItem.rank}` : "-";
+  }
+
   return {
     rank: t ? t.rank : "-",
+    groupRankLabel,
+    wildcardRankLabel,
+    isTopGroup,
     groupName: t ? t.groupName : "Group Stage",
     teamColor,
     matchPlayed,
@@ -320,9 +341,9 @@ export function getTeamStatsFromStandings(
 export function calculateMatchPrediction(
   statsA: TeamComparisonStats,
   statsB: TeamComparisonStats
-): { probA: number; probB: number } {
+): { probA: number; probB: number; predScoreA: number; predScoreB: number } {
   if (statsA.matchPlayed === 0 && statsB.matchPlayed === 0) {
-    return { probA: 50, probB: 50 };
+    return { probA: 50, probB: 50, predScoreA: 10, predScoreB: 9 };
   }
 
   const computeScore = (stats: TeamComparisonStats) => {
@@ -344,12 +365,29 @@ export function calculateMatchPrediction(
   const scoreB = computeScore(statsB);
 
   const totalScore = scoreA + scoreB;
-  if (totalScore <= 0) return { probA: 50, probB: 50 };
+  let probA = 50;
+  let probB = 50;
 
-  const probA = Math.max(15, Math.min(85, Math.round((scoreA / totalScore) * 100)));
-  const probB = 100 - probA;
+  if (totalScore > 0) {
+    probA = Math.max(15, Math.min(85, Math.round((scoreA / totalScore) * 100)));
+    probB = 100 - probA;
+  }
 
-  return { probA, probB };
+  // Kalkulasi estimasi skor akhir Race to 10
+  let predScoreA = 10;
+  let predScoreB = 10;
+
+  if (probA >= probB) {
+    predScoreA = 10;
+    const loserRatio = probB / probA;
+    predScoreB = Math.max(4, Math.min(9, Math.round(loserRatio * 9.5)));
+  } else {
+    predScoreB = 10;
+    const loserRatio = probA / probB;
+    predScoreA = Math.max(4, Math.min(9, Math.round(loserRatio * 9.5)));
+  }
+
+  return { probA, probB, predScoreA, predScoreB };
 }
 
 export interface MatchHistoryCardItem {
@@ -363,35 +401,39 @@ export interface MatchHistoryCardItem {
   reportLink?: string;
 }
 
-export function getTeamHistoryList(
+export function getTeamHistoryMap(
   teamName: string,
   allSchedules: MatchScheduleItem[] = []
-): MatchHistoryCardItem[] {
+): Map<number, MatchHistoryCardItem> {
+  const map = new Map<number, MatchHistoryCardItem>();
   const q = teamName.toLowerCase().trim();
-  return allSchedules
+
+  allSchedules
     .filter((m) => {
       const matchA = (m.teamAName || "").toLowerCase().trim();
       const matchB = (m.teamBName || "").toLowerCase().trim();
       return m.isFinished && (matchA === q || matchB === q);
     })
-    .sort((a, b) => (a.weekNumber || 1) - (b.weekNumber || 1))
-    .map((m) => {
+    .forEach((m) => {
       const isA = (m.teamAName || "").toLowerCase().trim() === q;
       const myScore = (isA ? m.scoreA : m.scoreB) ?? 0;
       const oppScore = (isA ? m.scoreB : m.scoreA) ?? 0;
       const oppName = isA ? m.teamBName : m.teamAName;
       const oppLogo = isA ? m.teamBLogo || "/logo.webp" : m.teamALogo || "/logo.webp";
       const reportLink = m.maskedImageUrl || m.reportImageUrl || undefined;
+      const week = m.weekNumber || 1;
 
-      return {
+      map.set(week, {
         id: m.id,
-        week: m.weekNumber || 1,
+        week,
         isWin: myScore > oppScore,
         myScore,
         oppScore,
         oppName,
         oppLogo,
         reportLink,
-      };
+      });
     });
+
+  return map;
 }

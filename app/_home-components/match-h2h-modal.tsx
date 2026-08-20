@@ -7,7 +7,7 @@ import {
   ExtendedStandingItem,
   getTeamStatsFromStandings,
   calculateMatchPrediction,
-  getTeamHistoryList,
+  getTeamHistoryMap,
 } from "@/app/tournament/_library/calculator";
 import { X, Swords, Trophy, Sparkles, ExternalLink } from "lucide-react";
 
@@ -57,19 +57,29 @@ export function MatchH2HModal({
   );
 
   const prediction = useMemo(() => {
-    if (!statsA || !statsB) return { probA: 50, probB: 50 };
+    if (!statsA || !statsB) return { probA: 50, probB: 50, predScoreA: 10, predScoreB: 9 };
     return calculateMatchPrediction(statsA, statsB);
   }, [statsA, statsB]);
 
-  const historyA = useMemo(
-    () => (match ? getTeamHistoryList(match.teamAName, allSchedules) : []),
+  const historyMapA = useMemo(
+    () => (match ? getTeamHistoryMap(match.teamAName, allSchedules) : new Map()),
     [match, allSchedules]
   );
 
-  const historyB = useMemo(
-    () => (match ? getTeamHistoryList(match.teamBName, allSchedules) : []),
+  const historyMapB = useMemo(
+    () => (match ? getTeamHistoryMap(match.teamBName, allSchedules) : new Map()),
     [match, allSchedules]
   );
+
+  // Ambil nomor week pertandingan yang sudah selesai sampai week sebelumnya
+  const pastWeeks = useMemo(() => {
+    const targetWeek = match?.weekNumber || currentWeek;
+    const weeks: number[] = [];
+    for (let w = 1; w < targetWeek; w++) {
+      weeks.push(w);
+    }
+    return weeks;
+  }, [match, currentWeek]);
 
   if (!mounted || !match || !statsA || !statsB) return null;
 
@@ -156,7 +166,7 @@ export function MatchH2HModal({
             </div>
           </div>
 
-          {/* PREDIKSI MATCH */}
+          {/* PREDIKSI MATCH & SKOR AKHIR */}
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-2.5 sm:p-3 space-y-1.5">
             <div className="flex items-center justify-between text-[9px] font-bold">
               <span className="text-primary flex items-center gap-1">
@@ -178,6 +188,9 @@ export function MatchH2HModal({
 
             <div className="flex items-center justify-between text-[10.5px] font-medium">
               <span style={{ color: colorA }}>{prediction.probA}%</span>
+              <span className="text-[9.5px] text-muted-foreground font-normal">
+                Prediksi Skor: <span style={{ color: colorA }}>{prediction.predScoreA}</span> - <span style={{ color: colorB }}>{prediction.predScoreB}</span>
+              </span>
               <span style={{ color: colorB }}>{prediction.probB}%</span>
             </div>
           </div>
@@ -189,18 +202,47 @@ export function MatchH2HModal({
             </span>
 
             <div className="rounded-2xl border border-border bg-muted/20 divide-y divide-border overflow-hidden">
-              {/* 1. RANK */}
+              {/* 1. PERINGKAT GROUP */}
               <div className="flex items-center justify-between px-3 py-1.5">
                 <span className="font-medium text-muted-foreground" style={getRankStyle(statsA.rank, statsB.rank, true)}>
-                  #{statsA.rank}
+                  {statsA.groupRankLabel}
                 </span>
-                <span className="text-muted-foreground font-normal text-[9px]">Peringkat Klasemen</span>
+                <span className="text-muted-foreground font-normal text-[9px]">Peringkat Group</span>
                 <span className="font-medium text-muted-foreground" style={getRankStyle(statsA.rank, statsB.rank, false)}>
-                  #{statsB.rank}
+                  {statsB.groupRankLabel}
                 </span>
               </div>
 
-              {/* 2. FORM LAGA */}
+              {/* 2. PERINGKAT WILDCARD */}
+              <div className="flex items-center justify-between px-3 py-1.5">
+                <span
+                  className="font-medium text-muted-foreground"
+                  style={
+                    statsA.isTopGroup
+                      ? { color: colorA }
+                      : !statsB.isTopGroup
+                      ? getRankStyle(statsA.wildcardRankLabel, statsB.wildcardRankLabel, true)
+                      : undefined
+                  }
+                >
+                  {statsA.wildcardRankLabel}
+                </span>
+                <span className="text-muted-foreground font-normal text-[9px]">Peringkat Wildcard</span>
+                <span
+                  className="font-medium text-muted-foreground"
+                  style={
+                    statsB.isTopGroup
+                      ? { color: colorB }
+                      : !statsA.isTopGroup
+                      ? getRankStyle(statsA.wildcardRankLabel, statsB.wildcardRankLabel, false)
+                      : undefined
+                  }
+                >
+                  {statsB.wildcardRankLabel}
+                </span>
+              </div>
+
+              {/* 3. FORM LAGA */}
               <div className="flex items-center justify-between px-3 py-1.5">
                 <div className="flex items-center gap-0.5">
                   {statsA.form.length ? (
@@ -243,7 +285,7 @@ export function MatchH2HModal({
                 </div>
               </div>
 
-              {/* 3. WIN RATE */}
+              {/* 4. WIN RATE */}
               <div className="flex items-center justify-between px-3 py-1.5">
                 <span className="font-medium text-muted-foreground" style={getMetricStyle(statsA.winRate, statsB.winRate, true)}>
                   {statsA.winRate}%
@@ -254,7 +296,7 @@ export function MatchH2HModal({
                 </span>
               </div>
 
-              {/* 4. PTS DIFF */}
+              {/* 5. PTS DIFF */}
               <div className="flex items-center justify-between px-3 py-1.5">
                 <span className="font-medium text-muted-foreground" style={getMetricStyle(statsA.rawDiff, statsB.rawDiff, true)}>
                   {statsA.roundDifference}
@@ -265,7 +307,7 @@ export function MatchH2HModal({
                 </span>
               </div>
 
-              {/* 5. PTS DIFF RATE */}
+              {/* 6. PTS DIFF RATE */}
               <div className="flex items-center justify-between px-3 py-1.5">
                 <span className="font-medium text-muted-foreground" style={getMetricStyle(statsA.ptsDiffRate, statsB.ptsDiffRate, true)}>
                   {statsA.ptsDiffRateLabel}
@@ -276,7 +318,7 @@ export function MatchH2HModal({
                 </span>
               </div>
 
-              {/* 6. TOTAL SCORED */}
+              {/* 7. TOTAL SCORED */}
               <div className="flex items-center justify-between px-3 py-1.5">
                 <span className="font-medium text-muted-foreground" style={getMetricStyle(statsA.setWins, statsB.setWins, true)}>
                   {statsA.setWins}
@@ -286,117 +328,87 @@ export function MatchH2HModal({
                   {statsB.setWins}
                 </span>
               </div>
-            </div>
-          </div>
 
-          {/* RIWAYAT PERTANDINGAN 2 KOLOM (KIRI: TIM A, KANAN: TIM B) */}
-          <div className="space-y-1.5">
-            <span className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground px-1">
-              Riwayat Pertandingan
-            </span>
+              {/* 8. REPORT WEEK (RIWAYAT PERTANDINGAN INTEGRASI MATRIX) */}
+              {pastWeeks.map((week) => {
+                const itemA = historyMapA.get(week);
+                const itemB = historyMapB.get(week);
 
-            <div className="grid grid-cols-2 gap-2">
-              {/* KOLOM KIRI: TIM A */}
-              <div className="space-y-1.5 rounded-2xl border border-border bg-muted/15 p-2">
-                <div className="flex items-center gap-1.5 border-b border-border/50 pb-1.5">
-                  <img src={match.teamALogo || "/logo.webp"} alt="" className="h-3.5 w-3.5 object-contain shrink-0" />
-                  <span className="truncate text-[10px] font-medium" style={{ color: colorA }}>
-                    {match.teamAName}
-                  </span>
-                </div>
-
-                <div className="space-y-1">
-                  {historyA.map((h) => (
-                    <a
-                      key={h.id}
-                      href={h.reportLink || "#"}
-                      target={h.reportLink ? "_blank" : "_self"}
-                      rel="noopener noreferrer"
-                      className={`flex items-center justify-between p-1.5 rounded-xl border border-border bg-card/60 hover:border-primary/40 transition text-[9px] ${
-                        h.reportLink ? "cursor-pointer group" : "cursor-default"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1 min-w-0 flex-1 pr-1">
-                        <span
-                          className={`rounded px-1 py-0.2 text-[7.5px] font-bold shrink-0 ${
-                            h.isWin
-                              ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                              : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                return (
+                  <div key={week} className="flex items-center justify-between px-3 py-1.5">
+                    {/* SISI TIM A */}
+                    <div className="flex-1 min-w-0 pr-1">
+                      {itemA ? (
+                        <a
+                          href={itemA.reportLink || "#"}
+                          target={itemA.reportLink ? "_blank" : "_self"}
+                          rel="noopener noreferrer"
+                          className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 border border-border bg-card/60 hover:border-primary/40 transition text-[8px] max-w-full ${
+                            itemA.reportLink ? "cursor-pointer group" : "cursor-default"
                           }`}
                         >
-                          {h.isWin ? "W" : "L"}
-                        </span>
-                        <img src={h.oppLogo} alt="" className="h-3 w-3 object-contain shrink-0" />
-                        <span className="truncate text-muted-foreground text-[8.5px]">{h.oppName}</span>
-                      </div>
+                          <span
+                            className={`rounded px-1 py-0.2 font-bold shrink-0 text-[7px] ${
+                              itemA.isWin
+                                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                            }`}
+                          >
+                            {itemA.isWin ? "W" : "L"}
+                          </span>
+                          <img src={itemA.oppLogo} alt="" className="h-3 w-3 object-contain shrink-0" />
+                          <span className="font-medium text-foreground truncate shrink-0">
+                            {itemA.myScore}-{itemA.oppScore}
+                          </span>
+                          {itemA.reportLink && (
+                            <ExternalLink className="h-2 w-2 text-muted-foreground group-hover:text-primary transition shrink-0" />
+                          )}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground text-[8.5px]">-</span>
+                      )}
+                    </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="font-medium text-foreground text-[8.5px]">
-                          {h.myScore}-{h.oppScore}
-                        </span>
-                        {h.reportLink && (
-                          <ExternalLink className="h-2 w-2 text-muted-foreground group-hover:text-primary transition" />
-                        )}
-                      </div>
-                    </a>
-                  ))}
+                    {/* LABEL TENGAH */}
+                    <span className="text-muted-foreground font-normal text-[9px] shrink-0 px-1">
+                      Report Week {week}
+                    </span>
 
-                  {historyA.length === 0 && (
-                    <p className="text-center py-2 text-[8.5px] text-muted-foreground">Belum ada match</p>
-                  )}
-                </div>
-              </div>
-
-              {/* KOLOM KANAN: TIM B */}
-              <div className="space-y-1.5 rounded-2xl border border-border bg-muted/15 p-2">
-                <div className="flex items-center gap-1.5 border-b border-border/50 pb-1.5">
-                  <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-3.5 w-3.5 object-contain shrink-0" />
-                  <span className="truncate text-[10px] font-medium" style={{ color: colorB }}>
-                    {match.teamBName}
-                  </span>
-                </div>
-
-                <div className="space-y-1">
-                  {historyB.map((h) => (
-                    <a
-                      key={h.id}
-                      href={h.reportLink || "#"}
-                      target={h.reportLink ? "_blank" : "_self"}
-                      rel="noopener noreferrer"
-                      className={`flex items-center justify-between p-1.5 rounded-xl border border-border bg-card/60 hover:border-primary/40 transition text-[9px] ${
-                        h.reportLink ? "cursor-pointer group" : "cursor-default"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1 min-w-0 flex-1 pr-1">
-                        <span
-                          className={`rounded px-1 py-0.2 text-[7.5px] font-bold shrink-0 ${
-                            h.isWin
-                              ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                              : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                    {/* SISI TIM B */}
+                    <div className="flex-1 min-w-0 pl-1 text-right">
+                      {itemB ? (
+                        <a
+                          href={itemB.reportLink || "#"}
+                          target={itemB.reportLink ? "_blank" : "_self"}
+                          rel="noopener noreferrer"
+                          className={`inline-flex items-center justify-end gap-1 rounded-md px-1.5 py-0.5 border border-border bg-card/60 hover:border-primary/40 transition text-[8px] max-w-full ${
+                            itemB.reportLink ? "cursor-pointer group" : "cursor-default"
                           }`}
                         >
-                          {h.isWin ? "W" : "L"}
-                        </span>
-                        <img src={h.oppLogo} alt="" className="h-3 w-3 object-contain shrink-0" />
-                        <span className="truncate text-muted-foreground text-[8.5px]">{h.oppName}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="font-medium text-foreground text-[8.5px]">
-                          {h.myScore}-{h.oppScore}
-                        </span>
-                        {h.reportLink && (
-                          <ExternalLink className="h-2 w-2 text-muted-foreground group-hover:text-primary transition" />
-                        )}
-                      </div>
-                    </a>
-                  ))}
-
-                  {historyB.length === 0 && (
-                    <p className="text-center py-2 text-[8.5px] text-muted-foreground">Belum ada match</p>
-                  )}
-                </div>
-              </div>
+                          <span
+                            className={`rounded px-1 py-0.2 font-bold shrink-0 text-[7px] ${
+                              itemB.isWin
+                                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                            }`}
+                          >
+                            {itemB.isWin ? "W" : "L"}
+                          </span>
+                          <img src={itemB.oppLogo} alt="" className="h-3 w-3 object-contain shrink-0" />
+                          <span className="font-medium text-foreground truncate shrink-0">
+                            {itemB.myScore}-{itemB.oppScore}
+                          </span>
+                          {itemB.reportLink && (
+                            <ExternalLink className="h-2 w-2 text-muted-foreground group-hover:text-primary transition shrink-0" />
+                          )}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground text-[8.5px]">-</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
