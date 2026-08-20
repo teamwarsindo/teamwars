@@ -307,7 +307,7 @@ export function getTeamStatsFromStandings(
   const isTopGroup = divRankNum <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP;
   const groupRankLabel = t ? `Rank #${t.rank}` : "-";
 
-  let wildcardRankLabel = "Lolos QF";
+  let wildcardRankLabel = "-";
   if (!isTopGroup) {
     const globalStandings = buildGlobalStandings(standings);
     const wildcardItem = globalStandings.find(
@@ -373,7 +373,6 @@ export function calculateMatchPrediction(
     probB = 100 - probA;
   }
 
-  // Kalkulasi estimasi skor akhir Race to 10
   let predScoreA = 10;
   let predScoreB = 10;
 
