@@ -248,5 +248,60 @@ export function buildGlobalStandings(
   return fullCombined.map((item, index) => ({
     ...item,
     globalRank: index + 1,
-  }));                                                   
+  }));
+}
+
+/**
+ * 🟢 Helper resmi: Mengambil semua match pada tanggal terdekat berikutnya dalam week aktif (> today)
+ */
+export function getNextDateMatches(
+  currentWeekSchedules: MatchScheduleItem[],
+  todayDateStrWIB: string
+): MatchScheduleItem[] {
+  const upcomingCandidates = currentWeekSchedules
+    .filter((m) => {
+      if (m.isFinished) return false;
+      if (!m.matchDate) return false;
+      const matchDayStr = m.matchDate.slice(0, 10);
+      return matchDayStr > todayDateStrWIB;
+    })
+    .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+
+  if (upcomingCandidates.length === 0) return [];
+
+  // Ambil tanggal terdekat pertama yang tersedia
+  const nextDateStr = upcomingCandidates[0].matchDate.slice(0, 10);
+
+  // Ambil seluruh match pada tanggal tersebut (1, 2, atau maksimal 3 match)
+  return upcomingCandidates.filter((m) => m.matchDate.slice(0, 10) === nextDateStr);
+}
+
+/**
+ * 🟢 Helper resmi: Ekstrak data statistik tim untuk modal perbandingan
+ */
+export function getTeamStatsFromStandings(
+  teamName: string,
+  standings: ExtendedStandingItem[] = []
+) {
+  const t = standings.find((s) => s.teamName.toLowerCase() === teamName.toLowerCase());
+  const matchPlayed = t ? t.matchPlayed : 0;
+  const matchWins = t ? t.matchWins : 0;
+  const matchLosses = t ? t.matchLosses : 0;
+  const winRate = matchPlayed > 0 ? Math.round((matchWins / matchPlayed) * 100) : 0;
+
+  return {
+    rank: t ? t.rank : "-",
+    groupName: t ? t.groupName : "Group Stage",
+    matchPlayed,
+    matchWins,
+    matchLosses,
+    winRate,
+    roundDifference: t
+      ? t.roundDifference > 0
+        ? `+${t.roundDifference}`
+        : `${t.roundDifference}`
+      : "0",
+    setWins: t ? t.setWins : 0,
+    form: t?.form || [],
+  };
 }

@@ -3,32 +3,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import { MatchScheduleItem } from "@/app/tournament/_library";
-import { ChevronRight, Radio, Tv, Calendar, CheckCircle2 } from "lucide-react";
+import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
+import { ChevronRight, Calendar, Radio, CheckCircle2 } from "lucide-react";
+import { MatchCardItem } from "./match-card-item";
+import { MatchH2HModal } from "./match-h2h-modal";
 
 interface MatchCenterProps {
   currentWeek: number;
   loading: boolean;
-  liveMatches: MatchScheduleItem[];
-  todayMatches: MatchScheduleItem[];
-  upcomingMatches: MatchScheduleItem[];
-  recentResults: MatchScheduleItem[];
-}
-
-function formatMatchDate(dateStr?: string) {
-  if (!dateStr) return "TBD";
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("id-ID", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  } catch {
-    return dateStr;
-  }
+  liveMatches?: MatchScheduleItem[];
+  todayMatches?: MatchScheduleItem[];
+  upcomingMatches?: MatchScheduleItem[];
+  recentResults?: MatchScheduleItem[];
+  standings?: ExtendedStandingItem[];
 }
 
 export function MatchCenter({
@@ -38,8 +25,10 @@ export function MatchCenter({
   todayMatches = [],
   upcomingMatches = [],
   recentResults = [],
+  standings = [],
 }: MatchCenterProps) {
   const [activeTab, setActiveTab] = useState<"SCHEDULE" | "RESULTS">("SCHEDULE");
+  const [selectedMatch, setSelectedMatch] = useState<MatchScheduleItem | null>(null);
 
   const hasLive = liveMatches.length > 0;
   const hasToday = todayMatches.length > 0;
@@ -86,7 +75,7 @@ export function MatchCenter({
         </div>
       ) : activeTab === "SCHEDULE" ? (
         <div className="space-y-3">
-          {/* 1. MATCH LIVE (TANPA SKOR 0-0) */}
+          {/* 1. MATCH LIVE */}
           {hasLive && (
             <div className="space-y-1.5">
               <span className="text-[9.5px] font-bold uppercase tracking-wider text-rose-500 px-1 flex items-center gap-1">
@@ -94,60 +83,13 @@ export function MatchCenter({
               </span>
               <div className="space-y-1.5">
                 {liveMatches.map((m) => (
-                  <div
+                  <MatchCardItem
                     key={m.id}
-                    className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-2.5 space-y-1.5 transition"
-                  >
-                    <div className="flex items-center justify-between">
-                      {/* TEAM A */}
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        <img
-                          src={m.teamALogo || "/logo.webp"}
-                          alt=""
-                          className="h-3.5 w-3.5 shrink-0 object-contain"
-                        />
-                        <span className="truncate font-semibold text-[10.5px] text-foreground">
-                          {m.teamAName}
-                        </span>
-                      </div>
-
-                      {/* LIVE BADGE ONLY */}
-                      <div className="flex flex-col items-center px-2 shrink-0">
-                        <span className="flex items-center gap-1 rounded bg-rose-500 px-2 py-0.5 text-[8.5px] font-black text-white uppercase tracking-wider shadow-xs animate-pulse">
-                          <Radio className="h-2.5 w-2.5" /> LIVE
-                        </span>
-                      </div>
-
-                      {/* TEAM B */}
-                      <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
-                        <span className="truncate font-semibold text-[10.5px] text-foreground">
-                          {m.teamBName}
-                        </span>
-                        <img
-                          src={m.teamBLogo || "/logo.webp"}
-                          alt=""
-                          className="h-3.5 w-3.5 shrink-0 object-contain"
-                        />
-                      </div>
-                    </div>
-
-                    {/* STREAMER & ACTION */}
-                    <div className="flex items-center justify-between border-t border-rose-500/20 pt-1 text-[9px]">
-                      <span className="text-rose-500/90 font-medium truncate flex items-center gap-1">
-                        <Tv className="h-3 w-3" /> {m.streamer ? `Streamer: ${m.streamer}` : "Official Live"}
-                      </span>
-                      {m.streamLink && (
-                        <a
-                          href={m.streamLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-md bg-rose-500 px-2 py-0.5 font-bold text-white text-[8.5px] hover:bg-rose-600 transition"
-                        >
-                          Live ↗
-                        </a>
-                      )}
-                    </div>
-                  </div>
+                    match={m}
+                    variant="LIVE"
+                    currentWeek={currentWeek}
+                    onClick={() => setSelectedMatch(m)}
+                  />
                 ))}
               </div>
             </div>
@@ -161,46 +103,13 @@ export function MatchCenter({
               </span>
               <div className="space-y-1.5">
                 {todayMatches.map((m) => (
-                  <div
+                  <MatchCardItem
                     key={m.id}
-                    className="rounded-xl border border-primary/25 bg-primary/5 p-2 space-y-1 transition"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        <img
-                          src={m.teamALogo || "/logo.webp"}
-                          alt=""
-                          className="h-3.5 w-3.5 shrink-0 object-contain"
-                        />
-                        <span className="truncate font-semibold text-[10.5px] text-foreground">
-                          {m.teamAName}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col items-center px-1.5 shrink-0">
-                        <span className="text-[9px] font-bold text-muted-foreground">VS</span>
-                        <span className="text-[8.5px] font-medium text-primary">
-                          {formatMatchDate(m.matchDate)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
-                        <span className="truncate font-semibold text-[10.5px] text-foreground">
-                          {m.teamBName}
-                        </span>
-                        <img
-                          src={m.teamBLogo || "/logo.webp"}
-                          alt=""
-                          className="h-3.5 w-3.5 shrink-0 object-contain"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-border/30 pt-0.5 text-[8.5px] text-muted-foreground">
-                      <span>{m.streamer ? `🎙️ ${m.streamer}` : "📺 Butuh Streamer"}</span>
-                      <span className="font-medium text-primary">Hari Ini</span>
-                    </div>
-                  </div>
+                    match={m}
+                    variant="TODAY"
+                    currentWeek={currentWeek}
+                    onClick={() => setSelectedMatch(m)}
+                  />
                 ))}
               </div>
             </div>
@@ -225,50 +134,13 @@ export function MatchCenter({
             ) : (
               <div className="space-y-1.5">
                 {upcomingMatches.map((m) => (
-                  <div
+                  <MatchCardItem
                     key={m.id}
-                    className="rounded-xl border border-border bg-muted/20 p-2 space-y-1 hover:bg-muted/30 transition"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        <img
-                          src={m.teamALogo || "/logo.webp"}
-                          alt=""
-                          className="h-3.5 w-3.5 shrink-0 object-contain"
-                        />
-                        <span className="truncate font-semibold text-[10px] text-foreground">
-                          {m.teamAName}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col items-center px-1.5 shrink-0">
-                        <span className="rounded bg-muted px-1 text-[8px] font-semibold text-muted-foreground">
-                          VS
-                        </span>
-                        <span className="text-[8.5px] font-medium text-muted-foreground mt-0.5">
-                          {formatMatchDate(m.matchDate)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
-                        <span className="truncate font-semibold text-[10px] text-foreground">
-                          {m.teamBName}
-                        </span>
-                        <img
-                          src={m.teamBLogo || "/logo.webp"}
-                          alt=""
-                          className="h-3.5 w-3.5 shrink-0 object-contain"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-border/30 pt-0.5 text-[8.5px] text-muted-foreground">
-                      <span className="truncate">
-                        {m.streamer ? `🎙️ ${m.streamer}` : "📺 Butuh Streamer"}
-                      </span>
-                      <span>Week {m.weekNumber || currentWeek}</span>
-                    </div>
-                  </div>
+                    match={m}
+                    variant="UPCOMING"
+                    currentWeek={currentWeek}
+                    onClick={() => setSelectedMatch(m)}
+                  />
                 ))}
               </div>
             )}
@@ -286,67 +158,27 @@ export function MatchCenter({
             </div>
           ) : (
             <div className="space-y-1.5">
-              {recentResults.map((m) => {
-                const scoreA = m.scoreA || 0;
-                const scoreB = m.scoreB || 0;
-                const isWinA = scoreA > scoreB;
-                const isWinB = scoreB > scoreA;
-
-                return (
-                  <div
-                    key={m.id}
-                    className="flex items-center justify-between p-2 rounded-xl border border-border bg-muted/20 text-[10.5px]"
-                  >
-                    {/* TEAM A */}
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <img
-                        src={m.teamALogo || "/logo.webp"}
-                        alt=""
-                        className="h-3.5 w-3.5 shrink-0 object-contain"
-                      />
-                      <span
-                        className={`truncate font-semibold ${
-                          isWinA ? "text-foreground font-bold" : "text-muted-foreground"
-                        }`}
-                      >
-                        {m.teamAName}
-                      </span>
-                    </div>
-
-                    {/* FINAL SCORE */}
-                    <div className="flex items-center gap-1.5 px-2 shrink-0 font-bold">
-                      <span className={isWinA ? "text-emerald-500" : "text-muted-foreground"}>
-                        {scoreA}
-                      </span>
-                      <span className="text-muted-foreground/50">-</span>
-                      <span className={isWinB ? "text-emerald-500" : "text-muted-foreground"}>
-                        {scoreB}
-                      </span>
-                    </div>
-
-                    {/* TEAM B */}
-                    <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
-                      <span
-                        className={`truncate font-semibold ${
-                          isWinB ? "text-foreground font-bold" : "text-muted-foreground"
-                        }`}
-                      >
-                        {m.teamBName}
-                      </span>
-                      <img
-                        src={m.teamBLogo || "/logo.webp"}
-                        alt=""
-                        className="h-3.5 w-3.5 shrink-0 object-contain"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              {recentResults.map((m) => (
+                <MatchCardItem
+                  key={m.id}
+                  match={m}
+                  variant="RESULT"
+                  currentWeek={currentWeek}
+                  onClick={() => setSelectedMatch(m)}
+                />
+              ))}
             </div>
           )}
         </div>
       )}
+
+      {/* MODAL STATISTIK H2H */}
+      <MatchH2HModal
+        match={selectedMatch}
+        currentWeek={currentWeek}
+        standings={standings}
+        onClose={() => setSelectedMatch(null)}
+      />
     </div>
   );
-      }
-            
+}

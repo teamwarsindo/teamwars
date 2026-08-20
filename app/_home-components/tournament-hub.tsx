@@ -7,7 +7,11 @@ import {
   getCurrentServerWeek,
   TOURNAMENT_RULES,
 } from "@/app/tournament/_library";
-import { calculateStandings, buildGlobalStandings } from "@/app/tournament/_library/calculator";
+import {
+  calculateStandings,
+  buildGlobalStandings,
+  getNextDateMatches,
+} from "@/app/tournament/_library/calculator";
 import { PhaseTimeline } from "./phase-timeline";
 import { QuickActions } from "./quick-actions";
 import { MatchCenter } from "./match-center";
@@ -95,17 +99,9 @@ export function TournamentHub() {
     );
   }, [currentWeekSchedules, todayDateStrWIB]);
 
-  // 5. Pertandingan Berikutnya: Hanya match hari selanjutnya (> today) di currentWeek
+  // 5. Pertandingan Berikutnya: Menggunakan helper terpusat getNextDateMatches
   const upcomingMatches = useMemo(() => {
-    return currentWeekSchedules
-      .filter((m) => {
-        if (m.isFinished) return false;
-        if (!m.matchDate) return false;
-        const matchDayStr = m.matchDate.slice(0, 10);
-        return matchDayStr > todayDateStrWIB;
-      })
-      .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime())
-      .slice(0, 3);
+    return getNextDateMatches(currentWeekSchedules, todayDateStrWIB);
   }, [currentWeekSchedules, todayDateStrWIB]);
 
   // 6. Hasil Terakhir Pekan Ini (Maksimal 3 Match)
@@ -136,6 +132,7 @@ export function TournamentHub() {
           todayMatches={todayMatches}
           upcomingMatches={upcomingMatches}
           recentResults={recentResults}
+          standings={standings}
         />
 
         <StandingsSnapshot
@@ -147,4 +144,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-    }
+}
