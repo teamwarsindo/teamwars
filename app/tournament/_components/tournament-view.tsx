@@ -134,9 +134,9 @@ export function TournamentView({
   ).sort((a, b) => a - b);
 
   return (
-    <div className="w-full flex flex-col gap-4">
+    <div className="w-full max-w-7xl mx-auto flex flex-col gap-4">
       {/* 3 TAB NAVIGASI UTAMA */}
-      <div className="grid grid-cols-3 gap-2 w-full">
+      <div className="grid grid-cols-3 gap-2 w-full max-w-xl mx-auto">
         {[
           { key: "SCHEDULE", label: "Group Stage" },
           { key: "STANDINGS", label: "Klasemen" },
@@ -196,4 +196,4 @@ export function TournamentView({
       )}
     </div>
   );
-}
+        }
