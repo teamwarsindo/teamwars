@@ -52,12 +52,12 @@ export function ScheduleFilter({
 
   return (
     <div className="bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-3">
-      {/* 1. BUTTON FILTER DIVISI RESMI */}
-      <div className="grid grid-cols-3 gap-1.5 md:gap-2 w-full">
+      {/* 1. BUTTON FILTER DIVISI (HORIZONTAL SCROLLABLE, TIDAK KEPOTONG DI MOBILE) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full flex-nowrap">
         <button
           type="button"
           onClick={() => onGroupChange("ALL")}
-          className={`py-2 px-1.5 md:py-2.5 rounded-xl text-[11px] md:text-xs font-bold transition cursor-pointer leading-snug truncate ${
+          className={`shrink-0 py-2 px-3.5 md:py-2.5 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
             selectedGroupFilter === "ALL"
               ? "bg-primary text-primary-foreground shadow-xs"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
@@ -68,24 +68,24 @@ export function ScheduleFilter({
         <button
           type="button"
           onClick={() => onGroupChange(DIVISION_MAP.GROUP_A)}
-          className={`py-2 px-1.5 md:py-2.5 rounded-xl text-[11px] md:text-xs font-bold transition cursor-pointer leading-snug truncate ${
+          className={`shrink-0 py-2 px-3.5 md:py-2.5 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
             selectedGroupFilter === DIVISION_MAP.GROUP_A
               ? "bg-sky-500 text-white shadow-xs"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
         >
-          Div. {DIVISION_MAP.GROUP_A}
+          {DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "")}
         </button>
         <button
           type="button"
           onClick={() => onGroupChange(DIVISION_MAP.GROUP_B)}
-          className={`py-2 px-1.5 md:py-2.5 rounded-xl text-[11px] md:text-xs font-bold transition cursor-pointer leading-snug truncate ${
+          className={`shrink-0 py-2 px-3.5 md:py-2.5 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
             selectedGroupFilter === DIVISION_MAP.GROUP_B
-              ? "bg-amber-500 text-white shadow-xs"
+              ? "bg-amber-500 text-slate-950 shadow-xs"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
         >
-          Div. {DIVISION_MAP.GROUP_B}
+          {DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "")}
         </button>
       </div>
 
