@@ -42,14 +42,12 @@ export function ScheduleCard({
   const gName = (match.groupName || "").toLowerCase().trim();
   const cleanA = groupAName.toLowerCase().trim();
 
-  // Pencocokan eksklusif grup A vs grup B
   const isGroupA =
     gName === "group a" ||
     gName === "divisi a" ||
     gName === cleanA ||
     gName.includes(cleanA);
 
-  // Bersihkan teks awalan "Div." atau "Divisi" agar tampilan badge ringkas
   const rawGroupName = isGroupA ? groupAName : groupBName;
   const groupDisplayName = rawGroupName.replace(/^Div(isi|\.)\s*/i, "").toUpperCase();
 
@@ -80,7 +78,7 @@ export function ScheduleCard({
           : "border-amber-500/30 hover:border-amber-500/60"
       }`}
     >
-      {/* 1. HEADER (BADGE DIVISI BERSIH TANPA 'DIV.' & TANGGAL JADWAL) */}
+      {/* 1. HEADER (NAMA DIVISI BERSIH & JADWAL) */}
       <div className="flex items-center justify-between text-[10px] md:text-xs">
         <span
           className={`font-black uppercase tracking-wider text-[9px] md:text-[10px] px-2 py-0.5 rounded-md truncate max-w-[170px] sm:max-w-[220px] ${
@@ -180,26 +178,18 @@ export function ScheduleCard({
           )}
         </span>
 
-        <div className="flex items-center gap-2">
-          {reportUrl && (
-            <span className="inline-flex items-center gap-0.5 font-bold text-primary hover:underline text-[9.5px] md:text-[10.5px]">
-              Bukti <ExternalLink className="h-3 w-3" />
-            </span>
-          )}
-
-          {match.streamLink && (
-            <a
-              href={match.streamLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-0.5 font-bold text-rose-500 hover:text-rose-600 transition"
-            >
-              Live <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-        </div>
+        {match.streamLink && (
+          <a
+            href={match.streamLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-0.5 font-bold text-rose-500 hover:text-rose-600 transition"
+          >
+            Live <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
       </div>
     </div>
   );
-      }    
+        }
