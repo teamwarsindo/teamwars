@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
 import { ScheduleFilter } from "./schedule-filter";
 import { ScheduleCard } from "./schedule-card";
@@ -13,8 +13,10 @@ export interface ScheduleTabProps {
   isAdmin: boolean;
   onResetSchedules: () => void;
   onSelectMatch: (match: MatchScheduleItem) => void;
-  selectedGroupFilter: "ALL" | "Group A" | "Group B";
-  setSelectedGroupFilter: (v: "ALL" | "Group A" | "Group B") => void;
+  selectedGroupFilter?: "ALL" | "Group A" | "Group B";
+  setSelectedGroupFilter?: (v: "ALL" | "Group A" | "Group B") => void;
+  selectedDateFilter?: string;
+  setSelectedDateFilter?: (v: string) => void;
   groupAName?: string;
   groupBName?: string;
   defaultWeek?: number;
@@ -27,27 +29,37 @@ export function ScheduleTab({
   isAdmin,
   onResetSchedules,
   onSelectMatch,
+  selectedGroupFilter: propGroupFilter,
+  setSelectedGroupFilter: propSetGroupFilter,
   groupAName = DIVISION_MAP.GROUP_A,
   groupBName = DIVISION_MAP.GROUP_B,
   defaultWeek = 1,
 }: ScheduleTabProps) {
-  const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const groupQuery = searchParams.get("group");
-  const selectedGroupFilter: "ALL" | "Group A" | "Group B" =
-    groupQuery === "A" ? "Group A" : groupQuery === "B" ? "Group B" : "ALL";
-
-  const handleGroupChange = (groupVal: "ALL" | "Group A" | "Group B") => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "schedule");
-    if (groupVal === "Group A") params.set("group", "A");
-    else if (groupVal === "Group B") params.set("group", "B");
-    else params.delete("group");
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  // 1. Fallback State Filter Divisi jika prop tidak dikirim
+  const [localGroupFilter, setLocalGroupFilter] = useState<"ALL" | "Group A" | "Group B">("ALL");
+  const selectedGroup = propGroupFilter !== undefined ? propGroupFilter : localGroupFilter;
+  const handleGroupChange = (val: "ALL" | "Group A" | "Group B") => {
+    if (propSetGroupFilter) propSetGroupFilter(val);
+    else setLocalGroupFilter(val);
   };
 
+  // 2. Filter Week (Membaca query ?week= jika ada)
+  const urlWeekParam = searchParams.get("week");
+  const initialWeek = urlWeekParam ? Number(urlWeekParam) : defaultWeek;
+  const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "ALL">(initialWeek);
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
+
+  useEffect(() => {
+    if (urlWeekParam) {
+      setSelectedWeekFilter(Number(urlWeekParam));
+    } else if (typeof defaultWeek === "number" && defaultWeek > 0) {
+      setSelectedWeekFilter(defaultWeek);
+    }
+  }, [defaultWeek, urlWeekParam]);
+
+  // 3. Available Weeks
   const availableWeeks = useMemo(() => {
     const allWeekNumbers = Array.from(
       new Set([...schedules.map((s) => s.weekNumber || 1), ...allWeeks])
@@ -60,48 +72,42 @@ export function ScheduleTab({
     return restrictedWeeks.length > 0 ? restrictedWeeks : [1];
   }, [schedules, allWeeks, defaultWeek, isAdmin]);
 
-  const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "ALL">(defaultWeek);
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
-
-  useEffect(() => {
-    if (typeof defaultWeek === "number" && defaultWeek > 0) {
-      setSelectedWeekFilter(defaultWeek);
-    }
-  }, [defaultWeek]);
-
   const isFilterActive = useMemo(() => {
     return (
       selectedWeekFilter !== defaultWeek ||
-      selectedGroupFilter !== "ALL" ||
+      selectedGroup !== "ALL" ||
       selectedTeamFilter !== "ALL"
     );
-  }, [selectedWeekFilter, selectedGroupFilter, selectedTeamFilter, defaultWeek]);
+  }, [selectedWeekFilter, selectedGroup, selectedTeamFilter, defaultWeek]);
 
+  // 4. Robust Filtering
   const filteredSchedules = useMemo(() => {
+    const cleanTeam = selectedTeamFilter.toLowerCase().trim();
+
     return schedules
       .filter((m) => {
+        if (!m) return false;
         const mWeek = m.weekNumber || 1;
 
-        if (selectedWeekFilter === "ALL") {
-          if (!isAdmin && mWeek > defaultWeek) return false;
-        } else if (mWeek !== selectedWeekFilter) {
+        if (selectedWeekFilter !== "ALL" && mWeek !== selectedWeekFilter) {
           return false;
         }
 
-        if (selectedGroupFilter !== "ALL") {
-          const isGroupAMatch = m.groupName === "Group A" || m.groupName === groupAName;
-          const isGroupBMatch = m.groupName === "Group B" || m.groupName === groupBName;
-          if (selectedGroupFilter === "Group A" && !isGroupAMatch) return false;
-          if (selectedGroupFilter === "Group B" && !isGroupBMatch) return false;
+        if (selectedGroup !== "ALL") {
+          const gName = (m.groupName || "").toLowerCase();
+          const isA = gName.includes("a") || gName.includes(groupAName.toLowerCase());
+          const isB = gName.includes("b") || gName.includes(groupBName.toLowerCase());
+
+          if (selectedGroup === "Group A" && !isA) return false;
+          if (selectedGroup === "Group B" && !isB) return false;
         }
 
-        if (
-          selectedTeamFilter !== "ALL" &&
-          m.teamAName !== selectedTeamFilter &&
-          m.teamBName !== selectedTeamFilter
-        ) {
-          return false;
+        if (cleanTeam !== "all") {
+          const aName = (m.teamAName || "").toLowerCase().trim();
+          const bName = (m.teamBName || "").toLowerCase().trim();
+          if (aName !== cleanTeam && bName !== cleanTeam) return false;
         }
+
         return true;
       })
       .sort((a, b) => {
@@ -112,10 +118,8 @@ export function ScheduleTab({
   }, [
     schedules,
     selectedWeekFilter,
-    selectedGroupFilter,
+    selectedGroup,
     selectedTeamFilter,
-    defaultWeek,
-    isAdmin,
     groupAName,
     groupBName,
   ]);
@@ -137,10 +141,10 @@ export function ScheduleTab({
   };
 
   return (
-    <div className="space-y-4">
-      {/* SUB-KOMPONEN FILTER */}
+    <div className="space-y-4 md:space-y-6">
+      {/* FILTER */}
       <ScheduleFilter
-        selectedGroupFilter={selectedGroupFilter}
+        selectedGroupFilter={selectedGroup}
         onGroupChange={handleGroupChange}
         groupAName={groupAName}
         groupBName={groupBName}
@@ -158,20 +162,20 @@ export function ScheduleTab({
 
       {/* LIST KARTU JADWAL */}
       {groupedByWeek.length === 0 ? (
-        <div className="p-8 text-center text-[11px] font-semibold text-muted-foreground bg-card border border-border rounded-2xl">
+        <div className="p-8 text-center text-xs md:text-sm font-semibold text-muted-foreground bg-card border border-border rounded-2xl">
           Tidak ada jadwal pertandingan yang sesuai dengan filter.
         </div>
       ) : (
         groupedByWeek.map(([weekNum, matches]) => (
-          <div key={weekNum} className="space-y-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold uppercase text-primary tracking-wider">
+          <div key={weekNum} className="space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs md:text-sm font-black uppercase text-primary tracking-wider">
                 WEEK {weekNum}
               </span>
               <div className="h-[1px] flex-1 bg-border/60"></div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
               {matches.map((m) => (
                 <ScheduleCard
                   key={m.id}

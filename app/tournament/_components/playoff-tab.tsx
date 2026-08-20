@@ -16,50 +16,137 @@ interface PlayoffTabProps {
   groupBName?: string;
 }
 
+function PhaseHeader({
+  title,
+  colorTheme,
+}: {
+  title: string;
+  colorTheme: "sky" | "amber" | "emerald" | "purple";
+}) {
+  const colorMap = {
+    sky: "text-sky-400 border-sky-500/30 bg-sky-500",
+    amber: "text-amber-400 border-amber-500/30 bg-amber-500",
+    emerald: "text-emerald-400 border-emerald-500/30 bg-emerald-500",
+    purple: "text-purple-400 border-purple-500/30 bg-purple-500",
+  };
+
+  const currentTheme = colorMap[colorTheme] || colorMap.sky;
+
+  return (
+    <div className={`flex items-center justify-center gap-2 pb-2.5 border-b ${currentTheme.split(" ")[1]}`}>
+      <div className={`h-2.5 w-2.5 rounded-full ${currentTheme.split(" ")[2]}`}></div>
+      <h4 className={`text-xs md:text-sm font-black uppercase tracking-widest ${currentTheme.split(" ")[0]}`}>
+        {title}
+      </h4>
+    </div>
+  );
+}
+
+interface TimelineMatchCardProps {
+  team1?: ExtendedStandingItem;
+  fallback1: string;
+  team2?: ExtendedStandingItem;
+  fallback2: string;
+  label?: string;
+  isDirect?: boolean;
+  colorTheme?: "sky" | "amber" | "emerald" | "purple";
+}
+
+function TimelineMatchCard({
+  team1,
+  fallback1,
+  team2,
+  fallback2,
+  label,
+  isDirect,
+  colorTheme = "sky",
+}: TimelineMatchCardProps) {
+  const borderThemeMap = {
+    sky: "border-sky-500/30 bg-background/80 hover:border-sky-500/70",
+    amber: "border-amber-500/30 bg-background/80 hover:border-amber-500/70",
+    emerald: "border-emerald-500/30 bg-background/80 hover:border-emerald-500/70",
+    purple: "border-purple-500/30 bg-background/80 hover:border-purple-500/70",
+  };
+
+  const getTeamDisplay = (teamData?: ExtendedStandingItem, fallbackName: string = "TBD") => {
+    if (teamData) {
+      const isWinner = teamData.teamName.includes("✓");
+      return (
+        <div className="flex items-center gap-2 truncate">
+          <img src={teamData.teamLogo || "/logo.webp"} alt="" className="h-4.5 w-4.5 md:h-5 md:w-5 shrink-0 object-contain" />
+          <span className="truncate leading-tight text-xs md:text-sm font-extrabold text-foreground">
+            {isWinner ? teamData.teamName.replace(" ✓", "") : teamData.teamName}
+          </span>
+          {isWinner && <CircleCheckBig className="h-4 w-4 text-emerald-500 shrink-0" />}
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2 truncate">
+        <span className="h-2 w-2 rounded-full bg-muted shrink-0" />
+        <span className="truncate leading-tight text-xs md:text-sm font-bold text-muted-foreground/70">
+          {fallbackName}
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className={`rounded-2xl border p-3 md:p-3.5 flex flex-col gap-2 shadow-xs transition relative z-10 ${
+        borderThemeMap[colorTheme]
+      } ${isDirect ? "bg-amber-500/10 border-amber-500/50" : ""}`}
+    >
+      <div className="flex items-center justify-between border-b border-border/30 pb-1.5 gap-2">
+        <span className="text-[10px] md:text-xs font-black text-primary uppercase tracking-wider">
+          {label}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between font-bold text-xs md:text-sm min-w-0 pr-1">
+        {getTeamDisplay(team1, fallback1)}
+        <span className="text-primary font-black text-xs md:text-sm pl-1">0</span>
+      </div>
+
+      <div className="border-t border-border/30" />
+
+      <div className="flex items-center justify-between font-bold text-xs md:text-sm min-w-0 pr-1">
+        {getTeamDisplay(team2, fallback2)}
+        <span className="text-primary font-black text-xs md:text-sm pl-1">0</span>
+      </div>
+    </div>
+  );
+}
+
 export function PlayoffTab({
   schedules = [],
   masterTeams = [],
   groupAName = DIVISION_MAP.GROUP_A,
   groupBName = DIVISION_MAP.GROUP_B,
 }: PlayoffTabProps) {
-  // Hitung Standing Akumulatif
   const standings = useMemo(() => {
     if (!schedules.length || !masterTeams.length) return [];
     return calculateStandings(schedules, masterTeams);
   }, [schedules, masterTeams]);
 
-  // Kelompokkan Tim Per Divisi
   const groupAStandings = useMemo(
-    () =>
-      standings.filter(
-        (s) => s.groupName === DIVISION_MAP.GROUP_A || s.groupName === groupAName
-      ),
+    () => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A || s.groupName === groupAName),
     [standings, groupAName]
   );
   const groupBStandings = useMemo(
-    () =>
-      standings.filter(
-        (s) => s.groupName === DIVISION_MAP.GROUP_B || s.groupName === groupBName
-      ),
+    () => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B || s.groupName === groupBName),
     [standings, groupBName]
   );
 
-  // Ekstrak Tim Lolos Otomatis ke Quarter-Final (Top 2 Group A & B)
   const top1GroupA = groupAStandings[0];
   const top2GroupA = groupAStandings[1];
   const top1GroupB = groupBStandings[0];
   const top2GroupB = groupBStandings[1];
 
-  // Ekstrak Tim Wildcard Seed 1 s/d 8
   const wildcardSeeds = useMemo(() => {
     if (!standings.length) return [];
     const directNames = new Set(
-      [
-        top1GroupA?.teamName,
-        top2GroupA?.teamName,
-        top1GroupB?.teamName,
-        top2GroupB?.teamName,
-      ].filter(Boolean)
+      [top1GroupA?.teamName, top2GroupA?.teamName, top1GroupB?.teamName, top2GroupB?.teamName].filter(Boolean)
     );
     return standings
       .filter((t) => !directNames.has(t.teamName))
@@ -67,21 +154,21 @@ export function PlayoffTab({
   }, [standings, top1GroupA, top2GroupA, top1GroupB, top2GroupB]);
 
   return (
-    <div className="flex flex-col gap-8 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-xl relative">
+    <div className="flex flex-col gap-6 md:gap-8 rounded-3xl border border-border bg-card p-4 sm:p-6 md:p-8 shadow-xl relative">
       {/* HEADER PAGE */}
       <div className="border-b border-border pb-3 text-center sm:text-left space-y-1">
-        <h3 className="text-xs font-black uppercase text-primary tracking-wider flex items-center justify-center sm:justify-start gap-1.5">
+        <h3 className="text-xs sm:text-sm md:text-base font-black uppercase text-primary tracking-wider flex items-center justify-center sm:justify-start gap-1.5">
           <span>🏆</span> Playoff Stage Bracket
         </h3>
-        <p className="text-[11px] text-muted-foreground font-semibold">
+        <p className="text-xs md:text-sm text-muted-foreground font-semibold">
           Bagan bracket akan otomatis terisi tim kualifikasi setelah memasuki Fase Playoff.
         </p>
       </div>
 
-      {/* GRID FASE DENGAN KOTAK BLOK PEMBUNGKUS KONSISTEN */}
+      {/* GRID FASE 4 KOLOM PROPORSI DESKTOP */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative">
-        {/* ================= FASE 1: ROUND 1 (PLAY-INS) - TEMA BIRU ================= */}
-        <div className="rounded-2xl border-2 border-sky-500/40 bg-sky-950/10 p-4 space-y-4 shadow-sm flex flex-col justify-between">
+        {/* ROUND 1: PLAY-INS */}
+        <div className="rounded-2xl border-2 border-sky-500/40 bg-sky-950/10 p-4 md:p-5 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="ROUND 1 (PLAY-INS)" colorTheme="sky" />
           <div className="space-y-3 flex-1 flex flex-col justify-around">
             <TimelineMatchCard
@@ -119,8 +206,8 @@ export function PlayoffTab({
           </div>
         </div>
 
-        {/* ================= FASE 2: QUARTER-FINAL - TEMA KUNING / AMBER ================= */}
-        <div className="rounded-2xl border-2 border-amber-500/40 bg-amber-950/10 p-4 space-y-4 shadow-sm flex flex-col justify-between">
+        {/* QUARTER-FINAL */}
+        <div className="rounded-2xl border-2 border-amber-500/40 bg-amber-950/10 p-4 md:p-5 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="QUARTER-FINAL" colorTheme="amber" />
           <div className="space-y-3 flex-1 flex flex-col justify-around">
             <TimelineMatchCard
@@ -158,8 +245,8 @@ export function PlayoffTab({
           </div>
         </div>
 
-        {/* ================= FASE 3: SEMI-FINAL - TEMA HIJAU / EMERALD ================= */}
-        <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-950/10 p-4 space-y-4 shadow-sm flex flex-col justify-between">
+        {/* SEMI-FINAL */}
+        <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-950/10 p-4 md:p-5 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="SEMI-FINAL" colorTheme="emerald" />
           <div className="space-y-3 flex-1 flex flex-col justify-around my-auto">
             <TimelineMatchCard
@@ -177,123 +264,21 @@ export function PlayoffTab({
           </div>
         </div>
 
-        {/* ================= FASE 4: GRAND FINAL - TEMA UNGU / PURPLE ================= */}
-        <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/20 p-5 text-center shadow-lg flex flex-col justify-between space-y-4">
+        {/* GRAND FINAL */}
+        <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/20 p-5 md:p-6 text-center shadow-lg flex flex-col justify-between space-y-4">
           <PhaseHeader title="GRAND FINAL" colorTheme="purple" />
-          <div className="p-4 rounded-xl border border-purple-500/40 bg-background/80 space-y-3 my-auto shadow-sm">
-            <p className="font-black text-purple-400 text-xs uppercase tracking-widest flex items-center justify-center gap-1">
+          <div className="p-4 md:p-6 rounded-2xl border border-purple-500/40 bg-background/80 space-y-3 my-auto shadow-sm">
+            <p className="font-black text-purple-400 text-xs md:text-sm uppercase tracking-widest flex items-center justify-center gap-1.5">
               👑 CHAMPIONSHIP FINAL
             </p>
-            <div className="border-t border-purple-500/30 my-1" />
-            <div className="space-y-2 py-1 text-[11px] font-bold text-muted-foreground/70">
+            <div className="border-t border-purple-500/30 my-2" />
+            <div className="space-y-2 py-1 text-xs md:text-sm font-bold text-muted-foreground/70">
               <p className="leading-tight">Winner Semi-Final #1</p>
-              <p className="text-[10px] text-amber-500 font-black uppercase">VS</p>
+              <p className="text-xs md:text-sm text-amber-500 font-black uppercase">VS</p>
               <p className="leading-tight">Winner Semi-Final #2</p>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function PhaseHeader({
-  title,
-  colorTheme,
-}: {
-  title: string;
-  colorTheme: "sky" | "amber" | "emerald" | "purple";
-}) {
-  const colorMap = {
-    sky: "text-sky-400 border-sky-500/30 bg-sky-500",
-    amber: "text-amber-400 border-amber-500/30 bg-amber-500",
-    emerald: "text-emerald-400 border-emerald-500/30 bg-emerald-500",
-    purple: "text-purple-400 border-purple-500/30 bg-purple-500",
-  };
-
-  const currentTheme = colorMap[colorTheme] || colorMap.sky;
-
-  return (
-    <div className={`flex items-center justify-center gap-2 pb-2.5 border-b ${currentTheme.split(" ")[1]}`}>
-      <div className={`h-2.5 w-2.5 rounded-full ${currentTheme.split(" ")[2]}`}></div>
-      <h4 className={`text-xs font-black uppercase tracking-widest ${currentTheme.split(" ")[0]}`}>
-        {title}
-      </h4>
-    </div>
-  );
-}
-
-interface TimelineMatchCardProps {
-  team1?: ExtendedStandingItem;
-  fallback1: string;
-  team2?: ExtendedStandingItem;
-  fallback2: string;
-  label?: string;
-  isDirect?: boolean;
-  colorTheme?: "sky" | "amber" | "emerald" | "purple";
-}
-
-function TimelineMatchCard({
-  team1,
-  fallback1,
-  team2,
-  fallback2,
-  label,
-  isDirect,
-  colorTheme = "sky",
-}: TimelineMatchCardProps) {
-  const borderThemeMap = {
-    sky: "border-sky-500/30 bg-background/80 hover:border-sky-500/70",
-    amber: "border-amber-500/30 bg-background/80 hover:border-amber-500/70",
-    emerald: "border-emerald-500/30 bg-background/80 hover:border-emerald-500/70",
-    purple: "border-purple-500/30 bg-background/80 hover:border-purple-500/70",
-  };
-
-  const getTeamDisplay = (teamData?: ExtendedStandingItem, fallbackName: string = "TBD") => {
-    if (teamData) {
-      const isWinner = teamData.teamName.includes("✓") || false;
-      return (
-        <div className="flex items-center gap-1.5 truncate">
-          <img src={teamData.teamLogo || "/logo.webp"} alt="" className="h-4.5 w-4.5 shrink-0 object-contain" />
-          <span className="truncate leading-tight text-[11px] font-extrabold text-foreground">
-            {isWinner ? teamData.teamName.replace(" ✓", "") : teamData.teamName}
-          </span>
-          {isWinner && <CircleCheckBig className="h-4 w-4 text-emerald-500 shrink-0" />}
-        </div>
-      );
-    }
-    return (
-      <div className="flex items-center gap-1.5 truncate">
-        <span className="h-2 w-2 rounded-full bg-muted shrink-0" />
-        <span className="truncate leading-tight text-[11px] font-bold text-muted-foreground/70">
-          {fallbackName}
-        </span>
-      </div>
-    );
-  };
-
-  return (
-    <div
-      className={`rounded-xl border p-3 flex flex-col gap-2 shadow-xs transition relative z-10 ${
-        borderThemeMap[colorTheme]
-      } ${isDirect ? "bg-amber-500/10 border-amber-500/50" : ""}`}
-    >
-      <div className="flex items-center justify-between border-b border-border/30 pb-1.5 gap-2">
-        <span className="text-[9.5px] font-black text-primary uppercase tracking-wider">
-          {label}
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between font-bold text-[11px] min-w-0 pr-1">
-        {getTeamDisplay(team1, fallback1)}
-        <span className="text-primary font-black text-xs pl-1">0</span>
-      </div>
-
-      <div className="border-t border-border/30" />
-
-      <div className="flex items-center justify-between font-bold text-[11px] min-w-0 pr-1">
-        {getTeamDisplay(team2, fallback2)}
-        <span className="text-primary font-black text-xs pl-1">0</span>
       </div>
     </div>
   );
