@@ -80,9 +80,7 @@ export function TournamentHub() {
 
   const topGlobal = useMemo(() => {
     const globalData = buildGlobalStandings(standings);
-    return globalData
-      .filter((item) => !item.isTopGroup)
-      .slice(0, 4);
+    return globalData.filter((item) => !item.isTopGroup).slice(0, 4);
   }, [standings]);
 
   const currentWeekSchedules = useMemo(() => {
@@ -95,10 +93,12 @@ export function TournamentHub() {
 
   const todayDateStrWIB = useMemo(() => getWibDateKey(), []);
 
+  // DIKECUALIKAN MATCH LIVE AGAR TIDAK GANDA DENGAN BAGIAN SEDANG BERLANGSUNG
   const todayMatches = useMemo(() => {
     return currentWeekSchedules.filter(
       (m) =>
         !m.isFinished &&
+        !m.streamLink &&
         Boolean(m.matchDate) &&
         getWibDateKey(new Date(m.matchDate)) === todayDateStrWIB
     );
@@ -148,4 +148,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-    }
+            }
