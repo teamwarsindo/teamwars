@@ -41,16 +41,17 @@ export function ScheduleCard({
 }: ScheduleCardProps) {
   const gName = (match.groupName || "").toLowerCase().trim();
   const cleanA = groupAName.toLowerCase().trim();
-  const cleanB = groupBName.toLowerCase().trim();
 
-  // Pencocokan eksklusif agar tidak salah deteksi huruf 'a' sembarangan
+  // Pencocokan eksklusif grup A vs grup B
   const isGroupA =
     gName === "group a" ||
     gName === "divisi a" ||
     gName === cleanA ||
     gName.includes(cleanA);
 
-  const groupDisplayName = isGroupA ? `Div. ${groupAName}` : `Div. ${groupBName}`;
+  // Bersihkan teks awalan "Div." atau "Divisi" agar tampilan badge ringkas
+  const rawGroupName = isGroupA ? groupAName : groupBName;
+  const groupDisplayName = rawGroupName.replace(/^Div(isi|\.)\s*/i, "").toUpperCase();
 
   const isLive = Boolean(match.streamLink) && !match.isFinished;
   const isPlayed = Boolean(match.isFinished) || (Number(match.scoreA) || 0) + (Number(match.scoreB) || 0) > 0;
@@ -60,19 +61,29 @@ export function ScheduleCard({
   const isWinA = match.isFinished && scoreA > scoreB;
   const isWinB = match.isFinished && scoreB > scoreA;
 
+  const reportUrl = match.maskedImageUrl || match.reportImageUrl;
+
+  const handleCardClick = () => {
+    if (reportUrl) {
+      window.open(reportUrl, "_blank", "noopener,noreferrer");
+    } else {
+      onSelect(match);
+    }
+  };
+
   return (
     <div
-      onClick={() => onSelect(match)}
-      className={`rounded-2xl border bg-card p-3 sm:p-4 shadow-xs transition hover:shadow-md cursor-pointer space-y-2 relative ${
+      onClick={handleCardClick}
+      className={`rounded-2xl border bg-card p-3 sm:p-4 shadow-xs transition duration-200 hover:shadow-md cursor-pointer space-y-2 relative active:scale-[0.99] ${
         isGroupA
           ? "border-sky-500/30 hover:border-sky-500/60"
           : "border-amber-500/30 hover:border-amber-500/60"
       }`}
     >
-      {/* 1. HEADER */}
+      {/* 1. HEADER (BADGE DIVISI BERSIH TANPA 'DIV.' & TANGGAL JADWAL) */}
       <div className="flex items-center justify-between text-[10px] md:text-xs">
         <span
-          className={`font-bold uppercase tracking-wider text-[9.5px] md:text-[10.5px] px-2 py-0.5 rounded-md ${
+          className={`font-black uppercase tracking-wider text-[9px] md:text-[10px] px-2 py-0.5 rounded-md truncate max-w-[170px] sm:max-w-[220px] ${
             isGroupA
               ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/20"
               : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20"
@@ -80,7 +91,7 @@ export function ScheduleCard({
         >
           {groupDisplayName}
         </span>
-        <span className="text-muted-foreground font-semibold text-[9.5px] md:text-xs">
+        <span className="text-muted-foreground font-semibold text-[9.5px] md:text-xs shrink-0">
           {formatMatchDate(match.matchDate)}
         </span>
       </div>
@@ -169,18 +180,26 @@ export function ScheduleCard({
           )}
         </span>
 
-        {match.streamLink && (
-          <a
-            href={match.streamLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-0.5 font-bold text-rose-500 hover:text-rose-600 transition"
-          >
-            Live <ExternalLink className="h-3 w-3" />
-          </a>
-        )}
+        <div className="flex items-center gap-2">
+          {reportUrl && (
+            <span className="inline-flex items-center gap-0.5 font-bold text-primary hover:underline text-[9.5px] md:text-[10.5px]">
+              Bukti <ExternalLink className="h-3 w-3" />
+            </span>
+          )}
+
+          {match.streamLink && (
+            <a
+              href={match.streamLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-0.5 font-bold text-rose-500 hover:text-rose-600 transition"
+            >
+              Live <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );
-}
+      }    
