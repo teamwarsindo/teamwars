@@ -90,7 +90,7 @@ export function MatchH2HModal({
 
     if (isWin && !isDraw) {
       return (
-        <span className="inline-flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-3 py-0.5 md:px-4 md:py-1 text-[10px] md:text-xs font-black shadow-xs min-w-[62px]">
+        <span className="inline-flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-3 py-0.5 md:px-4 md:py-1 text-[10px] md:text-xs font-black shadow-xs min-w-[68px]">
           {text}
         </span>
       );
@@ -98,14 +98,14 @@ export function MatchH2HModal({
 
     if (isDraw) {
       return (
-        <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-3 py-0.5 md:px-4 md:py-1 text-[10px] md:text-xs font-extrabold shadow-xs min-w-[62px]">
+        <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-3 py-0.5 md:px-4 md:py-1 text-[10px] md:text-xs font-extrabold shadow-xs min-w-[68px]">
           {text}
         </span>
       );
     }
 
     return (
-      <span className="inline-flex items-center justify-center rounded-full bg-muted/50 border border-border/40 px-3 py-0.5 md:px-4 md:py-1 text-[10px] md:text-xs font-semibold text-muted-foreground min-w-[62px]">
+      <span className="inline-flex items-center justify-center rounded-full bg-muted/50 border border-border/40 px-3 py-0.5 md:px-4 md:py-1 text-[10px] md:text-xs font-semibold text-muted-foreground min-w-[68px]">
         {text}
       </span>
     );
@@ -156,34 +156,44 @@ export function MatchH2HModal({
     );
   };
 
-  // REPORT WEEK SIMPEL DENGAN PILL PRESISI SEJAJAR
+  // REPORT ITEM DENGAN INDIKATOR KLIK ↗ & HOVER STATE
   const renderReportItem = (item?: MatchHistoryCardItem) => {
     if (!item) {
       return (
-        <span className="inline-flex items-center justify-center rounded-full bg-muted/40 border border-border/30 px-3 py-0.5 text-[10px] text-muted-foreground/40 font-bold min-w-[62px]">
+        <span className="inline-flex items-center justify-center rounded-full bg-muted/40 border border-border/30 px-3 py-0.5 text-[10px] text-muted-foreground/40 font-bold min-w-[68px]">
           -
         </span>
       );
     }
 
     const pillStyle = item.isWin
-      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-      : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30";
+      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30 hover:border-emerald-500/60"
+      : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40 hover:bg-rose-500/30 hover:border-rose-500/60";
 
     const label = `${item.isWin ? "Win" : "Lose"} ${item.myScore}-${item.oppScore}`;
 
+    if (item.reportLink) {
+      return (
+        <a
+          href={item.reportLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Lihat bukti report vs ${item.oppName}`}
+          className={`inline-flex items-center justify-center gap-1 rounded-full border px-2.5 py-0.5 text-[9.5px] md:text-[10px] font-black min-w-[68px] shadow-xs transition-all duration-150 active:scale-95 cursor-pointer ${pillStyle}`}
+        >
+          <span>{label}</span>
+          <span className="text-[10px] opacity-75 font-normal">↗</span>
+        </a>
+      );
+    }
+
     return (
-      <a
-        href={item.reportLink || "#"}
-        target={item.reportLink ? "_blank" : "_self"}
-        rel="noopener noreferrer"
+      <span
         title={`Lawan: ${item.oppName}`}
-        className={`inline-flex items-center justify-center rounded-full border px-2.5 py-0.5 text-[9.5px] md:text-[10.5px] font-black min-w-[62px] shadow-2xs transition hover:opacity-80 ${pillStyle} ${
-          item.reportLink ? "cursor-pointer" : "cursor-default"
-        }`}
+        className={`inline-flex items-center justify-center rounded-full border px-2.5 py-0.5 text-[9.5px] md:text-[10px] font-black min-w-[68px] opacity-75 cursor-default ${pillStyle}`}
       >
         {label}
-      </a>
+      </span>
     );
   };
 
@@ -401,7 +411,7 @@ export function MatchH2HModal({
                 </div>
               ))}
 
-              {/* REPORT WEEK (LURUS & SEJAJAR) */}
+              {/* REPORT WEEK */}
               {pastWeeks.map((week) => (
                 <div
                   key={week}
@@ -421,5 +431,4 @@ export function MatchH2HModal({
     </div>,
     document.body
   );
-}
-  
+    }                  
