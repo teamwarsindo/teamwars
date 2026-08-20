@@ -159,17 +159,22 @@ export function calculateStandings(
 
   const sortTeams = (teams: ExtendedStandingItem[]) => {
     return teams.sort((a, b) => {
-      const totalMatchA = a.matchWins + a.matchLosses;
-      const totalMatchB = b.matchWins + b.matchLosses;
-      if (totalMatchB !== totalMatchA) return totalMatchB - totalMatchA;
+      // 1. Poin Kemenangan Match Terbanyak
+      if (b.points !== a.points) return b.points - a.points;
       if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
+
+      // 2. Selisih Skor (Round/Points Difference)
       if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
+
+      // 3. Total Skor Game yang Diperoleh (Scored/Set Wins)
       if (b.setWins !== a.setWins) return b.setWins - a.setWins;
 
+      // 4. Head to Head (H2H) jika kedua tim pernah bertanding
       const h2hMatch = filteredSchedules.find(
         (m) =>
-          (m.teamAName === a.teamName && m.teamBName === b.teamName) ||
-          (m.teamAName === b.teamName && m.teamBName === a.teamName)
+          m.isFinished &&
+          ((m.teamAName === a.teamName && m.teamBName === b.teamName) ||
+            (m.teamAName === b.teamName && m.teamBName === a.teamName))
       );
 
       if (h2hMatch && (h2hMatch.scoreA > 0 || h2hMatch.scoreB > 0)) {
@@ -178,6 +183,7 @@ export function calculateStandings(
         if (aScore !== bScore) return bScore - aScore;
       }
 
+      // 5. Tie-breaker Terakhir: Urutan Abjad Tim
       return a.teamName.localeCompare(b.teamName);
     });
   };
@@ -224,9 +230,7 @@ export function buildGlobalStandings(
   const remainingTeams = standings
     .filter((t) => !top4Names.has(t.teamName))
     .sort((a, b) => {
-      const totalMatchA = a.matchWins + a.matchLosses;
-      const totalMatchB = b.matchWins + b.matchLosses;
-      if (totalMatchB !== totalMatchA) return totalMatchB - totalMatchA;
+      if (b.points !== a.points) return b.points - a.points;
       if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
       if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
       return b.setWins - a.setWins;
@@ -244,5 +248,5 @@ export function buildGlobalStandings(
   return fullCombined.map((item, index) => ({
     ...item,
     globalRank: index + 1,
-  }));
-          }
+  }));                                                   
+}
