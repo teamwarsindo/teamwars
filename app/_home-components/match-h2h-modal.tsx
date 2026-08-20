@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { MatchScheduleItem, formatDateTimeWIB, TOURNAMENT_RULES } from "@/app/tournament/_library";
+import { MatchScheduleItem, formatDateTimeWIB } from "@/app/tournament/_library";
 import {
   ExtendedStandingItem,
   getTeamStatsFromStandings,
@@ -54,15 +54,9 @@ export function MatchH2HModal({
   const colorA = statsA.teamColor || "#EF4444";
   const colorB = statsB.teamColor || "#3B82F6";
 
-  const numRankA = typeof statsA.rank === "number" ? statsA.rank : 99;
-  const numRankB = typeof statsB.rank === "number" ? statsB.rank : 99;
-  const parseWildcard = (l: string) => { const m = l.match(/\d+/); return m ? parseInt(m[0], 10) : 99; };
-  const wNumA = parseWildcard(statsA.wildcardRankLabel);
-  const wNumB = parseWildcard(statsB.wildcardRankLabel);
-
-  // Render Pill: Unggul = Warna Tim Solid, Kalah/Seri = Abu Netral
-  const renderPill = (valA: number, valB: number, isA: boolean, text: string | number, isLowerBetter = false) => {
-    const isWin = isLowerBetter ? (isA ? valA < valB : valB < valA) : (isA ? valA > valB : valB > valA);
+  // Helper Render Pill Metrik Statistik (Warna Tim untuk yang Unggul, Abu Netral untuk yang Kalah/Seri)
+  const renderPill = (valA: number, valB: number, isA: boolean, text: string | number) => {
+    const isWin = isA ? valA > valB : valB > valA;
     const isDraw = valA === valB;
 
     if (isWin && !isDraw) {
@@ -79,7 +73,53 @@ export function MatchH2HModal({
     );
   };
 
-  // Render Item Riwayat Pertandingan: Logo Besar + Teks 2 Baris di Sampingnya
+  // Helper Render Status Kelolosan (Hijau = Lolos/Quarter/Play-Ins, Merah = Eliminasi)
+  const renderQualificationPill = (status: { statusLabel: string; isQualified: boolean }) => {
+    return (
+      <span
+        className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[9.5px] sm:text-[10px] font-bold border shadow-sm ${
+          status.isQualified
+            ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+            : "border-rose-500/30 bg-rose-500/15 text-rose-600 dark:text-rose-400"
+        }`}
+      >
+        {status.statusLabel}
+      </span>
+    );
+  };
+
+  // Helper Render Form Laga 8 Slot (Grid 2 Baris x 4 Kolom)
+  const renderForm8Slots = (formList: ("W" | "L")[], isA = true) => {
+    const slots = Array.from({ length: 8 }, (_, i) => formList[i] || null);
+
+    return (
+      <div className={`grid grid-cols-4 gap-0.5 sm:gap-1 max-w-fit ${isA ? "justify-items-start" : "justify-items-end"}`}>
+        {slots.map((res, i) => {
+          if (!res) {
+            return (
+              <span key={i} className="inline-flex h-4 w-4 sm:h-4.5 sm:w-4.5 items-center justify-center rounded bg-muted/40 border border-border/30 text-[7px] text-muted-foreground/40">
+                -
+              </span>
+            );
+          }
+          return (
+            <span
+              key={i}
+              className={`inline-flex h-4 w-4 sm:h-4.5 sm:w-4.5 items-center justify-center rounded font-bold text-[7.5px] sm:text-[8px] ${
+                res === "W"
+                  ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                  : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
+              }`}
+            >
+              {res}
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Helper Render Item Riwayat Pertandingan: Logo Besar + Teks 2 Baris di Sampingnya
   const renderReportItem = (item?: MatchHistoryCardItem, isA = true) => {
     if (!item) return <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/40 px-2.5 py-0.5 text-[9px] text-muted-foreground">-</span>;
     return (
@@ -119,7 +159,7 @@ export function MatchH2HModal({
     >
       <div ref={modalContentRef} className="relative flex max-h-[92vh] w-full max-w-lg sm:max-w-xl flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden">
         
-        {/* HEADER */}
+        {/* HEADER MODAL (CENTER ALIGNED) */}
         <div className="relative border-b border-border bg-muted/30 px-4 py-3 sm:px-6 text-center">
           <div className="flex flex-col items-center justify-center gap-1">
             <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-0.5 text-[9.5px] font-bold text-primary">
@@ -135,7 +175,7 @@ export function MatchH2HModal({
         {/* BODY */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs">
           
-          {/* TEAMS */}
+          {/* TEAMS DISPLAY */}
           <div className="flex items-center justify-between rounded-2xl bg-muted/30 p-3 sm:p-4 border border-border">
             <div className="flex flex-col items-center flex-1 min-w-0 text-center gap-1">
               <img src={match.teamALogo || "/logo.webp"} alt="" className="h-8 w-8 sm:h-11 sm:w-11 object-contain" />
@@ -148,7 +188,7 @@ export function MatchH2HModal({
             </div>
           </div>
 
-          {/* PREDICTION BAR & SCORE PILL */}
+          {/* PREDICTION BAR & PREDIKSI SKOR */}
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3 space-y-1.5">
             <div className="flex items-center justify-between text-[9.5px] font-bold">
               <span className="text-primary flex items-center gap-1"><Sparkles className="h-3 w-3" /> Prediksi Match</span>
@@ -181,70 +221,21 @@ export function MatchH2HModal({
 
             <div className="rounded-2xl border border-border bg-muted/20 divide-y divide-border overflow-hidden">
               
-              {/* 1. GROUP RANK */}
+              {/* 1. STATUS KLASEMEN (1 BARIS RINGKAS DENGAN INDIKATOR HIJAU / MERAH) */}
               <div className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5 sm:py-2">
-                <div className="flex items-center gap-1.5 justify-start">
-                  {renderPill(numRankA, numRankB, true, statsA.groupRankLabel, true)}
-                  {statsA.isTopGroup && <span className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0.2 text-[8px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">Quarter</span>}
-                </div>
-                <span className="text-muted-foreground text-[9px] text-center px-2">Peringkat Group</span>
-                <div className="flex items-center gap-1.5 justify-end">
-                  {statsB.isTopGroup && <span className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0.2 text-[8px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">Quarter</span>}
-                  {renderPill(numRankA, numRankB, false, statsB.groupRankLabel, true)}
-                </div>
+                <div className="flex justify-start">{renderQualificationPill(statsA.qualification)}</div>
+                <span className="text-muted-foreground text-[9px] text-center px-2">Status Klasemen</span>
+                <div className="flex justify-end">{renderQualificationPill(statsB.qualification)}</div>
               </div>
 
-              {/* 2. WILDCARD RANK (Top 2 Group tanda '-' tidak dianggap kalah) */}
+              {/* 2. FORM LAGA (8 TEMPAT / SLOTS FIXED) */}
               <div className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5 sm:py-2">
-                <div className="flex items-center gap-1.5 justify-start">
-                  {statsA.isTopGroup ? (
-                    <span className="inline-flex items-center justify-center rounded-full bg-muted/80 border border-border px-2.5 py-0.5 text-[9.5px] font-bold text-foreground">-</span>
-                  ) : (
-                    <>
-                      {statsB.isTopGroup ? (
-                        <span className="inline-flex items-center justify-center rounded-full bg-muted border border-border/50 px-2.5 py-0.5 text-[9.5px] font-medium text-muted-foreground">{statsA.wildcardRankLabel}</span>
-                      ) : (
-                        renderPill(wNumA, wNumB, true, statsA.wildcardRankLabel, true)
-                      )}
-                      {wNumA <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA && <span className="rounded-md border border-sky-500/30 bg-sky-500/15 px-1.5 py-0.2 text-[8px] font-bold text-sky-600 dark:text-sky-400 shrink-0">Play-Ins</span>}
-                    </>
-                  )}
-                </div>
-
-                <span className="text-muted-foreground text-[9px] text-center px-2">Peringkat Wildcard</span>
-
-                <div className="flex items-center gap-1.5 justify-end">
-                  {statsB.isTopGroup ? (
-                    <span className="inline-flex items-center justify-center rounded-full bg-muted/80 border border-border px-2.5 py-0.5 text-[9.5px] font-bold text-foreground">-</span>
-                  ) : (
-                    <>
-                      {wNumB <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA && <span className="rounded-md border border-sky-500/30 bg-sky-500/15 px-1.5 py-0.2 text-[8px] font-bold text-sky-600 dark:text-sky-400 shrink-0">Play-Ins</span>}
-                      {statsA.isTopGroup ? (
-                        <span className="inline-flex items-center justify-center rounded-full bg-muted border border-border/50 px-2.5 py-0.5 text-[9.5px] font-medium text-muted-foreground">{statsB.wildcardRankLabel}</span>
-                      ) : (
-                        renderPill(wNumA, wNumB, false, statsB.wildcardRankLabel, true)
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* 3. FORM LAGA */}
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5 sm:py-2">
-                <div className="flex items-center gap-0.5 justify-start">
-                  {statsA.form.map((res, i) => (
-                    <span key={i} className={`rounded px-1.5 py-0.2 text-[7.5px] font-bold ${res === "W" ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/20 text-rose-600 dark:text-rose-400"}`}>{res}</span>
-                  ))}
-                </div>
+                <div className="flex justify-start">{renderForm8Slots(statsA.form, true)}</div>
                 <span className="text-muted-foreground text-[9px] text-center px-2">Form Laga</span>
-                <div className="flex items-center gap-0.5 justify-end">
-                  {statsB.form.map((res, i) => (
-                    <span key={i} className={`rounded px-1.5 py-0.2 text-[7.5px] font-bold ${res === "W" ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/20 text-rose-600 dark:text-rose-400"}`}>{res}</span>
-                  ))}
-                </div>
+                <div className="flex justify-end">{renderForm8Slots(statsB.form, false)}</div>
               </div>
 
-              {/* 4-7. METRICS LOOP (SEMUA DIBUNGKUS PILL) */}
+              {/* 3-6. METRICS LOOP (PILL WARNA TIM SOLID UNTUK YANG UNGGUL) */}
               {metrics.map((m, idx) => (
                 <div key={idx} className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5 sm:py-2">
                   <div className="flex justify-start">{renderPill(m.valA, m.valB, true, m.txtA)}</div>
@@ -253,7 +244,7 @@ export function MatchH2HModal({
                 </div>
               ))}
 
-              {/* 8. REPORT WEEK LOOP (LOGO BESAR + 2 BARIS TEKS) */}
+              {/* 7. REPORT WEEK (LOGO BESAR + 2 BARIS TEKS) */}
               {pastWeeks.map((week) => (
                 <div key={week} className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-2">
                   <div className="flex justify-start min-w-0 pr-1">{renderReportItem(historyA.get(week), true)}</div>

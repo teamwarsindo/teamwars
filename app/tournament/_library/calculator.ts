@@ -266,11 +266,14 @@ export function getNextDateMatches(
   );
 }
 
+export interface QualificationStatus {
+  statusLabel: string; // e.g. "#1 Group • Quarter" | "#1 Wildcard • Play-Ins" | "#9 Wildcard • Eliminasi"
+  isQualified: boolean; // true = Hijau, false = Merah
+}
+
 export interface TeamComparisonStats {
   rank: number | string;
-  groupRankLabel: string;
-  wildcardRankLabel: string;
-  isTopGroup: boolean;
+  qualification: QualificationStatus;
   groupName: string;
   teamColor?: string;
   matchPlayed: number;
@@ -305,9 +308,12 @@ export function getTeamStatsFromStandings(
 
   const divRankNum = typeof t?.rank === "number" ? t.rank : 99;
   const isTopGroup = divRankNum <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP;
-  const groupRankLabel = t ? `Rank #${t.rank}` : "-";
 
-  let wildcardRankLabel = "-";
+  let qualification: QualificationStatus = {
+    statusLabel: `#${t?.rank || 1} Group • Quarter`,
+    isQualified: true,
+  };
+
   if (!isTopGroup) {
     const globalStandings = buildGlobalStandings(standings);
     const wildcardItem = globalStandings.find(
@@ -315,14 +321,20 @@ export function getTeamStatsFromStandings(
         !item.isTopGroup &&
         item.teamName.toLowerCase().trim() === teamName.toLowerCase().trim()
     );
-    wildcardRankLabel = wildcardItem ? `Rank #${wildcardItem.rank}` : "-";
+    const wRank = wildcardItem ? wildcardItem.rank : 99;
+    const isPlayIns = wRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA;
+
+    qualification = {
+      statusLabel: isPlayIns
+        ? `#${wRank} Wildcard • Play-Ins`
+        : `#${wRank} Wildcard • Eliminasi`,
+      isQualified: isPlayIns,
+    };
   }
 
   return {
     rank: t ? t.rank : "-",
-    groupRankLabel,
-    wildcardRankLabel,
-    isTopGroup,
+    qualification,
     groupName: t ? t.groupName : "Group Stage",
     teamColor,
     matchPlayed,
