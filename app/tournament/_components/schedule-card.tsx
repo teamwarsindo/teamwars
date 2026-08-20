@@ -39,8 +39,17 @@ export function ScheduleCard({
   groupBName = DIVISION_MAP.GROUP_B,
   onSelect,
 }: ScheduleCardProps) {
-  const gName = (match.groupName || "").toLowerCase();
-  const isGroupA = gName.includes("a") || gName.includes(groupAName.toLowerCase());
+  const gName = (match.groupName || "").toLowerCase().trim();
+  const cleanA = groupAName.toLowerCase().trim();
+  const cleanB = groupBName.toLowerCase().trim();
+
+  // Pencocokan eksklusif agar tidak salah deteksi huruf 'a' sembarangan
+  const isGroupA =
+    gName === "group a" ||
+    gName === "divisi a" ||
+    gName === cleanA ||
+    gName.includes(cleanA);
+
   const groupDisplayName = isGroupA ? `Div. ${groupAName}` : `Div. ${groupBName}`;
 
   const isLive = Boolean(match.streamLink) && !match.isFinished;

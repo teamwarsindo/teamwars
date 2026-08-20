@@ -4,11 +4,11 @@ import { useRef, useEffect, useState } from "react";
 import { ChevronDown, Check, RotateCcw } from "lucide-react";
 import { DIVISION_MAP } from "@/app/tournament/_library";
 
+export type DivisionFilterType = "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B;
+
 interface ScheduleFilterProps {
-  selectedGroupFilter: "ALL" | "Group A" | "Group B";
-  onGroupChange: (val: "ALL" | "Group A" | "Group B") => void;
-  groupAName?: string;
-  groupBName?: string;
+  selectedGroupFilter: DivisionFilterType;
+  onGroupChange: (val: DivisionFilterType) => void;
   selectedTeamFilter: string;
   onTeamChange: (team: string) => void;
   allTeamNames: string[];
@@ -24,8 +24,6 @@ interface ScheduleFilterProps {
 export function ScheduleFilter({
   selectedGroupFilter,
   onGroupChange,
-  groupAName = DIVISION_MAP.GROUP_A,
-  groupBName = DIVISION_MAP.GROUP_B,
   selectedTeamFilter,
   onTeamChange,
   allTeamNames,
@@ -45,12 +43,8 @@ export function ScheduleFilter({
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (teamRef.current && !teamRef.current.contains(e.target as Node)) {
-        setIsTeamOpen(false);
-      }
-      if (weekRef.current && !weekRef.current.contains(e.target as Node)) {
-        setIsWeekOpen(false);
-      }
+      if (teamRef.current && !teamRef.current.contains(e.target as Node)) setIsTeamOpen(false);
+      if (weekRef.current && !weekRef.current.contains(e.target as Node)) setIsWeekOpen(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -58,7 +52,7 @@ export function ScheduleFilter({
 
   return (
     <div className="bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-3">
-      {/* 1. BUTTON FILTER DIVISI */}
+      {/* 1. BUTTON FILTER DIVISI RESMI */}
       <div className="grid grid-cols-3 gap-1.5 md:gap-2 w-full">
         <button
           type="button"
@@ -73,29 +67,29 @@ export function ScheduleFilter({
         </button>
         <button
           type="button"
-          onClick={() => onGroupChange("Group A")}
+          onClick={() => onGroupChange(DIVISION_MAP.GROUP_A)}
           className={`py-2 px-1.5 md:py-2.5 rounded-xl text-[11px] md:text-xs font-bold transition cursor-pointer leading-snug truncate ${
-            selectedGroupFilter === "Group A"
+            selectedGroupFilter === DIVISION_MAP.GROUP_A
               ? "bg-sky-500 text-white shadow-xs"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
         >
-          Div. {groupAName}
+          Div. {DIVISION_MAP.GROUP_A}
         </button>
         <button
           type="button"
-          onClick={() => onGroupChange("Group B")}
+          onClick={() => onGroupChange(DIVISION_MAP.GROUP_B)}
           className={`py-2 px-1.5 md:py-2.5 rounded-xl text-[11px] md:text-xs font-bold transition cursor-pointer leading-snug truncate ${
-            selectedGroupFilter === "Group B"
+            selectedGroupFilter === DIVISION_MAP.GROUP_B
               ? "bg-amber-500 text-white shadow-xs"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
         >
-          Div. {groupBName}
+          Div. {DIVISION_MAP.GROUP_B}
         </button>
       </div>
 
-      {/* 2. FILTER TIM + FILTER WEEK + RESET BUTTON */}
+      {/* 2. FILTER TIM + FILTER WEEK + RESET */}
       <div className="flex items-center gap-2 md:gap-2.5">
         {/* DROPDOWN TIM */}
         <div className="relative flex-1" ref={teamRef}>
@@ -201,7 +195,7 @@ export function ScheduleFilter({
           )}
         </div>
 
-        {/* RESET BUTTON */}
+        {/* RESET */}
         <button
           type="button"
           onClick={onReset}
@@ -217,7 +211,6 @@ export function ScheduleFilter({
         </button>
       </div>
 
-      {/* ADMIN SYNC */}
       {isAdmin && onSyncSchedules && (
         <div className="pt-2 border-t border-border/30 text-right">
           <button

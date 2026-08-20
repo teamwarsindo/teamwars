@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
-import { ScheduleFilter } from "./schedule-filter";
+import { ScheduleFilter, DivisionFilterType } from "./schedule-filter";
 import { ScheduleCard } from "./schedule-card";
 
 export interface ScheduleTabProps {
@@ -13,10 +13,8 @@ export interface ScheduleTabProps {
   isAdmin: boolean;
   onResetSchedules: () => void;
   onSelectMatch: (match: MatchScheduleItem) => void;
-  selectedGroupFilter?: "ALL" | "Group A" | "Group B";
-  setSelectedGroupFilter?: (v: "ALL" | "Group A" | "Group B") => void;
-  groupAName?: string;
-  groupBName?: string;
+  selectedGroupFilter?: DivisionFilterType;
+  setSelectedGroupFilter?: (v: DivisionFilterType) => void;
   defaultWeek?: number;
 }
 
@@ -29,15 +27,13 @@ export function ScheduleTab({
   onSelectMatch,
   selectedGroupFilter: propGroupFilter,
   setSelectedGroupFilter: propSetGroupFilter,
-  groupAName = DIVISION_MAP.GROUP_A,
-  groupBName = DIVISION_MAP.GROUP_B,
   defaultWeek = 1,
 }: ScheduleTabProps) {
   const searchParams = useSearchParams();
 
-  const [localGroupFilter, setLocalGroupFilter] = useState<"ALL" | "Group A" | "Group B">("ALL");
+  const [localGroupFilter, setLocalGroupFilter] = useState<DivisionFilterType>("ALL");
   const selectedGroup = propGroupFilter !== undefined ? propGroupFilter : localGroupFilter;
-  const handleGroupChange = (val: "ALL" | "Group A" | "Group B") => {
+  const handleGroupChange = (val: DivisionFilterType) => {
     if (propSetGroupFilter) propSetGroupFilter(val);
     else setLocalGroupFilter(val);
   };
@@ -75,11 +71,11 @@ export function ScheduleTab({
     );
   }, [selectedWeekFilter, selectedGroup, selectedTeamFilter, defaultWeek]);
 
-  // Robust Matching Filter
+  // Logika Filter yang Presisi Menggunakan Nilai DIVISION_MAP
   const filteredSchedules = useMemo(() => {
     const cleanTeam = selectedTeamFilter.toLowerCase().trim();
-    const cleanGroupA = groupAName.toLowerCase().trim();
-    const cleanGroupB = groupBName.toLowerCase().trim();
+    const cleanA = DIVISION_MAP.GROUP_A.toLowerCase().trim();
+    const cleanB = DIVISION_MAP.GROUP_B.toLowerCase().trim();
 
     return schedules
       .filter((m) => {
@@ -92,22 +88,11 @@ export function ScheduleTab({
 
         if (selectedGroup !== "ALL") {
           const matchGroupName = (m.groupName || "").toLowerCase().trim();
-          const isA =
-            matchGroupName === "group a" ||
-            matchGroupName === "divisi a" ||
-            matchGroupName.includes("group a") ||
-            matchGroupName === cleanGroupA ||
-            matchGroupName.includes(cleanGroupA);
+          const isA = matchGroupName === cleanA || matchGroupName === "group a" || matchGroupName === "divisi a";
+          const isB = matchGroupName === cleanB || matchGroupName === "group b" || matchGroupName === "divisi b";
 
-          const isB =
-            matchGroupName === "group b" ||
-            matchGroupName === "divisi b" ||
-            matchGroupName.includes("group b") ||
-            matchGroupName === cleanGroupB ||
-            matchGroupName.includes(cleanGroupB);
-
-          if (selectedGroup === "Group A" && !isA) return false;
-          if (selectedGroup === "Group B" && !isB) return false;
+          if (selectedGroup === DIVISION_MAP.GROUP_A && !isA) return false;
+          if (selectedGroup === DIVISION_MAP.GROUP_B && !isB) return false;
         }
 
         if (cleanTeam !== "all") {
@@ -128,8 +113,6 @@ export function ScheduleTab({
     selectedWeekFilter,
     selectedGroup,
     selectedTeamFilter,
-    groupAName,
-    groupBName,
   ]);
 
   const groupedByWeek = useMemo(() => {
@@ -154,8 +137,6 @@ export function ScheduleTab({
       <ScheduleFilter
         selectedGroupFilter={selectedGroup}
         onGroupChange={handleGroupChange}
-        groupAName={groupAName}
-        groupBName={groupBName}
         selectedTeamFilter={selectedTeamFilter}
         onTeamChange={setSelectedTeamFilter}
         allTeamNames={allTeamNames}
@@ -168,7 +149,7 @@ export function ScheduleTab({
         onSyncSchedules={onResetSchedules}
       />
 
-      {/* LIST KARTU MATCH (RESPONSIF DESKTOP GRID) */}
+      {/* LIST KARTU MATCH */}
       {groupedByWeek.length === 0 ? (
         <div className="p-8 text-center text-xs md:text-sm font-semibold text-muted-foreground bg-card border border-border rounded-2xl">
           Tidak ada jadwal pertandingan yang sesuai dengan filter.
@@ -188,8 +169,8 @@ export function ScheduleTab({
                 <ScheduleCard
                   key={m.id}
                   match={m}
-                  groupAName={groupAName}
-                  groupBName={groupBName}
+                  groupAName={DIVISION_MAP.GROUP_A}
+                  groupBName={DIVISION_MAP.GROUP_B}
                   onSelect={onSelectMatch}
                 />
               ))}
