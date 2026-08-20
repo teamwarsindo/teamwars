@@ -39,7 +39,11 @@ export function MatchH2HModal({
   const statsA = useMemo(
     () =>
       match
-        ? getTeamStatsFromStandings(match.teamAName, standings, "#2563EB")
+        ? getTeamStatsFromStandings(
+            match.teamAName,
+            standings,
+            match.teamAColor || "#2563EB"
+          )
         : null,
     [match, standings]
   );
@@ -47,7 +51,11 @@ export function MatchH2HModal({
   const statsB = useMemo(
     () =>
       match
-        ? getTeamStatsFromStandings(match.teamBName, standings, "#F43F5E")
+        ? getTeamStatsFromStandings(
+            match.teamBName,
+            standings,
+            match.teamBColor || "#F43F5E"
+          )
         : null,
     [match, standings]
   );

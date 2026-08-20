@@ -45,10 +45,11 @@ export function TournamentHub() {
     fetchTournament();
   }, []);
 
-  const schedules = useMemo(() => {
+  // Memetakan warna dari masterTeams (KV slug teams:slug) ke jadwal MatchScheduleItem
+  const schedules: MatchScheduleItem[] = useMemo(() => {
     const colorMap = new Map<string, string>();
     masterTeams.forEach((t) => {
-      const slugKey = `teams:${getTeamSlug(t.name || t.teamName)}`;
+      const slugKey = `teams:${getTeamSlug(t.name || t.teamName || "")}`;
       const hexColor = t.color || t.primaryColor || t.teamColor || t[slugKey]?.color;
       if (hexColor) {
         colorMap.set((t.name || t.teamName).toLowerCase(), hexColor);

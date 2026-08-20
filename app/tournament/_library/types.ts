@@ -40,9 +40,11 @@ export interface MatchScheduleItem {
   teamAId: string;
   teamAName: string;
   teamALogo: string;
+  teamAColor?: string; // 🟢 Ditambahkan: Hex warna tim A dari slug KV
   teamBId: string;
   teamBName: string;
   teamBLogo: string;
+  teamBColor?: string; // 🟢 Ditambahkan: Hex warna tim B dari slug KV
   scoreA: number;
   scoreB: number;
   isFinished: boolean;
@@ -113,6 +115,7 @@ export interface TeamStandingItem {
   teamId: string;
   teamName: string;
   teamLogo: string;
+  teamColor?: string; // 🟢 Ditambahkan
   groupName: string;
   matchPlayed: number;
   matchWins: number;
