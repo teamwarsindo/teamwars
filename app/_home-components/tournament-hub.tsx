@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { ScheduleTab } from "./schedule-tab";
-import { StandingTab } from "./standing-tab";
-import { PlayoffTab } from "./playoff-tab";
+import { ScheduleTab } from "@/app/tournament/_components/schedule-tab";
+import { StandingTab } from "@/app/tournament/_components/standing-tab";
+import { PlayoffTab } from "@/app/tournament/_components/playoff-tab";
 import { MatchH2HModal } from "@/app/_home-components/match-h2h-modal";
 import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
 import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
