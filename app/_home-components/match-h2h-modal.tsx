@@ -71,7 +71,6 @@ export function MatchH2HModal({
     [match, allSchedules]
   );
 
-  // Ambil nomor week pertandingan yang sudah selesai sampai week sebelumnya
   const pastWeeks = useMemo(() => {
     const targetWeek = match?.weekNumber || currentWeek;
     const weeks: number[] = [];
@@ -255,7 +254,7 @@ export function MatchH2HModal({
                             : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
                         }`}
                       >
-                        {res}
+                        {res === "W" ? "WIN" : "LOSE"}
                       </span>
                     ))
                   ) : (
@@ -276,7 +275,7 @@ export function MatchH2HModal({
                             : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
                         }`}
                       >
-                        {res}
+                        {res === "W" ? "WIN" : "LOSE"}
                       </span>
                     ))
                   ) : (
@@ -329,7 +328,7 @@ export function MatchH2HModal({
                 </span>
               </div>
 
-              {/* 8. REPORT WEEK (RIWAYAT PERTANDINGAN INTEGRASI MATRIX) */}
+              {/* 8. REPORT WEEK (TANPA KOTAK / BORDER, TETAP KLIK LINK) */}
               {pastWeeks.map((week) => {
                 const itemA = historyMapA.get(week);
                 const itemB = historyMapB.get(week);
@@ -343,7 +342,7 @@ export function MatchH2HModal({
                           href={itemA.reportLink || "#"}
                           target={itemA.reportLink ? "_blank" : "_self"}
                           rel="noopener noreferrer"
-                          className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 border border-border bg-card/60 hover:border-primary/40 transition text-[8px] max-w-full ${
+                          className={`inline-flex items-center gap-1 hover:opacity-80 transition text-[8.5px] max-w-full ${
                             itemA.reportLink ? "cursor-pointer group" : "cursor-default"
                           }`}
                         >
@@ -354,10 +353,10 @@ export function MatchH2HModal({
                                 : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
                             }`}
                           >
-                            {itemA.isWin ? "W" : "L"}
+                            {itemA.isWin ? "WIN" : "LOSE"}
                           </span>
                           <img src={itemA.oppLogo} alt="" className="h-3 w-3 object-contain shrink-0" />
-                          <span className="font-medium text-foreground truncate shrink-0">
+                          <span className="font-medium text-foreground truncate shrink-0 group-hover:underline">
                             {itemA.myScore}-{itemA.oppScore}
                           </span>
                           {itemA.reportLink && (
@@ -381,7 +380,7 @@ export function MatchH2HModal({
                           href={itemB.reportLink || "#"}
                           target={itemB.reportLink ? "_blank" : "_self"}
                           rel="noopener noreferrer"
-                          className={`inline-flex items-center justify-end gap-1 rounded-md px-1.5 py-0.5 border border-border bg-card/60 hover:border-primary/40 transition text-[8px] max-w-full ${
+                          className={`inline-flex items-center justify-end gap-1 hover:opacity-80 transition text-[8.5px] max-w-full ${
                             itemB.reportLink ? "cursor-pointer group" : "cursor-default"
                           }`}
                         >
@@ -392,10 +391,10 @@ export function MatchH2HModal({
                                 : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
                             }`}
                           >
-                            {itemB.isWin ? "W" : "L"}
+                            {itemB.isWin ? "WIN" : "LOSE"}
                           </span>
                           <img src={itemB.oppLogo} alt="" className="h-3 w-3 object-contain shrink-0" />
-                          <span className="font-medium text-foreground truncate shrink-0">
+                          <span className="font-medium text-foreground truncate shrink-0 group-hover:underline">
                             {itemB.myScore}-{itemB.oppScore}
                           </span>
                           {itemB.reportLink && (
@@ -416,4 +415,4 @@ export function MatchH2HModal({
     </div>,
     document.body
   );
-}
+              }
