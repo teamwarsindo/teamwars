@@ -269,11 +269,23 @@ export function getNextDateMatches(
 
   if (upcomingCandidates.length === 0) return [];
 
-  // Ambil tanggal terdekat pertama yang tersedia
   const nextDateStr = upcomingCandidates[0].matchDate.slice(0, 10);
-
-  // Ambil seluruh match pada tanggal tersebut (1, 2, atau maksimal 3 match)
   return upcomingCandidates.filter((m) => m.matchDate.slice(0, 10) === nextDateStr);
+}
+
+export interface TeamComparisonStats {
+  rank: number | string;
+  groupName: string;
+  matchPlayed: number;
+  matchWins: number;
+  matchLosses: number;
+  winRate: number;
+  rawDiff: number;
+  roundDifference: string;
+  ptsDiffRate: number;
+  ptsDiffRateLabel: string;
+  setWins: number;
+  form: ("W" | "L")[];
 }
 
 /**
@@ -282,12 +294,18 @@ export function getNextDateMatches(
 export function getTeamStatsFromStandings(
   teamName: string,
   standings: ExtendedStandingItem[] = []
-) {
+): TeamComparisonStats {
   const t = standings.find((s) => s.teamName.toLowerCase() === teamName.toLowerCase());
   const matchPlayed = t ? t.matchPlayed : 0;
   const matchWins = t ? t.matchWins : 0;
   const matchLosses = t ? t.matchLosses : 0;
   const winRate = matchPlayed > 0 ? Math.round((matchWins / matchPlayed) * 100) : 0;
+
+  const rawDiff = t ? t.roundDifference : 0;
+  const ptsDiffRate = matchPlayed > 0 ? parseFloat((rawDiff / matchPlayed).toFixed(1)) : 0;
+
+  const ptsDiffRateLabel =
+    ptsDiffRate > 0 ? `+${ptsDiffRate}` : `${ptsDiffRate}`;
 
   return {
     rank: t ? t.rank : "-",
@@ -296,12 +314,55 @@ export function getTeamStatsFromStandings(
     matchWins,
     matchLosses,
     winRate,
-    roundDifference: t
-      ? t.roundDifference > 0
-        ? `+${t.roundDifference}`
-        : `${t.roundDifference}`
-      : "0",
+    rawDiff,
+    roundDifference: rawDiff > 0 ? `+${rawDiff}` : `${rawDiff}`,
+    ptsDiffRate,
+    ptsDiffRateLabel,
     setWins: t ? t.setWins : 0,
     form: t?.form || [],
   };
+}
+
+/**
+ * 🟢 Helper resmi: Menghitung Prediksi Probabilitas Kemenangan Dua Tim
+ * Bobot: Win Rate (40%), Pts Diff Rate (30%), Recent Form (20%), Relative Rank (10%)
+ */
+export function calculateMatchPrediction(
+  statsA: TeamComparisonStats,
+  statsB: TeamComparisonStats
+): { probA: number; probB: number } {
+  // Jika kedua tim belum pernah bertanding, beri peluang seimbang 50:50
+  if (statsA.matchPlayed === 0 && statsB.matchPlayed === 0) {
+    return { probA: 50, probB: 50 };
+  }
+
+  const computeScore = (stats: TeamComparisonStats) => {
+    const wr = stats.matchPlayed > 0 ? stats.matchWins / stats.matchPlayed : 0.5;
+    
+    // Normalisasi Pts Diff Rate (-5 s.d +5 rentang normal Duel Links)
+    const clampedDiff = Math.max(-5, Math.min(5, stats.ptsDiffRate));
+    const normDiff = (clampedDiff + 5) / 10; // 0.0 s.d 1.0
+
+    // Recent Form Score
+    const recentForm = stats.form.slice(-3);
+    const formWins = recentForm.filter((f) => f === "W").length;
+    const formScore = recentForm.length > 0 ? formWins / recentForm.length : 0.5;
+
+    // Rank Score (Asumsi grup berisi 8 tim)
+    const rankNum = typeof stats.rank === "number" ? stats.rank : 4;
+    const rankScore = (9 - rankNum) / 8; // Rank 1 = 1.0, Rank 8 = 0.125
+
+    return wr * 0.4 + normDiff * 0.3 + formScore * 0.2 + rankScore * 0.1;
+  };
+
+  const scoreA = computeScore(statsA);
+  const scoreB = computeScore(statsB);
+
+  const totalScore = scoreA + scoreB;
+  if (totalScore <= 0) return { probA: 50, probB: 50 };
+
+  const probA = Math.max(15, Math.min(85, Math.round((scoreA / totalScore) * 100)));
+  const probB = 100 - probA;
+
+  return { probA, probB };
 }

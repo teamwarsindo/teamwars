@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library";
 import {
   ExtendedStandingItem,
   getTeamStatsFromStandings,
+  calculateMatchPrediction,
 } from "@/app/tournament/_library/calculator";
-import { X, Swords, Flame, Trophy } from "lucide-react";
+import { X, Swords, Flame, Trophy, Sparkles } from "lucide-react";
 
 interface MatchH2HModalProps {
   match: MatchScheduleItem | null;
@@ -38,15 +39,81 @@ function formatFullSchedule(dateStr?: string) {
   }
 }
 
-export function MatchH2HModal({ match, currentWeek, standings = [], onClose }: MatchH2HModalProps) {
-  if (!match) return null;
+export function MatchH2HModal({
+  match,
+  currentWeek,
+  standings = [],
+  onClose,
+}: MatchH2HModalProps) {
+  // 🟢 Lock Body Scroll saat modal aktif
+  useEffect(() => {
+    if (match) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [match]);
 
-  const statsA = useMemo(() => getTeamStatsFromStandings(match.teamAName, standings), [match.teamAName, standings]);
-  const statsB = useMemo(() => getTeamStatsFromStandings(match.teamBName, standings), [match.teamBName, standings]);
+  const statsA = useMemo(
+    () => (match ? getTeamStatsFromStandings(match.teamAName, standings) : null),
+    [match, standings]
+  );
+  const statsB = useMemo(
+    () => (match ? getTeamStatsFromStandings(match.teamBName, standings) : null),
+    [match, standings]
+  );
+
+  const prediction = useMemo(() => {
+    if (!statsA || !statsB) return { probA: 50, probB: 50 };
+    return calculateMatchPrediction(statsA, statsB);
+  }, [statsA, statsB]);
+
+  if (!match || !statsA || !statsB) return null;
+
+  // Helper untuk styling keunggulan metrik (lebih tinggi = hijau, lebih rendah = muted)
+  const getMetricClass = (valA: number, valB: number, isSideA: boolean) => {
+    if (valA === valB) return "text-foreground font-bold";
+    if (isSideA) {
+      return valA > valB
+        ? "text-emerald-500 font-black"
+        : "text-muted-foreground font-semibold";
+    } else {
+      return valB > valA
+        ? "text-emerald-500 font-black"
+        : "text-muted-foreground font-semibold";
+    }
+  };
+
+  // Rank lebih kecil nomornya = lebih baik (Rank 1 > Rank 2)
+  const getRankClass = (rankA: number | string, rankB: number | string, isSideA: boolean) => {
+    const numA = typeof rankA === "number" ? rankA : 99;
+    const numB = typeof rankB === "number" ? rankB : 99;
+    if (numA === numB) return "text-foreground font-bold";
+    if (isSideA) {
+      return numA < numB
+        ? "text-emerald-500 font-black"
+        : "text-muted-foreground font-semibold";
+    } else {
+      return numB < numA
+        ? "text-emerald-500 font-black"
+        : "text-muted-foreground font-semibold";
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-card p-4 shadow-xl space-y-3">
+    /* BACKDROP CONTAINER - KLIK DI SINI MENUTUP MODAL */
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 backdrop-blur-xs animate-in fade-in duration-150 cursor-pointer"
+    >
+      {/* MODAL CARD BODY - STOP PROPAGATION AGAR KLIK DI DALAM TIDAK MENUTUP MODAL */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-sm rounded-2xl border border-border bg-card p-4 shadow-xl space-y-3 max-h-[90vh] overflow-y-auto cursor-default"
+      >
         {/* CLOSE BUTTON */}
         <button
           onClick={onClose}
@@ -82,6 +149,33 @@ export function MatchH2HModal({ match, currentWeek, standings = [], onClose }: M
           </div>
         </div>
 
+        {/* 🔮 MATCH PREDICTION BAR */}
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-2.5 space-y-1.5">
+          <div className="flex items-center justify-between text-[9px] font-bold">
+            <span className="text-primary flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> Prediksi Match
+            </span>
+            <span className="text-muted-foreground">Peluang Menang</span>
+          </div>
+
+          {/* RATIO BAR */}
+          <div className="h-2 w-full rounded-full bg-muted/60 overflow-hidden flex">
+            <div
+              style={{ width: `${prediction.probA}%` }}
+              className="h-full bg-primary transition-all duration-300"
+            />
+            <div
+              style={{ width: `${prediction.probB}%` }}
+              className="h-full bg-rose-500 transition-all duration-300"
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-[10px] font-black">
+            <span className="text-primary">{prediction.probA}%</span>
+            <span className="text-rose-500">{prediction.probB}%</span>
+          </div>
+        </div>
+
         {/* STATS MATRIX */}
         <div className="space-y-1.5 text-[10px]">
           <span className="text-[8.5px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -89,40 +183,61 @@ export function MatchH2HModal({ match, currentWeek, standings = [], onClose }: M
           </span>
 
           <div className="rounded-xl border border-border/60 bg-muted/10 divide-y divide-border/40 overflow-hidden">
+            {/* 1. RANK */}
             <div className="flex items-center justify-between px-3 py-1.5">
-              <span className="font-bold text-foreground">#{statsA.rank}</span>
+              <span className={getRankClass(statsA.rank, statsB.rank, true)}>#{statsA.rank}</span>
               <span className="text-muted-foreground font-medium text-[9px]">Peringkat Klasemen</span>
-              <span className="font-bold text-foreground">#{statsB.rank}</span>
+              <span className={getRankClass(statsA.rank, statsB.rank, false)}>#{statsB.rank}</span>
             </div>
 
+            {/* 2. REKOR MATCH */}
             <div className="flex items-center justify-between px-3 py-1.5">
-              <span className="font-bold text-foreground">{statsA.matchWins}W - {statsA.matchLosses}L</span>
+              <span className={getMetricClass(statsA.matchWins, statsB.matchWins, true)}>
+                {statsA.matchWins} Win - {statsA.matchLosses} Lose
+              </span>
               <span className="text-muted-foreground font-medium text-[9px]">Rekor Match</span>
-              <span className="font-bold text-foreground">{statsB.matchWins}W - {statsB.matchLosses}L</span>
+              <span className={getMetricClass(statsA.matchWins, statsB.matchWins, false)}>
+                {statsB.matchWins} Win - {statsB.matchLosses} Lose
+              </span>
             </div>
 
+            {/* 3. WIN RATE */}
             <div className="flex items-center justify-between px-3 py-1.5">
-              <span className="font-bold text-primary">{statsA.winRate}%</span>
+              <span className={getMetricClass(statsA.winRate, statsB.winRate, true)}>{statsA.winRate}%</span>
               <span className="text-muted-foreground font-medium text-[9px]">Win Rate</span>
-              <span className="font-bold text-primary">{statsB.winRate}%</span>
+              <span className={getMetricClass(statsA.winRate, statsB.winRate, false)}>{statsB.winRate}%</span>
             </div>
 
+            {/* 4. SELISIH POIN (PTS DIFF) */}
             <div className="flex items-center justify-between px-3 py-1.5">
-              <span className={`font-bold ${Number(statsA.roundDifference) > 0 ? "text-emerald-500" : Number(statsA.roundDifference) < 0 ? "text-rose-500" : "text-foreground"}`}>
+              <span className={getMetricClass(statsA.rawDiff, statsB.rawDiff, true)}>
                 {statsA.roundDifference}
               </span>
-              <span className="text-muted-foreground font-medium text-[9px]">Selisih Poin (Diff)</span>
-              <span className={`font-bold ${Number(statsB.roundDifference) > 0 ? "text-emerald-500" : Number(statsB.roundDifference) < 0 ? "text-rose-500" : "text-foreground"}`}>
+              <span className="text-muted-foreground font-medium text-[9px]">Pts Diff</span>
+              <span className={getMetricClass(statsA.rawDiff, statsB.rawDiff, false)}>
                 {statsB.roundDifference}
               </span>
             </div>
 
+            {/* 5. PTS DIFF RATE */}
             <div className="flex items-center justify-between px-3 py-1.5">
-              <span className="font-bold text-foreground">{statsA.setWins}</span>
-              <span className="text-muted-foreground font-medium text-[9px]">Total Scored</span>
-              <span className="font-bold text-foreground">{statsB.setWins}</span>
+              <span className={getMetricClass(statsA.ptsDiffRate, statsB.ptsDiffRate, true)}>
+                {statsA.ptsDiffRateLabel}
+              </span>
+              <span className="text-muted-foreground font-medium text-[9px]">Pts Diff Rate</span>
+              <span className={getMetricClass(statsA.ptsDiffRate, statsB.ptsDiffRate, false)}>
+                {statsB.ptsDiffRateLabel}
+              </span>
             </div>
 
+            {/* 6. TOTAL SCORED */}
+            <div className="flex items-center justify-between px-3 py-1.5">
+              <span className={getMetricClass(statsA.setWins, statsB.setWins, true)}>{statsA.setWins}</span>
+              <span className="text-muted-foreground font-medium text-[9px]">Total Scored</span>
+              <span className={getMetricClass(statsA.setWins, statsB.setWins, false)}>{statsB.setWins}</span>
+            </div>
+
+            {/* 7. RECENT FORM */}
             <div className="flex items-center justify-between px-3 py-1.5">
               <div className="flex items-center gap-0.5">
                 {statsA.form.length ? (
