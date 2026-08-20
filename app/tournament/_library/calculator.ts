@@ -1,12 +1,22 @@
 import { MatchScheduleItem, TeamStandingItem } from "./types";
 import { DIVISION_MAP, TOURNAMENT_RULES } from "./constants";
-import { getWibDateKey } from "./utils";
+import { getWibDateKey, getMatchWeekNumber, getCurrentServerWeek } from "./utils";
 
 export interface ExtendedStandingItem extends TeamStandingItem {
   isTopGroup?: boolean;
   groupColor?: "GROUP_A" | "GROUP_B";
   customRankLabel?: string;
   rankTrend?: "up" | "down" | "stay";
+}
+
+/**
+ * 🟢 Helper resmi menghitung nomor minggu turnamen (Backward Compatible)
+ */
+export function getTournamentWeekNumber(dateString?: string): number {
+  if (dateString) {
+    return getMatchWeekNumber(dateString);
+  }
+  return getCurrentServerWeek();
 }
 
 export function calculateStandings(
