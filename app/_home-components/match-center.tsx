@@ -346,4 +346,4 @@ export function MatchCenter({
       )}
     </div>
   );
-                          }
+}
