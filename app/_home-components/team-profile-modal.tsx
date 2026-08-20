@@ -37,7 +37,6 @@ export function TeamProfileModal({
   const [mounted, setMounted] = useState(false);
   const modalContentRef = useRef<HTMLDivElement>(null);
 
-  // Single Source of Truth melalui helper calculator
   const teamData = useMemo(() => {
     if (!team) return null;
     return getTeamProfileStats(team, allTeams, allSchedules);
@@ -72,7 +71,7 @@ export function TeamProfileModal({
 
   const copy = (id: string) => {
     if (!id) return;
-    if (navigator?.clipboard?.writeText) {
+    if (typeof navigator !== "undefined" && navigator?.clipboard?.writeText) {
       navigator.clipboard.writeText(id);
     } else {
       const textarea = document.createElement("textarea");
@@ -249,14 +248,14 @@ export function TeamProfileModal({
                 </span>
                 <span
                   className={`text-xs sm:text-sm md:text-base font-black ${
-                    teamData.roundDifference > 0
+                    teamData.rawDiff > 0
                       ? "text-emerald-600 dark:text-emerald-400"
-                      : teamData.roundDifference < 0
+                      : teamData.rawDiff < 0
                       ? "text-rose-600 dark:text-rose-400"
                       : "text-foreground"
                   }`}
                 >
-                  {teamData.roundDifference > 0 ? `+${teamData.roundDifference}` : teamData.roundDifference}
+                  {teamData.roundDifference}
                 </span>
               </div>
               <div className="rounded-xl bg-muted/40 border border-border py-2 md:py-2.5">
