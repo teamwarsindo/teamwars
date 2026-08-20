@@ -12,6 +12,7 @@ import {
 import { ScheduleTab } from "./schedule-tab";
 import { StandingTab } from "./standing-tab";
 import { PlayoffTab } from "./playoff-tab";
+import { DivisionFilterType } from "./schedule-filter";
 import { MatchReportModal } from "./match-report-modal";
 import Swal from "sweetalert2";
 
@@ -23,8 +24,8 @@ export function TournamentView({
   setSelectedDateFilter,
 }: {
   isAdmin: boolean;
-  selectedGroupFilter: "ALL" | "Group A" | "Group B";
-  setSelectedGroupFilter: (v: "ALL" | "Group A" | "Group B") => void;
+  selectedGroupFilter: DivisionFilterType;
+  setSelectedGroupFilter: (v: DivisionFilterType) => void;
   selectedDateFilter: string;
   setSelectedDateFilter: (v: string) => void;
 }) {
@@ -134,7 +135,7 @@ export function TournamentView({
 
   return (
     <div className="w-full flex flex-col gap-4">
-      {/* 3 TAB NAVIGASI UTAMA (Selaras dengan Home) */}
+      {/* 3 TAB NAVIGASI UTAMA */}
       <div className="grid grid-cols-3 gap-2 w-full">
         {[
           { key: "SCHEDULE", label: "Group Stage" },
@@ -166,8 +167,6 @@ export function TournamentView({
           onSelectMatch={(m) => setActiveReportMatch(m)}
           selectedGroupFilter={selectedGroupFilter}
           setSelectedGroupFilter={setSelectedGroupFilter}
-          groupAName={DIVISION_MAP.GROUP_A}
-          groupBName={DIVISION_MAP.GROUP_B}
           defaultWeek={currentWeek}
         />
       )}
@@ -197,4 +196,4 @@ export function TournamentView({
       )}
     </div>
   );
-      }
+}
