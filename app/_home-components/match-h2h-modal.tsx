@@ -11,7 +11,7 @@ import {
   MatchHistoryCardItem,
   QualificationStatus,
 } from "@/app/tournament/_library/calculator";
-import { X, Swords, Trophy, Sparkles, ExternalLink, Image as ImageIcon } from "lucide-react";
+import { X, Swords, Trophy, Sparkles, Image as ImageIcon } from "lucide-react";
 
 interface MatchH2HModalProps {
   match: MatchScheduleItem | null;
@@ -156,48 +156,33 @@ export function MatchH2HModal({
     );
   };
 
-  const renderReportItem = (item?: MatchHistoryCardItem, isA = true) => {
+  // REPORT WEEK SIMPEL DENGAN PILL PRESISI SEJAJAR
+  const renderReportItem = (item?: MatchHistoryCardItem) => {
     if (!item) {
       return (
-        <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/40 px-2.5 py-0.5 text-[9px] md:text-[10px] text-muted-foreground">
+        <span className="inline-flex items-center justify-center rounded-full bg-muted/40 border border-border/30 px-3 py-0.5 text-[10px] text-muted-foreground/40 font-bold min-w-[62px]">
           -
         </span>
       );
     }
+
+    const pillStyle = item.isWin
+      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+      : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30";
+
+    const label = `${item.isWin ? "Win" : "Lose"} ${item.myScore}-${item.oppScore}`;
 
     return (
       <a
         href={item.reportLink || "#"}
         target={item.reportLink ? "_blank" : "_self"}
         rel="noopener noreferrer"
-        className={`flex items-center gap-2 hover:opacity-80 transition max-w-full ${
-          isA ? "flex-row text-left" : "flex-row-reverse text-right"
-        } ${item.reportLink ? "cursor-pointer group" : "cursor-default"}`}
+        title={`Lawan: ${item.oppName}`}
+        className={`inline-flex items-center justify-center rounded-full border px-2.5 py-0.5 text-[9.5px] md:text-[10.5px] font-black min-w-[62px] shadow-2xs transition hover:opacity-80 ${pillStyle} ${
+          item.reportLink ? "cursor-pointer" : "cursor-default"
+        }`}
       >
-        <img
-          src={item.oppLogo}
-          alt=""
-          className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 object-contain shrink-0 rounded-lg bg-background/50 border border-border/50 p-0.5"
-        />
-        <div className={`flex flex-col gap-0.5 min-w-0 ${isA ? "items-start" : "items-end"}`}>
-          <span
-            className={`rounded px-1.5 py-0.2 font-black text-[7.5px] md:text-[8.5px] shrink-0 ${
-              item.isWin
-                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-            }`}
-          >
-            {item.isWin ? "Win" : "Lose"} {item.myScore}-{item.oppScore}
-          </span>
-          <div className={`flex items-center gap-1 min-w-0 ${!isA && "flex-row-reverse"}`}>
-            <span className="font-semibold text-foreground text-[8.5px] sm:text-[9.5px] md:text-[10.5px] truncate max-w-[80px] sm:max-w-[120px] md:max-w-[150px] group-hover:underline">
-              {item.oppName}
-            </span>
-            {item.reportLink && (
-              <ExternalLink className="h-2.5 w-2.5 text-muted-foreground group-hover:text-primary transition shrink-0" />
-            )}
-          </div>
-        </div>
+        {label}
       </a>
     );
   };
@@ -335,7 +320,7 @@ export function MatchH2HModal({
             </div>
           </div>
 
-          {/* BANNER HASIL (REPORT BUKTI) ATAU BAR PREDIKSI */}
+          {/* BANNER STATUS / BUKTI REPORT */}
           {isMatchFinished ? (
             reportUrl && (
               <div className="flex items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5">
@@ -402,7 +387,7 @@ export function MatchH2HModal({
                 <div className="flex justify-center">{renderForm8Slots(statsB.form)}</div>
               </div>
 
-              {/* METRICS LOOP (HIJAU / EMAS / MUTED) */}
+              {/* METRICS LOOP */}
               {metrics.map((m, idx) => (
                 <div
                   key={idx}
@@ -416,17 +401,17 @@ export function MatchH2HModal({
                 </div>
               ))}
 
-              {/* RIWAYAT PEKAN (REPORT WEEK) */}
+              {/* REPORT WEEK (LURUS & SEJAJAR) */}
               {pastWeeks.map((week) => (
                 <div
                   key={week}
                   className="grid grid-cols-[1fr_130px_1fr] md:grid-cols-[1fr_150px_1fr] items-center px-3 py-1.5"
                 >
-                  <div className="flex justify-center min-w-0">{renderReportItem(historyA.get(week), true)}</div>
+                  <div className="flex justify-center min-w-0">{renderReportItem(historyA.get(week))}</div>
                   <span className="text-muted-foreground text-[8.5px] md:text-[10px] font-semibold text-center px-1 whitespace-nowrap">
                     Report Week {week}
                   </span>
-                  <div className="flex justify-center min-w-0">{renderReportItem(historyB.get(week), false)}</div>
+                  <div className="flex justify-center min-w-0">{renderReportItem(historyB.get(week))}</div>
                 </div>
               ))}
             </div>
@@ -436,4 +421,5 @@ export function MatchH2HModal({
     </div>,
     document.body
   );
-                }
+}
+  
