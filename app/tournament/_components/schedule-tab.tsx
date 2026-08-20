@@ -15,8 +15,6 @@ export interface ScheduleTabProps {
   onSelectMatch: (match: MatchScheduleItem) => void;
   selectedGroupFilter?: "ALL" | "Group A" | "Group B";
   setSelectedGroupFilter?: (v: "ALL" | "Group A" | "Group B") => void;
-  selectedDateFilter?: string;
-  setSelectedDateFilter?: (v: string) => void;
   groupAName?: string;
   groupBName?: string;
   defaultWeek?: number;
@@ -37,7 +35,6 @@ export function ScheduleTab({
 }: ScheduleTabProps) {
   const searchParams = useSearchParams();
 
-  // 1. Fallback State Filter Divisi jika prop tidak dikirim
   const [localGroupFilter, setLocalGroupFilter] = useState<"ALL" | "Group A" | "Group B">("ALL");
   const selectedGroup = propGroupFilter !== undefined ? propGroupFilter : localGroupFilter;
   const handleGroupChange = (val: "ALL" | "Group A" | "Group B") => {
@@ -45,7 +42,6 @@ export function ScheduleTab({
     else setLocalGroupFilter(val);
   };
 
-  // 2. Filter Week (Membaca query ?week= jika ada)
   const urlWeekParam = searchParams.get("week");
   const initialWeek = urlWeekParam ? Number(urlWeekParam) : defaultWeek;
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "ALL">(initialWeek);
@@ -59,7 +55,6 @@ export function ScheduleTab({
     }
   }, [defaultWeek, urlWeekParam]);
 
-  // 3. Available Weeks
   const availableWeeks = useMemo(() => {
     const allWeekNumbers = Array.from(
       new Set([...schedules.map((s) => s.weekNumber || 1), ...allWeeks])
@@ -80,9 +75,11 @@ export function ScheduleTab({
     );
   }, [selectedWeekFilter, selectedGroup, selectedTeamFilter, defaultWeek]);
 
-  // 4. Robust Filtering
+  // Robust Matching Filter
   const filteredSchedules = useMemo(() => {
     const cleanTeam = selectedTeamFilter.toLowerCase().trim();
+    const cleanGroupA = groupAName.toLowerCase().trim();
+    const cleanGroupB = groupBName.toLowerCase().trim();
 
     return schedules
       .filter((m) => {
@@ -94,9 +91,20 @@ export function ScheduleTab({
         }
 
         if (selectedGroup !== "ALL") {
-          const gName = (m.groupName || "").toLowerCase();
-          const isA = gName.includes("a") || gName.includes(groupAName.toLowerCase());
-          const isB = gName.includes("b") || gName.includes(groupBName.toLowerCase());
+          const matchGroupName = (m.groupName || "").toLowerCase().trim();
+          const isA =
+            matchGroupName === "group a" ||
+            matchGroupName === "divisi a" ||
+            matchGroupName.includes("group a") ||
+            matchGroupName === cleanGroupA ||
+            matchGroupName.includes(cleanGroupA);
+
+          const isB =
+            matchGroupName === "group b" ||
+            matchGroupName === "divisi b" ||
+            matchGroupName.includes("group b") ||
+            matchGroupName === cleanGroupB ||
+            matchGroupName.includes(cleanGroupB);
 
           if (selectedGroup === "Group A" && !isA) return false;
           if (selectedGroup === "Group B" && !isB) return false;
@@ -141,8 +149,8 @@ export function ScheduleTab({
   };
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* FILTER */}
+    <div className="w-full space-y-4 md:space-y-6">
+      {/* FILTER TOP */}
       <ScheduleFilter
         selectedGroupFilter={selectedGroup}
         onGroupChange={handleGroupChange}
@@ -160,7 +168,7 @@ export function ScheduleTab({
         onSyncSchedules={onResetSchedules}
       />
 
-      {/* LIST KARTU JADWAL */}
+      {/* LIST KARTU MATCH (RESPONSIF DESKTOP GRID) */}
       {groupedByWeek.length === 0 ? (
         <div className="p-8 text-center text-xs md:text-sm font-semibold text-muted-foreground bg-card border border-border rounded-2xl">
           Tidak ada jadwal pertandingan yang sesuai dengan filter.
@@ -175,7 +183,7 @@ export function ScheduleTab({
               <div className="h-[1px] flex-1 bg-border/60"></div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
               {matches.map((m) => (
                 <ScheduleCard
                   key={m.id}
