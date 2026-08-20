@@ -50,42 +50,42 @@ export function ScheduleFilter({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleToggleGroup = (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
+    if (selectedGroupFilter === group) {
+      onGroupChange("ALL");
+    } else {
+      onGroupChange(group);
+    }
+  };
+
+  const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
+  const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
+
   return (
     <div className="bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-3">
-      {/* 1. BUTTON FILTER DIVISI (HORIZONTAL SCROLLABLE, TIDAK KEPOTONG DI MOBILE) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full flex-nowrap">
+      {/* 1. DUA TOMBOL FILTER DIVISI (TOGGLE) */}
+      <div className="grid grid-cols-2 gap-2 w-full">
         <button
           type="button"
-          onClick={() => onGroupChange("ALL")}
-          className={`shrink-0 py-2 px-3.5 md:py-2.5 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
-            selectedGroupFilter === "ALL"
-              ? "bg-primary text-primary-foreground shadow-xs"
-              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
-          }`}
-        >
-          Semua Divisi
-        </button>
-        <button
-          type="button"
-          onClick={() => onGroupChange(DIVISION_MAP.GROUP_A)}
-          className={`shrink-0 py-2 px-3.5 md:py-2.5 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
+          onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_A)}
+          className={`py-2 px-3 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer text-center truncate ${
             selectedGroupFilter === DIVISION_MAP.GROUP_A
               ? "bg-sky-500 text-white shadow-xs"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
         >
-          {DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "")}
+          {cleanNameA}
         </button>
         <button
           type="button"
-          onClick={() => onGroupChange(DIVISION_MAP.GROUP_B)}
-          className={`shrink-0 py-2 px-3.5 md:py-2.5 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
+          onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_B)}
+          className={`py-2 px-3 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer text-center truncate ${
             selectedGroupFilter === DIVISION_MAP.GROUP_B
               ? "bg-amber-500 text-slate-950 shadow-xs"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
         >
-          {DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "")}
+          {cleanNameB}
         </button>
       </div>
 
@@ -224,4 +224,5 @@ export function ScheduleFilter({
       )}
     </div>
   );
-}
+    }
+                  
