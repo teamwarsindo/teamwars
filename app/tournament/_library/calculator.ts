@@ -395,4 +395,4 @@ export function getTeamMatchHistory(
   });
 
   return historyMap;
-}
+} 
