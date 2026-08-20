@@ -1,29 +1,12 @@
 import { MatchScheduleItem, TeamStandingItem } from "./types";
-import { DIVISION_MAP, TOURNAMENT_RULES, TWI_START_DATETIME } from "./constants";
+import { DIVISION_MAP, TOURNAMENT_RULES } from "./constants";
+import { getWibDateKey } from "./utils";
 
 export interface ExtendedStandingItem extends TeamStandingItem {
   isTopGroup?: boolean;
   groupColor?: "GROUP_A" | "GROUP_B";
   customRankLabel?: string;
   rankTrend?: "up" | "down" | "stay";
-}
-
-/**
- * 🟢 Helper resmi menghitung nomor minggu turnamen (1-indexed)
- * Berdasarkan baseline kick-off resmi dari TWI_START_DATETIME (Senin Pukul 08.00 WIB)
- * @param dateString ISO string tanggal yang ingin dicek (opsional, default: waktu sekarang)
- */
-export function getTournamentWeekNumber(dateString?: string): number {
-  const startDate = new Date(TWI_START_DATETIME).getTime();
-  const targetDate = dateString ? new Date(dateString).getTime() : Date.now();
-
-  if (isNaN(targetDate)) return 1;
-
-  const diffMs = targetDate - startDate;
-  if (diffMs < 0) return 1; // Sebelum kick-off resmi tetap dihitung Week 1
-
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  return Math.max(1, Math.floor(diffDays / 7) + 1);
 }
 
 export function calculateStandings(
@@ -46,11 +29,14 @@ export function calculateStandings(
         : DIVISION_MAP.GROUP_B;
 
     const tName = t.name || t.teamName;
+    const teamColor = t.color || t.primaryColor || t.teamColor || undefined;
+
     teamMap.set(tName, {
       rank: 1,
       teamId: t.id || tName,
       teamName: tName,
       teamLogo: t.logo || t.teamLogo || "/logo.webp",
+      teamColor,
       groupName,
       matchPlayed: 0,
       matchWins: 0,
@@ -87,6 +73,7 @@ export function calculateStandings(
         teamId: m.teamAId || m.teamAName,
         teamName: m.teamAName,
         teamLogo: m.teamALogo || "/logo.webp",
+        teamColor: m.teamAColor,
         groupName: m.groupName === "Group A" ? DIVISION_MAP.GROUP_A : m.groupName,
         matchPlayed: 0,
         matchWins: 0,
@@ -107,6 +94,7 @@ export function calculateStandings(
         teamId: m.teamBId || m.teamBName,
         teamName: m.teamBName,
         teamLogo: m.teamBLogo || "/logo.webp",
+        teamColor: m.teamBColor,
         groupName: m.groupName === "Group B" ? DIVISION_MAP.GROUP_B : m.groupName,
         matchPlayed: 0,
         matchWins: 0,
@@ -159,17 +147,11 @@ export function calculateStandings(
 
   const sortTeams = (teams: ExtendedStandingItem[]) => {
     return teams.sort((a, b) => {
-      // 1. Poin Kemenangan Match Terbanyak
       if (b.points !== a.points) return b.points - a.points;
       if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-
-      // 2. Selisih Skor (Round/Points Difference)
       if (b.roundDifference !== a.roundDifference) return b.roundDifference - a.roundDifference;
-
-      // 3. Total Skor Game yang Diperoleh (Scored/Set Wins)
       if (b.setWins !== a.setWins) return b.setWins - a.setWins;
 
-      // 4. Head to Head (H2H) jika kedua tim pernah bertanding
       const h2hMatch = filteredSchedules.find(
         (m) =>
           m.isFinished &&
@@ -183,7 +165,6 @@ export function calculateStandings(
         if (aScore !== bScore) return bScore - aScore;
       }
 
-      // 5. Tie-breaker Terakhir: Urutan Abjad Tim
       return a.teamName.localeCompare(b.teamName);
     });
   };
@@ -199,7 +180,6 @@ export function calculateStandings(
   return [...groupATeams, ...groupBTeams];
 }
 
-// Fungsi Terpusat: Membangun Standing Global Wildcard
 export function buildGlobalStandings(
   standings: ExtendedStandingItem[]
 ): (ExtendedStandingItem & { globalRank: number; globalRankTrend?: "up" | "down" | "stay" })[] {
@@ -251,9 +231,6 @@ export function buildGlobalStandings(
   }));
 }
 
-/**
- * 🟢 Helper resmi: Mengambil semua match pada tanggal terdekat berikutnya dalam week aktif (> today)
- */
 export function getNextDateMatches(
   currentWeekSchedules: MatchScheduleItem[],
   todayDateStrWIB: string
@@ -262,20 +239,23 @@ export function getNextDateMatches(
     .filter((m) => {
       if (m.isFinished) return false;
       if (!m.matchDate) return false;
-      const matchDayStr = m.matchDate.slice(0, 10);
+      const matchDayStr = getWibDateKey(new Date(m.matchDate));
       return matchDayStr > todayDateStrWIB;
     })
     .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
   if (upcomingCandidates.length === 0) return [];
 
-  const nextDateStr = upcomingCandidates[0].matchDate.slice(0, 10);
-  return upcomingCandidates.filter((m) => m.matchDate.slice(0, 10) === nextDateStr);
+  const nextDateStr = getWibDateKey(new Date(upcomingCandidates[0].matchDate));
+  return upcomingCandidates.filter(
+    (m) => getWibDateKey(new Date(m.matchDate)) === nextDateStr
+  );
 }
 
 export interface TeamComparisonStats {
   rank: number | string;
   groupName: string;
+  teamColor: string;
   matchPlayed: number;
   matchWins: number;
   matchLosses: number;
@@ -288,12 +268,10 @@ export interface TeamComparisonStats {
   form: ("W" | "L")[];
 }
 
-/**
- * 🟢 Helper resmi: Ekstrak data statistik tim untuk modal perbandingan
- */
 export function getTeamStatsFromStandings(
   teamName: string,
-  standings: ExtendedStandingItem[] = []
+  standings: ExtendedStandingItem[] = [],
+  defaultColor = "#2563EB"
 ): TeamComparisonStats {
   const t = standings.find((s) => s.teamName.toLowerCase() === teamName.toLowerCase());
   const matchPlayed = t ? t.matchPlayed : 0;
@@ -303,13 +281,13 @@ export function getTeamStatsFromStandings(
 
   const rawDiff = t ? t.roundDifference : 0;
   const ptsDiffRate = matchPlayed > 0 ? parseFloat((rawDiff / matchPlayed).toFixed(1)) : 0;
-
-  const ptsDiffRateLabel =
-    ptsDiffRate > 0 ? `+${ptsDiffRate}` : `${ptsDiffRate}`;
+  const ptsDiffRateLabel = ptsDiffRate > 0 ? `+${ptsDiffRate}` : `${ptsDiffRate}`;
+  const teamColor = t?.teamColor || defaultColor;
 
   return {
     rank: t ? t.rank : "-",
     groupName: t ? t.groupName : "Group Stage",
+    teamColor,
     matchPlayed,
     matchWins,
     matchLosses,
@@ -323,34 +301,25 @@ export function getTeamStatsFromStandings(
   };
 }
 
-/**
- * 🟢 Helper resmi: Menghitung Prediksi Probabilitas Kemenangan Dua Tim
- * Bobot: Win Rate (40%), Pts Diff Rate (30%), Recent Form (20%), Relative Rank (10%)
- */
 export function calculateMatchPrediction(
   statsA: TeamComparisonStats,
   statsB: TeamComparisonStats
 ): { probA: number; probB: number } {
-  // Jika kedua tim belum pernah bertanding, beri peluang seimbang 50:50
   if (statsA.matchPlayed === 0 && statsB.matchPlayed === 0) {
     return { probA: 50, probB: 50 };
   }
 
   const computeScore = (stats: TeamComparisonStats) => {
     const wr = stats.matchPlayed > 0 ? stats.matchWins / stats.matchPlayed : 0.5;
-    
-    // Normalisasi Pts Diff Rate (-5 s.d +5 rentang normal Duel Links)
     const clampedDiff = Math.max(-5, Math.min(5, stats.ptsDiffRate));
-    const normDiff = (clampedDiff + 5) / 10; // 0.0 s.d 1.0
+    const normDiff = (clampedDiff + 5) / 10;
 
-    // Recent Form Score
     const recentForm = stats.form.slice(-3);
     const formWins = recentForm.filter((f) => f === "W").length;
     const formScore = recentForm.length > 0 ? formWins / recentForm.length : 0.5;
 
-    // Rank Score (Asumsi grup berisi 8 tim)
     const rankNum = typeof stats.rank === "number" ? stats.rank : 4;
-    const rankScore = (9 - rankNum) / 8; // Rank 1 = 1.0, Rank 8 = 0.125
+    const rankScore = (9 - rankNum) / 8;
 
     return wr * 0.4 + normDiff * 0.3 + formScore * 0.2 + rankScore * 0.1;
   };
@@ -365,4 +334,55 @@ export function calculateMatchPrediction(
   const probB = 100 - probA;
 
   return { probA, probB };
+}
+
+export interface TeamMatchHistoryItem {
+  matchId: string;
+  weekNumber: number;
+  result: "WIN" | "LOSE";
+  opponentName: string;
+  opponentLogo: string;
+  teamScore: number;
+  opponentScore: number;
+  reportLink?: string;
+}
+
+export function getTeamMatchHistory(
+  teamName: string,
+  schedules: MatchScheduleItem[] = []
+): Map<number, TeamMatchHistoryItem> {
+  const historyMap = new Map<number, TeamMatchHistoryItem>();
+
+  const finishedMatches = schedules
+    .filter(
+      (m) =>
+        m.isFinished &&
+        (m.teamAName.toLowerCase() === teamName.toLowerCase() ||
+          m.teamBName.toLowerCase() === teamName.toLowerCase())
+    )
+    .sort((a, b) => (a.weekNumber || 1) - (b.weekNumber || 1));
+
+  finishedMatches.forEach((m) => {
+    const isTeamA = m.teamAName.toLowerCase() === teamName.toLowerCase();
+    const teamScore = isTeamA ? m.scoreA || 0 : m.scoreB || 0;
+    const opponentScore = isTeamA ? m.scoreB || 0 : m.scoreA || 0;
+    const opponentName = isTeamA ? m.teamBName : m.teamAName;
+    const opponentLogo = isTeamA ? m.teamBLogo || "/logo.webp" : m.teamALogo || "/logo.webp";
+    const result = teamScore > opponentScore ? "WIN" : "LOSE";
+    const weekNum = m.weekNumber || 1;
+    const reportLink = m.maskedImageUrl || m.reportImageUrl || undefined;
+
+    historyMap.set(weekNum, {
+      matchId: m.id,
+      weekNumber: weekNum,
+      result,
+      opponentName,
+      opponentLogo,
+      teamScore,
+      opponentScore,
+      reportLink,
+    });
+  });
+
+  return historyMap;
 }

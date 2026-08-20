@@ -6,6 +6,8 @@ import {
   DIVISION_MAP,
   getCurrentServerWeek,
   TOURNAMENT_RULES,
+  getWibDateKey,
+  getTeamSlug,
 } from "@/app/tournament/_library";
 import {
   calculateStandings,
@@ -18,7 +20,7 @@ import { MatchCenter } from "./match-center";
 import { StandingsSnapshot } from "./standings-snapshot";
 
 export function TournamentHub() {
-  const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
+  const [rawSchedules, setRawSchedules] = useState<MatchScheduleItem[]>([]);
   const [masterTeams, setMasterTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -31,7 +33,7 @@ export function TournamentHub() {
         const res = await fetch("/api/tournament");
         const data = await res.json();
         if (data) {
-          setSchedules(data.schedules || []);
+          setRawSchedules(data.schedules || []);
           setMasterTeams(data.masterTeams || []);
         }
       } catch (err) {
@@ -43,12 +45,27 @@ export function TournamentHub() {
     fetchTournament();
   }, []);
 
-  // 1. Single Source of Truth: Standing dihitung berdasar currentWeek
+  const schedules = useMemo(() => {
+    const colorMap = new Map<string, string>();
+    masterTeams.forEach((t) => {
+      const slugKey = `teams:${getTeamSlug(t.name || t.teamName)}`;
+      const hexColor = t.color || t.primaryColor || t.teamColor || t[slugKey]?.color;
+      if (hexColor) {
+        colorMap.set((t.name || t.teamName).toLowerCase(), hexColor);
+      }
+    });
+
+    return rawSchedules.map((m) => ({
+      ...m,
+      teamAColor: m.teamAColor || colorMap.get(m.teamAName.toLowerCase()),
+      teamBColor: m.teamBColor || colorMap.get(m.teamBName.toLowerCase()),
+    }));
+  }, [rawSchedules, masterTeams]);
+
   const standings = useMemo(() => {
     return calculateStandings(schedules, masterTeams, currentWeek);
   }, [schedules, masterTeams, currentWeek]);
 
-  // Top 2 Divisi A & B
   const topGroupA = useMemo(() => {
     return standings
       .filter((s) => s.groupName === DIVISION_MAP.GROUP_A)
@@ -61,7 +78,6 @@ export function TournamentHub() {
       .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP);
   }, [standings]);
 
-  // Top 4 Wildcard (Di luar Top 2 masing-masing grup)
   const topGlobal = useMemo(() => {
     const globalData = buildGlobalStandings(standings);
     return globalData
@@ -69,42 +85,29 @@ export function TournamentHub() {
       .slice(0, 4);
   }, [standings]);
 
-  // 2. Kunci seluruh match ke currentWeek
   const currentWeekSchedules = useMemo(() => {
     return schedules.filter((m) => (m.weekNumber || 1) === currentWeek);
   }, [schedules, currentWeek]);
 
-  // 3. Live Matches di currentWeek
   const liveMatches = useMemo(() => {
     return currentWeekSchedules.filter((m) => Boolean(m.streamLink) && !m.isFinished);
   }, [currentWeekSchedules]);
 
-  // Tanggal Hari Ini (WIB)
-  const todayDateStrWIB = useMemo(() => {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Jakarta",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
-  }, []);
+  const todayDateStrWIB = useMemo(() => getWibDateKey(), []);
 
-  // 4. Main Hari Ini di currentWeek
   const todayMatches = useMemo(() => {
     return currentWeekSchedules.filter(
       (m) =>
         !m.isFinished &&
         Boolean(m.matchDate) &&
-        m.matchDate.startsWith(todayDateStrWIB)
+        getWibDateKey(new Date(m.matchDate)) === todayDateStrWIB
     );
   }, [currentWeekSchedules, todayDateStrWIB]);
 
-  // 5. Pertandingan Berikutnya: Menggunakan helper terpusat getNextDateMatches
   const upcomingMatches = useMemo(() => {
     return getNextDateMatches(currentWeekSchedules, todayDateStrWIB);
   }, [currentWeekSchedules, todayDateStrWIB]);
 
-  // 6. Hasil Terakhir Pekan Ini (Maksimal 3 Match)
   const recentResults = useMemo(() => {
     return currentWeekSchedules
       .filter((m) => m.isFinished)
@@ -133,6 +136,7 @@ export function TournamentHub() {
           upcomingMatches={upcomingMatches}
           recentResults={recentResults}
           standings={standings}
+          allSchedules={schedules}
         />
 
         <StandingsSnapshot

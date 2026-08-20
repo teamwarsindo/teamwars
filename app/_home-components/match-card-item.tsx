@@ -1,6 +1,6 @@
 "use client";
 
-import { MatchScheduleItem } from "@/app/tournament/_library";
+import { MatchScheduleItem, formatMatchWIB } from "@/app/tournament/_library";
 import { Radio, Tv } from "lucide-react";
 
 interface MatchCardItemProps {
@@ -8,23 +8,6 @@ interface MatchCardItemProps {
   variant: "LIVE" | "TODAY" | "UPCOMING" | "RESULT";
   currentWeek: number;
   onClick: () => void;
-}
-
-function formatMatchDate(dateStr?: string) {
-  if (!dateStr) return "TBD";
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("id-ID", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  } catch {
-    return dateStr;
-  }
 }
 
 export function MatchCardItem({ match, variant, currentWeek, onClick }: MatchCardItemProps) {
@@ -50,7 +33,6 @@ export function MatchCardItem({ match, variant, currentWeek, onClick }: MatchCar
       onClick={onClick}
       className={`cursor-pointer rounded-xl border p-2 space-y-1 transition text-[10.5px] ${containerStyle}`}
     >
-      {/* HEADER ROW: TEAM A VS TEAM B / SCORES */}
       <div className="flex items-center justify-between">
         {/* TEAM A */}
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -68,7 +50,7 @@ export function MatchCardItem({ match, variant, currentWeek, onClick }: MatchCar
           </span>
         </div>
 
-        {/* MIDDLE SECTION: BADGE / DATE / SCORE */}
+        {/* MIDDLE SECTION */}
         <div className="flex flex-col items-center px-1.5 shrink-0">
           {isLive ? (
             <span className="flex items-center gap-1 rounded bg-rose-500 px-2 py-0.5 text-[8.5px] font-black text-white uppercase tracking-wider shadow-xs animate-pulse">
@@ -84,7 +66,7 @@ export function MatchCardItem({ match, variant, currentWeek, onClick }: MatchCar
             <>
               <span className="text-[9px] font-bold text-muted-foreground">VS</span>
               <span className={`text-[8.5px] font-medium ${isToday ? "text-primary" : "text-muted-foreground mt-0.5"}`}>
-                {formatMatchDate(match.matchDate)}
+                {formatMatchWIB(match.matchDate)}
               </span>
             </>
           )}
@@ -107,7 +89,7 @@ export function MatchCardItem({ match, variant, currentWeek, onClick }: MatchCar
         </div>
       </div>
 
-      {/* FOOTER ROW: STREAMER / STATUS (Kecuali Tab Hasil) */}
+      {/* FOOTER */}
       {!isResult && (
         <div
           className={`flex items-center justify-between border-t pt-0.5 text-[8.5px] ${

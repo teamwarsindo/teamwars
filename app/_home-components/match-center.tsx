@@ -16,6 +16,7 @@ interface MatchCenterProps {
   upcomingMatches?: MatchScheduleItem[];
   recentResults?: MatchScheduleItem[];
   standings?: ExtendedStandingItem[];
+  allSchedules?: MatchScheduleItem[];
 }
 
 export function MatchCenter({
@@ -26,6 +27,7 @@ export function MatchCenter({
   upcomingMatches = [],
   recentResults = [],
   standings = [],
+  allSchedules = [],
 }: MatchCenterProps) {
   const [activeTab, setActiveTab] = useState<"SCHEDULE" | "RESULTS">("SCHEDULE");
   const [selectedMatch, setSelectedMatch] = useState<MatchScheduleItem | null>(null);
@@ -35,7 +37,7 @@ export function MatchCenter({
 
   return (
     <div className="space-y-3 rounded-2xl border border-border bg-card p-3.5 sm:p-4 shadow-sm">
-      {/* HEADER SECTION & TAB SWITCHER */}
+      {/* TAB HEADER */}
       <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
         <div className="flex items-center gap-1">
           <button
@@ -75,7 +77,7 @@ export function MatchCenter({
         </div>
       ) : activeTab === "SCHEDULE" ? (
         <div className="space-y-3">
-          {/* 1. MATCH LIVE */}
+          {/* LIVE MATCH */}
           {hasLive && (
             <div className="space-y-1.5">
               <span className="text-[9.5px] font-bold uppercase tracking-wider text-rose-500 px-1 flex items-center gap-1">
@@ -95,7 +97,7 @@ export function MatchCenter({
             </div>
           )}
 
-          {/* 2. MAIN HARI INI */}
+          {/* MAIN HARI INI */}
           {hasToday && (
             <div className="space-y-1.5">
               <span className="text-[9.5px] font-bold uppercase tracking-wider text-primary px-1">
@@ -115,7 +117,7 @@ export function MatchCenter({
             </div>
           )}
 
-          {/* 3. PERTANDINGAN BERIKUTNYA */}
+          {/* PERTANDINGAN BERIKUTNYA */}
           <div className="space-y-1.5">
             <span className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground px-1">
               Pertandingan Berikutnya
@@ -147,7 +149,7 @@ export function MatchCenter({
           </div>
         </div>
       ) : (
-        /* TAB: HASIL TERBARU PEKAN INI */
+        /* HASIL TERBARU */
         <div className="space-y-1.5">
           <span className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground px-1">
             Rekap Hasil Pertandingan Terakhir
@@ -172,11 +174,12 @@ export function MatchCenter({
         </div>
       )}
 
-      {/* MODAL STATISTIK H2H */}
+      {/* MODAL H2H */}
       <MatchH2HModal
         match={selectedMatch}
         currentWeek={currentWeek}
         standings={standings}
+        allSchedules={allSchedules}
         onClose={() => setSelectedMatch(null)}
       />
     </div>
