@@ -60,44 +60,51 @@ export function MatchH2HModal({
   const wNumA = parseWildcard(statsA.wildcardRankLabel);
   const wNumB = parseWildcard(statsB.wildcardRankLabel);
 
-  // Render Pill Highlight otomatis bagi pemenang metrik
+  // Render Pill: Unggul = Warna Tim Solid, Kalah/Seri = Abu Netral
   const renderPill = (valA: number, valB: number, isA: boolean, text: string | number, isLowerBetter = false) => {
     const isWin = isLowerBetter ? (isA ? valA < valB : valB < valA) : (isA ? valA > valB : valB > valA);
-    if (isWin) {
+    const isDraw = valA === valB;
+
+    if (isWin && !isDraw) {
       return (
-        <span style={{ backgroundColor: isA ? colorA : colorB }} className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+        <span style={{ backgroundColor: isA ? colorA : colorB }} className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[9.5px] sm:text-[10px] font-bold text-white shadow-sm">
           {text}
         </span>
       );
     }
-    return <span className="text-[10px] text-muted-foreground px-1">{text}</span>;
+    return (
+      <span className="inline-flex items-center justify-center rounded-full bg-muted border border-border/50 px-2.5 py-0.5 text-[9.5px] sm:text-[10px] font-medium text-muted-foreground">
+        {text}
+      </span>
+    );
   };
 
-  // Render Item Riwayat Pertandingan 2 Baris
+  // Render Item Riwayat Pertandingan: Logo Besar + Teks 2 Baris di Sampingnya
   const renderReportItem = (item?: MatchHistoryCardItem, isA = true) => {
-    if (!item) return <span className="text-muted-foreground text-[8.5px]">-</span>;
+    if (!item) return <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/40 px-2.5 py-0.5 text-[9px] text-muted-foreground">-</span>;
     return (
       <a
         href={item.reportLink || "#"}
         target={item.reportLink ? "_blank" : "_self"}
         rel="noopener noreferrer"
-        className={`flex flex-col gap-0.5 hover:opacity-80 transition max-w-full ${isA ? "items-start" : "items-end"} ${item.reportLink ? "cursor-pointer group" : "cursor-default"}`}
+        className={`flex items-center gap-2 hover:opacity-80 transition max-w-full ${isA ? "flex-row" : "flex-row-reverse"} ${item.reportLink ? "cursor-pointer group" : "cursor-default"}`}
       >
-        <span className={`rounded px-1.5 py-0.2 font-bold text-[7.5px] ${item.isWin ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/20 text-rose-600 dark:text-rose-400"}`}>
-          {item.isWin ? "Win" : "Lose"} {item.myScore}-{item.oppScore}
-        </span>
-        <div className={`flex items-center gap-1 min-w-0 ${!isA && "flex-row-reverse"}`}>
-          <img src={item.oppLogo} alt="" className="h-3 w-3 object-contain shrink-0" />
-          <span className="font-medium text-foreground text-[8.5px] sm:text-[9.5px] truncate max-w-[85px] sm:max-w-[130px] group-hover:underline">
-            {item.oppName}
+        <img src={item.oppLogo} alt="" className="h-7 w-7 sm:h-8 sm:w-8 object-contain shrink-0 rounded-md bg-background/50 border border-border/50 p-0.5" />
+        <div className={`flex flex-col gap-0.5 min-w-0 ${isA ? "items-start text-left" : "items-end text-right"}`}>
+          <span className={`rounded px-1.5 py-0.2 font-bold text-[7.5px] sm:text-[8px] shrink-0 ${item.isWin ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/20 text-rose-600 dark:text-rose-400"}`}>
+            {item.isWin ? "Win" : "Lose"} {item.myScore}-{item.oppScore}
           </span>
-          {item.reportLink && <ExternalLink className="h-2 w-2 text-muted-foreground group-hover:text-primary transition shrink-0" />}
+          <div className={`flex items-center gap-1 min-w-0 ${!isA && "flex-row-reverse"}`}>
+            <span className="font-medium text-foreground text-[8.5px] sm:text-[9.5px] truncate max-w-[85px] sm:max-w-[130px] group-hover:underline">
+              {item.oppName}
+            </span>
+            {item.reportLink && <ExternalLink className="h-2 w-2 text-muted-foreground group-hover:text-primary transition shrink-0" />}
+          </div>
         </div>
       </a>
     );
   };
 
-  // Metrik perbandingan matrix
   const metrics = [
     { label: "Win Rate", valA: statsA.winRate, valB: statsB.winRate, txtA: `${statsA.winRate}%`, txtB: `${statsB.winRate}%` },
     { label: "Pts Diff", valA: statsA.rawDiff, valB: statsB.rawDiff, txtA: statsA.roundDifference, txtB: statsB.roundDifference },
@@ -112,7 +119,7 @@ export function MatchH2HModal({
     >
       <div ref={modalContentRef} className="relative flex max-h-[92vh] w-full max-w-lg sm:max-w-xl flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden">
         
-        {/* HEADER MODAL */}
+        {/* HEADER */}
         <div className="relative border-b border-border bg-muted/30 px-4 py-3 sm:px-6 text-center">
           <div className="flex flex-col items-center justify-center gap-1">
             <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-0.5 text-[9.5px] font-bold text-primary">
@@ -141,7 +148,7 @@ export function MatchH2HModal({
             </div>
           </div>
 
-          {/* PREDICTION BAR */}
+          {/* PREDICTION BAR & SCORE PILL */}
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3 space-y-1.5">
             <div className="flex items-center justify-between text-[9.5px] font-bold">
               <span className="text-primary flex items-center gap-1"><Sparkles className="h-3 w-3" /> Prediksi Match</span>
@@ -153,9 +160,15 @@ export function MatchH2HModal({
             </div>
             <div className="flex items-center justify-between text-[11px] font-medium">
               <span className="font-bold" style={{ color: colorA }}>{pred.probA}%</span>
-              <span className="rounded-full bg-background/80 border border-border/50 px-2.5 py-0.5 text-[9.5px] text-muted-foreground font-medium">
-                Prediksi Skor: <span className="font-bold" style={{ color: colorA }}>{pred.predScoreA}</span> - <span className="font-bold" style={{ color: colorB }}>{pred.predScoreB}</span>
+              
+              {/* PILL PREDIKSI SKOR MENGIKUTI WARNA TIM PEMENANG */}
+              <span
+                style={{ backgroundColor: pred.probA >= pred.probB ? colorA : colorB }}
+                className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[9.5px] sm:text-[10px] font-bold text-white shadow-sm"
+              >
+                Prediksi Skor: {pred.predScoreA} - {pred.predScoreB}
               </span>
+
               <span className="font-bold" style={{ color: colorB }}>{pred.probB}%</span>
             </div>
           </div>
@@ -168,7 +181,7 @@ export function MatchH2HModal({
 
             <div className="rounded-2xl border border-border bg-muted/20 divide-y divide-border overflow-hidden">
               
-              {/* GROUP RANK */}
+              {/* 1. GROUP RANK */}
               <div className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5 sm:py-2">
                 <div className="flex items-center gap-1.5 justify-start">
                   {renderPill(numRankA, numRankB, true, statsA.groupRankLabel, true)}
@@ -181,28 +194,42 @@ export function MatchH2HModal({
                 </div>
               </div>
 
-              {/* WILDCARD RANK */}
+              {/* 2. WILDCARD RANK (Top 2 Group tanda '-' tidak dianggap kalah) */}
               <div className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5 sm:py-2">
                 <div className="flex items-center gap-1.5 justify-start">
-                  {statsA.isTopGroup ? <span className="text-muted-foreground px-1">-</span> : (
+                  {statsA.isTopGroup ? (
+                    <span className="inline-flex items-center justify-center rounded-full bg-muted/80 border border-border px-2.5 py-0.5 text-[9.5px] font-bold text-foreground">-</span>
+                  ) : (
                     <>
-                      {renderPill(wNumA, wNumB, true, statsA.wildcardRankLabel, true)}
+                      {statsB.isTopGroup ? (
+                        <span className="inline-flex items-center justify-center rounded-full bg-muted border border-border/50 px-2.5 py-0.5 text-[9.5px] font-medium text-muted-foreground">{statsA.wildcardRankLabel}</span>
+                      ) : (
+                        renderPill(wNumA, wNumB, true, statsA.wildcardRankLabel, true)
+                      )}
                       {wNumA <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA && <span className="rounded-md border border-sky-500/30 bg-sky-500/15 px-1.5 py-0.2 text-[8px] font-bold text-sky-600 dark:text-sky-400 shrink-0">Play-Ins</span>}
                     </>
                   )}
                 </div>
+
                 <span className="text-muted-foreground text-[9px] text-center px-2">Peringkat Wildcard</span>
+
                 <div className="flex items-center gap-1.5 justify-end">
-                  {statsB.isTopGroup ? <span className="text-muted-foreground px-1">-</span> : (
+                  {statsB.isTopGroup ? (
+                    <span className="inline-flex items-center justify-center rounded-full bg-muted/80 border border-border px-2.5 py-0.5 text-[9.5px] font-bold text-foreground">-</span>
+                  ) : (
                     <>
                       {wNumB <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA && <span className="rounded-md border border-sky-500/30 bg-sky-500/15 px-1.5 py-0.2 text-[8px] font-bold text-sky-600 dark:text-sky-400 shrink-0">Play-Ins</span>}
-                      {renderPill(wNumA, wNumB, false, statsB.wildcardRankLabel, true)}
+                      {statsA.isTopGroup ? (
+                        <span className="inline-flex items-center justify-center rounded-full bg-muted border border-border/50 px-2.5 py-0.5 text-[9.5px] font-medium text-muted-foreground">{statsB.wildcardRankLabel}</span>
+                      ) : (
+                        renderPill(wNumA, wNumB, false, statsB.wildcardRankLabel, true)
+                      )}
                     </>
                   )}
                 </div>
               </div>
 
-              {/* FORM LAGA */}
+              {/* 3. FORM LAGA */}
               <div className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5 sm:py-2">
                 <div className="flex items-center gap-0.5 justify-start">
                   {statsA.form.map((res, i) => (
@@ -217,7 +244,7 @@ export function MatchH2HModal({
                 </div>
               </div>
 
-              {/* METRICS LOOP */}
+              {/* 4-7. METRICS LOOP (SEMUA DIBUNGKUS PILL) */}
               {metrics.map((m, idx) => (
                 <div key={idx} className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5 sm:py-2">
                   <div className="flex justify-start">{renderPill(m.valA, m.valB, true, m.txtA)}</div>
@@ -226,7 +253,7 @@ export function MatchH2HModal({
                 </div>
               ))}
 
-              {/* REPORT WEEK LOOP */}
+              {/* 8. REPORT WEEK LOOP (LOGO BESAR + 2 BARIS TEKS) */}
               {pastWeeks.map((week) => (
                 <div key={week} className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-2">
                   <div className="flex justify-start min-w-0 pr-1">{renderReportItem(historyA.get(week), true)}</div>
