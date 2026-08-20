@@ -58,16 +58,34 @@ export function MatchH2HModal({
   const renderPill = (valA: number, valB: number, isA: boolean, text: string | number) => {
     const isWin = isA ? valA > valB : valB > valA;
     const isDraw = valA === valB;
+    const teamColor = isA ? colorA : colorB;
 
     if (isWin && !isDraw) {
       return (
-        <span style={{ backgroundColor: isA ? colorA : colorB }} className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 md:px-3.5 md:py-1 text-[9.5px] sm:text-[10px] md:text-xs font-bold text-white shadow-sm">
+        <span style={{ backgroundColor: teamColor }} className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 md:px-3.5 md:py-1 text-[9.5px] sm:text-[10px] md:text-xs font-black text-white shadow-sm">
           {text}
         </span>
       );
     }
+
+    if (isDraw) {
+      return (
+        <span
+          style={{
+            backgroundColor: `${teamColor}1a`,
+            borderColor: `${teamColor}66`,
+            color: teamColor,
+            boxShadow: `0 0 10px ${teamColor}26`,
+          }}
+          className="inline-flex items-center justify-center rounded-full border px-2.5 py-0.5 md:px-3.5 md:py-1 text-[9.5px] sm:text-[10px] md:text-xs font-extrabold transition-all"
+        >
+          {text}
+        </span>
+      );
+    }
+
     return (
-      <span className="inline-flex items-center justify-center rounded-full bg-muted border border-border/50 px-2.5 py-0.5 md:px-3.5 md:py-1 text-[9.5px] sm:text-[10px] md:text-xs font-medium text-muted-foreground">
+      <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/40 px-2.5 py-0.5 md:px-3.5 md:py-1 text-[9.5px] sm:text-[10px] md:text-xs font-medium text-muted-foreground">
         {text}
       </span>
     );
