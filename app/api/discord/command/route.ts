@@ -14,12 +14,12 @@ export async function GET(req: Request) {
     // 🟢 1. ASSIGN COMMAND
     {
       name: 'assign',
-      description: '[PANITIA] Tugaskan Referee atau Streamer ke jadwal pertandingan aktif',
+      description: 'Tugaskan Referee atau Streamer ke jadwal pertandingan',
       options: [
         {
           type: 3, // STRING
           name: 'match',
-          description: 'Pilih pertandingan pada minggu aktif',
+          description: 'Pilih pertandingan',
           required: true,
           autocomplete: true,
         },
@@ -30,13 +30,13 @@ export async function GET(req: Request) {
           required: true,
           choices: [
             { name: '⚖️ Referee (Wasit Pertandingan)', value: 'REFEREE' },
-            { name: '🎥 Streamer (Kreator / Caster)', value: 'STREAMER' },
+            { name: '🎥 Streamer (Kreator)', value: 'STREAMER' },
           ],
         },
         {
           type: 3, // STRING
           name: 'user',
-          description: 'Pilih staf bertugas sesuai ketersediaan role',
+          description: 'Pilih staf yang ditugaskan',
           required: true,
           autocomplete: true,
         },
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
     // 🔴 2. UNASSIGN COMMAND (MATCH SELESAI)
     {
       name: 'unassign',
-      description: '[PANITIA] Konfirmasi penyelesaian tugas staf dan rekap hasil pertandingan',
+      description: 'Konfirmasi penyelesaian tugas staf dan rekap hasil pertandingan',
       options: [
         {
           type: 3, // STRING
@@ -61,20 +61,20 @@ export async function GET(req: Request) {
           description: 'Pilih peran staf yang menyelesaikan tugas',
           required: true,
           choices: [
-            { name: '⚖️ Referee (Wajib menyertakan skor akhir)', value: 'REFEREE' },
-            { name: '🎥 Streamer (Wajib menyertakan tautan stream/VOD)', value: 'STREAMER' },
+            { name: '⚖️ Referee (Wajib menyertakan hasil pertandingan)', value: 'REFEREE' },
+            { name: '🎥 Streamer', value: 'STREAMER' },
           ],
         },
         {
           type: 4, // INTEGER
           name: 'score_a',
-          description: 'Skor akhir Tim A (Wajib diisi jika peran Referee)',
+          description: 'Skor akhir Tim Kiri (Wajib diisi jika peran Referee)',
           required: false,
         },
         {
           type: 4, // INTEGER
           name: 'score_b',
-          description: 'Skor akhir Tim B (Wajib diisi jika peran Referee)',
+          description: 'Skor akhir Tim Kanan (Wajib diisi jika peran Referee)',
           required: false,
         },
       ],
@@ -83,12 +83,12 @@ export async function GET(req: Request) {
     // ❌ 3. CANCEL ASSIGN COMMAND
     {
       name: 'cancel-assign',
-      description: '[PANITIA] Batalkan penugasan staf pertandingan yang berhalangan hadir',
+      description: 'Batalkan penugasan staf pertandingan yang berhalangan hadir',
       options: [
         {
           type: 3, // STRING
           name: 'match',
-          description: 'Pilih pertandingan target',
+          description: 'Pilih pertandingan',
           required: true,
           autocomplete: true,
         },
@@ -105,7 +105,7 @@ export async function GET(req: Request) {
         {
           type: 3, // STRING
           name: 'reason',
-          description: 'Uraikan alasan pembatalan penugasan tugas secara jelas',
+          description: 'Alasan pembatalan penugasan secara jelas',
           required: true,
         },
       ],
@@ -114,25 +114,25 @@ export async function GET(req: Request) {
     // 📅 4. RESCHEDULE COMMAND
     {
       name: 'reschedule',
-      description: '[ADMIN] Perbarui jadwal (hari/jam) pertandingan di channel match ini',
+      description: 'Perbarui jadwal (hari dan/ jam) pertandingan di channel match',
       options: [
         {
           type: 3, // STRING
           name: 'tanggal',
-          description: 'Pilih slot tanggal bertanding (Rabu s/d Minggu pada minggu berjalan)',
+          description: 'Pilih tanggal bertanding (Rabu s/d Minggu)',
           required: false,
           autocomplete: true,
         },
         {
           type: 3, // STRING
           name: 'jam',
-          description: 'Waktu pertandingan baru dalam format WIB (Contoh: 20.00, 20:30, 21.00)',
+          description: 'Waktu pertandingan dalam format 24 Jam (Contoh: 20.00, 20:30, 21.00)',
           required: false,
         },
         {
           type: 5, // BOOLEAN
           name: 'update_recap',
-          description: 'Perbarui pesan jadwal dan rekap di #jadwal-pertandingan (Default: Benar)',
+          description: 'Perbarui rekap jadwal pertandingan',
           required: false,
         },
       ],
@@ -141,18 +141,18 @@ export async function GET(req: Request) {
     // 👥 5. CEK ROSTER COMMAND
     {
       name: 'cek-roster',
-      description: '[REFEREE] Periksa daftar roster resmi tim berdasarkan role Discord',
+      description: 'Periksa daftar roster tim',
       options: [
         {
           type: 8, // ROLE
           name: 'team1',
-          description: 'Pilih role Discord untuk Tim Pertama',
+          description: 'Pilih tim untuk dicek',
           required: true,
         },
         {
           type: 8, // ROLE
           name: 'team2',
-          description: 'Pilih role Discord untuk Tim Kedua (Opsional)',
+          description: 'Pilih tim lain untuk dicek (Opsional)',
           required: false,
         },
       ],
@@ -161,7 +161,7 @@ export async function GET(req: Request) {
     // 🔍 6. CEK ID COMMAND
     {
       name: 'cek-id',
-      description: '[UMUM] Verifikasi kepemilikan Game ID di database resmi Team Wars',
+      description: 'Verifikasi kepemilikan ID DL/ ID MD di database Team Wars Indonesia',
       options: [
         {
           type: 3, // STRING
@@ -176,7 +176,7 @@ export async function GET(req: Request) {
         {
           type: 3, // STRING
           name: 'id',
-          description: 'Masukkan nomor Game ID target',
+          description: 'Masukkan nomor ID DL/ ID MD',
           required: true,
         },
       ],
@@ -185,12 +185,12 @@ export async function GET(req: Request) {
     // ℹ️ 7. INFO COMMAND
     {
       name: 'info',
-      description: '[UMUM] Tampilkan rincian data profil peserta turnamen',
+      description: 'Tampilkan rincian data profil peserta Team Wars Indonesia',
       options: [
         {
           type: 6, // USER
           name: 'target',
-          description: 'Pilih akun peserta (Kosongkan untuk memeriksa profil diri sendiri)',
+          description: 'Pilih pemain lain (Kosongkan untuk memeriksa profil diri sendiri)',
           required: false,
         },
       ],
@@ -199,7 +199,7 @@ export async function GET(req: Request) {
     // ⛔ 8. BLACKLIST COMMAND
     {
       name: 'blacklist',
-      description: '[ADMIN] Kelola basis data larangan bermain (Blacklist Game ID)',
+      description: 'Kelola basis data larangan bermain (Blacklist Game ID)',
       options: [
         {
           type: 3, // STRING
