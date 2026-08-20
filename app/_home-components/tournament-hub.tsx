@@ -1,43 +1,29 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { ScheduleTab } from "@/app/tournament/_components/schedule-tab";
 import { StandingTab } from "@/app/tournament/_components/standing-tab";
 import { PlayoffTab } from "@/app/tournament/_components/playoff-tab";
 import { MatchH2HModal } from "@/app/_home-components/match-h2h-modal";
-import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
-import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
-import { Calendar, Trophy, GitBranch } from "lucide-react";
+import {
+  MatchScheduleItem,
+  DIVISION_MAP,
+  getCurrentServerWeek,
+} from "@/app/tournament/_library";
+import { Calendar, Trophy, GitBranch, Loader2 } from "lucide-react";
 
-interface TournamentHubProps {
-  schedules: MatchScheduleItem[];
-  masterTeams: any[];
-  allWeeks: number[];
-  isAdmin: boolean;
-  onResetSchedules: () => void;
-  onSelectMatch?: (match: MatchScheduleItem) => void;
-  defaultWeek: number;
-  standings?: ExtendedStandingItem[];
-}
-
-export function TournamentHub({
-  schedules = [],
-  masterTeams = [],
-  allWeeks = [],
-  isAdmin,
-  onResetSchedules,
-  onSelectMatch: externalOnSelectMatch,
-  defaultWeek = 1,
-  standings = [],
-}: TournamentHubProps) {
+export function TournamentHub() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // 1. State Modal H2H Mandiri (Agar klik kartu match di schedule selalu membuka modal)
+  const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
+  const [masterTeams, setMasterTeams] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedMatch, setSelectedMatch] = useState<MatchScheduleItem | null>(null);
 
+  const defaultWeek = useMemo(() => getCurrentServerWeek(), []);
   const activeTab = searchParams.get("tab") || "schedule";
 
   const setTab = (tab: "schedule" | "standings" | "playoff") => {
@@ -46,15 +32,36 @@ export function TournamentHub({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  // 2. Handler Seleksi Match
-  const handleSelectMatch = (match: MatchScheduleItem) => {
-    setSelectedMatch(match);
-    if (externalOnSelectMatch) {
-      externalOnSelectMatch(match);
-    }
-  };
+  // Fetch data secara internal untuk halaman beranda
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
 
-  // 3. Ekstraksi Semua Nama Tim Unik untuk Dropdown Filter
+    Promise.all([
+      fetch("/api/tournament/schedule").then((res) => res.json()).catch(() => ({ data: [] })),
+      fetch("/api/tournament/teams").then((res) => res.json()).catch(() => ({ data: [] })),
+    ])
+      .then(([schedRes, teamRes]) => {
+        if (!isMounted) return;
+        const fetchedSchedules = schedRes?.data || schedRes?.schedules || [];
+        const fetchedTeams = teamRes?.data || teamRes?.teams || [];
+        setSchedules(Array.isArray(fetchedSchedules) ? fetchedSchedules : []);
+        setMasterTeams(Array.isArray(fetchedTeams) ? fetchedTeams : []);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const allWeeks = useMemo(() => {
+    const weeks = Array.from(new Set(schedules.map((s) => s.weekNumber || 1))).sort((a, b) => a - b);
+    return weeks.length > 0 ? weeks : [1, 2, 3, 4, 5, 6, 7];
+  }, [schedules]);
+
   const allTeamNames = useMemo(() => {
     return Array.from(
       new Set([
@@ -64,6 +71,15 @@ export function TournamentHub({
       ])
     ).sort((a, b) => a.localeCompare(b));
   }, [masterTeams, schedules]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <span className="text-xs md:text-sm font-medium">Memuat data turnamen...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-6">
@@ -116,9 +132,9 @@ export function TournamentHub({
             schedules={schedules}
             allTeamNames={allTeamNames}
             allWeeks={allWeeks}
-            isAdmin={isAdmin}
-            onResetSchedules={onResetSchedules}
-            onSelectMatch={handleSelectMatch}
+            isAdmin={false}
+            onResetSchedules={() => {}}
+            onSelectMatch={(m) => setSelectedMatch(m)}
             defaultWeek={defaultWeek}
           />
         )}
@@ -140,14 +156,14 @@ export function TournamentHub({
         )}
       </div>
 
-      {/* MODAL H2H TERPUSAT UNTUK TAB JADWAL */}
+      {/* MODAL H2H */}
       <MatchH2HModal
         match={selectedMatch}
         currentWeek={defaultWeek}
-        standings={standings}
         allSchedules={schedules}
         onClose={() => setSelectedMatch(null)}
       />
     </div>
   );
-}
+                  }
+      
