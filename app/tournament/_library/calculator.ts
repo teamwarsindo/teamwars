@@ -1,6 +1,10 @@
 import { MatchScheduleItem, TeamStandingItem } from "./types";
 import { DIVISION_MAP, TOURNAMENT_RULES } from "./constants";
-import { getWibDateKey, getMatchWeekNumber, getCurrentServerWeek } from "./utils";
+import {
+  getWibDateKey,
+  getMatchWeekNumber,
+  getCurrentServerWeek,
+} from "./utils";
 
 export interface ExtendedStandingItem extends TeamStandingItem {
   isTopGroup?: boolean;
@@ -10,7 +14,7 @@ export interface ExtendedStandingItem extends TeamStandingItem {
 }
 
 /**
- * 🟢 Helper resmi menghitung nomor minggu turnamen (Backward Compatible)
+ * Helper resmi week turnamen (kompatibilitas penuh dengan API & Discord Bot)
  */
 export function getTournamentWeekNumber(dateString?: string): number {
   if (dateString) {
@@ -265,7 +269,7 @@ export function getNextDateMatches(
 export interface TeamComparisonStats {
   rank: number | string;
   groupName: string;
-  teamColor: string;
+  teamColor?: string;
   matchPlayed: number;
   matchWins: number;
   matchLosses: number;
@@ -281,9 +285,11 @@ export interface TeamComparisonStats {
 export function getTeamStatsFromStandings(
   teamName: string,
   standings: ExtendedStandingItem[] = [],
-  defaultColor = "#2563EB"
+  explicitColor?: string
 ): TeamComparisonStats {
-  const t = standings.find((s) => s.teamName.toLowerCase() === teamName.toLowerCase());
+  const t = standings.find(
+    (s) => s.teamName.toLowerCase().trim() === teamName.toLowerCase().trim()
+  );
   const matchPlayed = t ? t.matchPlayed : 0;
   const matchWins = t ? t.matchWins : 0;
   const matchLosses = t ? t.matchLosses : 0;
@@ -292,7 +298,7 @@ export function getTeamStatsFromStandings(
   const rawDiff = t ? t.roundDifference : 0;
   const ptsDiffRate = matchPlayed > 0 ? parseFloat((rawDiff / matchPlayed).toFixed(1)) : 0;
   const ptsDiffRateLabel = ptsDiffRate > 0 ? `+${ptsDiffRate}` : `${ptsDiffRate}`;
-  const teamColor = t?.teamColor || defaultColor;
+  const teamColor = explicitColor || t?.teamColor;
 
   return {
     rank: t ? t.rank : "-",
@@ -346,53 +352,46 @@ export function calculateMatchPrediction(
   return { probA, probB };
 }
 
-export interface TeamMatchHistoryItem {
-  matchId: string;
-  weekNumber: number;
-  result: "WIN" | "LOSE";
-  opponentName: string;
-  opponentLogo: string;
-  teamScore: number;
-  opponentScore: number;
+export interface MatchHistoryCardItem {
+  id: string;
+  week: number;
+  isWin: boolean;
+  myScore: number;
+  oppScore: number;
+  oppName: string;
+  oppLogo: string;
   reportLink?: string;
 }
 
-export function getTeamMatchHistory(
+export function getTeamHistoryList(
   teamName: string,
-  schedules: MatchScheduleItem[] = []
-): Map<number, TeamMatchHistoryItem> {
-  const historyMap = new Map<number, TeamMatchHistoryItem>();
+  allSchedules: MatchScheduleItem[] = []
+): MatchHistoryCardItem[] {
+  const q = teamName.toLowerCase().trim();
+  return allSchedules
+    .filter((m) => {
+      const matchA = (m.teamAName || "").toLowerCase().trim();
+      const matchB = (m.teamBName || "").toLowerCase().trim();
+      return m.isFinished && (matchA === q || matchB === q);
+    })
+    .sort((a, b) => (a.weekNumber || 1) - (b.weekNumber || 1))
+    .map((m) => {
+      const isA = (m.teamAName || "").toLowerCase().trim() === q;
+      const myScore = (isA ? m.scoreA : m.scoreB) ?? 0;
+      const oppScore = (isA ? m.scoreB : m.scoreA) ?? 0;
+      const oppName = isA ? m.teamBName : m.teamAName;
+      const oppLogo = isA ? m.teamBLogo || "/logo.webp" : m.teamALogo || "/logo.webp";
+      const reportLink = m.maskedImageUrl || m.reportImageUrl || undefined;
 
-  const finishedMatches = schedules
-    .filter(
-      (m) =>
-        m.isFinished &&
-        (m.teamAName.toLowerCase() === teamName.toLowerCase() ||
-          m.teamBName.toLowerCase() === teamName.toLowerCase())
-    )
-    .sort((a, b) => (a.weekNumber || 1) - (b.weekNumber || 1));
-
-  finishedMatches.forEach((m) => {
-    const isTeamA = m.teamAName.toLowerCase() === teamName.toLowerCase();
-    const teamScore = isTeamA ? m.scoreA || 0 : m.scoreB || 0;
-    const opponentScore = isTeamA ? m.scoreB || 0 : m.scoreA || 0;
-    const opponentName = isTeamA ? m.teamBName : m.teamAName;
-    const opponentLogo = isTeamA ? m.teamBLogo || "/logo.webp" : m.teamALogo || "/logo.webp";
-    const result = teamScore > opponentScore ? "WIN" : "LOSE";
-    const weekNum = m.weekNumber || 1;
-    const reportLink = m.maskedImageUrl || m.reportImageUrl || undefined;
-
-    historyMap.set(weekNum, {
-      matchId: m.id,
-      weekNumber: weekNum,
-      result,
-      opponentName,
-      opponentLogo,
-      teamScore,
-      opponentScore,
-      reportLink,
+      return {
+        id: m.id,
+        week: m.weekNumber || 1,
+        isWin: myScore > oppScore,
+        myScore,
+        oppScore,
+        oppName,
+        oppLogo,
+        reportLink,
+      };
     });
-  });
-
-  return historyMap;
-} 
+}
