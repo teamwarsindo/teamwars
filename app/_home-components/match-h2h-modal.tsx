@@ -131,6 +131,7 @@ export function MatchH2HModal({
           
           {/* TEAMS DISPLAY */}
           <div className="flex items-center justify-between rounded-2xl bg-muted/30 p-3 sm:p-4 border border-border">
+            {/* TIM A */}
             <div className="flex flex-col items-center flex-1 min-w-0 text-center gap-1.5">
               <img src={match.teamALogo || "/logo.webp"} alt="" className="h-10 w-10 sm:h-12 sm:w-12 object-contain" />
               <span className={`text-xs sm:text-sm truncate w-full ${isWinnerA ? "font-black text-emerald-600 dark:text-emerald-400" : "font-bold text-foreground"}`}>
@@ -138,6 +139,7 @@ export function MatchH2HModal({
               </span>
             </div>
 
+            {/* SCORE CENTER */}
             {isMatchFinished ? (
               <div className="flex flex-col items-center px-4 shrink-0">
                 <div className="flex items-center gap-2 text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
@@ -159,6 +161,7 @@ export function MatchH2HModal({
               </div>
             )}
 
+            {/* TIM B */}
             <div className="flex flex-col items-center flex-1 min-w-0 text-center gap-1.5">
               <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-10 w-10 sm:h-12 sm:w-12 object-contain" />
               <span className={`text-xs sm:text-sm truncate w-full ${isWinnerB ? "font-black text-emerald-600 dark:text-emerald-400" : "font-bold text-foreground"}`}>
@@ -246,10 +249,17 @@ export function MatchH2HModal({
                 </div>
               ))}
             </div>
+
+            {/* FOOTNOTE / CATATAN KAKI */}
+            <div className="px-2 pt-1 text-center">
+              <span className="text-[8.5px] md:text-[9.5px] font-medium text-muted-foreground/80 italic">
+                💡 Klik baris <strong>Report Week</strong> untuk melihat screenshot bukti pertandingan.
+              </span>
+            </div>
           </div>
         </div>
       </div>
     </div>,
     document.body
   );
-}
+    }              
