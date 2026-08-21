@@ -93,8 +93,8 @@ export function MatchReportCompactItem({
 }) {
   if (!item) {
     return (
-      <div className={`flex w-full ${isA ? "justify-end pr-4" : "justify-start pl-4"}`}>
-        <span className="text-xs text-muted-foreground/30 font-medium italic">Belum Ada Match</span>
+      <div className="flex items-center justify-center w-full py-0.5">
+        <span className="text-xs text-muted-foreground/30 font-medium italic">-</span>
       </div>
     );
   }
@@ -105,54 +105,50 @@ export function MatchReportCompactItem({
     : "bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500/40";
 
   const content = (
-    <div className="flex items-center w-full min-w-0">
+    <div className="w-full">
       {isA ? (
-        /* TIM A: [W/L] -> [Skor] -> [Logo] -> [Nama Lawan] (DI KIRI, RATA KANAN, DENGAN PADDING KE WEEK) */
-        <div className="flex items-center justify-end gap-2 sm:gap-2.5 w-full pr-2 sm:pr-4">
-          <span
-            className={`inline-flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
-          >
-            {isWin ? "W" : "L"}
-          </span>
-          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap px-0.5">
+        /* TIM A: GRID 4 KOLOM KAKU [Badge 24px] [Skor 44px] [Logo 24px] [Nama Lawan Sisa Ruang] */
+        <div className="grid grid-cols-[24px_44px_24px_1fr] items-center gap-1.5 sm:gap-2 text-right">
+          <div className="flex justify-center">
+            <span className={`inline-flex h-5 w-5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs ${badgeColor}`}>
+              {isWin ? "W" : "L"}
+            </span>
+          </div>
+          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground text-center">
             {item.myScore}-{item.oppScore}
           </span>
-          <img
-            src={item.oppLogo || "/logo.webp"}
-            alt=""
-            className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
-          />
-          <span
-            className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[90px] sm:max-w-[130px] lg:max-w-[160px] ${
-              item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
-            }`}
-          >
+          <div className="flex justify-center">
+            <img
+              src={item.oppLogo || "/logo.webp"}
+              alt=""
+              className="h-5 w-5 sm:h-5.5 sm:w-5.5 object-contain rounded bg-background/80 border border-border/60 p-0.5"
+            />
+          </div>
+          <span className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate text-right pr-1 ${item.reportLink ? "group-hover:text-primary group-hover:underline" : ""}`}>
             {item.oppName}
           </span>
         </div>
       ) : (
-        /* TIM B: [Nama Lawan] -> [Logo] -> [Skor] -> [W/L] (DI KANAN, RATA KIRI, DENGAN PADDING KE WEEK) */
-        <div className="flex items-center justify-start gap-2 sm:gap-2.5 w-full pl-2 sm:pl-4">
-          <span
-            className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[90px] sm:max-w-[130px] lg:max-w-[160px] ${
-              item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
-            }`}
-          >
+        /* TIM B: GRID 4 KOLOM KAKU [Nama Lawan Sisa Ruang] [Logo 24px] [Skor 44px] [Badge 24px] */
+        <div className="grid grid-cols-[1fr_24px_44px_24px] items-center gap-1.5 sm:gap-2 text-left">
+          <span className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate text-left pl-1 ${item.reportLink ? "group-hover:text-primary group-hover:underline" : ""}`}>
             {item.oppName}
           </span>
-          <img
-            src={item.oppLogo || "/logo.webp"}
-            alt=""
-            className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
-          />
-          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap px-0.5">
+          <div className="flex justify-center">
+            <img
+              src={item.oppLogo || "/logo.webp"}
+              alt=""
+              className="h-5 w-5 sm:h-5.5 sm:w-5.5 object-contain rounded bg-background/80 border border-border/60 p-0.5"
+            />
+          </div>
+          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground text-center">
             {item.myScore}-{item.oppScore}
           </span>
-          <span
-            className={`inline-flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
-          >
-            {isWin ? "W" : "L"}
-          </span>
+          <div className="flex justify-center">
+            <span className={`inline-flex h-5 w-5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs ${badgeColor}`}>
+              {isWin ? "W" : "L"}
+            </span>
+          </div>
         </div>
       )}
     </div>
