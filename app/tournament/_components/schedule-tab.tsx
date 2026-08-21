@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useMemo, useEffect } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
 import { TournamentFilter, DivisionFilterType } from "./tournament-filter";
 import { ScheduleCard } from "./schedule-card";
@@ -13,8 +13,6 @@ export interface ScheduleTabProps {
   isAdmin: boolean;
   onResetSchedules: () => void;
   onSelectMatch: (match: MatchScheduleItem) => void;
-  selectedGroupFilter?: DivisionFilterType;
-  setSelectedGroupFilter?: (v: DivisionFilterType) => void;
   defaultWeek?: number;
 }
 
@@ -25,31 +23,30 @@ export function ScheduleTab({
   isAdmin,
   onResetSchedules,
   onSelectMatch,
-  selectedGroupFilter: propGroupFilter,
-  setSelectedGroupFilter: propSetGroupFilter,
   defaultWeek = 1,
 }: ScheduleTabProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [localGroupFilter, setLocalGroupFilter] = useState<DivisionFilterType>("ALL");
-  const selectedGroup = propGroupFilter !== undefined ? propGroupFilter : localGroupFilter;
-  const handleGroupChange = (val: DivisionFilterType) => {
-    if (propSetGroupFilter) propSetGroupFilter(val);
-    else setLocalGroupFilter(val);
-  };
+  // Sinkronisasi Filter dari URL Query Params
+  const rawGroupParam = searchParams.get("group");
+  const selectedGroup: DivisionFilterType =
+    rawGroupParam === "group_a"
+      ? DIVISION_MAP.GROUP_A
+      : rawGroupParam === "group_b"
+      ? DIVISION_MAP.GROUP_B
+      : "ALL";
 
-  const urlWeekParam = searchParams.get("week");
-  const initialWeek = urlWeekParam ? Number(urlWeekParam) : defaultWeek;
-  const [selectedWeekFilter, setSelectedWeekFilter] = useState<number | "ALL">(initialWeek);
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
+  const rawWeekParam = searchParams.get("week");
+  const selectedWeekFilter: number | "ALL" =
+    rawWeekParam === "ALL"
+      ? "ALL"
+      : rawWeekParam
+      ? Number(rawWeekParam)
+      : defaultWeek;
 
-  useEffect(() => {
-    if (urlWeekParam) {
-      setSelectedWeekFilter(Number(urlWeekParam));
-    } else if (typeof defaultWeek === "number" && defaultWeek > 0) {
-      setSelectedWeekFilter(defaultWeek);
-    }
-  }, [defaultWeek, urlWeekParam]);
+  const selectedTeamFilter = searchParams.get("team") || "ALL";
 
   const availableWeeks = useMemo(() => {
     const allWeekNumbers = Array.from(
@@ -62,6 +59,45 @@ export function ScheduleTab({
     const restrictedWeeks = allWeekNumbers.filter((w) => w <= activeWeekNum);
     return restrictedWeeks.length > 0 ? restrictedWeeks : [1];
   }, [schedules, allWeeks, defaultWeek, isAdmin]);
+
+  const updateURL = (newGroup: DivisionFilterType, newWeek: number | "ALL", newTeam: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "schedule");
+
+    if (newGroup === DIVISION_MAP.GROUP_A) params.set("group", "group_a");
+    else if (newGroup === DIVISION_MAP.GROUP_B) params.set("group", "group_b");
+    else params.delete("group");
+
+    if (newWeek !== defaultWeek) params.set("week", newWeek.toString());
+    else params.delete("week");
+
+    if (newTeam !== "ALL") params.set("team", newTeam);
+    else params.delete("team");
+
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleGroupChange = (val: DivisionFilterType) => {
+    updateURL(val, selectedWeekFilter, selectedTeamFilter);
+  };
+
+  const handleWeekChange = (val: number | "ALL") => {
+    updateURL(selectedGroup, val, selectedTeamFilter);
+  };
+
+  const handleTeamChange = (val: string) => {
+    updateURL(selectedGroup, selectedWeekFilter, val);
+  };
+
+  const handleResetFilters = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "schedule");
+    params.delete("group");
+    params.delete("week");
+    params.delete("team");
+    params.delete("wildcard");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   const isFilterActive = useMemo(() => {
     return (
@@ -119,24 +155,18 @@ export function ScheduleTab({
     return Array.from(map.entries()).sort(([a], [b]) => a - b);
   }, [filteredSchedules]);
 
-  const handleResetFilters = () => {
-    setSelectedWeekFilter(defaultWeek);
-    setSelectedTeamFilter("ALL");
-    handleGroupChange("ALL");
-  };
-
   return (
     <div className="w-full space-y-4 md:space-y-6">
-      {/* 1. FILTER BERSAMA (MODE SCHEDULE) */}
+      {/* 1. FILTER BERSAMA */}
       <TournamentFilter
         mode="schedule"
         selectedGroup={selectedGroup}
         onGroupChange={handleGroupChange}
         selectedWeek={selectedWeekFilter}
-        onWeekChange={setSelectedWeekFilter}
+        onWeekChange={handleWeekChange}
         availableWeeks={availableWeeks}
         selectedTeam={selectedTeamFilter}
-        onTeamChange={setSelectedTeamFilter}
+        onTeamChange={handleTeamChange}
         allTeamNames={allTeamNames}
         isFilterActive={isFilterActive}
         onReset={handleResetFilters}
@@ -144,7 +174,7 @@ export function ScheduleTab({
         onSyncSchedules={onResetSchedules}
       />
 
-      {/* 2. LIST KARTU MATCH */}
+      {/* 2. LIST MATCH CARD */}
       {groupedByWeek.length === 0 ? (
         <div className="p-8 text-center text-xs md:text-sm font-semibold text-muted-foreground bg-card border border-border rounded-2xl">
           Tidak ada jadwal pertandingan yang sesuai dengan filter.
@@ -175,5 +205,4 @@ export function ScheduleTab({
       )}
     </div>
   );
-  }
-    
+}
