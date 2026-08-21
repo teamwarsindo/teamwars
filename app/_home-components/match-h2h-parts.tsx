@@ -93,7 +93,7 @@ export function MatchReportCompactItem({
 }) {
   if (!item) {
     return (
-      <div className={`flex w-full py-0.5 ${isA ? "justify-start pl-2" : "justify-end pr-2"}`}>
+      <div className={`flex w-full py-1 ${isA ? "justify-start pl-2" : "justify-end pr-2"}`}>
         <span className="text-xs text-muted-foreground/30 font-bold tracking-widest">-</span>
       </div>
     );
@@ -107,23 +107,28 @@ export function MatchReportCompactItem({
   const content = (
     <div className="w-full">
       {isA ? (
-        /* TIM A: MEPET KIRI MENTOK */
-        <div className="flex items-center justify-start gap-1.5 sm:gap-2 w-full">
+        /* TIM A: 2 BARIS DI MOBILE, 1 BARIS SEJAJAR DI DESKTOP */
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-start gap-1 sm:gap-2.5 w-full">
+          {/* BARIS 1: [W/L] [SKOR] [LOGO] */}
+          <div className="flex items-center justify-start gap-1.5 sm:gap-2 shrink-0">
+            <span
+              className={`inline-flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded text-[8.5px] sm:text-[9.5px] font-black border shadow-2xs ${badgeColor}`}
+            >
+              {isWin ? "W" : "L"}
+            </span>
+            <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
+              {item.myScore}-{item.oppScore}
+            </span>
+            <img
+              src={item.oppLogo || "/logo.webp"}
+              alt=""
+              className="h-4.5 w-4.5 sm:h-5 sm:w-5 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+            />
+          </div>
+
+          {/* BARIS 2: NAMA TIM LAWAN (UTUH) */}
           <span
-            className={`inline-flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded text-[8.5px] sm:text-[9.5px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
-          >
-            {isWin ? "W" : "L"}
-          </span>
-          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
-            {item.myScore}-{item.oppScore}
-          </span>
-          <img
-            src={item.oppLogo || "/logo.webp"}
-            alt=""
-            className="h-4.5 w-4.5 sm:h-5 sm:w-5 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
-          />
-          <span
-            className={`font-bold text-xs sm:text-sm text-muted-foreground truncate max-w-[85px] xs:max-w-[110px] sm:max-w-[140px] text-left ${
+            className={`font-semibold text-[11px] sm:text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-[150px] lg:max-w-[180px] text-left ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
             }`}
           >
@@ -131,27 +136,32 @@ export function MatchReportCompactItem({
           </span>
         </div>
       ) : (
-        /* TIM B: MEPET KANAN MENTOK */
-        <div className="flex items-center justify-end gap-1.5 sm:gap-2 w-full">
+        /* TIM B: 2 BARIS DI MOBILE, 1 BARIS SEJAJAR DI DESKTOP */
+        <div className="flex flex-col sm:flex-row-reverse sm:items-center sm:justify-start gap-1 sm:gap-2.5 w-full">
+          {/* BARIS 1: [LOGO] [SKOR] [W/L] */}
+          <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
+            <img
+              src={item.oppLogo || "/logo.webp"}
+              alt=""
+              className="h-4.5 w-4.5 sm:h-5 sm:w-5 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+            />
+            <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
+              {item.myScore}-{item.oppScore}
+            </span>
+            <span
+              className={`inline-flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded text-[8.5px] sm:text-[9.5px] font-black border shadow-2xs ${badgeColor}`}
+            >
+              {isWin ? "W" : "L"}
+            </span>
+          </div>
+
+          {/* BARIS 2: NAMA TIM LAWAN (UTUH) */}
           <span
-            className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[85px] xs:max-w-[110px] sm:max-w-[140px] text-right ${
+            className={`font-semibold text-[11px] sm:text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-[150px] lg:max-w-[180px] text-right ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
             }`}
           >
             {item.oppName}
-          </span>
-          <img
-            src={item.oppLogo || "/logo.webp"}
-            alt=""
-            className="h-4.5 w-4.5 sm:h-5 sm:w-5 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
-          />
-          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
-            {item.myScore}-{item.oppScore}
-          </span>
-          <span
-            className={`inline-flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded text-[8.5px] sm:text-[9.5px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
-          >
-            {isWin ? "W" : "L"}
           </span>
         </div>
       )}
@@ -177,5 +187,4 @@ export function MatchReportCompactItem({
       {content}
     </div>
   );
-        }
-    
+}
