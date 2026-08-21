@@ -10,7 +10,7 @@ import {
   TOURNAMENT_RULES,
 } from "@/app/tournament/_library";
 import { ScheduleTab } from "./schedule-tab";
-import { StandingTab } from "./standings-tab";
+import { StandingTab } from "./standing-tab";
 import { PlayoffTab } from "./playoff-tab";
 import { DivisionFilterType } from "./tournament-filter";
 import { MatchReportModal } from "./match-report-modal";
