@@ -9,7 +9,7 @@ import {
   TOURNAMENT_RULES,
 } from "@/app/tournament/_library";
 import { calculateStandings, buildGlobalStandings, ExtendedStandingItem } from "@/app/tournament/_library/calculator";
-import { Trophy, Minus, ChevronUp, ChevronDown, Shield, Swords, Globe, RotateCcw } from "lucide-react";
+import { Trophy, Minus, ChevronUp, ChevronDown, Globe, RotateCcw } from "lucide-react";
 
 interface StandingTabProps {
   schedules: MatchScheduleItem[];
@@ -21,11 +21,11 @@ type StandingFilterView = "ALL_GLOBAL" | "GROUP_A" | "GROUP_B" | "WILDCARD";
 function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
   const slots = Array.from({ length: 8 }, (_, i) => form[i] || null);
   return (
-    <div className="grid grid-cols-4 gap-0.5 sm:gap-1 w-fit mx-auto justify-items-center">
+    <div className="grid grid-cols-4 gap-0.5 w-fit mx-auto justify-items-center">
       {slots.map((res, idx) => (
         <span
           key={idx}
-          className={`flex h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 items-center justify-center rounded text-[7px] sm:text-[7.5px] md:text-[8.5px] font-black ${
+          className={`flex h-3 w-3 sm:h-3.5 sm:w-3.5 items-center justify-center rounded text-[7px] sm:text-[7.5px] font-black ${
             !res
               ? "bg-muted/30 text-muted-foreground/30 border border-dashed border-border/40"
               : res === "W"
@@ -81,7 +81,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     return curr.map((t, idx) => {
       const pRank = prevMap.get(t.teamName.toLowerCase());
       const trend: "up" | "down" | "stay" = typeof pRank === "number" ? (idx + 1 < pRank ? "up" : idx + 1 > pRank ? "down" : "stay") : "stay";
-      return { ...t, computedRank: idx + 1, rankLabel: `#${idx + 1}`, trend };
+      return { ...t, computedRank: idx + 1, rankLabel: `${idx + 1}`, trend };
     });
   };
 
@@ -103,69 +103,84 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       return getListWithTrend(currWild, prevWild);
     }
 
-    // ALL_GLOBAL
+    // ALL_GLOBAL (Standing Global Gabungan)
     return getListWithTrend(sortFn(currRaw), prevRaw.length ? sortFn(prevRaw) : []);
   }, [activeFilter, schedules, masterTeams, selectedWeek]);
 
   const cleanA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
   const cleanB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
 
+  const isResetDisabled = activeFilter === "ALL_GLOBAL" && selectedWeek === currentWeek;
+
   return (
     <div className="w-full space-y-3.5 md:space-y-4">
-      {/* 1. FILTER CARD */}
+      {/* 1. FILTER CARD (TANPA ICON DIVISI & FILTER WEEK BERSIH) */}
       <div className="bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-2.5">
+        {/* BARIS 1: TOGGLE DIVISI */}
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => updateRoute(activeFilter === "GROUP_A" ? "ALL_GLOBAL" : "GROUP_A")}
-            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer ${
-              activeFilter === "GROUP_A" ? "bg-sky-500 text-white shadow-xs" : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40"
+            className={`py-2 px-3 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer text-center truncate ${
+              activeFilter === "GROUP_A"
+                ? "bg-sky-500 text-white shadow-xs"
+                : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40"
             }`}
           >
-            <Shield className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
-            <span className="truncate">{cleanA}</span>
+            {cleanA}
           </button>
           <button
             type="button"
             onClick={() => updateRoute(activeFilter === "GROUP_B" ? "ALL_GLOBAL" : "GROUP_B")}
-            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer ${
-              activeFilter === "GROUP_B" ? "bg-amber-500 text-slate-950 shadow-xs" : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40"
+            className={`py-2 px-3 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer text-center truncate ${
+              activeFilter === "GROUP_B"
+                ? "bg-amber-500 text-slate-950 shadow-xs"
+                : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40"
             }`}
           >
-            <Swords className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
-            <span className="truncate">{cleanB}</span>
+            {cleanB}
           </button>
         </div>
 
+        {/* BARIS 2: WILDCARD + DROPDOWN WEEK + RESET */}
         <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
           <button
             type="button"
             onClick={() => updateRoute(activeFilter === "WILDCARD" ? "ALL_GLOBAL" : "WILDCARD")}
-            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer ${
-              activeFilter === "WILDCARD" ? "bg-emerald-500 text-white shadow-xs" : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40"
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer truncate ${
+              activeFilter === "WILDCARD"
+                ? "bg-emerald-500 text-white shadow-xs"
+                : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40"
             }`}
           >
-            <Globe className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
-            <span>Global Wildcard</span>
+            <Globe className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+            <span className="truncate">Global Wildcard</span>
           </button>
 
+          {/* DROPDOWN WEEK TANPA KATA AKTIF */}
           <select
             value={selectedWeek}
             onChange={(e) => updateRoute(activeFilter, Number(e.target.value))}
-            className="w-[120px] sm:w-[135px] bg-background border border-input rounded-xl px-3 py-2 text-xs md:text-sm font-bold text-primary cursor-pointer shadow-2xs"
+            className="w-[105px] sm:w-[120px] bg-background border border-input rounded-xl px-2.5 py-2 text-xs md:text-sm font-bold text-primary cursor-pointer shadow-2xs"
           >
             {weeksList.map((w) => (
               <option key={w} value={w}>
-                Week {w} {w === currentWeek ? "(Aktif)" : ""}
+                Week {w}
               </option>
             ))}
           </select>
 
+          {/* RESET BUTTON (MATI / DISABLED JIKA TIDAK ADA FILTER AKTIF) */}
           <button
             type="button"
             onClick={() => updateRoute("ALL_GLOBAL", currentWeek)}
-            title="Reset"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-500 hover:bg-rose-500 hover:text-white transition cursor-pointer"
+            disabled={isResetDisabled}
+            title="Reset Filter"
+            className={`flex h-9 w-9 items-center justify-center rounded-xl transition shrink-0 ${
+              isResetDisabled
+                ? "opacity-30 bg-muted/20 text-muted-foreground cursor-not-allowed border border-border/40"
+                : "bg-rose-500/15 text-rose-500 hover:bg-rose-500 hover:text-white cursor-pointer"
+            }`}
           >
             <RotateCcw className="h-4 w-4" />
           </button>
@@ -201,70 +216,97 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       <div className="space-y-2 w-full">
         <h3 className="text-xs md:text-sm font-black uppercase tracking-wider text-primary flex items-center gap-1.5 px-1">
           <Trophy className="h-4 w-4 text-amber-500 dark:text-amber-400 shrink-0" />
-          <span>{activeFilter === "ALL_GLOBAL" ? "Standing Global" : activeFilter === "GROUP_A" ? DIVISION_MAP.GROUP_A : activeFilter === "GROUP_B" ? DIVISION_MAP.GROUP_B : "Global Wildcard"}</span>
+          <span>
+            {activeFilter === "ALL_GLOBAL"
+              ? "Standing Global"
+              : activeFilter === "GROUP_A"
+              ? DIVISION_MAP.GROUP_A
+              : activeFilter === "GROUP_B"
+              ? DIVISION_MAP.GROUP_B
+              : "Global Wildcard"}
+          </span>
         </h3>
 
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
           <table className="w-full text-left text-xs md:text-sm table-fixed">
+            {/* DISTRIBUSI LEBAR TOTAL 100% PERSIS */}
             <thead className="bg-muted/60 border-b border-border text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase text-muted-foreground tracking-tight">
               <tr>
-                <th className="py-2.5 px-1 text-center w-[14%]">RANK</th>
-                <th className="py-2.5 pl-1.5 pr-1 w-[32%]">TEAM</th>
-                <th className="py-2.5 px-0.5 text-center w-[14%] text-primary leading-tight">MATCH<br />W-L</th>
-                <th className="py-2.5 px-0.5 text-center w-[13%] leading-tight">PTS<br />DIFF</th>
+                <th className="py-2.5 px-1 text-center w-[11%]">RANK</th>
+                <th className="py-2.5 pl-1.5 pr-1 w-[41%]">TEAM</th>
+                <th className="py-2.5 px-0.5 text-center w-[11%] text-primary leading-tight">MATCH<br />W-L</th>
+                <th className="py-2.5 px-0.5 text-center w-[11%] leading-tight">PTS<br />DIFF</th>
                 <th className="py-2.5 px-0.5 text-center w-[13%] leading-tight">PTS<br />SCORED</th>
-                <th className="py-2.5 pl-0.5 pr-2 text-center w-[14%] leading-tight">MATCH<br />FORM</th>
+                <th className="py-2.5 pl-0.5 pr-1.5 text-center w-[13%] leading-tight">MATCH<br />FORM</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/40 font-semibold text-foreground">
+            <tbody className="divide-y divide-border/40 text-foreground">
               {displayedData.map((item: any, idx) => {
                 const isGroupA = item.groupName === DIVISION_MAP.GROUP_A;
+                
+                // Pewarnaan baris: Polos bersih di Global, aktif di Divisi & Wildcard
                 const rowBorder =
                   activeFilter === "ALL_GLOBAL"
-                    ? isGroupA ? "border-l-4 border-l-sky-500/80" : "border-l-4 border-l-amber-500/80"
+                    ? ""
                     : activeFilter === "WILDCARD"
-                    ? item.computedRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA ? "bg-emerald-500/10 border-l-4 border-l-emerald-500" : "bg-rose-500/5 border-l-4 border-l-rose-500/60"
+                    ? item.computedRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
+                      ? "bg-emerald-500/10 border-l-4 border-l-emerald-500"
+                      : "bg-rose-500/5 border-l-4 border-l-rose-500/60"
                     : item.computedRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP
-                    ? isGroupA ? "bg-sky-500/10 border-l-4 border-l-sky-500" : "bg-amber-500/10 border-l-4 border-l-amber-500"
+                    ? isGroupA
+                      ? "bg-sky-500/10 border-l-4 border-l-sky-500"
+                      : "bg-amber-500/10 border-l-4 border-l-amber-500"
                     : "";
 
                 return (
                   <tr key={item.teamId || item.teamName || idx} className={`hover:bg-muted/20 transition ${rowBorder}`}>
-                    <td className="py-2.5 px-1 text-center font-bold">
+                    {/* RANK: Angka polos tanpa tanda pagar */}
+                    <td className="py-2.5 px-1 text-center">
                       <div className="flex items-center justify-center gap-0.5">
                         {item.trend === "up" ? (
-                          <ChevronUp className="h-3.5 w-3.5 text-emerald-500 stroke-[3]" />
+                          <ChevronUp className="h-3.5 w-3.5 text-emerald-500 stroke-[3] shrink-0" />
                         ) : item.trend === "down" ? (
-                          <ChevronDown className="h-3.5 w-3.5 text-rose-500 stroke-[3]" />
+                          <ChevronDown className="h-3.5 w-3.5 text-rose-500 stroke-[3] shrink-0" />
                         ) : (
-                          <Minus className="h-2.5 w-2.5 text-muted-foreground/40 stroke-[3]" />
+                          <Minus className="h-2.5 w-2.5 text-muted-foreground/40 stroke-[3] shrink-0" />
                         )}
-                        <span className="text-[10px] sm:text-[11px] md:text-xs font-black truncate">{item.rankLabel}</span>
+                        <span className="text-[10.5px] sm:text-xs font-bold">{item.rankLabel}</span>
                       </div>
                     </td>
 
+                    {/* TEAM: Font Semi-bold Tidak Terpotong */}
                     <td className="py-2.5 pl-1.5 pr-1">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <img src={item.teamLogo || "/logo.webp"} alt="" className="h-4 w-4 sm:h-4.5 sm:w-4.5 md:h-5 md:w-5 shrink-0 object-contain" />
-                        <span className="font-bold text-[10px] sm:text-xs md:text-sm truncate text-foreground">{item.teamName}</span>
+                        <img
+                          src={item.teamLogo || "/logo.webp"}
+                          alt=""
+                          className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0 object-contain"
+                        />
+                        <span className="font-semibold text-[10.5px] sm:text-xs md:text-sm truncate text-foreground">
+                          {item.teamName}
+                        </span>
                       </div>
                     </td>
 
-                    <td className="py-2.5 px-0.5 text-center font-black text-primary text-[10px] sm:text-xs md:text-sm">
+                    {/* MATCH W-L */}
+                    <td className="py-2.5 px-0.5 text-center font-bold text-primary text-[10px] sm:text-xs md:text-sm">
                       {item.matchWins}-{item.matchLosses}
                     </td>
 
+                    {/* PTS DIFF */}
                     <td className="py-2.5 px-0.5 text-center font-bold text-[10px] sm:text-xs md:text-sm">
-                      <span className={item.roundDifference > 0 ? "text-emerald-500 font-black" : item.roundDifference < 0 ? "text-rose-500 font-black" : "text-muted-foreground"}>
+                      <span className={item.roundDifference > 0 ? "text-emerald-500" : item.roundDifference < 0 ? "text-rose-500" : "text-muted-foreground"}>
                         {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
                       </span>
                     </td>
 
-                    <td className="py-2.5 px-0.5 text-center font-black text-foreground text-[10px] sm:text-xs md:text-sm">
+                    {/* PTS SCORED */}
+                    <td className="py-2.5 px-0.5 text-center font-bold text-foreground text-[10px] sm:text-xs md:text-sm">
                       {item.setWins}
                     </td>
 
-                    <td className="py-2 pl-0.5 pr-2 text-center">
+                    {/* MATCH FORM */}
+                    <td className="py-2 pl-0.5 pr-1.5 text-center">
                       <MatchFormGrid form={item.form} />
                     </td>
                   </tr>
@@ -275,6 +317,5 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       </div>
     </div>
-  );
-              }
-      
+  );    
+}
