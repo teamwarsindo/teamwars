@@ -114,7 +114,7 @@ export function MatchCenter({
                       <span className="flex items-center gap-1 font-medium truncate">
                         <Tv className="h-3 w-3 shrink-0" />
                         <span className="truncate">
-                          Streamer: <strong>{m.streamerName || m.streamer || "Official Match"}</strong>
+                          Streamer: <strong>{m.streamer || "Official Match"}</strong>
                         </span>
                       </span>
                       {m.streamLink ? (
@@ -175,13 +175,13 @@ export function MatchCenter({
                       </div>
                     </div>
 
-                    {/* FOOTER HARI INI (SELALU TAMPIL) */}
+                    {/* FOOTER HARI INI */}
                     <div className="flex items-center justify-between border-t border-sky-500/20 pt-1.5 text-[10px] text-muted-foreground">
                       <span className="flex items-center gap-1 truncate">
                         <Mic className="h-3 w-3 text-sky-500 shrink-0" />
                         <span className="truncate">
-                          {m.streamerName || m.streamer ? (
-                            <strong className="text-foreground">{m.streamerName || m.streamer}</strong>
+                          {m.streamer ? (
+                            <strong className="text-foreground">{m.streamer}</strong>
                           ) : (
                             <span className="text-muted-foreground/60 italic">Official Match</span>
                           )}
@@ -235,13 +235,13 @@ export function MatchCenter({
                       </div>
                     </div>
 
-                    {/* FOOTER BERIKUTNYA (SELALU TAMPIL KONSISTEN) */}
+                    {/* FOOTER BERIKUTNYA */}
                     <div className="flex items-center justify-between border-t border-border/50 pt-1.5 text-[10px] text-muted-foreground">
                       <span className="flex items-center gap-1 truncate">
                         <Mic className="h-3 w-3 text-primary shrink-0" />
                         <span className="truncate">
-                          {m.streamerName || m.streamer ? (
-                            <strong className="text-foreground">{m.streamerName || m.streamer}</strong>
+                          {m.streamer ? (
+                            <strong className="text-foreground">{m.streamer}</strong>
                           ) : (
                             <span className="text-muted-foreground/60 italic">Official Match</span>
                           )}
@@ -368,5 +368,5 @@ export function MatchCenter({
         />
       )}
     </div>
-  );       
+  );
 }
