@@ -12,7 +12,7 @@ import {
 import { ScheduleTab } from "./schedule-tab";
 import { StandingTab } from "./standing-tab";
 import { PlayoffTab } from "./playoff-tab";
-import { DivisionFilterType } from "./schedule-filter";
+import { DivisionFilterType } from "./tournament-filter";
 import { MatchReportModal } from "./match-report-modal";
 import Swal from "sweetalert2";
 
