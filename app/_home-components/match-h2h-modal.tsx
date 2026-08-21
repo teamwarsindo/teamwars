@@ -104,9 +104,10 @@ export function MatchH2HModal({
       }}
       className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 p-3 sm:p-5 md:p-6 backdrop-blur-md animate-in fade-in"
     >
+      {/* CONTAINER MODAL BESAR & LEBAR PENUH DI DESKTOP */}
       <div
         ref={modalContentRef}
-        className="relative flex max-h-[94vh] w-full max-w-lg lg:max-w-6xl flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden"
+        className="relative flex max-h-[94vh] w-[95vw] max-w-[1200px] flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden"
       >
         {/* HEADER MODAL */}
         <div className="relative border-b border-border bg-muted/40 px-6 py-3.5 sm:py-4 text-center">
@@ -127,12 +128,12 @@ export function MatchH2HModal({
           </button>
         </div>
 
-        {/* BODY: DESKTOP 2-KOLOM SIMETRIS & BESAR */}
-        <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6 md:p-7">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-7 items-stretch">
+        {/* BODY: 2-KOLOM LAPANG (KIRI STATISTIK, KANAN RIWAYAT LEGA) */}
+        <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6 md:p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch">
             
-            {/* SISI KIRI: MATCH BANNER + PREDIKSI + STATISTIK */}
-            <div className="flex flex-col gap-3.5 sm:gap-4">
+            {/* SISI KIRI (5 KOLOM DI DESKTOP): MATCH + PREDIKSI + STATISTIK */}
+            <div className="lg:col-span-5 flex flex-col gap-4">
               {/* TEAMS DISPLAY */}
               <div className="flex items-center justify-between rounded-2xl bg-muted/30 p-4 sm:p-5 border border-border shadow-2xs">
                 {/* TIM A */}
@@ -165,7 +166,7 @@ export function MatchH2HModal({
                   </div>
                 ) : (
                   <div className="flex flex-col items-center px-3 sm:px-4 shrink-0">
-                    <span className="rounded-xl bg-muted px-3 py-1 text-xs sm:text-sm font-black text-muted-foreground">
+                    <span className="rounded-xl bg-muted px-3.5 py-1.5 text-xs sm:text-sm font-black text-muted-foreground">
                       VS
                     </span>
                   </div>
@@ -247,20 +248,20 @@ export function MatchH2HModal({
               </div>
             </div>
 
-            {/* SISI KANAN: RIWAYAT PERTANDINGAN DENGAN LEBAR LUAS */}
-            <div className="flex flex-col justify-between rounded-2xl border border-border bg-muted/20 p-4 sm:p-5 shadow-2xs h-full">
+            {/* SISI KANAN (7 KOLOM DI DESKTOP): RIWAYAT MATCH LAPANG PENUH */}
+            <div className="lg:col-span-7 flex flex-col justify-between rounded-2xl border border-border bg-muted/20 p-4 sm:p-6 shadow-2xs h-full">
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                  <span className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
-                    <History className="h-4 w-4 text-primary" /> Riwayat Pertandingan Pekan Lalu
+                  <span className="text-sm sm:text-base font-bold text-foreground flex items-center gap-2">
+                    <History className="h-4.5 w-4.5 text-primary" /> Riwayat Pertandingan Pekan Lalu
                   </span>
                   <span className="text-xs text-muted-foreground font-medium">
                     Reguler Season
                   </span>
                 </div>
 
-                {/* SUB-HEADER: IDENTITAS KEPEMILIKAN KOLOM TIM A & TIM B */}
-                <div className="grid grid-cols-[1fr_76px_1fr] items-center px-3 py-1.5 bg-muted/40 rounded-xl border border-border/40 text-center">
+                {/* SUB-HEADER: IDENTITAS KEPEMILIKAN KOLOM */}
+                <div className="grid grid-cols-[1fr_80px_1fr] items-center px-4 py-2 bg-muted/40 rounded-xl border border-border/40 text-center">
                   <span className="text-xs sm:text-sm font-bold text-sky-600 dark:text-sky-400 truncate px-1">
                     {match.teamAName}
                   </span>
@@ -272,14 +273,14 @@ export function MatchH2HModal({
                   </span>
                 </div>
 
-                {/* LIST KARTU REPORT PER PEKAN (LAPANG & NAMA TIDAK KEPOTONG) */}
-                <div className="space-y-2.5 pt-1">
+                {/* LIST KARTU REPORT PER PEKAN (LELUASA & NAMA TIM UTUH) */}
+                <div className="space-y-3 pt-1">
                   {displayWeeks.map((week) => (
                     <div
                       key={week}
-                      className="grid grid-cols-[1fr_76px_1fr] items-center py-2.5 px-3 rounded-xl border border-border/50 bg-background/50 hover:bg-muted/60 transition shadow-2xs"
+                      className="grid grid-cols-[1fr_80px_1fr] items-center py-2.5 px-3.5 rounded-xl border border-border/50 bg-background/50 hover:bg-muted/60 transition shadow-2xs"
                     >
-                      <div className="min-w-0 flex items-center justify-end">
+                      <div className="flex items-center justify-end">
                         <MatchReportCompactItem item={historyA.get(week)} isA={true} />
                       </div>
                       <div className="flex justify-center">
@@ -287,7 +288,7 @@ export function MatchH2HModal({
                           Week {week}
                         </span>
                       </div>
-                      <div className="min-w-0 flex items-center justify-start">
+                      <div className="flex items-center justify-start">
                         <MatchReportCompactItem item={historyB.get(week)} isA={false} />
                       </div>
                     </div>

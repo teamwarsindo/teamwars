@@ -16,7 +16,7 @@ export function StatsPill({
 
   if (isWin && !isDraw) {
     return (
-      <span className="inline-flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 px-4 py-1 text-xs sm:text-sm font-black shadow-2xs min-w-[76px] sm:min-w-[84px]">
+      <span className="inline-flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 px-4 py-1 text-xs sm:text-sm font-black shadow-2xs min-w-[76px] sm:min-w-[88px]">
         {text}
       </span>
     );
@@ -24,14 +24,14 @@ export function StatsPill({
 
   if (isDraw) {
     return (
-      <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 px-4 py-1 text-xs sm:text-sm font-extrabold shadow-2xs min-w-[76px] sm:min-w-[84px]">
+      <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 px-4 py-1 text-xs sm:text-sm font-extrabold shadow-2xs min-w-[76px] sm:min-w-[88px]">
         {text}
       </span>
     );
   }
 
   return (
-    <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/60 px-4 py-1 text-xs sm:text-sm font-semibold text-muted-foreground min-w-[76px] sm:min-w-[84px]">
+    <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/60 px-4 py-1 text-xs sm:text-sm font-semibold text-muted-foreground min-w-[76px] sm:min-w-[88px]">
       {text}
     </span>
   );
@@ -93,7 +93,7 @@ export function MatchReportCompactItem({
 }) {
   if (!item) {
     return (
-      <div className={`flex w-full ${isA ? "justify-end pr-3" : "justify-start pl-3"}`}>
+      <div className={`flex w-full ${isA ? "justify-end pr-2" : "justify-start pl-2"}`}>
         <span className="text-xs text-muted-foreground/30 font-medium italic">Belum Ada Match</span>
       </div>
     );
@@ -106,15 +106,15 @@ export function MatchReportCompactItem({
 
   const content = (
     <div
-      className={`flex items-center gap-2 w-full min-w-0 ${
+      className={`flex items-center gap-2 w-full ${
         isA ? "flex-row justify-end text-right" : "flex-row text-left"
       }`}
     >
       {isA ? (
         <>
-          {/* NAMA TIM LAWAN A (TIDAK TERPOTONG) */}
+          {/* NAMA TIM LAWAN A (FULL TIDAK TERPOTONG) */}
           <span
-            className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[100px] sm:max-w-[140px] lg:max-w-[170px] ${
+            className={`font-semibold text-xs sm:text-sm text-muted-foreground whitespace-nowrap ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
             }`}
           >
@@ -125,7 +125,7 @@ export function MatchReportCompactItem({
             alt=""
             className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
           />
-          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap px-0.5">
+          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
             {item.myScore}-{item.oppScore}
           </span>
           <span
@@ -141,7 +141,7 @@ export function MatchReportCompactItem({
           >
             {isWin ? "W" : "L"}
           </span>
-          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap px-0.5">
+          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
             {item.myScore}-{item.oppScore}
           </span>
           <img
@@ -149,9 +149,9 @@ export function MatchReportCompactItem({
             alt=""
             className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
           />
-          {/* NAMA TIM LAWAN B (TIDAK TERPOTONG) */}
+          {/* NAMA TIM LAWAN B (FULL TIDAK TERPOTONG) */}
           <span
-            className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[100px] sm:max-w-[140px] lg:max-w-[170px] ${
+            className={`font-semibold text-xs sm:text-sm text-muted-foreground whitespace-nowrap ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
             }`}
           >
@@ -169,7 +169,7 @@ export function MatchReportCompactItem({
         target="_blank"
         rel="noopener noreferrer"
         title={`Lihat bukti report vs ${item.oppName}`}
-        className="group flex items-center w-full min-w-0 transition hover:opacity-85 active:scale-95 cursor-pointer"
+        className="group flex items-center w-full transition hover:opacity-85 active:scale-95 cursor-pointer"
       >
         {content}
       </a>
@@ -177,7 +177,7 @@ export function MatchReportCompactItem({
   }
 
   return (
-    <div className="flex items-center w-full min-w-0 opacity-90 cursor-default" title={`Lawan: ${item.oppName}`}>
+    <div className="flex items-center w-full opacity-90 cursor-default" title={`Lawan: ${item.oppName}`}>
       {content}
     </div>
   );
