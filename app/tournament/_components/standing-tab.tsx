@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   MatchScheduleItem,
@@ -28,18 +28,19 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const searchParams = useSearchParams();
 
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
-  const urlView = searchParams.get("view");
 
-  const [selectedGroup, setSelectedGroup] = useState<DivisionFilterType>(
-    urlView === "group_a"
+  // Membaca state shared filter dari URL
+  const rawGroupParam = searchParams.get("group");
+  const selectedGroup: DivisionFilterType =
+    rawGroupParam === "group_a"
       ? DIVISION_MAP.GROUP_A
-      : urlView === "group_b"
+      : rawGroupParam === "group_b"
       ? DIVISION_MAP.GROUP_B
-      : "ALL"
-  );
-  const [isWildcardActive, setIsWildcardActive] = useState<boolean>(urlView === "wildcard");
+      : "ALL";
 
-  const selectedWeek = Number(searchParams.get("week")) || currentWeek;
+  const isWildcardActive = searchParams.get("wildcard") === "true";
+  const rawWeekParam = searchParams.get("week");
+  const selectedWeek = rawWeekParam && rawWeekParam !== "ALL" ? Number(rawWeekParam) : currentWeek;
 
   const weeksList = useMemo(() => {
     const fromSched = schedules.map((s) => s.weekNumber || 1);
@@ -48,17 +49,19 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       .sort((a, b) => a - b);
   }, [schedules, currentWeek]);
 
-  const updateRoute = (group: DivisionFilterType, wildcard: boolean, week: number = selectedWeek) => {
-    setSelectedGroup(group);
-    setIsWildcardActive(wildcard);
-
+  const updateURL = (group: DivisionFilterType, wildcard: boolean, week: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", "standings");
 
-    if (wildcard) params.set("view", "wildcard");
-    else if (group === DIVISION_MAP.GROUP_A) params.set("view", "group_a");
-    else if (group === DIVISION_MAP.GROUP_B) params.set("view", "group_b");
-    else params.delete("view");
+    if (wildcard) {
+      params.set("wildcard", "true");
+      params.delete("group");
+    } else {
+      params.delete("wildcard");
+      if (group === DIVISION_MAP.GROUP_A) params.set("group", "group_a");
+      else if (group === DIVISION_MAP.GROUP_B) params.set("group", "group_b");
+      else params.delete("group");
+    }
 
     if (week !== currentWeek) params.set("week", week.toString());
     else params.delete("week");
@@ -67,20 +70,26 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   };
 
   const handleGroupChange = (newGroup: DivisionFilterType) => {
-    updateRoute(newGroup, false, selectedWeek);
+    updateURL(newGroup, false, selectedWeek);
   };
 
   const handleWildcardToggle = () => {
-    updateRoute("ALL", !isWildcardActive, selectedWeek);
+    updateURL("ALL", !isWildcardActive, selectedWeek);
   };
 
   const handleWeekChange = (week: number | "ALL") => {
     const targetWeek = typeof week === "number" ? week : currentWeek;
-    updateRoute(selectedGroup, isWildcardActive, targetWeek);
+    updateURL(selectedGroup, isWildcardActive, targetWeek);
   };
 
   const handleReset = () => {
-    updateRoute("ALL", false, currentWeek);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "standings");
+    params.delete("group");
+    params.delete("week");
+    params.delete("wildcard");
+    params.delete("team");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const isFilterActive = selectedGroup !== "ALL" || isWildcardActive || selectedWeek !== currentWeek;
@@ -127,7 +136,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
   return (
     <div className="w-full space-y-3.5 md:space-y-4">
-      {/* 1. TOURNAMENT FILTER BERSAMA */}
+      {/* 1. TOURNAMENT FILTER SHARED */}
       <TournamentFilter
         mode="standing"
         selectedGroup={selectedGroup}
@@ -207,5 +216,5 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       </div>
     </div>
   );
-                                                                                     }
-                             
+}
+  
