@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { TournamentView } from "./_components/tournament-view";
-import { DivisionFilterType } from "./_components/schedule-filter";
+import { DivisionFilterType } from "./_components/tournament-filter";
 
 export default function TournamentClientContent({ isAdmin }: { isAdmin: boolean }) {
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<DivisionFilterType>("ALL");
