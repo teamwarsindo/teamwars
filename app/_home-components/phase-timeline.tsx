@@ -25,11 +25,11 @@ export function PhaseTimeline({ currentWeek }: PhaseTimelineProps) {
 
   return (
     <div className="rounded-2xl border border-border bg-card p-3 sm:p-3.5 md:p-4 shadow-xs space-y-2.5">
-      <div className="flex items-center justify-between text-xs md:text-sm">
-        <span className="text-muted-foreground font-bold uppercase tracking-wider text-[9.5px] md:text-xs">
+      <div className="flex items-center justify-between text-xs sm:text-sm">
+        <span className="text-slate-400 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px] sm:text-xs">
           Fase Turnamen:
         </span>
-        <span className="text-primary font-black text-[11px] md:text-xs">
+        <span className="text-sky-400 font-black text-xs sm:text-sm">
           {activePhaseLabel}
         </span>
       </div>
@@ -37,11 +37,11 @@ export function PhaseTimeline({ currentWeek }: PhaseTimelineProps) {
       <div className="grid grid-cols-5 gap-1.5 md:gap-2.5 pt-0.5">
         {phases.map((p) => {
           let barClass = "bg-muted/60";
-          let textClass = "text-muted-foreground font-medium";
+          let textClass = "text-slate-400 dark:text-slate-400 font-medium";
 
           if (p.isCurrent) {
-            barClass = "bg-primary shadow-xs";
-            textClass = "text-primary font-black";
+            barClass = "bg-sky-500 shadow-xs";
+            textClass = "text-sky-400 font-black";
           } else if (p.isPast) {
             barClass = "bg-emerald-500";
             textClass = "text-foreground font-bold";
@@ -50,7 +50,7 @@ export function PhaseTimeline({ currentWeek }: PhaseTimelineProps) {
           return (
             <div key={p.key} className="flex flex-col gap-1.5 items-center text-center">
               <div className={`h-1.5 md:h-2 w-full rounded-full transition-all ${barClass}`} />
-              <span className={`text-[8.5px] sm:text-[9.5px] md:text-xs tracking-tight leading-none ${textClass}`}>
+              <span className={`text-[10px] sm:text-[11px] md:text-xs tracking-tight leading-none ${textClass}`}>
                 {p.name}
               </span>
             </div>

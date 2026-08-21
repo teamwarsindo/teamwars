@@ -82,7 +82,7 @@ export function QuickActions({
 
   return (
     <div className="space-y-3.5 md:space-y-4">
-      {/* 3 MENU NAVIGASI UTAMA */}
+      {/* 3 MENU NAVIGASI UTAMA (STANDARISASI LABEL STANDING & UKURAN FONT) */}
       <div className="grid grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
         <Link
           href="/tournament?tab=schedule"
@@ -92,7 +92,7 @@ export function QuickActions({
             <Calendar className="h-4.5 w-4.5 sm:h-5 sm:w-5 md:h-6 md:w-6" />
           </div>
           <span className="mt-2 text-xs sm:text-sm md:text-base font-bold text-foreground">Jadwal Match</span>
-          <span className="text-[9.5px] sm:text-[10.5px] md:text-xs font-medium text-muted-foreground">Week {currentWeek}</span>
+          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">Week {currentWeek}</span>
         </Link>
 
         <Link
@@ -102,8 +102,8 @@ export function QuickActions({
           <div className="flex h-9 w-9 sm:h-10 sm:w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform">
             <Trophy className="h-4.5 w-4.5 sm:h-5 sm:w-5 md:h-6 md:w-6" />
           </div>
-          <span className="mt-2 text-xs sm:text-sm md:text-base font-bold text-foreground">Klasemen</span>
-          <span className="text-[9.5px] sm:text-[10.5px] md:text-xs font-medium text-muted-foreground">Divisi &amp; Wildcard</span>
+          <span className="mt-2 text-xs sm:text-sm md:text-base font-bold text-foreground">Standing</span>
+          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">Divisi &amp; Wildcard</span>
         </Link>
 
         <Link
@@ -114,7 +114,7 @@ export function QuickActions({
             <BookOpen className="h-4.5 w-4.5 sm:h-5 sm:w-5 md:h-6 md:w-6" />
           </div>
           <span className="mt-2 text-xs sm:text-sm md:text-base font-bold text-foreground">Rulebook</span>
-          <span className="text-[9.5px] sm:text-[10.5px] md:text-xs font-medium text-muted-foreground">Regulasi Resmi</span>
+          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">Regulasi Resmi</span>
         </Link>
       </div>
 
@@ -178,7 +178,7 @@ export function QuickActions({
                         <span className="font-bold text-xs md:text-sm text-foreground block truncate">
                           {tName}
                         </span>
-                        <div className="flex items-center gap-1.5 text-[10px] md:text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-[11px] md:text-xs text-muted-foreground">
                           <span>{team.groupName}</span>
                           <span>•</span>
                           {matches.length === 0 ? (
@@ -194,7 +194,7 @@ export function QuickActions({
                                 return (
                                   <span
                                     key={idx}
-                                    className={`px-1 py-0.2 rounded font-black text-[8px] md:text-[9px] ${
+                                    className={`px-1 py-0.2 rounded font-black text-[9px] md:text-[10px] ${
                                       isWin
                                         ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
                                         : "bg-rose-500/20 text-rose-600 dark:text-rose-400"
