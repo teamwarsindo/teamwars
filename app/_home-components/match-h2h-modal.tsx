@@ -104,7 +104,7 @@ export function MatchH2HModal({
       }}
       className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 p-3 sm:p-5 md:p-6 backdrop-blur-md animate-in fade-in"
     >
-      {/* CONTAINER MODAL BESAR & LEBAR PENUH DI DESKTOP */}
+      {/* CONTAINER MODAL BESAR & LEBAR PENUH */}
       <div
         ref={modalContentRef}
         className="relative flex max-h-[94vh] w-[95vw] max-w-[1200px] flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden"
@@ -128,7 +128,7 @@ export function MatchH2HModal({
           </button>
         </div>
 
-        {/* BODY: 2-KOLOM LAPANG (KIRI STATISTIK, KANAN RIWAYAT LEGA) */}
+        {/* BODY: 2-KOLOM LAPANG */}
         <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6 md:p-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch">
             
@@ -248,7 +248,7 @@ export function MatchH2HModal({
               </div>
             </div>
 
-            {/* SISI KANAN (7 KOLOM DI DESKTOP): RIWAYAT MATCH LAPANG PENUH */}
+            {/* SISI KANAN (7 KOLOM DI DESKTOP): RIWAYAT MATCH LAPANG DENGAN GAP AMAN DARI WEEK */}
             <div className="lg:col-span-7 flex flex-col justify-between rounded-2xl border border-border bg-muted/20 p-4 sm:p-6 shadow-2xs h-full">
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b border-border/60 pb-3">
@@ -260,35 +260,40 @@ export function MatchH2HModal({
                   </span>
                 </div>
 
-                {/* SUB-HEADER: IDENTITAS KEPEMILIKAN KOLOM */}
-                <div className="grid grid-cols-[1fr_80px_1fr] items-center px-4 py-2 bg-muted/40 rounded-xl border border-border/40 text-center">
-                  <span className="text-xs sm:text-sm font-bold text-sky-600 dark:text-sky-400 truncate px-1">
+                {/* SUB-HEADER: IDENTITAS KEPEMILIKAN KOLOM DENGAN JARAK AMAN */}
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-2 bg-muted/40 rounded-xl border border-border/40 text-center">
+                  <span className="text-xs sm:text-sm font-bold text-sky-600 dark:text-sky-400 truncate px-2 text-right">
                     {match.teamAName}
                   </span>
-                  <span className="text-[10px] sm:text-[11px] font-black text-muted-foreground uppercase tracking-wider">
+                  <span className="text-[10px] sm:text-[11px] font-black text-muted-foreground uppercase tracking-wider px-4">
                     PEKAN
                   </span>
-                  <span className="text-xs sm:text-sm font-bold text-amber-600 dark:text-amber-400 truncate px-1">
+                  <span className="text-xs sm:text-sm font-bold text-amber-600 dark:text-amber-400 truncate px-2 text-left">
                     {match.teamBName}
                   </span>
                 </div>
 
-                {/* LIST KARTU REPORT PER PEKAN (LELUASA & NAMA TIM UTUH) */}
+                {/* LIST KARTU REPORT PER PEKAN (URUTAN SUDAH BENAR & TIDAK MEPET KE WEEK) */}
                 <div className="space-y-3 pt-1">
                   {displayWeeks.map((week) => (
                     <div
                       key={week}
-                      className="grid grid-cols-[1fr_80px_1fr] items-center py-2.5 px-3.5 rounded-xl border border-border/50 bg-background/50 hover:bg-muted/60 transition shadow-2xs"
+                      className="grid grid-cols-[1fr_auto_1fr] items-center py-2.5 px-3 rounded-xl border border-border/50 bg-background/50 hover:bg-muted/60 transition shadow-2xs"
                     >
-                      <div className="flex items-center justify-end">
+                      {/* SISI TIM A */}
+                      <div className="flex items-center justify-end min-w-0">
                         <MatchReportCompactItem item={historyA.get(week)} isA={true} />
                       </div>
-                      <div className="flex justify-center">
+
+                      {/* KOLOM TENGAH: WEEK (DENGAN MARGIN AMAN) */}
+                      <div className="flex justify-center px-2 sm:px-4">
                         <span className="rounded-md bg-muted border border-border/60 px-2.5 py-1 text-muted-foreground text-[10px] sm:text-[11px] font-extrabold text-center whitespace-nowrap shadow-2xs">
                           Week {week}
                         </span>
                       </div>
-                      <div className="flex items-center justify-start">
+
+                      {/* SISI TIM B */}
+                      <div className="flex items-center justify-start min-w-0">
                         <MatchReportCompactItem item={historyB.get(week)} isA={false} />
                       </div>
                     </div>
