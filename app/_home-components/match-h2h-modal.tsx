@@ -53,7 +53,6 @@ export function MatchH2HModal({
     [match, standings]
   );
 
-  // Kalkulasi Prediksi Multi-Variabel
   const pred = useMemo(
     () =>
       statsA && statsB
@@ -103,67 +102,80 @@ export function MatchH2HModal({
           onClose();
         }
       }}
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in"
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/75 p-3 sm:p-5 md:p-6 backdrop-blur-md animate-in fade-in"
     >
       <div
         ref={modalContentRef}
-        className="relative flex max-h-[95vh] w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl flex-col rounded-2xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden"
+        className="relative flex max-h-[92vh] w-full max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden"
       >
         {/* HEADER MODAL */}
-        <div className="relative border-b border-border bg-muted/30 px-4 py-2.5 sm:px-5 md:py-3 text-center">
-          <div className="flex flex-col items-center justify-center gap-0.5">
-            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-0.5 text-[9.5px] md:text-xs font-bold text-primary">
-              <Swords className="h-3 w-3 md:h-3.5 md:w-3.5" /> Week {match.weekNumber || currentWeek} • {match.groupName || "Group Stage"}
+        <div className="relative border-b border-border bg-muted/40 px-5 py-3 sm:py-3.5 text-center">
+          <div className="flex flex-col items-center justify-center gap-1">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1 text-xs sm:text-sm font-bold text-primary">
+              <Swords className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Week {match.weekNumber || currentWeek} • {match.groupName || "Group Stage"}
             </span>
-            <p className="text-[10.5px] md:text-[11.5px] text-muted-foreground font-medium">
+            <p className="text-xs sm:text-sm text-muted-foreground font-medium">
               {formatDateTimeWIB(match.matchDate, { includeDay: true })}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-3 top-3 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
+            className="absolute right-3.5 top-3.5 rounded-xl p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
           >
-            <X className="h-4 w-4 md:h-4.5 md:w-4.5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* BODY */}
-        <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 sm:p-4 md:p-5 space-y-3 text-xs md:text-sm">
+        <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6 space-y-4 md:space-y-5 text-xs sm:text-sm">
           
-          {/* TEAMS DISPLAY */}
-          <div className="flex items-center justify-between rounded-2xl bg-muted/30 p-3 sm:p-4 border border-border">
-            <div className="flex flex-col items-center flex-1 min-w-0 text-center gap-1.5">
-              <img src={match.teamALogo || "/logo.webp"} alt="" className="h-10 w-10 sm:h-12 sm:w-12 object-contain" />
-              <span className={`text-xs sm:text-sm truncate w-full ${isWinnerA ? "font-black text-emerald-600 dark:text-emerald-400" : "font-bold text-foreground"}`}>
+          {/* TEAMS DISPLAY (LOGO LEBIH BESAR & TATA LETAK LAPANG) */}
+          <div className="flex items-center justify-between rounded-2xl bg-muted/30 p-4 sm:p-6 border border-border">
+            {/* TIM A */}
+            <div className="flex flex-col items-center flex-1 min-w-0 text-center gap-2">
+              <img
+                src={match.teamALogo || "/logo.webp"}
+                alt=""
+                className="h-14 w-14 sm:h-16 sm:w-16 md:h-20 md:w-20 object-contain drop-shadow-sm"
+              />
+              <span className={`text-xs sm:text-sm md:text-base truncate w-full ${isWinnerA ? "font-black text-emerald-700 dark:text-emerald-400" : "font-bold text-foreground"}`}>
                 {match.teamAName}
               </span>
             </div>
 
+            {/* TENGAH: SKOR / VS */}
             {isMatchFinished ? (
-              <div className="flex flex-col items-center px-4 shrink-0">
-                <div className="flex items-center gap-2 text-xl sm:text-2xl md:text-3xl font-black tracking-tight">
-                  <span className={isWinnerA ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+              <div className="flex flex-col items-center px-4 sm:px-6 shrink-0">
+                <div className="flex items-center gap-2.5 text-2xl sm:text-3xl md:text-4xl font-black tracking-tight">
+                  <span className={isWinnerA ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>
                     {actualScoreA}
                   </span>
-                  <span className="text-muted-foreground/30 text-lg sm:text-xl">-</span>
-                  <span className={isWinnerB ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+                  <span className="text-muted-foreground/30 text-xl sm:text-2xl">-</span>
+                  <span className={isWinnerB ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>
                     {actualScoreB}
                   </span>
                 </div>
-                <span className="rounded-full bg-muted/80 border border-border/50 px-2 py-0.5 text-[8.5px] font-black uppercase text-muted-foreground tracking-wider mt-1">
+                <span className="rounded-full bg-muted/80 border border-border/60 px-3 py-0.5 text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-wider mt-1.5">
                   FT • Selesai
                 </span>
               </div>
             ) : (
-              <div className="flex flex-col items-center px-3">
-                <span className="rounded-lg bg-muted px-2.5 py-1 text-xs font-black text-muted-foreground">VS</span>
+              <div className="flex flex-col items-center px-4 shrink-0">
+                <span className="rounded-xl bg-muted px-3.5 py-1.5 text-xs sm:text-sm font-black text-muted-foreground">
+                  VS
+                </span>
               </div>
             )}
 
-            <div className="flex flex-col items-center flex-1 min-w-0 text-center gap-1.5">
-              <img src={match.teamBLogo || "/logo.webp"} alt="" className="h-10 w-10 sm:h-12 sm:w-12 object-contain" />
-              <span className={`text-xs sm:text-sm truncate w-full ${isWinnerB ? "font-black text-emerald-600 dark:text-emerald-400" : "font-bold text-foreground"}`}>
+            {/* TIM B */}
+            <div className="flex flex-col items-center flex-1 min-w-0 text-center gap-2">
+              <img
+                src={match.teamBLogo || "/logo.webp"}
+                alt=""
+                className="h-14 w-14 sm:h-16 sm:w-16 md:h-20 md:w-20 object-contain drop-shadow-sm"
+              />
+              <span className={`text-xs sm:text-sm md:text-base truncate w-full ${isWinnerB ? "font-black text-emerald-700 dark:text-emerald-400" : "font-bold text-foreground"}`}>
                 {match.teamBName}
               </span>
             </div>
@@ -172,74 +184,76 @@ export function MatchH2HModal({
           {/* BANNER STATUS / BUKTI REPORT */}
           {isMatchFinished ? (
             reportUrl && (
-              <div className="flex items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5">
+              <div className="flex items-center justify-center rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-3 sm:p-3.5">
                 <a
                   href={reportUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition shrink-0"
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-xs transition shrink-0"
                 >
-                  <ImageIcon className="h-3.5 w-3.5" /> Bukti Report Pertandingan ↗
+                  <ImageIcon className="h-4 w-4" /> Bukti Report Pertandingan ↗
                 </a>
               </div>
             )
           ) : (
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-2.5 sm:p-3 space-y-1.5">
-              <div className="flex items-center justify-between text-[9.5px] md:text-xs font-bold">
-                <span className="text-primary flex items-center gap-1"><Sparkles className="h-3 w-3" /> Prediksi Match</span>
+            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3.5 sm:p-4 space-y-2">
+              <div className="flex items-center justify-between text-xs sm:text-sm font-bold">
+                <span className="text-primary flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4" /> Prediksi Match
+                </span>
                 <span className="text-muted-foreground">Peluang Menang</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-muted overflow-hidden flex">
+              <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden flex">
                 <div style={{ width: `${pred.probA}%` }} className="h-full bg-sky-500 transition-all duration-300" />
                 <div style={{ width: `${pred.probB}%` }} className="h-full bg-amber-500 transition-all duration-300" />
               </div>
-              <div className="flex items-center justify-between text-[10.5px] md:text-xs font-medium">
-                <span className="font-bold text-sky-500">{pred.probA}%</span>
-                <span className="inline-flex items-center justify-center rounded-full bg-primary px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-primary-foreground shadow-xs">
+              <div className="flex items-center justify-between text-xs sm:text-sm font-medium">
+                <span className="font-bold text-sky-600 dark:text-sky-400">{pred.probA}%</span>
+                <span className="inline-flex items-center justify-center rounded-full bg-primary px-3 py-0.5 text-xs font-bold text-primary-foreground shadow-xs">
                   Prediksi Skor: {pred.predScoreA} - {pred.predScoreB}
                 </span>
-                <span className="font-bold text-amber-500">{pred.probB}%</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400">{pred.probB}%</span>
               </div>
             </div>
           )}
 
           {/* STATS MATRIX */}
-          <div className="space-y-1">
-            <span className="text-[9.5px] md:text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1 px-1">
-              <Trophy className="h-3 w-3 text-primary" /> Perbandingan Statistik Season 7
+          <div className="space-y-2">
+            <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 px-1">
+              <Trophy className="h-4 w-4 text-primary" /> Perbandingan Statistik Season 7
             </span>
 
-            <div className="rounded-xl border border-border bg-muted/20 divide-y divide-border overflow-hidden">
+            <div className="rounded-2xl border border-border bg-muted/20 divide-y divide-border overflow-hidden shadow-2xs">
               {/* 1. STATUS KLASEMEN */}
-              <div className="grid grid-cols-[1fr_130px_1fr] md:grid-cols-[1fr_150px_1fr] items-center px-3 py-2">
+              <div className="grid grid-cols-[1fr_130px_1fr] sm:grid-cols-[1fr_160px_1fr] md:grid-cols-[1fr_180px_1fr] items-center px-4 py-2.5 sm:py-3">
                 <div className="flex justify-center"><QualificationBadge qual={statsA.qualification} /></div>
-                <span className="text-muted-foreground text-[9px] md:text-[10.5px] font-semibold text-center px-1">Status Klasemen</span>
+                <span className="text-muted-foreground text-xs sm:text-sm font-bold text-center px-2">Status Klasemen</span>
                 <div className="flex justify-center"><QualificationBadge qual={statsB.qualification} /></div>
               </div>
 
               {/* 2. METRICS: WIN RATE, PTS DIFF, TOTAL SCORED */}
               {metrics.map((m, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_130px_1fr] md:grid-cols-[1fr_150px_1fr] items-center px-3 py-1.5">
+                <div key={idx} className="grid grid-cols-[1fr_130px_1fr] sm:grid-cols-[1fr_160px_1fr] md:grid-cols-[1fr_180px_1fr] items-center px-4 py-2.5 sm:py-3">
                   <div className="flex justify-center"><StatsPill valA={m.valA} valB={m.valB} isA={true} text={m.txtA} /></div>
-                  <span className="text-muted-foreground text-[9px] md:text-[10.5px] font-semibold text-center px-1">{m.label}</span>
+                  <span className="text-muted-foreground text-xs sm:text-sm font-bold text-center px-2">{m.label}</span>
                   <div className="flex justify-center"><StatsPill valA={m.valA} valB={m.valB} isA={false} text={m.txtB} /></div>
                 </div>
               ))}
 
               {/* 3. FORM LAGA */}
-              <div className="grid grid-cols-[1fr_130px_1fr] md:grid-cols-[1fr_150px_1fr] items-center px-3 py-1.5">
+              <div className="grid grid-cols-[1fr_130px_1fr] sm:grid-cols-[1fr_160px_1fr] md:grid-cols-[1fr_180px_1fr] items-center px-4 py-2.5 sm:py-3">
                 <div className="flex justify-center"><FormSlots formList={statsA.form} /></div>
-                <span className="text-muted-foreground text-[9px] md:text-[10.5px] font-semibold text-center px-1">Form Laga</span>
+                <span className="text-muted-foreground text-xs sm:text-sm font-bold text-center px-2">Form Laga</span>
                 <div className="flex justify-center"><FormSlots formList={statsB.form} /></div>
               </div>
 
               {/* 4. REPORT WEEK */}
               {pastWeeks.map((week) => (
-                <div key={week} className="grid grid-cols-[1fr_130px_1fr] md:grid-cols-[1fr_150px_1fr] items-center px-3 py-1.5">
+                <div key={week} className="grid grid-cols-[1fr_130px_1fr] sm:grid-cols-[1fr_160px_1fr] md:grid-cols-[1fr_180px_1fr] items-center px-4 py-2.5 sm:py-3">
                   <div className="flex justify-center min-w-0">
                     <MatchReportRowItem item={historyA.get(week)} isA={true} />
                   </div>
-                  <span className="text-muted-foreground text-[8.5px] md:text-[10px] font-semibold text-center px-1 whitespace-nowrap">
+                  <span className="text-muted-foreground text-[11px] sm:text-xs font-bold text-center px-2 whitespace-nowrap">
                     Report Week {week}
                   </span>
                   <div className="flex justify-center min-w-0">
@@ -251,7 +265,7 @@ export function MatchH2HModal({
 
             {/* FOOTNOTE */}
             <div className="px-2 pt-1 text-center">
-              <span className="text-[8.5px] md:text-[9.5px] font-medium text-muted-foreground/80 italic">
+              <span className="text-[11px] sm:text-xs font-medium text-muted-foreground italic">
                 💡 Klik baris <strong>Report Week</strong> untuk melihat screenshot bukti pertandingan.
               </span>
             </div>
@@ -261,4 +275,4 @@ export function MatchH2HModal({
     </div>,
     document.body
   );
-    }                
+}
