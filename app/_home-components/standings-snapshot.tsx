@@ -31,7 +31,7 @@ export function StandingsSnapshot({
         {/* RANK */}
         <td className="py-2 px-1 md:py-2.5 text-center w-[11%]">
           <span
-            className={`inline-flex h-4.5 w-4.5 md:h-5 md:w-5 items-center justify-center rounded-sm font-black text-[10px] md:text-xs ${badgeBgColor}`}
+            className={`inline-flex h-4.5 w-4.5 md:h-5 md:w-5 items-center justify-center rounded-sm font-black text-[10px] md:text-xs shadow-2xs ${badgeBgColor}`}
           >
             {idx + 1}
           </span>
@@ -61,9 +61,9 @@ export function StandingsSnapshot({
           <span
             className={
               item.roundDifference > 0
-                ? "text-emerald-500 font-bold"
+                ? "text-emerald-700 dark:text-emerald-400 font-bold"
                 : item.roundDifference < 0
-                ? "text-rose-500 font-bold"
+                ? "text-rose-700 dark:text-rose-400 font-bold"
                 : "text-muted-foreground"
             }
           >
@@ -124,12 +124,12 @@ export function StandingsSnapshot({
           <div className="space-y-3.5 md:space-y-4 pt-2.5">
             {/* GRUP A */}
             <div className="space-y-1.5">
-              <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 px-1 flex items-center gap-1.5">
+              <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400 px-1 flex items-center gap-1.5">
                 <Trophy className="h-3.5 w-3.5" /> Divisi {DIVISION_MAP.GROUP_A}
               </span>
-              <div className="overflow-hidden rounded-xl border border-sky-500/20">
+              <div className="overflow-hidden rounded-xl border border-sky-500/30 dark:border-sky-500/20">
                 <table className="w-full text-left table-fixed">
-                  <thead className="bg-sky-500/10 border-b border-sky-500/20 text-[9px] md:text-[10px] font-black uppercase text-muted-foreground">
+                  <thead className="bg-sky-500/15 dark:bg-sky-500/10 border-b border-sky-500/30 dark:border-sky-500/20 text-[9px] md:text-[10px] font-black uppercase text-slate-700 dark:text-muted-foreground">
                     <tr>
                       <th className="py-1.5 px-1 text-center w-[11%]">RANK</th>
                       <th className="py-1.5 pl-1 pr-1 w-[49%]">TEAM</th>
@@ -138,11 +138,11 @@ export function StandingsSnapshot({
                       <th className="py-1.5 pl-0.5 pr-2 text-center w-[14%]">PTS SCORED</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-sky-500/10">
+                  <tbody className="divide-y divide-sky-500/15 dark:divide-sky-500/10">
                     {renderTableRows(
                       topGroupA,
                       "bg-sky-500/5 hover:bg-sky-500/10",
-                      "bg-sky-500/20 text-sky-600 dark:text-sky-400"
+                      "bg-sky-500/20 text-sky-800 dark:text-sky-300 border border-sky-500/40"
                     )}
                   </tbody>
                 </table>
@@ -151,12 +151,12 @@ export function StandingsSnapshot({
 
             {/* GRUP B */}
             <div className="space-y-1.5">
-              <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 px-1 flex items-center gap-1.5">
+              <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 px-1 flex items-center gap-1.5">
                 <Trophy className="h-3.5 w-3.5" /> Divisi {DIVISION_MAP.GROUP_B}
               </span>
-              <div className="overflow-hidden rounded-xl border border-amber-500/20">
+              <div className="overflow-hidden rounded-xl border border-amber-500/30 dark:border-amber-500/20">
                 <table className="w-full text-left table-fixed">
-                  <thead className="bg-amber-500/10 border-b border-amber-500/20 text-[9px] md:text-[10px] font-black uppercase text-muted-foreground">
+                  <thead className="bg-amber-500/15 dark:bg-amber-500/10 border-b border-amber-500/30 dark:border-amber-500/20 text-[9px] md:text-[10px] font-black uppercase text-slate-700 dark:text-muted-foreground">
                     <tr>
                       <th className="py-1.5 px-1 text-center w-[11%]">RANK</th>
                       <th className="py-1.5 pl-1 pr-1 w-[49%]">TEAM</th>
@@ -165,11 +165,11 @@ export function StandingsSnapshot({
                       <th className="py-1.5 pl-0.5 pr-2 text-center w-[14%]">PTS SCORED</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-amber-500/10">
+                  <tbody className="divide-y divide-amber-500/15 dark:divide-amber-500/10">
                     {renderTableRows(
                       topGroupB,
                       "bg-amber-500/5 hover:bg-amber-500/10",
-                      "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                      "bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40"
                     )}
                   </tbody>
                 </table>
@@ -177,14 +177,14 @@ export function StandingsSnapshot({
             </div>
           </div>
         ) : (
-          /* TAB: GLOBAL WILDCARD */
+          /* TAB: GLOBAL WILDCARD (TOP 8) */
           <div className="space-y-1.5 pt-2.5">
-            <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 px-1 flex items-center gap-1.5">
+            <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 px-1 flex items-center gap-1.5">
               <Trophy className="h-3.5 w-3.5" /> Global Wildcard
             </span>
-            <div className="overflow-hidden rounded-xl border border-emerald-500/20">
+            <div className="overflow-hidden rounded-xl border border-emerald-500/30 dark:border-emerald-500/20">
               <table className="w-full text-left table-fixed">
-                <thead className="bg-emerald-500/10 border-b border-emerald-500/20 text-[9px] md:text-[10px] font-black uppercase text-muted-foreground">
+                <thead className="bg-emerald-500/15 dark:bg-emerald-500/10 border-b border-emerald-500/30 dark:border-emerald-500/20 text-[9px] md:text-[10px] font-black uppercase text-slate-700 dark:text-muted-foreground">
                   <tr>
                     <th className="py-1.5 px-1 text-center w-[11%]">RANK</th>
                     <th className="py-1.5 pl-1 pr-1 w-[49%]">TEAM</th>
@@ -193,11 +193,11 @@ export function StandingsSnapshot({
                     <th className="py-1.5 pl-0.5 pr-2 text-center w-[14%]">PTS SCORED</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-emerald-500/10">
+                <tbody className="divide-y divide-emerald-500/15 dark:divide-emerald-500/10">
                   {renderTableRows(
                     topGlobal,
                     "bg-emerald-500/5 hover:bg-emerald-500/10",
-                    "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                    "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40"
                   )}
                 </tbody>
               </table>

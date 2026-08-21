@@ -78,9 +78,10 @@ export function TournamentHub() {
       .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP);
   }, [standings]);
 
+  // TOP 8 GLOBAL WILDCARD (SESUAI KUOTA PLAY-INS)
   const topGlobal = useMemo(() => {
     const globalData = buildGlobalStandings(standings);
-    return globalData.filter((item) => !item.isTopGroup).slice(0, 4);
+    return globalData.filter((item) => !item.isTopGroup).slice(0, 8);
   }, [standings]);
 
   const currentWeekSchedules = useMemo(() => {
@@ -93,7 +94,6 @@ export function TournamentHub() {
 
   const todayDateStrWIB = useMemo(() => getWibDateKey(), []);
 
-  // DIKECUALIKAN MATCH LIVE AGAR TIDAK GANDA DENGAN BAGIAN SEDANG BERLANGSUNG
   const todayMatches = useMemo(() => {
     return currentWeekSchedules.filter(
       (m) =>
@@ -112,7 +112,7 @@ export function TournamentHub() {
     return currentWeekSchedules
       .filter((m) => m.isFinished)
       .sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime())
-      .slice(0, 3);
+      .slice(0, 4);
   }, [currentWeekSchedules]);
 
   return (
@@ -148,4 +148,4 @@ export function TournamentHub() {
       </div>
     </div>
   );
-    }
+}

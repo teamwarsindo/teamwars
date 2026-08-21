@@ -77,7 +77,7 @@ export function MatchCenter({
           {/* 1. SEDANG BERLANGSUNG (LIVE) */}
           {liveMatches.length > 0 && (
             <div className="space-y-1.5">
-              <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-rose-500">
+              <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
                 <Radio className="h-3.5 w-3.5 animate-pulse" /> Sedang Berlangsung
               </span>
               <div className="space-y-2">
@@ -85,36 +85,39 @@ export function MatchCenter({
                   <div
                     key={m.id}
                     onClick={() => setSelectedH2HMatch(m)}
-                    className="flex flex-col gap-2 rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 transition hover:border-rose-500/50 cursor-pointer"
+                    className="flex flex-col gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 transition hover:border-rose-500/60 cursor-pointer shadow-2xs"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <img
                           src={m.teamALogo || "/logo.webp"}
                           alt=""
-                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/50 border p-0.5"
+                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
                         />
                         <span className="font-semibold text-xs sm:text-sm truncate text-foreground">{m.teamAName}</span>
                       </div>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white shrink-0 animate-pulse">
+
+                      {/* TENGAH BERSIH HANYA BADGE LIVE */}
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 dark:bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white shrink-0 animate-pulse mx-1">
                         <Radio className="h-3 w-3" /> LIVE
                       </span>
+
                       <div className="flex items-center justify-end gap-2 min-w-0 flex-1 text-right">
                         <span className="font-semibold text-xs sm:text-sm truncate text-foreground">{m.teamBName}</span>
                         <img
                           src={m.teamBLogo || "/logo.webp"}
                           alt=""
-                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/50 border p-0.5"
+                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
                         />
                       </div>
                     </div>
 
-                    {/* FOOTER LIVE CARD */}
-                    <div className="flex items-center justify-between border-t border-rose-500/20 pt-2 text-xs text-rose-600 dark:text-rose-400">
+                    {/* FOOTER: STREAMER DI KIRI, LINK LIVE DI KANAN */}
+                    <div className="flex items-center justify-between border-t border-rose-500/20 pt-2 text-xs text-rose-700 dark:text-rose-400">
                       <span className="flex items-center gap-1.5 font-medium truncate">
                         <Tv className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">
-                          Streamer: <strong>{m.streamer || "Official Match"}</strong>
+                          Streamer: <strong>{m.streamer || "Butuh Streamer"}</strong>
                         </span>
                       </span>
                       {m.streamLink ? (
@@ -123,9 +126,9 @@ export function MatchCenter({
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="font-bold underline hover:opacity-80 shrink-0"
+                          className="font-bold underline hover:opacity-80 shrink-0 text-rose-700 dark:text-rose-300"
                         >
-                          Live ↗
+                          Tonton Live ↗
                         </a>
                       ) : (
                         <span className="font-bold text-xs uppercase">Live</span>
@@ -140,7 +143,7 @@ export function MatchCenter({
           {/* 2. MAIN HARI INI */}
           {todayMatches.length > 0 && (
             <div className="space-y-1.5">
-              <span className="text-xs font-black uppercase tracking-wider text-sky-400">
+              <span className="text-xs font-black uppercase tracking-wider text-sky-700 dark:text-sky-400">
                 Main Hari Ini
               </span>
               <div className="space-y-2">
@@ -148,47 +151,47 @@ export function MatchCenter({
                   <div
                     key={m.id}
                     onClick={() => setSelectedH2HMatch(m)}
-                    className="flex flex-col gap-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 transition hover:border-sky-500/50 cursor-pointer"
+                    className="flex flex-col gap-2.5 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 transition hover:border-sky-500/60 cursor-pointer shadow-2xs"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <img
                           src={m.teamALogo || "/logo.webp"}
                           alt=""
-                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/50 border p-0.5"
+                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
                         />
                         <span className="font-semibold text-xs sm:text-sm truncate text-foreground">{m.teamAName}</span>
                       </div>
-                      <div className="flex flex-col items-center shrink-0 px-2">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase">VS</span>
-                        <span className="text-xs sm:text-sm font-black text-sky-400">
-                          {formatDateTimeWIB(m.matchDate, { includeDate: false })}
-                        </span>
-                      </div>
+
+                      {/* TENGAH BERSIH HANYA VS */}
+                      <span className="text-[11px] font-black text-muted-foreground uppercase px-2 shrink-0">
+                        VS
+                      </span>
+
                       <div className="flex items-center justify-end gap-2 min-w-0 flex-1 text-right">
                         <span className="font-semibold text-xs sm:text-sm truncate text-foreground">{m.teamBName}</span>
                         <img
                           src={m.teamBLogo || "/logo.webp"}
                           alt=""
-                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/50 border p-0.5"
+                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
                         />
                       </div>
                     </div>
 
-                    {/* FOOTER HARI INI */}
-                    <div className="flex items-center justify-between border-t border-sky-500/20 pt-2 text-xs text-muted-foreground">
+                    {/* FOOTER: STREAMER / BUTUH STREAMER DI KIRI, JAM DI KANAN */}
+                    <div className="flex items-center justify-between border-t border-sky-500/20 pt-2 text-xs">
                       <span className="flex items-center gap-1.5 truncate">
-                        <Mic className={`h-3.5 w-3.5 shrink-0 ${m.streamer ? "text-purple-400" : "text-sky-400"}`} />
+                        <Mic className={`h-3.5 w-3.5 shrink-0 ${m.streamer ? "text-purple-600 dark:text-purple-400" : "text-amber-600 dark:text-amber-400"}`} />
                         <span className="truncate">
                           {m.streamer ? (
-                            <strong className="text-purple-400 font-bold">{m.streamer}</strong>
+                            <strong className="text-purple-700 dark:text-purple-400 font-bold">{m.streamer}</strong>
                           ) : (
-                            <span className="text-slate-400 font-medium">Official Match</span>
+                            <span className="text-amber-700 dark:text-amber-400 font-bold">Butuh Streamer</span>
                           )}
                         </span>
                       </span>
-                      <span className="font-bold text-xs uppercase tracking-wide text-sky-400">
-                        Hari Ini
+                      <span className="font-bold text-xs text-sky-700 dark:text-sky-400 shrink-0">
+                        Hari Ini, {formatDateTimeWIB(m.matchDate, { includeDate: false })}
                       </span>
                     </div>
                   </div>
@@ -200,7 +203,7 @@ export function MatchCenter({
           {/* 3. PERTANDINGAN BERIKUTNYA */}
           {upcomingMatches.length > 0 && (
             <div className="space-y-1.5">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-300">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Pertandingan Berikutnya
               </span>
               <div className="space-y-2">
@@ -208,47 +211,47 @@ export function MatchCenter({
                   <div
                     key={m.id}
                     onClick={() => setSelectedH2HMatch(m)}
-                    className="flex flex-col gap-2 rounded-xl border border-border bg-muted/20 p-3 transition hover:border-primary/40 cursor-pointer"
+                    className="flex flex-col gap-2.5 rounded-xl border border-border bg-muted/25 dark:bg-muted/20 p-3 transition hover:border-primary/50 cursor-pointer shadow-2xs"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <img
                           src={m.teamALogo || "/logo.webp"}
                           alt=""
-                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/50 border p-0.5"
+                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
                         />
                         <span className="font-semibold text-xs sm:text-sm truncate text-foreground">{m.teamAName}</span>
                       </div>
-                      <div className="flex flex-col items-center shrink-0 px-2 text-center">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase">VS</span>
-                        <span className="text-xs font-bold text-slate-200">
-                          {formatMatchWIB(m.matchDate)}
-                        </span>
-                      </div>
+
+                      {/* TENGAH BERSIH HANYA VS */}
+                      <span className="text-[11px] font-black text-muted-foreground uppercase px-2 shrink-0">
+                        VS
+                      </span>
+
                       <div className="flex items-center justify-end gap-2 min-w-0 flex-1 text-right">
                         <span className="font-semibold text-xs sm:text-sm truncate text-foreground">{m.teamBName}</span>
                         <img
                           src={m.teamBLogo || "/logo.webp"}
                           alt=""
-                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/50 border p-0.5"
+                          className="h-6 w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
                         />
                       </div>
                     </div>
 
-                    {/* FOOTER BERIKUTNYA */}
-                    <div className="flex items-center justify-between border-t border-border/50 pt-2 text-xs text-muted-foreground">
+                    {/* FOOTER: STREAMER / BUTUH STREAMER DI KIRI, HARI & JAM DI KANAN */}
+                    <div className="flex items-center justify-between border-t border-border/50 pt-2 text-xs">
                       <span className="flex items-center gap-1.5 truncate">
-                        <Mic className={`h-3.5 w-3.5 shrink-0 ${m.streamer ? "text-purple-400" : "text-primary"}`} />
+                        <Mic className={`h-3.5 w-3.5 shrink-0 ${m.streamer ? "text-purple-600 dark:text-purple-400" : "text-amber-600 dark:text-amber-400"}`} />
                         <span className="truncate">
                           {m.streamer ? (
-                            <strong className="text-purple-400 font-bold">{m.streamer}</strong>
+                            <strong className="text-purple-700 dark:text-purple-400 font-bold">{m.streamer}</strong>
                           ) : (
-                            <span className="text-slate-400 font-medium">Official Match</span>
+                            <span className="text-amber-700 dark:text-amber-400 font-bold">Butuh Streamer</span>
                           )}
                         </span>
                       </span>
-                      <span className="font-bold text-xs uppercase tracking-wide text-slate-400">
-                        Week {m.weekNumber || currentWeek}
+                      <span className="font-bold text-xs text-slate-800 dark:text-slate-200 shrink-0">
+                        {formatMatchWIB(m.matchDate)}
                       </span>
                     </div>
                   </div>
@@ -277,7 +280,7 @@ export function MatchCenter({
                 <div
                   key={m.id}
                   onClick={() => setSelectedH2HMatch(m)}
-                  className="flex flex-col gap-2 rounded-xl border border-border bg-muted/20 p-3 transition hover:border-primary/40 cursor-pointer"
+                  className="flex flex-col gap-2.5 rounded-xl border border-border bg-muted/25 dark:bg-muted/20 p-3 transition hover:border-primary/50 cursor-pointer shadow-2xs"
                 >
                   <div className="flex items-center justify-between gap-2">
                     {/* TIM A */}
@@ -285,12 +288,12 @@ export function MatchCenter({
                       <img
                         src={m.teamALogo || "/logo.webp"}
                         alt=""
-                        className="h-6 w-6 object-contain rounded shrink-0 bg-background/50 border p-0.5"
+                        className="h-6 w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
                       />
                       <span
                         className={`text-xs sm:text-sm truncate font-semibold ${
                           winA
-                            ? "text-emerald-400 font-bold"
+                            ? "text-emerald-700 dark:text-emerald-400 font-bold"
                             : "text-muted-foreground font-medium"
                         }`}
                       >
@@ -303,17 +306,17 @@ export function MatchCenter({
                       <span
                         className={
                           winA
-                            ? "text-emerald-400 font-black"
+                            ? "text-emerald-700 dark:text-emerald-400 font-black"
                             : "text-muted-foreground"
                         }
                       >
                         {sA}
                       </span>
-                      <span className="text-muted-foreground/40 text-xs">-</span>
+                      <span className="text-muted-foreground/60 text-xs">-</span>
                       <span
                         className={
                           winB
-                            ? "text-emerald-400 font-black"
+                            ? "text-emerald-700 dark:text-emerald-400 font-black"
                             : "text-muted-foreground"
                         }
                       >
@@ -326,7 +329,7 @@ export function MatchCenter({
                       <span
                         className={`text-xs sm:text-sm truncate font-semibold ${
                           winB
-                            ? "text-emerald-400 font-bold"
+                            ? "text-emerald-700 dark:text-emerald-400 font-bold"
                             : "text-muted-foreground font-medium"
                         }`}
                       >
@@ -335,16 +338,16 @@ export function MatchCenter({
                       <img
                         src={m.teamBLogo || "/logo.webp"}
                         alt=""
-                        className="h-6 w-6 object-contain rounded shrink-0 bg-background/50 border p-0.5"
+                        className="h-6 w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
                       />
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-border/50 pt-2 text-xs text-muted-foreground">
-                    <span className="text-slate-300 font-medium">
+                  <div className="flex items-center justify-between border-t border-border/50 pt-2 text-xs">
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">
                       {formatDateTimeWIB(m.matchDate, { includeDay: true })}
                     </span>
-                    <span className="font-bold text-sky-400 flex items-center gap-1">
+                    <span className="font-bold text-sky-700 dark:text-sky-400 flex items-center gap-1">
                       <Sparkles className="h-3 w-3" /> Lihat Detail H2H
                     </span>
                   </div>
