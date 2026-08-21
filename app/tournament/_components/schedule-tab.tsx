@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
-import { ScheduleFilter, DivisionFilterType } from "./schedule-filter";
+import { TournamentFilter, DivisionFilterType } from "./tournament-filter";
 import { ScheduleCard } from "./schedule-card";
 
 export interface ScheduleTabProps {
@@ -71,7 +71,6 @@ export function ScheduleTab({
     );
   }, [selectedWeekFilter, selectedGroup, selectedTeamFilter, defaultWeek]);
 
-  // Logika Filter yang Presisi Menggunakan Nilai DIVISION_MAP
   const filteredSchedules = useMemo(() => {
     const cleanTeam = selectedTeamFilter.toLowerCase().trim();
     const cleanA = DIVISION_MAP.GROUP_A.toLowerCase().trim();
@@ -108,12 +107,7 @@ export function ScheduleTab({
         const timeB = b.matchDate ? new Date(b.matchDate).getTime() : 0;
         return timeA - timeB;
       });
-  }, [
-    schedules,
-    selectedWeekFilter,
-    selectedGroup,
-    selectedTeamFilter,
-  ]);
+  }, [schedules, selectedWeekFilter, selectedGroup, selectedTeamFilter]);
 
   const groupedByWeek = useMemo(() => {
     const map = new Map<number, MatchScheduleItem[]>();
@@ -133,23 +127,24 @@ export function ScheduleTab({
 
   return (
     <div className="w-full space-y-4 md:space-y-6">
-      {/* FILTER TOP */}
-      <ScheduleFilter
-        selectedGroupFilter={selectedGroup}
+      {/* 1. FILTER BERSAMA (MODE SCHEDULE) */}
+      <TournamentFilter
+        mode="schedule"
+        selectedGroup={selectedGroup}
         onGroupChange={handleGroupChange}
-        selectedTeamFilter={selectedTeamFilter}
-        onTeamChange={setSelectedTeamFilter}
-        allTeamNames={allTeamNames}
-        selectedWeekFilter={selectedWeekFilter}
+        selectedWeek={selectedWeekFilter}
         onWeekChange={setSelectedWeekFilter}
         availableWeeks={availableWeeks}
+        selectedTeam={selectedTeamFilter}
+        onTeamChange={setSelectedTeamFilter}
+        allTeamNames={allTeamNames}
         isFilterActive={isFilterActive}
         onReset={handleResetFilters}
         isAdmin={isAdmin}
         onSyncSchedules={onResetSchedules}
       />
 
-      {/* LIST KARTU MATCH */}
+      {/* 2. LIST KARTU MATCH */}
       {groupedByWeek.length === 0 ? (
         <div className="p-8 text-center text-xs md:text-sm font-semibold text-muted-foreground bg-card border border-border rounded-2xl">
           Tidak ada jadwal pertandingan yang sesuai dengan filter.
@@ -180,4 +175,5 @@ export function ScheduleTab({
       )}
     </div>
   );
-}
+  }
+    
