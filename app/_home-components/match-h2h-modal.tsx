@@ -221,7 +221,7 @@ export function MatchH2HModal({
               )}
             </div>
 
-            {/* SISI KANAN (7 KOLOM DI DESKTOP): MATRIKS STATISTIK & REPORT */}
+            {/* SISI KANAN (7 KOLOM DI DESKTOP): STATISTIK & REPORT RATA TENGAH */}
             <div className="lg:col-span-7 space-y-2">
               <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 px-1">
                 <Trophy className="h-3.5 w-3.5 text-primary" /> Perbandingan Statistik Season 7
@@ -229,38 +229,40 @@ export function MatchH2HModal({
 
               <div className="rounded-2xl border border-border bg-muted/20 divide-y divide-border overflow-hidden shadow-2xs">
                 {/* 1. STATUS KLASEMEN */}
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-2">
+                <div className="grid grid-cols-[1fr_84px_1fr] sm:grid-cols-[1fr_100px_1fr] items-center px-2 sm:px-3 py-2">
                   <div className="flex justify-center"><QualificationBadge qual={statsA.qualification} /></div>
-                  <span className="text-muted-foreground text-[10px] sm:text-xs font-bold text-center px-3 min-w-[90px]">Klasemen</span>
+                  <span className="text-muted-foreground text-[10px] sm:text-xs font-bold text-center">Klasemen</span>
                   <div className="flex justify-center"><QualificationBadge qual={statsB.qualification} /></div>
                 </div>
 
                 {/* 2. METRICS: WIN RATE, PTS DIFF, TOTAL SCORED */}
                 {metrics.map((m, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5">
+                  <div key={idx} className="grid grid-cols-[1fr_84px_1fr] sm:grid-cols-[1fr_100px_1fr] items-center px-2 sm:px-3 py-1.5">
                     <div className="flex justify-center"><StatsPill valA={m.valA} valB={m.valB} isA={true} text={m.txtA} /></div>
-                    <span className="text-muted-foreground text-[10px] sm:text-xs font-bold text-center px-3 min-w-[90px]">{m.label}</span>
+                    <span className="text-muted-foreground text-[10px] sm:text-xs font-bold text-center">{m.label}</span>
                     <div className="flex justify-center"><StatsPill valA={m.valA} valB={m.valB} isA={false} text={m.txtB} /></div>
                   </div>
                 ))}
 
                 {/* 3. FORM LAGA */}
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5">
+                <div className="grid grid-cols-[1fr_84px_1fr] sm:grid-cols-[1fr_100px_1fr] items-center px-2 sm:px-3 py-1.5">
                   <div className="flex justify-center"><FormSlots formList={statsA.form} /></div>
-                  <span className="text-muted-foreground text-[10px] sm:text-xs font-bold text-center px-3 min-w-[90px]">Form Laga</span>
+                  <span className="text-muted-foreground text-[10px] sm:text-xs font-bold text-center">Form Laga</span>
                   <div className="flex justify-center"><FormSlots formList={statsB.form} /></div>
                 </div>
 
-                {/* 4. DAFTAR REPORT WEEK (HINGGA 8 WEEK BEBAS NABRAK) */}
+                {/* 4. DAFTAR REPORT WEEK (SIMETRIS PRESISI & RATA TENGAH) */}
                 {pastWeeks.map((week) => (
-                  <div key={week} className="grid grid-cols-[1fr_auto_1fr] items-center px-3 py-1.5 hover:bg-muted/40 transition">
-                    <div className="flex justify-end pr-1 min-w-0">
+                  <div key={week} className="grid grid-cols-[1fr_72px_1fr] sm:grid-cols-[1fr_84px_1fr] items-center px-2 sm:px-3 py-1.5 hover:bg-muted/40 transition">
+                    <div className="min-w-0 flex items-center justify-end">
                       <MatchReportCompactItem item={historyA.get(week)} isA={true} />
                     </div>
-                    <span className="rounded-md bg-muted/80 px-2 py-0.5 text-muted-foreground text-[9px] sm:text-[10px] font-extrabold text-center mx-1 whitespace-nowrap min-w-[65px]">
-                      Week {week}
-                    </span>
-                    <div className="flex justify-start pl-1 min-w-0">
+                    <div className="flex justify-center">
+                      <span className="rounded-md bg-muted/80 px-1.5 py-0.5 text-muted-foreground text-[8.5px] sm:text-[9.5px] font-extrabold text-center whitespace-nowrap">
+                        Week {week}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex items-center justify-start">
                       <MatchReportCompactItem item={historyB.get(week)} isA={false} />
                     </div>
                   </div>

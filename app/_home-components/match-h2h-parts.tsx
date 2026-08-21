@@ -93,9 +93,9 @@ export function MatchReportCompactItem({
 }) {
   if (!item) {
     return (
-      <span className="inline-flex items-center justify-center text-[10px] text-muted-foreground/30 font-medium">
-        -
-      </span>
+      <div className={`flex w-full ${isA ? "justify-end pr-2" : "justify-start pl-2"}`}>
+        <span className="text-[10px] text-muted-foreground/30 font-medium">-</span>
+      </div>
     );
   }
 
@@ -106,33 +106,65 @@ export function MatchReportCompactItem({
 
   const content = (
     <div
-      className={`flex items-center gap-1 min-w-0 max-w-full ${
-        isA ? "flex-row justify-end" : "flex-row-reverse justify-end"
+      className={`flex items-center gap-1 sm:gap-1.5 w-full min-w-0 ${
+        isA ? "flex-row justify-end text-right" : "flex-row text-left"
       }`}
     >
-      <span
-        className={`hidden sm:inline-block font-semibold text-[10px] text-muted-foreground truncate max-w-[70px] ${
-          item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
-        }`}
-      >
-        {item.oppName}
-      </span>
-
-      <img
-        src={item.oppLogo || "/logo.webp"}
-        alt=""
-        className="h-4 w-4 sm:h-4.5 sm:w-4.5 object-contain rounded border border-border/60 bg-background/80 p-0.5 shrink-0"
-      />
-
-      <span className="font-bold text-[10px] sm:text-[11px] tracking-tight text-foreground whitespace-nowrap">
-        {item.myScore}-{item.oppScore}
-      </span>
-
-      <span
-        className={`inline-flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded text-[7.5px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
-      >
-        {isWin ? "W" : "L"}
-      </span>
+      {isA ? (
+        <>
+          {/* NAMA TIM LAWAN (A) */}
+          <span
+            className={`font-semibold text-[9.5px] sm:text-[11px] text-muted-foreground truncate max-w-[55px] xs:max-w-[75px] sm:max-w-[100px] md:max-w-[130px] ${
+              item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
+            }`}
+          >
+            {item.oppName}
+          </span>
+          {/* LOGO LAWAN */}
+          <img
+            src={item.oppLogo || "/logo.webp"}
+            alt=""
+            className="h-3.5 w-3.5 sm:h-4 sm:w-4 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+          />
+          {/* SKOR */}
+          <span className="font-bold text-[9.5px] sm:text-[11px] tracking-tight text-foreground whitespace-nowrap">
+            {item.myScore}-{item.oppScore}
+          </span>
+          {/* BADGE W/L */}
+          <span
+            className={`inline-flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
+          >
+            {isWin ? "W" : "L"}
+          </span>
+        </>
+      ) : (
+        <>
+          {/* BADGE W/L */}
+          <span
+            className={`inline-flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
+          >
+            {isWin ? "W" : "L"}
+          </span>
+          {/* SKOR */}
+          <span className="font-bold text-[9.5px] sm:text-[11px] tracking-tight text-foreground whitespace-nowrap">
+            {item.myScore}-{item.oppScore}
+          </span>
+          {/* LOGO LAWAN */}
+          <img
+            src={item.oppLogo || "/logo.webp"}
+            alt=""
+            className="h-3.5 w-3.5 sm:h-4 sm:w-4 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+          />
+          {/* NAMA TIM LAWAN (B) */}
+          <span
+            className={`font-semibold text-[9.5px] sm:text-[11px] text-muted-foreground truncate max-w-[55px] xs:max-w-[75px] sm:max-w-[100px] md:max-w-[130px] ${
+              item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
+            }`}
+          >
+            {item.oppName}
+          </span>
+        </>
+      )}
     </div>
   );
 
@@ -143,7 +175,7 @@ export function MatchReportCompactItem({
         target="_blank"
         rel="noopener noreferrer"
         title={`Lihat bukti report vs ${item.oppName}`}
-        className="group inline-flex items-center transition hover:opacity-85 active:scale-95 cursor-pointer min-w-0"
+        className="group flex items-center w-full min-w-0 transition hover:opacity-85 active:scale-95 cursor-pointer"
       >
         {content}
       </a>
@@ -151,7 +183,7 @@ export function MatchReportCompactItem({
   }
 
   return (
-    <div className="inline-flex items-center opacity-85 cursor-default min-w-0" title={`Lawan: ${item.oppName}`}>
+    <div className="flex items-center w-full min-w-0 opacity-90 cursor-default" title={`Lawan: ${item.oppName}`}>
       {content}
     </div>
   );
