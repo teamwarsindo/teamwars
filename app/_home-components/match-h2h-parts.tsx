@@ -16,7 +16,7 @@ export function StatsPill({
 
   if (isWin && !isDraw) {
     return (
-      <span className="inline-flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 px-3 py-0.5 text-[11px] sm:text-xs font-black shadow-2xs min-w-[58px] sm:min-w-[76px]">
+      <span className="inline-flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 px-3 py-0.5 text-xs sm:text-sm font-black shadow-2xs min-w-[62px] sm:min-w-[76px]">
         {text}
       </span>
     );
@@ -24,14 +24,14 @@ export function StatsPill({
 
   if (isDraw) {
     return (
-      <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 px-3 py-0.5 text-[11px] sm:text-xs font-extrabold shadow-2xs min-w-[58px] sm:min-w-[76px]">
+      <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 px-3 py-0.5 text-xs sm:text-sm font-extrabold shadow-2xs min-w-[62px] sm:min-w-[76px]">
         {text}
       </span>
     );
   }
 
   return (
-    <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/60 px-3 py-0.5 text-[11px] sm:text-xs font-semibold text-muted-foreground min-w-[58px] sm:min-w-[76px]">
+    <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/60 px-3 py-0.5 text-xs sm:text-sm font-semibold text-muted-foreground min-w-[62px] sm:min-w-[76px]">
       {text}
     </span>
   );
@@ -40,9 +40,9 @@ export function StatsPill({
 export function QualificationBadge({ qual }: { qual: QualificationStatus }) {
   return (
     <div className="flex flex-col items-center justify-center gap-0.5 text-center">
-      <span className="font-bold text-[11px] sm:text-xs text-foreground">{qual.rankLabel}</span>
+      <span className="font-bold text-xs sm:text-sm text-foreground">{qual.rankLabel}</span>
       <span
-        className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[8.5px] sm:text-[9.5px] font-bold border shadow-2xs ${
+        className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[9px] sm:text-xs font-bold border shadow-2xs ${
           qual.isQualified
             ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
             : "border-rose-500/40 bg-rose-500/15 text-rose-700 dark:text-rose-400"
@@ -58,12 +58,12 @@ export function FormSlots({ formList }: { formList: ("W" | "L")[] }) {
   const slots = Array.from({ length: 8 }, (_, i) => formList[i] || null);
 
   return (
-    <div className="grid grid-cols-4 gap-0.5 sm:gap-1 w-fit mx-auto justify-items-center items-center">
+    <div className="grid grid-cols-4 gap-1 w-fit mx-auto justify-items-center items-center">
       {slots.map((res, i) =>
         res ? (
           <span
             key={i}
-            className={`inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded font-black text-[8px] sm:text-[9px] shadow-2xs ${
+            className={`inline-flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded font-black text-[8.5px] sm:text-[9.5px] shadow-2xs ${
               res === "W"
                 ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40"
                 : "bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/40"
@@ -74,7 +74,7 @@ export function FormSlots({ formList }: { formList: ("W" | "L")[] }) {
         ) : (
           <span
             key={i}
-            className="inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded bg-muted/40 border border-border/40 text-[8px] text-muted-foreground/30 font-bold"
+            className="inline-flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded bg-muted/40 border border-border/40 text-[8.5px] text-muted-foreground/30 font-bold"
           >
             -
           </span>
@@ -93,8 +93,8 @@ export function MatchReportCompactItem({
 }) {
   if (!item) {
     return (
-      <div className={`flex w-full py-0.5 ${isA ? "justify-start pl-1" : "justify-end pr-1"}`}>
-        <span className="text-[10px] text-muted-foreground/30 font-medium italic">-</span>
+      <div className={`flex w-full py-0.5 ${isA ? "justify-start pl-2" : "justify-end pr-2"}`}>
+        <span className="text-xs text-muted-foreground/30 font-bold tracking-widest">-</span>
       </div>
     );
   }
@@ -108,22 +108,22 @@ export function MatchReportCompactItem({
     <div className="w-full">
       {isA ? (
         /* TIM A: MEPET KIRI MENTOK */
-        <div className="flex items-center justify-start gap-1 sm:gap-2 w-full">
+        <div className="flex items-center justify-start gap-1.5 sm:gap-2 w-full">
           <span
-            className={`inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded text-[8px] sm:text-[9px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
+            className={`inline-flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded text-[8.5px] sm:text-[9.5px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
           >
             {isWin ? "W" : "L"}
           </span>
-          <span className="font-bold text-[10.5px] sm:text-xs tracking-tight text-foreground whitespace-nowrap">
+          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
             {item.myScore}-{item.oppScore}
           </span>
           <img
             src={item.oppLogo || "/logo.webp"}
             alt=""
-            className="h-4 w-4 sm:h-5 sm:w-5 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+            className="h-4.5 w-4.5 sm:h-5 sm:w-5 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
           />
           <span
-            className={`font-semibold text-[10px] sm:text-xs text-muted-foreground truncate max-w-[85px] xs:max-w-[105px] sm:max-w-[130px] lg:max-w-[160px] text-left ${
+            className={`font-bold text-xs sm:text-sm text-muted-foreground truncate max-w-[85px] xs:max-w-[110px] sm:max-w-[140px] text-left ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
             }`}
           >
@@ -132,9 +132,9 @@ export function MatchReportCompactItem({
         </div>
       ) : (
         /* TIM B: MEPET KANAN MENTOK */
-        <div className="flex items-center justify-end gap-1 sm:gap-2 w-full">
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2 w-full">
           <span
-            className={`font-semibold text-[10px] sm:text-xs text-muted-foreground truncate max-w-[85px] xs:max-w-[105px] sm:max-w-[130px] lg:max-w-[160px] text-right ${
+            className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[85px] xs:max-w-[110px] sm:max-w-[140px] text-right ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
             }`}
           >
@@ -143,13 +143,13 @@ export function MatchReportCompactItem({
           <img
             src={item.oppLogo || "/logo.webp"}
             alt=""
-            className="h-4 w-4 sm:h-5 sm:w-5 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+            className="h-4.5 w-4.5 sm:h-5 sm:w-5 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
           />
-          <span className="font-bold text-[10.5px] sm:text-xs tracking-tight text-foreground whitespace-nowrap">
+          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
             {item.myScore}-{item.oppScore}
           </span>
           <span
-            className={`inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded text-[8px] sm:text-[9px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
+            className={`inline-flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded text-[8.5px] sm:text-[9.5px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
           >
             {isWin ? "W" : "L"}
           </span>
@@ -177,5 +177,5 @@ export function MatchReportCompactItem({
       {content}
     </div>
   );
-      }
-            
+        }
+    
