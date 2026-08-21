@@ -50,11 +50,10 @@ export function TournamentHub({
     // Filter seluruh match pekan berjalan
     const weekSchedules = schedules.filter((m) => (m.weekNumber || 1) === currentWeek);
 
-    // A. LIVE MATCH: Flag live aktif, belum selesai, dan durasi <= 5 jam dari matchDate
+    // A. LIVE MATCH: Memiliki streamLink, belum selesai, dan durasi <= 5 jam dari matchDate
     const live = weekSchedules.filter((m) => {
       if (m.isFinished) return false;
-      const isLiveFlag = Boolean(m.streamLink) || Boolean(m.isLive);
-      if (!isLiveFlag || !m.matchDate) return false;
+      if (!m.streamLink || !m.matchDate) return false;
 
       const matchTime = new Date(m.matchDate).getTime();
       return nowTime <= matchTime + fiveHoursInMs;
@@ -79,7 +78,7 @@ export function TournamentHub({
       .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime())
       .slice(0, 3);
 
-    // D. HASIL TERBARU: Match pekan ini yang sudah selesai (diurutkan dari yang paling baru)
+    // D. HASIL TERBARU: Match pekan ini yang sudah selesai
     const finished = weekSchedules
       .filter((m) => {
         const sA = Number(m.scoreA) || 0;
@@ -240,4 +239,5 @@ function MiniStandingTable({ items = [] }: { items: ExtendedStandingItem[] }) {
       </div>
     </div>
   );
-}
+                                           }
+              
