@@ -12,6 +12,7 @@ import {
   calculateStandings,
   buildGlobalStandings,
 } from "@/app/tournament/_library/calculator";
+import { Trophy, Minus, ChevronUp, ChevronDown, Layers, Globe } from "lucide-react";
 
 interface StandingTabProps {
   schedules: MatchScheduleItem[];
@@ -22,13 +23,13 @@ function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
   const slots = Array.from({ length: 8 }, (_, i) => form[i] || null);
 
   return (
-    <div className="grid grid-cols-4 gap-1 w-fit mx-auto justify-items-center">
+    <div className="grid grid-cols-4 gap-0.5 sm:gap-1 w-fit mx-auto justify-items-center">
       {slots.map((res, idx) => {
         if (!res) {
           return (
             <span
               key={idx}
-              className="flex h-3.5 w-3.5 md:h-4 md:w-4 items-center justify-center rounded bg-muted/40 text-muted-foreground/30 text-[7.5px] md:text-[8px] font-bold border border-dashed border-border/50"
+              className="flex h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 items-center justify-center rounded bg-muted/30 text-muted-foreground/30 text-[7px] sm:text-[7.5px] md:text-[8px] font-bold border border-dashed border-border/40"
             >
               -
             </span>
@@ -38,10 +39,10 @@ function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
         return (
           <span
             key={idx}
-            className={`flex h-3.5 w-3.5 md:h-4 md:w-4 items-center justify-center rounded text-[7.5px] md:text-[8.5px] font-black shadow-2xs ${
+            className={`flex h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 items-center justify-center rounded text-[7px] sm:text-[7.5px] md:text-[8.5px] font-black shadow-2xs ${
               res === "W"
-                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
+                : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
             }`}
           >
             {res}
@@ -151,28 +152,47 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     );
   }, [globalStandings]);
 
+  // Icon Trend yang Kontras & Jelas di Dark Mode
   const renderTrendIcon = (trend?: "up" | "down" | "stay") => {
-    if (trend === "up") return <span className="text-emerald-500 font-bold text-[9px]">▲</span>;
-    if (trend === "down") return <span className="text-rose-500 font-bold text-[9px]">▼</span>;
-    return <span className="text-muted-foreground/40 font-bold text-[9px]">➖</span>;
+    if (trend === "up") {
+      return <ChevronUp className="h-3 w-3 text-emerald-500 shrink-0 stroke-[3]" />;
+    }
+    if (trend === "down") {
+      return <ChevronDown className="h-3 w-3 text-rose-500 shrink-0 stroke-[3]" />;
+    }
+    return <Minus className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0 stroke-[3]" />;
   };
 
   const renderTable = (items: any[], title: string, isGlobal = false) => (
     <div className="space-y-2 w-full flex-1">
       <h3 className="text-xs md:text-sm font-black uppercase tracking-wider text-primary flex items-center gap-1.5 px-1">
-        <span>🏆</span> {title}
+        <Trophy className="h-4 w-4 text-amber-500 dark:text-amber-400 shrink-0" />
+        <span>{title}</span>
       </h3>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
         <table className="w-full text-left text-xs md:text-sm table-fixed">
-          <thead className="bg-muted/60 border-b border-border text-[8.5px] sm:text-[9.5px] md:text-[10.5px] font-extrabold uppercase text-muted-foreground tracking-wider">
+          {/* HEADER TABEL DENGAN LEBAR IDENTIK & LABEL 2 BARIS MOBILE FRIENDLY */}
+          <thead className="bg-muted/60 border-b border-border text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase text-muted-foreground tracking-tight">
             <tr>
-              <th className={`py-2 px-1 text-center ${isGlobal ? "w-[15%]" : "w-[12%]"}`}>RANK</th>
-              <th className={`py-2 pl-1 pr-1 ${isGlobal ? "w-[33%]" : "w-[36%]"}`}>TEAM</th>
-              <th className="py-2 px-0.5 text-center w-[13%] text-primary leading-tight">W-L</th>
-              <th className="py-2 px-0.5 text-center w-[11%] leading-tight">DIFF</th>
-              <th className="py-2 px-0.5 text-center w-[11%] leading-tight">PTS</th>
-              <th className="py-2 pl-0.5 pr-2 text-center w-[16%]">FORM</th>
+              <th className="py-2.5 px-1 text-center w-[14%]">
+                RANK
+              </th>
+              <th className="py-2.5 pl-1.5 pr-1 w-[32%]">
+                TEAM
+              </th>
+              <th className="py-2.5 px-0.5 text-center w-[14%] text-primary leading-tight">
+                MATCH<br />W-L
+              </th>
+              <th className="py-2.5 px-0.5 text-center w-[13%] leading-tight">
+                PTS<br />DIFF
+              </th>
+              <th className="py-2.5 px-0.5 text-center w-[13%] leading-tight">
+                PTS<br />SCORED
+              </th>
+              <th className="py-2.5 pl-0.5 pr-2 text-center w-[14%] leading-tight">
+                MATCH<br />FORM
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40 font-semibold text-foreground">
@@ -208,32 +228,36 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
               return (
                 <tr key={item.teamId || item.teamName || idx} className={rowStyle}>
                   {/* RANK */}
-                  <td className="py-2 px-1 text-center font-bold">
+                  <td className="py-2.5 px-1 text-center font-bold">
                     <div className="flex items-center justify-center gap-0.5">
                       {renderTrendIcon(trend)}
-                      <span className="text-[10.5px] md:text-xs font-black">
+                      <span className="text-[10px] sm:text-[11px] md:text-xs font-black truncate">
                         {isGlobal ? item.customRankLabel : item.rank}
                       </span>
                     </div>
                   </td>
 
-                  {/* TEAMS */}
-                  <td className="py-2 pl-1 pr-1">
+                  {/* TEAM */}
+                  <td className="py-2.5 pl-1.5 pr-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <img src={item.teamLogo || "/logo.webp"} alt="" className="h-4 w-4 md:h-5 md:w-5 shrink-0 object-contain" />
-                      <span className="font-bold text-[10.5px] sm:text-xs md:text-sm truncate text-foreground">
+                      <img
+                        src={item.teamLogo || "/logo.webp"}
+                        alt=""
+                        className="h-4 w-4 sm:h-4.5 sm:w-4.5 md:h-5 md:w-5 shrink-0 object-contain"
+                      />
+                      <span className="font-bold text-[10px] sm:text-xs md:text-sm truncate text-foreground">
                         {item.teamName}
                       </span>
                     </div>
                   </td>
 
                   {/* MATCH W-L */}
-                  <td className="py-2 px-0.5 text-center font-black text-primary text-[10.5px] sm:text-xs md:text-sm">
+                  <td className="py-2.5 px-0.5 text-center font-black text-primary text-[10px] sm:text-xs md:text-sm">
                     {item.matchWins}-{item.matchLosses}
                   </td>
 
                   {/* PTS DIFF */}
-                  <td className="py-2 px-0.5 text-center font-bold text-[10.5px] sm:text-xs md:text-sm">
+                  <td className="py-2.5 px-0.5 text-center font-bold text-[10px] sm:text-xs md:text-sm">
                     <span
                       className={
                         item.roundDifference > 0
@@ -247,13 +271,13 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                     </span>
                   </td>
 
-                  {/* SCORED */}
-                  <td className="py-2 px-0.5 text-center font-black text-foreground text-[10.5px] sm:text-xs md:text-sm">
+                  {/* PTS SCORED */}
+                  <td className="py-2.5 px-0.5 text-center font-black text-foreground text-[10px] sm:text-xs md:text-sm">
                     {item.setWins}
                   </td>
 
-                  {/* FORM */}
-                  <td className="py-1.5 pl-0.5 pr-2 text-center">
+                  {/* MATCH FORM */}
+                  <td className="py-2 pl-0.5 pr-2 text-center">
                     <MatchFormGrid form={item.form} />
                   </td>
                 </tr>
@@ -266,40 +290,43 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   );
 
   return (
-    <div className="w-full space-y-4 md:space-y-5">
-      {/* SUB-TAB & PEKAN */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs">
-        <div className="flex items-center gap-2">
+    <div className="w-full space-y-3.5 md:space-y-4">
+      {/* 1. FILTER CONTROLS: SUB-TAB & DROPDOWN WEEK (TANPA LABEL TEKS PEKAN) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-card border border-border p-2.5 sm:p-3.5 rounded-2xl shadow-xs">
+        {/* SUB-TABS: UKURAN SERAGAM DAN PRESISI */}
+        <div className="grid grid-cols-2 gap-1.5 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => updateRoute("groups")}
-            className={`py-1.5 px-3 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer ${
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer leading-none text-center ${
               activeView === "GROUPS"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/40"
             }`}
           >
-            📊 Divisi Group
+            <Layers className="h-3.5 w-3.5 shrink-0" />
+            <span>Divisi Group</span>
           </button>
           <button
             type="button"
             onClick={() => updateRoute("global")}
-            className={`py-1.5 px-3 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer ${
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 md:px-4 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer leading-none text-center ${
               activeView === "GLOBAL"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "bg-muted/30 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/40"
             }`}
           >
-            🌐 Standing Global Wildcard
+            <Globe className="h-3.5 w-3.5 shrink-0" />
+            <span>Global Wildcard</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <label className="text-xs md:text-sm font-bold text-muted-foreground">Pekan:</label>
+        {/* DROPDOWN WEEK TANPA TEKS PEKAN */}
+        <div className="w-full sm:w-auto self-end sm:self-auto">
           <select
             value={selectedWeek}
             onChange={(e) => updateRoute(activeView === "GLOBAL" ? "global" : "groups", Number(e.target.value))}
-            className="bg-background border border-input rounded-xl px-3 py-1.5 text-xs md:text-sm font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer shadow-2xs"
+            className="w-full sm:w-auto bg-background border border-input rounded-xl px-3 py-2 text-xs md:text-sm font-bold text-primary focus:outline-none focus:border-primary transition cursor-pointer shadow-2xs"
           >
             {availableWeeksUpToCurrent.map((w) => (
               <option key={w} value={w}>
@@ -310,42 +337,51 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
         </div>
       </div>
 
-      {/* KETENTUAN KUALIFIKASI */}
-      <div className="p-3 sm:p-3.5 bg-card border border-border rounded-2xl text-xs md:text-sm space-y-1.5 shadow-xs">
+      {/* 2. KETENTUAN KUALIFIKASI: 1 KOLOM / LIST RAPI DENGAN NAMA DIVISI ASLI */}
+      <div className="p-3 bg-card border border-border rounded-2xl text-xs md:text-sm space-y-2 shadow-xs">
         <p className="font-bold text-foreground flex items-center gap-1.5 text-xs md:text-sm">
           💡 <span>Ketentuan Kualifikasi:</span>
         </p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-muted-foreground font-semibold text-[10.5px] md:text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0"></span>
-            <span><strong>Top {TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP} Div. A</strong>: Quarter</span>
+        <div className="flex flex-col gap-1.5 text-muted-foreground font-semibold text-[11px] md:text-xs">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0"></span>
+            <span>
+              <strong className="text-foreground">Top {TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP} {DIVISION_MAP.GROUP_A}</strong>: Lolos Quarter Finals
+            </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"></span>
-            <span><strong>Top {TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP} Div. B</strong>: Quarter</span>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0"></span>
+            <span>
+              <strong className="text-foreground">Top {TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP} {DIVISION_MAP.GROUP_B}</strong>: Lolos Quarter Finals
+            </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-            <span><strong>Rank 1–{TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA} Wildcard</strong>: Play-Ins</span>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0"></span>
+            <span>
+              <strong className="text-foreground">Rank 1–{TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA} Wildcard</strong>: Masuk Babak Play-Ins
+            </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500 shrink-0"></span>
-            <span><strong>Rank {TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA + 1}+ Wildcard</strong>: Eliminasi</span>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0"></span>
+            <span>
+              <strong className="text-foreground">Rank {TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA + 1}+ Wildcard</strong>: Tereliminasi
+            </span>
           </div>
         </div>
       </div>
 
-      {/* TABEL: BERSEBELAHAN (SIDE BY SIDE) DI DESKTOP */}
+      {/* 3. TABEL STANDING */}
       {activeView === "GROUPS" ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
-          {renderTable(groupAStandings, `Divisi ${DIVISION_MAP.GROUP_A}`)}
-          {renderTable(groupBStandings, `Divisi ${DIVISION_MAP.GROUP_B}`)}
+          {renderTable(groupAStandings, `${DIVISION_MAP.GROUP_A}`)}
+          {renderTable(groupBStandings, `${DIVISION_MAP.GROUP_B}`)}
         </div>
       ) : (
         <div className="w-full">
-          {renderTable(globalStandings, "Klasemen Standing Global Wildcard", true)}
+          {renderTable(globalStandings, "Global Wildcard", true)}
         </div>
       )}
     </div>
   );
-}
+        }
+                    
