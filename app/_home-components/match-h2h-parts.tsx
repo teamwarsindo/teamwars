@@ -105,58 +105,64 @@ export function MatchReportCompactItem({
     : "bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500/40";
 
   const content = (
-    <div
-      className={`flex items-center gap-2 w-full ${
-        isA ? "flex-row justify-end text-right" : "flex-row text-left"
-      }`}
-    >
+    <div className="flex items-center justify-between w-full gap-2 px-1">
       {isA ? (
+        /* TIM A: Nama Lawan di luar (kiri), Skor & Badge di dalam (kanan) */
         <>
-          {/* NAMA TIM LAWAN A (FULL TIDAK TERPOTONG) */}
-          <span
-            className={`font-semibold text-xs sm:text-sm text-muted-foreground whitespace-nowrap ${
-              item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
-            }`}
-          >
-            {item.oppName}
-          </span>
-          <img
-            src={item.oppLogo || "/logo.webp"}
-            alt=""
-            className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
-          />
-          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
-            {item.myScore}-{item.oppScore}
-          </span>
-          <span
-            className={`inline-flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
-          >
-            {isWin ? "W" : "L"}
-          </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <img
+              src={item.oppLogo || "/logo.webp"}
+              alt=""
+              className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+            />
+            <span
+              className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[110px] sm:max-w-[150px] ${
+                item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
+              }`}
+            >
+              {item.oppName}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
+              {item.myScore}-{item.oppScore}
+            </span>
+            <span
+              className={`inline-flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
+            >
+              {isWin ? "W" : "L"}
+            </span>
+          </div>
         </>
       ) : (
+        /* TIM B: Badge & Skor di dalam (kiri), Nama Lawan di luar (kanan) */
         <>
-          <span
-            className={`inline-flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
-          >
-            {isWin ? "W" : "L"}
-          </span>
-          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
-            {item.myScore}-{item.oppScore}
-          </span>
-          <img
-            src={item.oppLogo || "/logo.webp"}
-            alt=""
-            className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
-          />
-          {/* NAMA TIM LAWAN B (FULL TIDAK TERPOTONG) */}
-          <span
-            className={`font-semibold text-xs sm:text-sm text-muted-foreground whitespace-nowrap ${
-              item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
-            }`}
-          >
-            {item.oppName}
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span
+              className={`inline-flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
+            >
+              {isWin ? "W" : "L"}
+            </span>
+            <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
+              {item.myScore}-{item.oppScore}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 min-w-0 justify-end">
+            <span
+              className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[110px] sm:max-w-[150px] ${
+                item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
+              }`}
+            >
+              {item.oppName}
+            </span>
+            <img
+              src={item.oppLogo || "/logo.webp"}
+              alt=""
+              className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+            />
+          </div>
         </>
       )}
     </div>
