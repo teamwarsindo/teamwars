@@ -16,7 +16,7 @@ export function StatsPill({
 
   if (isWin && !isDraw) {
     return (
-      <span className="inline-flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 px-3.5 py-0.5 sm:px-4 sm:py-1 text-xs sm:text-sm font-black shadow-2xs min-w-[70px] sm:min-w-[84px]">
+      <span className="inline-flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 px-3.5 py-0.5 sm:px-4 sm:py-1 text-xs sm:text-sm font-black shadow-2xs min-w-[68px] sm:min-w-[84px]">
         {text}
       </span>
     );
@@ -24,14 +24,14 @@ export function StatsPill({
 
   if (isDraw) {
     return (
-      <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 px-3.5 py-0.5 sm:px-4 sm:py-1 text-xs sm:text-sm font-extrabold shadow-2xs min-w-[70px] sm:min-w-[84px]">
+      <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 px-3.5 py-0.5 sm:px-4 sm:py-1 text-xs sm:text-sm font-extrabold shadow-2xs min-w-[68px] sm:min-w-[84px]">
         {text}
       </span>
     );
   }
 
   return (
-    <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/60 px-3.5 py-0.5 sm:px-4 sm:py-1 text-xs sm:text-sm font-semibold text-muted-foreground min-w-[70px] sm:min-w-[84px]">
+    <span className="inline-flex items-center justify-center rounded-full bg-muted/60 border border-border/60 px-3.5 py-0.5 sm:px-4 sm:py-1 text-xs sm:text-sm font-semibold text-muted-foreground min-w-[68px] sm:min-w-[84px]">
       {text}
     </span>
   );
@@ -108,27 +108,22 @@ export function MatchReportCompactItem({
     <div className="w-full">
       {isA ? (
         /* SISI KIRI (TIM A) */
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-start gap-1 sm:gap-2.5 w-full">
-          {/* BARIS 1 (MOBILE): [W/L] [SKOR] [LOGO] */}
-          <div className="flex items-center justify-start gap-1.5 sm:gap-2 shrink-0">
-            <span
-              className={`inline-flex h-4.5 w-4.5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[8.5px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
-            >
-              {isWin ? "W" : "L"}
-            </span>
-            <span className="font-bold text-[11px] sm:text-sm tracking-tight text-foreground whitespace-nowrap">
-              {item.myScore}-{item.oppScore}
-            </span>
-            <img
-              src={item.oppLogo || "/logo.webp"}
-              alt=""
-              className="h-4.5 w-4.5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
-            />
-          </div>
-
-          {/* BARIS 2 (MOBILE) / SEJAJAR (DESKTOP): NAMA TIM LAWAN */}
+        <div className="flex items-center justify-start gap-1.5 sm:gap-2.5 w-full">
           <span
-            className={`font-semibold text-[10px] sm:text-xs md:text-sm text-muted-foreground truncate max-w-[110px] sm:max-w-[150px] lg:max-w-[180px] text-left ${
+            className={`inline-flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
+          >
+            {isWin ? "W" : "L"}
+          </span>
+          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
+            {item.myScore}-{item.oppScore}
+          </span>
+          <img
+            src={item.oppLogo || "/logo.webp"}
+            alt=""
+            className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+          />
+          <span
+            className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[85px] xs:max-w-[105px] sm:max-w-[150px] lg:max-w-[180px] text-left ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
             }`}
           >
@@ -137,31 +132,26 @@ export function MatchReportCompactItem({
         </div>
       ) : (
         /* SISI KANAN (TIM B) */
-        <div className="flex flex-col sm:flex-row-reverse sm:items-center sm:justify-start gap-1 sm:gap-2.5 w-full">
-          {/* BARIS 1 (MOBILE): [LOGO] [SKOR] [W/L] */}
-          <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
-            <img
-              src={item.oppLogo || "/logo.webp"}
-              alt=""
-              className="h-4.5 w-4.5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
-            />
-            <span className="font-bold text-[11px] sm:text-sm tracking-tight text-foreground whitespace-nowrap">
-              {item.myScore}-{item.oppScore}
-            </span>
-            <span
-              className={`inline-flex h-4.5 w-4.5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[8.5px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
-            >
-              {isWin ? "W" : "L"}
-            </span>
-          </div>
-
-          {/* BARIS 2 (MOBILE) / SEJAJAR (DESKTOP): NAMA TIM LAWAN */}
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2.5 w-full">
           <span
-            className={`font-semibold text-[10px] sm:text-xs md:text-sm text-muted-foreground truncate max-w-[110px] sm:max-w-[150px] lg:max-w-[180px] text-right ${
+            className={`font-semibold text-xs sm:text-sm text-muted-foreground truncate max-w-[85px] xs:max-w-[105px] sm:max-w-[150px] lg:max-w-[180px] text-right ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
             }`}
           >
             {item.oppName}
+          </span>
+          <img
+            src={item.oppLogo || "/logo.webp"}
+            alt=""
+            className="h-5 w-5 sm:h-6 sm:w-6 object-contain rounded shrink-0 bg-background/80 border border-border/60 p-0.5"
+          />
+          <span className="font-bold text-xs sm:text-sm tracking-tight text-foreground whitespace-nowrap">
+            {item.myScore}-{item.oppScore}
+          </span>
+          <span
+            className={`inline-flex h-5 w-5 sm:h-5.5 sm:w-5.5 items-center justify-center rounded text-[9px] sm:text-[10px] font-black border shadow-2xs shrink-0 ${badgeColor}`}
+          >
+            {isWin ? "W" : "L"}
           </span>
         </div>
       )}
@@ -187,4 +177,4 @@ export function MatchReportCompactItem({
       {content}
     </div>
   );
-}
+    }
