@@ -80,8 +80,12 @@ export function MatchH2HModal({
   const isWinnerA = isMatchFinished && actualScoreA > actualScoreB;
   const isWinnerB = isMatchFinished && actualScoreB > actualScoreA;
 
-  // LANGSUNG DIKUNCI 7 PEKAN PENUH (WEEK 1 S/D WEEK 7)
-  const fullSeasonWeeks = [1, 2, 3, 4, 5, 6, 7];
+  // HANYA TAMPILKAN PEKAN YANG SUDAH SELESAI / BERTANDING
+  const pastWeeks = useMemo(() => {
+    const target = match?.weekNumber || currentWeek;
+    const maxWeek = isMatchFinished ? target : Math.max(0, target - 1);
+    return Array.from({ length: maxWeek }, (_, i) => i + 1);
+  }, [match, currentWeek, isMatchFinished]);
 
   if (!mounted || !match || !statsA || !statsB) return null;
 
@@ -128,7 +132,7 @@ export function MatchH2HModal({
         {/* BODY */}
         <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 md:p-6 space-y-3">
           
-          {/* TOP CARD: MATCH VS & PREDIKSI (KOMPAK & FONT PROPORSIONAL) */}
+          {/* TOP CARD: MATCH VS & PREDIKSI */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-4 items-center">
             {/* TEAMS DISPLAY */}
             <div className="lg:col-span-6 flex items-center justify-between rounded-2xl bg-muted/30 p-2.5 sm:p-3 border border-border shadow-2xs">
@@ -243,7 +247,7 @@ export function MatchH2HModal({
             </button>
           </div>
 
-          {/* CONTENT AREA: 2 KOLOM (DESKTOP) / TAB BERGANTIAN (MOBILE) */}
+          {/* CONTENT AREA */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 lg:gap-6 items-stretch">
             
             {/* STATISTIK SEASON 7 */}
@@ -278,54 +282,38 @@ export function MatchH2HModal({
               </div>
             </div>
 
-            {/* RIWAYAT MATCH 7 WEEK PENUH */}
+            {/* RIWAYAT MATCH (BERSIH TANPA HEADER GANDA & HANYA PEKAN YG SELESAI) */}
             <div className={`flex flex-col justify-between rounded-2xl border border-border bg-muted/20 p-2.5 sm:p-4 shadow-2xs h-full ${mobileTab === "REPORT" ? "flex" : "hidden lg:flex"}`}>
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
-                  <span className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
-                    <History className="h-3.5 w-3.5 text-primary" /> Riwayat Pertandingan Pekan Lalu
-                  </span>
-                  <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">
-                    Reguler Season
-                  </span>
-                </div>
+                {/* LIST KARTU REPORT DINAMIS */}
+                {pastWeeks.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {pastWeeks.map((week) => (
+                      <div
+                        key={week}
+                        className="grid grid-cols-[1fr_56px_1fr] sm:grid-cols-[1fr_64px_1fr] items-center py-2 px-2 rounded-xl border border-border/50 bg-background/50 hover:bg-muted/60 transition shadow-2xs"
+                      >
+                        <div className="min-w-0 pr-1 flex items-center justify-start">
+                          <MatchReportCompactItem item={historyA.get(week)} isA={true} />
+                        </div>
 
-                {/* SUB-HEADER IDENTITAS TIM */}
-                <div className="grid grid-cols-[1fr_56px_1fr] sm:grid-cols-[1fr_64px_1fr] items-center px-2 py-1 bg-muted/40 rounded-xl border border-border/40 text-center">
-                  <span className="text-xs sm:text-sm font-bold text-sky-600 dark:text-sky-400 truncate px-1 text-center">
-                    {match.teamAName}
-                  </span>
-                  <span className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">
-                    PEKAN
-                  </span>
-                  <span className="text-xs sm:text-sm font-bold text-amber-600 dark:text-amber-400 truncate px-1 text-center">
-                    {match.teamBName}
-                  </span>
-                </div>
+                        <div className="flex justify-center">
+                          <span className="rounded-md bg-muted border border-border/60 px-1.5 py-0.5 text-muted-foreground text-[9px] sm:text-[10px] font-extrabold text-center whitespace-nowrap shadow-2xs">
+                            Week {week}
+                          </span>
+                        </div>
 
-                {/* LIST KARTU REPORT TEPAT 7 WEEK PENUH */}
-                <div className="space-y-1 pt-0.5">
-                  {fullSeasonWeeks.map((week) => (
-                    <div
-                      key={week}
-                      className="grid grid-cols-[1fr_56px_1fr] sm:grid-cols-[1fr_64px_1fr] items-center py-1.5 px-2 rounded-xl border border-border/50 bg-background/50 hover:bg-muted/60 transition shadow-2xs"
-                    >
-                      <div className="min-w-0 pr-1 flex items-center justify-start">
-                        <MatchReportCompactItem item={historyA.get(week)} isA={true} />
+                        <div className="min-w-0 pl-1 flex items-center justify-end">
+                          <MatchReportCompactItem item={historyB.get(week)} isA={false} />
+                        </div>
                       </div>
-
-                      <div className="flex justify-center">
-                        <span className="rounded-md bg-muted border border-border/60 px-1.5 py-0.5 text-muted-foreground text-[9px] sm:text-[10px] font-extrabold text-center whitespace-nowrap shadow-2xs">
-                          Week {week}
-                        </span>
-                      </div>
-
-                      <div className="min-w-0 pl-1 flex items-center justify-end">
-                        <MatchReportCompactItem item={historyB.get(week)} isA={false} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-xs font-semibold text-muted-foreground">
+                    Belum ada riwayat pertandingan reguler season.
+                  </div>
+                )}
               </div>
 
               {/* FOOTNOTE */}
@@ -342,4 +330,4 @@ export function MatchH2HModal({
     </div>,
     document.body
   );
-            }
+                    }
