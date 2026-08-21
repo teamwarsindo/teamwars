@@ -10,7 +10,7 @@ import {
   TOURNAMENT_RULES,
 } from "@/app/tournament/_library";
 import { ScheduleTab } from "./schedule-tab";
-import { StandingTab } from "./standing-tab";
+import { StandingTab } from "./standings-tab";
 import { PlayoffTab } from "./playoff-tab";
 import { DivisionFilterType } from "./tournament-filter";
 import { MatchReportModal } from "./match-report-modal";
@@ -41,16 +41,20 @@ export function TournamentView({
       ? "PLAYOFF"
       : "SCHEDULE";
 
+  // Tab switcher dengan sharing state query params (group & week tetap dipertahankan)
   const handleTabChange = (tabKey: "SCHEDULE" | "STANDINGS" | "PLAYOFF") => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams.toString());
+
     if (tabKey === "SCHEDULE") {
       params.set("tab", "schedule");
     } else if (tabKey === "STANDINGS") {
       params.set("tab", "standings");
-      params.set("view", "groups");
+      // Hapus view legacy agar default masuk ke Standing Global
+      params.delete("view");
     } else {
       params.set("tab", "playoff");
     }
+
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
@@ -135,17 +139,17 @@ export function TournamentView({
 
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-4">
-      {/* 3 TAB NAVIGASI UTAMA */}
+      {/* 3 TAB NAVIGASI UTAMA (UKURAN PRESISI & STANDAR LABEL STANDING) */}
       <div className="grid grid-cols-3 gap-2 w-full max-w-xl mx-auto">
         {[
           { key: "SCHEDULE", label: "Group Stage" },
-          { key: "STANDINGS", label: "Klasemen" },
+          { key: "STANDINGS", label: "Standing" },
           { key: "PLAYOFF", label: "Playoff" },
         ].map((tab) => (
           <button
             key={tab.key}
             onClick={() => handleTabChange(tab.key as any)}
-            className={`rounded-2xl py-2.5 px-2 text-center text-xs font-bold transition-all cursor-pointer ${
+            className={`min-h-[42px] flex items-center justify-center rounded-2xl py-2 px-3 text-center text-xs sm:text-sm font-bold transition-all cursor-pointer truncate ${
               activeMainTab === tab.key
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "bg-card text-muted-foreground border border-border/80 hover:text-foreground hover:bg-muted/30"
@@ -165,8 +169,6 @@ export function TournamentView({
           isAdmin={isAdmin}
           onResetSchedules={handleForceResetSchedules}
           onSelectMatch={(m) => setActiveReportMatch(m)}
-          selectedGroupFilter={selectedGroupFilter}
-          setSelectedGroupFilter={setSelectedGroupFilter}
           defaultWeek={currentWeek}
         />
       )}
@@ -196,4 +198,4 @@ export function TournamentView({
       )}
     </div>
   );
-        }
+}
