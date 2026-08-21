@@ -106,12 +106,12 @@ export function MatchH2HModal({
     >
       <div
         ref={modalContentRef}
-        className="relative flex max-h-[96vh] w-full max-w-xl lg:max-w-6xl flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden"
+        className="relative flex max-h-[94vh] w-full max-w-lg lg:max-w-6xl flex-col rounded-3xl border border-border bg-card text-card-foreground shadow-2xl overflow-hidden"
       >
         {/* HEADER MODAL */}
-        <div className="relative border-b border-border bg-muted/40 px-5 py-3 sm:py-4 text-center">
+        <div className="relative border-b border-border bg-muted/40 px-6 py-3.5 sm:py-4 text-center">
           <div className="flex flex-col items-center justify-center gap-1">
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1 text-xs sm:text-sm font-bold text-primary">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3.5 py-1 text-xs sm:text-sm font-bold text-primary">
               <Swords className="h-4 w-4" /> Week {match.weekNumber || currentWeek} • {match.groupName || "Group Stage"}
             </span>
             <p className="text-xs sm:text-sm text-muted-foreground font-medium">
@@ -127,12 +127,12 @@ export function MatchH2HModal({
           </button>
         </div>
 
-        {/* BODY: 2 KOLOM BESAR & LAPANG DI DESKTOP */}
+        {/* BODY: DESKTOP 2-KOLOM SIMETRIS & BESAR */}
         <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6 md:p-7">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-7 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-7 items-stretch">
             
             {/* SISI KIRI: MATCH BANNER + PREDIKSI + STATISTIK */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3.5 sm:gap-4">
               {/* TEAMS DISPLAY */}
               <div className="flex items-center justify-between rounded-2xl bg-muted/30 p-4 sm:p-5 border border-border shadow-2xs">
                 {/* TIM A */}
@@ -149,7 +149,7 @@ export function MatchH2HModal({
 
                 {/* TENGAH: SKOR / VS */}
                 {isMatchFinished ? (
-                  <div className="flex flex-col items-center px-3 shrink-0">
+                  <div className="flex flex-col items-center px-3 sm:px-4 shrink-0">
                     <div className="flex items-center gap-2 text-2xl sm:text-3xl font-black tracking-tight">
                       <span className={isWinnerA ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>
                         {actualScoreA}
@@ -164,7 +164,7 @@ export function MatchH2HModal({
                     </span>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center px-3 shrink-0">
+                  <div className="flex flex-col items-center px-3 sm:px-4 shrink-0">
                     <span className="rounded-xl bg-muted px-3 py-1 text-xs sm:text-sm font-black text-muted-foreground">
                       VS
                     </span>
@@ -221,9 +221,9 @@ export function MatchH2HModal({
               )}
 
               {/* STATISTIK INTI SEASON 7 */}
-              <div className="rounded-2xl border border-border bg-muted/20 divide-y divide-border overflow-hidden shadow-2xs">
+              <div className="rounded-2xl border border-border bg-muted/20 divide-y divide-border overflow-hidden shadow-2xs flex-1 flex flex-col justify-around">
                 {/* 1. STATUS KLASEMEN */}
-                <div className="grid grid-cols-[1fr_100px_1fr] items-center px-4 py-2.5">
+                <div className="grid grid-cols-[1fr_110px_1fr] items-center px-4 py-2.5">
                   <div className="flex justify-center"><QualificationBadge qual={statsA.qualification} /></div>
                   <span className="text-muted-foreground text-xs font-bold text-center">Klasemen</span>
                   <div className="flex justify-center"><QualificationBadge qual={statsB.qualification} /></div>
@@ -231,7 +231,7 @@ export function MatchH2HModal({
 
                 {/* 2. METRICS */}
                 {metrics.map((m, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_100px_1fr] items-center px-4 py-2">
+                  <div key={idx} className="grid grid-cols-[1fr_110px_1fr] items-center px-4 py-2">
                     <div className="flex justify-center"><StatsPill valA={m.valA} valB={m.valB} isA={true} text={m.txtA} /></div>
                     <span className="text-muted-foreground text-xs font-bold text-center">{m.label}</span>
                     <div className="flex justify-center"><StatsPill valA={m.valA} valB={m.valB} isA={false} text={m.txtB} /></div>
@@ -239,7 +239,7 @@ export function MatchH2HModal({
                 ))}
 
                 {/* 3. FORM LAGA */}
-                <div className="grid grid-cols-[1fr_100px_1fr] items-center px-4 py-2">
+                <div className="grid grid-cols-[1fr_110px_1fr] items-center px-4 py-2">
                   <div className="flex justify-center"><FormSlots formList={statsA.form} /></div>
                   <span className="text-muted-foreground text-xs font-bold text-center">Form Laga</span>
                   <div className="flex justify-center"><FormSlots formList={statsB.form} /></div>
@@ -247,55 +247,57 @@ export function MatchH2HModal({
               </div>
             </div>
 
-            {/* SISI KANAN: RIWAYAT PERTANDINGAN DENGAN HEADER IDENTITAS TIM */}
-            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/20 p-4 sm:p-5 shadow-2xs">
-              <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                <span className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
-                  <History className="h-4 w-4 text-primary" /> Riwayat Pertandingan Pekan Lalu
-                </span>
-                <span className="text-xs text-muted-foreground font-medium">
-                  Reguler Season
-                </span>
-              </div>
+            {/* SISI KANAN: RIWAYAT PERTANDINGAN DENGAN LEBAR LUAS */}
+            <div className="flex flex-col justify-between rounded-2xl border border-border bg-muted/20 p-4 sm:p-5 shadow-2xs h-full">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                  <span className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
+                    <History className="h-4 w-4 text-primary" /> Riwayat Pertandingan Pekan Lalu
+                  </span>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Reguler Season
+                  </span>
+                </div>
 
-              {/* SUB-HEADER: IDENTITAS KEPEMILIKAN KOLOM TIM A & TIM B */}
-              <div className="grid grid-cols-[1fr_74px_1fr] items-center px-2 py-1 bg-muted/40 rounded-xl border border-border/40 text-center">
-                <span className="text-[11px] sm:text-xs font-bold text-sky-600 dark:text-sky-400 truncate px-1">
-                  {match.teamAName}
-                </span>
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">
-                  PEKAN
-                </span>
-                <span className="text-[11px] sm:text-xs font-bold text-amber-600 dark:text-amber-400 truncate px-1">
-                  {match.teamBName}
-                </span>
-              </div>
+                {/* SUB-HEADER: IDENTITAS KEPEMILIKAN KOLOM TIM A & TIM B */}
+                <div className="grid grid-cols-[1fr_76px_1fr] items-center px-3 py-1.5 bg-muted/40 rounded-xl border border-border/40 text-center">
+                  <span className="text-xs sm:text-sm font-bold text-sky-600 dark:text-sky-400 truncate px-1">
+                    {match.teamAName}
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] font-black text-muted-foreground uppercase tracking-wider">
+                    PEKAN
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-amber-600 dark:text-amber-400 truncate px-1">
+                    {match.teamBName}
+                  </span>
+                </div>
 
-              {/* LIST KARTU REPORT PER PEKAN */}
-              <div className="space-y-2 pt-1">
-                {displayWeeks.map((week) => (
-                  <div
-                    key={week}
-                    className="grid grid-cols-[1fr_74px_1fr] items-center py-2 px-2.5 rounded-xl border border-border/50 bg-background/50 hover:bg-muted/60 transition shadow-2xs"
-                  >
-                    <div className="min-w-0 flex items-center justify-end">
-                      <MatchReportCompactItem item={historyA.get(week)} isA={true} />
+                {/* LIST KARTU REPORT PER PEKAN (LAPANG & NAMA TIDAK KEPOTONG) */}
+                <div className="space-y-2.5 pt-1">
+                  {displayWeeks.map((week) => (
+                    <div
+                      key={week}
+                      className="grid grid-cols-[1fr_76px_1fr] items-center py-2.5 px-3 rounded-xl border border-border/50 bg-background/50 hover:bg-muted/60 transition shadow-2xs"
+                    >
+                      <div className="min-w-0 flex items-center justify-end">
+                        <MatchReportCompactItem item={historyA.get(week)} isA={true} />
+                      </div>
+                      <div className="flex justify-center">
+                        <span className="rounded-md bg-muted border border-border/60 px-2.5 py-1 text-muted-foreground text-[10px] sm:text-[11px] font-extrabold text-center whitespace-nowrap shadow-2xs">
+                          Week {week}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex items-center justify-start">
+                        <MatchReportCompactItem item={historyB.get(week)} isA={false} />
+                      </div>
                     </div>
-                    <div className="flex justify-center">
-                      <span className="rounded-md bg-muted border border-border/60 px-2 py-0.5 text-muted-foreground text-[9.5px] sm:text-[10.5px] font-extrabold text-center whitespace-nowrap shadow-2xs">
-                        Week {week}
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex items-center justify-start">
-                      <MatchReportCompactItem item={historyB.get(week)} isA={false} />
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
               {/* FOOTNOTE */}
-              <div className="pt-3 border-t border-border/50 text-center mt-auto">
-                <span className="text-[11px] sm:text-xs font-medium text-muted-foreground italic">
+              <div className="pt-3.5 border-t border-border/50 text-center mt-4">
+                <span className="text-xs font-medium text-muted-foreground italic">
                   💡 Klik baris pertandingan untuk membuka screenshot bukti report.
                 </span>
               </div>
