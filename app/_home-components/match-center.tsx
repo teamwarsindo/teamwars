@@ -5,7 +5,7 @@ import Link from "next/link";
 import { MatchScheduleItem, formatDateTimeWIB, formatMatchWIB } from "@/app/tournament/_library";
 import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 import { MatchH2HModal } from "./match-h2h-modal";
-import { Calendar, Radio, Sparkles, ChevronRight, Mic } from "lucide-react";
+import { Calendar, Radio, Sparkles, ChevronRight, Mic, Tv } from "lucide-react";
 
 interface MatchCenterProps {
   currentWeek: number;
@@ -108,24 +108,29 @@ export function MatchCenter({
                         />
                       </div>
                     </div>
-                    {m.streamer && (
-                      <div className="flex items-center justify-between border-t border-rose-500/20 pt-1.5 text-[10px] text-rose-600 dark:text-rose-400">
-                        <span className="flex items-center gap-1 font-medium truncate">
-                          📺 Streamer: <strong>{m.streamer}</strong>
+
+                    {/* FOOTER LIVE CARD */}
+                    <div className="flex items-center justify-between border-t border-rose-500/20 pt-1.5 text-[10px] text-rose-600 dark:text-rose-400">
+                      <span className="flex items-center gap-1 font-medium truncate">
+                        <Tv className="h-3 w-3 shrink-0" />
+                        <span className="truncate">
+                          Streamer: <strong>{m.streamerName || m.streamer || "Official Match"}</strong>
                         </span>
-                        {m.streamLink && (
-                          <a
-                            href={m.streamLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="font-bold underline hover:opacity-80 shrink-0"
-                          >
-                            Live ↗
-                          </a>
-                        )}
-                      </div>
-                    )}
+                      </span>
+                      {m.streamLink ? (
+                        <a
+                          href={m.streamLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-bold underline hover:opacity-80 shrink-0"
+                        >
+                          Live ↗
+                        </a>
+                      ) : (
+                        <span className="font-bold text-[9px] uppercase">Live</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -169,14 +174,23 @@ export function MatchCenter({
                         />
                       </div>
                     </div>
-                    {m.streamer && (
-                      <div className="flex items-center justify-between border-t border-sky-500/20 pt-1.5 text-[10px] text-muted-foreground">
-                        <span className="flex items-center gap-1 truncate">
-                          <Mic className="h-3 w-3 text-sky-500" /> {m.streamer}
+
+                    {/* FOOTER HARI INI (SELALU TAMPIL) */}
+                    <div className="flex items-center justify-between border-t border-sky-500/20 pt-1.5 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1 truncate">
+                        <Mic className="h-3 w-3 text-sky-500 shrink-0" />
+                        <span className="truncate">
+                          {m.streamerName || m.streamer ? (
+                            <strong className="text-foreground">{m.streamerName || m.streamer}</strong>
+                          ) : (
+                            <span className="text-muted-foreground/60 italic">Official Match</span>
+                          )}
                         </span>
-                        <span className="font-bold text-[9px] uppercase">Hari Ini</span>
-                      </div>
-                    )}
+                      </span>
+                      <span className="font-bold text-[9px] uppercase tracking-wide text-sky-600 dark:text-sky-400">
+                        Hari Ini
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -220,14 +234,23 @@ export function MatchCenter({
                         />
                       </div>
                     </div>
-                    {m.streamer && (
-                      <div className="flex items-center justify-between border-t border-border/50 pt-1.5 text-[10px] text-muted-foreground">
-                        <span className="flex items-center gap-1 truncate">
-                          <Mic className="h-3 w-3 text-primary" /> {m.streamer}
+
+                    {/* FOOTER BERIKUTNYA (SELALU TAMPIL KONSISTEN) */}
+                    <div className="flex items-center justify-between border-t border-border/50 pt-1.5 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1 truncate">
+                        <Mic className="h-3 w-3 text-primary shrink-0" />
+                        <span className="truncate">
+                          {m.streamerName || m.streamer ? (
+                            <strong className="text-foreground">{m.streamerName || m.streamer}</strong>
+                          ) : (
+                            <span className="text-muted-foreground/60 italic">Official Match</span>
+                          )}
                         </span>
-                        <span className="font-bold text-[9px] uppercase">Week {m.weekNumber}</span>
-                      </div>
-                    )}
+                      </span>
+                      <span className="font-bold text-[9px] uppercase tracking-wide text-muted-foreground">
+                        Week {m.weekNumber || currentWeek}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -345,5 +368,5 @@ export function MatchCenter({
         />
       )}
     </div>
-  );
+  );       
 }
