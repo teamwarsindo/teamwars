@@ -208,4 +208,4 @@ export function PaymentModal({
       </div>
     </div>
   );
-            }
+              }
