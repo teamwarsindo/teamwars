@@ -1,16 +1,16 @@
 export interface RefereeProfile {
-  name: string;             // Nama wasit
-  bankName: string;         // Contoh: "BCA"
-  accountNumber: string;    // Contoh: "8271009921"
-  accountHolder: string;    // Contoh: "Alex Chandra"
-  feePerMatch: number;      // Default 15000
+  name: string;
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  feePerMatch: number;
 }
 
 export interface RefereePayout {
   id: string;
   refereeName: string;
   amountPaid: number;
-  paidWeeks: number[];
+  paidWeeks?: number[];
   paymentDate: string;
   transferReceiptUrl?: string;
   notes?: string;
@@ -28,4 +28,14 @@ export interface RefereeAggregatedData {
   profile?: RefereeProfile;
   payoutHistory: RefereePayout[];
   missingReportCount: number;
+  matches: Array<{
+    id: string;
+    weekNumber: number;
+    teamAName: string;
+    teamBName: string;
+    scoreA: number;
+    scoreB: number;
+    hasReport: boolean;
+    reportUrl?: string;
+  }>;
 }
