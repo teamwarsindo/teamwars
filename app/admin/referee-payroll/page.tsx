@@ -11,8 +11,8 @@ import {
 import { PayrollMetrics } from "./_components/payroll-metrics";
 import { EditProfileModal, PaymentModal } from "./_components/payroll-modals";
 import { PayrollFilter } from "./_components/payroll-filter";
-import { RefereeCardItem } from "./_components/referee-card-item";
-import { ShieldCheck, Wallet, AlertTriangle } from "lucide-react";
+import { PayrollTable } from "./_components/payroll-table";
+import { ShieldCheck, AlertTriangle } from "lucide-react";
 
 function RefereePayrollContent() {
   const searchParams = useSearchParams();
@@ -27,7 +27,6 @@ function RefereePayrollContent() {
 
   const [loading, setLoading] = useState(true);
   const [copiedName, setCopiedName] = useState<string | null>(null);
-  const [expandedRef, setExpandedRef] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<number | "ALL">("ALL");
 
   const [editingProfile, setEditingProfile] = useState<RefereeProfile | null>(null);
@@ -57,8 +56,36 @@ function RefereePayrollContent() {
     fetchData();
   }, [token]);
 
+  // Dynamic Summary sesuai Pekan yang dipilih
+  const filteredSummary = useMemo(() => {
+    if (!data?.referees) return data?.summary;
+    if (selectedWeek === "ALL") return data.summary;
+
+    let totalMatches = 0;
+    data.referees.forEach((r) => {
+      const wMatches = r.matches?.filter((m) => m.weekNumber === selectedWeek) || [];
+      totalMatches += wMatches.length;
+    });
+
+    const totalBudget = totalMatches * 15000;
+    return {
+      totalMatchesHandled: totalMatches,
+      totalPayrollBudget: totalBudget,
+      totalPaidOut: data.summary.totalPaidOut,
+      totalPendingPayout: totalBudget,
+    };
+  }, [data, selectedWeek]);
+
   const handleCopySlip = (ref: RefereeAggregatedData) => {
-    const text = `[SLIP HONOR REFEREE TWI S7]\nNama: ${ref.name}\nTotal Match: ${ref.totalMatches} Match\nTotal Fee: Rp ${ref.totalEarned.toLocaleString("id-ID")}\nSudah Dibayar: Rp ${ref.totalPaid.toLocaleString("id-ID")}\nSisa Tagihan: Rp ${ref.remainingUnpaid.toLocaleString("id-ID")}\nRekening Tujuan: ${ref.profile?.bankName || "-"} ${ref.profile?.accountNumber || "-"} a/n ${ref.profile?.accountHolder || "-"}\n\nTerima kasih atas tugasnya!`;
+    const matches =
+      selectedWeek === "ALL"
+        ? ref.matches
+        : ref.matches?.filter((m) => m.weekNumber === selectedWeek);
+
+    const matchCount = matches?.length || 0;
+    const earned = matchCount * ref.feePerMatch;
+
+    const text = `[SLIP HONOR REFEREE TWI S7]\nNama: ${ref.name}\nPeriode: ${selectedWeek === "ALL" ? "Semua Pekan" : `Pekan ${selectedWeek}`}\nTotal Match: ${matchCount} Match\nTotal Fee: Rp ${earned.toLocaleString("id-ID")}\nRekening Tujuan: ${ref.profile?.bankName || "-"} ${ref.profile?.accountNumber || "-"} a/n ${ref.profile?.accountHolder || "-"}\n\nTerima kasih atas kepemimpinannya!`;
     navigator.clipboard.writeText(text);
     setCopiedName(ref.name);
     setTimeout(() => setCopiedName(null), 2000);
@@ -111,7 +138,7 @@ function RefereePayrollContent() {
             </h1>
           </div>
           <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-            Rekap kepemimpinan match, audit laporan mingguan, dan pembayaran honor wasit Season 7.
+            Audit laga real-time, bukti laporan pertandingan, dan pembayaran honor wasit Season 7.
           </p>
         </div>
 
@@ -128,7 +155,7 @@ function RefereePayrollContent() {
 
       {loading ? (
         <div className="py-16 text-center text-xs font-bold text-muted-foreground animate-pulse">
-          ⏳ Memuat data rekap wasit...
+          ⏳ Memuat rekap audit wasit...
         </div>
       ) : !data ? (
         <div className="py-16 text-center space-y-2">
@@ -139,7 +166,7 @@ function RefereePayrollContent() {
         </div>
       ) : (
         <>
-          <PayrollMetrics summary={data.summary} />
+          <PayrollMetrics summary={filteredSummary} />
 
           <PayrollFilter
             activeWeeks={activeWeeks}
@@ -147,46 +174,25 @@ function RefereePayrollContent() {
             onSelectWeek={setSelectedWeek}
           />
 
-          <div className="rounded-3xl border border-border bg-card p-3.5 sm:p-5 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
-              <span className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
-                <Wallet className="h-4 w-4 text-primary" /> Rincian Kinerja & Rekening
-              </span>
-              <span className="text-[10.5px] sm:text-xs text-muted-foreground font-semibold">
-                Tarif: Rp 15.000 / Match
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              {data.referees.map((ref) => (
-                <RefereeCardItem
-                  key={ref.name}
-                  referee={ref}
-                  activeWeeks={activeWeeks}
-                  selectedWeek={selectedWeek}
-                  isAdmin={data.isAdmin}
-                  isExpanded={expandedRef === ref.name}
-                  isCopied={copiedName === ref.name}
-                  onToggleExpand={() =>
-                    setExpandedRef(expandedRef === ref.name ? null : ref.name)
-                  }
-                  onCopySlip={() => handleCopySlip(ref)}
-                  onEdit={() =>
-                    setEditingProfile(
-                      ref.profile || {
-                        name: ref.name,
-                        bankName: "BCA",
-                        accountNumber: "",
-                        accountHolder: "",
-                        feePerMatch: 15000,
-                      }
-                    )
-                  }
-                  onPay={() => setPayingReferee(ref)}
-                />
-              ))}
-            </div>
-          </div>
+          <PayrollTable
+            referees={data.referees}
+            selectedWeek={selectedWeek}
+            isAdmin={data.isAdmin}
+            copiedName={copiedName}
+            onCopySlip={handleCopySlip}
+            onEdit={(ref) =>
+              setEditingProfile(
+                ref.profile || {
+                  name: ref.name,
+                  bankName: "BCA",
+                  accountNumber: "",
+                  accountHolder: "",
+                  feePerMatch: 15000,
+                }
+              )
+            }
+            onPay={(ref) => setPayingReferee(ref)}
+          />
         </>
       )}
 
@@ -227,5 +233,5 @@ export default function RefereePayrollPage() {
       <Footer />
     </div>
   );
-      }
+         }
       
