@@ -10,7 +10,6 @@ import {
 } from "@/app/tournament/_library/referee-types";
 import { PayrollMetrics } from "./_components/payroll-metrics";
 import { EditProfileModal, PaymentModal } from "./_components/payroll-modals";
-import { PayrollFilter } from "./_components/payroll-filter";
 import { PayrollTable } from "./_components/payroll-table";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 
@@ -27,10 +26,13 @@ function RefereePayrollContent() {
 
   const [loading, setLoading] = useState(true);
   const [copiedName, setCopiedName] = useState<string | null>(null);
-  const [selectedWeek, setSelectedWeek] = useState<number | "ALL">("ALL");
 
   const [editingProfile, setEditingProfile] = useState<RefereeProfile | null>(null);
-  const [payingReferee, setPayingReferee] = useState<RefereeAggregatedData | null>(null);
+  const [payingReferee, setPayingReferee] = useState<{
+    referee: RefereeAggregatedData;
+    selectedWeeks: number[];
+    amount: number;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const activeWeeks = useMemo(() => {
@@ -56,36 +58,18 @@ function RefereePayrollContent() {
     fetchData();
   }, [token]);
 
-  // Dynamic Summary sesuai Pekan yang dipilih
-  const filteredSummary = useMemo(() => {
-    if (!data?.referees) return data?.summary;
-    if (selectedWeek === "ALL") return data.summary;
+  const handleCopySlip = (
+    ref: RefereeAggregatedData,
+    selectedWeeks: number[],
+    totalAmount: number
+  ) => {
+    const weeksLabel =
+      selectedWeeks.length === activeWeeks.length
+        ? "Semua Pekan"
+        : `Week ${selectedWeeks.join(", ")}`;
 
-    let totalMatches = 0;
-    data.referees.forEach((r) => {
-      const wMatches = r.matches?.filter((m) => m.weekNumber === selectedWeek) || [];
-      totalMatches += wMatches.length;
-    });
-
-    const totalBudget = totalMatches * 15000;
-    return {
-      totalMatchesHandled: totalMatches,
-      totalPayrollBudget: totalBudget,
-      totalPaidOut: data.summary.totalPaidOut,
-      totalPendingPayout: totalBudget,
-    };
-  }, [data, selectedWeek]);
-
-  const handleCopySlip = (ref: RefereeAggregatedData) => {
-    const matches =
-      selectedWeek === "ALL"
-        ? ref.matches
-        : ref.matches?.filter((m) => m.weekNumber === selectedWeek);
-
-    const matchCount = matches?.length || 0;
-    const earned = matchCount * ref.feePerMatch;
-
-    const text = `[SLIP HONOR REFEREE TWI S7]\nNama: ${ref.name}\nPeriode: ${selectedWeek === "ALL" ? "Semua Pekan" : `Pekan ${selectedWeek}`}\nTotal Match: ${matchCount} Match\nTotal Fee: Rp ${earned.toLocaleString("id-ID")}\nRekening Tujuan: ${ref.profile?.bankName || "-"} ${ref.profile?.accountNumber || "-"} a/n ${ref.profile?.accountHolder || "-"}\n\nTerima kasih atas kepemimpinannya!`;
+    const text = `[SLIP HONOR REFEREE TWI S7]\nNama: ${ref.name}\nPekan: ${weeksLabel}\nTotal Match: ${totalAmount / ref.feePerMatch} Match\nTotal Honor: Rp ${totalAmount.toLocaleString("id-ID")}\nRekening Tujuan: ${ref.profile?.bankName || "-"} ${ref.profile?.accountNumber || "-"} a/n ${ref.profile?.accountHolder || "-"}\n\nTerima kasih atas tugas kepemimpinannya!`;
+    
     navigator.clipboard.writeText(text);
     setCopiedName(ref.name);
     setTimeout(() => setCopiedName(null), 2000);
@@ -112,8 +96,9 @@ function RefereePayrollContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          refereeName: payingReferee.name,
+          refereeName: payingReferee.referee.name,
           amountPaid: amount,
+          paidWeeks: payingReferee.selectedWeeks,
           notes,
           transferReceiptUrl: receiptUrl,
         }),
@@ -126,7 +111,7 @@ function RefereePayrollContent() {
   };
 
   return (
-    <main className="flex-1 w-full max-w-6xl mx-auto p-3.5 sm:p-6 space-y-4 sm:space-y-6">
+    <main className="flex-1 w-full max-w-5xl mx-auto p-3.5 sm:p-6 space-y-4 sm:space-y-6">
       <HeroHeader showDetails={false} />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
@@ -138,7 +123,7 @@ function RefereePayrollContent() {
             </h1>
           </div>
           <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-            Audit laga real-time, bukti laporan pertandingan, dan pembayaran honor wasit Season 7.
+            Centang pekan untuk akumulasi gaji otomatis, audit laporan match, dan transfer honor.
           </p>
         </div>
 
@@ -166,17 +151,11 @@ function RefereePayrollContent() {
         </div>
       ) : (
         <>
-          <PayrollMetrics summary={filteredSummary} />
-
-          <PayrollFilter
-            activeWeeks={activeWeeks}
-            selectedWeek={selectedWeek}
-            onSelectWeek={setSelectedWeek}
-          />
+          <PayrollMetrics summary={data.summary} />
 
           <PayrollTable
             referees={data.referees}
-            selectedWeek={selectedWeek}
+            activeWeeks={activeWeeks}
             isAdmin={data.isAdmin}
             copiedName={copiedName}
             onCopySlip={handleCopySlip}
@@ -191,7 +170,13 @@ function RefereePayrollContent() {
                 }
               )
             }
-            onPay={(ref) => setPayingReferee(ref)}
+            onPay={(ref, selectedWeeks, totalAmount) =>
+              setPayingReferee({
+                referee: ref,
+                selectedWeeks,
+                amount: totalAmount,
+              })
+            }
           />
         </>
       )}
@@ -207,7 +192,10 @@ function RefereePayrollContent() {
 
       {payingReferee && (
         <PaymentModal
-          referee={payingReferee}
+          referee={{
+            ...payingReferee.referee,
+            remainingUnpaid: payingReferee.amount,
+          }}
           onClose={() => setPayingReferee(null)}
           onSave={handleSavePayment}
           isPending={isPending}
@@ -233,5 +221,5 @@ export default function RefereePayrollPage() {
       <Footer />
     </div>
   );
-         }
-      
+                              }
+        
