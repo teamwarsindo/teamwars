@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { TopBar, Footer } from "@/components/layout-shared";
 import {
@@ -20,7 +20,7 @@ import {
   Building2,
 } from "lucide-react";
 
-export default function RefereePayrollPage() {
+function RefereePayrollContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
 
@@ -97,165 +97,161 @@ export default function RefereePayrollPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <TopBar title="Referee Payroll" />
-
-      <main className="flex-1 w-full max-w-6xl mx-auto p-3.5 sm:p-6 space-y-4 sm:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-              <h1 className="text-base sm:text-xl font-black tracking-tight">
-                Referee Performance & Payroll Hub
-              </h1>
-            </div>
-            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-              Rekap kepemimpinan match, audit laporan, dan pembayaran honor wasit Season 7.
-            </p>
+    <main className="flex-1 w-full max-w-6xl mx-auto p-3.5 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <h1 className="text-base sm:text-xl font-black tracking-tight">
+              Referee Performance & Payroll Hub
+            </h1>
           </div>
-
-          <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold border shadow-2xs w-fit ${
-              data?.isAdmin
-                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40"
-                : "bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/40"
-            }`}
-          >
-            {data?.isAdmin ? "Mode Super Admin (Akses Penuh)" : "Mode Chief Referee (Masked)"}
-          </span>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+            Rekap kepemimpinan match, audit laporan, dan pembayaran honor wasit Season 7.
+          </p>
         </div>
 
-        {loading ? (
-          <div className="py-16 text-center text-xs font-bold text-muted-foreground animate-pulse">
-            ⏳ Memuat data rekap wasit...
-          </div>
-        ) : !data ? (
-          <div className="py-16 text-center space-y-2">
-            <AlertTriangle className="h-8 w-8 text-rose-500 mx-auto" />
-            <p className="text-xs font-bold text-muted-foreground">
-              Akses ditolak. Token tidak valid atau sesi admin berakhir.
-            </p>
-          </div>
-        ) : (
-          <>
-            <PayrollMetrics summary={data.summary} />
+        <span
+          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold border shadow-2xs w-fit ${
+            data?.isAdmin
+              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40"
+              : "bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/40"
+          }`}
+        >
+          {data?.isAdmin ? "Mode Super Admin (Akses Penuh)" : "Mode Chief Referee (Masked)"}
+        </span>
+      </div>
 
-            <div className="rounded-3xl border border-border bg-card p-3.5 sm:p-5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
-                <span className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
-                  <Wallet className="h-4 w-4 text-primary" /> Rincian Kinerja & Rekening
-                </span>
-                <span className="text-[10.5px] sm:text-xs text-muted-foreground font-semibold">
-                  Tarif: Rp 15.000 / Match
-                </span>
-              </div>
+      {loading ? (
+        <div className="py-16 text-center text-xs font-bold text-muted-foreground animate-pulse">
+          ⏳ Memuat data rekap wasit...
+        </div>
+      ) : !data ? (
+        <div className="py-16 text-center space-y-2">
+          <AlertTriangle className="h-8 w-8 text-rose-500 mx-auto" />
+          <p className="text-xs font-bold text-muted-foreground">
+            Akses ditolak. Token tidak valid atau sesi admin berakhir.
+          </p>
+        </div>
+      ) : (
+        <>
+          <PayrollMetrics summary={data.summary} />
 
-              <div className="space-y-2">
-                {data.referees.map((ref) => (
-                  <div
-                    key={ref.name}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl border border-border/70 bg-muted/20 hover:bg-muted/40 transition shadow-2xs"
-                  >
-                    <div className="flex items-start justify-between sm:justify-start gap-3 min-w-0">
-                      <div className="space-y-0.5 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-foreground truncate">{ref.name}</span>
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black border shadow-2xs ${
-                              ref.payoutStatus === "LUNAS"
-                                ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/40"
-                                : ref.payoutStatus === "PARSIAL"
-                                ? "bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/40"
-                                : "bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500/40"
-                            }`}
-                          >
-                            {ref.payoutStatus === "LUNAS" ? "Lunas" : ref.payoutStatus === "PARSIAL" ? "Parsial" : "Belum Bayar"}
-                          </span>
-                        </div>
+          <div className="rounded-3xl border border-border bg-card p-3.5 sm:p-5 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
+              <span className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
+                <Wallet className="h-4 w-4 text-primary" /> Rincian Kinerja & Rekening
+              </span>
+              <span className="text-[10.5px] sm:text-xs text-muted-foreground font-semibold">
+                Tarif: Rp 15.000 / Match
+              </span>
+            </div>
 
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span>
-                            <strong>{ref.totalMatches}</strong> Match Dipimpin
-                          </span>
-                          <span>•</span>
-                          <span className="font-bold text-foreground">
-                            Rp {ref.totalEarned.toLocaleString("id-ID")}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t border-border/40 sm:border-0">
-                      <div className="text-left sm:text-right min-w-0">
-                        {ref.profile?.accountNumber ? (
-                          <div className="flex flex-col">
-                            <span className="font-bold text-xs text-foreground flex items-center sm:justify-end gap-1">
-                              <Building2 className="h-3 w-3 text-primary" />
-                              {ref.profile.bankName} - {ref.profile.accountNumber}
-                            </span>
-                            <span className="text-[10.5px] text-muted-foreground truncate">
-                              a/n {ref.profile.accountHolder || "-"}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/60 italic">Rekening belum diisi</span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleCopySlip(ref)}
-                          title="Salin Slip Pembayaran"
-                          className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition"
+            <div className="space-y-2">
+              {data.referees.map((ref) => (
+                <div
+                  key={ref.name}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl border border-border/70 bg-muted/20 hover:bg-muted/40 transition shadow-2xs"
+                >
+                  <div className="flex items-start justify-between sm:justify-start gap-3 min-w-0">
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground truncate">{ref.name}</span>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black border shadow-2xs ${
+                            ref.payoutStatus === "LUNAS"
+                              ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/40"
+                              : ref.payoutStatus === "PARSIAL"
+                              ? "bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/40"
+                              : "bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500/40"
+                          }`}
                         >
-                          {copiedName === ref.name ? (
-                            <Check className="h-3.5 w-3.5 text-emerald-500" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5" />
-                          )}
-                        </button>
+                          {ref.payoutStatus === "LUNAS" ? "Lunas" : ref.payoutStatus === "PARSIAL" ? "Parsial" : "Belum Bayar"}
+                        </span>
+                      </div>
 
-                        {data.isAdmin && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setEditingProfile(
-                                ref.profile || {
-                                  name: ref.name,
-                                  bankName: "BCA",
-                                  accountNumber: "",
-                                  accountHolder: "",
-                                  feePerMatch: 15000,
-                                }
-                              )
-                            }
-                            title="Edit Rekening"
-                            className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-
-                        {data.isAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => setPayingReferee(ref)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary hover:opacity-90 text-primary-foreground text-xs font-bold transition shadow-2xs"
-                          >
-                            <Receipt className="h-3.5 w-3.5" />
-                            <span>Bayar</span>
-                          </button>
-                        )}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>
+                          <strong>{ref.totalMatches}</strong> Match Dipimpin
+                        </span>
+                        <span>•</span>
+                        <span className="font-bold text-foreground">
+                          Rp {ref.totalEarned.toLocaleString("id-ID")}
+                        </span>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t border-border/40 sm:border-0">
+                    <div className="text-left sm:text-right min-w-0">
+                      {ref.profile?.accountNumber ? (
+                        <div className="flex flex-col">
+                          <span className="font-bold text-xs text-foreground flex items-center sm:justify-end gap-1">
+                            <Building2 className="h-3 w-3 text-primary" />
+                            {ref.profile.bankName} - {ref.profile.accountNumber}
+                          </span>
+                          <span className="text-[10.5px] text-muted-foreground truncate">
+                            a/n {ref.profile.accountHolder || "-"}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/60 italic">Rekening belum diisi</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleCopySlip(ref)}
+                        title="Salin Slip Pembayaran"
+                        className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
+                      >
+                        {copiedName === ref.name ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+
+                      {data.isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingProfile(
+                              ref.profile || {
+                                name: ref.name,
+                                bankName: "BCA",
+                                accountNumber: "",
+                                accountHolder: "",
+                                feePerMatch: 15000,
+                              }
+                            )
+                          }
+                          title="Edit Rekening"
+                          className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+
+                      {data.isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setPayingReferee(ref)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary hover:opacity-90 text-primary-foreground text-xs font-bold transition shadow-2xs cursor-pointer"
+                        >
+                          <Receipt className="h-3.5 w-3.5" />
+                          <span>Bayar</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          </>
-        )}
-      </main>
+          </div>
+        </>
+      )}
 
       {editingProfile && (
         <EditProfileModal
@@ -274,9 +270,25 @@ export default function RefereePayrollPage() {
           isPending={isPending}
         />
       )}
+    </main>
+  );
+}
 
+export default function RefereePayrollPage() {
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <TopBar title="Referee Payroll" />
+      <Suspense
+        fallback={
+          <div className="flex-1 py-20 text-center text-xs font-bold text-muted-foreground animate-pulse">
+            ⏳ Memuat Payroll...
+          </div>
+        }
+      >
+        <RefereePayrollContent />
+      </Suspense>
       <Footer />
     </div>
   );
-                    }
-                    
+    }
+    
