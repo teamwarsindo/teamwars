@@ -12,33 +12,28 @@ export function PayrollFilter({
   onSelectWeek,
 }: PayrollFilterProps) {
   return (
-    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-      <span className="text-[11px] font-bold text-muted-foreground uppercase mr-1 flex items-center gap-1 shrink-0">
-        <Calendar className="h-3.5 w-3.5 text-primary" /> Filter:
-      </span>
-      <button
-        onClick={() => onSelectWeek("ALL")}
-        className={`rounded-full px-3 py-1 text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-          selectedWeek === "ALL"
-            ? "bg-primary text-primary-foreground shadow-2xs"
-            : "bg-muted/50 text-muted-foreground hover:bg-muted"
-        }`}
+    <div className="flex items-center justify-between gap-3 bg-muted/30 border border-border/70 p-2.5 rounded-2xl">
+      <div className="flex items-center gap-2">
+        <Calendar className="h-4 w-4 text-primary shrink-0" />
+        <span className="text-xs font-bold text-foreground">Filter Tinjauan Pekan:</span>
+      </div>
+
+      <select
+        value={selectedWeek}
+        onChange={(e) => {
+          const val = e.target.value;
+          onSelectWeek(val === "ALL" ? "ALL" : Number(val));
+        }}
+        aria-label="Filter Tinjauan Pekan"
+        className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground focus:outline-primary cursor-pointer shadow-2xs"
       >
-        Semua Pekan
-      </button>
-      {activeWeeks.map((w) => (
-        <button
-          key={w}
-          onClick={() => onSelectWeek(w)}
-          className={`rounded-full px-3 py-1 text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-            selectedWeek === w
-              ? "bg-primary text-primary-foreground shadow-2xs"
-              : "bg-muted/50 text-muted-foreground hover:bg-muted"
-          }`}
-        >
-          Week {w}
-        </button>
-      ))}
+        <option value="ALL">Semua Pekan (Akumulasi)</option>
+        {activeWeeks.map((w) => (
+          <option key={w} value={w}>
+            Pekan / Week {w}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
