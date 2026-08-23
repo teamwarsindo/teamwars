@@ -13,22 +13,39 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const refereeName = (formData.get("refereeName") as string) || "referee";
+    const weeksRaw = (formData.get("paidWeeks") as string) || "";
 
     if (!file) {
       return NextResponse.json({ error: "File gambar tidak ditemukan" }, { status: 400 });
     }
 
+    // Format nama: aninkz
+    const cleanRefName = refereeName.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    // Format pekan: 1, 2, 3 -> 123
+    let weeksStr = "all";
+    if (weeksRaw) {
+      try {
+        const parsedWeeks = typeof weeksRaw === "string" ? JSON.parse(weeksRaw) : weeksRaw;
+        if (Array.isArray(parsedWeeks) && parsedWeeks.length > 0) {
+          weeksStr = parsedWeeks.sort((a: number, b: number) => a - b).join("");
+        }
+      } catch {
+        weeksStr = weeksRaw.replace(/[^0-9]/g, "") || "all";
+      }
+    }
+
+    const fileName = `${cleanRefName}_week${weeksStr}`;
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-
-    const cleanRefName = refereeName.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const fileName = `receipt_${cleanRefName}_${Date.now()}`;
 
     const uploadResult = await new Promise<any>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
-          folder: "twi_payroll_receipts",
+          folder: "receipts",
           public_id: fileName,
+          overwrite: true,
           resource_type: "image",
         },
         (error, result) => {
@@ -39,9 +56,8 @@ export async function POST(req: NextRequest) {
       uploadStream.end(buffer);
     });
 
-    // Masking otomatis mengikuti domain
     const origin = req.nextUrl.origin || "https://www.teamwars.web.id";
-    const maskedUrl = `${origin}/report/${fileName}.png`;
+    const maskedUrl = `${origin}/receipts/${fileName}.png`;
 
     return NextResponse.json({
       success: true,
@@ -50,6 +66,8 @@ export async function POST(req: NextRequest) {
       url: maskedUrl,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Gagal upload gambar" }, { status: 500 });
+    console.error("Upload receipt error:", error);
+    return NextResponse.json({ error: error.message || "Gagal mengunggah gambar" }, { status: 500 });
   }
-}
+                                       }
+    
