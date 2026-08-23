@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MatchScheduleItem, formatDateTimeWIB, formatMatchWIB } from "@/app/tournament/_library";
+import {
+  MatchScheduleItem,
+  formatDateTimeWIB,
+  formatMatchWIB,
+  getScheduleEmptyStateMessage,
+} from "@/app/tournament/_library";
 import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 import { MatchH2HModal } from "./match-h2h-modal";
-import { Calendar, Radio, Sparkles, ChevronRight, Mic, Tv } from "lucide-react";
+import { Calendar, Radio, Sparkles, ChevronRight, Mic, Tv, AlertCircle } from "lucide-react";
 
 interface MatchCenterProps {
   currentWeek: number;
@@ -30,6 +35,8 @@ export function MatchCenter({
 }: MatchCenterProps) {
   const [activeTab, setActiveTab] = useState<"JADWAL" | "HASIL">("JADWAL");
   const [selectedH2HMatch, setSelectedH2HMatch] = useState<MatchScheduleItem | null>(null);
+
+  const hasFinishedMatches = recentResults.length > 0;
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs">
@@ -97,7 +104,6 @@ export function MatchCenter({
                         <span className="font-semibold text-xs sm:text-sm truncate text-foreground">{m.teamAName}</span>
                       </div>
 
-                      {/* TENGAH BERSIH HANYA BADGE LIVE */}
                       <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 dark:bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white shrink-0 animate-pulse mx-1">
                         <Radio className="h-3 w-3" /> LIVE
                       </span>
@@ -112,7 +118,6 @@ export function MatchCenter({
                       </div>
                     </div>
 
-                    {/* FOOTER: STREAMER DI KIRI, LINK LIVE DI KANAN */}
                     <div className="flex items-center justify-between border-t border-rose-500/20 pt-2 text-xs text-rose-700 dark:text-rose-400">
                       <span className="flex items-center gap-1.5 font-medium truncate">
                         <Tv className="h-3.5 w-3.5 shrink-0" />
@@ -163,7 +168,6 @@ export function MatchCenter({
                         <span className="font-semibold text-xs sm:text-sm truncate text-foreground">{m.teamAName}</span>
                       </div>
 
-                      {/* TENGAH BERSIH HANYA VS */}
                       <span className="text-[11px] font-black text-muted-foreground uppercase px-2 shrink-0">
                         VS
                       </span>
@@ -178,7 +182,6 @@ export function MatchCenter({
                       </div>
                     </div>
 
-                    {/* FOOTER: STREAMER / BUTUH STREAMER DI KIRI, JAM DI KANAN */}
                     <div className="flex items-center justify-between border-t border-sky-500/20 pt-2 text-xs">
                       <span className="flex items-center gap-1.5 truncate">
                         <Mic className={`h-3.5 w-3.5 shrink-0 ${m.streamer ? "text-purple-600 dark:text-purple-400" : "text-amber-600 dark:text-amber-400"}`} />
@@ -223,7 +226,6 @@ export function MatchCenter({
                         <span className="font-semibold text-xs sm:text-sm truncate text-foreground">{m.teamAName}</span>
                       </div>
 
-                      {/* TENGAH BERSIH HANYA VS */}
                       <span className="text-[11px] font-black text-muted-foreground uppercase px-2 shrink-0">
                         VS
                       </span>
@@ -238,7 +240,6 @@ export function MatchCenter({
                       </div>
                     </div>
 
-                    {/* FOOTER: STREAMER / BUTUH STREAMER DI KIRI, HARI & JAM DI KANAN */}
                     <div className="flex items-center justify-between border-t border-border/50 pt-2 text-xs">
                       <span className="flex items-center gap-1.5 truncate">
                         <Mic className={`h-3.5 w-3.5 shrink-0 ${m.streamer ? "text-purple-600 dark:text-purple-400" : "text-amber-600 dark:text-amber-400"}`} />
@@ -260,9 +261,13 @@ export function MatchCenter({
             </div>
           )}
 
+          {/* 🟢 TAMPILAN JIKA TIDAK ADA LAGA BERJALAN/MENDATANG */}
           {liveMatches.length === 0 && todayMatches.length === 0 && upcomingMatches.length === 0 && (
-            <div className="py-8 text-center text-xs font-semibold text-muted-foreground">
-              Tidak ada jadwal pertandingan pekan ini.
+            <div className="flex flex-col items-center justify-center p-6 text-center rounded-xl bg-muted/20 border border-border/40">
+              <AlertCircle className="h-6 w-6 text-muted-foreground/80 mb-2" />
+              <p className="max-w-md text-xs font-medium text-muted-foreground leading-relaxed">
+                {getScheduleEmptyStateMessage(currentWeek, hasFinishedMatches)}
+              </p>
             </div>
           )}
         </div>
@@ -283,7 +288,6 @@ export function MatchCenter({
                   className="flex flex-col gap-2.5 rounded-xl border border-border bg-muted/25 dark:bg-muted/20 p-3 transition hover:border-primary/50 cursor-pointer shadow-2xs"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    {/* TIM A */}
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <img
                         src={m.teamALogo || "/logo.webp"}
@@ -301,7 +305,6 @@ export function MatchCenter({
                       </span>
                     </div>
 
-                    {/* SCORE TENGAH */}
                     <div className="flex items-center gap-1.5 shrink-0 px-2 font-black text-sm sm:text-base">
                       <span
                         className={
@@ -324,7 +327,6 @@ export function MatchCenter({
                       </span>
                     </div>
 
-                    {/* TIM B */}
                     <div className="flex items-center justify-end gap-2 min-w-0 flex-1 text-right">
                       <span
                         className={`text-xs sm:text-sm truncate font-semibold ${
