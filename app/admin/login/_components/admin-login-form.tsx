@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ShieldCheck, Lock, User, AlertCircle } from "lucide-react";
 
 interface AdminLoginFormProps {
@@ -15,6 +15,8 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/admin/dashboard";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,8 +40,8 @@ export function AdminLoginForm({ onSuccess }: AdminLoginFormProps) {
       if (onSuccess) {
         onSuccess();
       } else {
-        // 🚀 Tetap di URL saat ini (misal: /roulette?admin=true) & reload penuh agar Server Component membaca Cookie Admin baru
-        window.location.reload();
+        router.push(callbackUrl);
+        router.refresh();
       }
     } catch (err: any) {
       setError(err.message || "Username atau password salah");
