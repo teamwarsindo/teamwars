@@ -18,7 +18,6 @@ function getWibParts(dateRaw?: string | Date) {
   const d = typeof dateRaw === "string" ? new Date(dateRaw) : dateRaw;
   if (isNaN(d.getTime())) return null;
 
-  // Nama hari Indonesia lengkap
   const dayName = d.toLocaleDateString("id-ID", {
     timeZone: "Asia/Jakarta",
     weekday: "long",
@@ -29,7 +28,6 @@ function getWibParts(dateRaw?: string | Date) {
     day: "numeric",
   });
 
-  // Bulan bahasa Inggris (Aug, dll.)
   const month = d.toLocaleDateString("en-GB", {
     timeZone: "Asia/Jakarta",
     month: "short",
@@ -40,7 +38,6 @@ function getWibParts(dateRaw?: string | Date) {
     year: "numeric",
   });
 
-  // Waktu format Indonesia (menggunakan titik ".")
   const timeStr = d
     .toLocaleTimeString("id-ID", {
       timeZone: "Asia/Jakarta",
@@ -55,13 +52,44 @@ function getWibParts(dateRaw?: string | Date) {
 
 /**
  * Menghitung minggu turnamen berjalan secara realtime.
- * Berganti week tepat setiap hari Senin pukul 08.00 WIB.
+ * Khusus transisi ke Week 4 ditahan hingga Senin, 24 Agustus 2026 pukul 17.00 WIB.
  */
 export function getCurrentServerWeek(): number {
-  const startDate = new Date(TWI_START_DATETIME).getTime();
   const now = Date.now();
+  const week4ReleaseTime = new Date("2026-08-24T17:00:00+07:00").getTime();
+
+  if (now < week4ReleaseTime) {
+    return 3;
+  }
+
+  const startDate = new Date(TWI_START_DATETIME).getTime();
   const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
   return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+/**
+ * Pesan dinamis ketika tab jadwal tidak memiliki laga aktif
+ */
+export function getScheduleEmptyStateMessage(
+  currentWeek: number,
+  hasFinishedMatches: boolean
+): string {
+  const now = Date.now();
+  const bugStart = new Date("2026-08-24T08:00:00+07:00").getTime();
+  const bugEnd = new Date("2026-08-24T17:00:00+07:00").getTime();
+
+  // 1. Kondisi Khusus: 24 Agustus 2026 jam 08.00 - 17.00 WIB
+  if (now >= bugStart && now < bugEnd) {
+    return "Pengumuman Jadwal Week 4: Perilisan jadwal ditunda ke pukul 17.00 WIB hari ini sehubungan dengan investigasi bug room spectate macet dan emergency maintenance in-game Yu-Gi-Oh! Duel Links (12.00 – 14.30 WIB).";
+  }
+
+  // 2. Kondisi Normal: Seluruh match pekan ini telah selesai dimainkan
+  if (hasFinishedMatches) {
+    return `Seluruh jadwal pertandingan Week ${currentWeek} telah selesai. Jadwal pekan berikutnya akan diperbarui pada hari Senin pukul 08.00 WIB.`;
+  }
+
+  // 3. Kondisi Normal: Pekan belum dimulai / jadwal belum di-input
+  return `Jadwal pertandingan untuk Week ${currentWeek} belum dirilis.`;
 }
 
 /**
@@ -114,12 +142,6 @@ export function getWIBTime(): string {
 
 /**
  * Fungsi General Format Tanggal & Waktu WIB
- * 
- * Contoh Output:
- * - formatDateTimeWIB(d) -> "18 Aug 2026 at 20.00 WIB"
- * - formatDateTimeWIB(d, { includeDay: true }) -> "Selasa, 18 Aug 2026 at 20.00 WIB"
- * - formatDateTimeWIB(d, { includeDate: false }) -> "20.00 WIB"
- * - formatDateTimeWIB(d, { includeTime: false, includeSuffix: false }) -> "18 Aug 2026"
  */
 export function formatDateTimeWIB(
   dateRaw?: string | Date,
@@ -171,4 +193,4 @@ export function formatMatchWIB(dateRaw?: string | Date): string {
   const parts = getWibParts(dateRaw);
   if (!parts) return "";
   return `${parts.dayName}, ${parts.dayNumber} ${parts.month}, ${parts.timeStr}`;
-                                 }
+}
