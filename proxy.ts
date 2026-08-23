@@ -70,9 +70,9 @@ function handleRegistration(req: NextRequest) {
 }
 
 // ==========================================
-// 3. FUNGSI UTAMA PROXY / MIDDLEWARE
+// 3. FUNGSI UTAMA PROXY
 // ==========================================
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const adminRedirect = handleAdminRoutes(request);
   if (adminRedirect) return adminRedirect;
 
