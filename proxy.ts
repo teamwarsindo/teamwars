@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // 1. HELPER: BACA DAN PROTEKSI AKSES ADMIN
 // ==========================================
 function handleAdminRoutes(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
+  const { pathname, search, searchParams } = req.nextUrl;
 
   // 1. Biarkan API Admin lewat tanpa di-redirect oleh middleware
   if (pathname.startsWith('/api/admin')) {
@@ -14,8 +14,19 @@ function handleAdminRoutes(req: NextRequest) {
   // 2. Baca Cookie Session
   const sessionToken = req.cookies.get('admin_session')?.value;
 
+  // 🟢 2.5 IZINKAN AKSES KHUSUS REFEREE PAYROLL JIKA MEMBAWA TOKEN YANG VALID
+  if (pathname.startsWith('/admin/referee-payroll')) {
+    const tokenParam = searchParams.get('token');
+    const validChiefToken = process.env.CHIEF_REFEREE_TOKEN || 'xK9p2Lm5Qo8RstVb3N2wY7zE4Hj1K0Q';
+
+    // Jika memiliki token yang cocok atau sudah punya session admin, izinkan lewat
+    if ((tokenParam && tokenParam === validChiefToken) || sessionToken) {
+      return null;
+    }
+  }
+
   // 3. Jika membuka /admin/login:
-  // - Kalau SUDAH login -> langsung lempar ke /admin/dashboard
+  // - Kalau SUDAH login -> lempar ke /admin/dashboard
   // - Kalau BELUM login -> biarkan lewat
   if (pathname === '/admin/login' || pathname === '/admin/login/') {
     if (sessionToken) {
@@ -24,12 +35,11 @@ function handleAdminRoutes(req: NextRequest) {
     return null;
   }
 
-  // 4. Jika membuka rute /admin apa pun tanpa session login -> redirect ke /admin/login + bawa callbackUrl
+  // 4. Jika membuka rute /admin apa pun tanpa session login -> redirect ke /admin/login + callbackUrl
   if (pathname.startsWith('/admin') && !sessionToken) {
     const fullTarget = `${pathname}${search}`;
     const loginUrl = new URL('/admin/login', req.url);
     
-    // Jangan set callbackUrl jika hanya membuka root /admin
     if (pathname !== '/admin' && pathname !== '/admin/') {
       loginUrl.searchParams.set('callbackUrl', fullTarget);
     }
@@ -37,7 +47,7 @@ function handleAdminRoutes(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 5. Jika membuka root `/admin` dan SUDAH login -> lempar ke dashboard
+  // 5. Jika membuka root /admin dan SUDAH login -> lempar ke dashboard
   if (pathname === '/admin' || pathname === '/admin/') {
     return NextResponse.redirect(new URL('/admin/dashboard', req.url));
   }
@@ -70,9 +80,9 @@ function handleRegistration(req: NextRequest) {
 }
 
 // ==========================================
-// 3. FUNGSI UTAMA PROXY
+// 3. FUNGSI UTAMA (DEFAULT EXPORT)
 // ==========================================
-export function proxy(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   const adminRedirect = handleAdminRoutes(request);
   if (adminRedirect) return adminRedirect;
 
