@@ -19,10 +19,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File gambar tidak ditemukan" }, { status: 400 });
     }
 
-    // Format nama: aninkz
     const cleanRefName = refereeName.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-    // Format pekan: 1, 2, 3 -> 123
     let weeksStr = "all";
     if (weeksRaw) {
       try {
@@ -35,6 +33,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Nama file: aninkz_week123
     const fileName = `${cleanRefName}_week${weeksStr}`;
 
     const bytes = await file.arrayBuffer();
@@ -66,8 +65,6 @@ export async function POST(req: NextRequest) {
       url: maskedUrl,
     });
   } catch (error: any) {
-    console.error("Upload receipt error:", error);
-    return NextResponse.json({ error: error.message || "Gagal mengunggah gambar" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Gagal upload gambar" }, { status: 500 });
   }
-                                       }
-    
+}
