@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // 1. HELPER: BACA DAN PROTEKSI AKSES ADMIN
 // ==========================================
 function handleAdminRoutes(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname, search } = req.nextUrl;
 
   // 1. Biarkan API Admin lewat tanpa di-redirect oleh middleware
   if (pathname.startsWith('/api/admin')) {
@@ -14,19 +14,31 @@ function handleAdminRoutes(req: NextRequest) {
   // 2. Baca Cookie Session
   const sessionToken = req.cookies.get('admin_session')?.value;
 
-  // 🟢 A. Jika membuka root `/admin` atau `/admin/`, paksa lempar ke `/admin/dashboard`
+  // 3. Jika membuka /admin/login:
+  // - Kalau SUDAH login -> langsung lempar ke /admin/dashboard
+  // - Kalau BELUM login -> biarkan lewat
+  if (pathname === '/admin/login' || pathname === '/admin/login/') {
+    if (sessionToken) {
+      return NextResponse.redirect(new URL('/admin/dashboard', req.url));
+    }
+    return null;
+  }
+
+  // 4. Jika membuka rute /admin apa pun tanpa session login -> redirect ke /admin/login + bawa callbackUrl
+  if (pathname.startsWith('/admin') && !sessionToken) {
+    const fullTarget = `${pathname}${search}`;
+    const loginUrl = new URL('/admin/login', req.url);
+    
+    // Jangan set callbackUrl jika hanya membuka root /admin
+    if (pathname !== '/admin' && pathname !== '/admin/') {
+      loginUrl.searchParams.set('callbackUrl', fullTarget);
+    }
+    
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // 5. Jika membuka root `/admin` dan SUDAH login -> lempar ke dashboard
   if (pathname === '/admin' || pathname === '/admin/') {
-    return NextResponse.redirect(new URL('/admin/dashboard', req.url));
-  }
-
-  // 🟢 B. Jika membuka `/admin/dashboard` tapi BELUM punya cookie session
-  // Biarkan LEWAT karena halaman /admin/dashboard memuat form login-nya
-  if (pathname.startsWith('/admin/dashboard')) {
-    return null; 
-  }
-
-  // 🟢 C. Untuk rute sub-admin lainnya (misal: /admin/settings, /admin/users, dll)
-  if (pathname.startsWith('/admin/') && !sessionToken) {
     return NextResponse.redirect(new URL('/admin/dashboard', req.url));
   }
 
@@ -51,7 +63,7 @@ function handleRegistration(req: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 7200
+      maxAge: 7200,
     });
   }
   return res;
@@ -60,7 +72,7 @@ function handleRegistration(req: NextRequest) {
 // ==========================================
 // 3. FUNGSI UTAMA PROXY / MIDDLEWARE
 // ==========================================
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const adminRedirect = handleAdminRoutes(request);
   if (adminRedirect) return adminRedirect;
 
