@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { AdminLoginForm } from "@/components/admin-login-form";
+import { AdminLoginForm } from "./_components/admin-login-form";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 
 function LoginContent() {
@@ -33,4 +33,4 @@ export default function AdminLoginPage() {
       </div>
     </main>
   );
-        }
+}
