@@ -22,6 +22,10 @@ const nextConfig = {
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/report/:path*',
       },
       {
+        source: '/receipts/:path*',
+        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/receipts/:path*',
+      },
+      {
         source: '/bukti/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/bukti/:path*',
       },
@@ -40,6 +44,23 @@ const nextConfig = {
     return [
       {
         source: '/report/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          },
+          {
+            key: 'CDN-Cache-Control',
+            value: 'no-store',
+          },
+          {
+            key: 'Vercel-CDN-Cache-Control',
+            value: 'no-store',
+          },
+        ],
+      },
+      {
+        source: '/receipts/:path*',
         headers: [
           {
             key: 'Cache-Control',
