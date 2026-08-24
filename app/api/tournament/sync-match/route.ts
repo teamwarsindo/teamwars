@@ -3,10 +3,13 @@ import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library/types';
 import { getTournamentWeekNumber } from '@/app/tournament/_library/calculator';
 
+// Key KV resmi sesuai database
+const KV_KEY_SCHEDULES = 'twi:schedules';
+
 // Konfigurasi Environment Bot Discord & Server Guild
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || process.env.BOT_TOKEN;
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
-const MATCH_CATEGORY_ID = process.env.DISCORD_MATCH_CATEGORY_ID; // Kategori Channel Discord
+const MATCH_CATEGORY_ID = process.env.DISCORD_MATCH_CATEGORY_ID;
 
 // Helper fetch Discord API
 async function discordApiRequest(endpoint: string, method: string = 'GET', body?: any) {
@@ -31,26 +34,24 @@ async function discordApiRequest(endpoint: string, method: string = 'GET', body?
   return res.status !== 204 ? await res.json() : null;
 }
 
-// 🟢 Helper membuat text channel match Discord jika belum ada
+// Helper membuat text channel match Discord jika belum ada
 async function createOrUpdateMatchChannel(match: MatchScheduleItem, weekName: string) {
   const channelName = `w${match.weekNumber || 1}-${match.teamAName}-vs-${match.teamBName}`
     .toLowerCase()
     .replace(/[^a-z0-9-_]/g, '-');
 
-  // Cek apakah channelId sudah tersimpan di match
   if (match.discordChannelId) {
     console.log(`[DISCORD] Channel untuk match ${match.id} sudah ada: ${match.discordChannelId}`);
     return match.discordChannelId;
   }
 
-  // Siapkan Permission Overwrites (Jika ada discordId referee/streamer)
   const permissionOverwrites: any[] = [];
 
   if (match.refereeDiscordId) {
     permissionOverwrites.push({
       id: match.refereeDiscordId,
-      type: 1, // 1 = Member
-      allow: '1024', // View Channel
+      type: 1,
+      allow: '1024',
     });
   }
 
@@ -62,10 +63,9 @@ async function createOrUpdateMatchChannel(match: MatchScheduleItem, weekName: st
     });
   }
 
-  // Buat Channel Baru di Guild Discord
   const newChannel = await discordApiRequest(`/guilds/${DISCORD_GUILD_ID}/channels`, 'POST', {
     name: channelName,
-    type: 0, // 0 = Guild Text Channel
+    type: 0,
     parent_id: MATCH_CATEGORY_ID || undefined,
     topic: `Match: ${match.teamAName} vs ${match.teamBName} | ${weekName}`,
     permission_overwrites: permissionOverwrites.length > 0 ? permissionOverwrites : undefined,
@@ -79,12 +79,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const action = body.action || (body.matchId ? 'SINGLE' : 'WEEK');
 
-    // 1. AMBIL SELURUH DATA SCHEDULE DARI VERCEL KV
-    const schedules = (await kv.get<MatchScheduleItem[]>('tournament_schedules')) || [];
+    // 1. AMBIL DATA SCHEDULE MENGGUNAKAN KEY YANG BENAR (twi:schedules)
+    const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
 
     if (schedules.length === 0) {
       return NextResponse.json(
-        { error: 'Data tournament_schedules tidak ditemukan di KV' },
+        { error: `Data ${KV_KEY_SCHEDULES} tidak ditemukan di KV` },
         { status: 404 }
       );
     }
@@ -98,13 +98,11 @@ export async function POST(req: NextRequest) {
     if (action === 'WEEK') {
       let targetWeekStr = body.targetWeek;
 
-      // Jika tidak diisi atau "AUTO", hitung nomor minggu saat ini dari library
       if (!targetWeekStr || targetWeekStr.toUpperCase() === 'AUTO') {
         const currentWeekNum = getTournamentWeekNumber();
         targetWeekStr = `Week ${currentWeekNum}`;
       }
 
-      // Ekstrak angka week (contoh: "Week 3" -> 3)
       const weekNumberTarget = parseInt(targetWeekStr.replace(/[^0-9]/g, ''), 10) || 1;
 
       console.log(`[SYNC-MATCH] Memproses batch sync channel untuk Week ${weekNumberTarget}...`);
@@ -113,7 +111,6 @@ export async function POST(req: NextRequest) {
         const m = schedules[i];
         const matchWeek = Number(m.weekNumber) || getTournamentWeekNumber(m.matchDate);
 
-        // Filter hanya match di minggu bersangkutan
         if (matchWeek === weekNumberTarget) {
           try {
             const channelId = await createOrUpdateMatchChannel(m, targetWeekStr);
@@ -130,7 +127,7 @@ export async function POST(req: NextRequest) {
 
       // Simpan perubahan ID channel kembali ke KV
       if (isModified) {
-        await kv.set('tournament_schedules', schedules);
+        await kv.set(KV_KEY_SCHEDULES, schedules);
       }
 
       return NextResponse.json({
@@ -159,7 +156,7 @@ export async function POST(req: NextRequest) {
       const channelId = await createOrUpdateMatchChannel(match, weekName);
       if (channelId && match.discordChannelId !== channelId) {
         schedules[targetMatchIndex].discordChannelId = channelId;
-        await kv.set('tournament_schedules', schedules);
+        await kv.set(KV_KEY_SCHEDULES, schedules);
       }
 
       return NextResponse.json({
@@ -180,5 +177,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-      }
-            
+         }
