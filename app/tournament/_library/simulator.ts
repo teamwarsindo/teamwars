@@ -2,49 +2,25 @@ import { MatchScheduleItem } from "./types";
 import { DIVISION_MAP, TOURNAMENT_RULES } from "./constants";
 import { ExtendedStandingItem, calculateStandings, buildGlobalStandings } from "./calculator";
 
-export interface UpcomingOpponentItem {
-  teamName: string;
-  teamLogo: string;
-}
-
 export interface PlayoffProbabilityResult {
   teamName: string;
-  totalSimulations: number;
   quarterFinalsProb: number;
   playInsProb: number;
   eliminationProb: number;
   remainingMatchesCount: number;
-  magicWinsNeeded: number;
-  lossTolerance: number;
-  isGuaranteedEliminated: boolean;
+  targetQuarterWins: number;
+  targetPlayInsWins: number;
+  maxLossesAllowed: number;
   projectedRankRange: string;
   statusRisk: "HIGH" | "MEDIUM" | "SAFE";
-  shuffledOpponents: UpcomingOpponentItem[];
   tacticalAdvice: string[];
-}
-
-function seededShuffle<T>(array: T[], seedStr: string): T[] {
-  const arr = [...array];
-  let seed = 0;
-  for (let i = 0; i < seedStr.length; i++) {
-    seed = (seed << 5) - seed + seedStr.charCodeAt(i);
-    seed |= 0;
-  }
-
-  for (let i = arr.length - 1; i > 0; i--) {
-    seed = (seed * 9301 + 49297) % 233280;
-    const rnd = Math.abs(seed) / 233280;
-    const j = Math.floor(rnd * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
 }
 
 export function simulateTeamPlayoffStrategy(
   targetTeamName: string,
   allSchedules: MatchScheduleItem[] = [],
   standings: ExtendedStandingItem[] = [],
-  iterations: number = 1500
+  iterations: number = 2000
 ): PlayoffProbabilityResult {
   const cleanTarget = targetTeamName.toLowerCase().trim();
   const currentStanding = standings.find((s) => s.teamName.toLowerCase().trim() === cleanTarget);
@@ -58,16 +34,6 @@ export function simulateTeamPlayoffStrategy(
 
   const remCount = myRemainingMatches.length;
 
-  const rawOpponents: UpcomingOpponentItem[] = myRemainingMatches.map((m) => {
-    const isA = m.teamAName.toLowerCase().trim() === cleanTarget;
-    return {
-      teamName: isA ? m.teamBName : m.teamAName,
-      teamLogo: (isA ? m.teamBLogo : m.teamALogo) || "/logo.webp",
-    };
-  });
-
-  const shuffledOpponents = seededShuffle(rawOpponents, targetTeamName);
-
   if (remCount === 0 || !currentStanding) {
     const isTopDiv = (currentStanding?.rank || 99) <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP;
     const globalList = buildGlobalStandings(standings);
@@ -77,18 +43,16 @@ export function simulateTeamPlayoffStrategy(
 
     return {
       teamName: targetTeamName,
-      totalSimulations: 0,
       quarterFinalsProb: isTopDiv ? 100 : 0,
       playInsProb: isPlayIns ? 100 : 0,
       eliminationProb: !isTopDiv && !isPlayIns ? 100 : 0,
       remainingMatchesCount: 0,
-      magicWinsNeeded: 0,
-      lossTolerance: 0,
-      isGuaranteedEliminated: !isTopDiv && !isPlayIns,
-      projectedRankRange: isTopDiv ? "Top 2 Divisi" : isPlayIns ? "Top 8 Wildcard" : "Eliminasi",
+      targetQuarterWins: 0,
+      targetPlayInsWins: 0,
+      maxLossesAllowed: 0,
+      projectedRankRange: isTopDiv ? "Quarterfinal" : isPlayIns ? "Play-Ins" : "Eliminasi",
       statusRisk: isTopDiv || isPlayIns ? "SAFE" : "HIGH",
-      shuffledOpponents: [],
-      tacticalAdvice: ["Seluruh pertandingan fase reguler telah selesai."],
+      tacticalAdvice: ["Seluruh pertandingan musim reguler telah selesai."],
     };
   }
 
@@ -96,37 +60,17 @@ export function simulateTeamPlayoffStrategy(
   const currentLosses = currentStanding.matchLosses || 0;
   const maxPossibleWins = currentWins + remCount;
 
-  // Threshold Play-Ins adalah 3 win
-  const targetThresholdWins = 3;
-  const magicWinsNeeded = Math.max(0, targetThresholdWins - currentWins);
-  const lossTolerance = Math.max(0, remCount - magicWinsNeeded);
-  const isGuaranteedEliminated = maxPossibleWins < targetThresholdWins;
-
-  if (isGuaranteedEliminated) {
-    return {
-      teamName: targetTeamName,
-      totalSimulations: iterations,
-      quarterFinalsProb: 0,
-      playInsProb: 0,
-      eliminationProb: 100,
-      remainingMatchesCount: remCount,
-      magicWinsNeeded,
-      lossTolerance: 0,
-      isGuaranteedEliminated: true,
-      projectedRankRange: "Gugur (Rank #9-#12)",
-      statusRisk: "HIGH",
-      shuffledOpponents,
-      tacticalAdvice: [
-        "Tim telah dipastikan 100% gugur dari perebutan tiket Playoff.",
-        "Fokuskan sisa laga untuk menjaga rekor individu duelis dan sportivitas kompetisi.",
-      ],
-    };
-  }
+  // Standar target matematis (Total 7 Match):
+  // 5 Win = Kunci Top 2 Divisi (Quarterfinal)
+  // 4 Win = Sangat Aman Play-Ins
+  // 3 Win = Minimal Rebutan Play-Ins (Cutoff Rank 8)
+  const targetQuarterWins = Math.max(0, 5 - currentWins);
+  const targetPlayInsWins = Math.max(0, 3 - currentWins);
+  const maxLossesAllowed = Math.max(0, maxPossibleWins - 3);
 
   let quarterWins = 0;
   let playInsWins = 0;
   let eliminatedCount = 0;
-  const simulatedRanks: number[] = [];
 
   for (let i = 0; i < iterations; i++) {
     const simMatches: MatchScheduleItem[] = allSchedules.map((m) => {
@@ -156,7 +100,6 @@ export function simulateTeamPlayoffStrategy(
     if (mySim) {
       if (mySim.rank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP) {
         quarterWins++;
-        simulatedRanks.push(mySim.rank);
       } else {
         const globalStandings = buildGlobalStandings(simStandings);
         const wItem = globalStandings.find(
@@ -164,10 +107,8 @@ export function simulateTeamPlayoffStrategy(
         );
         if (wItem && wItem.rank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA) {
           playInsWins++;
-          simulatedRanks.push(wItem.rank + 4);
         } else {
           eliminatedCount++;
-          simulatedRanks.push(12);
         }
       }
     }
@@ -177,59 +118,54 @@ export function simulateTeamPlayoffStrategy(
   const playInsProb = Math.round((playInsWins / iterations) * 100);
   const eliminationProb = Math.max(0, 100 - (quarterFinalsProb + playInsProb));
 
-  simulatedRanks.sort((a, b) => a - b);
-  const p25 = simulatedRanks[Math.floor(simulatedRanks.length * 0.25)] || 5;
-  const p75 = simulatedRanks[Math.floor(simulatedRanks.length * 0.75)] || 10;
-
-  const projectedRankRange =
-    quarterFinalsProb > 50
-      ? "Top 2 Divisi (#1-#2)"
-      : eliminationProb > 60
-      ? "Eliminasi (#9-#12)"
-      : `#${Math.max(1, p25 - 2)} - #${Math.min(8, p75 - 2)} Wildcard`;
+  let projectedRankRange = "Rank #5 - #8 (Play-Ins)";
+  if (quarterFinalsProb >= 60) {
+    projectedRankRange = "Top 2 Divisi (Quarter)";
+  } else if (eliminationProb >= 60) {
+    projectedRankRange = "Rank #9 - #12 (Eliminasi)";
+  }
 
   let statusRisk: "HIGH" | "MEDIUM" | "SAFE" = "MEDIUM";
   if (eliminationProb >= 50) statusRisk = "HIGH";
-  else if (quarterFinalsProb + playInsProb >= 75) statusRisk = "SAFE";
+  else if (quarterFinalsProb >= 60 || quarterFinalsProb + playInsProb >= 85) statusRisk = "SAFE";
 
   const tacticalAdvice: string[] = [];
 
-  // Syarat wajib menang & titik kritis gugur
-  if (lossTolerance === 0) {
+  // Strategi Taktis Presisi Sesuai Posisi Klasemen
+  if (currentWins >= 3) {
     tacticalAdvice.push(
-      `Status Wajib Menang: Tim tidak memiliki toleransi kekalahan lagi. Setiap sisa laga harus dimenangkan untuk lolos.`
+      `Kunci Quarterfinal: Butuh ${targetQuarterWins} Win dari ${remCount} laga sisa untuk mengamankan tiket 8 Besar langsung tanpa lewat Play-Ins.`
+    );
+    tacticalAdvice.push(
+      `Keunggulan Poin: Pertahankan selisih skor (+${currentStanding.roundDifference}) agar tetap unggul head-to-head saat penentuan bagan seeding.`
+    );
+  } else if (currentWins === 0) {
+    tacticalAdvice.push(
+      `Batas Eliminasi: Maksimal hanya boleh kalah ${maxLossesAllowed} kali lagi. Menelan ${maxLossesAllowed + 1} kekalahan memastikan tim 100% gugur.`
+    );
+    tacticalAdvice.push(
+      `Fokus Perbaikan Poin: Selisih poin (${currentStanding.roundDifference}) berada di zona defisit. Jika tertinggal dalam match, wajib amankan minimal 6-8 set kemenangan.`
     );
   } else {
     tacticalAdvice.push(
-      `Toleransi Kekalahan: Maksimal ${lossTolerance} kekalahan lagi. Menelan ${lossTolerance + 1} kekalahan lagi memastikan tim gugur 100%.`
+      `Jalur Play-Ins: Butuh minimal ${targetPlayInsWins} Win lagi untuk mengamankan posisi 8 Besar Wildcard.`
     );
-  }
-
-  // Rekomendasi margin poin
-  if (currentStanding.roundDifference < 0) {
     tacticalAdvice.push(
-      `Manajemen Poin: Defisit (${currentStanding.roundDifference}) sangat rawan. Jika menang targetkan skor telak (10-3/10-4). Jika tertinggal, raih minimal 7–8 set kemenangan untuk menekan defisit.`
-    );
-  } else {
-    tacticalAdvice.push(
-      `Manajemen Poin: Modal selisih poin (+${currentStanding.roundDifference}) menjadi keunggulan besar saat terjadi tiebreaker klasemen.`
+      `Toleransi Kalah: Memiliki ruang toleransi ${maxLossesAllowed} kekalahan di sisa musim reguler.`
     );
   }
 
   return {
     teamName: targetTeamName,
-    totalSimulations: iterations,
     quarterFinalsProb,
     playInsProb,
     eliminationProb,
     remainingMatchesCount: remCount,
-    magicWinsNeeded,
-    lossTolerance,
-    isGuaranteedEliminated,
+    targetQuarterWins,
+    targetPlayInsWins,
+    maxLossesAllowed,
     projectedRankRange,
     statusRisk,
-    shuffledOpponents,
     tacticalAdvice,
   };
 }
-  

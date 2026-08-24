@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library";
 import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 import { simulateTeamPlayoffStrategy } from "@/app/tournament/_library/simulator";
-import { Sparkles, Target, AlertTriangle, ShieldCheck, Zap, Swords } from "lucide-react";
+import { Sparkles, Target, AlertTriangle, ShieldCheck, Zap } from "lucide-react";
 
 interface TeamStrategyViewProps {
   teamName: string;
@@ -18,7 +18,7 @@ export function TeamStrategyView({
   allSchedules,
 }: TeamStrategyViewProps) {
   const strategy = useMemo(() => {
-    return simulateTeamPlayoffStrategy(teamName, allSchedules, allTeams, 1500);
+    return simulateTeamPlayoffStrategy(teamName, allSchedules, allTeams, 2000);
   }, [teamName, allTeams, allSchedules]);
 
   return (
@@ -46,6 +46,7 @@ export function TeamStrategyView({
 
       {/* CONTAINER UTAMA */}
       <div className="space-y-3 rounded-2xl border border-border bg-muted/20 p-3 sm:p-4 text-card-foreground">
+        
         {/* BAR PROBABILITAS PROPORSIONAL */}
         <div className="space-y-1.5">
           <div className="flex justify-between text-[10px] md:text-xs font-bold">
@@ -53,23 +54,30 @@ export function TeamStrategyView({
             <span className="text-emerald-700 dark:text-emerald-400">Play-Ins: {strategy.playInsProb}%</span>
             <span className="text-rose-700 dark:text-rose-400">Gugur: {strategy.eliminationProb}%</span>
           </div>
+          
           <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
-            <div
-              style={{ width: `${strategy.quarterFinalsProb}%` }}
-              className="bg-sky-500 transition-all duration-500"
-            />
-            <div
-              style={{ width: `${strategy.playInsProb}%` }}
-              className="bg-emerald-500 transition-all duration-500"
-            />
-            <div
-              style={{ width: `${strategy.eliminationProb}%` }}
-              className="bg-rose-500 transition-all duration-500"
-            />
+            {strategy.quarterFinalsProb > 0 && (
+              <div
+                style={{ width: `${strategy.quarterFinalsProb}%` }}
+                className="bg-sky-500 transition-all duration-500"
+              />
+            )}
+            {strategy.playInsProb > 0 && (
+              <div
+                style={{ width: `${strategy.playInsProb}%` }}
+                className="bg-emerald-500 transition-all duration-500"
+              />
+            )}
+            {strategy.eliminationProb > 0 && (
+              <div
+                style={{ width: `${strategy.eliminationProb}%` }}
+                className="bg-rose-500 transition-all duration-500"
+              />
+            )}
           </div>
         </div>
 
-        {/* 3 KOTAK RINGKASAN TARGET & PROYEKSI */}
+        {/* 3 KOTAK TARGET REALISTIS */}
         <div className="grid grid-cols-3 gap-2 text-center pt-1">
           <div className="rounded-xl border border-border bg-card p-2">
             <span className="text-[8px] sm:text-[9px] uppercase font-bold text-muted-foreground block">
@@ -81,10 +89,10 @@ export function TeamStrategyView({
           </div>
           <div className="rounded-xl border border-border bg-card p-2">
             <span className="text-[8px] sm:text-[9px] uppercase font-bold text-muted-foreground block">
-              Target Lolos
+              Target Play-Ins
             </span>
             <span className="text-xs sm:text-sm font-black text-primary">
-              Min {strategy.magicWinsNeeded} Win
+              Min {strategy.targetPlayInsWins} Win
             </span>
           </div>
           <div className="rounded-xl border border-border bg-card p-2">
@@ -97,34 +105,10 @@ export function TeamStrategyView({
           </div>
         </div>
 
-        {/* CALON LAWAN BERIKUTNYA (URUTAN ACAK & TANPA PEKAN) */}
-        {strategy.shuffledOpponents.length > 0 && (
-          <div className="space-y-1.5 pt-1">
-            <span className="text-[9.5px] font-bold text-muted-foreground flex items-center gap-1 uppercase">
-              <Swords className="h-3 w-3 text-primary" /> Calon Lawan Tersisa (Acak)
-            </span>
-            <div className="grid grid-cols-2 gap-1.5">
-              {strategy.shuffledOpponents.map((opp, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-card/60 px-2 py-1 text-[10.5px] truncate"
-                >
-                  <img
-                    src={opp.teamLogo}
-                    alt=""
-                    className="h-4 w-4 object-contain shrink-0"
-                  />
-                  <span className="truncate font-bold text-foreground">{opp.teamName}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* REKOMENDASI TAKTIS & AMBANG ELIMINASI */}
+        {/* REKOMENDASI TAKTIS */}
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-2.5 space-y-1">
           <span className="text-[9.5px] font-bold text-primary flex items-center gap-1">
-            <Target className="h-3 w-3" /> Instruksi & Skenario Kritis:
+            <Target className="h-3 w-3" /> Evaluasi & Rekomendasi Taktis:
           </span>
           <ul className="space-y-1 text-[10.5px] md:text-xs text-muted-foreground list-disc list-inside">
             {strategy.tacticalAdvice.map((adv, idx) => (
@@ -137,4 +121,4 @@ export function TeamStrategyView({
       </div>
     </div>
   );
-      }
+}
