@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { MatchScheduleItem } from "@/app/tournament/_library";
+import { MatchScheduleItem, formatDateTimeWIB } from "@/app/tournament/_library";
 import {
   ExtendedStandingItem,
   getTeamProfileStats,
@@ -12,6 +12,7 @@ import {
   X,
   Trophy,
   Activity,
+  Sparkles,
 } from "lucide-react";
 
 interface TeamProfileModalProps {
@@ -27,6 +28,7 @@ export function TeamProfileModal({
   allSchedules = [],
   onClose,
 }: TeamProfileModalProps) {
+  const [activeTab, setActiveTab] = useState<"RIWAYAT" | "ANALISIS">("ANALISIS");
   const [mounted, setMounted] = useState(false);
   const modalContentRef = useRef<HTMLDivElement>(null);
 
@@ -107,7 +109,6 @@ export function TeamProfileModal({
 
         {/* BODY KONTEN */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 space-y-4 text-xs md:text-sm">
-          
           {/* 1. STATISTIK PERFORMA */}
           <div className="space-y-2.5 rounded-2xl border border-border bg-muted/20 p-3 sm:p-4">
             <div className="flex justify-between items-center text-[10px] md:text-xs text-muted-foreground">
@@ -182,76 +183,100 @@ export function TeamProfileModal({
             </div>
           </div>
 
-          {/* 2. RIWAYAT PERTANDINGAN */}
-          <div className="space-y-1.5">
-            <span className="text-[9.5px] md:text-xs font-black uppercase text-muted-foreground flex items-center gap-1">
-              <Trophy className="h-3 w-3 md:h-3.5 md:w-3.5 text-amber-500" /> Riwayat Pertandingan
-            </span>
-            <div className="space-y-1.5 max-h-36 md:max-h-44 overflow-y-auto pr-1">
-              {teamData.history.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between rounded-xl bg-muted/30 border border-border px-3 py-2 md:px-4 md:py-2 text-[11px] md:text-xs"
-                >
-                  <div className="flex items-center gap-2 md:gap-2.5 min-w-0 flex-1">
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[8.5px] md:text-[9.5px] font-black shrink-0 ${
-                        m.isWin
-                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                          : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-                      }`}
-                    >
-                      {m.isWin ? "WIN" : "LOSE"}
-                    </span>
-                    <span className="text-muted-foreground text-[10.5px] md:text-xs shrink-0 font-medium">
-                      vs
-                    </span>
-                    <div className="flex items-center gap-1.5 min-w-0 truncate">
-                      <img
-                        src={m.oppLogo}
-                        alt=""
-                        className="h-4 w-4 md:h-5 md:w-5 object-contain shrink-0"
-                      />
-                      <span className="truncate font-bold text-foreground">{m.oppName}</span>
-                    </div>
-                  </div>
-
-                  <div className="px-3 shrink-0 text-center">
-                    <span className="rounded-md bg-card border border-border px-2 py-0.5 font-bold text-[9px] md:text-[10px] text-muted-foreground">
-                      Week {m.week}
-                    </span>
-                  </div>
-
-                  <div className="font-black text-xs md:text-sm min-w-[45px] text-right shrink-0">
-                    <span className={m.isWin ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}>
-                      {m.myScore}
-                    </span>
-                    <span className="text-muted-foreground mx-1">-</span>
-                    <span className={!m.isWin ? "text-rose-600 dark:text-rose-400" : "text-foreground"}>
-                      {m.oppScore}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {teamData.history.length === 0 && (
-                <p className="rounded-xl border border-border bg-muted/10 p-3 text-center text-[10.5px] md:text-xs text-muted-foreground">
-                  Belum ada pertandingan yang selesai.
-                </p>
-              )}
-            </div>
+          {/* TAB SWITCHER */}
+          <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl border border-border/40">
+            <button
+              onClick={() => setActiveTab("ANALISIS")}
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "ANALISIS"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Analisis & Playoff</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("RIWAYAT")}
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "RIWAYAT"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Trophy className="h-3.5 w-3.5" />
+              <span>Riwayat Match</span>
+            </button>
           </div>
 
-          {/* 3. MODUL STRATEGI & PELUANG PLAYOFF */}
-          <TeamStrategyView
-            teamName={teamData.teamName}
-            allTeams={allTeams}
-            allSchedules={allSchedules}
-          />
+          {/* ISI KONTEN TAB */}
+          {activeTab === "ANALISIS" ? (
+            <TeamStrategyView
+              teamName={teamData.teamName}
+              allTeams={allTeams}
+              allSchedules={allSchedules}
+            />
+          ) : (
+            /* TAB RIWAYAT */
+            <div className="space-y-1.5">
+              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                {teamData.history.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between rounded-xl bg-muted/30 border border-border px-3 py-2 md:px-4 md:py-2.5 text-[11px] md:text-xs"
+                  >
+                    <div className="flex items-center gap-2 md:gap-2.5 min-w-0 flex-1">
+                      <span
+                        className={`px-1.5 py-0.5 md:px-2 md:py-0.5 rounded text-[8.5px] md:text-[9.5px] font-black shrink-0 ${
+                          m.isWin
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                            : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                        }`}
+                      >
+                        {m.isWin ? "WIN" : "LOSE"}
+                      </span>
+                      <span className="text-muted-foreground text-[10.5px] md:text-xs shrink-0 font-medium">
+                        vs
+                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0 truncate">
+                        <img
+                          src={m.oppLogo}
+                          alt=""
+                          className="h-4 w-4 md:h-5 md:w-5 object-contain shrink-0"
+                        />
+                        <span className="truncate font-bold text-foreground">{m.oppName}</span>
+                      </div>
+                    </div>
 
+                    <div className="px-3 shrink-0 text-center">
+                      <span className="rounded-md bg-card border border-border px-2 py-0.5 md:px-2.5 md:py-1 font-bold text-[9px] md:text-[10px] text-muted-foreground">
+                        Week {m.week}
+                      </span>
+                    </div>
+
+                    <div className="font-black text-xs md:text-sm min-w-[45px] text-right shrink-0">
+                      <span className={m.isWin ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}>
+                        {m.myScore}
+                      </span>
+                      <span className="text-muted-foreground mx-1">-</span>
+                      <span className={!m.isWin ? "text-rose-600 dark:text-rose-400" : "text-foreground"}>
+                        {m.oppScore}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {teamData.history.length === 0 && (
+                  <p className="rounded-xl border border-border bg-muted/10 p-3 text-center text-[10.5px] md:text-xs text-muted-foreground">
+                    Belum ada pertandingan yang selesai.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>,
     document.body
   );
-            }
-                
+        }
+            
