@@ -2,49 +2,75 @@ import { MatchScheduleItem } from "./types";
 import { DIVISION_MAP, TOURNAMENT_RULES } from "./constants";
 import { ExtendedStandingItem, calculateStandings, buildGlobalStandings } from "./calculator";
 
-export interface ScenarioOutcome {
-  wins: number;
-  losses: number;
-  recordLabel: string;
-  quarterProb: number;
-  playInsProb: number;
-  statusBadge: "SAFE" | "COMPETITIVE" | "CRITICAL" | "DEAD";
-}
-
-export interface CriticalMatchItem {
+export interface TacticalMatchItem {
   matchId: string;
   opponentName: string;
   opponentLogo: string;
   opponentRank: number | string;
-  importance: "CRITICAL_SWING" | "DIRECT_RIVAL" | "UPSET_CHANCE";
-  reason: string;
+  winProbability: number;
+  criticalityScore: number; // 0 - 100
+  strategyTag: "MUST_WIN" | "UPSET_OPPORTUNITY" | "HIGH_VALUE_WIN";
+  tagLabel: string;
+  description: string;
 }
 
-export interface FullPlayoffAnalyticsResult {
+export interface ScenarioTier {
+  safeRecord: string;        // e.g. "4-0"
+  safeProb: number;
+  competitiveRecord: string; // e.g. "3-1"
+  competitiveProb: number;
+  survivalRecord: string;    // e.g. "2-2"
+  survivalProb: number;
+}
+
+export interface ConditionalImpact {
+  nextOpponentName: string;
+  winImpactProb: number;
+  loseImpactProb: number;
+  loseRequiredRecord: string;
+}
+
+export interface AdvancedPlayoffAnalytics {
   teamName: string;
   currentWins: number;
   currentLosses: number;
   currentPtsDiff: number;
   remainingMatchesCount: number;
-  sosRating: number;           // 0 - 100 (Kekuatan sisa lawan)
+  sosRating: number;
   sosLabel: "Ringan" | "Moderat" | "Berat";
   quarterFinalsProb: number;
   playInsProb: number;
   eliminationProb: number;
-  safeWinsThreshold: number;   // Target win aman
-  minWinsThreshold: number;    // Target win minimal
-  isGuaranteedEliminated: boolean;
-  criticalMatches: CriticalMatchItem[];
-  scenarios: ScenarioOutcome[];
-  tacticalSummary: string[];
+  targets: ScenarioTier;
+  tacticalMatches: TacticalMatchItem[];
+  conditional: ConditionalImpact | null;
+  strategicTakeaways: string[];
 }
 
-export function generateFullPlayoffAnalytics(
+// 🟢 1. TEAM STRENGTH MODEL (LOGISTIC POWER RATING)
+function calculateMatchWinProb(teamA: ExtendedStandingItem, teamB: ExtendedStandingItem): number {
+  const wrA = teamA.matchPlayed > 0 ? (teamA.matchWins / teamA.matchPlayed) * 100 : 50;
+  const wrB = teamB.matchPlayed > 0 ? (teamB.matchWins / teamB.matchPlayed) * 100 : 50;
+
+  const diffA = teamA.matchPlayed > 0 ? teamA.roundDifference / teamA.matchPlayed : 0;
+  const diffB = teamB.matchPlayed > 0 ? teamB.roundDifference / teamB.matchPlayed : 0;
+
+  // Power index
+  const powerA = wrA + diffA * 2.5;
+  const powerB = wrB + diffB * 2.5;
+
+  const diff = powerA - powerB;
+  const probA = 1 / (1 + Math.pow(10, -diff / 40));
+  return Math.max(0.15, Math.min(0.85, probA));
+}
+
+// 🟢 2. ENGINE UTAMA
+export function generateAdvancedPlayoffAnalytics(
   targetTeamName: string,
   allSchedules: MatchScheduleItem[] = [],
   standings: ExtendedStandingItem[] = [],
   iterations: number = 3000
-): FullPlayoffAnalyticsResult {
+): AdvancedPlayoffAnalytics {
   const cleanTarget = targetTeamName.toLowerCase().trim();
   const currentStanding = standings.find((s) => s.teamName.toLowerCase().trim() === cleanTarget);
 
@@ -59,86 +85,102 @@ export function generateFullPlayoffAnalytics(
   const currentWins = currentStanding?.matchWins || 0;
   const currentLosses = currentStanding?.matchLosses || 0;
   const currentPtsDiff = currentStanding?.roundDifference || 0;
-  const maxPossibleWins = currentWins + remCount;
 
-  // 1. HITUNG STRENGTH OF SCHEDULE (SoS)
-  let totalOppWinRate = 0;
-  const criticalMatches: CriticalMatchItem[] = [];
+  // Evaluasi Tiap Laga Sisa
+  let totalOppStrength = 0;
+  const tacticalMatches: TacticalMatchItem[] = [];
 
   myRemainingMatches.forEach((m) => {
     const isA = m.teamAName.toLowerCase().trim() === cleanTarget;
     const oppName = isA ? m.teamBName : m.teamAName;
     const oppLogo = (isA ? m.teamBLogo : m.teamALogo) || "/logo.webp";
-    const oppStanding = standings.find((s) => s.teamName.toLowerCase().trim() === oppName.toLowerCase().trim());
-    
-    const oppWinRate = oppStanding && oppStanding.matchPlayed > 0 
-      ? (oppStanding.matchWins / oppStanding.matchPlayed) * 100 
-      : 50;
-    totalOppWinRate += oppWinRate;
+    const oppStanding = standings.find((s) => s.teamName.toLowerCase().trim() === oppName.toLowerCase().trim()) || {
+      rank: 99, matchWins: 0, matchLosses: 0, matchPlayed: 0, roundDifference: 0, groupName: DIVISION_MAP.GROUP_A
+    } as any;
 
-    // Deteksi Laga Kunci (🔥 Six-Point Swing)
-    const oppRank = oppStanding?.rank ?? 99;
-    const isSameGroup = oppStanding?.groupName === currentStanding?.groupName;
-    
-    let importance: CriticalMatchItem["importance"] = "DIRECT_RIVAL";
-    let reason = "Pesaing langsung perebutan tiket";
+    const myWinProb = currentStanding ? calculateMatchWinProb(currentStanding, oppStanding) : 0.5;
+    totalOppStrength += (1 - myWinProb) * 100;
 
-    if (oppRank <= 2 && isSameGroup) {
-      importance = "UPSET_CHANCE";
-      reason = "Peluang pangkas selisih ke Top 2 Divisi";
-    } else if (Math.abs((currentStanding?.rank || 5) - oppRank) <= 2) {
-      importance = "CRITICAL_SWING";
-      reason = "🔥 6-Point Swing: Menang menekan rival langsung ke bawah";
+    const oppRank = oppStanding.rank;
+    const isDirectCompetitor = Math.abs((currentStanding?.rank || 8) - oppRank) <= 2;
+    const isTopTwo = oppRank <= 2;
+
+    let strategyTag: TacticalMatchItem["strategyTag"] = "HIGH_VALUE_WIN";
+    let tagLabel = "High-Value Win";
+    let criticalityScore = 70;
+    let description = "Peluang menambah modal poin & mengamankan posisi.";
+
+    if (isDirectCompetitor) {
+      strategyTag = "MUST_WIN";
+      tagLabel = "🔥 MUST WIN (6-Pt Swing)";
+      criticalityScore = 95;
+      description = "Rival langsung! Kemenangan mencegah rival mencuri kuota.";
+    } else if (isTopTwo) {
+      strategyTag = "UPSET_OPPORTUNITY";
+      tagLabel = "⚡ Upset Opportunity";
+      criticalityScore = 60;
+      description = "Kekalahan di sini wajar; targetkan skor set ketat (8-10).";
     }
 
-    criticalMatches.push({
+    tacticalMatches.push({
       matchId: m.id,
       opponentName: oppName,
       opponentLogo: oppLogo,
       opponentRank: oppRank,
-      importance,
-      reason,
+      winProbability: Math.round(myWinProb * 100),
+      criticalityScore,
+      strategyTag,
+      tagLabel,
+      description,
     });
   });
 
-  const rawSos = remCount > 0 ? Math.round(totalOppWinRate / remCount) : 50;
-  const sosRating = Math.max(10, Math.min(95, rawSos));
+  const rawSos = remCount > 0 ? Math.round(totalOppStrength / remCount) : 50;
+  const sosRating = Math.max(15, Math.min(90, rawSos));
   const sosLabel = sosRating >= 65 ? "Berat" : sosRating <= 40 ? "Ringan" : "Moderat";
 
-  // 2. SIMULASI MONTE CARLO (3.000 Iterasi Musim Paralel)
+  // Monte Carlo Simulation
   let quarterWins = 0;
   let playInsWins = 0;
-  let eliminatedCount = 0;
+  const outcomeStats = new Map<number, { count: number; qWins: number; pWins: number }>();
 
-  // Matriks skenario hasil (misal sisa 4 laga: 4-0, 3-1, 2-2, 1-3, 0-4)
-  const scenarioStats = new Map<number, { count: number; qWins: number; pWins: number }>();
   for (let w = 0; w <= remCount; w++) {
-    scenarioStats.set(w, { count: 0, qWins: 0, pWins: 0 });
+    outcomeStats.set(w, { count: 0, qWins: 0, pWins: 0 });
   }
+
+  // Tracking Conditional untuk Laga Terdekat
+  let nextMatchWinCount = 0;
+  let nextMatchWinSuccess = 0;
+  let nextMatchLossCount = 0;
+  let nextMatchLossSuccess = 0;
 
   for (let i = 0; i < iterations; i++) {
     let mySimWins = 0;
+    let nextMatchWon = false;
 
-    const simMatches: MatchScheduleItem[] = allSchedules.map((m) => {
+    const simMatches: MatchScheduleItem[] = allSchedules.map((m, idx) => {
       if (m.isFinished) return m;
 
       const isTargetMatch =
         m.teamAName.toLowerCase().trim() === cleanTarget ||
         m.teamBName.toLowerCase().trim() === cleanTarget;
 
-      const rand = Math.random();
-      let scoreA = 10;
-      let scoreB = Math.floor(Math.random() * 6) + 3;
+      const teamAItem = standings.find((s) => s.teamName.toLowerCase().trim() === m.teamAName.toLowerCase().trim());
+      const teamBItem = standings.find((s) => s.teamName.toLowerCase().trim() === m.teamBName.toLowerCase().trim());
 
-      if (rand < 0.5) {
-        scoreA = scoreB;
-        scoreB = 10;
-      }
+      const probA = (teamAItem && teamBItem) ? calculateMatchWinProb(teamAItem, teamBItem) : 0.5;
+      const wonA = Math.random() < probA;
+
+      let scoreA = wonA ? 10 : Math.floor(Math.random() * 5) + 4;
+      let scoreB = wonA ? Math.floor(Math.random() * 5) + 4 : 10;
 
       if (isTargetMatch) {
         const isA = m.teamAName.toLowerCase().trim() === cleanTarget;
-        if ((isA && scoreA > scoreB) || (!isA && scoreB > scoreA)) {
-          mySimWins++;
+        const won = (isA && wonA) || (!isA && !wonA);
+        if (won) mySimWins++;
+
+        if (m.id === myRemainingMatches[0]?.id) {
+          nextMatchWon = won;
         }
       }
 
@@ -148,6 +190,7 @@ export function generateFullPlayoffAnalytics(
     const simStandings = calculateStandings(simMatches, standings);
     const mySim = simStandings.find((s) => s.teamName.toLowerCase().trim() === cleanTarget);
 
+    let isQualified = false;
     let isQ = false;
     let isP = false;
 
@@ -155,6 +198,7 @@ export function generateFullPlayoffAnalytics(
       if (mySim.rank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP) {
         quarterWins++;
         isQ = true;
+        isQualified = true;
       } else {
         const globalStandings = buildGlobalStandings(simStandings);
         const wItem = globalStandings.find(
@@ -163,17 +207,24 @@ export function generateFullPlayoffAnalytics(
         if (wItem && wItem.rank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA) {
           playInsWins++;
           isP = true;
-        } else {
-          eliminatedCount++;
+          isQualified = true;
         }
       }
     }
 
-    const stat = scenarioStats.get(mySimWins);
+    const stat = outcomeStats.get(mySimWins);
     if (stat) {
       stat.count++;
       if (isQ) stat.qWins++;
       if (isP) stat.pWins++;
+    }
+
+    if (nextMatchWon) {
+      nextMatchWinCount++;
+      if (isQualified) nextMatchWinSuccess++;
+    } else {
+      nextMatchLossCount++;
+      if (isQualified) nextMatchLossSuccess++;
     }
   }
 
@@ -181,44 +232,44 @@ export function generateFullPlayoffAnalytics(
   const playInsProb = remCount === 0 ? (currentStanding?.rank! > 2 && currentStanding?.rank! <= 8 ? 100 : 0) : Math.round((playInsWins / iterations) * 100);
   const eliminationProb = Math.max(0, 100 - (quarterFinalsProb + playInsProb));
 
-  // 3. GENERATE SCENARIO MATRIX (WHAT-IF DASHBOARD)
-  const scenarios: ScenarioOutcome[] = [];
-  for (let w = remCount; w >= 0; w--) {
-    const s = scenarioStats.get(w);
-    const total = s?.count || 1;
-    const qP = Math.round(((s?.qWins || 0) / total) * 100);
-    const pP = Math.round(((s?.pWins || 0) / total) * 100);
-    
-    let statusBadge: ScenarioOutcome["statusBadge"] = "DEAD";
-    if (qP + pP >= 90) statusBadge = "SAFE";
-    else if (qP + pP >= 60) statusBadge = "COMPETITIVE";
-    else if (qP + pP >= 20) statusBadge = "CRITICAL";
+  // 🟢 3. TARGET STRATEGIS 3-TIER
+  const getProbForWins = (w: number) => {
+    const s = outcomeStats.get(w);
+    if (!s || s.count === 0) return 0;
+    return Math.round(((s.qWins + s.pWins) / s.count) * 100);
+  };
 
-    scenarios.push({
-      wins: w,
-      losses: remCount - w,
-      recordLabel: `${w}-${remCount - w}`,
-      quarterProb: qP,
-      playInsProb: pP,
-      statusBadge,
-    });
+  const targets: ScenarioTier = {
+    safeRecord: `${remCount}-0`,
+    safeProb: getProbForWins(remCount) || 99,
+    competitiveRecord: `${Math.max(0, remCount - 1)}-1`,
+    competitiveProb: getProbForWins(Math.max(0, remCount - 1)) || 85,
+    survivalRecord: `${Math.max(0, remCount - 2)}-2`,
+    survivalProb: getProbForWins(Math.max(0, remCount - 2)) || 10,
+  };
+
+  // 🟢 4. CONDITIONAL SCENARIOS
+  let conditional: ConditionalImpact | null = null;
+  if (myRemainingMatches.length > 0) {
+    const nextOpp = tacticalMatches[0];
+    conditional = {
+      nextOpponentName: nextOpp.opponentName,
+      winImpactProb: nextMatchWinCount > 0 ? Math.round((nextMatchWinSuccess / nextMatchWinCount) * 100) : playInsProb,
+      loseImpactProb: nextMatchLossCount > 0 ? Math.round((nextMatchLossSuccess / nextMatchLossCount) * 100) : 0,
+      loseRequiredRecord: `${remCount - 1}-0`,
+    };
   }
 
-  // 4. REKOMENDASI TAKTIS & THRESHOLD
-  const safeWinsThreshold = Math.min(remCount, Math.max(0, 4 - currentWins));
-  const minWinsThreshold = Math.min(remCount, Math.max(0, 3 - currentWins));
-  const isGuaranteedEliminated = maxPossibleWins < 3;
+  // 🟢 5. STRATEGIC TAKEAWAYS
+  const strategicTakeaways: string[] = [];
+  const mustWinCount = tacticalMatches.filter((m) => m.strategyTag === "MUST_WIN").length;
 
-  const tacticalSummary: string[] = [];
-  if (currentWins >= 3) {
-    tacticalSummary.push(`Jalur Utama: Mengamankan Top 2 Divisi. Butuh ${Math.max(0, 5 - currentWins)} kemenangan untuk tiket Quarterfinal langsung.`);
-    tacticalSummary.push(`Amankan margin skor set (+${currentPtsDiff}) untuk mengunci posisi seeding bagan atas.`);
-  } else if (currentWins === 0) {
-    tacticalSummary.push(`Batas Toleransi: Maksimal hanya boleh kalah ${Math.max(0, remCount - 3)} match lagi. Menelan ${Math.max(0, remCount - 3) + 1} kekalahan memastikan gugur 100%.`);
-    tacticalSummary.push(`Prioritaskan kemenangan telak (10-3 atau 10-4) pada laga kunci melawan sesama tim papan tengah.`);
-  } else {
-    tacticalSummary.push(`Jalur Realistis: Targetkan minimal rekor akhir 4-3 (butuh ${Math.max(0, 4 - currentWins)} Win lagi) untuk kepastian lolos Play-Ins 90%+.`);
-    tacticalSummary.push(`Fokus amankan kemenangan di laga 6-Point Swing sebelum menghadapi pemuncak klasemen.`);
+  if (mustWinCount > 0) {
+    strategicTakeaways.push(`Prioritas #1: Wajib amankan laga 6-Point Swing melawan rival langsung.`);
+  }
+  strategicTakeaways.push(`Target Realistis: Raih rekor sisa ${targets.competitiveRecord} untuk mengunci peluang Play-Ins ${targets.competitiveProb}%.`);
+  if (targets.survivalProb <= 15 && remCount >= 3) {
+    strategicTakeaways.push(`Batas Kritis: Rekor ${targets.survivalRecord} hanya menyisakan peluang ${targets.survivalProb}% (Zona Bahaya).`);
   }
 
   return {
@@ -232,11 +283,9 @@ export function generateFullPlayoffAnalytics(
     quarterFinalsProb,
     playInsProb,
     eliminationProb,
-    safeWinsThreshold,
-    minWinsThreshold,
-    isGuaranteedEliminated,
-    criticalMatches,
-    scenarios,
-    tacticalSummary,
+    targets,
+    tacticalMatches,
+    conditional,
+    strategicTakeaways,
   };
 }
