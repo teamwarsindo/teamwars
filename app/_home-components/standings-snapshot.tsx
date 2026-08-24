@@ -1,127 +1,210 @@
 "use client";
 
-import { useMemo } from "react";
-import { MatchScheduleItem } from "@/app/tournament/_library";
+import { useState } from "react";
+import Link from "next/link";
+import { DIVISION_MAP } from "@/app/tournament/_library";
 import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
-import { generateDecisionAnalytics } from "@/app/tournament/_library/simulator";
-import { ShieldCheck, Zap, AlertTriangle, Flame, ShieldAlert, Target } from "lucide-react";
+import { ChevronRight, Trophy } from "lucide-react";
 
-interface TeamStrategyViewProps {
-  teamName: string;
-  allTeams: ExtendedStandingItem[];
-  allSchedules: MatchScheduleItem[];
+interface StandingsSnapshotProps {
+  loading: boolean;
+  topGroupA: ExtendedStandingItem[];
+  topGroupB: ExtendedStandingItem[];
+  topGlobal: ExtendedStandingItem[];
 }
 
-export function TeamStrategyView({
-  teamName,
-  allTeams,
-  allSchedules,
-}: TeamStrategyViewProps) {
-  const data = useMemo(() => {
-    return generateDecisionAnalytics(teamName, allSchedules, allTeams, 2500);
-  }, [teamName, allTeams, allSchedules]);
+export function StandingsSnapshot({
+  loading,
+  topGroupA,
+  topGroupB,
+  topGlobal,
+}: StandingsSnapshotProps) {
+  const [tab, setTab] = useState<"DIVISION" | "GLOBAL">("DIVISION");
+
+  const renderTableRows = (
+    items: ExtendedStandingItem[],
+    rowBgColor: string,
+    badgeBgColor: string
+  ) => {
+    return items.map((item, idx) => (
+      <tr key={item.teamName || idx} className={`${rowBgColor} transition`}>
+        {/* RANK */}
+        <td className="py-2 px-1 md:py-2.5 text-center w-[11%]">
+          <span
+            className={`inline-flex h-4.5 w-4.5 md:h-5 md:w-5 items-center justify-center rounded-sm font-black text-[10px] md:text-xs shadow-2xs ${badgeBgColor}`}
+          >
+            {idx + 1}
+          </span>
+        </td>
+
+        {/* TEAM NAME */}
+        <td className="py-2 pl-1 pr-1 md:py-2.5 w-[49%]">
+          <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+            <img
+              src={item.teamLogo || "/logo.webp"}
+              alt=""
+              className="h-4.5 w-4.5 md:h-5 md:w-5 shrink-0 object-contain"
+            />
+            <span className="truncate font-semibold text-xs md:text-sm text-foreground">
+              {item.teamName}
+            </span>
+          </div>
+        </td>
+
+        {/* MATCH W-L */}
+        <td className="py-2 px-0.5 md:py-2.5 text-center font-bold text-primary text-xs md:text-sm w-[13%]">
+          {item.matchWins}-{item.matchLosses}
+        </td>
+
+        {/* PTS DIFF */}
+        <td className="py-2 px-0.5 md:py-2.5 text-center font-bold text-xs md:text-sm w-[13%]">
+          <span
+            className={
+              item.roundDifference > 0
+                ? "text-emerald-700 dark:text-emerald-400 font-bold"
+                : item.roundDifference < 0
+                ? "text-rose-700 dark:text-rose-400 font-bold"
+                : "text-muted-foreground"
+            }
+          >
+            {item.roundDifference > 0 ? `+${item.roundDifference}` : item.roundDifference}
+          </span>
+        </td>
+
+        {/* PTS SCORED */}
+        <td className="py-2 pl-0.5 pr-2 md:py-2.5 text-center font-bold text-foreground text-xs md:text-sm w-[14%]">
+          {item.setWins}
+        </td>
+      </tr>
+    ));
+  };
 
   return (
-    <div className="space-y-2 rounded-2xl border border-border bg-muted/20 p-2.5 sm:p-3 text-card-foreground">
-      
-      {/* 1. PLAYOFF PROJECTION BAR */}
-      <div className="space-y-1">
-        <div className="flex justify-between text-[9px] sm:text-[10px] font-bold">
-          <span className="text-sky-700 dark:text-sky-400">Quarter: {data.quarterFinalsProb}%</span>
-          <span className="text-emerald-700 dark:text-emerald-400">Play-Ins: {data.playInsProb}%</span>
-          <span className="text-rose-700 dark:text-rose-400">Gugur: {data.eliminationProb}%</span>
-        </div>
-        <div className="flex h-1.5 sm:h-2 w-full overflow-hidden rounded-full bg-muted/60">
-          <div style={{ width: `${data.quarterFinalsProb}%` }} className="bg-sky-500 transition-all duration-300" />
-          <div style={{ width: `${data.playInsProb}%` }} className="bg-emerald-500 transition-all duration-300" />
-          <div style={{ width: `${data.eliminationProb}%` }} className="bg-rose-500 transition-all duration-300" />
-        </div>
-      </div>
-
-      {/* 2. DUA KARTU EKSEKUTIF (TARGET REKOR & TIE-BREAK PRESSURE) */}
-      <div className="grid grid-cols-2 gap-1.5 text-[9.5px]">
-        {/* TARGET REKOR */}
-        <div className="rounded-xl border border-border bg-card/80 p-2 space-y-1">
-          <span className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-            <Target className="h-2.5 w-2.5 text-primary" /> Target Rekor Sisa
-          </span>
-          <div className="flex justify-between items-center text-[9.5px]">
-            <span className="text-muted-foreground">Garansi Top 8:</span>
-            <span className="font-bold text-emerald-700 dark:text-emerald-400">{data.guaranteedTarget}</span>
-          </div>
-          <div className="flex justify-between items-center text-[9.5px]">
-            <span className="text-muted-foreground">Batas Survival:</span>
-            <span className="font-bold text-amber-600 dark:text-amber-400">{data.survivalTarget}</span>
-          </div>
-        </div>
-
-        {/* TIE-BREAK RISK */}
-        <div className="rounded-xl border border-border bg-card/80 p-2 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-              <ShieldAlert className="h-2.5 w-2.5 text-rose-500" /> Risiko Tie-Break
-            </span>
-            <span className={`text-[7.5px] font-black px-1 py-0.2 rounded ${
-              data.tiebreakRisk === "HIGH" ? "bg-rose-500/15 text-rose-600" : data.tiebreakRisk === "MODERATE" ? "bg-amber-500/15 text-amber-600" : "bg-emerald-500/15 text-emerald-600"
-            }`}>
-              {data.tiebreakRisk} RISK
-            </span>
-          </div>
-          <p className="text-[8.5px] leading-tight text-muted-foreground line-clamp-2">
-            {data.tiebreakAdvice}
-          </p>
-        </div>
-      </div>
-
-      {/* 3. MATCH LEVERAGE RANKING (MATCH DENGAN IMPACT TERTINGGI) */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between text-[8px] font-bold text-muted-foreground uppercase px-0.5">
-          <span className="flex items-center gap-1">
-            <Flame className="h-2.5 w-2.5 text-rose-500" /> Sisa Match (Urutan Dampak Kelolosan)
-          </span>
-          <span>SoS: {data.sosRating}/100</span>
-        </div>
-
-        <div className="space-y-1">
-          {data.tacticalMatches.slice(0, 3).map((m) => (
-            <div
-              key={m.matchId}
-              className={`flex items-center justify-between rounded-xl border px-2 py-1.5 text-[9.5px] ${
-                m.isHighLeverage
-                  ? "border-rose-500/30 bg-rose-500/5 dark:bg-rose-500/10"
-                  : "border-border bg-card/60"
+    <div className="space-y-3 rounded-2xl border border-border bg-card p-3.5 sm:p-4 md:p-5 shadow-xs flex flex-col justify-between">
+      <div>
+        {/* TAB SWITCHER & LINK */}
+        <div className="flex items-center justify-between border-b border-border/40 pb-2.5 md:pb-3">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setTab("DIVISION")}
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                tab === "DIVISION"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
               }`}
             >
-              <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                <img src={m.opponentLogo} alt="" className="h-4 w-4 object-contain shrink-0" />
-                <span className="font-bold truncate text-foreground">{m.opponentName}</span>
-                <span className="text-[8px] text-muted-foreground font-mono">#{m.opponentRank}</span>
-              </div>
+              Top Divisi
+            </button>
+            <button
+              onClick={() => setTab("GLOBAL")}
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                tab === "GLOBAL"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+              }`}
+            >
+              Top Wildcard
+            </button>
+          </div>
 
-              {/* CONDITIONAL PROBABILITY & LEVERAGE */}
-              <div className="flex items-center gap-2 shrink-0 text-right">
-                <div className="text-[8.5px] text-muted-foreground leading-none">
-                  <span>W: <strong className="text-emerald-700 dark:text-emerald-400">{m.playoffIfWin}%</strong></span>
-                  <span className="mx-1">/</span>
-                  <span>L: <strong className="text-rose-700 dark:text-rose-400">{m.playoffIfLose}%</strong></span>
-                </div>
-                <span className="rounded bg-primary/10 border border-primary/20 px-1 py-0.2 text-[8px] font-black text-primary">
-                  Δ+{m.leverageImpact}%
-                </span>
+          <Link
+            href="/tournament?tab=standings"
+            className="flex items-center gap-0.5 text-xs font-bold text-primary hover:underline"
+          >
+            Full Standings <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+          </Link>
+        </div>
+
+        {/* ISI TABEL */}
+        {loading ? (
+          <div className="py-8 text-center text-xs md:text-sm text-muted-foreground animate-pulse font-semibold">
+            Memuat klasemen...
+          </div>
+        ) : tab === "DIVISION" ? (
+          <div className="space-y-3.5 md:space-y-4 pt-2.5">
+            {/* GRUP A */}
+            <div className="space-y-1.5">
+              <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400 px-1 flex items-center gap-1.5">
+                <Trophy className="h-3.5 w-3.5" /> Divisi {DIVISION_MAP.GROUP_A}
+              </span>
+              <div className="overflow-hidden rounded-xl border border-sky-500/30 dark:border-sky-500/20">
+                <table className="w-full text-left table-fixed">
+                  <thead className="bg-sky-500/15 dark:bg-sky-500/10 border-b border-sky-500/30 dark:border-sky-500/20 text-[9px] md:text-[10px] font-black uppercase text-slate-700 dark:text-muted-foreground">
+                    <tr>
+                      <th className="py-1.5 px-1 text-center w-[11%]">RANK</th>
+                      <th className="py-1.5 pl-1 pr-1 w-[49%]">TEAM</th>
+                      <th className="py-1.5 px-0.5 text-center w-[13%] text-primary">MATCH W-L</th>
+                      <th className="py-1.5 px-0.5 text-center w-[13%]">PTS DIFF</th>
+                      <th className="py-1.5 pl-0.5 pr-2 text-center w-[14%]">PTS SCORED</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-sky-500/15 dark:divide-sky-500/10">
+                    {renderTableRows(
+                      topGroupA,
+                      "bg-sky-500/5 hover:bg-sky-500/10",
+                      "bg-sky-500/20 text-sky-800 dark:text-sky-300 border border-sky-500/40"
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* 4. STRATEGIC TAKEAWAY */}
-      <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-[9px] text-muted-foreground flex items-center gap-1.5">
-        <Zap className="h-3 w-3 text-primary shrink-0" />
-        <span className="leading-tight text-foreground font-medium truncate">
-          {data.primaryDecisionTakeaway}
-        </span>
+            {/* GRUP B */}
+            <div className="space-y-1.5">
+              <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 px-1 flex items-center gap-1.5">
+                <Trophy className="h-3.5 w-3.5" /> Divisi {DIVISION_MAP.GROUP_B}
+              </span>
+              <div className="overflow-hidden rounded-xl border border-amber-500/30 dark:border-amber-500/20">
+                <table className="w-full text-left table-fixed">
+                  <thead className="bg-amber-500/15 dark:bg-amber-500/10 border-b border-amber-500/30 dark:border-amber-500/20 text-[9px] md:text-[10px] font-black uppercase text-slate-700 dark:text-muted-foreground">
+                    <tr>
+                      <th className="py-1.5 px-1 text-center w-[11%]">RANK</th>
+                      <th className="py-1.5 pl-1 pr-1 w-[49%]">TEAM</th>
+                      <th className="py-1.5 px-0.5 text-center w-[13%] text-primary">MATCH W-L</th>
+                      <th className="py-1.5 px-0.5 text-center w-[13%]">PTS DIFF</th>
+                      <th className="py-1.5 pl-0.5 pr-2 text-center w-[14%]">PTS SCORED</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/15 dark:divide-amber-500/10">
+                    {renderTableRows(
+                      topGroupB,
+                      "bg-amber-500/5 hover:bg-amber-500/10",
+                      "bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40"
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* TAB: GLOBAL WILDCARD (TOP 8) */
+          <div className="space-y-1.5 pt-2.5">
+            <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 px-1 flex items-center gap-1.5">
+              <Trophy className="h-3.5 w-3.5" /> Global Wildcard
+            </span>
+            <div className="overflow-hidden rounded-xl border border-emerald-500/30 dark:border-emerald-500/20">
+              <table className="w-full text-left table-fixed">
+                <thead className="bg-emerald-500/15 dark:bg-emerald-500/10 border-b border-emerald-500/30 dark:border-emerald-500/20 text-[9px] md:text-[10px] font-black uppercase text-slate-700 dark:text-muted-foreground">
+                  <tr>
+                    <th className="py-1.5 px-1 text-center w-[11%]">RANK</th>
+                    <th className="py-1.5 pl-1 pr-1 w-[49%]">TEAM</th>
+                    <th className="py-1.5 px-0.5 text-center w-[13%] text-primary">MATCH W-L</th>
+                    <th className="py-1.5 px-0.5 text-center w-[13%]">PTS DIFF</th>
+                    <th className="py-1.5 pl-0.5 pr-2 text-center w-[14%]">PTS SCORED</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-emerald-500/15 dark:divide-emerald-500/10">
+                  {renderTableRows(
+                    topGlobal,
+                    "bg-emerald-500/5 hover:bg-emerald-500/10",
+                    "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40"
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
-
     </div>
   );
 }
