@@ -1,180 +1,215 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/app/tournament/_library/types';
-import { getTournamentWeekNumber } from '@/app/tournament/_library/calculator';
+import { MatchScheduleItem } from '@/app/tournament/_library';
+import { createMatchDiscordChannel } from '@/lib/discord/channels';
+import { executeAssignStaff, executeUnassignStaff } from '@/lib/discord/services/staff-assignment';
 
-// Key KV resmi sesuai database
-const KV_KEY_SCHEDULES = 'twi:schedules';
-
-// Konfigurasi Environment Bot Discord & Server Guild
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || process.env.BOT_TOKEN;
-const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
-const MATCH_CATEGORY_ID = process.env.DISCORD_MATCH_CATEGORY_ID;
-
-// Helper fetch Discord API
-async function discordApiRequest(endpoint: string, method: string = 'GET', body?: any) {
-  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
-    throw new Error('Konfigurasi DISCORD_BOT_TOKEN atau DISCORD_GUILD_ID belum diset di .env');
-  }
-
-  const res = await fetch(`https://discord.com/api/v10${endpoint}`, {
-    method,
-    headers: {
-      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Discord API Error [${res.status}]: ${errText}`);
-  }
-
-  return res.status !== 204 ? await res.json() : null;
-}
-
-// Helper membuat text channel match Discord jika belum ada
-async function createOrUpdateMatchChannel(match: MatchScheduleItem, weekName: string) {
-  const channelName = `w${match.weekNumber || 1}-${match.teamAName}-vs-${match.teamBName}`
+// Helper slug nama tim
+function getTeamSlug(teamName: string) {
+  return teamName
     .toLowerCase()
-    .replace(/[^a-z0-9-_]/g, '-');
-
-  if (match.discordChannelId) {
-    console.log(`[DISCORD] Channel untuk match ${match.id} sudah ada: ${match.discordChannelId}`);
-    return match.discordChannelId;
-  }
-
-  const permissionOverwrites: any[] = [];
-
-  if (match.refereeDiscordId) {
-    permissionOverwrites.push({
-      id: match.refereeDiscordId,
-      type: 1,
-      allow: '1024',
-    });
-  }
-
-  if (match.streamerDiscordId) {
-    permissionOverwrites.push({
-      id: match.streamerDiscordId,
-      type: 1,
-      allow: '1024',
-    });
-  }
-
-  const newChannel = await discordApiRequest(`/guilds/${DISCORD_GUILD_ID}/channels`, 'POST', {
-    name: channelName,
-    type: 0,
-    parent_id: MATCH_CATEGORY_ID || undefined,
-    topic: `Match: ${match.teamAName} vs ${match.teamBName} | ${weekName}`,
-    permission_overwrites: permissionOverwrites.length > 0 ? permissionOverwrites : undefined,
-  });
-
-  return newChannel?.id || null;
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
 }
 
-export async function POST(req: NextRequest) {
+// Helper mengambil tanggal start turnamen dari Env Variable
+function getTournamentStartDate(): number {
+  const startDateStr = process.env.TWI_START_DATE || '2026-08-03';
+  return new Date(`${startDateStr}T00:00:00+07:00`).getTime();
+}
+
+// Helper hitung minggu berbasis tanggal jika field weekNumber di KV belum ada
+function getMatchWeekNumber(dateString?: string): number {
+  if (!dateString) return 1;
+  const startDate = getTournamentStartDate();
+  const matchDate = new Date(dateString).getTime();
+  if (isNaN(matchDate)) return 1;
+
+  const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+// Helper delay mencegah Rate Limit Discord API (429)
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const action = body.action || (body.matchId ? 'SINGLE' : 'WEEK');
+    const { matchId, action, targetWeek, unassignType, assignType, targetStaffId, scoreA, scoreB } = body;
 
-    // 1. AMBIL DATA SCHEDULE MENGGUNAKAN KEY YANG BENAR (twi:schedules)
-    const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
-    if (schedules.length === 0) {
-      return NextResponse.json(
-        { error: `Data ${KV_KEY_SCHEDULES} tidak ditemukan di KV` },
-        { status: 404 }
-      );
-    }
-
-    let isModified = false;
-    let syncedCount = 0;
-
-    // =========================================================================
-    // 🟢 SINKRONISASI MASSAL SEMUA MATCH PADA WEEK TERTENTU (ACTION: WEEK)
-    // =========================================================================
-    if (action === 'WEEK') {
-      let targetWeekStr = body.targetWeek;
-
-      if (!targetWeekStr || targetWeekStr.toUpperCase() === 'AUTO') {
-        const currentWeekNum = getTournamentWeekNumber();
-        targetWeekStr = `Week ${currentWeekNum}`;
+    // ==========================================
+    // 🟢 1. ACTION: SYNC PER WEEK (MASSAL / BATCH)
+    // ==========================================
+    if (action === 'WEEK' || targetWeek) {
+      if (!targetWeek || targetWeek === 'ALL') {
+        return NextResponse.json(
+          { error: 'Silakan pilih minggu spesifik (misal: "Week 1") untuk sync per minggu.' },
+          { status: 400 }
+        );
       }
 
-      const weekNumberTarget = parseInt(targetWeekStr.replace(/[^0-9]/g, ''), 10) || 1;
+      const weekNumber = parseInt(targetWeek.replace('Week ', ''), 10);
+      
+      // Filter presisi berbasis tanggal pertandingan
+      const weekMatches = schedules.filter((m) => {
+        const computedWeek = m.weekNumber || getMatchWeekNumber(m.matchDate);
+        return computedWeek === weekNumber;
+      });
 
-      console.log(`[SYNC-MATCH] Memproses batch sync channel untuk Week ${weekNumberTarget}...`);
+      if (weekMatches.length === 0) {
+        return NextResponse.json({ error: `Tidak ada jadwal pertandingan untuk ${targetWeek}` }, { status: 400 });
+      }
 
-      for (let i = 0; i < schedules.length; i++) {
-        const m = schedules[i];
-        const matchWeek = Number(m.weekNumber) || getTournamentWeekNumber(m.matchDate);
+      const updatedMatches: MatchScheduleItem[] = [...schedules];
+      const syncedChannelMap: Record<string, string> = {};
 
-        if (matchWeek === weekNumberTarget) {
-          try {
-            const channelId = await createOrUpdateMatchChannel(m, targetWeekStr);
-            if (channelId && m.discordChannelId !== channelId) {
-              schedules[i].discordChannelId = channelId;
-              isModified = true;
-            }
-            syncedCount++;
-          } catch (err: any) {
-            console.error(`Gagal sync Discord match ${m.id}:`, err.message);
+      for (const match of weekMatches) {
+        const idx = updatedMatches.findIndex((m) => m.id === match.id);
+        if (idx === -1) continue;
+
+        const slugA = getTeamSlug(match.teamAName);
+        const slugB = getTeamSlug(match.teamBName);
+
+        const [teamA, teamB] = await Promise.all([
+          kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
+          kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
+        ]);
+
+        const res = await createMatchDiscordChannel({
+          matchId: match.id,
+          groupName: match.groupName,
+          teamAName: match.teamAName,
+          teamBName: match.teamBName,
+          kodeTimA: teamA?.kodeTim,
+          kodeTimB: teamB?.kodeTim,
+          emojiAId: teamA?.emojiId,
+          emojiBId: teamB?.emojiId,
+          roleAId: teamA?.discordRoleId || teamA?.roleId,
+          roleBId: teamB?.discordRoleId || teamB?.roleId,
+          weekName: targetWeek,
+          matchDateIso: match.matchDate,
+          refereeName: match.referee,
+          refereeDiscordId: match.refereeDiscordId,
+          streamerName: match.streamer,
+          streamerDiscordId: match.streamerDiscordId,
+          streamLink: match.streamLink,
+          savedChannelId: (match as any).discordChannelId,
+          openingMsgId: (match as any).openingMsgId,
+        });
+
+        if (res.channelId) {
+          (updatedMatches[idx] as any).discordChannelId = res.channelId;
+          if (res.openingMsgId) {
+            (updatedMatches[idx] as any).openingMsgId = res.openingMsgId;
           }
+          syncedChannelMap[match.id] = res.channelId;
         }
+
+        await delay(300);
       }
 
-      // Simpan perubahan ID channel kembali ke KV
-      if (isModified) {
-        await kv.set(KV_KEY_SCHEDULES, schedules);
-      }
+      await kv.set('twi:schedules', updatedMatches);
 
       return NextResponse.json({
         success: true,
-        message: `Berhasil sinkronisasi ${syncedCount} match untuk ${targetWeekStr}.`,
-        targetWeek: targetWeekStr,
-        syncedCount,
+        message: `Sync Channel ${targetWeek} berhasil dieksekusi!`,
+        channels: syncedChannelMap,
       });
     }
 
-    // =========================================================================
-    // 🟢 SINKRONISASI SINGLE MATCH (ACTION: SINGLE)
-    // =========================================================================
-    if (action === 'SINGLE' || body.matchId) {
-      const matchId = body.matchId;
-      const targetMatchIndex = schedules.findIndex((m) => m.id === matchId);
-
-      if (targetMatchIndex === -1) {
-        return NextResponse.json({ error: `Match ${matchId} tidak ditemukan` }, { status: 404 });
-      }
-
-      const match = schedules[targetMatchIndex];
-      const matchWeek = Number(match.weekNumber) || getTournamentWeekNumber(match.matchDate);
-      const weekName = body.weekName || `Week ${matchWeek}`;
-
-      const channelId = await createOrUpdateMatchChannel(match, weekName);
-      if (channelId && match.discordChannelId !== channelId) {
-        schedules[targetMatchIndex].discordChannelId = channelId;
-        await kv.set(KV_KEY_SCHEDULES, schedules);
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: `Match ${matchId} berhasil disinkronkan ke Discord.`,
-        channelId,
-      });
+    if (!matchId) {
+      return NextResponse.json({ error: 'Match ID wajib diisi' }, { status: 400 });
     }
 
-    return NextResponse.json(
-      { error: 'Aksi tidak valid. Harap kirimkan action: "WEEK" atau matchId.' },
-      { status: 400 }
-    );
+    // ==========================================
+    // 🔴 2. ACTION: UNASSIGN WASIT / STREAMER
+    // ==========================================
+    if (action === 'UNASSIGN') {
+      const type = unassignType || assignType || 'REFEREE';
+      const result = await executeUnassignStaff({
+        matchId,
+        assignType: type,
+        scoreA: scoreA !== undefined ? Number(scoreA) : 0,
+        scoreB: scoreB !== undefined ? Number(scoreB) : 0,
+      });
+      return NextResponse.json({ success: true, message: `Unassign match ${matchId} berhasil!`, result });
+    }
+
+    // ==========================================
+    // 🔵 3. ACTION: ASSIGN WASIT / STREAMER
+    // ==========================================
+    if (action === 'ASSIGN' && targetStaffId) {
+      const result = await executeAssignStaff({
+        matchId,
+        assignType: assignType || 'REFEREE',
+        targetStaffId,
+      });
+      return NextResponse.json({ success: true, message: `Assign match ${matchId} berhasil!`, result });
+    }
+
+    // ==========================================
+    // 🟢 4. ACTION: SYNC SINGLE MATCH CHANNEL
+    // ==========================================
+    const matchIdx = schedules.findIndex((m) => m.id === matchId);
+    if (matchIdx === -1) {
+      return NextResponse.json({ error: 'Match tidak ditemukan di Redis KV' }, { status: 400 });
+    }
+
+    const match = schedules[matchIdx];
+    const slugA = getTeamSlug(match.teamAName);
+    const slugB = getTeamSlug(match.teamBName);
+
+    const [teamA, teamB] = await Promise.all([
+      kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
+      kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
+    ]);
+
+    const computedWeekNum = match.weekNumber || getMatchWeekNumber(match.matchDate);
+    const weekStr = (match as any).weekName || `Week ${computedWeekNum}`;
+
+    const res = await createMatchDiscordChannel({
+      matchId: match.id,
+      groupName: match.groupName,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      kodeTimA: teamA?.kodeTim,
+      kodeTimB: teamB?.kodeTim,
+      emojiAId: teamA?.emojiId,
+      emojiBId: teamB?.emojiId,
+      roleAId: teamA?.discordRoleId || teamA?.roleId,
+      roleBId: teamB?.discordRoleId || teamB?.roleId,
+      weekName: weekStr,
+      matchDateIso: match.matchDate,
+      refereeName: match.referee,
+      refereeDiscordId: match.refereeDiscordId,
+      streamerName: match.streamer,
+      streamerDiscordId: match.streamerDiscordId,
+      streamLink: match.streamLink,
+      savedChannelId: (match as any).discordChannelId,
+      openingMsgId: (match as any).openingMsgId,
+    });
+
+    if (res.channelId) {
+      (schedules[matchIdx] as any).discordChannelId = res.channelId;
+      if (res.openingMsgId) {
+        (schedules[matchIdx] as any).openingMsgId = res.openingMsgId;
+      }
+      await kv.set('twi:schedules', schedules);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Sync Channel untuk match ${matchId} berhasil!`,
+      channelId: res.channelId,
+      openingMsgId: res.openingMsgId,
+    });
+
   } catch (error: any) {
-    console.error('[SYNC-MATCH FATAL ERROR]:', error);
-    return NextResponse.json(
-      { error: error.message || 'Terjadi kesalahan internal pada server' },
-      { status: 500 }
-    );
+    console.error('Error Syncing Match:', error);
+    return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-         }
+            }
