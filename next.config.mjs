@@ -1,4 +1,3 @@
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   async redirects() {
     return [
@@ -17,6 +16,10 @@ const nextConfig = {
 
   async rewrites() {
     return [
+      {
+        source: '/match-logs/:path*',
+        destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/match-logs/:path*',
+      },
       {
         source: '/report/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/report/:path*',
@@ -42,6 +45,23 @@ const nextConfig = {
 
   async headers() {
     return [
+      {
+        source: '/match-logs/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          },
+          {
+            key: 'CDN-Cache-Control',
+            value: 'no-store',
+          },
+          {
+            key: 'Vercel-CDN-Cache-Control',
+            value: 'no-store',
+          },
+        ],
+      },
       {
         source: '/report/:path*',
         headers: [
