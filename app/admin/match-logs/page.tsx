@@ -65,7 +65,7 @@ function MatchLogViewerContent() {
     if (!channelId) {
       Swal.fire({
         title: "Channel Belum Terhubung",
-        text: "Match ini belum memiliki Discord Channel ID di jadwal database.",
+        text: "Match ini belum memiliki Discord Channel ID di database.",
         icon: "warning",
         confirmButtonColor: "#AA1348",
       });
@@ -118,18 +118,24 @@ function MatchLogViewerContent() {
         body: JSON.stringify({
           matchId: activeMatch.id,
           channelId: activeMatch.discordChannelId,
+          refereeDiscordId: activeMatch.refereeDiscordId,
+          roleAId: (activeMatch as any).roleAId,
+          roleBId: (activeMatch as any).roleBId,
         }),
       });
 
+      const json = await res.json();
       if (res.ok) {
+        if (json.schedules) {
+          setSchedules(json.schedules); // Update state schedules secara instan di UI
+        }
         Swal.fire({
           title: "Channel Dihapus!",
-          text: "Channel Discord berhasil dihapus dari server.",
+          text: "Channel Discord berhasil dihapus dan metadata KV telah diperbarui.",
           icon: "success",
           confirmButtonColor: "#AA1348",
         });
       } else {
-        const json = await res.json();
         throw new Error(json.error);
       }
     } catch (err: any) {
