@@ -14,8 +14,11 @@ function handleAdminRoutes(req: NextRequest) {
   // 2. Baca Cookie Session
   const sessionToken = req.cookies.get('admin_session')?.value;
 
-  // 🟢 2.5 IZINKAN AKSES KHUSUS REFEREE PAYROLL JIKA MEMBAWA TOKEN YANG VALID
-  if (pathname.startsWith('/admin/referee-payroll')) {
+  // 🟢 2.5 IZINKAN AKSES KHUSUS REFEREE PAYROLL & MATCH LOGS JIKA MEMBAWA TOKEN YANG VALID
+  if (
+    pathname.startsWith('/admin/referee-payroll') ||
+    pathname.startsWith('/admin/match-logs')
+  ) {
     const tokenParam = searchParams.get('token');
     const validChiefToken = process.env.CHIEF_REFEREE_TOKEN || 'xK9p2Lm5Qo8RstVb3N2wY7zE4Hj1K0Q';
 
