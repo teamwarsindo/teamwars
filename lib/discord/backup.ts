@@ -21,6 +21,7 @@ export interface SavedChatLogItem {
   timestamp: string;
   userMentions?: Record<string, { name: string; color?: string }>;
   roleMentions?: Record<string, { name: string; color?: string }>;
+  channelMentions?: Record<string, { name: string }>;
   attachments: Array<{
     fileName: string;
     maskedUrl: string;
@@ -84,13 +85,13 @@ export async function backupDiscordChannelMessages(params: {
 
   await ensureMatchLogsFolderExists();
 
-  // 1. Ambil Nama Asli Channel
+  // 1. Ambil Nama Asli Channel Utama
   let actualChannelName = `⚔️-${matchId}`;
   try {
     const channelData = await discordAPI(`/channels/${channelId}`, 'GET');
     if (channelData?.name) actualChannelName = channelData.name;
   } catch (e) {
-    console.warn('[BACKUP] Gagal fetch info channel:', e);
+    console.warn('[BACKUP] Gagal fetch info channel utama:', e);
   }
 
   // 2. Fetch Guild Roles
@@ -152,7 +153,12 @@ export async function backupDiscordChannelMessages(params: {
     }
   }
 
-  // 5. Upload Attachment & Format Data Chat
+  // 5. Global Cache untuk Channel Mentions yang di-tag di seluruh chat
+  const globalChannelNamesCache: Record<string, string> = {
+    [channelId]: actualChannelName,
+  };
+
+  // 6. Upload Attachment & Format Data Chat
   const formattedLogs: SavedChatLogItem[] = [];
 
   for (const msg of userMessages) {
@@ -183,6 +189,29 @@ export async function backupDiscordChannelMessages(params: {
           roleMentions[rId] = { name: r.name, color: r.color };
         }
       });
+    }
+
+    // Channel Mentions (<#channelId>)
+    const channelMentions: Record<string, { name: string }> = {};
+    const channelMatches = (msg.content || '').match(/<#(\d+)>/g);
+
+    if (channelMatches) {
+      for (const rawTag of channelMatches) {
+        const cId = rawTag.replace(/[<#>]/g, '');
+
+        if (!globalChannelNamesCache[cId]) {
+          try {
+            const chData = await discordAPI(`/channels/${cId}`, 'GET');
+            globalChannelNamesCache[cId] = chData?.name || 'channel';
+          } catch {
+            globalChannelNamesCache[cId] = 'channel';
+          }
+        }
+
+        channelMentions[cId] = {
+          name: globalChannelNamesCache[cId],
+        };
+      }
     }
 
     // Upload Bukti Gambar
@@ -218,6 +247,7 @@ export async function backupDiscordChannelMessages(params: {
       timestamp: msg.timestamp,
       userMentions,
       roleMentions,
+      channelMentions,
       attachments,
     });
   }
@@ -227,3 +257,4 @@ export async function backupDiscordChannelMessages(params: {
     messages: formattedLogs.reverse(),
   };
 }
+  
