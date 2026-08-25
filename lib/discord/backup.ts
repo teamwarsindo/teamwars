@@ -27,6 +27,7 @@ export interface SavedChatLogItem {
     authorAvatar?: string;
     content: string;
     hasAttachment?: boolean;
+    isDeleted?: boolean;
   };
   forwarded?: {
     content?: string;
@@ -51,9 +52,7 @@ export interface BackupResult {
 async function ensureMatchLogsFolderExists(): Promise<void> {
   try {
     await cloudinary.api.create_folder('match-logs');
-  } catch (err: any) {
-    // folder already exists
-  }
+  } catch (err: any) {}
 }
 
 async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: string): Promise<string> {
@@ -77,7 +76,6 @@ async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: strin
 
     return res.secure_url;
   } catch (err: any) {
-    console.error('[CLOUDINARY ERROR]:', err?.message || err);
     return imageUrl;
   }
 }
@@ -96,9 +94,7 @@ export async function backupDiscordChannelMessages(params: {
   try {
     const channelData = await discordAPI(`/channels/${channelId}`, 'GET');
     if (channelData?.name) actualChannelName = channelData.name;
-  } catch (e) {
-    console.warn('[BACKUP] Gagal fetch info channel:', e);
-  }
+  } catch (e) {}
 
   const guildRolesMap: Record<string, { name: string; color?: string; position: number }> = {};
   try {
@@ -109,9 +105,7 @@ export async function backupDiscordChannelMessages(params: {
         guildRolesMap[r.id] = { name: r.name, color: hex, position: r.position || 0 };
       });
     }
-  } catch (err) {
-    console.warn('[BACKUP] Gagal fetch roles:', err);
-  }
+  } catch (err) {}
 
   let allMessages: any[] = [];
   let lastId: string | undefined = undefined;
@@ -179,32 +173,45 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // 1. Deteksi Reply
+    // 1. Reply Resolution
     let replyTo: SavedChatLogItem['replyTo'] = undefined;
-    if (msg.referenced_message) {
-      const ref = msg.referenced_message;
-      const refMember = memberDetailsMap[ref.author?.id];
-      replyTo = {
-        id: ref.id,
-        authorName: refMember?.nick || ref.author?.global_name || ref.author?.username || 'User',
-        authorAvatar: ref.author?.avatar
-          ? `https://cdn.discordapp.com/avatars/${ref.author.id}/${ref.author.avatar}.webp?size=32`
-          : undefined,
-        content: ref.content || '',
-        hasAttachment: Boolean(ref.attachments && ref.attachments.length > 0),
-      };
+    if (msg.message_reference) {
+      if (msg.referenced_message) {
+        const ref = msg.referenced_message;
+        const refMember = memberDetailsMap[ref.author?.id];
+        replyTo = {
+          id: ref.id,
+          authorName: refMember?.nick || ref.author?.global_name || ref.author?.username || 'User',
+          authorAvatar: ref.author?.avatar
+            ? `https://cdn.discordapp.com/avatars/${ref.author.id}/${ref.author.avatar}.webp?size=32`
+            : undefined,
+          content: ref.content || '',
+          hasAttachment: Boolean(ref.attachments && ref.attachments.length > 0),
+          isDeleted: false,
+        };
+      } else {
+        // Pesan yang dibalas telah dihapus di Discord
+        replyTo = {
+          id: msg.message_reference.message_id,
+          authorName: 'User',
+          content: '',
+          isDeleted: true,
+        };
+      }
     }
 
-    // 2. Deteksi Forwarded (message_snapshots)
+    // 2. Forwarded Messages Resolution (Termasuk Embed GIF / Media Eksternal)
     let forwarded: SavedChatLogItem['forwarded'] = undefined;
     if (Array.isArray(msg.message_snapshots) && msg.message_snapshots.length > 0) {
       const snap = msg.message_snapshots[0]?.message;
       if (snap) {
         const snapAttachments: SavedChatLogItem['attachments'] = [];
+
+        // Attachments di snapshot
         if (Array.isArray(snap.attachments) && snap.attachments.length > 0) {
           for (let f = 0; f < snap.attachments.length; f++) {
             const fAtt = snap.attachments[f];
-            const isImg = fAtt.content_type?.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(fAtt.filename);
+            const isImg = fAtt.content_type?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(fAtt.filename);
             if (isImg) {
               const public_id = `w${week}_${matchId}_fwd_${msg.id}_${f}`;
               await uploadDiscordImageToCloudinary(fAtt.url, public_id);
@@ -216,6 +223,24 @@ export async function backupDiscordChannelMessages(params: {
             }
           }
         }
+
+        // Embed GIF / Media di snapshot (seperti Tenor / Klipy)
+        if (Array.isArray(snap.embeds) && snap.embeds.length > 0) {
+          for (let eIdx = 0; eIdx < snap.embeds.length; eIdx++) {
+            const embed = snap.embeds[eIdx];
+            const mediaUrl = embed.image?.url || embed.thumbnail?.url || embed.video?.url;
+            if (mediaUrl) {
+              const public_id = `w${week}_${matchId}_fwd_emb_${msg.id}_${eIdx}`;
+              await uploadDiscordImageToCloudinary(mediaUrl, public_id);
+              snapAttachments.push({
+                fileName: `embed_${eIdx}.gif`,
+                maskedUrl: `/match-logs/${public_id}.png`,
+                contentType: 'image/gif',
+              });
+            }
+          }
+        }
+
         forwarded = {
           content: snap.content || '',
           attachments: snapAttachments,
@@ -223,11 +248,28 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
-    // 3. Upload Attachment Utama
+    // Embed GIF pada pesan biasa jika user kirim link tenor/klipy langsung
+    if (Array.isArray(msg.embeds) && msg.embeds.length > 0) {
+      for (let eIdx = 0; eIdx < msg.embeds.length; eIdx++) {
+        const embed = msg.embeds[eIdx];
+        const mediaUrl = embed.image?.url || embed.thumbnail?.url;
+        if (mediaUrl && (embed.type === 'gifv' || embed.type === 'image')) {
+          const public_id = `w${week}_${matchId}_emb_${msg.id}_${eIdx}`;
+          await uploadDiscordImageToCloudinary(mediaUrl, public_id);
+          attachments.push({
+            fileName: `gif_${eIdx}.gif`,
+            maskedUrl: `/match-logs/${public_id}.png`,
+            contentType: 'image/gif',
+          });
+        }
+      }
+    }
+
+    // Attachments biasa
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
-        const isImage = att.content_type?.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(att.filename);
+        const isImage = att.content_type?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(att.filename);
 
         if (isImage) {
           const public_id = `w${week}_${matchId}_${msg.id}_${i}`;
@@ -265,4 +307,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-         }
+}
