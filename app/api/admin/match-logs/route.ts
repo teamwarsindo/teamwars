@@ -11,23 +11,92 @@ export async function GET(req: NextRequest) {
 
     // 1. Request detail log match spesifik
     if (matchId) {
-      const cachedData: any = await kv.get(`twi:match_logs:${matchId}`);
-      // Ambil mapping HASH player-to-team dari global:ign
-      const playerTeamMap = (await kv.hgetall<Record<string, string>>('global:ign')) || {};
+      const [cachedData, schedules, globalDiscordMap, globalIgnMap] = await Promise.all([
+        kv.get<any>(`twi:match_logs:${matchId}`),
+        kv.get<MatchScheduleItem[]>('twi:schedules'),
+        kv.hgetall<Record<string, string>>('global:discord'),
+        kv.hgetall<Record<string, string>>('global:ign'),
+      ]);
 
-      if (Array.isArray(cachedData)) {
-        return NextResponse.json({
-          matchId,
-          channelName: `⚔️-${matchId}`,
-          logs: cachedData,
-          playerTeamMap,
+      const currentMatch = (schedules || []).find((m: any) => m.id === matchId);
+      const teamASlug = (currentMatch?.teamAId || (currentMatch as any)?.teamACode || currentMatch?.teamAName || '')
+        .toLowerCase()
+        .replace(/\s+/g, '-');
+      const teamBSlug = (currentMatch?.teamBId || (currentMatch as any)?.teamBCode || currentMatch?.teamBName || '')
+        .toLowerCase()
+        .replace(/\s+/g, '-');
+
+      // Ambil roster pemain Tim A dan Tim B
+      const [rawPlayersA, rawPlayersB] = await Promise.all([
+        teamASlug ? kv.hget<any>(`teams:${teamASlug}`, 'players') : null,
+        teamBSlug ? kv.hget<any>(`teams:${teamBSlug}`, 'players') : null,
+      ]);
+
+      const playersA = Array.isArray(rawPlayersA)
+        ? rawPlayersA
+        : typeof rawPlayersA === 'string'
+        ? JSON.parse(rawPlayersA)
+        : [];
+      const playersB = Array.isArray(rawPlayersB)
+        ? rawPlayersB
+        : typeof rawPlayersB === 'string'
+        ? JSON.parse(rawPlayersB)
+        : [];
+
+      // Susun mapping gabungan: discordUsername/IGN -> { teamSlug, ign }
+      const playerTeamMap: Record<string, { teamSlug: string; ign: string }> = {};
+
+      // Masukkan roster Tim A
+      playersA.forEach((p: any) => {
+        const teamSlug = teamASlug;
+        const ign = p.ign || p.namaLengkap || p.discord;
+        if (p.discord) playerTeamMap[p.discord.trim().toLowerCase()] = { teamSlug, ign };
+        if (p.ign) playerTeamMap[p.ign.trim().toLowerCase()] = { teamSlug, ign };
+      });
+
+      // Masukkan roster Tim B
+      playersB.forEach((p: any) => {
+        const teamSlug = teamBSlug;
+        const ign = p.ign || p.namaLengkap || p.discord;
+        if (p.discord) playerTeamMap[p.discord.trim().toLowerCase()] = { teamSlug, ign };
+        if (p.ign) playerTeamMap[p.ign.trim().toLowerCase()] = { teamSlug, ign };
+      });
+
+      // Masukkan mapping global:discord
+      if (globalDiscordMap) {
+        Object.entries(globalDiscordMap).forEach(([discordUser, slug]) => {
+          const cleanUser = discordUser.trim().toLowerCase();
+          if (!playerTeamMap[cleanUser]) {
+            playerTeamMap[cleanUser] = {
+              teamSlug: String(slug).toLowerCase(),
+              ign: cleanUser,
+            };
+          }
         });
       }
 
+      // Masukkan mapping global:ign
+      if (globalIgnMap) {
+        Object.entries(globalIgnMap).forEach(([ignKey, slug]) => {
+          const cleanIgn = ignKey.trim().toLowerCase();
+          if (!playerTeamMap[cleanIgn]) {
+            playerTeamMap[cleanIgn] = {
+              teamSlug: String(slug).toLowerCase(),
+              ign: ignKey,
+            };
+          }
+        });
+      }
+
+      const logs = Array.isArray(cachedData) ? cachedData : cachedData?.logs || [];
+      const channelName = Array.isArray(cachedData)
+        ? `⚔️-${matchId}`
+        : cachedData?.channelName || `⚔️-${matchId}`;
+
       return NextResponse.json({
         matchId,
-        channelName: cachedData?.channelName || `⚔️-${matchId}`,
-        logs: cachedData?.logs || [],
+        channelName,
+        logs,
         playerTeamMap,
       });
     }
