@@ -2,12 +2,11 @@ import { v2 as cloudinary } from 'cloudinary';
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
 
-// Konfigurasi Cloudinary SDK resmi
+// Konfigurasi resmi
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dhplw8rsd',
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dhplw8rsd",
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true,
 });
 
 export interface SavedChatLogItem {
@@ -32,19 +31,68 @@ export interface BackupResult {
   messages: SavedChatLogItem[];
 }
 
-// 🟢 Upload menggunakan Cloudinary SDK resmi persis seperti Match Report
-async function uploadDiscordImageToCloudinary(imageUrl: string, fileName: string): Promise<string> {
+// Gunakan helper bawaan Cloudinary persis seperti sign-cloudinary & match report
+async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: string): Promise<string> {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dhplw8rsd";
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!apiSecret) {
+    console.warn('[BACKUP] CLOUDINARY_API_SECRET belum terpasang.');
+    return imageUrl;
+  }
+
   try {
-    const uploadRes = await cloudinary.uploader.upload(imageUrl, {
-      folder: 'match-logs',
-      public_id: fileName,
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) {
+      console.error(`[BACKUP] Gagal fetch gambar Discord: ${imgRes.status}`);
+      return imageUrl;
+    }
+
+    const arrayBuffer = await imgRes.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString('base64');
+    const mimeType = imgRes.headers.get('content-type') || 'image/png';
+    const dataUri = `data:${mimeType};base64,${base64Data}`;
+
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const folder = 'match-logs';
+
+    // 🟢 Pakai params & helper signature yang sama persis
+    const paramsToSign = {
+      timestamp,
+      folder,
+      public_id,
       overwrite: true,
-      resource_type: 'image',
+      invalidate: true,
+      format: "png",
+    };
+
+    const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
+
+    const formData = new FormData();
+    formData.append("file", dataUri);
+    formData.append("api_key", process.env.CLOUDINARY_API_KEY!);
+    formData.append("timestamp", String(timestamp));
+    formData.append("signature", signature);
+    formData.append("folder", folder);
+    formData.append("public_id", public_id);
+    formData.append("overwrite", "true");
+    formData.append("invalidate", "true");
+    formData.append("format", "png");
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: "POST",
+      body: formData,
     });
 
-    return uploadRes.secure_url;
+    const data = await res.json();
+    if (!res.ok) {
+      console.error("[CLOUDINARY UPLOAD ERROR]:", data.error?.message);
+      return imageUrl;
+    }
+
+    return data.secure_url;
   } catch (err) {
-    console.error('[CLOUDINARY UPLOAD ERROR]:', err);
+    console.error('[BACKUP] Error upload Cloudinary:', err);
     return imageUrl;
   }
 }
@@ -57,7 +105,7 @@ export async function backupDiscordChannelMessages(params: {
   const { channelId, matchId, week } = params;
   const guildId = DISCORD_CONFIG.GUILD_ID;
 
-  // 1. Ambil Nama Asli Channel
+  // 1. Fetch info channel Discord
   let actualChannelName = `⚔️-${matchId}`;
   try {
     const channelData = await discordAPI(`/channels/${channelId}`, 'GET');
@@ -66,7 +114,7 @@ export async function backupDiscordChannelMessages(params: {
     console.warn('[BACKUP] Gagal fetch info channel:', e);
   }
 
-  // 2. Fetch seluruh Roles dari Guild
+  // 2. Fetch Guild Roles
   const guildRolesMap: Record<string, { name: string; color?: string; position: number }> = {};
   try {
     const rolesData = await discordAPI(`/guilds/${guildId}/roles`, 'GET');
@@ -88,9 +136,9 @@ export async function backupDiscordChannelMessages(params: {
 
   const userMessages = rawMessages.filter((msg: any) => !msg.author?.bot);
 
-  // 4. Fetch detail member secara bertahap
+  // 4. Fetch detail member secara sekuensial
   const uniqueAuthorIds = Array.from(new Set(userMessages.map((m: any) => m.author.id)));
-  const memberDetailsMap: Record<string, { nick?: string; color?: string }> = {};
+  const memberDetailsMap: Record<string, { nick?: string }> = {};
 
   for (const uId of uniqueAuthorIds) {
     try {
@@ -105,7 +153,7 @@ export async function backupDiscordChannelMessages(params: {
     }
   }
 
-  // 5. Upload Bukti Attachment & Format Chat Logs
+  // 5. Upload Bukti & Format Chat Logs
   const formattedLogs: SavedChatLogItem[] = [];
 
   for (const msg of userMessages) {
@@ -115,7 +163,7 @@ export async function backupDiscordChannelMessages(params: {
 
     const authorDisplayName = memberInfo?.nick || msg.author.global_name || msg.author.username;
 
-    // Mapping User Mentions
+    // User Mentions
     const userMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mentions)) {
       msg.mentions.forEach((u: any) => {
@@ -126,7 +174,7 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Mapping Role Mentions
+    // Role Mentions
     const roleMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mention_roles)) {
       msg.mention_roles.forEach((rId: string) => {
@@ -137,17 +185,17 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Upload & Masking Bukti Gambar via SDK Cloudinary
+    // Upload Bukti Attachment (folder match-logs)
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
         const isImage = att.content_type?.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(att.filename);
 
         if (isImage) {
-          const fileName = `w${week}_${matchId}_${msg.id}_${i}`;
-          await uploadDiscordImageToCloudinary(att.url, fileName);
+          const public_id = `w${week}_${matchId}_${msg.id}_${i}`;
+          await uploadDiscordImageToCloudinary(att.url, public_id);
 
-          const maskedUrl = `/match-logs/${fileName}.png`;
+          const maskedUrl = `/match-logs/${public_id}.png`;
           attachments.push({
             fileName: att.filename,
             maskedUrl,
@@ -177,4 +225,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-        }
+}
