@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       timestamp,
       folder,
       overwrite: true,
-      invalidate: true, // 🟢 Wajib ada agar match dengan signature frontend
+      invalidate: true,
       format: isBukti ? "jpg" : "png" 
     };
 
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       paramsToSign.transformation = "c_limit,w_1920,h_1920,q_auto";
     }
 
+    // Helper resmi bawaan Cloudinary SDK
     const signature = cloudinary.utils.api_sign_request(
       paramsToSign, 
       process.env.CLOUDINARY_API_SECRET!
@@ -43,4 +44,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: "Gagal membuat signature" }, { status: 500 });
   }
-      }
+}
