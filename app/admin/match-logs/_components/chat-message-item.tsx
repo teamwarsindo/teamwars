@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatDiscordTimeOnly, parseDiscordMarkdown } from "../_utils/discord-parser";
-import { Image as ImageIcon, ExternalLink, Shield, Tv, ShieldAlert, CornerDownRight, Forward } from "lucide-react";
+import { Image as ImageIcon, ExternalLink, Shield, Tv, ShieldAlert, Forward, MessageSquareOff } from "lucide-react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 
 export interface ChatLogMessage {
@@ -22,6 +22,7 @@ export interface ChatLogMessage {
     authorAvatar?: string;
     content: string;
     hasAttachment?: boolean;
+    isDeleted?: boolean;
   };
   forwarded?: {
     content?: string;
@@ -59,21 +60,20 @@ export function ChatMessageItem({
   const n2Lower = name2.toLowerCase();
   const authorId = msg.authorId || "";
 
-  // 1. Wasit
+  // Wasit & Streamer
   const matchReferee = (match?.referee || "").trim().toLowerCase();
   const isReferee = Boolean(
     (match?.refereeDiscordId && authorId === match.refereeDiscordId) ||
     (matchReferee && matchReferee !== "-" && (n1Lower.includes(matchReferee) || n2Lower.includes(matchReferee) || matchReferee.includes(n1Lower) || matchReferee.includes(n2Lower)))
   );
 
-  // 2. Streamer
   const matchStreamer = (match?.streamer || "").trim().toLowerCase();
   const isStreamer = Boolean(
     (match?.streamerDiscordId && authorId === match.streamerDiscordId) ||
     (matchStreamer && matchStreamer !== "-" && (n1Lower.includes(matchStreamer) || n2Lower.includes(matchStreamer) || matchStreamer.includes(n1Lower) || matchStreamer.includes(n2Lower)))
   );
 
-  // 3. Tim Kanan / Kiri
+  // Tim A vs B
   const teamASlug = (match?.teamAId || (match as any)?.teamACode || match?.teamAName || "")
     .toLowerCase()
     .replace(/\s+/g, "-");
@@ -143,8 +143,7 @@ export function ChatMessageItem({
     roleIcon = (
       <img
         src={match?.teamALogo || "/placeholder-team.png"}
-        alt={match?.teamAName || "Tim A"}
-        title={match?.teamAName || "Tim A"}
+        alt=""
         className="h-4 w-4 rounded-full border border-sky-500/40 object-cover inline-block shadow-2xs"
         onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
       />
@@ -155,8 +154,7 @@ export function ChatMessageItem({
     roleIcon = (
       <img
         src={match?.teamBLogo || "/placeholder-team.png"}
-        alt={match?.teamBName || "Tim B"}
-        title={match?.teamBName || "Tim B"}
+        alt=""
         className="h-4 w-4 rounded-full border border-amber-500/40 object-cover inline-block shadow-2xs"
         onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
       />
@@ -166,30 +164,43 @@ export function ChatMessageItem({
   return (
     <>
       <div
-        className={`flex flex-col text-xs leading-relaxed group p-2 rounded-xl transition ${
+        className={`relative flex flex-col text-xs leading-relaxed group p-2 rounded-xl transition ${
           isHighlighted
             ? "bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30"
             : "hover:bg-muted/40"
         }`}
       >
-        {/* Render Reply Header (Jika Pesan ini Membalas Pesan Lain) */}
+        {/* SIKU REPLY PERSIS DISCORD */}
         {msg.replyTo && (
-          <div className="flex items-center gap-1.5 pl-6 pb-1 text-[11px] text-muted-foreground/80 font-medium">
-            <CornerDownRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-            {msg.replyTo.authorAvatar && (
-              <img
-                src={msg.replyTo.authorAvatar}
-                alt=""
-                className="h-3.5 w-3.5 rounded-full object-cover shrink-0"
-              />
+          <div className="relative flex items-center gap-1.5 pl-12 pb-1 text-[11px] text-muted-foreground font-medium">
+            {/* Garis lengkung siku Discord */}
+            <div className="absolute left-6 top-2 h-3.5 w-5 border-l-2 border-t-2 border-muted-foreground/40 rounded-tl-md pointer-events-none" />
+
+            {msg.replyTo.isDeleted ? (
+              <span className="inline-flex items-center gap-1 italic text-muted-foreground/70">
+                <MessageSquareOff className="h-3 w-3" /> Original message was deleted
+              </span>
+            ) : (
+              <>
+                {msg.replyTo.authorAvatar ? (
+                  <img
+                    src={msg.replyTo.authorAvatar}
+                    alt=""
+                    className="h-3.5 w-3.5 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <span className="h-3.5 w-3.5 rounded-full bg-muted shrink-0 inline-block" />
+                )}
+                <span className="font-semibold text-foreground/80">@{msg.replyTo.authorName}</span>
+                <span className="truncate max-w-[200px] sm:max-w-[340px] italic text-muted-foreground/80">
+                  {msg.replyTo.content || (msg.replyTo.hasAttachment ? "📷 [Lampiran Gambar]" : "...")}
+                </span>
+              </>
             )}
-            <span className="font-semibold text-foreground/80">@{msg.replyTo.authorName}</span>
-            <span className="truncate max-w-[200px] sm:max-w-[320px] italic text-muted-foreground">
-              {msg.replyTo.content || (msg.replyTo.hasAttachment ? "📷 [Lampiran Gambar]" : "...")}
-            </span>
           </div>
         )}
 
+        {/* PESAN UTAMA */}
         <div className="flex gap-2.5">
           <img
             src={msg.authorAvatar}
@@ -208,7 +219,7 @@ export function ChatMessageItem({
               </span>
             </div>
 
-            {/* Konten Teks Pesan */}
+            {/* Isi Teks */}
             {msg.content && (
               <div
                 className="text-foreground/90 whitespace-pre-wrap break-words text-[12px] leading-relaxed block space-y-1 font-normal"
@@ -225,15 +236,15 @@ export function ChatMessageItem({
               />
             )}
 
-            {/* Render Pesan Terusan (Forwarded Message Box) */}
+            {/* FORWARDED MESSAGE BOX */}
             {msg.forwarded && (
-              <div className="mt-2 rounded-xl border border-border/80 bg-muted/40 p-2.5 space-y-2 max-w-sm">
+              <div className="mt-2 rounded-2xl border border-border/80 bg-muted/40 p-2.5 space-y-2 max-w-sm">
                 <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground italic">
                   <Forward className="h-3.5 w-3.5" /> Forwarded
                 </div>
 
                 {msg.forwarded.content && (
-                  <p className="text-xs text-foreground/90 whitespace-pre-wrap">
+                  <p className="text-xs text-foreground/90 whitespace-pre-wrap break-words">
                     {msg.forwarded.content}
                   </p>
                 )}
@@ -249,14 +260,14 @@ export function ChatMessageItem({
                         <img
                           src={att.maskedUrl}
                           alt={att.fileName}
-                          className="max-h-52 w-full object-contain rounded-lg"
+                          className="max-h-56 w-full object-contain rounded-lg"
                           onError={(e: any) => {
                             e.target.src = "/placeholder-proof.webp";
                           }}
                         />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/att:opacity-100 transition-opacity">
                           <span className="flex items-center gap-1 rounded-md bg-background/90 px-2 py-1 text-[10px] font-semibold text-foreground shadow-xs">
-                            <ImageIcon className="h-3.5 w-3.5" /> Perbesar Bukti
+                            <ImageIcon className="h-3.5 w-3.5" /> Perbesar
                           </span>
                         </div>
                       </div>
@@ -266,7 +277,7 @@ export function ChatMessageItem({
               </div>
             )}
 
-            {/* Render Lampiran Gambar Utama */}
+            {/* LAMPIRAN GAMBAR UTAMA */}
             {msg.attachments && msg.attachments.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-2">
                 {msg.attachments.map((att, idx) => (
@@ -278,7 +289,7 @@ export function ChatMessageItem({
                     <img
                       src={att.maskedUrl}
                       alt={att.fileName}
-                      className="max-h-44 w-full object-contain rounded-lg"
+                      className="max-h-48 w-full object-contain rounded-lg"
                       onError={(e: any) => {
                         e.target.src = "/placeholder-proof.webp";
                       }}
@@ -307,7 +318,7 @@ export function ChatMessageItem({
           >
             <img
               src={previewImage}
-              alt="Bukti Duel"
+              alt="Preview"
               className="max-h-[80vh] w-auto object-contain rounded-xl"
             />
             <div className="mt-2 flex justify-between items-center px-2">
@@ -328,4 +339,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-}
+                                         }
