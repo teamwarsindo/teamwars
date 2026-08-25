@@ -1,5 +1,14 @@
+import { v2 as cloudinary } from 'cloudinary';
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
+
+// Konfigurasi Cloudinary SDK resmi
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dhplw8rsd',
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
+});
 
 export interface SavedChatLogItem {
   id: string;
@@ -7,7 +16,6 @@ export interface SavedChatLogItem {
   authorName: string;
   authorGlobalName: string;
   authorAvatar: string;
-  authorColor?: string;
   content: string;
   timestamp: string;
   userMentions?: Record<string, { name: string; color?: string }>;
@@ -24,62 +32,19 @@ export interface BackupResult {
   messages: SavedChatLogItem[];
 }
 
-// Upload buffer Base64 ke folder match-logs di Cloudinary
+// 🟢 Upload menggunakan Cloudinary SDK resmi persis seperti Match Report
 async function uploadDiscordImageToCloudinary(imageUrl: string, fileName: string): Promise<string> {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'dhplw8rsd';
-  const apiKey = process.env.CLOUDINARY_API_KEY;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
-
-  if (!apiKey || !apiSecret) {
-    console.warn('[BACKUP] CLOUDINARY_API_KEY / SECRET belum terpasang.');
-    return imageUrl;
-  }
-
   try {
-    const imgRes = await fetch(imageUrl);
-    if (!imgRes.ok) {
-      console.error(`[BACKUP] Gagal fetch gambar Discord: ${imgRes.status}`);
-      return imageUrl;
-    }
-
-    const arrayBuffer = await imgRes.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString('base64');
-    const mimeType = imgRes.headers.get('content-type') || 'image/png';
-    const dataUri = `data:${mimeType};base64,${base64Data}`;
-
-    const timestamp = Math.floor(Date.now() / 1000);
-    const folder = 'match-logs';
-
-    // Signature diurutkan secara alfabetis: folder -> public_id -> timestamp
-    const crypto = await import('crypto');
-    const signature = crypto
-      .createHash('sha1')
-      .update(`folder=${folder}&public_id=${fileName}&timestamp=${timestamp}${apiSecret}`)
-      .digest('hex');
-
-    const formData = new FormData();
-    formData.append('file', dataUri);
-    formData.append('folder', folder);
-    formData.append('public_id', fileName);
-    formData.append('timestamp', String(timestamp));
-    formData.append('api_key', apiKey);
-    formData.append('signature', signature);
-
-    const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-      method: 'POST',
-      body: formData,
+    const uploadRes = await cloudinary.uploader.upload(imageUrl, {
+      folder: 'match-logs',
+      public_id: fileName,
+      overwrite: true,
+      resource_type: 'image',
     });
 
-    if (!uploadRes.ok) {
-      const errText = await uploadRes.text();
-      console.error('[CLOUDINARY ERROR]:', errText);
-      return imageUrl;
-    }
-
-    const resJson = await uploadRes.json();
-    return resJson.secure_url || imageUrl;
+    return uploadRes.secure_url;
   } catch (err) {
-    console.error('[BACKUP] Gagal upload Cloudinary:', err);
+    console.error('[CLOUDINARY UPLOAD ERROR]:', err);
     return imageUrl;
   }
 }
@@ -123,7 +88,7 @@ export async function backupDiscordChannelMessages(params: {
 
   const userMessages = rawMessages.filter((msg: any) => !msg.author?.bot);
 
-  // 4. Fetch detail member secara sekuensial (Bebas Rate Limit)
+  // 4. Fetch detail member secara bertahap
   const uniqueAuthorIds = Array.from(new Set(userMessages.map((m: any) => m.author.id)));
   const memberDetailsMap: Record<string, { nick?: string; color?: string }> = {};
 
@@ -131,28 +96,16 @@ export async function backupDiscordChannelMessages(params: {
     try {
       const member = await discordAPI(`/guilds/${guildId}/members/${uId}`, 'GET');
       if (member) {
-        let topColor: string | undefined;
-        let topPos = -1;
-        if (Array.isArray(member.roles)) {
-          for (const rId of member.roles) {
-            const r = guildRolesMap[rId];
-            if (r && r.color && r.position > topPos) {
-              topPos = r.position;
-              topColor = r.color;
-            }
-          }
-        }
         memberDetailsMap[uId] = {
           nick: member.nick || member.user?.global_name || member.user?.username,
-          color: topColor,
         };
       }
     } catch {
-      // Abaikan jika member tidak ditemukan di cache
+      // Abaikan jika tidak ditemukan
     }
   }
 
-  // 5. Upload Gambar ke folder match-logs & Format Chat Logs
+  // 5. Upload Bukti Attachment & Format Chat Logs
   const formattedLogs: SavedChatLogItem[] = [];
 
   for (const msg of userMessages) {
@@ -161,20 +114,19 @@ export async function backupDiscordChannelMessages(params: {
     const memberInfo = memberDetailsMap[authorId];
 
     const authorDisplayName = memberInfo?.nick || msg.author.global_name || msg.author.username;
-    const authorColor = memberInfo?.color;
 
-    // Mapping Mentions
+    // Mapping User Mentions
     const userMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mentions)) {
       msg.mentions.forEach((u: any) => {
         const targetMember = memberDetailsMap[u.id];
         userMentions[u.id] = {
           name: targetMember?.nick || u.global_name || u.username,
-          color: targetMember?.color,
         };
       });
     }
 
+    // Mapping Role Mentions
     const roleMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mention_roles)) {
       msg.mention_roles.forEach((rId: string) => {
@@ -185,7 +137,7 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Upload & Masking Bukti Gambar ke Folder match-logs
+    // Upload & Masking Bukti Gambar via SDK Cloudinary
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
@@ -213,7 +165,6 @@ export async function backupDiscordChannelMessages(params: {
       authorAvatar: msg.author.avatar
         ? `https://cdn.discordapp.com/avatars/${msg.author.id}/${msg.author.avatar}.webp?size=64`
         : 'https://cdn.discordapp.com/embed/avatars/0.png',
-      authorColor,
       content: msg.content || '',
       timestamp: msg.timestamp,
       userMentions,
