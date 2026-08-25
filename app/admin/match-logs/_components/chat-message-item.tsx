@@ -19,20 +19,13 @@ export interface ChatLogMessage {
   content: string;
   timestamp: string;
   userMentions?: Record<string, string>;
+  roleMentions?: Record<string, string>;
   attachments?: Attachment[];
 }
 
-interface ChatMessageItemProps {
-  msg: ChatLogMessage;
-  matchContext?: {
-    teamAName?: string;
-    teamBName?: string;
-  };
-}
-
-export function ChatMessageItem({ msg, matchContext }: ChatMessageItemProps) {
+export function ChatMessageItem({ msg }: { msg: ChatLogMessage }) {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const formattedHtml = parseDiscordMarkdown(msg.content, msg.userMentions, matchContext);
+  const formattedHtml = parseDiscordMarkdown(msg.content, msg.userMentions, msg.roleMentions);
 
   return (
     <>
