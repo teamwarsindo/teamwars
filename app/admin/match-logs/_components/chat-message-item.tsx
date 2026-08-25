@@ -94,7 +94,7 @@ export function ChatMessageItem({
     );
   }
 
-  // 4. Skema Warna & Icon Author (Selain Wasit/Streamer/Tim otomatis dianggap Admin)
+  // 4. Skema Warna & Icon Author
   let nameColorClass = "text-rose-600 dark:text-rose-400 font-semibold";
   let avatarBorderClass = "border-rose-500/50";
   let roleIcon = (
@@ -145,13 +145,45 @@ export function ChatMessageItem({
     );
   }
 
-  // 5. Helper Parse Markdown (Bold, Italic, Code, Strikethrough)
+  // 5. Helper Parse Markdown & URLs
   const parseInlineMarkdown = (text: string, keyPrefix: string) => {
-    const mdRegex = /(\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|~~[^~]+~~|`[^`]+`)/g;
+    // Regex mendeteksi Markdown formatting DAN URL (https?://...)
+    const mdRegex = /(\[\S+?\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<]+|\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|~~[^~]+~~|`[^`]+`)/g;
     const tokens = text.split(mdRegex);
 
     return tokens.map((tok, tIdx) => {
       const k = `${keyPrefix}-tok-${tIdx}`;
+
+      // Custom Markdown Link: [text](url)
+      const mdLinkMatch = tok.match(/^\[(.*?)\]\((https?:\/\/[^\s)]+)\)$/);
+      if (mdLinkMatch) {
+        return (
+          <a
+            key={k}
+            href={mdLinkMatch[2]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-500 hover:text-sky-400 underline font-medium inline-flex items-center gap-0.5 break-all"
+          >
+            {mdLinkMatch[1]}
+          </a>
+        );
+      }
+
+      // Plain URL: https://... atau http://...
+      if (tok.startsWith("http://") || tok.startsWith("https://")) {
+        return (
+          <a
+            key={k}
+            href={tok}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-500 hover:text-sky-400 underline font-medium inline-flex items-center gap-0.5 break-all"
+          >
+            {tok}
+          </a>
+        );
+      }
 
       if (tok.startsWith("**") && tok.endsWith("**")) {
         return <strong key={k} className="font-semibold text-foreground">{tok.slice(2, -2)}</strong>;
@@ -177,7 +209,7 @@ export function ChatMessageItem({
     });
   };
 
-  // 6. Parser Lengkap (Emoji, Mentions Berwarna & Markdown)
+  // 6. Parser Lengkap (Emoji, Mentions Berwarna, URL & Markdown)
   const renderChatContent = (content: string) => {
     if (!content) return null;
 
@@ -219,7 +251,7 @@ export function ChatMessageItem({
         );
       }
 
-      // C. Role Mentions Berwarna Lengkap
+      // C. Role Mentions Berwarna
       const roleMatch = part.match(/^<@&(\d+)>$/);
       if (roleMatch) {
         const rId = roleMatch[1];
@@ -232,7 +264,6 @@ export function ChatMessageItem({
         const isRefereeRole = rLower.includes("wasit") || rLower.includes("referee") || rLower.includes("ref");
         const isStreamerRole = rLower.includes("streamer") || rLower.includes("caster") || rLower.includes("stream");
 
-        // Role selain tim/wasit/streamer otomatis dianggap role Admin
         let roleTagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
         if (isTeam1Role) roleTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
         else if (isTeam2Role) roleTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
@@ -249,7 +280,7 @@ export function ChatMessageItem({
         );
       }
 
-      // D. User Mentions Berwarna Lengkap
+      // D. User Mentions Berwarna
       const userMatch = part.match(/^<@!?(\d+)>$/);
       if (userMatch) {
         const uId = userMatch[1];
@@ -269,7 +300,6 @@ export function ChatMessageItem({
           (matchStreamer && matchStreamer !== "-" && (uLower.includes(matchStreamer) || matchStreamer.includes(uLower)))
         );
 
-        // User selain tim/wasit/streamer otomatis dianggap Admin
         let userTagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
         if (isURef) userTagStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
         else if (isUStr) userTagStyle = "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30";
@@ -286,7 +316,7 @@ export function ChatMessageItem({
         );
       }
 
-      // E. Render Markdown pada plain text
+      // E. Render URL & Markdown pada plain text
       return <React.Fragment key={index}>{parseInlineMarkdown(part, `p-${index}`)}</React.Fragment>;
     });
   };
@@ -383,5 +413,5 @@ export function ChatMessageItem({
       )}
     </>
   );
-                                              }
-  
+            }
+              
