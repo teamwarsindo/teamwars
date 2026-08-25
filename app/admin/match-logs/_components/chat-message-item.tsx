@@ -15,6 +15,7 @@ export interface ChatLogMessage {
   timestamp: string;
   userMentions?: Record<string, any>;
   roleMentions?: Record<string, any>;
+  channelMentions?: Record<string, any>;
   attachments?: Array<{
     fileName: string;
     maskedUrl: string;
@@ -179,6 +180,7 @@ export function ChatMessageItem({
                   msg.content,
                   msg.userMentions,
                   msg.roleMentions,
+                  msg.channelMentions,
                   match,
                   playerTeamMap
                 ),
