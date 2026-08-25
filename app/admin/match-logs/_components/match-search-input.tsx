@@ -41,7 +41,7 @@ export function MatchSearchInput({ schedules, onSelectMatch }: MatchSearchInputP
             setGlobalSearch(e.target.value);
             setIsSearchFocused(true);
           }}
-          placeholder="Ketik nama tim (misal: FPF, Dino), wasit, atau ID match..."
+          placeholder="Ketik nama tim, wasit, streamer, atau ID match"
           className="w-full bg-card border-2 border-border focus:border-primary rounded-2xl px-4 py-3 text-xs sm:text-sm shadow-sm focus:outline-hidden pl-10 pr-10 transition-all"
         />
         <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
