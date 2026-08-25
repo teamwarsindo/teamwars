@@ -47,7 +47,7 @@ export function parseDiscordMarkdown(
 ): string {
   if (!content) return "";
 
-  // 1. Convert URL link agar clickable
+  // 1. URL clickable
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   let formatted = content.replace(urlRegex, (url) => {
     return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-primary font-medium underline underline-offset-2 hover:opacity-80 break-all">${url}</a>`;
@@ -72,28 +72,18 @@ export function parseDiscordMarkdown(
     formatted = formatted.replaceAll(code, emoji);
   }
 
-  // 5. User Mentions dengan Warna Asli
+  // 5. 🟢 User Mentions: Warna Biru Langit Standar UI Discord
   formatted = formatted.replace(/<@!?([0-9]+)>/g, (match, userId) => {
     const u = userMentions?.[userId];
     const name = typeof u === "object" ? u?.name : u;
     const label = name ? `@${name}` : "@Pemain";
-    const color = typeof u === "object" ? u?.color : undefined;
-
-    if (color && color !== "#000000" && color.toLowerCase() !== "#ffffff") {
-      return `<span style="color: ${color}; background-color: ${color}20; border-color: ${color}40;" class="inline-flex items-center px-1.5 py-0.2 rounded-md border font-bold text-[11px]">${label}</span>`;
-    }
     return `<span class="inline-flex items-center px-1.5 py-0.2 rounded-md bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold text-[11px]">${label}</span>`;
   });
 
-  // 6. Role Mentions dengan Warna Role Asli
+  // 6. 🟢 Role Mentions: Warna Indigo Standar UI Discord
   formatted = formatted.replace(/<@&([0-9]+)>/g, (match, roleId) => {
     const r = roleMentions?.[roleId];
     const roleName = typeof r === "object" ? r?.name : (r || "Role");
-    const roleColor = typeof r === "object" ? r?.color : undefined;
-
-    if (roleColor && roleColor !== "#000000" && roleColor.toLowerCase() !== "#ffffff") {
-      return `<span style="color: ${roleColor}; background-color: ${roleColor}20; border-color: ${roleColor}40;" class="inline-flex items-center px-1.5 py-0.2 rounded-md border font-bold text-[11px]">@${roleName}</span>`;
-    }
     return `<span class="inline-flex items-center px-1.5 py-0.2 rounded-md bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-bold text-[11px]">@${roleName}</span>`;
   });
 
