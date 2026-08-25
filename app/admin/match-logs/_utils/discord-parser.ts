@@ -48,6 +48,7 @@ export function parseDiscordMarkdown(
   content: string,
   userMentions?: Record<string, any>,
   roleMentions?: Record<string, any>,
+  channelMentions?: Record<string, any>,
   match?: MatchScheduleItem,
   playerTeamMap: Record<string, string> = {}
 ): string {
@@ -71,7 +72,7 @@ export function parseDiscordMarkdown(
     );
   };
 
-  // 1. URL clickable (Auto URL & Markdown Link)
+  // 1. URL clickable
   let formatted = content.replace(
     /\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-sky-500 hover:text-sky-400 font-medium underline underline-offset-2 break-all">$1</a>'
@@ -82,7 +83,7 @@ export function parseDiscordMarkdown(
     '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-sky-500 hover:text-sky-400 font-medium underline underline-offset-2 break-all">$1</a>'
   );
 
-  // 2. Bold, Italic, Strike, Code Markdown
+  // 2. Bold, Italic, Strike, Code
   formatted = formatted
     .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>')
     .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
@@ -109,7 +110,7 @@ export function parseDiscordMarkdown(
     '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-semibold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">$1</span>'
   );
 
-  // 6. User Mentions (Warna Sesuai Peran: Wasit, Streamer, Tim A/B, Admin)
+  // 6. User Mentions (Remap Warna Sesuai Role)
   formatted = formatted.replace(/<@!?([0-9]+)>/g, (_, userId) => {
     const u = userMentions?.[userId];
     const name = typeof u === "object" ? u?.name : (u || "User");
@@ -127,7 +128,7 @@ export function parseDiscordMarkdown(
       (matchStreamer && matchStreamer !== "-" && (uLower.includes(matchStreamer) || matchStreamer.includes(uLower)))
     );
 
-    let tagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30"; // Default Admin
+    let tagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
     if (isURef) tagStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
     else if (isUStr) tagStyle = "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30";
     else if (isU1) tagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
@@ -136,7 +137,7 @@ export function parseDiscordMarkdown(
     return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${tagStyle}">@${name}</span>`;
   });
 
-  // 7. Role Mentions
+  // 7. Role Mentions (Remap Warna Sesuai Role)
   formatted = formatted.replace(/<@&([0-9]+)>/g, (_, roleId) => {
     const r = roleMentions?.[roleId];
     const roleName = typeof r === "object" ? r?.name : (r || "Role");
@@ -156,11 +157,12 @@ export function parseDiscordMarkdown(
     return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${roleTagStyle}">@${roleName}</span>`;
   });
 
-  // 8. Channel Mentions (<#ID>)
-  formatted = formatted.replace(
-    /<#([0-9]+)>/g,
-    `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20 align-middle">#channel</span>`
-  );
+  // 8. Channel Mentions (Remap Nama Channel Asli)
+  formatted = formatted.replace(/<#([0-9]+)>/g, (_, channelId) => {
+    const ch = channelMentions?.[channelId];
+    const channelName = typeof ch === "object" ? ch?.name : (ch || "channel");
+    return `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20 align-middle">#${channelName}</span>`;
+  });
 
   return formatted;
 }
