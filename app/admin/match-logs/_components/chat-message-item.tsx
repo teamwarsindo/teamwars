@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { formatDiscordTimeOnly } from "../_utils/discord-parser";
+import { useState } from "react";
+import { formatDiscordTimeOnly, parseDiscordMarkdown } from "../_utils/discord-parser";
 import { Image as ImageIcon, ExternalLink, Shield, Tv, ShieldAlert } from "lucide-react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 
@@ -145,182 +145,6 @@ export function ChatMessageItem({
     );
   }
 
-  // 5. Helper Parse Markdown & URLs
-  const parseInlineMarkdown = (text: string, keyPrefix: string) => {
-    // Regex mendeteksi Markdown formatting DAN URL (https?://...)
-    const mdRegex = /(\[\S+?\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s<]+|\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|~~[^~]+~~|`[^`]+`)/g;
-    const tokens = text.split(mdRegex);
-
-    return tokens.map((tok, tIdx) => {
-      const k = `${keyPrefix}-tok-${tIdx}`;
-
-      // Custom Markdown Link: [text](url)
-      const mdLinkMatch = tok.match(/^\[(.*?)\]\((https?:\/\/[^\s)]+)\)$/);
-      if (mdLinkMatch) {
-        return (
-          <a
-            key={k}
-            href={mdLinkMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sky-500 hover:text-sky-400 underline font-medium inline-flex items-center gap-0.5 break-all"
-          >
-            {mdLinkMatch[1]}
-          </a>
-        );
-      }
-
-      // Plain URL: https://... atau http://...
-      if (tok.startsWith("http://") || tok.startsWith("https://")) {
-        return (
-          <a
-            key={k}
-            href={tok}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sky-500 hover:text-sky-400 underline font-medium inline-flex items-center gap-0.5 break-all"
-          >
-            {tok}
-          </a>
-        );
-      }
-
-      if (tok.startsWith("**") && tok.endsWith("**")) {
-        return <strong key={k} className="font-semibold text-foreground">{tok.slice(2, -2)}</strong>;
-      }
-      if (tok.startsWith("__") && tok.endsWith("__")) {
-        return <u key={k}>{tok.slice(2, -2)}</u>;
-      }
-      if (tok.startsWith("*") && tok.endsWith("*")) {
-        return <em key={k}>{tok.slice(1, -1)}</em>;
-      }
-      if (tok.startsWith("~~") && tok.endsWith("~~")) {
-        return <del key={k}>{tok.slice(2, -2)}</del>;
-      }
-      if (tok.startsWith("`") && tok.endsWith("`")) {
-        return (
-          <code key={k} className="bg-muted px-1 py-0.5 rounded font-mono text-[11px] text-foreground border border-border">
-            {tok.slice(1, -1)}
-          </code>
-        );
-      }
-
-      return tok;
-    });
-  };
-
-  // 6. Parser Lengkap (Emoji, Mentions Berwarna, URL & Markdown)
-  const renderChatContent = (content: string) => {
-    if (!content) return null;
-
-    const parts = content.split(/(<a?:\w+:\d+>|<@[!&]?\d+>|@everyone|@here)/g);
-
-    return parts.map((part, index) => {
-      // A. Discord Custom Emoji CDN
-      const emojiMatch = part.match(/^<(a?):(\w+):(\d+)>$/);
-      if (emojiMatch) {
-        const isAnimated = emojiMatch[1] === "a";
-        const emojiName = emojiMatch[2];
-        const emojiId = emojiMatch[3];
-        const ext = isAnimated ? "gif" : "webp";
-        const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.${ext}?size=48&quality=lossless`;
-
-        return (
-          <img
-            key={index}
-            src={emojiUrl}
-            alt={`:${emojiName}:`}
-            title={`:${emojiName}:`}
-            className="inline-block h-6 w-6 object-contain align-middle mx-0.5"
-            onError={(e: any) => {
-              e.target.outerHTML = `:${emojiName}:`;
-            }}
-          />
-        );
-      }
-
-      // B. Everyone & Here
-      if (part === "@everyone" || part === "@here") {
-        return (
-          <span
-            key={index}
-            className="inline-block px-1 py-0.2 mx-0.5 rounded font-semibold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-          >
-            {part}
-          </span>
-        );
-      }
-
-      // C. Role Mentions Berwarna
-      const roleMatch = part.match(/^<@&(\d+)>$/);
-      if (roleMatch) {
-        const rId = roleMatch[1];
-        const rInfo = msg.roleMentions?.[rId];
-        const rName = rInfo?.name || "Role";
-        const rLower = rName.toLowerCase();
-
-        const isTeam1Role = (match as any)?.roleAId === rId || (match?.teamAName && rLower.includes(match.teamAName.toLowerCase()));
-        const isTeam2Role = (match as any)?.roleBId === rId || (match?.teamBName && rLower.includes(match.teamBName.toLowerCase()));
-        const isRefereeRole = rLower.includes("wasit") || rLower.includes("referee") || rLower.includes("ref");
-        const isStreamerRole = rLower.includes("streamer") || rLower.includes("caster") || rLower.includes("stream");
-
-        let roleTagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
-        if (isTeam1Role) roleTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
-        else if (isTeam2Role) roleTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
-        else if (isRefereeRole) roleTagStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
-        else if (isStreamerRole) roleTagStyle = "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30";
-
-        return (
-          <span
-            key={index}
-            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs font-semibold border ${roleTagStyle}`}
-          >
-            @{rName}
-          </span>
-        );
-      }
-
-      // D. User Mentions Berwarna
-      const userMatch = part.match(/^<@!?(\d+)>$/);
-      if (userMatch) {
-        const uId = userMatch[1];
-        const uInfo = msg.userMentions?.[uId];
-        const uName = uInfo?.name || "User";
-        const uLower = uName.toLowerCase();
-
-        const uSlug = checkAffiliation(uName);
-        const isU1 = uSlug && (uSlug === teamASlug || teamASlug.includes(uSlug));
-        const isU2 = uSlug && (uSlug === teamBSlug || teamBSlug.includes(uSlug));
-        const isURef = Boolean(
-          (match?.refereeDiscordId && uId === match.refereeDiscordId) ||
-          (matchReferee && matchReferee !== "-" && (uLower.includes(matchReferee) || matchReferee.includes(uLower)))
-        );
-        const isUStr = Boolean(
-          (match?.streamerDiscordId && uId === match.streamerDiscordId) ||
-          (matchStreamer && matchStreamer !== "-" && (uLower.includes(matchStreamer) || matchStreamer.includes(uLower)))
-        );
-
-        let userTagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
-        if (isURef) userTagStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
-        else if (isUStr) userTagStyle = "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30";
-        else if (isU1) userTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
-        else if (isU2) userTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
-
-        return (
-          <span
-            key={index}
-            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs font-semibold border ${userTagStyle}`}
-          >
-            @{uName}
-          </span>
-        );
-      }
-
-      // E. Render URL & Markdown pada plain text
-      return <React.Fragment key={index}>{parseInlineMarkdown(part, `p-${index}`)}</React.Fragment>;
-    });
-  };
-
   return (
     <>
       <div
@@ -348,9 +172,18 @@ export function ChatMessageItem({
           </div>
 
           {msg.content && (
-            <div className="text-foreground/90 whitespace-pre-wrap break-words text-[12px] leading-relaxed block space-y-1 font-normal">
-              {renderChatContent(msg.content)}
-            </div>
+            <div
+              className="text-foreground/90 whitespace-pre-wrap break-words text-[12px] leading-relaxed block space-y-1 font-normal"
+              dangerouslySetInnerHTML={{
+                __html: parseDiscordMarkdown(
+                  msg.content,
+                  msg.userMentions,
+                  msg.roleMentions,
+                  match,
+                  playerTeamMap
+                ),
+              }}
+            />
           )}
 
           {msg.attachments && msg.attachments.length > 0 && (
@@ -413,5 +246,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-            }
-              
+}
