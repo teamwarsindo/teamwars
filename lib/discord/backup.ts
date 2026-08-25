@@ -2,7 +2,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
 
-// Inisialisasi Cloudinary Server SDK
+// Inisialisasi Cloudinary SDK
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME || 'dhplw8rsd',
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -32,7 +32,18 @@ export interface BackupResult {
   messages: SavedChatLogItem[];
 }
 
-// Upload buffer DataURI biner agar Cloudinary memperlakukannya persis seperti form upload web
+// 🟢 1. Fungsi Eksplisit untuk Memaksa Pembuatan Folder Fisik di Cloudinary
+async function ensureMatchLogsFolderExists(): Promise<void> {
+  try {
+    await cloudinary.api.create_folder('match-logs');
+    console.log('[CLOUDINARY] Folder match-logs berhasil dipastikan aktif.');
+  } catch (err: any) {
+    // Abaikan jika folder sudah pernah ada sebelumnya
+    console.log('[CLOUDINARY] Info create_folder:', err?.message || err);
+  }
+}
+
+// 🟢 2. Upload Gambar langsung ke folder match-logs
 async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: string): Promise<string> {
   try {
     const imgRes = await fetch(imageUrl);
@@ -69,6 +80,9 @@ export async function backupDiscordChannelMessages(params: {
 }): Promise<BackupResult> {
   const { channelId, matchId, week } = params;
   const guildId = DISCORD_CONFIG.GUILD_ID;
+
+  // 🟢 Pastikan folder fisik di Cloudinary terdaftar sebelum looping
+  await ensureMatchLogsFolderExists();
 
   // 1. Ambil Nama Asli Channel Discord
   let actualChannelName = `⚔️-${matchId}`;
@@ -114,7 +128,7 @@ export async function backupDiscordChannelMessages(params: {
         };
       }
     } catch {
-      // Abaikan jika tidak ditemukan di cache
+      // Abaikan jika tidak ditemukan
     }
   }
 
@@ -150,7 +164,7 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Upload Bukti Gambar ke folder 'match-logs'
+    // Upload Bukti Gambar
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
