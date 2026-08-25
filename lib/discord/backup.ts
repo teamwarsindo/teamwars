@@ -24,8 +24,8 @@ export interface BackupResult {
   messages: SavedChatLogItem[];
 }
 
-// Upload buffer Base64 ke Cloudinary REST API
-async function uploadDiscordImageToCloudinary(imageUrl: string, publicId: string): Promise<string> {
+// Upload buffer Base64 ke folder match-logs di Cloudinary
+async function uploadDiscordImageToCloudinary(imageUrl: string, fileName: string): Promise<string> {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'dhplw8rsd';
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
@@ -48,15 +48,19 @@ async function uploadDiscordImageToCloudinary(imageUrl: string, publicId: string
     const dataUri = `data:${mimeType};base64,${base64Data}`;
 
     const timestamp = Math.floor(Date.now() / 1000);
+    const folder = 'match-logs';
+
+    // Signature diurutkan secara alfabetis: folder -> public_id -> timestamp
     const crypto = await import('crypto');
     const signature = crypto
       .createHash('sha1')
-      .update(`public_id=${publicId}&timestamp=${timestamp}${apiSecret}`)
+      .update(`folder=${folder}&public_id=${fileName}&timestamp=${timestamp}${apiSecret}`)
       .digest('hex');
 
     const formData = new FormData();
     formData.append('file', dataUri);
-    formData.append('public_id', publicId);
+    formData.append('folder', folder);
+    formData.append('public_id', fileName);
     formData.append('timestamp', String(timestamp));
     formData.append('api_key', apiKey);
     formData.append('signature', signature);
@@ -144,11 +148,11 @@ export async function backupDiscordChannelMessages(params: {
         };
       }
     } catch {
-      // Ignore
+      // Abaikan jika member tidak ditemukan di cache
     }
   }
 
-  // 5. Upload Gambar Langsung ke folder match-logs
+  // 5. Upload Gambar ke folder match-logs & Format Chat Logs
   const formattedLogs: SavedChatLogItem[] = [];
 
   for (const msg of userMessages) {
@@ -181,17 +185,17 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // 🟢 Target folder Cloudinary: match-logs/... (tanpa bukti/)
+    // Upload & Masking Bukti Gambar ke Folder match-logs
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
         const isImage = att.content_type?.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(att.filename);
 
         if (isImage) {
-          const publicId = `match-logs/w${week}_${matchId}_${msg.id}_${i}`;
-          await uploadDiscordImageToCloudinary(att.url, publicId);
+          const fileName = `w${week}_${matchId}_${msg.id}_${i}`;
+          await uploadDiscordImageToCloudinary(att.url, fileName);
 
-          const maskedUrl = `/match-logs/w${week}_${matchId}_${msg.id}_${i}.png`;
+          const maskedUrl = `/match-logs/${fileName}.png`;
           attachments.push({
             fileName: att.filename,
             maskedUrl,
@@ -222,4 +226,5 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-                                }
+      }
+      
