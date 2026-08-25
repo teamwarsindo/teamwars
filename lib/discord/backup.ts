@@ -127,7 +127,8 @@ export async function backupDiscordChannelMessages(params: {
     if (batch.length < 100) hasMore = false;
   }
 
-  const userMessages = allMessages.filter((msg: any) => !msg.author?.bot);
+  // Filter bot DAN filter pesan pin sistem (type === 6 adalah Pinned Message)
+  const userMessages = allMessages.filter((msg: any) => !msg.author?.bot && msg.type !== 6);
 
   const uniqueAuthorIds = Array.from(new Set(userMessages.map((m: any) => m.author.id)));
   const memberDetailsMap: Record<string, { nick?: string; roles: string[] }> = {};
@@ -154,7 +155,6 @@ export async function backupDiscordChannelMessages(params: {
     const authorDisplayName = memberInfo?.nick || msg.author.global_name || msg.author.username;
     const authorRoles = memberInfo?.roles || [];
 
-    // Mentions
     const userMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mentions)) {
       msg.mentions.forEach((u: any) => {
@@ -173,41 +173,13 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // 1. Reply Resolution
-    let replyTo: SavedChatLogItem['replyTo'] = undefined;
-    if (msg.message_reference) {
-      if (msg.referenced_message) {
-        const ref = msg.referenced_message;
-        const refMember = memberDetailsMap[ref.author?.id];
-        replyTo = {
-          id: ref.id,
-          authorName: refMember?.nick || ref.author?.global_name || ref.author?.username || 'User',
-          authorAvatar: ref.author?.avatar
-            ? `https://cdn.discordapp.com/avatars/${ref.author.id}/${ref.author.avatar}.webp?size=32`
-            : undefined,
-          content: ref.content || '',
-          hasAttachment: Boolean(ref.attachments && ref.attachments.length > 0),
-          isDeleted: false,
-        };
-      } else {
-        // Pesan yang dibalas telah dihapus di Discord
-        replyTo = {
-          id: msg.message_reference.message_id,
-          authorName: 'User',
-          content: '',
-          isDeleted: true,
-        };
-      }
-    }
-
-    // 2. Forwarded Messages Resolution (Termasuk Embed GIF / Media Eksternal)
+    // 1. Forwarded Message (Pastikan bersih dari reply)
     let forwarded: SavedChatLogItem['forwarded'] = undefined;
     if (Array.isArray(msg.message_snapshots) && msg.message_snapshots.length > 0) {
       const snap = msg.message_snapshots[0]?.message;
       if (snap) {
         const snapAttachments: SavedChatLogItem['attachments'] = [];
 
-        // Attachments di snapshot
         if (Array.isArray(snap.attachments) && snap.attachments.length > 0) {
           for (let f = 0; f < snap.attachments.length; f++) {
             const fAtt = snap.attachments[f];
@@ -224,7 +196,6 @@ export async function backupDiscordChannelMessages(params: {
           }
         }
 
-        // Embed GIF / Media di snapshot (seperti Tenor / Klipy)
         if (Array.isArray(snap.embeds) && snap.embeds.length > 0) {
           for (let eIdx = 0; eIdx < snap.embeds.length; eIdx++) {
             const embed = snap.embeds[eIdx];
@@ -248,7 +219,33 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
-    // Embed GIF pada pesan biasa jika user kirim link tenor/klipy langsung
+    // 2. Reply Resolution (Hanya jika bukan forward)
+    let replyTo: SavedChatLogItem['replyTo'] = undefined;
+    if (!forwarded && msg.message_reference) {
+      if (msg.referenced_message) {
+        const ref = msg.referenced_message;
+        const refMember = memberDetailsMap[ref.author?.id];
+        replyTo = {
+          id: ref.id,
+          authorName: refMember?.nick || ref.author?.global_name || ref.author?.username || 'User',
+          authorAvatar: ref.author?.avatar
+            ? `https://cdn.discordapp.com/avatars/${ref.author.id}/${ref.author.avatar}.webp?size=32`
+            : undefined,
+          content: ref.content || '',
+          hasAttachment: Boolean(ref.attachments && ref.attachments.length > 0),
+          isDeleted: false,
+        };
+      } else {
+        replyTo = {
+          id: msg.message_reference.message_id,
+          authorName: 'User',
+          content: '',
+          isDeleted: true,
+        };
+      }
+    }
+
+    // Embed & Attachments biasa
     if (Array.isArray(msg.embeds) && msg.embeds.length > 0) {
       for (let eIdx = 0; eIdx < msg.embeds.length; eIdx++) {
         const embed = msg.embeds[eIdx];
@@ -265,7 +262,6 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
-    // Attachments biasa
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
@@ -307,4 +303,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-}
+  }
