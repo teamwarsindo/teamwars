@@ -58,7 +58,7 @@ async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: strin
 
     const res = await cloudinary.uploader.upload(dataUri, {
       folder: 'match-logs',
-      asset_folder: 'match-logs', // 🟢 Arahkan langsung ke folder fisik
+      asset_folder: 'match-logs',
       public_id: public_id,
       overwrite: true,
       invalidate: true,
@@ -106,13 +106,32 @@ export async function backupDiscordChannelMessages(params: {
     console.warn('[BACKUP] Gagal fetch guild roles:', err);
   }
 
-  // 3. Fetch Pesan Channel
-  const rawMessages = await discordAPI(`/channels/${channelId}/messages?limit=100`, 'GET');
-  if (!Array.isArray(rawMessages)) {
-    throw new Error('Gagal mengambil riwayat pesan dari Discord API');
+  // 3. 🟢 Fetch Seluruh Riwayat Pesan (Loop Pagination > 100 Pesan)
+  let allMessages: any[] = [];
+  let lastId: string | undefined = undefined;
+  let hasMore = true;
+
+  while (hasMore) {
+    const url = lastId
+      ? `/channels/${channelId}/messages?limit=100&before=${lastId}`
+      : `/channels/${channelId}/messages?limit=100`;
+
+    const batch = await discordAPI(url, 'GET');
+
+    if (!Array.isArray(batch) || batch.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    allMessages.push(...batch);
+    lastId = batch[batch.length - 1].id;
+
+    if (batch.length < 100) {
+      hasMore = false;
+    }
   }
 
-  const userMessages = rawMessages.filter((msg: any) => !msg.author?.bot);
+  const userMessages = allMessages.filter((msg: any) => !msg.author?.bot);
 
   // 4. Fetch detail member sekuensial
   const uniqueAuthorIds = Array.from(new Set(userMessages.map((m: any) => m.author.id)));
@@ -127,7 +146,7 @@ export async function backupDiscordChannelMessages(params: {
         };
       }
     } catch {
-      // Abaikan jika tidak ditemukan
+      // Abaikan jika user tidak ditemukan di server
     }
   }
 
@@ -201,6 +220,7 @@ export async function backupDiscordChannelMessages(params: {
 
   return {
     channelName: actualChannelName,
-    messages: formattedLogs.reverse(),
+    messages: formattedLogs.reverse(), // Mengurutkan dari pesan terlama ke terbaru
   };
-      }
+  }
+        
