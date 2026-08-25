@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatDiscordTimeOnly, parseDiscordMarkdown } from "../_utils/discord-parser";
+import { formatDiscordTimeOnly } from "../_utils/discord-parser";
 import { Image as ImageIcon, ExternalLink, Shield, Tv } from "lucide-react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 
@@ -10,7 +10,6 @@ export interface ChatLogMessage {
   authorId: string;
   authorName: string;
   authorGlobalName: string;
-  authorRoles?: string[];
   authorAvatar: string;
   content: string;
   timestamp: string;
@@ -26,75 +25,192 @@ export interface ChatLogMessage {
 interface ChatMessageItemProps {
   msg: ChatLogMessage;
   match?: MatchScheduleItem;
+  playerTeamMap?: Record<string, string>;
   isHighlighted?: boolean;
 }
 
 export function ChatMessageItem({
   msg,
   match,
+  playerTeamMap = {},
   isHighlighted = false,
 }: ChatMessageItemProps) {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const formattedHtml = parseDiscordMarkdown(msg.content, msg.userMentions, msg.roleMentions);
 
-  // 1. Identifikasi Entitas / Peran Pengirim
+  const name1 = (msg.authorGlobalName || "").trim();
+  const name2 = (msg.authorName || "").trim();
+  const n1Lower = name1.toLowerCase();
+  const n2Lower = name2.toLowerCase();
+  const authorId = msg.authorId || "";
+
+  // 1. Deteksi Wasit Langsung dari Jadwal Match
+  const matchReferee = (match?.referee || "").trim().toLowerCase();
   const isReferee = Boolean(
-    (match?.refereeDiscordId && msg.authorId === match.refereeDiscordId) ||
-    msg.authorGlobalName?.toLowerCase().includes("ghost") ||
-    msg.authorName?.toLowerCase().includes("ghost")
+    (match?.refereeDiscordId && authorId === match.refereeDiscordId) ||
+    (matchReferee && matchReferee !== "-" && (n1Lower.includes(matchReferee) || n2Lower.includes(matchReferee) || matchReferee.includes(n1Lower) || matchReferee.includes(n2Lower)))
   );
 
+  // 2. Deteksi Streamer Langsung dari Jadwal Match
+  const matchStreamer = (match?.streamer || "").trim().toLowerCase();
   const isStreamer = Boolean(
-    (match?.streamerDiscordId && msg.authorId === match.streamerDiscordId) ||
-    msg.authorGlobalName?.toLowerCase().includes("kaiser") ||
-    msg.authorName?.toLowerCase().includes("kaiser")
+    (match?.streamerDiscordId && authorId === match.streamerDiscordId) ||
+    (matchStreamer && matchStreamer !== "-" && (n1Lower.includes(matchStreamer) || n2Lower.includes(matchStreamer) || matchStreamer.includes(n1Lower) || matchStreamer.includes(n2Lower)))
   );
 
-  const roleAId = (match as any)?.roleAId;
-  const roleBId = (match as any)?.roleBId;
-  const userRoles = msg.authorRoles || [];
+  // 3. Deteksi Tim Kiri (A) vs Tim Kanan (B) via HASH global:ign
+  let isTeam1 = false;
+  let isTeam2 = false;
 
-  const isTeam1 = Boolean(roleAId && userRoles.includes(roleAId));
-  const isTeam2 = Boolean(roleBId && userRoles.includes(roleBId));
+  const teamASlug = (match?.teamAId || (match as any)?.teamACode || match?.teamAName || "")
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+  const teamBSlug = (match?.teamBId || (match as any)?.teamBCode || match?.teamBName || "")
+    .toLowerCase()
+    .replace(/\s+/g, "-");
 
-  // 2. Skema Warna Tetap & Anti-Kontras (Light & Dark Friendly)
-  let nameColorClass = "text-foreground";
+  const cleanTeamAName = (match?.teamAName || "").toLowerCase();
+  const cleanTeamBName = (match?.teamBName || "").toLowerCase();
+
+  // Helper cek afiliasi tim
+  const checkAffiliation = (uName: string) => {
+    if (!uName) return "";
+    return (
+      playerTeamMap[uName] ||
+      Object.entries(playerTeamMap).find(([ign]) => ign.toLowerCase() === uName.toLowerCase())?.[1] ||
+      ""
+    );
+  };
+
+  if (!isReferee && !isStreamer) {
+    const userTeamSlug = checkAffiliation(name1) || checkAffiliation(name2);
+
+    isTeam1 = Boolean(
+      userTeamSlug &&
+      (userTeamSlug === teamASlug || teamASlug.includes(userTeamSlug) || cleanTeamAName.includes(userTeamSlug.replace(/-/g, " ")))
+    );
+
+    isTeam2 = Boolean(
+      userTeamSlug &&
+      (userTeamSlug === teamBSlug || teamBSlug.includes(userTeamSlug) || cleanTeamBName.includes(userTeamSlug.replace(/-/g, " ")))
+    );
+  }
+
+  // 4. Skema Warna & Icon/Logo
+  let nameColorClass = "text-foreground font-black";
   let avatarBorderClass = "border-border";
-  let roleBadge = null;
+  let roleIcon = null;
 
   if (isReferee) {
-    nameColorClass = "text-emerald-600 dark:text-emerald-400 font-black";
-    avatarBorderClass = "border-emerald-500/50";
-    roleBadge = (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-        <Shield className="h-2.5 w-2.5" /> Wasit
+    nameColorClass = "text-emerald-500 dark:text-emerald-400 font-black";
+    avatarBorderClass = "border-emerald-500";
+    roleIcon = (
+      <span title="Wasit" className="inline-flex items-center text-emerald-500 dark:text-emerald-400">
+        <Shield className="h-3.5 w-3.5 fill-emerald-500/20" />
       </span>
     );
   } else if (isStreamer) {
-    nameColorClass = "text-purple-600 dark:text-purple-400 font-black";
-    avatarBorderClass = "border-purple-500/50";
-    roleBadge = (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-        <Tv className="h-2.5 w-2.5" /> Streamer
+    nameColorClass = "text-purple-500 dark:text-purple-400 font-black";
+    avatarBorderClass = "border-purple-500";
+    roleIcon = (
+      <span title="Streamer" className="inline-flex items-center text-purple-500 dark:text-purple-400">
+        <Tv className="h-3.5 w-3.5" />
       </span>
     );
   } else if (isTeam1) {
-    nameColorClass = "text-sky-600 dark:text-sky-400 font-bold";
-    avatarBorderClass = "border-sky-500/50";
-    roleBadge = (
-      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 max-w-[120px] truncate">
-        {match?.teamAName || "Tim Kiri"}
-      </span>
+    nameColorClass = "text-sky-500 dark:text-sky-400 font-black";
+    avatarBorderClass = "border-sky-500";
+    roleIcon = (
+      <img
+        src={match?.teamALogo || "/placeholder-team.png"}
+        alt={match?.teamAName || "Tim A"}
+        title={match?.teamAName || "Tim A"}
+        className="h-4 w-4 rounded-full border border-sky-500/40 object-cover inline-block shadow-2xs"
+        onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
+      />
     );
   } else if (isTeam2) {
-    nameColorClass = "text-amber-600 dark:text-amber-400 font-bold";
-    avatarBorderClass = "border-amber-500/50";
-    roleBadge = (
-      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 max-w-[120px] truncate">
-        {match?.teamBName || "Tim Kanan"}
-      </span>
+    nameColorClass = "text-amber-500 dark:text-amber-400 font-black";
+    avatarBorderClass = "border-amber-500";
+    roleIcon = (
+      <img
+        src={match?.teamBLogo || "/placeholder-team.png"}
+        alt={match?.teamBName || "Tim B"}
+        title={match?.teamBName || "Tim B"}
+        className="h-4 w-4 rounded-full border border-amber-500/40 object-cover inline-block shadow-2xs"
+        onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
+      />
     );
   }
+
+  // 5. Custom Renderer Mention Tag di Konten Chat
+  const renderChatContent = (content: string) => {
+    if (!content) return null;
+
+    const parts = content.split(/(<@[!&]?\d+>|@everyone|@here)/g);
+
+    return parts.map((part, index) => {
+      if (part === "@everyone" || part === "@here") {
+        return (
+          <span
+            key={index}
+            className="inline-block px-1 py-0.5 mx-0.5 rounded font-bold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+          >
+            {part}
+          </span>
+        );
+      }
+
+      const roleMatch = part.match(/^<@&(\d+)>$/);
+      const userMatch = part.match(/^<@!?(\d+)>$/);
+
+      if (roleMatch) {
+        const rId = roleMatch[1];
+        const rInfo = msg.roleMentions?.[rId];
+        const rName = rInfo?.name || "Role";
+
+        const isTeam1Role = (match as any)?.roleAId === rId || (match?.teamAName && rName.toLowerCase().includes(match.teamAName.toLowerCase()));
+        const isTeam2Role = (match as any)?.roleBId === rId || (match?.teamBName && rName.toLowerCase().includes(match.teamBName.toLowerCase()));
+
+        let roleTagStyle = "bg-primary/10 text-primary border-primary/20";
+        if (isTeam1Role) roleTagStyle = "bg-sky-500/10 text-sky-500 dark:text-sky-400 border-sky-500/30 font-bold";
+        if (isTeam2Role) roleTagStyle = "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/30 font-bold";
+
+        return (
+          <span
+            key={index}
+            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs font-semibold border ${roleTagStyle}`}
+          >
+            @{rName}
+          </span>
+        );
+      }
+
+      if (userMatch) {
+        const uId = userMatch[1];
+        const uInfo = msg.userMentions?.[uId];
+        const uName = uInfo?.name || "User";
+
+        const uSlug = checkAffiliation(uName);
+        const isU1 = uSlug && (uSlug === teamASlug || teamASlug.includes(uSlug));
+        const isU2 = uSlug && (uSlug === teamBSlug || teamBSlug.includes(uSlug));
+
+        let userTagStyle = "bg-muted text-muted-foreground border-border";
+        if (isU1) userTagStyle = "bg-sky-500/10 text-sky-500 dark:text-sky-400 border-sky-500/30 font-bold";
+        if (isU2) userTagStyle = "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/30 font-bold";
+
+        return (
+          <span
+            key={index}
+            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs font-medium border ${userTagStyle}`}
+          >
+            @{uName}
+          </span>
+        );
+      }
+
+      return <span key={index}>{part}</span>;
+    });
+  };
 
   return (
     <>
@@ -105,34 +221,29 @@ export function ChatMessageItem({
             : "hover:bg-muted/40"
         }`}
       >
-        {/* Avatar Author */}
         <img
           src={msg.authorAvatar}
           alt=""
-          className={`h-8 w-8 rounded-full border shrink-0 object-cover mt-0.5 shadow-2xs ${avatarBorderClass}`}
+          className={`h-8 w-8 rounded-full border-2 shrink-0 object-cover mt-0.5 shadow-xs ${avatarBorderClass}`}
         />
 
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1">
-            {/* Nama Author & Badge Peran */}
-            <span className={`text-[12px] truncate ${nameColorClass}`}>
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mb-1">
+            <span className={`text-[12px] tracking-tight truncate ${nameColorClass}`}>
               {msg.authorGlobalName || msg.authorName}
             </span>
-            {roleBadge}
+            {roleIcon}
             <span className="text-[10px] text-muted-foreground/80 font-mono ml-auto">
               {formatDiscordTimeOnly(msg.timestamp)}
             </span>
           </div>
 
-          {/* Isi Pesan Chat */}
           {msg.content && (
-            <span
-              className="text-foreground/90 whitespace-pre-wrap break-words text-[12px] leading-relaxed block space-y-1"
-              dangerouslySetInnerHTML={{ __html: formattedHtml }}
-            />
+            <div className="text-foreground/90 whitespace-pre-wrap break-words text-[12px] leading-relaxed block space-y-1 font-normal">
+              {renderChatContent(msg.content)}
+            </div>
           )}
 
-          {/* Bukti Gambar Attachment */}
           {msg.attachments && msg.attachments.length > 0 && (
             <div className="mt-2.5 flex flex-wrap gap-2">
               {msg.attachments.map((att, idx) => (
@@ -161,7 +272,7 @@ export function ChatMessageItem({
         </div>
       </div>
 
-      {/* Modal Zoom Preview Bukti */}
+      {/* Modal Zoom Preview */}
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
@@ -194,5 +305,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-  }
-            
+      }
