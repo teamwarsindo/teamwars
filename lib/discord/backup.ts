@@ -9,7 +9,8 @@ export interface SavedChatLogItem {
   authorAvatar: string;
   content: string;
   timestamp: string;
-  userMentions?: Record<string, string>; // Map: { "1401944...": "Asukaaa" }
+  userMentions?: Record<string, string>;
+  roleMentions?: Record<string, string>;
   attachments: Array<{
     fileName: string;
     maskedUrl: string;
@@ -23,14 +24,28 @@ export async function backupDiscordChannelMessages(params: {
   week: number;
 }): Promise<SavedChatLogItem[]> {
   const { channelId, matchId, week } = params;
+  const guildId = DISCORD_CONFIG.GUILD_ID;
 
-  // 1. Fetch pesan dari Discord API
+  // 1. Fetch seluruh roles dari guild agar id role otomatis terpetakan ke nama aslinya
+  const guildRolesMap: Record<string, string> = {};
+  try {
+    const rolesData = await discordAPI(`/guilds/${guildId}/roles`, 'GET');
+    if (Array.isArray(rolesData)) {
+      rolesData.forEach((r: any) => {
+        guildRolesMap[r.id] = r.name;
+      });
+    }
+  } catch (err) {
+    console.warn('[BACKUP] Gagal fetch guild roles:', err);
+  }
+
+  // 2. Fetch pesan dari Discord API
   const rawMessages = await discordAPI(`/channels/${channelId}/messages?limit=100`, 'GET');
   if (!Array.isArray(rawMessages)) {
     throw new Error('Gagal mengambil riwayat pesan dari Discord API');
   }
 
-  // 2. Filter hanya pesan dari user (Kecualikan semua Bot)
+  // 3. Filter pesan user (Kecualikan Bot)
   const userMessages = rawMessages.filter((msg: any) => !msg.author?.bot);
 
   const formattedLogs: SavedChatLogItem[] = [];
@@ -38,11 +53,21 @@ export async function backupDiscordChannelMessages(params: {
   for (const msg of userMessages) {
     const attachments: SavedChatLogItem['attachments'] = [];
 
-    // Mapping mention user di dalam pesan
+    // Mapping User Mentions
     const userMentions: Record<string, string> = {};
     if (Array.isArray(msg.mentions)) {
       msg.mentions.forEach((u: any) => {
         userMentions[u.id] = u.global_name || u.username;
+      });
+    }
+
+    // Mapping Role Mentions
+    const roleMentions: Record<string, string> = {};
+    if (Array.isArray(msg.mention_roles)) {
+      msg.mention_roles.forEach((rId: string) => {
+        if (guildRolesMap[rId]) {
+          roleMentions[rId] = guildRolesMap[rId];
+        }
       });
     }
 
@@ -53,7 +78,6 @@ export async function backupDiscordChannelMessages(params: {
 
         if (isImage) {
           const publicId = `bukti/match-logs/w${week}_${matchId}_${msg.id}_${i}`;
-          // Masked URL web Next.js rewrites
           const maskedUrl = `/bukti/match-logs/w${week}_${matchId}_${msg.id}_${i}.png`;
           attachments.push({
             fileName: att.filename,
@@ -75,9 +99,10 @@ export async function backupDiscordChannelMessages(params: {
       content: msg.content || '',
       timestamp: msg.timestamp,
       userMentions,
+      roleMentions,
       attachments,
     });
   }
 
   return formattedLogs.reverse();
-        }
+                    }
