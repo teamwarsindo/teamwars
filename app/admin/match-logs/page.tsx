@@ -311,5 +311,5 @@ export default function MatchLogPage() {
       <Footer />
     </div>
   );
-          }
-          
+                     }
+                        
