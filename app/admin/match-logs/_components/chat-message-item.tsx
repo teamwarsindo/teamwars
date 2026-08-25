@@ -4,28 +4,30 @@ import { useState } from "react";
 import { formatDiscordTimestamp, parseDiscordMarkdown } from "../_utils/discord-parser";
 import { Image as ImageIcon, ExternalLink } from "lucide-react";
 
-interface Attachment {
-  fileName: string;
-  maskedUrl: string;
-  contentType?: string;
-}
-
 export interface ChatLogMessage {
   id: string;
   authorId: string;
   authorName: string;
   authorGlobalName: string;
   authorAvatar: string;
+  authorColor?: string;
   content: string;
   timestamp: string;
-  userMentions?: Record<string, string>;
-  roleMentions?: Record<string, string>;
-  attachments?: Attachment[];
+  userMentions?: Record<string, any>;
+  roleMentions?: Record<string, any>;
+  attachments?: Array<{
+    fileName: string;
+    maskedUrl: string;
+    contentType?: string;
+  }>;
 }
 
 export function ChatMessageItem({ msg }: { msg: ChatLogMessage }) {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const formattedHtml = parseDiscordMarkdown(msg.content, msg.userMentions, msg.roleMentions);
+
+  // Pewarnaan adaptif nama user
+  const isColorValid = msg.authorColor && msg.authorColor !== "#000000" && msg.authorColor.toLowerCase() !== "#ffffff";
 
   return (
     <>
@@ -37,7 +39,10 @@ export function ChatMessageItem({ msg }: { msg: ChatLogMessage }) {
         />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-0.5">
-            <span className="font-bold text-foreground text-[11px] truncate">
+            <span
+              className="font-bold text-[11px] truncate"
+              style={isColorValid ? { color: msg.authorColor } : undefined}
+            >
               {msg.authorGlobalName || msg.authorName}
             </span>
             <span className="text-[9.5px] text-muted-foreground font-mono">
