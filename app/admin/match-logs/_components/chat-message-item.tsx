@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { formatDiscordTimeOnly } from "../_utils/discord-parser";
-import { Image as ImageIcon, ExternalLink, Shield, Tv, User } from "lucide-react";
+import { Image as ImageIcon, ExternalLink, Shield, Tv, ShieldAlert } from "lucide-react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 
 export interface ChatLogMessage {
@@ -94,12 +94,12 @@ export function ChatMessageItem({
     );
   }
 
-  // 4. Skema Warna & Icon/Logo (Menggunakan font-semibold)
-  let nameColorClass = "text-slate-700 dark:text-slate-300 font-semibold";
-  let avatarBorderClass = "border-border";
+  // 4. Skema Warna & Icon Author (Selain Wasit/Streamer/Tim otomatis dianggap Admin)
+  let nameColorClass = "text-rose-600 dark:text-rose-400 font-semibold";
+  let avatarBorderClass = "border-rose-500/50";
   let roleIcon = (
-    <span title="Member" className="inline-flex items-center text-muted-foreground/60">
-      <User className="h-3 w-3" />
+    <span title="Admin / Panitia" className="inline-flex items-center text-rose-500 dark:text-rose-400">
+      <ShieldAlert className="h-3.5 w-3.5 fill-rose-500/20" />
     </span>
   );
 
@@ -145,13 +145,46 @@ export function ChatMessageItem({
     );
   }
 
-  // 5. Parser Mention & Discord Custom Emoji
+  // 5. Helper Parse Markdown (Bold, Italic, Code, Strikethrough)
+  const parseInlineMarkdown = (text: string, keyPrefix: string) => {
+    const mdRegex = /(\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|~~[^~]+~~|`[^`]+`)/g;
+    const tokens = text.split(mdRegex);
+
+    return tokens.map((tok, tIdx) => {
+      const k = `${keyPrefix}-tok-${tIdx}`;
+
+      if (tok.startsWith("**") && tok.endsWith("**")) {
+        return <strong key={k} className="font-semibold text-foreground">{tok.slice(2, -2)}</strong>;
+      }
+      if (tok.startsWith("__") && tok.endsWith("__")) {
+        return <u key={k}>{tok.slice(2, -2)}</u>;
+      }
+      if (tok.startsWith("*") && tok.endsWith("*")) {
+        return <em key={k}>{tok.slice(1, -1)}</em>;
+      }
+      if (tok.startsWith("~~") && tok.endsWith("~~")) {
+        return <del key={k}>{tok.slice(2, -2)}</del>;
+      }
+      if (tok.startsWith("`") && tok.endsWith("`")) {
+        return (
+          <code key={k} className="bg-muted px-1 py-0.5 rounded font-mono text-[11px] text-foreground border border-border">
+            {tok.slice(1, -1)}
+          </code>
+        );
+      }
+
+      return tok;
+    });
+  };
+
+  // 6. Parser Lengkap (Emoji, Mentions Berwarna & Markdown)
   const renderChatContent = (content: string) => {
     if (!content) return null;
 
     const parts = content.split(/(<a?:\w+:\d+>|<@[!&]?\d+>|@everyone|@here)/g);
 
     return parts.map((part, index) => {
+      // A. Discord Custom Emoji CDN
       const emojiMatch = part.match(/^<(a?):(\w+):(\d+)>$/);
       if (emojiMatch) {
         const isAnimated = emojiMatch[1] === "a";
@@ -174,6 +207,7 @@ export function ChatMessageItem({
         );
       }
 
+      // B. Everyone & Here
       if (part === "@everyone" || part === "@here") {
         return (
           <span
@@ -185,54 +219,75 @@ export function ChatMessageItem({
         );
       }
 
+      // C. Role Mentions Berwarna Lengkap
       const roleMatch = part.match(/^<@&(\d+)>$/);
       if (roleMatch) {
         const rId = roleMatch[1];
         const rInfo = msg.roleMentions?.[rId];
         const rName = rInfo?.name || "Role";
+        const rLower = rName.toLowerCase();
 
-        const isTeam1Role = (match as any)?.roleAId === rId || (match?.teamAName && rName.toLowerCase().includes(match.teamAName.toLowerCase()));
-        const isTeam2Role = (match as any)?.roleBId === rId || (match?.teamBName && rName.toLowerCase().includes(match.teamBName.toLowerCase()));
+        const isTeam1Role = (match as any)?.roleAId === rId || (match?.teamAName && rLower.includes(match.teamAName.toLowerCase()));
+        const isTeam2Role = (match as any)?.roleBId === rId || (match?.teamBName && rLower.includes(match.teamBName.toLowerCase()));
+        const isRefereeRole = rLower.includes("wasit") || rLower.includes("referee") || rLower.includes("ref");
+        const isStreamerRole = rLower.includes("streamer") || rLower.includes("caster") || rLower.includes("stream");
 
-        let roleTagStyle = "bg-primary/10 text-primary border-primary/20";
-        if (isTeam1Role) roleTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 font-semibold";
-        if (isTeam2Role) roleTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold";
+        // Role selain tim/wasit/streamer otomatis dianggap role Admin
+        let roleTagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
+        if (isTeam1Role) roleTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
+        else if (isTeam2Role) roleTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
+        else if (isRefereeRole) roleTagStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
+        else if (isStreamerRole) roleTagStyle = "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30";
 
         return (
           <span
             key={index}
-            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs border ${roleTagStyle}`}
+            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs font-semibold border ${roleTagStyle}`}
           >
             @{rName}
           </span>
         );
       }
 
+      // D. User Mentions Berwarna Lengkap
       const userMatch = part.match(/^<@!?(\d+)>$/);
       if (userMatch) {
         const uId = userMatch[1];
         const uInfo = msg.userMentions?.[uId];
         const uName = uInfo?.name || "User";
+        const uLower = uName.toLowerCase();
 
         const uSlug = checkAffiliation(uName);
         const isU1 = uSlug && (uSlug === teamASlug || teamASlug.includes(uSlug));
         const isU2 = uSlug && (uSlug === teamBSlug || teamBSlug.includes(uSlug));
+        const isURef = Boolean(
+          (match?.refereeDiscordId && uId === match.refereeDiscordId) ||
+          (matchReferee && matchReferee !== "-" && (uLower.includes(matchReferee) || matchReferee.includes(uLower)))
+        );
+        const isUStr = Boolean(
+          (match?.streamerDiscordId && uId === match.streamerDiscordId) ||
+          (matchStreamer && matchStreamer !== "-" && (uLower.includes(matchStreamer) || matchStreamer.includes(uLower)))
+        );
 
-        let userTagStyle = "bg-muted text-muted-foreground border-border";
-        if (isU1) userTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 font-semibold";
-        if (isU2) userTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold";
+        // User selain tim/wasit/streamer otomatis dianggap Admin
+        let userTagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
+        if (isURef) userTagStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
+        else if (isUStr) userTagStyle = "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30";
+        else if (isU1) userTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
+        else if (isU2) userTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
 
         return (
           <span
             key={index}
-            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs border ${userTagStyle}`}
+            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs font-semibold border ${userTagStyle}`}
           >
             @{uName}
           </span>
         );
       }
 
-      return <span key={index}>{part}</span>;
+      // E. Render Markdown pada plain text
+      return <React.Fragment key={index}>{parseInlineMarkdown(part, `p-${index}`)}</React.Fragment>;
     });
   };
 
@@ -328,4 +383,5 @@ export function ChatMessageItem({
       )}
     </>
   );
-                    }
+                                              }
+  
