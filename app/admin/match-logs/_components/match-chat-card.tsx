@@ -4,7 +4,7 @@ import { useState, useMemo, Fragment } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 import { ChatMessageItem, ChatLogMessage } from "./chat-message-item";
 import { formatDiscordDateHeader } from "../_utils/discord-parser";
-import { Search, RefreshCw, Trash2, Hash, ShieldAlert, CheckCircle2, Lock } from "lucide-react";
+import { Search, RefreshCw, Trash2, Hash, ShieldAlert, CheckCircle2, Lock, Shield, Tv } from "lucide-react";
 import Swal from "sweetalert2";
 
 interface MatchChatCardProps {
@@ -73,16 +73,16 @@ export function MatchChatCard({
       {/* TOP HEADER CARD */}
       <div className="border-b border-border bg-muted/40 p-4 space-y-3.5">
         
-        {/* 1. Judul Tim Center */}
+        {/* 1. Judul Tim Center (Berwarna Sesuai Tim) */}
         <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <img
               src={match.teamALogo || "/placeholder-team.png"}
               alt=""
-              className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border-2 border-background object-cover bg-card shadow-xs"
+              className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border-2 border-sky-500/50 object-cover bg-card shadow-xs"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="font-black text-sm sm:text-base text-foreground tracking-tight">
+            <span className="font-bold text-sm sm:text-base text-sky-600 dark:text-sky-400 tracking-tight">
               {match.teamAName}
             </span>
           </div>
@@ -95,10 +95,10 @@ export function MatchChatCard({
             <img
               src={match.teamBLogo || "/placeholder-team.png"}
               alt=""
-              className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border-2 border-background object-cover bg-card shadow-xs"
+              className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border-2 border-amber-500/50 object-cover bg-card shadow-xs"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="font-black text-sm sm:text-base text-foreground tracking-tight">
+            <span className="font-bold text-sm sm:text-base text-amber-600 dark:text-amber-400 tracking-tight">
               {match.teamBName}
             </span>
           </div>
@@ -125,11 +125,17 @@ export function MatchChatCard({
           )}
         </div>
 
-        {/* 3. Info Wasit & Streamer */}
+        {/* 3. Info Wasit & Streamer (Berwarna Sesuai Peran) */}
         <div className="flex items-center justify-center gap-3 text-[11px] text-muted-foreground font-medium pt-1 border-t border-border/40">
-          <span>Wasit: <strong className="text-foreground">{match.referee || "-"}</strong></span>
+          <span className="inline-flex items-center gap-1">
+            <Shield className="h-3 w-3 text-emerald-500" />
+            Wasit: <strong className="text-emerald-600 dark:text-emerald-400">{match.referee || "-"}</strong>
+          </span>
           <span>•</span>
-          <span>Streamer: <strong className="text-foreground">{match.streamer || "-"}</strong></span>
+          <span className="inline-flex items-center gap-1">
+            <Tv className="h-3 w-3 text-purple-500" />
+            Streamer: <strong className="text-purple-600 dark:text-purple-400">{match.streamer || "-"}</strong>
+          </span>
         </div>
 
         {/* 4. Action Bar */}
@@ -239,5 +245,4 @@ export function MatchChatCard({
       </div>
     </div>
   );
-              }
-                
+      }
