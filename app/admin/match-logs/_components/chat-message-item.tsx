@@ -60,7 +60,6 @@ export function ChatMessageItem({
   const n2Lower = name2.toLowerCase();
   const authorId = msg.authorId || "";
 
-  // Wasit & Streamer
   const matchReferee = (match?.referee || "").trim().toLowerCase();
   const isReferee = Boolean(
     (match?.refereeDiscordId && authorId === match.refereeDiscordId) ||
@@ -73,7 +72,6 @@ export function ChatMessageItem({
     (matchStreamer && matchStreamer !== "-" && (n1Lower.includes(matchStreamer) || n2Lower.includes(matchStreamer) || matchStreamer.includes(n1Lower) || matchStreamer.includes(n2Lower)))
   );
 
-  // Tim A vs B
   const teamASlug = (match?.teamAId || (match as any)?.teamACode || match?.teamAName || "")
     .toLowerCase()
     .replace(/\s+/g, "-");
@@ -170,10 +168,9 @@ export function ChatMessageItem({
             : "hover:bg-muted/40"
         }`}
       >
-        {/* SIKU REPLY PERSIS DISCORD */}
+        {/* SIKU REPLY TANGGAL/NAMA TIDAK KEBELAH */}
         {msg.replyTo && (
-          <div className="relative flex items-center gap-1.5 pl-12 pb-1 text-[11px] text-muted-foreground font-medium">
-            {/* Garis lengkung siku Discord */}
+          <div className="relative flex items-center gap-1.5 pl-12 pb-1 text-[11px] text-muted-foreground font-medium flex-wrap">
             <div className="absolute left-6 top-2 h-3.5 w-5 border-l-2 border-t-2 border-muted-foreground/40 rounded-tl-md pointer-events-none" />
 
             {msg.replyTo.isDeleted ? (
@@ -191,8 +188,8 @@ export function ChatMessageItem({
                 ) : (
                   <span className="h-3.5 w-3.5 rounded-full bg-muted shrink-0 inline-block" />
                 )}
-                <span className="font-semibold text-foreground/80">@{msg.replyTo.authorName}</span>
-                <span className="truncate max-w-[200px] sm:max-w-[340px] italic text-muted-foreground/80">
+                <span className="font-semibold text-foreground/80 shrink-0">@{msg.replyTo.authorName}</span>
+                <span className="italic text-muted-foreground/80 truncate max-w-[220px] sm:max-w-[360px]">
                   {msg.replyTo.content || (msg.replyTo.hasAttachment ? "📷 [Lampiran Gambar]" : "...")}
                 </span>
               </>
@@ -219,7 +216,6 @@ export function ChatMessageItem({
               </span>
             </div>
 
-            {/* Isi Teks */}
             {msg.content && (
               <div
                 className="text-foreground/90 whitespace-pre-wrap break-words text-[12px] leading-relaxed block space-y-1 font-normal"
@@ -236,7 +232,7 @@ export function ChatMessageItem({
               />
             )}
 
-            {/* FORWARDED MESSAGE BOX */}
+            {/* FORWARDED MESSAGE BOX (TANPA SIKU REPLY) */}
             {msg.forwarded && (
               <div className="mt-2 rounded-2xl border border-border/80 bg-muted/40 p-2.5 space-y-2 max-w-sm">
                 <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground italic">
@@ -277,7 +273,6 @@ export function ChatMessageItem({
               </div>
             )}
 
-            {/* LAMPIRAN GAMBAR UTAMA */}
             {msg.attachments && msg.attachments.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-2">
                 {msg.attachments.map((att, idx) => (
@@ -339,4 +334,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-                                         }
+}
