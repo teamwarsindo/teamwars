@@ -176,11 +176,8 @@ function MatchLogViewerContent() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
         <div>
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-primary" />
-            <h1 className="text-base sm:text-xl font-black tracking-tight">Match Discord Log Archive</h1>
-          </div>
-          <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+   
+        <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
             Cari pertandingan untuk melihat riwayat percakapan Discord dan bukti duel.
           </p>
         </div>
