@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { formatDiscordTimeOnly } from "../_utils/discord-parser";
-import { Image as ImageIcon, ExternalLink, Shield, Tv } from "lucide-react";
+import { Image as ImageIcon, ExternalLink, Shield, Tv, User } from "lucide-react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 
 export interface ChatLogMessage {
@@ -43,24 +43,21 @@ export function ChatMessageItem({
   const n2Lower = name2.toLowerCase();
   const authorId = msg.authorId || "";
 
-  // 1. Deteksi Wasit Langsung dari Jadwal Match
+  // 1. Deteksi Wasit
   const matchReferee = (match?.referee || "").trim().toLowerCase();
   const isReferee = Boolean(
     (match?.refereeDiscordId && authorId === match.refereeDiscordId) ||
     (matchReferee && matchReferee !== "-" && (n1Lower.includes(matchReferee) || n2Lower.includes(matchReferee) || matchReferee.includes(n1Lower) || matchReferee.includes(n2Lower)))
   );
 
-  // 2. Deteksi Streamer Langsung dari Jadwal Match
+  // 2. Deteksi Streamer
   const matchStreamer = (match?.streamer || "").trim().toLowerCase();
   const isStreamer = Boolean(
     (match?.streamerDiscordId && authorId === match.streamerDiscordId) ||
     (matchStreamer && matchStreamer !== "-" && (n1Lower.includes(matchStreamer) || n2Lower.includes(matchStreamer) || matchStreamer.includes(n1Lower) || matchStreamer.includes(n2Lower)))
   );
 
-  // 3. Deteksi Tim Kiri (A) vs Tim Kanan (B) via HASH global:ign
-  let isTeam1 = false;
-  let isTeam2 = false;
-
+  // 3. Deteksi Tim Kiri (A) vs Tim Kanan (B)
   const teamASlug = (match?.teamAId || (match as any)?.teamACode || match?.teamAName || "")
     .toLowerCase()
     .replace(/\s+/g, "-");
@@ -71,7 +68,6 @@ export function ChatMessageItem({
   const cleanTeamAName = (match?.teamAName || "").toLowerCase();
   const cleanTeamBName = (match?.teamBName || "").toLowerCase();
 
-  // Helper cek afiliasi tim
   const checkAffiliation = (uName: string) => {
     if (!uName) return "";
     return (
@@ -80,6 +76,9 @@ export function ChatMessageItem({
       ""
     );
   };
+
+  let isTeam1 = false;
+  let isTeam2 = false;
 
   if (!isReferee && !isStreamer) {
     const userTeamSlug = checkAffiliation(name1) || checkAffiliation(name2);
@@ -95,13 +94,17 @@ export function ChatMessageItem({
     );
   }
 
-  // 4. Skema Warna & Icon/Logo
-  let nameColorClass = "text-foreground font-black";
+  // 4. Skema Warna & Icon/Logo (Menggunakan font-semibold)
+  let nameColorClass = "text-slate-700 dark:text-slate-300 font-semibold";
   let avatarBorderClass = "border-border";
-  let roleIcon = null;
+  let roleIcon = (
+    <span title="Member" className="inline-flex items-center text-muted-foreground/60">
+      <User className="h-3 w-3" />
+    </span>
+  );
 
   if (isReferee) {
-    nameColorClass = "text-emerald-500 dark:text-emerald-400 font-black";
+    nameColorClass = "text-emerald-600 dark:text-emerald-400 font-semibold";
     avatarBorderClass = "border-emerald-500";
     roleIcon = (
       <span title="Wasit" className="inline-flex items-center text-emerald-500 dark:text-emerald-400">
@@ -109,7 +112,7 @@ export function ChatMessageItem({
       </span>
     );
   } else if (isStreamer) {
-    nameColorClass = "text-purple-500 dark:text-purple-400 font-black";
+    nameColorClass = "text-purple-600 dark:text-purple-400 font-semibold";
     avatarBorderClass = "border-purple-500";
     roleIcon = (
       <span title="Streamer" className="inline-flex items-center text-purple-500 dark:text-purple-400">
@@ -117,7 +120,7 @@ export function ChatMessageItem({
       </span>
     );
   } else if (isTeam1) {
-    nameColorClass = "text-sky-500 dark:text-sky-400 font-black";
+    nameColorClass = "text-sky-600 dark:text-sky-400 font-semibold";
     avatarBorderClass = "border-sky-500";
     roleIcon = (
       <img
@@ -129,7 +132,7 @@ export function ChatMessageItem({
       />
     );
   } else if (isTeam2) {
-    nameColorClass = "text-amber-500 dark:text-amber-400 font-black";
+    nameColorClass = "text-amber-600 dark:text-amber-400 font-semibold";
     avatarBorderClass = "border-amber-500";
     roleIcon = (
       <img
@@ -142,18 +145,40 @@ export function ChatMessageItem({
     );
   }
 
-  // 5. Custom Renderer Mention Tag di Konten Chat
+  // 5. Parser Mention & Discord Custom Emoji
   const renderChatContent = (content: string) => {
     if (!content) return null;
 
-    const parts = content.split(/(<@[!&]?\d+>|@everyone|@here)/g);
+    const parts = content.split(/(<a?:\w+:\d+>|<@[!&]?\d+>|@everyone|@here)/g);
 
     return parts.map((part, index) => {
+      const emojiMatch = part.match(/^<(a?):(\w+):(\d+)>$/);
+      if (emojiMatch) {
+        const isAnimated = emojiMatch[1] === "a";
+        const emojiName = emojiMatch[2];
+        const emojiId = emojiMatch[3];
+        const ext = isAnimated ? "gif" : "webp";
+        const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.${ext}?size=48&quality=lossless`;
+
+        return (
+          <img
+            key={index}
+            src={emojiUrl}
+            alt={`:${emojiName}:`}
+            title={`:${emojiName}:`}
+            className="inline-block h-6 w-6 object-contain align-middle mx-0.5"
+            onError={(e: any) => {
+              e.target.outerHTML = `:${emojiName}:`;
+            }}
+          />
+        );
+      }
+
       if (part === "@everyone" || part === "@here") {
         return (
           <span
             key={index}
-            className="inline-block px-1 py-0.5 mx-0.5 rounded font-bold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+            className="inline-block px-1 py-0.2 mx-0.5 rounded font-semibold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
           >
             {part}
           </span>
@@ -161,8 +186,6 @@ export function ChatMessageItem({
       }
 
       const roleMatch = part.match(/^<@&(\d+)>$/);
-      const userMatch = part.match(/^<@!?(\d+)>$/);
-
       if (roleMatch) {
         const rId = roleMatch[1];
         const rInfo = msg.roleMentions?.[rId];
@@ -172,19 +195,20 @@ export function ChatMessageItem({
         const isTeam2Role = (match as any)?.roleBId === rId || (match?.teamBName && rName.toLowerCase().includes(match.teamBName.toLowerCase()));
 
         let roleTagStyle = "bg-primary/10 text-primary border-primary/20";
-        if (isTeam1Role) roleTagStyle = "bg-sky-500/10 text-sky-500 dark:text-sky-400 border-sky-500/30 font-bold";
-        if (isTeam2Role) roleTagStyle = "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/30 font-bold";
+        if (isTeam1Role) roleTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 font-semibold";
+        if (isTeam2Role) roleTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold";
 
         return (
           <span
             key={index}
-            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs font-semibold border ${roleTagStyle}`}
+            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs border ${roleTagStyle}`}
           >
             @{rName}
           </span>
         );
       }
 
+      const userMatch = part.match(/^<@!?(\d+)>$/);
       if (userMatch) {
         const uId = userMatch[1];
         const uInfo = msg.userMentions?.[uId];
@@ -195,13 +219,13 @@ export function ChatMessageItem({
         const isU2 = uSlug && (uSlug === teamBSlug || teamBSlug.includes(uSlug));
 
         let userTagStyle = "bg-muted text-muted-foreground border-border";
-        if (isU1) userTagStyle = "bg-sky-500/10 text-sky-500 dark:text-sky-400 border-sky-500/30 font-bold";
-        if (isU2) userTagStyle = "bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/30 font-bold";
+        if (isU1) userTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 font-semibold";
+        if (isU2) userTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold";
 
         return (
           <span
             key={index}
-            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs font-medium border ${userTagStyle}`}
+            className={`inline-block px-1.5 py-0.2 mx-0.5 rounded text-xs border ${userTagStyle}`}
           >
             @{uName}
           </span>
@@ -261,7 +285,7 @@ export function ChatMessageItem({
                     }}
                   />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/att:opacity-100 transition-opacity">
-                    <span className="flex items-center gap-1 rounded-md bg-background/90 px-2 py-1 text-[10px] font-bold text-foreground shadow-xs">
+                    <span className="flex items-center gap-1 rounded-md bg-background/90 px-2 py-1 text-[10px] font-semibold text-foreground shadow-xs">
                       <ImageIcon className="h-3.5 w-3.5" /> Perbesar Bukti
                     </span>
                   </div>
@@ -272,7 +296,6 @@ export function ChatMessageItem({
         </div>
       </div>
 
-      {/* Modal Zoom Preview */}
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
@@ -295,7 +318,7 @@ export function ChatMessageItem({
                 href={previewImage}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline"
+                className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"
               >
                 Buka Tab Baru <ExternalLink className="h-3 w-3" />
               </a>
@@ -305,4 +328,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-      }
+                    }
