@@ -35,10 +35,29 @@ export function formatDiscordTimestamp(isoString: string): string {
   return `${dateStr}, ${timeStr} WIB`;
 }
 
+// 🟢 Helper Penyesuai Warna Kontras Dark/Light
+export function getAdaptiveRoleStyle(hexColor?: string) {
+  if (!hexColor || hexColor === "#000000" || hexColor.toLowerCase() === "#ffffff") {
+    return {
+      style: {},
+      className: "bg-primary/15 text-primary border-primary/20",
+    };
+  }
+
+  return {
+    style: {
+      color: hexColor,
+      backgroundColor: `${hexColor}18`, // Opacity 10%
+      borderColor: `${hexColor}35`,
+    },
+    className: "border shadow-2xs",
+  };
+}
+
 export function parseDiscordMarkdown(
   content: string,
-  userMentions?: Record<string, string>,
-  roleMentions?: Record<string, string>
+  userMentions?: Record<string, any>,
+  roleMentions?: Record<string, any>
 ): string {
   if (!content) return "";
 
@@ -56,16 +75,24 @@ export function parseDiscordMarkdown(
     formatted = formatted.replaceAll(code, emoji);
   }
 
-  // 3. User Mention: Ganti <@ID> dengan Nama Asli
+  // 3. User Mention
   formatted = formatted.replace(/<@!?([0-9]+)>/g, (match, userId) => {
-    const targetName = userMentions?.[userId];
-    const label = targetName ? `@${targetName}` : "@Pemain";
-    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded-md bg-primary/15 text-primary font-bold text-[11px]">${label}</span>`;
+    const u = userMentions?.[userId];
+    const name = typeof u === "object" ? u?.name : u;
+    const label = name ? `@${name}` : "@Pemain";
+    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded-md bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold text-[11px]">${label}</span>`;
   });
 
-  // 4. Role Mention: Ganti <@&ID> dengan Nama Asli Role / Tim
+  // 4. Role Mention Dinamis dengan Warna Role
   formatted = formatted.replace(/<@&([0-9]+)>/g, (match, roleId) => {
-    const roleName = roleMentions?.[roleId] || "Role";
+    const r = roleMentions?.[roleId];
+    const roleName = typeof r === "object" ? r?.name : (r || "Role");
+    const roleColor = typeof r === "object" ? r?.color : undefined;
+
+    if (roleColor && roleColor !== "#000000") {
+      return `<span style="color: ${roleColor}; background-color: ${roleColor}20; border-color: ${roleColor}40;" class="inline-flex items-center px-1.5 py-0.2 rounded-md border font-bold text-[11px]">@${roleName}</span>`;
+    }
+
     return `<span class="inline-flex items-center px-1.5 py-0.2 rounded-md bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-bold text-[11px]">@${roleName}</span>`;
   });
 
@@ -76,5 +103,5 @@ export function parseDiscordMarkdown(
   );
 
   return formatted;
-    }
+                                          }
   
