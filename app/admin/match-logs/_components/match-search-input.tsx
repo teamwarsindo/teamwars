@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
-import { Search, X, Check } from "lucide-react";
+import { Search, X, ChevronRight, CheckCircle2, Shield, Radio, ShieldCheck, ShieldAlert } from "lucide-react";
 
 interface MatchSearchInputProps {
   schedules: MatchScheduleItem[];
@@ -10,115 +10,101 @@ interface MatchSearchInputProps {
 }
 
 export function MatchSearchInput({ schedules, onSelectMatch }: MatchSearchInputProps) {
-  const [query, setQuery] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState<MatchScheduleItem | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
-  // Auto-select match pertama jika ada data
-  useEffect(() => {
-    if (schedules.length > 0 && !selectedMatch) {
-      setSelectedMatch(schedules[0]);
-      onSelectMatch(schedules[0].id);
-    }
-  }, [schedules, selectedMatch, onSelectMatch]);
+  const matchedResults = useMemo(() => {
+    if (!globalSearch.trim()) return [];
+    const q = globalSearch.toLowerCase().trim();
+    return schedules
+      .filter((m) => {
+        const str = `${m.teamAName} ${m.teamBName} ${m.referee || ""} ${m.streamer || ""} ${m.id} w${m.weekNumber || 1}`.toLowerCase();
+        return str.includes(q);
+      })
+      .slice(0, 8);
+  }, [schedules, globalSearch]);
 
-  // Filter pencarian
-  const filteredMatches = useMemo(() => {
-    if (!query.trim()) return schedules;
-    const q = query.toLowerCase();
-    return schedules.filter(
-      (m) =>
-        m.id?.toLowerCase().includes(q) ||
-        m.teamAName?.toLowerCase().includes(q) ||
-        m.teamBName?.toLowerCase().includes(q) ||
-        m.teamACode?.toLowerCase().includes(q) ||
-        m.teamBCode?.toLowerCase().includes(q) ||
-        m.referee?.toLowerCase().includes(q) ||
-        m.streamer?.toLowerCase().includes(q)
-    );
-  }, [schedules, query]);
-
-  // Klik di luar untuk menutup dropdown
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSelect = (match: MatchScheduleItem) => {
-    setSelectedMatch(match);
-    onSelectMatch(match.id);
-    setIsOpen(false);
-    setQuery("");
+  const handlePick = (matchId: string) => {
+    onSelectMatch(matchId);
+    setGlobalSearch("");
+    setIsSearchFocused(false);
   };
 
   return (
-    <div ref={containerRef} className="relative w-full">
-      <div className="relative flex items-center">
+    <div className="relative">
+      <div className="relative">
         <input
           type="text"
-          value={query}
-          onFocus={() => setIsOpen(true)}
+          value={globalSearch}
+          onFocus={() => setIsSearchFocused(true)}
           onChange={(e) => {
-            setQuery(e.target.value);
-            setIsOpen(true);
+            setGlobalSearch(e.target.value);
+            setIsSearchFocused(true);
           }}
-          placeholder="Cari tim, wasit, atau ID match..."
-          className="w-full bg-card border border-border rounded-2xl py-3 pl-10 pr-10 text-xs sm:text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-primary shadow-xs transition"
+          placeholder="Ketik nama tim (misal: FPF, Dino), wasit, atau ID match..."
+          className="w-full bg-card border-2 border-border focus:border-primary rounded-2xl px-4 py-3 text-xs sm:text-sm shadow-sm focus:outline-hidden pl-10 pr-10 transition-all"
         />
-        <Search className="absolute left-3.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-
-        {query && (
+        <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
+        {globalSearch && (
           <button
-            onClick={() => setQuery("")}
-            className="absolute right-3.5 p-1 rounded-full text-muted-foreground hover:text-foreground transition cursor-pointer"
+            onClick={() => {
+              setGlobalSearch("");
+              setIsSearchFocused(false);
+            }}
+            className="absolute right-3.5 top-3.5 text-muted-foreground hover:text-foreground cursor-pointer"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      {/* Dropdown Hasil Pencarian */}
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-border bg-card p-1.5 shadow-xl z-50 space-y-1">
-          {filteredMatches.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted-foreground font-medium">
-              Pertandingan tidak ditemukan.
+      {isSearchFocused && globalSearch.trim() !== "" && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-border/60 max-h-80 overflow-y-auto">
+          {matchedResults.length === 0 ? (
+            <div className="p-4 text-center text-xs text-muted-foreground font-medium">
+              Tidak ada match yang cocok dengan "{globalSearch}"
             </div>
           ) : (
-            filteredMatches.map((m) => {
-              const isSelected = selectedMatch?.id === m.id;
-              return (
-                <div
-                  key={m.id}
-                  onClick={() => handleSelect(m)}
-                  className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition text-xs ${
-                    isSelected
-                      ? "bg-primary/10 border border-primary/20 text-foreground font-semibold"
-                      : "hover:bg-muted text-foreground/80 hover:text-foreground"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="font-mono text-[11px] font-bold text-primary px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 shrink-0">
-                      W{m.weekNumber || 1} • {m.id}
-                    </span>
-                    <span className="truncate">
-                      <strong>{m.teamAName}</strong> vs <strong>{m.teamBName}</strong>
-                    </span>
-                  </div>
+            matchedResults.map((m) => {
+              const isChannelActive = Boolean(m.discordChannelId);
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-muted-foreground hidden sm:inline">
-                      Wasit: {m.referee || "-"}
-                    </span>
-                    {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => handlePick(m.id)}
+                  className="w-full flex items-center justify-between p-3 text-left hover:bg-muted/60 transition group cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1 pr-3">
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground mb-0.5">
+                      <span className="font-bold text-primary">W{m.weekNumber || 1}</span>
+                      <span>•</span>
+                      <span>{m.id}</span>
+                      {m.isFinished && (
+                        <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                          <CheckCircle2 className="h-2.5 w-2.5" /> Selesai
+                        </span>
+                      )}
+                      {/* Status Channel Discord */}
+                      {isChannelActive ? (
+                        <span className="flex items-center gap-0.5 text-sky-600 dark:text-sky-400 font-medium">
+                          • Channel Aktif
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-0.5 text-muted-foreground/80 font-medium">
+                          • Channel Dibersihkan
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-bold text-xs sm:text-sm text-foreground truncate">
+                      {m.teamAName} <span className="text-muted-foreground font-normal">vs</span> {m.teamBName}
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1"><Shield className="h-2.5 w-2.5" /> {m.referee || "-"}</span>
+                      <span className="flex items-center gap-1"><Radio className="h-2.5 w-2.5" /> {m.streamer || "-"}</span>
+                    </div>
                   </div>
-                </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition shrink-0" />
+                </button>
               );
             })
           )}
