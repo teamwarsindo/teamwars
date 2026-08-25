@@ -42,7 +42,18 @@ function MatchLogViewerContent() {
         setLoadingChat(true);
         const res = await fetch(`/api/admin/match-logs?matchId=${selectedMatchId}`);
         const json = await res.json();
-        setActiveLogs(json.logs || []);
+
+        // Pasang cache buster agar browser tidak memakai cache gambar lama
+        const now = Date.now();
+        const logsWithBuster = (json.logs || []).map((msg: ChatLogMessage) => ({
+          ...msg,
+          attachments: (msg.attachments || []).map((att) => ({
+            ...att,
+            maskedUrl: `${att.maskedUrl.split("?")[0]}?t=${now}`,
+          })),
+        }));
+
+        setActiveLogs(logsWithBuster);
         if (json.channelName) setChannelName(json.channelName);
       } catch (err) {
         console.error("Gagal load logs:", err);
@@ -86,8 +97,19 @@ function MatchLogViewerContent() {
 
       const json = await res.json();
       if (res.ok) {
-        setActiveLogs(json.logs);
+        // Refresh gambar dan chat logs secara instan dengan cache buster
+        const now = Date.now();
+        const freshLogs = (json.logs || []).map((msg: ChatLogMessage) => ({
+          ...msg,
+          attachments: (msg.attachments || []).map((att) => ({
+            ...att,
+            maskedUrl: `${att.maskedUrl.split("?")[0]}?t=${now}`,
+          })),
+        }));
+
+        setActiveLogs(freshLogs);
         if (json.channelName) setChannelName(json.channelName);
+
         Swal.fire({
           title: "Backup Berhasil!",
           text: `Tersimpan ${json.count} pesan dan bukti gambar ke database.`,
@@ -127,7 +149,7 @@ function MatchLogViewerContent() {
       const json = await res.json();
       if (res.ok) {
         if (json.schedules) {
-          setSchedules(json.schedules); // Update state schedules secara instan di UI
+          setSchedules(json.schedules);
         }
         Swal.fire({
           title: "Channel Dihapus!",
@@ -207,4 +229,5 @@ export default function MatchLogPage() {
       <Footer />
     </div>
   );
-}
+          }
+          
