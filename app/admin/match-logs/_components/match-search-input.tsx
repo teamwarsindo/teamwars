@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
-import { Search, X, ChevronRight, CheckCircle2, Shield, Radio } from "lucide-react";
+import { Search, X, ChevronRight, CheckCircle2, Shield, Radio, ShieldCheck, ShieldAlert } from "lucide-react";
 
 interface MatchSearchInputProps {
   schedules: MatchScheduleItem[];
@@ -26,7 +26,7 @@ export function MatchSearchInput({ schedules, onSelectMatch }: MatchSearchInputP
 
   const handlePick = (matchId: string) => {
     onSelectMatch(matchId);
-    setGlobalSearch(""); // 🟢 Reset pencarian agar dropdown langsung tertutup
+    setGlobalSearch("");
     setIsSearchFocused(false);
   };
 
@@ -65,37 +65,51 @@ export function MatchSearchInput({ schedules, onSelectMatch }: MatchSearchInputP
               Tidak ada match yang cocok dengan "{globalSearch}"
             </div>
           ) : (
-            matchedResults.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => handlePick(m.id)}
-                className="w-full flex items-center justify-between p-3 text-left hover:bg-muted/60 transition group cursor-pointer"
-              >
-                <div className="min-w-0 flex-1 pr-3">
-                  <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground mb-0.5">
-                    <span className="font-bold text-primary">W{m.weekNumber || 1}</span>
-                    <span>•</span>
-                    <span>{m.id}</span>
-                    {m.isFinished && (
-                      <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 font-bold">
-                        <CheckCircle2 className="h-2.5 w-2.5" /> Selesai
-                      </span>
-                    )}
+            matchedResults.map((m) => {
+              const isChannelActive = Boolean(m.discordChannelId);
+
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => handlePick(m.id)}
+                  className="w-full flex items-center justify-between p-3 text-left hover:bg-muted/60 transition group cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1 pr-3">
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground mb-0.5">
+                      <span className="font-bold text-primary">W{m.weekNumber || 1}</span>
+                      <span>•</span>
+                      <span>{m.id}</span>
+                      {m.isFinished && (
+                        <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                          <CheckCircle2 className="h-2.5 w-2.5" /> Selesai
+                        </span>
+                      )}
+                      {/* Status Channel Discord */}
+                      {isChannelActive ? (
+                        <span className="flex items-center gap-0.5 text-sky-600 dark:text-sky-400 font-medium">
+                          • Channel Aktif
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-0.5 text-muted-foreground/80 font-medium">
+                          • Channel Dibersihkan
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-bold text-xs sm:text-sm text-foreground truncate">
+                      {m.teamAName} <span className="text-muted-foreground font-normal">vs</span> {m.teamBName}
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1"><Shield className="h-2.5 w-2.5" /> {m.referee || "-"}</span>
+                      <span className="flex items-center gap-1"><Radio className="h-2.5 w-2.5" /> {m.streamer || "-"}</span>
+                    </div>
                   </div>
-                  <div className="font-bold text-xs sm:text-sm text-foreground truncate">
-                    {m.teamAName} <span className="text-muted-foreground font-normal">vs</span> {m.teamBName}
-                  </div>
-                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5">
-                    <span className="flex items-center gap-1"><Shield className="h-2.5 w-2.5" /> {m.referee || "-"}</span>
-                    <span className="flex items-center gap-1"><Radio className="h-2.5 w-2.5" /> {m.streamer || "-"}</span>
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition shrink-0" />
-              </button>
-            ))
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition shrink-0" />
+                </button>
+              );
+            })
           )}
         </div>
       )}
     </div>
   );
-}
+                          }
