@@ -6,7 +6,7 @@ import { MatchScheduleItem } from "@/app/tournament/_library/types";
 import { MatchSearchInput } from "./_components/match-search-input";
 import { MatchChatCard } from "./_components/match-chat-card";
 import { ChatLogMessage } from "./_components/chat-message-item";
-import { MessageSquare, Database } from "lucide-react";
+import { AlertCircle, MessageSquare, Database } from "lucide-react";
 import Swal from "sweetalert2";
 
 function MatchLogViewerContent() {
@@ -178,7 +178,7 @@ function MatchLogViewerContent() {
         <div>
    
         <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-            Cari pertandingan untuk melihat riwayat percakapan Discord dan bukti duel.
+            Cari pertandingan untuk melihat riwayat percakapan Discord.
           </p>
         </div>
 
@@ -201,10 +201,10 @@ function MatchLogViewerContent() {
           onDeleteChannel={handleDeleteChannel}
         />
       ) : (
-        <div className="py-16 text-center border-2 border-dashed border-border rounded-2xl p-6 text-muted-foreground space-y-1">
-          <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground/60" />
-          <p className="text-xs font-bold text-foreground">Pilih Pertandingan</p>
-          <p className="text-[11px]">Ketik nama tim atau wasit di kolom pencarian di atas untuk membuka log.</p>
+        <div className="py-12 text-center border border-dashed border-border/80 rounded-2xl p-6 text-muted-foreground space-y-1.5 bg-card/30">
+          <AlertCircle className="h-6 w-6 mx-auto text-amber-500/80" />
+          <p className="text-xs font-semibold text-foreground">Belum Ada Pertandingan Dipilih</p>
+          <p className="text-[11px]">Silakan pilih pertandingan pada kolom pencarian di atas.</p>
         </div>
       )}
     </main>
