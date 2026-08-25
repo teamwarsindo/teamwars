@@ -14,6 +14,7 @@ function MatchLogViewerContent() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [channelName, setChannelName] = useState<string>("");
   const [activeLogs, setActiveLogs] = useState<ChatLogMessage[] | null>(null);
+  const [playerTeamMap, setPlayerTeamMap] = useState<Record<string, string>>({});
   const [loadingChat, setLoadingChat] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
 
@@ -43,7 +44,6 @@ function MatchLogViewerContent() {
         const res = await fetch(`/api/admin/match-logs?matchId=${selectedMatchId}`);
         const json = await res.json();
 
-        // Pasang cache buster agar browser tidak memakai cache gambar lama
         const now = Date.now();
         const logsWithBuster = (json.logs || []).map((msg: ChatLogMessage) => ({
           ...msg,
@@ -55,6 +55,7 @@ function MatchLogViewerContent() {
 
         setActiveLogs(logsWithBuster);
         if (json.channelName) setChannelName(json.channelName);
+        if (json.playerTeamMap) setPlayerTeamMap(json.playerTeamMap);
       } catch (err) {
         console.error("Gagal load logs:", err);
         setActiveLogs([]);
@@ -97,7 +98,6 @@ function MatchLogViewerContent() {
 
       const json = await res.json();
       if (res.ok) {
-        // Refresh gambar dan chat logs secara instan dengan cache buster
         const now = Date.now();
         const freshLogs = (json.logs || []).map((msg: ChatLogMessage) => ({
           ...msg,
@@ -199,6 +199,7 @@ function MatchLogViewerContent() {
           logs={activeLogs}
           loadingChat={loadingChat}
           isBackingUp={isBackingUp}
+          playerTeamMap={playerTeamMap}
           onBackup={handleBackupNow}
           onDeleteChannel={handleDeleteChannel}
         />
@@ -229,5 +230,4 @@ export default function MatchLogPage() {
       <Footer />
     </div>
   );
-          }
-          
+}
