@@ -69,84 +69,80 @@ export function MatchChatCard({
 
   return (
     <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
-      {/* TOP HEADER CARD */}
-      <div className="border-b border-border bg-muted/40 p-4 space-y-3.5">
+      {/* TOP HEADER CARD (DIRAMPINGKAN) */}
+      <div className="border-b border-border bg-muted/30 p-3 space-y-2">
         
-        {/* 1. Judul Tim Center */}
-        <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
+        {/* 1. Tim Versus & Badge Match Info */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Logo & Nama Tim A vs Tim B */}
+          <div className="flex items-center gap-1.5 min-w-0 text-xs font-semibold">
             <img
               src={match.teamALogo || "/placeholder-team.png"}
               alt=""
-              className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border-2 border-sky-500/50 object-cover bg-card shadow-xs"
+              className="h-5 w-5 rounded-full border border-sky-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="font-semibold text-sm sm:text-base text-sky-600 dark:text-sky-400 tracking-tight">
+            <span className="text-sky-600 dark:text-sky-400 truncate max-w-[90px] sm:max-w-[140px]">
               {match.teamAName}
             </span>
-          </div>
+            
+            <span className="text-[10px] text-muted-foreground font-normal shrink-0 px-0.5">vs</span>
 
-          <span className="text-xs font-semibold text-muted-foreground uppercase px-1">
-            VS
-          </span>
-
-          <div className="flex items-center gap-2">
             <img
               src={match.teamBLogo || "/placeholder-team.png"}
               alt=""
-              className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border-2 border-amber-500/50 object-cover bg-card shadow-xs"
+              className="h-5 w-5 rounded-full border border-amber-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="font-semibold text-sm sm:text-base text-amber-600 dark:text-amber-400 tracking-tight">
+            <span className="text-amber-600 dark:text-amber-400 truncate max-w-[90px] sm:max-w-[140px]">
               {match.teamBName}
+            </span>
+          </div>
+
+          {/* Badges W2 & Channel Name */}
+          <div className="flex items-center gap-1 shrink-0 font-mono text-[10px]">
+            <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-semibold border border-primary/20">
+              W{match.weekNumber || 1} · {match.id}
+            </span>
+            <span className="px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-medium hidden sm:inline-flex items-center gap-0.5 border border-border">
+              <Hash className="h-2.5 w-2.5" /> {displayChannelName}
             </span>
           </div>
         </div>
 
-        {/* 2. Kapsul Match ID & Channel */}
-        <div className="flex items-center justify-center gap-2 flex-wrap text-xs">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono font-semibold bg-primary/10 text-primary border border-primary/25 shadow-2xs">
-            W{match.weekNumber || 1} • {match.id}
-          </span>
-
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono font-semibold bg-muted text-foreground border border-border shadow-2xs">
-            <Hash className="h-3.5 w-3.5 text-primary" /> {displayChannelName}
-          </span>
+        {/* 2. Petugas: Wasit & Streamer */}
+        <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1">
+              <Shield className="h-3 w-3 text-emerald-500" />
+              Wasit: <strong className="text-emerald-600 dark:text-emerald-400 font-medium">{match.referee || "-"}</strong>
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Tv className="h-3 w-3 text-purple-500" />
+              Streamer: <strong className="text-purple-600 dark:text-purple-400 font-medium">{match.streamer || "-"}</strong>
+            </span>
+          </div>
         </div>
 
-        {/* 3. Info Wasit & Streamer */}
-        <div className="flex items-center justify-center gap-3 text-[11px] text-muted-foreground font-medium pt-1 border-t border-border/40">
-          <span className="inline-flex items-center gap-1">
-            <Shield className="h-3 w-3 text-emerald-500" />
-            Wasit: <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">{match.referee || "-"}</strong>
-          </span>
-          <span>•</span>
-          <span className="inline-flex items-center gap-1">
-            <Tv className="h-3 w-3 text-purple-500" />
-            Streamer: <strong className="text-purple-600 dark:text-purple-400 font-semibold">{match.streamer || "-"}</strong>
-          </span>
-        </div>
-
-        {/* 4. Action Bar (Search Bar Otomatis Full Lebar jika Channel Dihapus) */}
-        <div className="flex items-center gap-2 pt-1.5">
+        {/* 3. Action Bar: Search Input + Backup & Delete Buttons */}
+        <div className="flex items-center gap-1.5 pt-0.5">
           <div className="relative flex-1">
             <input
               type="text"
               value={chatSearch}
               onChange={(e) => setChatSearch(e.target.value)}
-              placeholder="Cari kata di dalam obrolan..."
-              className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs pl-8 focus:outline-hidden focus:ring-1 focus:ring-primary shadow-2xs"
+              placeholder="Cari kata di obrolan..."
+              className="w-full bg-background border border-border rounded-lg h-8 px-2.5 pl-7 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
             />
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           </div>
 
-          {/* Tombol Aksi: Auto-hide jika channel sudah dihapus */}
           {!isChannelDeleted && (
             <>
               <button
                 onClick={onBackup}
                 disabled={isBackingUp}
-                className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl transition cursor-pointer shrink-0 shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="h-8 px-3 flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition cursor-pointer shrink-0 disabled:opacity-50"
                 title="Backup pesan ke database"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isBackingUp ? "animate-spin" : ""}`} />
@@ -155,10 +151,10 @@ export function MatchChatCard({
 
               <button
                 onClick={handleDeletePrompt}
-                className="flex items-center justify-center h-8.5 w-8.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer shrink-0"
+                className="h-8 w-8 flex items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer shrink-0"
                 title="Hapus Channel Discord"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </button>
             </>
           )}
@@ -166,7 +162,7 @@ export function MatchChatCard({
       </div>
 
       {/* Body Percakapan */}
-      <div className="h-[500px] overflow-y-auto p-4 space-y-3.5 bg-background/50">
+      <div className="h-[520px] overflow-y-auto p-3 sm:p-4 space-y-3 bg-background/50">
         {loadingChat ? (
           <div className="flex h-full items-center justify-center text-xs font-semibold text-muted-foreground animate-pulse">
             ⏳ Memuat riwayat pesan...
@@ -199,11 +195,11 @@ export function MatchChatCard({
             return (
               <Fragment key={msg.id}>
                 {isNewDay && (
-                  <div className="relative flex items-center justify-center my-3">
+                  <div className="relative flex items-center justify-center my-2.5">
                     <div className="absolute inset-0 flex items-center">
                       <div className="w-full border-t border-border/60" />
                     </div>
-                    <span className="relative bg-card border border-border px-3 py-0.5 rounded-full text-[10px] font-semibold text-muted-foreground shadow-2xs">
+                    <span className="relative bg-card border border-border px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-muted-foreground shadow-2xs">
                       {currentDateHeader}
                     </span>
                   </div>
