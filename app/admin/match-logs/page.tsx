@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useState, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
+import { ChatMessageItem, ChatLogMessage } from "./_components/chat-message-item";
 import {
   MessageSquare,
   Search,
   ShieldAlert,
   Database,
   RefreshCw,
-  Image as ImageIcon,
-  ExternalLink,
   CheckCircle2,
   X,
   ChevronRight,
@@ -21,41 +19,29 @@ import {
 import Swal from "sweetalert2";
 
 function MatchLogViewerContent() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") || "";
-
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [chatSearch, setChatSearch] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
-  const [activeLogs, setActiveLogs] = useState<any[] | null>(null);
-  const [loadingList, setLoadingList] = useState(true);
+  const [activeLogs, setActiveLogs] = useState<ChatLogMessage[] | null>(null);
   const [loadingChat, setLoadingChat] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // 1. Fetch seluruh list jadwal
   useEffect(() => {
     async function loadSchedules() {
       try {
-        setLoadingList(true);
         const res = await fetch("/api/admin/match-logs");
         const json = await res.json();
-        if (json.schedules) {
-          setSchedules(json.schedules);
-        }
+        if (json.schedules) setSchedules(json.schedules);
       } catch (err) {
         console.error(err);
-      } finally {
-        setLoadingList(false);
       }
     }
     loadSchedules();
   }, []);
 
-  // 2. Fetch data log saat match dipilih
   useEffect(() => {
     if (!selectedMatchId) {
       setActiveLogs(null);
@@ -78,35 +64,19 @@ function MatchLogViewerContent() {
     loadLogs();
   }, [selectedMatchId]);
 
-  // Saringan instan saat user mengetik di search bar
   const matchedResults = useMemo(() => {
     if (!globalSearch.trim()) return [];
     const q = globalSearch.toLowerCase().trim();
     return schedules
       .filter((m) => {
-        const teamA = m.teamAName?.toLowerCase() || "";
-        const teamB = m.teamBName?.toLowerCase() || "";
-        const ref = m.referee?.toLowerCase() || "";
-        const streamer = m.streamer?.toLowerCase() || "";
-        const matchId = m.id.toLowerCase();
-        const week = `w${m.weekNumber || 1}`;
-        return (
-          teamA.includes(q) ||
-          teamB.includes(q) ||
-          ref.includes(q) ||
-          streamer.includes(q) ||
-          matchId.includes(q) ||
-          week === q
-        );
+        const str = `${m.teamAName} ${m.teamBName} ${m.referee || ""} ${m.streamer || ""} ${m.id} w${m.weekNumber || 1}`.toLowerCase();
+        return str.includes(q);
       })
-      .slice(0, 8); // Batasi 8 saran terbaik agar rapi
+      .slice(0, 8);
   }, [schedules, globalSearch]);
 
-  const activeMatch = useMemo(() => {
-    return schedules.find((m) => m.id === selectedMatchId);
-  }, [schedules, selectedMatchId]);
+  const activeMatch = useMemo(() => schedules.find((m) => m.id === selectedMatchId), [schedules, selectedMatchId]);
 
-  // Saringan chat log di dalam match
   const filteredChatLogs = useMemo(() => {
     if (!activeLogs) return [];
     if (!chatSearch.trim()) return activeLogs;
@@ -119,7 +89,6 @@ function MatchLogViewerContent() {
     );
   }, [activeLogs, chatSearch]);
 
-  // Trigger Backup
   const handleBackupNow = async () => {
     if (!activeMatch) return;
     const channelId = activeMatch.discordChannelId;
@@ -139,7 +108,7 @@ function MatchLogViewerContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           matchId: activeMatch.id,
-          channelId: channelId,
+          channelId,
           week: activeMatch.weekNumber || 1,
         }),
       });
@@ -171,7 +140,6 @@ function MatchLogViewerContent() {
     <main className="flex-1 w-full max-w-4xl mx-auto p-3.5 sm:p-6 space-y-4 sm:space-y-5">
       <HeroHeader showDetails={false} />
 
-      {/* HEADER UTAMA */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
         <div>
           <div className="flex items-center gap-2">
@@ -188,7 +156,6 @@ function MatchLogViewerContent() {
         </span>
       </div>
 
-      {/* SEARCH BAR TUNGGAL (INSTANT SEARCH) */}
       <div className="relative">
         <div className="relative">
           <input
@@ -199,7 +166,7 @@ function MatchLogViewerContent() {
               setGlobalSearch(e.target.value);
               setIsSearchFocused(true);
             }}
-            placeholder="Ketik nama tim (misal: FPF, Dino), nama wasit, atau ID match..."
+            placeholder="Ketik nama tim (misal: FPF, Dino), wasit, atau ID match..."
             className="w-full bg-card border-2 border-border focus:border-primary rounded-2xl px-4 py-3 text-xs sm:text-sm shadow-sm focus:outline-hidden pl-10 pr-10 transition-all"
           />
           <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
@@ -209,14 +176,13 @@ function MatchLogViewerContent() {
                 setGlobalSearch("");
                 setIsSearchFocused(false);
               }}
-              className="absolute right-3.5 top-3.5 text-muted-foreground hover:text-foreground"
+              className="absolute right-3.5 top-3.5 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
 
-        {/* DROPDOWN HASIL MATCH SAAT MENGETIK */}
         {isSearchFocused && globalSearch.trim() !== "" && (
           <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-border/60 max-h-80 overflow-y-auto">
             {matchedResults.length === 0 ? (
@@ -260,10 +226,8 @@ function MatchLogViewerContent() {
         )}
       </div>
 
-      {/* TAMPILAN ARSIP LOG PERCAKAPAN */}
       {selectedMatchId && activeMatch ? (
         <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
-          {/* Top Bar Match Viewer */}
           <div className="border-b border-border bg-muted/40 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="font-black text-sm sm:text-base flex items-center gap-2">
@@ -278,7 +242,6 @@ function MatchLogViewerContent() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Filter Pencarian Isi Chat */}
               <div className="relative">
                 <input
                   type="text"
@@ -290,7 +253,6 @@ function MatchLogViewerContent() {
                 <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
               </div>
 
-              {/* Tombol Backup Ulang */}
               <button
                 onClick={handleBackupNow}
                 disabled={isBackingUp}
@@ -302,7 +264,6 @@ function MatchLogViewerContent() {
             </div>
           </div>
 
-          {/* Isi Balon Chat Kronologis */}
           <div className="h-[480px] overflow-y-auto p-4 space-y-3 bg-background/50">
             {loadingChat ? (
               <div className="flex h-full items-center justify-center text-xs font-bold text-muted-foreground animate-pulse">
@@ -319,62 +280,7 @@ function MatchLogViewerContent() {
                 Tidak ada obrolan yang cocok dengan kata "{chatSearch}".
               </div>
             ) : (
-              filteredChatLogs.map((msg: any) => (
-                <div key={msg.id} className="flex gap-2.5 text-xs leading-relaxed group hover:bg-muted/30 p-1.5 rounded-lg transition">
-                  <img
-                    src={msg.authorAvatar}
-                    alt=""
-                    className="h-7 w-7 rounded-full border border-border shrink-0 object-cover mt-0.5"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-bold text-foreground text-[11px] truncate">
-                        {msg.authorGlobalName || msg.authorName}
-                      </span>
-                      <span className="text-[9px] text-muted-foreground font-mono">
-                        {new Date(msg.timestamp).toLocaleTimeString("id-ID", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          timeZone: "Asia/Jakarta",
-                        })} WIB
-                      </span>
-                    </div>
-
-                    {msg.content && (
-                      <p className="text-foreground/90 whitespace-pre-wrap break-words text-[11.5px]">
-                        {msg.content}
-                      </p>
-                    )}
-
-                    {/* Masked Screenshot Bukti */}
-                    {msg.attachments && msg.attachments.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {msg.attachments.map((att: any, idx: number) => (
-                          <div
-                            key={idx}
-                            onClick={() => setPreviewImage(att.maskedUrl)}
-                            className="relative group/att max-w-xs cursor-pointer overflow-hidden rounded-xl border border-border bg-muted/40 transition hover:border-primary/50"
-                          >
-                            <img
-                              src={att.maskedUrl}
-                              alt={att.fileName}
-                              className="max-h-40 w-full object-contain rounded-lg"
-                              onError={(e: any) => {
-                                e.target.src = "/placeholder-proof.webp";
-                              }}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/att:opacity-100 transition-opacity">
-                              <span className="flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-[9px] font-bold text-foreground">
-                                <ImageIcon className="h-3 w-3" /> Perbesar Bukti
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
+              filteredChatLogs.map((msg) => <ChatMessageItem key={msg.id} msg={msg} />)
             )}
           </div>
         </div>
@@ -383,29 +289,6 @@ function MatchLogViewerContent() {
           <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground/60" />
           <p className="text-xs font-bold text-foreground">Pilih Pertandingan</p>
           <p className="text-[11px]">Ketik nama tim atau wasit di kolom pencarian di atas untuk membuka log.</p>
-        </div>
-      )}
-
-      {/* MODAL ZOOM GAMBAR BUKTI */}
-      {previewImage && (
-        <div
-          onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs"
-        >
-          <div className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-2xl bg-card border border-border p-2">
-            <img src={previewImage} alt="Bukti Duel" className="max-h-[80vh] w-auto object-contain rounded-xl" />
-            <div className="mt-2 flex justify-between items-center px-2">
-              <span className="text-[10px] text-muted-foreground font-medium">Klik di luar untuk menutup</span>
-              <a
-                href={previewImage}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 text-[10px] font-bold text-primary hover:underline"
-              >
-                Buka Tab Baru <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          </div>
         </div>
       )}
     </main>
@@ -428,4 +311,5 @@ export default function MatchLogPage() {
       <Footer />
     </div>
   );
-      }
+          }
+          
