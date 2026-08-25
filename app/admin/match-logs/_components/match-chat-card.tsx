@@ -146,7 +146,7 @@ export function MatchChatCard({
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           </div>
 
-          {/* Tombol Backup (Dinonaktifkan jika channel sudah dihapus dari server) */}
+          {/* Tombol Backup */}
           <button
             onClick={onBackup}
             disabled={isBackingUp || isChannelDeleted}
@@ -170,7 +170,7 @@ export function MatchChatCard({
             )}
           </button>
 
-          {/* Tombol Hapus Channel (Dinonaktifkan jika sudah dihapus) */}
+          {/* Tombol Hapus Channel */}
           <button
             onClick={handleDeletePrompt}
             disabled={isChannelDeleted}
@@ -204,7 +204,7 @@ export function MatchChatCard({
           </div>
         ) : filteredLogs.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-            Tidak ada obrolan yang cocok dengan kata "{chatSearch}".
+            Tidak ada obrolan yang cocok dengan kata &quot;{chatSearch}&quot;.
           </div>
         ) : (
           filteredLogs.map((msg, idx) => {
@@ -229,7 +229,7 @@ export function MatchChatCard({
                     </span>
                   </div>
                 )}
-                <ChatMessageItem msg={msg} isHighlighted={isMatchSearch} />
+                <ChatMessageItem msg={msg} match={match} isHighlighted={isMatchSearch} />
               </Fragment>
             );
           })
@@ -237,4 +237,4 @@ export function MatchChatCard({
       </div>
     </div>
   );
-        }
+}
