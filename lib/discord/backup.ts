@@ -32,18 +32,17 @@ export interface BackupResult {
   messages: SavedChatLogItem[];
 }
 
-// 🟢 1. Fungsi Eksplisit untuk Memaksa Pembuatan Folder Fisik di Cloudinary
+// 1. Pastikan folder fisik terdaftar di Cloudinary
 async function ensureMatchLogsFolderExists(): Promise<void> {
   try {
     await cloudinary.api.create_folder('match-logs');
-    console.log('[CLOUDINARY] Folder match-logs berhasil dipastikan aktif.');
+    console.log('[CLOUDINARY] Folder match-logs siap.');
   } catch (err: any) {
-    // Abaikan jika folder sudah pernah ada sebelumnya
     console.log('[CLOUDINARY] Info create_folder:', err?.message || err);
   }
 }
 
-// 🟢 2. Upload Gambar langsung ke folder match-logs
+// 2. Upload file & masukkan ke folder fisik match-logs
 async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: string): Promise<string> {
   try {
     const imgRes = await fetch(imageUrl);
@@ -59,6 +58,7 @@ async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: strin
 
     const res = await cloudinary.uploader.upload(dataUri, {
       folder: 'match-logs',
+      asset_folder: 'match-logs', // 🟢 Arahkan langsung ke folder fisik
       public_id: public_id,
       overwrite: true,
       invalidate: true,
@@ -81,10 +81,9 @@ export async function backupDiscordChannelMessages(params: {
   const { channelId, matchId, week } = params;
   const guildId = DISCORD_CONFIG.GUILD_ID;
 
-  // 🟢 Pastikan folder fisik di Cloudinary terdaftar sebelum looping
   await ensureMatchLogsFolderExists();
 
-  // 1. Ambil Nama Asli Channel Discord
+  // 1. Ambil Nama Asli Channel
   let actualChannelName = `⚔️-${matchId}`;
   try {
     const channelData = await discordAPI(`/channels/${channelId}`, 'GET');
@@ -93,7 +92,7 @@ export async function backupDiscordChannelMessages(params: {
     console.warn('[BACKUP] Gagal fetch info channel:', e);
   }
 
-  // 2. Fetch seluruh Roles dari Guild
+  // 2. Fetch Guild Roles
   const guildRolesMap: Record<string, { name: string; color?: string; position: number }> = {};
   try {
     const rolesData = await discordAPI(`/guilds/${guildId}/roles`, 'GET');
@@ -115,7 +114,7 @@ export async function backupDiscordChannelMessages(params: {
 
   const userMessages = rawMessages.filter((msg: any) => !msg.author?.bot);
 
-  // 4. Fetch detail member secara sekuensial (Bebas Rate Limit)
+  // 4. Fetch detail member sekuensial
   const uniqueAuthorIds = Array.from(new Set(userMessages.map((m: any) => m.author.id)));
   const memberDetailsMap: Record<string, { nick?: string }> = {};
 
@@ -204,4 +203,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-}
+      }
