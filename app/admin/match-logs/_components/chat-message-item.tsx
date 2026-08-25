@@ -83,7 +83,7 @@ export function ChatMessageItem({
     avatarBorderClass = "border-sky-500/50";
     roleBadge = (
       <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 max-w-[120px] truncate">
-        {match?.team1Name || "Tim Kiri"}
+        {match?.teamAName || "Tim Kiri"}
       </span>
     );
   } else if (isTeam2) {
@@ -91,7 +91,7 @@ export function ChatMessageItem({
     avatarBorderClass = "border-amber-500/50";
     roleBadge = (
       <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 max-w-[120px] truncate">
-        {match?.team2Name || "Tim Kanan"}
+        {match?.teamBName || "Tim Kanan"}
       </span>
     );
   }
@@ -149,7 +149,7 @@ export function ChatMessageItem({
                       e.target.src = "/placeholder-proof.webp";
                     }}
                   />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group/att:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/att:opacity-100 transition-opacity">
                     <span className="flex items-center gap-1 rounded-md bg-background/90 px-2 py-1 text-[10px] font-bold text-foreground shadow-xs">
                       <ImageIcon className="h-3.5 w-3.5" /> Perbesar Bukti
                     </span>
@@ -194,4 +194,5 @@ export function ChatMessageItem({
       )}
     </>
   );
-                      }
+  }
+            
