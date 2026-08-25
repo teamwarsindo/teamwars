@@ -63,11 +63,11 @@ export function parseDiscordMarkdown(
   const matchReferee = (match?.referee || "").trim().toLowerCase();
   const matchStreamer = (match?.streamer || "").trim().toLowerCase();
 
-  const checkAffiliation = (uName: string) => {
-    if (!uName) return "";
+  const checkAffiliation = (key: string) => {
+    if (!key) return "";
     return (
-      playerTeamMap[uName] ||
-      Object.entries(playerTeamMap).find(([ign]) => ign.toLowerCase() === uName.toLowerCase())?.[1] ||
+      playerTeamMap[key] ||
+      Object.entries(playerTeamMap).find(([k]) => k.toLowerCase() === key.toLowerCase())?.[1] ||
       ""
     );
   };
@@ -110,15 +110,17 @@ export function parseDiscordMarkdown(
     '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-semibold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">$1</span>'
   );
 
-  // 6. User Mentions (Remap Warna Sesuai Role)
+  // 6. User Mentions (Cocokkan userId dan nama ke playerTeamMap)
   formatted = formatted.replace(/<@!?([0-9]+)>/g, (_, userId) => {
     const u = userMentions?.[userId];
-    const name = typeof u === "object" ? u?.name : (u || "User");
-    const uLower = name.toLowerCase();
+    const rawName = typeof u === "object" ? u?.name : (u || "User");
+    const uLower = rawName.toLowerCase();
 
-    const uSlug = checkAffiliation(name);
-    const isU1 = uSlug && (uSlug === teamASlug || teamASlug.includes(uSlug));
-    const isU2 = uSlug && (uSlug === teamBSlug || teamBSlug.includes(uSlug));
+    // Cek afiliasi langsung via userId, lalu via rawName
+    const uSlug = checkAffiliation(userId) || checkAffiliation(rawName);
+    const isU1 = Boolean(uSlug && (uSlug === teamASlug || teamASlug.includes(uSlug)));
+    const isU2 = Boolean(uSlug && (uSlug === teamBSlug || teamBSlug.includes(uSlug)));
+
     const isURef = Boolean(
       (match?.refereeDiscordId && userId === match.refereeDiscordId) ||
       (matchReferee && matchReferee !== "-" && (uLower.includes(matchReferee) || matchReferee.includes(uLower)))
@@ -134,10 +136,10 @@ export function parseDiscordMarkdown(
     else if (isU1) tagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
     else if (isU2) tagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
 
-    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${tagStyle}">@${name}</span>`;
+    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${tagStyle}">@${rawName}</span>`;
   });
 
-  // 7. Role Mentions (Remap Warna Sesuai Role)
+  // 7. Role Mentions
   formatted = formatted.replace(/<@&([0-9]+)>/g, (_, roleId) => {
     const r = roleMentions?.[roleId];
     const roleName = typeof r === "object" ? r?.name : (r || "Role");
@@ -157,7 +159,7 @@ export function parseDiscordMarkdown(
     return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${roleTagStyle}">@${roleName}</span>`;
   });
 
-  // 8. Channel Mentions (Remap Nama Channel Asli)
+  // 8. Channel Mentions
   formatted = formatted.replace(/<#([0-9]+)>/g, (_, channelId) => {
     const ch = channelMentions?.[channelId];
     const channelName = typeof ch === "object" ? ch?.name : (ch || "channel");
