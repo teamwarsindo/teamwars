@@ -14,8 +14,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ schedules });
     }
 
-    const logs = await kv.get(`twi:match_logs:${matchId}`);
-    return NextResponse.json({ matchId, logs: logs || [] });
+    const cachedData: any = await kv.get(`twi:match_logs:${matchId}`);
+    
+    // Support backward compatibility jika sebelumnya menyimpan array langsung
+    if (Array.isArray(cachedData)) {
+      return NextResponse.json({ matchId, channelName: `⚔️-${matchId}`, logs: cachedData });
+    }
+
+    return NextResponse.json({
+      matchId,
+      channelName: cachedData?.channelName || `⚔️-${matchId}`,
+      logs: cachedData?.logs || [],
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -30,26 +40,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'matchId dan channelId wajib disertakan' }, { status: 400 });
     }
 
-    const logs = await backupDiscordChannelMessages({
+    const { channelName, messages } = await backupDiscordChannelMessages({
       matchId,
       channelId,
       week: Number(week) || 1,
     });
 
-    await kv.set(`twi:match_logs:${matchId}`, logs);
+    const payload = { channelName, logs: messages };
+    await kv.set(`twi:match_logs:${matchId}`, payload);
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil mencadangkan ${logs.length} pesan dari channel Discord.`,
-      count: logs.length,
-      logs,
+      message: `Berhasil mencadangkan ${messages.length} pesan.`,
+      channelName,
+      count: messages.length,
+      logs: messages,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// 🟢 Handler Hapus Channel dari Server Discord
 export async function DELETE(req: NextRequest) {
   try {
     const body = await req.json();
@@ -71,4 +82,5 @@ export async function DELETE(req: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+        }
+  
