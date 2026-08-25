@@ -24,6 +24,12 @@ export function MatchSearchInput({ schedules, onSelectMatch }: MatchSearchInputP
       .slice(0, 8);
   }, [schedules, globalSearch]);
 
+  const handlePick = (matchId: string) => {
+    onSelectMatch(matchId);
+    setGlobalSearch(""); // 🟢 Reset pencarian agar dropdown langsung tertutup
+    setIsSearchFocused(false);
+  };
+
   return (
     <div className="relative">
       <div className="relative">
@@ -62,10 +68,7 @@ export function MatchSearchInput({ schedules, onSelectMatch }: MatchSearchInputP
             matchedResults.map((m) => (
               <button
                 key={m.id}
-                onClick={() => {
-                  onSelectMatch(m.id);
-                  setIsSearchFocused(false);
-                }}
+                onClick={() => handlePick(m.id)}
                 className="w-full flex items-center justify-between p-3 text-left hover:bg-muted/60 transition group cursor-pointer"
               >
                 <div className="min-w-0 flex-1 pr-3">
