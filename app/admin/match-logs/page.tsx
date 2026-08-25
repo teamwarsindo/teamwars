@@ -16,6 +16,7 @@ function MatchLogViewerContent() {
   const [loadingChat, setLoadingChat] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
 
+  // 1. Fetch seluruh daftar jadwal match
   useEffect(() => {
     async function loadSchedules() {
       try {
@@ -23,12 +24,13 @@ function MatchLogViewerContent() {
         const json = await res.json();
         if (json.schedules) setSchedules(json.schedules);
       } catch (err) {
-        console.error(err);
+        console.error("Gagal load schedules:", err);
       }
     }
     loadSchedules();
   }, []);
 
+  // 2. Fetch data log chat saat salah satu match dipilih
   useEffect(() => {
     if (!selectedMatchId) {
       setActiveLogs(null);
@@ -42,7 +44,7 @@ function MatchLogViewerContent() {
         const json = await res.json();
         setActiveLogs(json.logs || []);
       } catch (err) {
-        console.error(err);
+        console.error("Gagal load logs:", err);
         setActiveLogs([]);
       } finally {
         setLoadingChat(false);
@@ -56,14 +58,16 @@ function MatchLogViewerContent() {
     [schedules, selectedMatchId]
   );
 
+  // 3. Handler Eksekusi Backup dari Discord
   const handleBackupNow = async () => {
     if (!activeMatch) return;
     const channelId = activeMatch.discordChannelId;
     if (!channelId) {
       Swal.fire({
         title: "Channel Belum Terhubung",
-        text: "Match ini belum memiliki Discord Channel ID di jadwal KV.",
+        text: "Match ini belum memiliki Discord Channel ID di jadwal database.",
         icon: "warning",
+        confirmButtonColor: "#AA1348",
       });
       return;
     }
@@ -95,11 +99,46 @@ function MatchLogViewerContent() {
     } catch (err: any) {
       Swal.fire({
         title: "Gagal Backup",
-        text: err.message || "Terjadi kendala server.",
+        text: err.message || "Terjadi kendala saat mencadangkan pesan.",
         icon: "error",
+        confirmButtonColor: "#AA1348",
       });
     } finally {
       setIsBackingUp(false);
+    }
+  };
+
+  // 4. Handler Hapus Channel dari Discord Server
+  const handleDeleteChannel = async () => {
+    if (!activeMatch) return;
+    try {
+      const res = await fetch("/api/admin/match-logs", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matchId: activeMatch.id,
+          channelId: activeMatch.discordChannelId,
+        }),
+      });
+
+      if (res.ok) {
+        Swal.fire({
+          title: "Channel Dihapus!",
+          text: "Channel Discord berhasil dihapus dari server.",
+          icon: "success",
+          confirmButtonColor: "#AA1348",
+        });
+      } else {
+        const json = await res.json();
+        throw new Error(json.error);
+      }
+    } catch (err: any) {
+      Swal.fire({
+        title: "Gagal Menghapus",
+        text: err.message || "Terjadi kendala saat menghapus channel di server.",
+        icon: "error",
+        confirmButtonColor: "#AA1348",
+      });
     }
   };
 
@@ -107,6 +146,7 @@ function MatchLogViewerContent() {
     <main className="flex-1 w-full max-w-4xl mx-auto p-3.5 sm:p-6 space-y-4 sm:space-y-5">
       <HeroHeader showDetails={false} />
 
+      {/* Header Halaman */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
         <div>
           <div className="flex items-center gap-2">
@@ -123,8 +163,10 @@ function MatchLogViewerContent() {
         </span>
       </div>
 
+      {/* Komponen Pencarian Instan Match */}
       <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
 
+      {/* Panel Log Match atau Placeholder */}
       {selectedMatchId && activeMatch ? (
         <MatchChatCard
           match={activeMatch}
@@ -132,6 +174,7 @@ function MatchLogViewerContent() {
           loadingChat={loadingChat}
           isBackingUp={isBackingUp}
           onBackup={handleBackupNow}
+          onDeleteChannel={handleDeleteChannel}
         />
       ) : (
         <div className="py-16 text-center border-2 border-dashed border-border rounded-2xl p-6 text-muted-foreground space-y-1">
