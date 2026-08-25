@@ -26,7 +26,7 @@ export interface ChatLogMessage {
 interface ChatMessageItemProps {
   msg: ChatLogMessage;
   match?: MatchScheduleItem;
-  playerTeamMap?: Record<string, string>;
+  playerTeamMap?: Record<string, any>;
   isHighlighted?: boolean;
 }
 
@@ -69,29 +69,33 @@ export function ChatMessageItem({
   const cleanTeamAName = (match?.teamAName || "").toLowerCase();
   const cleanTeamBName = (match?.teamBName || "").toLowerCase();
 
-  const checkAffiliation = (uName: string) => {
+  // Helper resolusi slug yang aman terhadap format string maupun objek { teamSlug, ign }
+  const checkAffiliation = (uName: string): string => {
     if (!uName) return "";
-    return (
-      playerTeamMap[uName] ||
-      Object.entries(playerTeamMap).find(([ign]) => ign.toLowerCase() === uName.toLowerCase())?.[1] ||
-      ""
-    );
+    const cleanKey = uName.trim().toLowerCase();
+    const target =
+      playerTeamMap[cleanKey] ||
+      Object.entries(playerTeamMap).find(([ign]) => ign.toLowerCase() === cleanKey)?.[1];
+
+    if (!target) return "";
+    if (typeof target === "string") return target.toLowerCase();
+    return (target.teamSlug || "").toLowerCase();
   };
 
   let isTeam1 = false;
   let isTeam2 = false;
 
   if (!isReferee && !isStreamer) {
-    const userTeamSlug = checkAffiliation(name1) || checkAffiliation(name2);
+    const userTeamSlug = checkAffiliation(name1) || checkAffiliation(name2) || checkAffiliation(authorId);
 
     isTeam1 = Boolean(
       userTeamSlug &&
-      (userTeamSlug === teamASlug || teamASlug.includes(userTeamSlug) || cleanTeamAName.includes(userTeamSlug.replace(/-/g, " ")))
+      (userTeamSlug === teamASlug || teamASlug.includes(userTeamSlug) || (cleanTeamAName && cleanTeamAName.includes(userTeamSlug.replace(/-/g, " "))))
     );
 
     isTeam2 = Boolean(
       userTeamSlug &&
-      (userTeamSlug === teamBSlug || teamBSlug.includes(userTeamSlug) || cleanTeamBName.includes(userTeamSlug.replace(/-/g, " ")))
+      (userTeamSlug === teamBSlug || teamBSlug.includes(userTeamSlug) || (cleanTeamBName && cleanTeamBName.includes(userTeamSlug.replace(/-/g, " "))))
     );
   }
 
@@ -248,4 +252,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-}
+                  }
