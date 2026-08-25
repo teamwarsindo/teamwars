@@ -2,7 +2,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
 
-// Konfigurasi resmi Cloudinary Server SDK
+// Inisialisasi Cloudinary Server SDK
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME || 'dhplw8rsd',
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -32,17 +32,26 @@ export interface BackupResult {
   messages: SavedChatLogItem[];
 }
 
-// Upload native via Server SDK (Otomatis membuat folder 'match-logs' di Media Library)
+// Upload buffer DataURI biner agar Cloudinary memperlakukannya persis seperti form upload web
 async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: string): Promise<string> {
   try {
-    const res = await cloudinary.uploader.upload(imageUrl, {
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) {
+      console.error(`[BACKUP] Gagal fetch gambar Discord: ${imgRes.status}`);
+      return imageUrl;
+    }
+
+    const arrayBuffer = await imgRes.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString('base64');
+    const mimeType = imgRes.headers.get('content-type') || 'image/png';
+    const dataUri = `data:${mimeType};base64,${base64Data}`;
+
+    const res = await cloudinary.uploader.upload(dataUri, {
       folder: 'match-logs',
       public_id: public_id,
       overwrite: true,
       invalidate: true,
       resource_type: 'image',
-      use_filename: false,
-      unique_filename: false,
     });
 
     console.log('[CLOUDINARY SUCCESS]:', res.secure_url);
@@ -105,7 +114,7 @@ export async function backupDiscordChannelMessages(params: {
         };
       }
     } catch {
-      // Abaikan jika user tidak ditemukan di cache
+      // Abaikan jika tidak ditemukan di cache
     }
   }
 
@@ -141,7 +150,7 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Upload Gambar ke folder 'match-logs' di Cloudinary
+    // Upload Bukti Gambar ke folder 'match-logs'
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
@@ -181,5 +190,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-  }
-                                       
+}
