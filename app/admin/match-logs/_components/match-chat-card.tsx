@@ -4,7 +4,7 @@ import { useState, useMemo, Fragment } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 import { ChatMessageItem, ChatLogMessage } from "./chat-message-item";
 import { formatDiscordDateHeader } from "../_utils/discord-parser";
-import { Search, RefreshCw, Trash2, Hash, ShieldAlert } from "lucide-react";
+import { Search, RefreshCw, Trash2, Hash, ShieldAlert, CheckCircle2, Lock } from "lucide-react";
 import Swal from "sweetalert2";
 
 interface MatchChatCardProps {
@@ -28,6 +28,9 @@ export function MatchChatCard({
 }: MatchChatCardProps) {
   const [chatSearch, setChatSearch] = useState("");
 
+  const isChannelDeleted = !match.discordChannelId;
+  const isArchivedInKV = Boolean(logs && logs.length > 0);
+
   const filteredLogs = useMemo(() => {
     if (!logs) return [];
     if (!chatSearch.trim()) return logs;
@@ -41,9 +44,11 @@ export function MatchChatCard({
   }, [logs, chatSearch]);
 
   const handleDeletePrompt = () => {
+    if (isChannelDeleted) return;
+
     Swal.fire({
       title: "Hapus Channel Discord?",
-      text: `Channel ${channelName || match.id} akan dihapus permanen dari server. Pastikan sudah dibackup!`,
+      text: `Channel ${channelName || match.id} akan dihapus permanen dari server Discord dan role akses wasit akan dicabut. Pastikan sudah dicadangkan!`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#e11d48",
@@ -63,10 +68,10 @@ export function MatchChatCard({
 
   return (
     <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
-      {/* 🟢 TOP HEADER: CENTER TITLE + KAPSUL PISAH DENGAN BACKGROUND */}
+      {/* 🟢 TOP HEADER CARD */}
       <div className="border-b border-border bg-muted/40 p-4 space-y-3.5">
         
-        {/* 1. Judul Tim Center Presisi */}
+        {/* 1. Judul Tim Center */}
         <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <img
@@ -97,7 +102,7 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* 2. Kapsul Match ID & Channel Terpisah dengan Background Rapi */}
+        {/* 2. Kapsul Match ID, Channel, & Status KV */}
         <div className="flex items-center justify-center gap-2 flex-wrap text-xs">
           {/* Kapsul 1: Week & Match ID */}
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono font-bold bg-primary/10 text-primary border border-primary/25 shadow-2xs">
@@ -108,6 +113,17 @@ export function MatchChatCard({
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono font-bold bg-muted text-foreground border border-border shadow-2xs">
             <Hash className="h-3.5 w-3.5 text-primary" /> {displayChannelName}
           </span>
+
+          {/* Kapsul 3: Status Log KV */}
+          {isArchivedInKV ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10.5px]">
+              <CheckCircle2 className="h-3 w-3" /> Log Tersimpan di KV
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10.5px]">
+              <ShieldAlert className="h-3 w-3" /> Belum Dibackup
+            </span>
+          )}
         </div>
 
         {/* 3. Info Wasit & Streamer */}
@@ -117,7 +133,7 @@ export function MatchChatCard({
           <span>Streamer: <strong className="text-foreground">{match.streamer || "-"}</strong></span>
         </div>
 
-        {/* 4. Action Bar: Search Chat Panjang + Tombol Backup & Trash */}
+        {/* 4. Action Bar */}
         <div className="flex items-center gap-2 pt-1.5">
           <div className="relative flex-1">
             <input
@@ -130,26 +146,47 @@ export function MatchChatCard({
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           </div>
 
+          {/* Tombol Backup (Dinonaktifkan jika channel sudah dihapus dari server) */}
           <button
             onClick={onBackup}
-            disabled={isBackingUp}
-            className="flex items-center gap-1.5 text-xs font-bold bg-primary text-primary-foreground px-4 py-2 rounded-xl hover:bg-primary/90 disabled:opacity-50 transition cursor-pointer shrink-0 shadow-sm"
+            disabled={isBackingUp || isChannelDeleted}
+            className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer shrink-0 shadow-sm ${
+              isChannelDeleted
+                ? "bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-75"
+                : "bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            }`}
+            title={isChannelDeleted ? "Channel sudah dihapus dari server Discord" : "Backup pesan ke database"}
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isBackingUp ? "animate-spin" : ""}`} />
-            <span>{isBackingUp ? "Proses..." : "Backup"}</span>
+            {isChannelDeleted ? (
+              <>
+                <Lock className="h-3.5 w-3.5" />
+                <span>Arsip Permanen</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className={`h-3.5 w-3.5 ${isBackingUp ? "animate-spin" : ""}`} />
+                <span>{isBackingUp ? "Proses..." : "Backup"}</span>
+              </>
+            )}
           </button>
 
+          {/* Tombol Hapus Channel (Dinonaktifkan jika sudah dihapus) */}
           <button
             onClick={handleDeletePrompt}
-            className="flex items-center justify-center h-8.5 w-8.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer shrink-0"
-            title="Hapus Channel Discord"
+            disabled={isChannelDeleted}
+            className={`flex items-center justify-center h-8.5 w-8.5 rounded-xl border transition shrink-0 ${
+              isChannelDeleted
+                ? "border-border/40 bg-muted/30 text-muted-foreground/40 cursor-not-allowed"
+                : "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white cursor-pointer"
+            }`}
+            title={isChannelDeleted ? "Channel sudah dihapus dari Discord" : "Hapus Channel Discord"}
           >
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      {/* Body Balon Chat Kronologis dengan Date Separator */}
+      {/* Body Percakapan */}
       <div className="h-[500px] overflow-y-auto p-4 space-y-3.5 bg-background/50">
         {loadingChat ? (
           <div className="flex h-full items-center justify-center text-xs font-bold text-muted-foreground animate-pulse">
@@ -159,7 +196,11 @@ export function MatchChatCard({
           <div className="flex flex-col h-full items-center justify-center text-center space-y-2 text-muted-foreground">
             <ShieldAlert className="h-8 w-8 text-amber-500" />
             <p className="text-xs font-bold">Belum ada data backup untuk match ini.</p>
-            <p className="text-[11px]">Klik tombol <strong>"Backup"</strong> di atas untuk mengambil obrolan.</p>
+            <p className="text-[11px]">
+              {isChannelDeleted
+                ? "Channel Discord sudah dibersihkan tanpa pencadangan sebelumnya."
+                : 'Klik tombol "Backup" di atas untuk mengambil obrolan.'}
+            </p>
           </div>
         ) : filteredLogs.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
@@ -167,7 +208,6 @@ export function MatchChatCard({
           </div>
         ) : (
           filteredLogs.map((msg, idx) => {
-            // Cek apakah tanggal pesan berganti dibanding pesan sebelumnya
             const currentDateHeader = formatDiscordDateHeader(msg.timestamp);
             const prevMsg = idx > 0 ? filteredLogs[idx - 1] : null;
             const prevDateHeader = prevMsg ? formatDiscordDateHeader(prevMsg.timestamp) : null;
@@ -197,4 +237,4 @@ export function MatchChatCard({
       </div>
     </div>
   );
-}
+        }
