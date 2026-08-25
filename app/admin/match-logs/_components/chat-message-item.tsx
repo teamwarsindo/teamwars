@@ -10,7 +10,6 @@ export interface ChatLogMessage {
   authorName: string;
   authorGlobalName: string;
   authorAvatar: string;
-  authorColor?: string;
   content: string;
   timestamp: string;
   userMentions?: Record<string, any>;
@@ -32,12 +31,6 @@ export function ChatMessageItem({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const formattedHtml = parseDiscordMarkdown(msg.content, msg.userMentions, msg.roleMentions);
 
-  // Pewarnaan adaptif nama user Discord
-  const isColorValid =
-    msg.authorColor &&
-    msg.authorColor !== "#000000" &&
-    msg.authorColor.toLowerCase() !== "#ffffff";
-
   return (
     <>
       <div
@@ -54,10 +47,8 @@ export function ChatMessageItem({
         />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1">
-            <span
-              className="font-bold text-[12px] truncate"
-              style={isColorValid ? { color: msg.authorColor } : undefined}
-            >
+            {/* 🟢 Nama User: Warna teks standar tema (hitam di light mode, putih di dark mode) */}
+            <span className="font-bold text-[12px] text-foreground truncate">
               {msg.authorGlobalName || msg.authorName}
             </span>
             <span className="text-[10px] text-muted-foreground/80 font-mono">
@@ -100,7 +91,7 @@ export function ChatMessageItem({
         </div>
       </div>
 
-      {/* Modal Zoom Preview */}
+      {/* Modal Zoom Preview Bukti */}
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
@@ -124,4 +115,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-}
+                  }
