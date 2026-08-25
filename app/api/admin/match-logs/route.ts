@@ -16,7 +16,6 @@ export async function GET(req: NextRequest) {
 
     const cachedData: any = await kv.get(`twi:match_logs:${matchId}`);
     
-    // Support backward compatibility jika sebelumnya menyimpan array langsung
     if (Array.isArray(cachedData)) {
       return NextResponse.json({ matchId, channelName: `⚔️-${matchId}`, logs: cachedData });
     }
@@ -64,23 +63,40 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const body = await req.json();
-    const { matchId, channelId } = body;
+    const { matchId, channelId, refereeDiscordId, roleAId, roleBId } = body;
 
     if (!matchId) {
       return NextResponse.json({ error: 'matchId wajib disertakan' }, { status: 400 });
     }
 
+    // 1. Hapus channel Discord & cabut role wasit
     await deleteMatchDiscordChannel({
       matchId,
       savedChannelId: channelId,
+      refereeDiscordId,
+      roleAId,
+      roleBId,
     });
+
+    // 2. 🟢 Update twi:schedules di KV: bersihkan discordChannelId
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const updatedSchedules = schedules.map((m) => {
+      if (m.id === matchId) {
+        return {
+          ...m,
+          discordChannelId: undefined, // Ditandai bahwa channel sudah dihapus
+        };
+      }
+      return m;
+    });
+    await kv.set('twi:schedules', updatedSchedules);
 
     return NextResponse.json({
       success: true,
-      message: `Channel Discord untuk ${matchId} berhasil dihapus.`,
+      message: `Channel Discord untuk ${matchId} berhasil dihapus dan status KV diperbarui.`,
+      schedules: updatedSchedules,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-        }
-  
+}
