@@ -50,7 +50,7 @@ export function parseDiscordMarkdown(
   roleMentions?: Record<string, any>,
   channelMentions?: Record<string, any>,
   match?: MatchScheduleItem,
-  playerTeamMap: Record<string, string> = {}
+  playerTeamMap: Record<string, { teamSlug: string; ign: string } | string> = {}
 ): string {
   if (!content) return "";
 
@@ -63,13 +63,23 @@ export function parseDiscordMarkdown(
   const matchReferee = (match?.referee || "").trim().toLowerCase();
   const matchStreamer = (match?.streamer || "").trim().toLowerCase();
 
-  const checkAffiliation = (key: string) => {
-    if (!key) return "";
-    return (
-      playerTeamMap[key] ||
-      Object.entries(playerTeamMap).find(([k]) => k.toLowerCase() === key.toLowerCase())?.[1] ||
-      ""
-    );
+  // Helper pencocokan 2-tahap Discord -> TeamSlug & IGN
+  const resolvePlayerData = (key: string) => {
+    if (!key) return null;
+    const cleanKey = key.trim().toLowerCase();
+
+    const direct = playerTeamMap[cleanKey] || 
+      Object.entries(playerTeamMap).find(([k]) => k.toLowerCase() === cleanKey)?.[1];
+
+    if (!direct) return null;
+
+    if (typeof direct === "string") {
+      return { teamSlug: direct.toLowerCase(), ign: key };
+    }
+    return {
+      teamSlug: (direct.teamSlug || "").toLowerCase(),
+      ign: direct.ign || key,
+    };
   };
 
   // 1. URL clickable
@@ -83,7 +93,7 @@ export function parseDiscordMarkdown(
     '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-sky-500 hover:text-sky-400 font-medium underline underline-offset-2 break-all">$1</a>'
   );
 
-  // 2. Bold, Italic, Strike, Code
+  // 2. Bold, Italic, Strike, Code Markdown
   formatted = formatted
     .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>')
     .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
@@ -110,16 +120,19 @@ export function parseDiscordMarkdown(
     '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-semibold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">$1</span>'
   );
 
-  // 6. User Mentions (Cocokkan userId dan nama ke playerTeamMap)
+  // 6. User Mentions: Cocokkan Username Discord -> Team Slug -> Render @IGN Sesuai Warna Tim
   formatted = formatted.replace(/<@!?([0-9]+)>/g, (_, userId) => {
     const u = userMentions?.[userId];
-    const rawName = typeof u === "object" ? u?.name : (u || "User");
-    const uLower = rawName.toLowerCase();
+    const rawUsername = typeof u === "object" ? u?.name : (u || "User");
+    const uLower = rawUsername.toLowerCase();
 
-    // Cek afiliasi langsung via userId, lalu via rawName
-    const uSlug = checkAffiliation(userId) || checkAffiliation(rawName);
-    const isU1 = Boolean(uSlug && (uSlug === teamASlug || teamASlug.includes(uSlug)));
-    const isU2 = Boolean(uSlug && (uSlug === teamBSlug || teamBSlug.includes(uSlug)));
+    // Cari data via username discord
+    const playerData = resolvePlayerData(uLower) || resolvePlayerData(userId);
+    const displayName = playerData?.ign || rawUsername;
+    const userTeamSlug = playerData?.teamSlug || "";
+
+    const isU1 = Boolean(userTeamSlug && (userTeamSlug === teamASlug || teamASlug.includes(userTeamSlug)));
+    const isU2 = Boolean(userTeamSlug && (userTeamSlug === teamBSlug || teamBSlug.includes(userTeamSlug)));
 
     const isURef = Boolean(
       (match?.refereeDiscordId && userId === match.refereeDiscordId) ||
@@ -136,7 +149,7 @@ export function parseDiscordMarkdown(
     else if (isU1) tagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
     else if (isU2) tagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
 
-    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${tagStyle}">@${rawName}</span>`;
+    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${tagStyle}">@${displayName}</span>`;
   });
 
   // 7. Role Mentions
