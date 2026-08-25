@@ -13,6 +13,7 @@ interface MatchChatCardProps {
   logs: ChatLogMessage[] | null;
   loadingChat: boolean;
   isBackingUp: boolean;
+  playerTeamMap?: Record<string, string>;
   onBackup: () => void;
   onDeleteChannel: () => void;
 }
@@ -23,6 +24,7 @@ export function MatchChatCard({
   logs,
   loadingChat,
   isBackingUp,
+  playerTeamMap = {},
   onBackup,
   onDeleteChannel,
 }: MatchChatCardProps) {
@@ -68,7 +70,7 @@ export function MatchChatCard({
 
   return (
     <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
-      {/* 🟢 TOP HEADER CARD */}
+      {/* TOP HEADER CARD */}
       <div className="border-b border-border bg-muted/40 p-4 space-y-3.5">
         
         {/* 1. Judul Tim Center */}
@@ -104,17 +106,14 @@ export function MatchChatCard({
 
         {/* 2. Kapsul Match ID, Channel, & Status KV */}
         <div className="flex items-center justify-center gap-2 flex-wrap text-xs">
-          {/* Kapsul 1: Week & Match ID */}
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono font-bold bg-primary/10 text-primary border border-primary/25 shadow-2xs">
             W{match.weekNumber || 1} • {match.id}
           </span>
 
-          {/* Kapsul 2: Channel Discord */}
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono font-bold bg-muted text-foreground border border-border shadow-2xs">
             <Hash className="h-3.5 w-3.5 text-primary" /> {displayChannelName}
           </span>
 
-          {/* Kapsul 3: Status Log KV */}
           {isArchivedInKV ? (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10.5px]">
               <CheckCircle2 className="h-3 w-3" /> Log Tersimpan di KV
@@ -146,7 +145,6 @@ export function MatchChatCard({
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           </div>
 
-          {/* Tombol Backup */}
           <button
             onClick={onBackup}
             disabled={isBackingUp || isChannelDeleted}
@@ -170,7 +168,6 @@ export function MatchChatCard({
             )}
           </button>
 
-          {/* Tombol Hapus Channel */}
           <button
             onClick={handleDeletePrompt}
             disabled={isChannelDeleted}
@@ -229,7 +226,12 @@ export function MatchChatCard({
                     </span>
                   </div>
                 )}
-                <ChatMessageItem msg={msg} match={match} isHighlighted={isMatchSearch} />
+                <ChatMessageItem
+                  msg={msg}
+                  match={match}
+                  playerTeamMap={playerTeamMap}
+                  isHighlighted={isMatchSearch}
+                />
               </Fragment>
             );
           })
@@ -237,4 +239,5 @@ export function MatchChatCard({
       </div>
     </div>
   );
-}
+              }
+                
