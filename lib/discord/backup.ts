@@ -15,6 +15,7 @@ export interface SavedChatLogItem {
   authorId: string;
   authorName: string;
   authorGlobalName: string;
+  authorRoles: string[];
   authorAvatar: string;
   content: string;
   timestamp: string;
@@ -42,7 +43,7 @@ async function ensureMatchLogsFolderExists(): Promise<void> {
   }
 }
 
-// 2. Upload file & masukkan ke folder fisik match-logs
+// 2. Upload file binary langsung ke folder fisik match-logs
 async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: string): Promise<string> {
   try {
     const imgRes = await fetch(imageUrl);
@@ -106,7 +107,7 @@ export async function backupDiscordChannelMessages(params: {
     console.warn('[BACKUP] Gagal fetch guild roles:', err);
   }
 
-  // 3. 🟢 Fetch Seluruh Riwayat Pesan (Loop Pagination > 100 Pesan)
+  // 3. Fetch Seluruh Riwayat Pesan (Pagination Loop > 100 Pesan)
   let allMessages: any[] = [];
   let lastId: string | undefined = undefined;
   let hasMore = true;
@@ -133,9 +134,9 @@ export async function backupDiscordChannelMessages(params: {
 
   const userMessages = allMessages.filter((msg: any) => !msg.author?.bot);
 
-  // 4. Fetch detail member sekuensial
+  // 4. Fetch detail member sekuensial (termasuk roles discord)
   const uniqueAuthorIds = Array.from(new Set(userMessages.map((m: any) => m.author.id)));
-  const memberDetailsMap: Record<string, { nick?: string }> = {};
+  const memberDetailsMap: Record<string, { nick?: string; roles: string[] }> = {};
 
   for (const uId of uniqueAuthorIds) {
     try {
@@ -143,10 +144,11 @@ export async function backupDiscordChannelMessages(params: {
       if (member) {
         memberDetailsMap[uId] = {
           nick: member.nick || member.user?.global_name || member.user?.username,
+          roles: Array.isArray(member.roles) ? member.roles : [],
         };
       }
     } catch {
-      // Abaikan jika user tidak ditemukan di server
+      // Abaikan jika member tidak ditemukan di server
     }
   }
 
@@ -159,6 +161,7 @@ export async function backupDiscordChannelMessages(params: {
     const memberInfo = memberDetailsMap[authorId];
 
     const authorDisplayName = memberInfo?.nick || msg.author.global_name || msg.author.username;
+    const authorRoles = memberInfo?.roles || [];
 
     // User Mentions
     const userMentions: Record<string, { name: string; color?: string }> = {};
@@ -207,6 +210,7 @@ export async function backupDiscordChannelMessages(params: {
       authorId,
       authorName: msg.author.username,
       authorGlobalName: authorDisplayName,
+      authorRoles,
       authorAvatar: msg.author.avatar
         ? `https://cdn.discordapp.com/avatars/${msg.author.id}/${msg.author.avatar}.webp?size=64`
         : 'https://cdn.discordapp.com/embed/avatars/0.png',
@@ -220,7 +224,6 @@ export async function backupDiscordChannelMessages(params: {
 
   return {
     channelName: actualChannelName,
-    messages: formattedLogs.reverse(), // Mengurutkan dari pesan terlama ke terbaru
+    messages: formattedLogs.reverse(),
   };
-  }
-        
+}
