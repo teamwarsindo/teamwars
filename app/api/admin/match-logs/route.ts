@@ -11,9 +11,16 @@ export async function GET(req: NextRequest) {
 
     // 1. Request detail log match spesifik
     if (matchId) {
-      const [cachedData, schedules, globalDiscordMap, globalIgnMap] = await Promise.all([
+      const [
+        cachedData,
+        schedules,
+        globalVerifiedUsers,
+        globalDiscordMap,
+        globalIgnMap,
+      ] = await Promise.all([
         kv.get<any>(`twi:match_logs:${matchId}`),
         kv.get<MatchScheduleItem[]>('twi:schedules'),
+        kv.hgetall<Record<string, string>>('global:verified_users'),
         kv.hgetall<Record<string, string>>('global:discord'),
         kv.hgetall<Record<string, string>>('global:ign'),
       ]);
@@ -43,10 +50,10 @@ export async function GET(req: NextRequest) {
         ? JSON.parse(rawPlayersB)
         : [];
 
-      // Susun mapping gabungan: discordUsername/IGN -> { teamSlug, ign }
+      // Susun mapping resolusi pemain: id / username / ign -> { teamSlug, ign }
       const playerTeamMap: Record<string, { teamSlug: string; ign: string }> = {};
 
-      // Masukkan roster Tim A
+      // 1. Roster Tim A
       playersA.forEach((p: any) => {
         const teamSlug = teamASlug;
         const ign = p.ign || p.namaLengkap || p.discord;
@@ -54,7 +61,7 @@ export async function GET(req: NextRequest) {
         if (p.ign) playerTeamMap[p.ign.trim().toLowerCase()] = { teamSlug, ign };
       });
 
-      // Masukkan roster Tim B
+      // 2. Roster Tim B
       playersB.forEach((p: any) => {
         const teamSlug = teamBSlug;
         const ign = p.ign || p.namaLengkap || p.discord;
@@ -62,7 +69,7 @@ export async function GET(req: NextRequest) {
         if (p.ign) playerTeamMap[p.ign.trim().toLowerCase()] = { teamSlug, ign };
       });
 
-      // Masukkan mapping global:discord
+      // 3. Tambahkan dari global:discord
       if (globalDiscordMap) {
         Object.entries(globalDiscordMap).forEach(([discordUser, slug]) => {
           const cleanUser = discordUser.trim().toLowerCase();
@@ -75,7 +82,7 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      // Masukkan mapping global:ign
+      // 4. Tambahkan dari global:ign
       if (globalIgnMap) {
         Object.entries(globalIgnMap).forEach(([ignKey, slug]) => {
           const cleanIgn = ignKey.trim().toLowerCase();
@@ -83,6 +90,27 @@ export async function GET(req: NextRequest) {
             playerTeamMap[cleanIgn] = {
               teamSlug: String(slug).toLowerCase(),
               ign: ignKey,
+            };
+          }
+        });
+      }
+
+      // 5. Resolusi userId dari global:verified_users (ID Discord -> Username Discord -> TeamSlug/IGN)
+      if (globalVerifiedUsers) {
+        Object.entries(globalVerifiedUsers).forEach(([k, v]) => {
+          // Entry bisa berbentuk { username: "id" } atau { id: "username" }
+          const isKeyId = /^\d{17,20}$/.test(k);
+          const discordId = isKeyId ? k : String(v);
+          const discordUsername = (isKeyId ? String(v) : k).trim().toLowerCase();
+
+          const targetPlayer = playerTeamMap[discordUsername];
+          if (targetPlayer) {
+            // Petakan langsung Discord ID ke data roster tim yang valid
+            playerTeamMap[discordId] = targetPlayer;
+          } else if (globalDiscordMap && globalDiscordMap[discordUsername]) {
+            playerTeamMap[discordId] = {
+              teamSlug: String(globalDiscordMap[discordUsername]).toLowerCase(),
+              ign: discordUsername,
             };
           }
         });
@@ -133,7 +161,6 @@ export async function POST(req: NextRequest) {
     const payload = { channelName, logs: messages };
     await kv.set(`twi:match_logs:${matchId}`, payload);
 
-    // Tandai status arsip tersimpan di schedules
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const updatedSchedules = schedules.map((m: any) => {
       if (m.id === matchId) {
@@ -203,4 +230,4 @@ export async function DELETE(req: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+  }
