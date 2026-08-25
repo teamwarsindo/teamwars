@@ -2,7 +2,6 @@ import { v2 as cloudinary } from 'cloudinary';
 import { DISCORD_CONFIG } from './config';
 import { discordAPI } from './utils';
 
-// Inisialisasi Cloudinary SDK
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME || 'dhplw8rsd',
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -22,6 +21,21 @@ export interface SavedChatLogItem {
   userMentions?: Record<string, { name: string; color?: string }>;
   roleMentions?: Record<string, { name: string; color?: string }>;
   channelMentions?: Record<string, { name: string }>;
+  replyTo?: {
+    id: string;
+    authorName: string;
+    authorAvatar?: string;
+    content: string;
+    hasAttachment?: boolean;
+  };
+  forwarded?: {
+    content?: string;
+    attachments: Array<{
+      fileName: string;
+      maskedUrl: string;
+      contentType?: string;
+    }>;
+  };
   attachments: Array<{
     fileName: string;
     maskedUrl: string;
@@ -34,24 +48,18 @@ export interface BackupResult {
   messages: SavedChatLogItem[];
 }
 
-// 1. Pastikan folder fisik terdaftar di Cloudinary
 async function ensureMatchLogsFolderExists(): Promise<void> {
   try {
     await cloudinary.api.create_folder('match-logs');
-    console.log('[CLOUDINARY] Folder match-logs siap.');
   } catch (err: any) {
-    console.log('[CLOUDINARY] Info create_folder:', err?.message || err);
+    // folder already exists
   }
 }
 
-// 2. Upload file binary langsung ke folder fisik match-logs
 async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: string): Promise<string> {
   try {
     const imgRes = await fetch(imageUrl);
-    if (!imgRes.ok) {
-      console.error(`[BACKUP] Gagal fetch gambar Discord: ${imgRes.status}`);
-      return imageUrl;
-    }
+    if (!imgRes.ok) return imageUrl;
 
     const arrayBuffer = await imgRes.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString('base64');
@@ -67,7 +75,6 @@ async function uploadDiscordImageToCloudinary(imageUrl: string, public_id: strin
       resource_type: 'image',
     });
 
-    console.log('[CLOUDINARY SUCCESS]:', res.secure_url);
     return res.secure_url;
   } catch (err: any) {
     console.error('[CLOUDINARY ERROR]:', err?.message || err);
@@ -85,16 +92,14 @@ export async function backupDiscordChannelMessages(params: {
 
   await ensureMatchLogsFolderExists();
 
-  // 1. Ambil Nama Asli Channel Utama
   let actualChannelName = `⚔️-${matchId}`;
   try {
     const channelData = await discordAPI(`/channels/${channelId}`, 'GET');
     if (channelData?.name) actualChannelName = channelData.name;
   } catch (e) {
-    console.warn('[BACKUP] Gagal fetch info channel utama:', e);
+    console.warn('[BACKUP] Gagal fetch info channel:', e);
   }
 
-  // 2. Fetch Guild Roles
   const guildRolesMap: Record<string, { name: string; color?: string; position: number }> = {};
   try {
     const rolesData = await discordAPI(`/guilds/${guildId}/roles`, 'GET');
@@ -105,10 +110,9 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
   } catch (err) {
-    console.warn('[BACKUP] Gagal fetch guild roles:', err);
+    console.warn('[BACKUP] Gagal fetch roles:', err);
   }
 
-  // 3. Fetch Seluruh Riwayat Pesan (Pagination Loop > 100 Pesan)
   let allMessages: any[] = [];
   let lastId: string | undefined = undefined;
   let hasMore = true;
@@ -119,7 +123,6 @@ export async function backupDiscordChannelMessages(params: {
       : `/channels/${channelId}/messages?limit=100`;
 
     const batch = await discordAPI(url, 'GET');
-
     if (!Array.isArray(batch) || batch.length === 0) {
       hasMore = false;
       break;
@@ -127,15 +130,11 @@ export async function backupDiscordChannelMessages(params: {
 
     allMessages.push(...batch);
     lastId = batch[batch.length - 1].id;
-
-    if (batch.length < 100) {
-      hasMore = false;
-    }
+    if (batch.length < 100) hasMore = false;
   }
 
   const userMessages = allMessages.filter((msg: any) => !msg.author?.bot);
 
-  // 4. Fetch detail member sekuensial (termasuk roles discord)
   const uniqueAuthorIds = Array.from(new Set(userMessages.map((m: any) => m.author.id)));
   const memberDetailsMap: Record<string, { nick?: string; roles: string[] }> = {};
 
@@ -148,17 +147,9 @@ export async function backupDiscordChannelMessages(params: {
           roles: Array.isArray(member.roles) ? member.roles : [],
         };
       }
-    } catch {
-      // Abaikan jika member tidak ditemukan di server
-    }
+    } catch {}
   }
 
-  // 5. Global Cache untuk Channel Mentions yang di-tag di seluruh chat
-  const globalChannelNamesCache: Record<string, string> = {
-    [channelId]: actualChannelName,
-  };
-
-  // 6. Upload Attachment & Format Data Chat
   const formattedLogs: SavedChatLogItem[] = [];
 
   for (const msg of userMessages) {
@@ -169,7 +160,7 @@ export async function backupDiscordChannelMessages(params: {
     const authorDisplayName = memberInfo?.nick || msg.author.global_name || msg.author.username;
     const authorRoles = memberInfo?.roles || [];
 
-    // User Mentions
+    // Mentions
     const userMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mentions)) {
       msg.mentions.forEach((u: any) => {
@@ -180,41 +171,59 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Role Mentions
     const roleMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mention_roles)) {
       msg.mention_roles.forEach((rId: string) => {
         const r = guildRolesMap[rId];
-        if (r) {
-          roleMentions[rId] = { name: r.name, color: r.color };
-        }
+        if (r) roleMentions[rId] = { name: r.name, color: r.color };
       });
     }
 
-    // Channel Mentions (<#channelId>)
-    const channelMentions: Record<string, { name: string }> = {};
-    const channelMatches = (msg.content || '').match(/<#(\d+)>/g);
+    // 1. Deteksi Reply
+    let replyTo: SavedChatLogItem['replyTo'] = undefined;
+    if (msg.referenced_message) {
+      const ref = msg.referenced_message;
+      const refMember = memberDetailsMap[ref.author?.id];
+      replyTo = {
+        id: ref.id,
+        authorName: refMember?.nick || ref.author?.global_name || ref.author?.username || 'User',
+        authorAvatar: ref.author?.avatar
+          ? `https://cdn.discordapp.com/avatars/${ref.author.id}/${ref.author.avatar}.webp?size=32`
+          : undefined,
+        content: ref.content || '',
+        hasAttachment: Boolean(ref.attachments && ref.attachments.length > 0),
+      };
+    }
 
-    if (channelMatches) {
-      for (const rawTag of channelMatches) {
-        const cId = rawTag.replace(/[<#>]/g, '');
-
-        if (!globalChannelNamesCache[cId]) {
-          try {
-            const chData = await discordAPI(`/channels/${cId}`, 'GET');
-            globalChannelNamesCache[cId] = chData?.name || 'channel';
-          } catch {
-            globalChannelNamesCache[cId] = 'channel';
+    // 2. Deteksi Forwarded (message_snapshots)
+    let forwarded: SavedChatLogItem['forwarded'] = undefined;
+    if (Array.isArray(msg.message_snapshots) && msg.message_snapshots.length > 0) {
+      const snap = msg.message_snapshots[0]?.message;
+      if (snap) {
+        const snapAttachments: SavedChatLogItem['attachments'] = [];
+        if (Array.isArray(snap.attachments) && snap.attachments.length > 0) {
+          for (let f = 0; f < snap.attachments.length; f++) {
+            const fAtt = snap.attachments[f];
+            const isImg = fAtt.content_type?.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(fAtt.filename);
+            if (isImg) {
+              const public_id = `w${week}_${matchId}_fwd_${msg.id}_${f}`;
+              await uploadDiscordImageToCloudinary(fAtt.url, public_id);
+              snapAttachments.push({
+                fileName: fAtt.filename,
+                maskedUrl: `/match-logs/${public_id}.png`,
+                contentType: fAtt.content_type,
+              });
+            }
           }
         }
-
-        channelMentions[cId] = {
-          name: globalChannelNamesCache[cId],
+        forwarded = {
+          content: snap.content || '',
+          attachments: snapAttachments,
         };
       }
     }
 
-    // Upload Bukti Gambar
+    // 3. Upload Attachment Utama
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
@@ -224,10 +233,9 @@ export async function backupDiscordChannelMessages(params: {
           const public_id = `w${week}_${matchId}_${msg.id}_${i}`;
           await uploadDiscordImageToCloudinary(att.url, public_id);
 
-          const maskedUrl = `/match-logs/${public_id}.png`;
           attachments.push({
             fileName: att.filename,
-            maskedUrl,
+            maskedUrl: `/match-logs/${public_id}.png`,
             contentType: att.content_type,
           });
         }
@@ -247,7 +255,8 @@ export async function backupDiscordChannelMessages(params: {
       timestamp: msg.timestamp,
       userMentions,
       roleMentions,
-      channelMentions,
+      replyTo,
+      forwarded,
       attachments,
     });
   }
@@ -256,5 +265,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-}
-  
+         }
