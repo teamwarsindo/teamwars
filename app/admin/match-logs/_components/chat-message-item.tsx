@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatDiscordTimeOnly, parseDiscordMarkdown } from "../_utils/discord-parser";
-import { Image as ImageIcon, ExternalLink, Shield, Tv, ShieldAlert } from "lucide-react";
+import { Image as ImageIcon, ExternalLink, Shield, Tv, ShieldAlert, CornerDownRight, Forward } from "lucide-react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 
 export interface ChatLogMessage {
@@ -16,6 +16,21 @@ export interface ChatLogMessage {
   userMentions?: Record<string, any>;
   roleMentions?: Record<string, any>;
   channelMentions?: Record<string, any>;
+  replyTo?: {
+    id: string;
+    authorName: string;
+    authorAvatar?: string;
+    content: string;
+    hasAttachment?: boolean;
+  };
+  forwarded?: {
+    content?: string;
+    attachments: Array<{
+      fileName: string;
+      maskedUrl: string;
+      contentType?: string;
+    }>;
+  };
   attachments?: Array<{
     fileName: string;
     maskedUrl: string;
@@ -44,21 +59,21 @@ export function ChatMessageItem({
   const n2Lower = name2.toLowerCase();
   const authorId = msg.authorId || "";
 
-  // 1. Deteksi Wasit
+  // 1. Wasit
   const matchReferee = (match?.referee || "").trim().toLowerCase();
   const isReferee = Boolean(
     (match?.refereeDiscordId && authorId === match.refereeDiscordId) ||
     (matchReferee && matchReferee !== "-" && (n1Lower.includes(matchReferee) || n2Lower.includes(matchReferee) || matchReferee.includes(n1Lower) || matchReferee.includes(n2Lower)))
   );
 
-  // 2. Deteksi Streamer
+  // 2. Streamer
   const matchStreamer = (match?.streamer || "").trim().toLowerCase();
   const isStreamer = Boolean(
     (match?.streamerDiscordId && authorId === match.streamerDiscordId) ||
     (matchStreamer && matchStreamer !== "-" && (n1Lower.includes(matchStreamer) || n2Lower.includes(matchStreamer) || matchStreamer.includes(n1Lower) || matchStreamer.includes(n2Lower)))
   );
 
-  // 3. Deteksi Tim Kiri (A) vs Tim Kanan (B)
+  // 3. Tim Kanan / Kiri
   const teamASlug = (match?.teamAId || (match as any)?.teamACode || match?.teamAName || "")
     .toLowerCase()
     .replace(/\s+/g, "-");
@@ -69,7 +84,6 @@ export function ChatMessageItem({
   const cleanTeamAName = (match?.teamAName || "").toLowerCase();
   const cleanTeamBName = (match?.teamBName || "").toLowerCase();
 
-  // Helper resolusi slug yang aman terhadap format string maupun objek { teamSlug, ign }
   const checkAffiliation = (uName: string): string => {
     if (!uName) return "";
     const cleanKey = uName.trim().toLowerCase();
@@ -99,7 +113,6 @@ export function ChatMessageItem({
     );
   }
 
-  // 4. Skema Warna & Icon Author
   let nameColorClass = "text-rose-600 dark:text-rose-400 font-semibold";
   let avatarBorderClass = "border-rose-500/50";
   let roleIcon = (
@@ -153,70 +166,133 @@ export function ChatMessageItem({
   return (
     <>
       <div
-        className={`flex gap-2.5 text-xs leading-relaxed group p-2 rounded-xl transition ${
+        className={`flex flex-col text-xs leading-relaxed group p-2 rounded-xl transition ${
           isHighlighted
             ? "bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/30"
             : "hover:bg-muted/40"
         }`}
       >
-        <img
-          src={msg.authorAvatar}
-          alt=""
-          className={`h-8 w-8 rounded-full border-2 shrink-0 object-cover mt-0.5 shadow-xs ${avatarBorderClass}`}
-        />
-
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mb-1">
-            <span className={`text-[12px] tracking-tight truncate ${nameColorClass}`}>
-              {msg.authorGlobalName || msg.authorName}
-            </span>
-            {roleIcon}
-            <span className="text-[10px] text-muted-foreground/80 font-mono ml-auto">
-              {formatDiscordTimeOnly(msg.timestamp)}
+        {/* Render Reply Header (Jika Pesan ini Membalas Pesan Lain) */}
+        {msg.replyTo && (
+          <div className="flex items-center gap-1.5 pl-6 pb-1 text-[11px] text-muted-foreground/80 font-medium">
+            <CornerDownRight className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+            {msg.replyTo.authorAvatar && (
+              <img
+                src={msg.replyTo.authorAvatar}
+                alt=""
+                className="h-3.5 w-3.5 rounded-full object-cover shrink-0"
+              />
+            )}
+            <span className="font-semibold text-foreground/80">@{msg.replyTo.authorName}</span>
+            <span className="truncate max-w-[200px] sm:max-w-[320px] italic text-muted-foreground">
+              {msg.replyTo.content || (msg.replyTo.hasAttachment ? "📷 [Lampiran Gambar]" : "...")}
             </span>
           </div>
+        )}
 
-          {msg.content && (
-            <div
-              className="text-foreground/90 whitespace-pre-wrap break-words text-[12px] leading-relaxed block space-y-1 font-normal"
-              dangerouslySetInnerHTML={{
-                __html: parseDiscordMarkdown(
-                  msg.content,
-                  msg.userMentions,
-                  msg.roleMentions,
-                  msg.channelMentions,
-                  match,
-                  playerTeamMap
-                ),
-              }}
-            />
-          )}
+        <div className="flex gap-2.5">
+          <img
+            src={msg.authorAvatar}
+            alt=""
+            className={`h-8 w-8 rounded-full border-2 shrink-0 object-cover mt-0.5 shadow-xs ${avatarBorderClass}`}
+          />
 
-          {msg.attachments && msg.attachments.length > 0 && (
-            <div className="mt-2.5 flex flex-wrap gap-2">
-              {msg.attachments.map((att, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => setPreviewImage(att.maskedUrl)}
-                  className="relative group/att max-w-xs cursor-pointer overflow-hidden rounded-xl border border-border bg-muted/40 transition hover:border-primary/50 shadow-xs"
-                >
-                  <img
-                    src={att.maskedUrl}
-                    alt={att.fileName}
-                    className="max-h-44 w-full object-contain rounded-lg"
-                    onError={(e: any) => {
-                      e.target.src = "/placeholder-proof.webp";
-                    }}
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/att:opacity-100 transition-opacity">
-                    <span className="flex items-center gap-1 rounded-md bg-background/90 px-2 py-1 text-[10px] font-semibold text-foreground shadow-xs">
-                      <ImageIcon className="h-3.5 w-3.5" /> Perbesar Bukti
-                    </span>
-                  </div>
-                </div>
-              ))}
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mb-1">
+              <span className={`text-[12px] tracking-tight truncate ${nameColorClass}`}>
+                {msg.authorGlobalName || msg.authorName}
+              </span>
+              {roleIcon}
+              <span className="text-[10px] text-muted-foreground/80 font-mono ml-auto">
+                {formatDiscordTimeOnly(msg.timestamp)}
+              </span>
             </div>
-          )}
+
+            {/* Konten Teks Pesan */}
+            {msg.content && (
+              <div
+                className="text-foreground/90 whitespace-pre-wrap break-words text-[12px] leading-relaxed block space-y-1 font-normal"
+                dangerouslySetInnerHTML={{
+                  __html: parseDiscordMarkdown(
+                    msg.content,
+                    msg.userMentions,
+                    msg.roleMentions,
+                    msg.channelMentions,
+                    match,
+                    playerTeamMap
+                  ),
+                }}
+              />
+            )}
+
+            {/* Render Pesan Terusan (Forwarded Message Box) */}
+            {msg.forwarded && (
+              <div className="mt-2 rounded-xl border border-border/80 bg-muted/40 p-2.5 space-y-2 max-w-sm">
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground italic">
+                  <Forward className="h-3.5 w-3.5" /> Forwarded
+                </div>
+
+                {msg.forwarded.content && (
+                  <p className="text-xs text-foreground/90 whitespace-pre-wrap">
+                    {msg.forwarded.content}
+                  </p>
+                )}
+
+                {msg.forwarded.attachments && msg.forwarded.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {msg.forwarded.attachments.map((att, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => setPreviewImage(att.maskedUrl)}
+                        className="relative group/att max-w-xs cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition hover:border-primary/50 shadow-xs"
+                      >
+                        <img
+                          src={att.maskedUrl}
+                          alt={att.fileName}
+                          className="max-h-52 w-full object-contain rounded-lg"
+                          onError={(e: any) => {
+                            e.target.src = "/placeholder-proof.webp";
+                          }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/att:opacity-100 transition-opacity">
+                          <span className="flex items-center gap-1 rounded-md bg-background/90 px-2 py-1 text-[10px] font-semibold text-foreground shadow-xs">
+                            <ImageIcon className="h-3.5 w-3.5" /> Perbesar Bukti
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Render Lampiran Gambar Utama */}
+            {msg.attachments && msg.attachments.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {msg.attachments.map((att, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setPreviewImage(att.maskedUrl)}
+                    className="relative group/att max-w-xs cursor-pointer overflow-hidden rounded-xl border border-border bg-muted/40 transition hover:border-primary/50 shadow-xs"
+                  >
+                    <img
+                      src={att.maskedUrl}
+                      alt={att.fileName}
+                      className="max-h-44 w-full object-contain rounded-lg"
+                      onError={(e: any) => {
+                        e.target.src = "/placeholder-proof.webp";
+                      }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/att:opacity-100 transition-opacity">
+                      <span className="flex items-center gap-1 rounded-md bg-background/90 px-2 py-1 text-[10px] font-semibold text-foreground shadow-xs">
+                        <ImageIcon className="h-3.5 w-3.5" /> Perbesar Bukti
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -252,4 +328,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-                  }
+}
