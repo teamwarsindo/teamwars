@@ -18,6 +18,7 @@ export default function MatchLogsAdminPage() {
   const [loadingChat, setLoadingChat] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
 
+  // 1. Fetch schedules (TIDAK auto-select match 1)
   useEffect(() => {
     async function loadSchedules() {
       try {
@@ -26,12 +27,9 @@ export default function MatchLogsAdminPage() {
         const data = await res.json();
         if (data.schedules) {
           setSchedules(data.schedules);
-          if (data.schedules.length > 0 && !selectedMatchId) {
-            setSelectedMatchId(data.schedules[0].id);
-          }
         }
       } catch (err) {
-        console.error("Gagal memuat daftar match:", err);
+        console.error("Gagal memuat jadwal:", err);
       } finally {
         setLoadingList(false);
       }
@@ -39,8 +37,12 @@ export default function MatchLogsAdminPage() {
     loadSchedules();
   }, []);
 
+  // 2. Fetch log detail HANYA saat user memilih match
   useEffect(() => {
-    if (!selectedMatchId) return;
+    if (!selectedMatchId) {
+      setChatLogs(null);
+      return;
+    }
 
     async function loadLogs() {
       try {
@@ -139,44 +141,54 @@ export default function MatchLogsAdminPage() {
   const selectedMatch = schedules.find((m) => m.id === selectedMatchId);
 
   return (
-    <div className="container max-w-2xl mx-auto px-3 py-3 sm:py-4 space-y-3 pb-8">
-      {/* Search Input */}
+    <div className="space-y-4">
+      {/* 1. Global Search Bar */}
       <div className="relative">
-        <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
         <input
           type="text"
           value={searchSchedule}
           onChange={(e) => setSearchSchedule(e.target.value)}
           placeholder="Ketik nama tim, wasit, streamer, atau ID match"
-          className="w-full h-10 pl-10 pr-4 rounded-2xl bg-card border border-border text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-primary shadow-xs transition"
+          className="w-full bg-card border border-border rounded-2xl px-4 py-2.5 text-xs sm:text-sm pl-10 focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
         />
+        <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
       </div>
 
-      {searchSchedule.trim() !== "" && filteredSchedules.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          {filteredSchedules.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => {
-                setSelectedMatchId(m.id);
-                setSearchSchedule("");
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer border ${
-                selectedMatchId === m.id
-                  ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                  : "bg-card hover:bg-muted text-muted-foreground border-border"
-              }`}
-            >
-              W{m.weekNumber || 1} · {m.teamAName} vs {m.teamBName}
-            </button>
-          ))}
+      {/* 2. Daftar Hasil Pencarian (Hanya muncul jika user mengetik) */}
+      {searchSchedule.trim() !== "" && (
+        <div className="bg-card border border-border rounded-2xl p-2 max-h-60 overflow-y-auto space-y-1 shadow-sm">
+          {filteredSchedules.length === 0 ? (
+            <div className="p-3 text-center text-xs text-muted-foreground">
+              Tidak ada pertandingan yang cocok.
+            </div>
+          ) : (
+            filteredSchedules.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => {
+                  setSelectedMatchId(m.id);
+                  setSearchSchedule("");
+                }}
+                className={`w-full text-left p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  selectedMatchId === m.id
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted text-foreground"
+                }`}
+              >
+                <span>
+                  W{m.weekNumber || 1} • {m.teamAName} vs {m.teamBName}
+                </span>
+                <span className="font-mono text-[10px] opacity-80">{m.id}</span>
+              </button>
+            ))
+          )}
         </div>
       )}
 
+      {/* 3. Tampilan Chat Match yang Dipilih */}
       {loadingList ? (
-        <div className="flex flex-col items-center justify-center p-12 text-muted-foreground space-y-2">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <span className="text-xs font-semibold">Memuat data arsip pertandingan...</span>
+        <div className="flex items-center justify-center p-8 text-xs text-muted-foreground gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" /> Memuat data...
         </div>
       ) : selectedMatch ? (
         <MatchChatCard
@@ -190,10 +202,18 @@ export default function MatchLogsAdminPage() {
           onDeleteChannel={handleDeleteChannel}
         />
       ) : (
-        <div className="text-center p-8 border border-border rounded-2xl bg-card text-xs text-muted-foreground">
-          Tidak ada pertandingan yang dipilih atau cocok dengan pencarian.
-        </div>
+        !searchSchedule && (
+          <div className="text-center p-8 border border-dashed border-border rounded-2xl text-xs text-muted-foreground">
+            Ketik nama tim atau ID match di kolom pencarian untuk melihat obrolan.
+          </div>
+        )
       )}
+
+      {/* 4. Footer Tetap Muncul */}
+      <footer className="text-center py-6 text-[11px] text-muted-foreground">
+        © 2026 Team Wars Indonesia. All rights reserved.
+      </footer>
     </div>
   );
-}
+         }
+          
