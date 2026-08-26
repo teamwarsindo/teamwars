@@ -171,7 +171,7 @@ function MatchLogViewerContent() {
   };
 
   return (
-    <main className="flex-1 w-full max-w-4xl mx-auto p-3.5 sm:p-6 space-y-3 sm:space-y-4">
+    <main className="flex-1 w-full max-w-4xl mx-auto p-3 sm:p-4 space-y-3">
       <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
 
       {selectedMatchId && activeMatch ? (
@@ -198,7 +198,7 @@ function MatchLogViewerContent() {
 
 export default function MatchLogPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between">
       <TopBar title="Match Logs Archive" />
       <Suspense
         fallback={
