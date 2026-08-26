@@ -50,7 +50,8 @@ export function parseDiscordMarkdown(
   roleMentions?: Record<string, any>,
   channelMentions?: Record<string, any>,
   match?: MatchScheduleItem,
-  playerTeamMap: Record<string, { teamSlug: string; ign: string } | string> = {}
+  playerTeamMap: Record<string, { teamSlug: string; ign: string } | string> = {},
+  isReplyPreview: boolean = false
 ): string {
   if (!content) return "";
 
@@ -117,10 +118,12 @@ export function parseDiscordMarkdown(
   // 5. Everyone & Here Mentions
   formatted = formatted.replace(
     /(@everyone|@here)/g,
-    '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-semibold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">$1</span>'
+    isReplyPreview
+      ? '<span class="font-medium text-foreground/80">$1</span>'
+      : '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-semibold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">$1</span>'
   );
 
-  // 6. User Mentions: Cocokkan Username Discord -> Team Slug -> Render @IGN Sesuai Warna Tim
+  // 6. User Mentions
   formatted = formatted.replace(/<@!?([0-9]+)>/g, (_, userId) => {
     const u = userMentions?.[userId];
     const rawUsername = typeof u === "object" ? u?.name : (u || "User");
@@ -129,8 +132,13 @@ export function parseDiscordMarkdown(
     // Cari data via username discord
     const playerData = resolvePlayerData(uLower) || resolvePlayerData(userId);
     const displayName = playerData?.ign || rawUsername;
-    const userTeamSlug = playerData?.teamSlug || "";
 
+    // Jika di dalam kutipan reply, cukup teks polos tanpa kotak badge warna
+    if (isReplyPreview) {
+      return `<span class="font-medium text-foreground/85">@${displayName}</span>`;
+    }
+
+    const userTeamSlug = playerData?.teamSlug || "";
     const isU1 = Boolean(userTeamSlug && (userTeamSlug === teamASlug || teamASlug.includes(userTeamSlug)));
     const isU2 = Boolean(userTeamSlug && (userTeamSlug === teamBSlug || teamBSlug.includes(userTeamSlug)));
 
@@ -158,6 +166,10 @@ export function parseDiscordMarkdown(
     const roleName = typeof r === "object" ? r?.name : (r || "Role");
     const rLower = roleName.toLowerCase();
 
+    if (isReplyPreview) {
+      return `<span class="font-medium text-foreground/85">@${roleName}</span>`;
+    }
+
     const isTeam1Role = (match as any)?.roleAId === roleId || (match?.teamAName && rLower.includes(match.teamAName.toLowerCase()));
     const isTeam2Role = (match as any)?.roleBId === roleId || (match?.teamBName && rLower.includes(match.teamBName.toLowerCase()));
     const isRefereeRole = rLower.includes("wasit") || rLower.includes("referee") || rLower.includes("ref");
@@ -176,6 +188,11 @@ export function parseDiscordMarkdown(
   formatted = formatted.replace(/<#([0-9]+)>/g, (_, channelId) => {
     const ch = channelMentions?.[channelId];
     const channelName = typeof ch === "object" ? ch?.name : (ch || "channel");
+
+    if (isReplyPreview) {
+      return `<span class="font-medium text-foreground/85">#${channelName}</span>`;
+    }
+
     return `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20 align-middle">#${channelName}</span>`;
   });
 
