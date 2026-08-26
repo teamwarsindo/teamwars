@@ -111,32 +111,32 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* BARIS 2: WASIT & STREAMER DI KIRI, ID MATCH & NAMA CHANNEL DI KANAN */}
+        {/* BARIS 2: WASIT & STREAMER DI KIRI, ID MATCH & CHANNEL DI KANAN */}
         <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-2">
-          {/* Petugas di Kiri */}
-          <div className="flex items-center gap-3 min-w-0 flex-wrap">
-            <div className="flex items-center gap-1 shrink-0">
+          {/* Kolom Kiri: Petugas */}
+          <div className="flex flex-col gap-1 min-w-0">
+            <div className="flex items-center gap-1 min-w-0">
               <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
-              <span>
+              <span className="truncate">
                 Wasit: <strong className="text-emerald-600 dark:text-emerald-400 font-medium">{match.referee || "-"}</strong>
               </span>
             </div>
-
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1 min-w-0">
               <Tv className="h-3 w-3 text-purple-500 shrink-0" />
-              <span>
+              <span className="truncate">
                 Streamer: <strong className="text-purple-600 dark:text-purple-400 font-medium">{match.streamer || "-"}</strong>
               </span>
             </div>
           </div>
 
-          {/* ID Match + Nama Channel Discord di Pojok Kanan */}
-          <div className="shrink-0 flex items-center gap-1 font-mono text-[10px] ml-auto">
-            <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs whitespace-nowrap">
+          {/* Kolom Kanan: Metadata */}
+          <div className="flex flex-col items-end gap-1 shrink-0 font-mono text-[10px]">
+            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs whitespace-nowrap">
               W{match.weekNumber || 1} · {match.id}
             </span>
-            <span className="px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium inline-flex items-center gap-0.5 border border-border whitespace-nowrap">
-              <Hash className="h-2.5 w-2.5" /> {displayChannelName}
+            <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium inline-flex items-center gap-1 border border-border whitespace-nowrap">
+              <Hash className="h-2.5 w-2.5 shrink-0" />
+              <span className="max-w-[140px] sm:max-w-[200px] truncate">{displayChannelName}</span>
             </span>
           </div>
         </div>
@@ -234,4 +234,4 @@ export function MatchChatCard({
       </div>
     </div>
   );
-    }
+                }
