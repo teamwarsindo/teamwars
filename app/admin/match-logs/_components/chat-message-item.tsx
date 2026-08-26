@@ -179,7 +179,7 @@ export function ChatMessageItem({
             : "hover:bg-muted/40"
         }`}
       >
-        {/* SIKU REPLY 1 LINE */}
+        {/* SIKU REPLY DENGAN PARSER EMOJI / MARKDOWN LENGKAP */}
         {msg.replyTo && (
           <div className="relative flex items-center gap-1.5 pl-12 pr-2 pb-1 text-[11px] text-muted-foreground font-medium min-w-0">
             <div className="absolute left-6 top-2 h-3.5 w-5 border-l-2 border-t-2 border-muted-foreground/40 rounded-tl-md pointer-events-none" />
@@ -204,9 +204,24 @@ export function ChatMessageItem({
                   @{msg.replyTo.authorName}
                 </span>
 
-                <span className="italic text-muted-foreground/75 truncate min-w-0 flex-1">
-                  {msg.replyTo.content || (msg.replyTo.hasAttachment ? "📷 [Lampiran Gambar]" : "...")}
-                </span>
+                {/* Render Teks Reply melalui Markdown & Emoji Parser */}
+                <div
+                  className="italic text-muted-foreground/75 truncate min-w-0 flex-1 flex items-center gap-1"
+                  dangerouslySetInnerHTML={{
+                    __html: msg.replyTo.content
+                      ? parseDiscordMarkdown(
+                          msg.replyTo.content,
+                          msg.userMentions,
+                          msg.roleMentions,
+                          msg.channelMentions,
+                          match,
+                          playerTeamMap
+                        )
+                      : msg.replyTo.hasAttachment
+                      ? "📷 [Lampiran Gambar]"
+                      : "...",
+                  }}
+                />
               </>
             )}
           </div>
