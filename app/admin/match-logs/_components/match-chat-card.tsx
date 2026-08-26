@@ -4,7 +4,7 @@ import { useState, useMemo, Fragment } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 import { ChatMessageItem, ChatLogMessage } from "./chat-message-item";
 import { formatDiscordDateHeader } from "../_utils/discord-parser";
-import { Search, RefreshCw, Trash2, ShieldAlert, Shield, Tv } from "lucide-react";
+import { Search, RefreshCw, Trash2, ShieldAlert, Shield, Tv, Hash } from "lucide-react";
 import Swal from "sweetalert2";
 
 interface MatchChatCardProps {
@@ -68,6 +68,7 @@ export function MatchChatCard({
   const scoreA = (match as any)?.scoreA ?? (match as any)?.teamAScore ?? "-";
   const scoreB = (match as any)?.scoreB ?? (match as any)?.teamBScore ?? "-";
   const scoreDisplay = `${scoreA} - ${scoreB}`;
+  const displayChannelName = channelName || `⚔️-${match.id}`;
 
   return (
     <div className="h-full flex-1 min-h-0 rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
@@ -76,7 +77,7 @@ export function MatchChatCard({
         
         {/* BARIS 1: NAMA TIM & LOGO MEPET TENGAH KE SKOR */}
         <div className="flex items-center justify-center gap-2 sm:gap-3">
-          {/* Tim A (Nama Tim -> Logo, Mepet Kanan ke Skor) */}
+          {/* Tim A */}
           <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
             <span className="text-[11px] sm:text-xs font-semibold text-sky-600 dark:text-sky-400 truncate leading-tight">
               {match.teamAName}
@@ -89,14 +90,14 @@ export function MatchChatCard({
             />
           </div>
 
-          {/* Badge Skor di Titik Tengah */}
+          {/* Skor di Titik Tengah */}
           <div className="shrink-0">
             <span className="px-2.5 py-0.5 rounded-md font-mono text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
               {scoreDisplay}
             </span>
           </div>
 
-          {/* Tim B (Logo -> Nama Tim, Mepet Kiri dari Skor) */}
+          {/* Tim B */}
           <div className="flex items-center justify-start gap-1.5 min-w-0 flex-1 text-left">
             <img
               src={match.teamBLogo || "/placeholder-team.png"}
@@ -110,11 +111,10 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* BARIS 2: WASIT & STREAMER DI KIRI, ID MATCH DI KANAN */}
+        {/* BARIS 2: WASIT & STREAMER DI KIRI, ID MATCH & NAMA CHANNEL DI KANAN */}
         <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-2">
-          {/* Petugas di Kiri (Wasit + Streamer) */}
+          {/* Petugas di Kiri */}
           <div className="flex items-center gap-3 min-w-0 flex-wrap">
-            {/* Wasit */}
             <div className="flex items-center gap-1 shrink-0">
               <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
               <span>
@@ -122,7 +122,6 @@ export function MatchChatCard({
               </span>
             </div>
 
-            {/* Streamer */}
             <div className="flex items-center gap-1 shrink-0">
               <Tv className="h-3 w-3 text-purple-500 shrink-0" />
               <span>
@@ -131,10 +130,13 @@ export function MatchChatCard({
             </div>
           </div>
 
-          {/* ID Match di Pojok Kanan */}
-          <div className="shrink-0 font-mono text-[10px] ml-auto">
-            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs whitespace-nowrap">
+          {/* ID Match + Nama Channel Discord di Pojok Kanan */}
+          <div className="shrink-0 flex items-center gap-1 font-mono text-[10px] ml-auto">
+            <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs whitespace-nowrap">
               W{match.weekNumber || 1} · {match.id}
+            </span>
+            <span className="px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium inline-flex items-center gap-0.5 border border-border whitespace-nowrap">
+              <Hash className="h-2.5 w-2.5" /> {displayChannelName}
             </span>
           </div>
         </div>
@@ -232,4 +234,4 @@ export function MatchChatCard({
       </div>
     </div>
   );
-}
+    }
