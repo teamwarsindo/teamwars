@@ -1,57 +1,58 @@
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 
+export const COMMON_DISCORD_EMOJIS: Record<string, string> = {
+  ":smile:": "😄",
+  ":joy:": "😂",
+  ":fire:": "🔥",
+  ":thumbsup:": "👍",
+  ":thumbsdown:": "👎",
+  ":heart:": "❤️",
+  ":sob:": "😭",
+  ":skull:": "💀",
+  ":thinking:": "🤔",
+  ":ok_hand:": "👌",
+  ":pray:": "🙏",
+  ":swords:": "⚔️",
+  ":trophy:": "🏆",
+  ":eyes:": "👀",
+  ":100:": "💯",
+  ":tada:": "🎉",
+};
+
 export function formatDiscordTimeOnly(isoString: string): string {
-  if (!isoString) return "";
-  try {
-    const date = new Date(isoString);
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    return `${hours}.${minutes} WIB`;
-  } catch {
-    return "";
-  }
+  if (!isoString) return "-";
+  const date = new Date(isoString);
+  return (
+    date.toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Jakarta",
+    }) + " WIB"
+  );
 }
 
 export function formatDiscordDateHeader(isoString: string): string {
   if (!isoString) return "";
-  try {
-    const date = new Date(isoString);
-    const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-    const months = [
-      "Januari",
-      "Februari",
-      "Maret",
-      "April",
-      "Mei",
-      "Juni",
-      "Juli",
-      "Agustus",
-      "September",
-      "Oktober",
-      "November",
-      "Desember",
-    ];
-    return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
-  } catch {
-    return "";
-  }
+  const date = new Date(isoString);
+  return date.toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Jakarta",
+  });
 }
 
 export function parseDiscordMarkdown(
-  rawContent: string,
-  userMentions: Record<string, { name: string; color?: string }> = {},
-  roleMentions: Record<string, { name: string; color?: string }> = {},
-  channelMentions: Record<string, { name: string }> = {},
+  content: string,
+  userMentions?: Record<string, any>,
+  roleMentions?: Record<string, any>,
+  channelMentions?: Record<string, any>,
   match?: MatchScheduleItem,
-  playerTeamMap: Record<string, any> = {}
+  playerTeamMap: Record<string, { teamSlug: string; ign: string } | string> = {}
 ): string {
-  if (!rawContent) return "";
-
-  // 1. Escape HTML Entities
-  let parsed = rawContent
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  if (!content) return "";
 
   const teamASlug = (match?.teamAId || (match as any)?.teamACode || match?.teamAName || "")
     .toLowerCase()
@@ -59,98 +60,124 @@ export function parseDiscordMarkdown(
   const teamBSlug = (match?.teamBId || (match as any)?.teamBCode || match?.teamBName || "")
     .toLowerCase()
     .replace(/\s+/g, "-");
+  const matchReferee = (match?.referee || "").trim().toLowerCase();
+  const matchStreamer = (match?.streamer || "").trim().toLowerCase();
 
-  const cleanTeamAName = (match?.teamAName || "").toLowerCase();
-  const cleanTeamBName = (match?.teamBName || "").toLowerCase();
-
-  const getAffiliation = (key: string): { teamSlug: string; ign?: string } | null => {
+  // Helper pencocokan 2-tahap Discord -> TeamSlug & IGN
+  const resolvePlayerData = (key: string) => {
     if (!key) return null;
     const cleanKey = key.trim().toLowerCase();
-    const target =
-      playerTeamMap[cleanKey] ||
+
+    const direct = playerTeamMap[cleanKey] || 
       Object.entries(playerTeamMap).find(([k]) => k.toLowerCase() === cleanKey)?.[1];
 
-    if (!target) return null;
-    if (typeof target === "string") return { teamSlug: target.toLowerCase(), ign: key };
+    if (!direct) return null;
+
+    if (typeof direct === "string") {
+      return { teamSlug: direct.toLowerCase(), ign: key };
+    }
     return {
-      teamSlug: (target.teamSlug || "").toLowerCase(),
-      ign: target.ign || key,
+      teamSlug: (direct.teamSlug || "").toLowerCase(),
+      ign: direct.ign || key,
     };
   };
 
-  // 2. Custom Discord Emojis (<:name:id> atau <a:name:id>)
-  parsed = parsed.replace(
-    /&lt;(a)?:([a-zA-Z0-9_~]+):(\d+)&gt;/g,
-    (_, animated, name, id) => {
-      const ext = animated ? "gif" : "webp";
-      const emojiUrl = `https://cdn.discordapp.com/emojis/${id}.${ext}?size=44&quality=lossless`;
-      return `<img src="${emojiUrl}" alt=":${name}:" title=":${name}:" class="inline-block h-5 w-5 align-text-bottom object-contain mx-0.5 pointer-events-none select-none" loading="lazy" />`;
+  // 1. URL clickable
+  let formatted = content.replace(
+    /\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-sky-500 hover:text-sky-400 font-medium underline underline-offset-2 break-all">$1</a>'
+  );
+
+  formatted = formatted.replace(
+    /(?<!href=")(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-sky-500 hover:text-sky-400 font-medium underline underline-offset-2 break-all">$1</a>'
+  );
+
+  // 2. Bold, Italic, Strike, Code Markdown
+  formatted = formatted
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+    .replace(/~~(.*?)~~/g, '<del class="line-through text-muted-foreground">$1</del>')
+    .replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded font-mono text-[11px] text-foreground border border-border">$1</code>');
+
+  // 3. Custom Discord Emoji CDN
+  formatted = formatted.replace(
+    /<(a)?:([a-zA-Z0-9_~]+):([0-9]+)>/g,
+    (_, isAnimated, name, id) => {
+      const ext = isAnimated ? "gif" : "webp";
+      return `<img src="https://cdn.discordapp.com/emojis/${id}.${ext}?size=44&quality=lossless" alt=":${name}:" title=":${name}:" class="inline-block h-5 w-5 align-sub mx-0.5 object-contain" />`;
     }
   );
 
-  // 3. User Mentions (<@userId> atau <@!userId>) dengan Resolusi Tim & IGN
-  parsed = parsed.replace(/&lt;@!?(\d+)&gt;/g, (_, userId) => {
-    const rawName = userMentions[userId]?.name || `user-${userId.slice(-4)}`;
-    const affiliation = getAffiliation(userId) || getAffiliation(rawName);
-
-    const displayName = affiliation?.ign || rawName;
-    const slug = affiliation?.teamSlug || "";
-
-    const isTeam1 = Boolean(
-      slug &&
-      (slug === teamASlug || teamASlug.includes(slug) || (cleanTeamAName && cleanTeamAName.includes(slug.replace(/-/g, " "))))
-    );
-    const isTeam2 = Boolean(
-      slug &&
-      (slug === teamBSlug || teamBSlug.includes(slug) || (cleanTeamBName && cleanTeamBName.includes(slug.replace(/-/g, " "))))
-    );
-
-    let badgeClass = "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30";
-    if (isTeam1) {
-      badgeClass = "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30";
-    } else if (isTeam2) {
-      badgeClass = "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30";
-    }
-
-    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded-md font-semibold text-[11px] border ${badgeClass}">@${displayName}</span>`;
-  });
-
-  // 4. Role Mentions (<@&roleId>)
-  parsed = parsed.replace(/&lt;@&amp;(\d+)&gt;/g, (_, roleId) => {
-    const roleInfo = roleMentions[roleId];
-    const roleName = roleInfo?.name || "role";
-    const roleColor = roleInfo?.color;
-
-    const customStyle = roleColor
-      ? `style="color: ${roleColor}; background-color: ${roleColor}1A; border-color: ${roleColor}33;"`
-      : "";
-
-    const defaultClass = !roleColor
-      ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
-      : "";
-
-    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded-md font-semibold text-[11px] border ${defaultClass}" ${customStyle}>@${roleName}</span>`;
-  });
-
-  // 5. Channel Mentions (<#channelId>) — Render Nama Channel Asli
-  parsed = parsed.replace(/&lt;#(\d+)&gt;/g, (_, chId) => {
-    const chName = channelMentions[chId]?.name || `channel-${chId.slice(-4)}`;
-    return `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-md font-semibold text-[11px] bg-primary/15 text-primary border border-primary/30">#${chName}</span>`;
-  });
-
-  // 6. Text Formatting (Bold, Italic, Strikethrough, Code, Codeblock)
-  parsed = parsed.replace(/```([\s\S]*?)```/g, '<pre class="bg-muted/80 p-2 rounded-lg my-1 text-[11px] font-mono overflow-x-auto border border-border"><code>$1</code></pre>');
-  parsed = parsed.replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-[11px] font-mono border border-border">$1</code>');
-  parsed = parsed.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>");
-  parsed = parsed.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  parsed = parsed.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  parsed = parsed.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-
-  // 7. Auto Link Detection
-  parsed = parsed.replace(
-    /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline break-all font-medium inline-flex items-center gap-0.5">$1</a>'
-  );
-
-  return parsed;
+  // 4. Shortcode Emojis
+  for (const [code, emoji] of Object.entries(COMMON_DISCORD_EMOJIS)) {
+    formatted = formatted.replaceAll(code, emoji);
   }
+
+  // 5. Everyone & Here Mentions
+  formatted = formatted.replace(
+    /(@everyone|@here)/g,
+    '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-semibold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">$1</span>'
+  );
+
+  // 6. User Mentions: Cocokkan Username Discord -> Team Slug -> Render @IGN Sesuai Warna Tim
+  formatted = formatted.replace(/<@!?([0-9]+)>/g, (_, userId) => {
+    const u = userMentions?.[userId];
+    const rawUsername = typeof u === "object" ? u?.name : (u || "User");
+    const uLower = rawUsername.toLowerCase();
+
+    // Cari data via username discord
+    const playerData = resolvePlayerData(uLower) || resolvePlayerData(userId);
+    const displayName = playerData?.ign || rawUsername;
+    const userTeamSlug = playerData?.teamSlug || "";
+
+    const isU1 = Boolean(userTeamSlug && (userTeamSlug === teamASlug || teamASlug.includes(userTeamSlug)));
+    const isU2 = Boolean(userTeamSlug && (userTeamSlug === teamBSlug || teamBSlug.includes(userTeamSlug)));
+
+    const isURef = Boolean(
+      (match?.refereeDiscordId && userId === match.refereeDiscordId) ||
+      (matchReferee && matchReferee !== "-" && (uLower.includes(matchReferee) || matchReferee.includes(uLower)))
+    );
+    const isUStr = Boolean(
+      (match?.streamerDiscordId && userId === match.streamerDiscordId) ||
+      (matchStreamer && matchStreamer !== "-" && (uLower.includes(matchStreamer) || matchStreamer.includes(uLower)))
+    );
+
+    let tagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
+    if (isURef) tagStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
+    else if (isUStr) tagStyle = "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30";
+    else if (isU1) tagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
+    else if (isU2) tagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
+
+    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${tagStyle}">@${displayName}</span>`;
+  });
+
+  // 7. Role Mentions
+  formatted = formatted.replace(/<@&([0-9]+)>/g, (_, roleId) => {
+    const r = roleMentions?.[roleId];
+    const roleName = typeof r === "object" ? r?.name : (r || "Role");
+    const rLower = roleName.toLowerCase();
+
+    const isTeam1Role = (match as any)?.roleAId === roleId || (match?.teamAName && rLower.includes(match.teamAName.toLowerCase()));
+    const isTeam2Role = (match as any)?.roleBId === roleId || (match?.teamBName && rLower.includes(match.teamBName.toLowerCase()));
+    const isRefereeRole = rLower.includes("wasit") || rLower.includes("referee") || rLower.includes("ref");
+    const isStreamerRole = rLower.includes("streamer") || rLower.includes("caster") || rLower.includes("stream");
+
+    let roleTagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
+    if (isTeam1Role) roleTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
+    else if (isTeam2Role) roleTagStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
+    else if (isRefereeRole) roleTagStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
+    else if (isStreamerRole) roleTagStyle = "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30";
+
+    return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${roleTagStyle}">@${roleName}</span>`;
+  });
+
+  // 8. Channel Mentions
+  formatted = formatted.replace(/<#([0-9]+)>/g, (_, channelId) => {
+    const ch = channelMentions?.[channelId];
+    const channelName = typeof ch === "object" ? ch?.name : (ch || "channel");
+    return `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20 align-middle">#${channelName}</span>`;
+  });
+
+  return formatted;
+              }
