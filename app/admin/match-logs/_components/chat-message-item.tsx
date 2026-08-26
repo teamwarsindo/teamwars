@@ -164,7 +164,7 @@ export function ChatMessageItem({
       <img
         src={match?.teamBLogo || "/placeholder-team.png"}
         alt=""
-        className="h-4 w-4 rounded-full border border-amber-500/40 object-cover inline-block shadow-2xs"
+        className="h-4 w-4 rounded-full border border-amber-500/40 object-cover shrink-0 inline-block shadow-2xs"
         onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
       />
     );
@@ -179,10 +179,10 @@ export function ChatMessageItem({
             : "hover:bg-muted/40"
         }`}
       >
-        {/* SIKU REPLY DENGAN PARSER EMOJI / MARKDOWN LENGKAP */}
+        {/* SIKU REPLY */}
         {msg.replyTo && (
-          <div className="relative flex items-center gap-1.5 pl-12 pr-2 pb-1 text-[11px] text-muted-foreground font-medium min-w-0">
-            <div className="absolute left-6 top-2 h-3.5 w-5 border-l-2 border-t-2 border-muted-foreground/40 rounded-tl-md pointer-events-none" />
+          <div className="relative flex items-center gap-1.5 pl-11 pr-2 pb-1 text-[11px] text-muted-foreground font-medium min-w-0">
+            <div className="absolute left-5 top-2.5 h-3 w-4 border-l-2 border-t-2 border-muted-foreground/40 rounded-tl-md pointer-events-none" />
 
             {msg.replyTo.isDeleted ? (
               <span className="inline-flex items-center gap-1 italic text-muted-foreground/70 truncate">
@@ -204,9 +204,9 @@ export function ChatMessageItem({
                   @{msg.replyTo.authorName}
                 </span>
 
-                {/* Render Teks Reply melalui Markdown & Emoji Parser */}
+                {/* Kontainer Kutipan Teks dengan line-clamp halus */}
                 <div
-                  className="italic text-muted-foreground/75 truncate min-w-0 flex-1 flex items-center gap-1"
+                  className="italic text-muted-foreground/75 min-w-0 flex-1 line-clamp-1 break-all"
                   dangerouslySetInnerHTML={{
                     __html: msg.replyTo.content
                       ? parseDiscordMarkdown(
@@ -365,4 +365,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-}
+                  }
