@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatDiscordTimeOnly, parseDiscordMarkdown } from "../_utils/discord-parser";
 import { Image as ImageIcon, ExternalLink, Shield, Tv, ShieldAlert, Forward, MessageSquareOff } from "lucide-react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
@@ -53,6 +53,17 @@ export function ChatMessageItem({
   isHighlighted = false,
 }: ChatMessageItemProps) {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (previewImage) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [previewImage]);
 
   const name1 = (msg.authorGlobalName || "").trim();
   const name2 = (msg.authorName || "").trim();
@@ -168,7 +179,7 @@ export function ChatMessageItem({
             : "hover:bg-muted/40"
         }`}
       >
-        {/* SIKU REPLY 1 LINE PERSIS DISCORD */}
+        {/* SIKU REPLY 1 LINE */}
         {msg.replyTo && (
           <div className="relative flex items-center gap-1.5 pl-12 pr-2 pb-1 text-[11px] text-muted-foreground font-medium min-w-0">
             <div className="absolute left-6 top-2 h-3.5 w-5 border-l-2 border-t-2 border-muted-foreground/40 rounded-tl-md pointer-events-none" />
@@ -277,7 +288,7 @@ export function ChatMessageItem({
               </div>
             )}
 
-            {/* LAMPIRAN GAMBAR UTAMA */}
+            {/* LAMPIRAN GAMBAR */}
             {msg.attachments && msg.attachments.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-2">
                 {msg.attachments.map((att, idx) => (
@@ -310,7 +321,7 @@ export function ChatMessageItem({
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs overscroll-contain"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -339,5 +350,4 @@ export function ChatMessageItem({
       )}
     </>
   );
-                                                        }
-          
+}

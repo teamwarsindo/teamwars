@@ -1,64 +1,58 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense } from "react";
-import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
+import { useState, useEffect } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
-import { MatchSearchInput } from "./_components/match-search-input";
 import { MatchChatCard } from "./_components/match-chat-card";
-import { ChatLogMessage } from "./_components/chat-message-item";
-import { AlertCircle, MessageSquare, Database } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import Swal from "sweetalert2";
 
-function MatchLogViewerContent() {
+export default function MatchLogsAdminPage() {
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
-  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [loadingList, setLoadingList] = useState(true);
+  const [searchSchedule, setSearchSchedule] = useState("");
+  const [selectedMatchId, setSelectedMatchId] = useState<string>("");
+
+  const [chatLogs, setChatLogs] = useState<any[] | null>(null);
   const [channelName, setChannelName] = useState<string>("");
-  const [activeLogs, setActiveLogs] = useState<ChatLogMessage[] | null>(null);
-  const [playerTeamMap, setPlayerTeamMap] = useState<Record<string, string>>({});
+  const [playerTeamMap, setPlayerTeamMap] = useState<Record<string, any>>({});
   const [loadingChat, setLoadingChat] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
 
   useEffect(() => {
     async function loadSchedules() {
       try {
+        setLoadingList(true);
         const res = await fetch("/api/admin/match-logs");
-        const json = await res.json();
-        if (json.schedules) setSchedules(json.schedules);
+        const data = await res.json();
+        if (data.schedules) {
+          setSchedules(data.schedules);
+          if (data.schedules.length > 0 && !selectedMatchId) {
+            setSelectedMatchId(data.schedules[0].id);
+          }
+        }
       } catch (err) {
-        console.error("Gagal load schedules:", err);
+        console.error("Gagal memuat daftar match:", err);
+      } finally {
+        setLoadingList(false);
       }
     }
     loadSchedules();
   }, []);
 
   useEffect(() => {
-    if (!selectedMatchId) {
-      setActiveLogs(null);
-      setChannelName("");
-      return;
-    }
+    if (!selectedMatchId) return;
 
     async function loadLogs() {
       try {
         setLoadingChat(true);
         const res = await fetch(`/api/admin/match-logs?matchId=${selectedMatchId}`);
-        const json = await res.json();
-
-        const now = Date.now();
-        const logsWithBuster = (json.logs || []).map((msg: ChatLogMessage) => ({
-          ...msg,
-          attachments: (msg.attachments || []).map((att) => ({
-            ...att,
-            maskedUrl: `${att.maskedUrl.split("?")[0]}?t=${now}`,
-          })),
-        }));
-
-        setActiveLogs(logsWithBuster);
-        if (json.channelName) setChannelName(json.channelName);
-        if (json.playerTeamMap) setPlayerTeamMap(json.playerTeamMap);
+        const data = await res.json();
+        setChatLogs(data.logs || []);
+        setChannelName(data.channelName || "");
+        setPlayerTeamMap(data.playerTeamMap || {});
       } catch (err) {
-        console.error("Gagal load logs:", err);
-        setActiveLogs([]);
+        console.error("Gagal memuat log match:", err);
+        setChatLogs([]);
       } finally {
         setLoadingChat(false);
       }
@@ -66,21 +60,10 @@ function MatchLogViewerContent() {
     loadLogs();
   }, [selectedMatchId]);
 
-  const activeMatch = useMemo(
-    () => schedules.find((m) => m.id === selectedMatchId),
-    [schedules, selectedMatchId]
-  );
-
-  const handleBackupNow = async () => {
-    if (!activeMatch) return;
-    const channelId = activeMatch.discordChannelId;
-    if (!channelId) {
-      Swal.fire({
-        title: "Channel Belum Terhubung",
-        text: "Match ini belum memiliki Discord Channel ID di database.",
-        icon: "warning",
-        confirmButtonColor: "#AA1348",
-      });
+  const handleBackup = async () => {
+    const currentMatch = schedules.find((m) => m.id === selectedMatchId);
+    if (!currentMatch?.discordChannelId) {
+      Swal.fire("Info", "Channel Discord sudah tidak aktif / terhapus.", "info");
       return;
     }
 
@@ -90,141 +73,127 @@ function MatchLogViewerContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          matchId: activeMatch.id,
-          channelId,
-          week: activeMatch.weekNumber || 1,
+          matchId: selectedMatchId,
+          channelId: currentMatch.discordChannelId,
+          week: currentMatch.weekNumber || 1,
         }),
       });
-
-      const json = await res.json();
+      const data = await res.json();
       if (res.ok) {
-        const now = Date.now();
-        const freshLogs = (json.logs || []).map((msg: ChatLogMessage) => ({
-          ...msg,
-          attachments: (msg.attachments || []).map((att) => ({
-            ...att,
-            maskedUrl: `${att.maskedUrl.split("?")[0]}?t=${now}`,
-          })),
-        }));
-
-        setActiveLogs(freshLogs);
-        if (json.channelName) setChannelName(json.channelName);
-
-        Swal.fire({
-          title: "Backup Berhasil!",
-          text: `Tersimpan ${json.count} pesan dan bukti gambar ke database.`,
-          icon: "success",
-          confirmButtonColor: "#AA1348",
-        });
+        setChatLogs(data.logs);
+        setChannelName(data.channelName);
+        Swal.fire("Berhasil", data.message || "Log berhasil dicadangkan!", "success");
       } else {
-        throw new Error(json.error);
+        Swal.fire("Gagal", data.error || "Gagal mencadangkan log.", "error");
       }
     } catch (err: any) {
-      Swal.fire({
-        title: "Gagal Backup",
-        text: err.message || "Terjadi kendala saat mencadangkan pesan.",
-        icon: "error",
-        confirmButtonColor: "#AA1348",
-      });
+      Swal.fire("Error", err.message || "Terjadi kesalahan sistem.", "error");
     } finally {
       setIsBackingUp(false);
     }
   };
 
   const handleDeleteChannel = async () => {
-    if (!activeMatch) return;
+    const currentMatch = schedules.find((m) => m.id === selectedMatchId);
+    if (!currentMatch?.discordChannelId) return;
+
     try {
       const res = await fetch("/api/admin/match-logs", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          matchId: activeMatch.id,
-          channelId: activeMatch.discordChannelId,
-          refereeDiscordId: activeMatch.refereeDiscordId,
-          roleAId: (activeMatch as any).roleAId,
-          roleBId: (activeMatch as any).roleBId,
+          matchId: selectedMatchId,
+          channelId: currentMatch.discordChannelId,
+          refereeDiscordId: currentMatch.refereeDiscordId,
+          roleAId: (currentMatch as any).roleAId,
+          roleBId: (currentMatch as any).roleBId,
         }),
       });
-
-      const json = await res.json();
+      const data = await res.json();
       if (res.ok) {
-        if (json.schedules) {
-          setSchedules(json.schedules);
-        }
-        Swal.fire({
-          title: "Channel Dihapus!",
-          text: "Channel Discord berhasil dihapus dan metadata KV telah diperbarui.",
-          icon: "success",
-          confirmButtonColor: "#AA1348",
-        });
+        setSchedules((prev) =>
+          prev.map((m) =>
+            m.id === selectedMatchId ? { ...m, discordChannelId: undefined, discordLogsSaved: true } : m
+          )
+        );
+        Swal.fire("Terhapus", "Channel Discord berhasil dibersihkan.", "success");
       } else {
-        throw new Error(json.error);
+        Swal.fire("Gagal", data.error || "Gagal menghapus channel.", "error");
       }
     } catch (err: any) {
-      Swal.fire({
-        title: "Gagal Menghapus",
-        text: err.message || "Terjadi kendala saat menghapus channel di server.",
-        icon: "error",
-        confirmButtonColor: "#AA1348",
-      });
+      Swal.fire("Error", err.message || "Gagal menghapus channel.", "error");
     }
   };
 
+  const filteredSchedules = schedules.filter((m) => {
+    const q = searchSchedule.toLowerCase();
+    return (
+      m.id.toLowerCase().includes(q) ||
+      m.teamAName.toLowerCase().includes(q) ||
+      m.teamBName.toLowerCase().includes(q) ||
+      (m.referee && m.referee.toLowerCase().includes(q)) ||
+      (m.streamer && m.streamer.toLowerCase().includes(q))
+    );
+  });
+
+  const selectedMatch = schedules.find((m) => m.id === selectedMatchId);
+
   return (
-    <main className="flex-1 w-full max-w-4xl mx-auto p-3.5 sm:p-6 space-y-4 sm:space-y-5">
-      <HeroHeader showDetails={false} />
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
-        <div>
-   
-        <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-            Cari pertandingan untuk melihat riwayat percakapan Discord.
-          </p>
-        </div>
-
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold border bg-primary/10 text-primary border-primary/30 w-fit">
-          <Database className="h-3 w-3" /> Mode Arsip Terproteksi
-        </span>
+    <div className="container max-w-2xl mx-auto px-3 py-3 sm:py-4 space-y-3 pb-8">
+      {/* Search Input */}
+      <div className="relative">
+        <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+        <input
+          type="text"
+          value={searchSchedule}
+          onChange={(e) => setSearchSchedule(e.target.value)}
+          placeholder="Ketik nama tim, wasit, streamer, atau ID match"
+          className="w-full h-10 pl-10 pr-4 rounded-2xl bg-card border border-border text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-primary shadow-xs transition"
+        />
       </div>
 
-      <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
+      {searchSchedule.trim() !== "" && filteredSchedules.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {filteredSchedules.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => {
+                setSelectedMatchId(m.id);
+                setSearchSchedule("");
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer border ${
+                selectedMatchId === m.id
+                  ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                  : "bg-card hover:bg-muted text-muted-foreground border-border"
+              }`}
+            >
+              W{m.weekNumber || 1} · {m.teamAName} vs {m.teamBName}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {selectedMatchId && activeMatch ? (
+      {loadingList ? (
+        <div className="flex flex-col items-center justify-center p-12 text-muted-foreground space-y-2">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <span className="text-xs font-semibold">Memuat data arsip pertandingan...</span>
+        </div>
+      ) : selectedMatch ? (
         <MatchChatCard
-          match={activeMatch}
+          match={selectedMatch}
           channelName={channelName}
-          logs={activeLogs}
+          logs={chatLogs}
           loadingChat={loadingChat}
           isBackingUp={isBackingUp}
           playerTeamMap={playerTeamMap}
-          onBackup={handleBackupNow}
+          onBackup={handleBackup}
           onDeleteChannel={handleDeleteChannel}
         />
       ) : (
-        <div className="py-12 text-center border border-dashed border-border/80 rounded-2xl p-6 text-muted-foreground space-y-1.5 bg-card/30">
-          <AlertCircle className="h-6 w-6 mx-auto text-amber-500/80" />
-          <p className="text-xs font-semibold text-foreground">Belum Ada Pertandingan Dipilih</p>
-          <p className="text-[11px]">Silakan pilih pertandingan pada kolom pencarian di atas.</p>
+        <div className="text-center p-8 border border-border rounded-2xl bg-card text-xs text-muted-foreground">
+          Tidak ada pertandingan yang dipilih atau cocok dengan pencarian.
         </div>
       )}
-    </main>
-  );
-}
-
-export default function MatchLogPage() {
-  return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <TopBar title="Match Logs Archive" />
-      <Suspense
-        fallback={
-          <div className="flex-1 py-20 text-center text-xs font-bold text-muted-foreground animate-pulse">
-            ⏳ Memuat Log Archive...
-          </div>
-        }
-      >
-        <MatchLogViewerContent />
-      </Suspense>
-      <Footer />
     </div>
   );
 }

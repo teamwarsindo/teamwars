@@ -69,12 +69,9 @@ export function MatchChatCard({
 
   return (
     <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
-      {/* TOP HEADER CARD (DIRAMPINGKAN) */}
-      <div className="border-b border-border bg-muted/30 p-3 space-y-2">
-        
-        {/* 1. Tim Versus & Badge Match Info */}
+      {/* Header Sticky */}
+      <div className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur-md p-3 space-y-2 shadow-xs">
         <div className="flex items-center justify-between gap-2">
-          {/* Logo & Nama Tim A vs Tim B */}
           <div className="flex items-center gap-1.5 min-w-0 text-xs font-semibold">
             <img
               src={match.teamALogo || "/placeholder-team.png"}
@@ -82,10 +79,10 @@ export function MatchChatCard({
               className="h-5 w-5 rounded-full border border-sky-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="text-sky-600 dark:text-sky-400 truncate max-w-[90px] sm:max-w-[140px]">
+            <span className="text-sky-600 dark:text-sky-400 truncate max-w-[100px] sm:max-w-[140px]">
               {match.teamAName}
             </span>
-            
+
             <span className="text-[10px] text-muted-foreground font-normal shrink-0 px-0.5">vs</span>
 
             <img
@@ -94,12 +91,11 @@ export function MatchChatCard({
               className="h-5 w-5 rounded-full border border-amber-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="text-amber-600 dark:text-amber-400 truncate max-w-[90px] sm:max-w-[140px]">
+            <span className="text-amber-600 dark:text-amber-400 truncate max-w-[100px] sm:max-w-[140px]">
               {match.teamBName}
             </span>
           </div>
 
-          {/* Badges W2 & Channel Name */}
           <div className="flex items-center gap-1 shrink-0 font-mono text-[10px]">
             <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-semibold border border-primary/20">
               W{match.weekNumber || 1} · {match.id}
@@ -110,7 +106,6 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* 2. Petugas: Wasit & Streamer */}
         <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground">
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1">
@@ -124,7 +119,6 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* 3. Action Bar: Search Input + Backup & Delete Buttons */}
         <div className="flex items-center gap-1.5 pt-0.5">
           <div className="relative flex-1">
             <input
@@ -132,7 +126,7 @@ export function MatchChatCard({
               value={chatSearch}
               onChange={(e) => setChatSearch(e.target.value)}
               placeholder="Cari kata di obrolan..."
-              className="w-full bg-background border border-border rounded-lg h-8 px-2.5 pl-7 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full bg-muted/40 border border-border rounded-lg h-8 px-2.5 pl-7 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           </div>
@@ -161,8 +155,8 @@ export function MatchChatCard({
         </div>
       </div>
 
-      {/* Body Percakapan */}
-      <div className="h-[520px] overflow-y-auto p-3 sm:p-4 space-y-3 bg-background/50">
+      {/* Body Chat Scrollable */}
+      <div className="h-[calc(100dvh-280px)] min-h-[380px] max-h-[620px] overflow-y-auto p-3 sm:p-4 space-y-3 bg-background/50 overscroll-contain">
         {loadingChat ? (
           <div className="flex h-full items-center justify-center text-xs font-semibold text-muted-foreground animate-pulse">
             ⏳ Memuat riwayat pesan...
