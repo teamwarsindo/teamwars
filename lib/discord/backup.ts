@@ -165,12 +165,41 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
+    // Rekam mention dari pesan yang dibalas agar tidak menghasilkan @User
+    if (msg.referenced_message && Array.isArray(msg.referenced_message.mentions)) {
+      msg.referenced_message.mentions.forEach((u: any) => {
+        const targetMember = memberDetailsMap[u.id];
+        if (!userMentions[u.id]) {
+          userMentions[u.id] = {
+            name: targetMember?.nick || u.global_name || u.username,
+          };
+        }
+      });
+    }
+
     const roleMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mention_roles)) {
       msg.mention_roles.forEach((rId: string) => {
         const r = guildRolesMap[rId];
         if (r) roleMentions[rId] = { name: r.name, color: r.color };
       });
+    }
+
+    // Rekam channel mention (<#channelId>)
+    const channelMentions: Record<string, { name: string }> = {};
+    const channelMatches = (msg.content || '').match(/<#(\d+)>/g);
+    if (channelMatches) {
+      for (const m of channelMatches) {
+        const cId = m.replace(/[<#>]/g, '');
+        if (!channelMentions[cId]) {
+          try {
+            const ch = await discordAPI(`/channels/${cId}`, 'GET');
+            channelMentions[cId] = { name: ch?.name || 'channel' };
+          } catch {
+            channelMentions[cId] = { name: 'channel' };
+          }
+        }
+      }
     }
 
     // 1. Forwarded Message (Pastikan bersih dari reply)
@@ -293,6 +322,7 @@ export async function backupDiscordChannelMessages(params: {
       timestamp: msg.timestamp,
       userMentions,
       roleMentions,
+      channelMentions,
       replyTo,
       forwarded,
       attachments,
@@ -303,4 +333,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-  }
+}
