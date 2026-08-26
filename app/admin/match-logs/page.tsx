@@ -171,23 +171,29 @@ function MatchLogViewerContent() {
   };
 
   return (
-    <main className="flex-1 w-full max-w-4xl mx-auto p-3 sm:p-4 space-y-3">
-      <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
+    <main className="flex-1 min-h-0 w-full max-w-4xl mx-auto px-3 py-2 flex flex-col gap-2 overflow-hidden">
+      {/* Search Bar Tetap */}
+      <div className="shrink-0">
+        <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
+      </div>
 
+      {/* Konten Chat Otomatis Menyesuaikan Sisa Layar */}
       {selectedMatchId && activeMatch ? (
-        <MatchChatCard
-          match={activeMatch}
-          channelName={channelName}
-          logs={activeLogs}
-          loadingChat={loadingChat}
-          isBackingUp={isBackingUp}
-          playerTeamMap={playerTeamMap}
-          onBackup={handleBackupNow}
-          onDeleteChannel={handleDeleteChannel}
-        />
+        <div className="flex-1 min-h-0 flex flex-col">
+          <MatchChatCard
+            match={activeMatch}
+            channelName={channelName}
+            logs={activeLogs}
+            loadingChat={loadingChat}
+            isBackingUp={isBackingUp}
+            playerTeamMap={playerTeamMap}
+            onBackup={handleBackupNow}
+            onDeleteChannel={handleDeleteChannel}
+          />
+        </div>
       ) : (
-        <div className="py-12 text-center border border-dashed border-border/80 rounded-2xl p-6 text-muted-foreground space-y-1.5 bg-card/30">
-          <AlertCircle className="h-6 w-6 mx-auto text-amber-500/80" />
+        <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-border/80 rounded-2xl p-4 text-muted-foreground space-y-1.5 bg-card/30">
+          <AlertCircle className="h-6 w-6 text-amber-500/80" />
           <p className="text-xs font-semibold text-foreground">Belum Ada Pertandingan Dipilih</p>
           <p className="text-[11px]">Silakan pilih pertandingan pada kolom pencarian di atas.</p>
         </div>
@@ -198,18 +204,22 @@ function MatchLogViewerContent() {
 
 export default function MatchLogPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between">
-      <TopBar title="Match Logs Archive" />
+    <div className="h-dvh max-h-dvh overflow-hidden bg-background text-foreground flex flex-col">
+      <div className="shrink-0">
+        <TopBar title="Match Logs Archive" />
+      </div>
       <Suspense
         fallback={
-          <div className="flex-1 py-20 text-center text-xs font-bold text-muted-foreground animate-pulse">
+          <div className="flex-1 flex items-center justify-center text-xs font-bold text-muted-foreground animate-pulse">
             ⏳ Memuat Log Archive...
           </div>
         }
       >
         <MatchLogViewerContent />
       </Suspense>
-      <Footer />
+      <div className="shrink-0">
+        <Footer />
+      </div>
     </div>
   );
 }

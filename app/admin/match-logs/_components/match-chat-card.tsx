@@ -65,20 +65,18 @@ export function MatchChatCard({
     });
   };
 
-  // Format skor (ambil dari properti score match jika ada)
   const scoreA = (match as any)?.scoreA ?? (match as any)?.teamAScore ?? "-";
   const scoreB = (match as any)?.scoreB ?? (match as any)?.teamBScore ?? "-";
   const scoreDisplay = `${scoreA} - ${scoreB}`;
 
   return (
-    <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
-      {/* HEADER STICKY */}
-      <div className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur-md p-3 space-y-2 shadow-xs">
-        
-        {/* Baris 1: Logo di kiri nama masing-masing tim & Skor di tengah */}
-        <div className="flex items-center justify-between gap-2">
-          {/* Tim A (Logo di kiri) */}
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+    <div className="h-full flex-1 min-h-0 rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
+      {/* HEADER CARD (TIDAK BISA SCROLL) */}
+      <div className="shrink-0 border-b border-border bg-card p-3 space-y-2 shadow-xs">
+        {/* Baris 1: Simetris Tim A - Skor - Tim B */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          {/* Tim A */}
+          <div className="flex items-center gap-1.5 min-w-0">
             <img
               src={match.teamALogo || "/placeholder-team.png"}
               alt=""
@@ -90,30 +88,29 @@ export function MatchChatCard({
             </span>
           </div>
 
-          {/* Badge Skor di Tengah */}
-          <div className="shrink-0 px-2">
-            <span className="px-2 py-0.5 rounded-md font-mono text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
+          {/* Skor di Tengah */}
+          <div className="px-2">
+            <span className="px-2.5 py-0.5 rounded-md font-mono text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
               {scoreDisplay}
             </span>
           </div>
 
-          {/* Tim B (Logo di kiri) */}
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
+          {/* Tim B */}
+          <div className="flex items-center gap-1.5 min-w-0 justify-end">
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 truncate leading-tight text-right">
+              {match.teamBName}
+            </span>
             <img
               src={match.teamBLogo || "/placeholder-team.png"}
               alt=""
               className="h-5 w-5 rounded-full border border-amber-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 truncate leading-tight">
-              {match.teamBName}
-            </span>
           </div>
         </div>
 
-        {/* Baris 2: Wasit | [W... · match-...] | Streamer */}
-        <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground">
-          {/* Wasit */}
+        {/* Baris 2: Wasit | ID Match | Streamer */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-1">
           <div className="flex items-center gap-1 min-w-0">
             <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
             <span className="truncate">
@@ -121,14 +118,12 @@ export function MatchChatCard({
             </span>
           </div>
 
-          {/* ID Match */}
-          <div className="shrink-0 px-2 font-mono text-[10px]">
+          <div className="font-mono text-[10px] px-1 text-center">
             <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs">
               W{match.weekNumber || 1} · {match.id}
             </span>
           </div>
 
-          {/* Streamer */}
           <div className="flex items-center justify-end gap-1 min-w-0 text-right">
             <Tv className="h-3 w-3 text-purple-500 shrink-0" />
             <span className="truncate">
@@ -137,7 +132,7 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* Baris 3: Search Input + Action Buttons */}
+        {/* Baris 3: Search + Action Buttons */}
         <div className="flex items-center gap-1.5 pt-0.5">
           <div className="relative flex-1">
             <input
@@ -174,8 +169,8 @@ export function MatchChatCard({
         </div>
       </div>
 
-      {/* BODY CHAT SCROLLABLE (Ketinggian proporsional agar footer tetap kelihatan di layar HP) */}
-      <div className="h-[calc(100dvh-370px)] min-h-[300px] max-h-[520px] overflow-y-auto p-3 sm:p-4 space-y-3 bg-background/50 overscroll-contain">
+      {/* BODY CHAT (SATU-SATUNYA AREA YANG DI-SCROLL) */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-background/50 overscroll-contain">
         {loadingChat ? (
           <div className="flex h-full items-center justify-center text-xs font-semibold text-muted-foreground animate-pulse">
             ⏳ Memuat riwayat pesan...
