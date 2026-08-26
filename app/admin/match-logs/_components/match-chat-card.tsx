@@ -4,7 +4,7 @@ import { useState, useMemo, Fragment } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 import { ChatMessageItem, ChatLogMessage } from "./chat-message-item";
 import { formatDiscordDateHeader } from "../_utils/discord-parser";
-import { Search, RefreshCw, Trash2, Hash, ShieldAlert, Shield, Tv } from "lucide-react";
+import { Search, RefreshCw, Trash2, ShieldAlert, Shield, Tv } from "lucide-react";
 import Swal from "sweetalert2";
 
 interface MatchChatCardProps {
@@ -65,60 +65,71 @@ export function MatchChatCard({
     });
   };
 
-  const displayChannelName = channelName || `⚔️-${match.id}`;
-
   return (
     <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
-      {/* Header Sticky */}
+      {/* HEADER STICKY */}
       <div className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur-md p-3 space-y-2 shadow-xs">
+        
+        {/* Baris 1: Tim vs Tim 1 Baris Utuh (Lega & Tidak Terpotong) */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0 text-xs font-semibold">
+          {/* Tim A */}
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <img
               src={match.teamALogo || "/placeholder-team.png"}
               alt=""
               className="h-5 w-5 rounded-full border border-sky-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="text-sky-600 dark:text-sky-400 truncate max-w-[100px] sm:max-w-[140px]">
+            <span className="text-xs font-semibold text-sky-600 dark:text-sky-400 break-words leading-tight">
               {match.teamAName}
             </span>
+          </div>
 
-            <span className="text-[10px] text-muted-foreground font-normal shrink-0 px-0.5">vs</span>
+          <span className="text-[10px] font-bold text-muted-foreground uppercase px-1 shrink-0">
+            vs
+          </span>
 
+          {/* Tim B */}
+          <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 break-words leading-tight">
+              {match.teamBName}
+            </span>
             <img
               src={match.teamBLogo || "/placeholder-team.png"}
               alt=""
               className="h-5 w-5 rounded-full border border-amber-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="text-amber-600 dark:text-amber-400 truncate max-w-[100px] sm:max-w-[140px]">
-              {match.teamBName}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0 font-mono text-[10px]">
-            <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-semibold border border-primary/20">
-              W{match.weekNumber || 1} · {match.id}
-            </span>
-            <span className="px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-medium hidden sm:inline-flex items-center gap-0.5 border border-border">
-              <Hash className="h-2.5 w-2.5" /> {displayChannelName}
-            </span>
           </div>
         </div>
 
+        {/* Baris 2: Wasit | [W... · match-...] | Streamer */}
         <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1">
-              <Shield className="h-3 w-3 text-emerald-500" />
+          {/* Wasit */}
+          <div className="flex items-center gap-1 min-w-0">
+            <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
+            <span className="truncate">
               Wasit: <strong className="text-emerald-600 dark:text-emerald-400 font-medium">{match.referee || "-"}</strong>
             </span>
-            <span className="inline-flex items-center gap-1">
-              <Tv className="h-3 w-3 text-purple-500" />
+          </div>
+
+          {/* ID Match di Tengah */}
+          <div className="shrink-0 px-2 font-mono text-[10px]">
+            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs">
+              W{match.weekNumber || 1} · {match.id}
+            </span>
+          </div>
+
+          {/* Streamer */}
+          <div className="flex items-center justify-end gap-1 min-w-0 text-right">
+            <Tv className="h-3 w-3 text-purple-500 shrink-0" />
+            <span className="truncate">
               Streamer: <strong className="text-purple-600 dark:text-purple-400 font-medium">{match.streamer || "-"}</strong>
             </span>
           </div>
         </div>
 
+        {/* Baris 3: Search Input + Backup & Delete Actions */}
         <div className="flex items-center gap-1.5 pt-0.5">
           <div className="relative flex-1">
             <input
@@ -155,7 +166,7 @@ export function MatchChatCard({
         </div>
       </div>
 
-      {/* Body Chat Scrollable */}
+      {/* BODY CHAT SCROLLABLE */}
       <div className="h-[calc(100dvh-280px)] min-h-[380px] max-h-[620px] overflow-y-auto p-3 sm:p-4 space-y-3 bg-background/50 overscroll-contain">
         {loadingChat ? (
           <div className="flex h-full items-center justify-center text-xs font-semibold text-muted-foreground animate-pulse">
