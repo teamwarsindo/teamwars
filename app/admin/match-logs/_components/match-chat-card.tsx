@@ -120,7 +120,7 @@ export function MatchChatCard({
 
           <div className="font-mono text-[10px] px-1 text-center">
             <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs">
-              W{match.weekNumber || 1} · {match.id}
+              {match.id}
             </span>
           </div>
 
