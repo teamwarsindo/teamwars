@@ -74,69 +74,72 @@ export function MatchChatCard({
       {/* HEADER CARD */}
       <div className="shrink-0 border-b border-border bg-card p-2.5 sm:p-3 space-y-2 shadow-xs">
         
-        {/* Baris 1: Tim A - Skor - Tim B (Nama Utuh Tanpa Terpotong) */}
-        <div className="flex items-center justify-between gap-1.5">
-          {/* Tim A */}
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        {/* BARIS 1: NAMA TIM & LOGO MEPET TENGAH KE SKOR */}
+        <div className="flex items-center justify-center gap-2 sm:gap-3">
+          {/* Tim A (Nama Tim -> Logo, Mepet Kanan ke Skor) */}
+          <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
+            <span className="text-[11px] sm:text-xs font-semibold text-sky-600 dark:text-sky-400 truncate leading-tight">
+              {match.teamAName}
+            </span>
             <img
               src={match.teamALogo || "/placeholder-team.png"}
               alt=""
               className="h-5 w-5 rounded-full border border-sky-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="text-[11px] sm:text-xs font-semibold text-sky-600 dark:text-sky-400 leading-tight break-words">
-              {match.teamAName}
-            </span>
           </div>
 
-          {/* Skor di Tengah */}
-          <div className="shrink-0 px-1">
-            <span className="px-2 py-0.5 rounded-md font-mono text-[11px] sm:text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
+          {/* Badge Skor di Titik Tengah */}
+          <div className="shrink-0">
+            <span className="px-2.5 py-0.5 rounded-md font-mono text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
               {scoreDisplay}
             </span>
           </div>
 
-          {/* Tim B */}
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end text-right">
-            <span className="text-[11px] sm:text-xs font-semibold text-amber-600 dark:text-amber-400 leading-tight break-words">
-              {match.teamBName}
-            </span>
+          {/* Tim B (Logo -> Nama Tim, Mepet Kiri dari Skor) */}
+          <div className="flex items-center justify-start gap-1.5 min-w-0 flex-1 text-left">
             <img
               src={match.teamBLogo || "/placeholder-team.png"}
               alt=""
               className="h-5 w-5 rounded-full border border-amber-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
+            <span className="text-[11px] sm:text-xs font-semibold text-amber-600 dark:text-amber-400 truncate leading-tight">
+              {match.teamBName}
+            </span>
           </div>
         </div>
 
-        {/* Baris 2: Wasit | [W... · match-...] | Streamer (Nama Utuh) */}
-        <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-1 flex-wrap sm:flex-nowrap">
-          {/* Wasit */}
-          <div className="flex items-center gap-1 min-w-0 flex-1">
-            <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
-            <span className="leading-tight">
-              Wasit: <strong className="text-emerald-600 dark:text-emerald-400 font-medium">{match.referee || "-"}</strong>
-            </span>
+        {/* BARIS 2: WASIT & STREAMER DI KIRI, ID MATCH DI KANAN */}
+        <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-2">
+          {/* Petugas di Kiri (Wasit + Streamer) */}
+          <div className="flex items-center gap-3 min-w-0 flex-wrap">
+            {/* Wasit */}
+            <div className="flex items-center gap-1 shrink-0">
+              <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
+              <span>
+                Wasit: <strong className="text-emerald-600 dark:text-emerald-400 font-medium">{match.referee || "-"}</strong>
+              </span>
+            </div>
+
+            {/* Streamer */}
+            <div className="flex items-center gap-1 shrink-0">
+              <Tv className="h-3 w-3 text-purple-500 shrink-0" />
+              <span>
+                Streamer: <strong className="text-purple-600 dark:text-purple-400 font-medium">{match.streamer || "-"}</strong>
+              </span>
+            </div>
           </div>
 
-          {/* ID Match */}
-          <div className="shrink-0 font-mono text-[10px] px-1">
-            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs">
+          {/* ID Match di Pojok Kanan */}
+          <div className="shrink-0 font-mono text-[10px] ml-auto">
+            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs whitespace-nowrap">
               W{match.weekNumber || 1} · {match.id}
             </span>
           </div>
-
-          {/* Streamer */}
-          <div className="flex items-center justify-end gap-1 min-w-0 flex-1 text-right">
-            <Tv className="h-3 w-3 text-purple-500 shrink-0" />
-            <span className="leading-tight">
-              Streamer: <strong className="text-purple-600 dark:text-purple-400 font-medium">{match.streamer || "-"}</strong>
-            </span>
-          </div>
         </div>
 
-        {/* Baris 3: Search Input + Action Buttons */}
+        {/* BARIS 3: SEARCH INPUT + ACTION BUTTONS */}
         <div className="flex items-center gap-1.5 pt-0.5">
           <div className="relative flex-1">
             <input
