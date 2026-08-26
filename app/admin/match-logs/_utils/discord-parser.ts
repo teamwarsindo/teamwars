@@ -105,7 +105,7 @@ export function parseDiscordMarkdown(
     /<(a)?:([a-zA-Z0-9_~]+):([0-9]+)>/g,
     (_, isAnimated, name, id) => {
       const ext = isAnimated ? "gif" : "webp";
-      return `<img src="https://cdn.discordapp.com/emojis/${id}.${ext}?size=44&quality=lossless" alt=":${name}:" title=":${name}:" class="inline-block h-5 w-5 align-sub mx-0.5 object-contain" />`;
+      return `<img src="https://cdn.discordapp.com/emojis/${id}.${ext}?size=44&quality=lossless" alt=":${name}:" title=":${name}:" class="inline-block h-4 w-4 align-text-bottom mx-0.5 object-contain" />`;
     }
   );
 
@@ -180,4 +180,4 @@ export function parseDiscordMarkdown(
   });
 
   return formatted;
-              }
+}
