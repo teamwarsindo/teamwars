@@ -168,14 +168,14 @@ export function ChatMessageItem({
             : "hover:bg-muted/40"
         }`}
       >
-        {/* SIKU REPLY TANGGAL/NAMA TIDAK KEBELAH */}
+        {/* SIKU REPLY 1 LINE PERSIS DISCORD */}
         {msg.replyTo && (
-          <div className="relative flex items-center gap-1.5 pl-12 pb-1 text-[11px] text-muted-foreground font-medium flex-wrap">
+          <div className="relative flex items-center gap-1.5 pl-12 pr-2 pb-1 text-[11px] text-muted-foreground font-medium min-w-0">
             <div className="absolute left-6 top-2 h-3.5 w-5 border-l-2 border-t-2 border-muted-foreground/40 rounded-tl-md pointer-events-none" />
 
             {msg.replyTo.isDeleted ? (
-              <span className="inline-flex items-center gap-1 italic text-muted-foreground/70">
-                <MessageSquareOff className="h-3 w-3" /> Original message was deleted
+              <span className="inline-flex items-center gap-1 italic text-muted-foreground/70 truncate">
+                <MessageSquareOff className="h-3 w-3 shrink-0" /> Original message was deleted
               </span>
             ) : (
               <>
@@ -188,8 +188,12 @@ export function ChatMessageItem({
                 ) : (
                   <span className="h-3.5 w-3.5 rounded-full bg-muted shrink-0 inline-block" />
                 )}
-                <span className="font-semibold text-foreground/80 shrink-0">@{msg.replyTo.authorName}</span>
-                <span className="italic text-muted-foreground/80 truncate max-w-[220px] sm:max-w-[360px]">
+                
+                <span className="font-semibold text-foreground/80 shrink-0">
+                  @{msg.replyTo.authorName}
+                </span>
+
+                <span className="italic text-muted-foreground/75 truncate min-w-0 flex-1">
                   {msg.replyTo.content || (msg.replyTo.hasAttachment ? "📷 [Lampiran Gambar]" : "...")}
                 </span>
               </>
@@ -232,7 +236,7 @@ export function ChatMessageItem({
               />
             )}
 
-            {/* FORWARDED MESSAGE BOX (TANPA SIKU REPLY) */}
+            {/* FORWARDED MESSAGE BOX */}
             {msg.forwarded && (
               <div className="mt-2 rounded-2xl border border-border/80 bg-muted/40 p-2.5 space-y-2 max-w-sm">
                 <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground italic">
@@ -273,6 +277,7 @@ export function ChatMessageItem({
               </div>
             )}
 
+            {/* LAMPIRAN GAMBAR UTAMA */}
             {msg.attachments && msg.attachments.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-2">
                 {msg.attachments.map((att, idx) => (
@@ -334,4 +339,5 @@ export function ChatMessageItem({
       )}
     </>
   );
-}
+                                                        }
+          
