@@ -65,14 +65,19 @@ export function MatchChatCard({
     });
   };
 
+  // Format skor (ambil dari properti score match jika ada)
+  const scoreA = (match as any)?.scoreA ?? (match as any)?.teamAScore ?? "-";
+  const scoreB = (match as any)?.scoreB ?? (match as any)?.teamBScore ?? "-";
+  const scoreDisplay = `${scoreA} - ${scoreB}`;
+
   return (
     <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
       {/* HEADER STICKY */}
       <div className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur-md p-3 space-y-2 shadow-xs">
         
-        {/* Baris 1: Tim vs Tim 1 Baris Utuh (Lega & Tidak Terpotong) */}
+        {/* Baris 1: Logo di kiri nama masing-masing tim & Skor di tengah */}
         <div className="flex items-center justify-between gap-2">
-          {/* Tim A */}
+          {/* Tim A (Logo di kiri) */}
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <img
               src={match.teamALogo || "/placeholder-team.png"}
@@ -80,26 +85,29 @@ export function MatchChatCard({
               className="h-5 w-5 rounded-full border border-sky-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
-            <span className="text-xs font-semibold text-sky-600 dark:text-sky-400 break-words leading-tight">
+            <span className="text-xs font-semibold text-sky-600 dark:text-sky-400 truncate leading-tight">
               {match.teamAName}
             </span>
           </div>
 
-          <span className="text-[10px] font-bold text-muted-foreground uppercase px-1 shrink-0">
-            vs
-          </span>
-
-          {/* Tim B */}
-          <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
-            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 break-words leading-tight">
-              {match.teamBName}
+          {/* Badge Skor di Tengah */}
+          <div className="shrink-0 px-2">
+            <span className="px-2 py-0.5 rounded-md font-mono text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
+              {scoreDisplay}
             </span>
+          </div>
+
+          {/* Tim B (Logo di kiri) */}
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
             <img
               src={match.teamBLogo || "/placeholder-team.png"}
               alt=""
               className="h-5 w-5 rounded-full border border-amber-500/40 object-cover shrink-0"
               onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
             />
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 truncate leading-tight">
+              {match.teamBName}
+            </span>
           </div>
         </div>
 
@@ -113,7 +121,7 @@ export function MatchChatCard({
             </span>
           </div>
 
-          {/* ID Match di Tengah */}
+          {/* ID Match */}
           <div className="shrink-0 px-2 font-mono text-[10px]">
             <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs">
               W{match.weekNumber || 1} · {match.id}
@@ -129,7 +137,7 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* Baris 3: Search Input + Backup & Delete Actions */}
+        {/* Baris 3: Search Input + Action Buttons */}
         <div className="flex items-center gap-1.5 pt-0.5">
           <div className="relative flex-1">
             <input
@@ -166,8 +174,8 @@ export function MatchChatCard({
         </div>
       </div>
 
-      {/* BODY CHAT SCROLLABLE */}
-      <div className="h-[calc(100dvh-280px)] min-h-[380px] max-h-[620px] overflow-y-auto p-3 sm:p-4 space-y-3 bg-background/50 overscroll-contain">
+      {/* BODY CHAT SCROLLABLE (Ketinggian proporsional agar footer tetap kelihatan di layar HP) */}
+      <div className="h-[calc(100dvh-370px)] min-h-[300px] max-h-[520px] overflow-y-auto p-3 sm:p-4 space-y-3 bg-background/50 overscroll-contain">
         {loadingChat ? (
           <div className="flex h-full items-center justify-center text-xs font-semibold text-muted-foreground animate-pulse">
             ⏳ Memuat riwayat pesan...
@@ -222,4 +230,4 @@ export function MatchChatCard({
       </div>
     </div>
   );
-}
+        }
