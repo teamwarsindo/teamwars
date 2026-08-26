@@ -204,7 +204,7 @@ export function ChatMessageItem({
                   @{msg.replyTo.authorName}
                 </span>
 
-                {/* Kontainer Kutipan Teks dengan line-clamp halus */}
+                {/* Teks kutipan reply polos seragam (isReplyPreview = true) */}
                 <div
                   className="italic text-muted-foreground/75 min-w-0 flex-1 line-clamp-1 break-all"
                   dangerouslySetInnerHTML={{
@@ -215,7 +215,8 @@ export function ChatMessageItem({
                           msg.roleMentions,
                           msg.channelMentions,
                           match,
-                          playerTeamMap
+                          playerTeamMap,
+                          true // <-- Mode Preview: Tag mention otomatis jadi teks biasa
                         )
                       : msg.replyTo.hasAttachment
                       ? "📷 [Lampiran Gambar]"
@@ -256,7 +257,8 @@ export function ChatMessageItem({
                     msg.roleMentions,
                     msg.channelMentions,
                     match,
-                    playerTeamMap
+                    playerTeamMap,
+                    false // Pesan utama tetap render kotak warna penuh
                   ),
                 }}
               />
@@ -365,4 +367,5 @@ export function ChatMessageItem({
       )}
     </>
   );
-                  }
+                                              }
+    
