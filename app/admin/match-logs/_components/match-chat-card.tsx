@@ -230,4 +230,4 @@ export function MatchChatCard({
       </div>
     </div>
   );
-        }
+}
