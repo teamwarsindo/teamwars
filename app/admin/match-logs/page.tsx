@@ -6,7 +6,7 @@ import { MatchScheduleItem } from "@/app/tournament/_library/types";
 import { MatchSearchInput } from "./_components/match-search-input";
 import { MatchChatCard } from "./_components/match-chat-card";
 import { ChatLogMessage } from "./_components/chat-message-item";
-import { AlertCircle, Database } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import Swal from "sweetalert2";
 
 function MatchLogViewerContent() {
@@ -172,13 +172,6 @@ function MatchLogViewerContent() {
 
   return (
     <main className="flex-1 w-full max-w-4xl mx-auto p-3.5 sm:p-6 space-y-3 sm:space-y-4">
-      {/* Badge Penanda Mode Arsip Terproteksi */}
-      <div className="flex items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold border bg-primary/10 text-primary border-primary/30 w-fit">
-          <Database className="h-3 w-3" /> Mode Arsip Terproteksi
-        </span>
-      </div>
-
       <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
 
       {selectedMatchId && activeMatch ? (
