@@ -1,7 +1,22 @@
 import { discordAPI, getEmbedFooterText } from '../utils';
 
+export interface DeckSubmissionStore {
+  matchId: string;
+  teamSlug: string;
+  submittedPlayers: Array<{
+    name?: string;
+    ign?: string;
+    submittedAt?: string;
+    submittedBy?: string;
+  }>;
+  totalDecks: number;
+  morningMsgId?: string | null;
+  lastTrackerMessageId?: string | null;
+}
+
 export interface TrackerPlayer {
-  ign: string;
+  ign?: string;
+  name?: string;
   submittedAt?: string;
   submittedBy?: string;
 }
@@ -29,7 +44,7 @@ export function formatWIBTimeOnly(dateIso?: string): string {
       minute: '2-digit',
       hour12: false,
       timeZone: 'Asia/Jakarta',
-    }) + ' WIB'
+    }).replace(':', '.') + ' WIB'
   );
 }
 
@@ -46,11 +61,14 @@ export async function checkDiscordMessageExists(channelId: string, messageId?: s
 
 // 🟡 1. EMBED PENGUMUMAN PAGI (CHANNEL CAMP)
 export function getMorningCampEmbed(params: {
+  week?: string | number;
   deadlineWib: string;
   timeRemainingStr: string;
 }) {
+  const weekLabel = params.week ? `Week ${params.week}` : 'Week 1';
+
   return {
-    title: '⏳ PENGUMPULAN DECK DIBUKA — TWI SEASON 7',
+    title: `⏳ Reminder Submission (${weekLabel})`,
     color: 0xf59e0b,
     description:
       'Pengumpulan deck **sudah dapat dilakukan mulai sekarang** di channel camp ini.\n\n' +
@@ -81,13 +99,15 @@ export function getMorningCampEmbed(params: {
   };
 }
 
-// 📊 2. EMBED LIVE DECK TRACKER (CHANNEL CAMP - MURNI IGN)
+// 📊 2. EMBED LIVE DECK TRACKER (CHANNEL CAMP)
 export function getLiveDeckTrackerEmbed(params: {
+  week?: string | number;
   deadlineWib: string;
   timeRemainingStr: string;
   submittedPlayers: TrackerPlayer[];
   lastUpdated?: string | Date;
 }) {
+  const weekLabel = params.week ? `Week ${params.week}` : 'Week 1';
   const count = params.submittedPlayers.length;
   const totalDecks = count * 2;
   const isComplete = count >= 5;
@@ -95,14 +115,15 @@ export function getLiveDeckTrackerEmbed(params: {
   const playerRows: string[] = [];
   for (let i = 0; i < 5; i++) {
     if (i < count) {
-      playerRows.push(`${i + 1}. **${params.submittedPlayers[i].ign}** ✅ *(2 Deck)*`);
+      const playerName = params.submittedPlayers[i].ign || params.submittedPlayers[i].name || 'Pemain';
+      playerRows.push(`${i + 1}. **${playerName}** ✅ *(2 Deck)*`);
     } else {
       playerRows.push(`${i + 1}. \`[Slot Kosong]\` ❌`);
     }
   }
 
   return {
-    title: '📊 STATUS PENGUMPULAN DECK (LIVE TRACKER)',
+    title: `📊 Deck Submission (${weekLabel})`,
     color: isComplete ? 0x2ecc71 : 0x3498db,
     description:
       `⏳ **Batas Waktu Submit:** ${params.deadlineWib} (**${params.timeRemainingStr}**)\n` +
@@ -118,7 +139,7 @@ export function getLiveDeckTrackerEmbed(params: {
         value: '• Kirim SS deck di channel ini.\n• Wasit/Admin gunakan `/submit` untuk memvalidasi pemain.',
       },
     ],
-    footer: { text: getEmbedFooterText(params.lastUpdated || new Date()) },
+    footer: { text: getEmbedFooterText(params.lastUpdated) },
   };
 }
 
@@ -166,6 +187,7 @@ export function getMatchBriefingEmbed() {
 export async function sendOrUpdateLiveTracker(params: {
   channelId: string;
   matchDateIso: string;
+  week?: string | number;
   submittedPlayers: TrackerPlayer[];
   existingMsgId?: string | null;
 }): Promise<string | null> {
@@ -177,6 +199,7 @@ export async function sendOrUpdateLiveTracker(params: {
 
   const deadlineIso = new Date(new Date(params.matchDateIso).getTime() - 60 * 60 * 1000).toISOString();
   const embed = getLiveDeckTrackerEmbed({
+    week: params.week,
     deadlineWib: formatWIBTimeOnly(deadlineIso),
     timeRemainingStr: formatTimeRemaining(deadlineIso),
     submittedPlayers: params.submittedPlayers,
@@ -188,4 +211,4 @@ export async function sendOrUpdateLiveTracker(params: {
   }).catch(() => null);
 
   return res?.id || null;
-}
+      }
