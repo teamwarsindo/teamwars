@@ -1,5 +1,13 @@
 import { NextResponse } from 'next/server';
-import { discordAPI } from '@/lib/discord/utils';
+import { discordAPI, verifySignature } from '@/lib/discord/utils';
+import { handleSubmitAutocomplete, handleSubmitCommand } from '@/lib/discord/commands/submit';
+import {
+  handleAssignAutocomplete,
+  handleRescheduleAutocomplete,
+  handleMatchReportAutocomplete,
+} from '@/lib/discord/handlers/autocomplete-handler';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const appId = process.env.DISCORD_CLIENT_ID;
@@ -459,3 +467,68 @@ export async function GET(req: Request) {
     );
   }
 }
+
+export async function POST(req: Request) {
+  try {
+    const rawBody = await req.text();
+    const signature = req.headers.get('X-Signature-Ed25519');
+    const timestamp = req.headers.get('X-Signature-Timestamp');
+
+    const isValid = verifySignature(rawBody, signature, timestamp);
+    if (!isValid) {
+      return NextResponse.json({ error: 'Invalid Discord signature' }, { status: 401 });
+    }
+
+    const interaction = JSON.parse(rawBody);
+
+    if (interaction.type === 1) {
+      return NextResponse.json({ type: 1 });
+    }
+
+    if (interaction.type === 4) {
+      const commandName = interaction.data?.name;
+
+      if (commandName === 'submit') {
+        const result = await handleSubmitAutocomplete(interaction);
+        return NextResponse.json(result);
+      }
+
+      if (commandName === 'assign' || commandName === 'unassign' || commandName === 'cancel-assign') {
+        const result = await handleAssignAutocomplete(interaction);
+        return NextResponse.json(result);
+      }
+
+      if (commandName === 'reschedule') {
+        const result = await handleRescheduleAutocomplete(interaction);
+        return NextResponse.json(result);
+      }
+
+      if (commandName === 'match-report') {
+        const result = await handleMatchReportAutocomplete(interaction);
+        return NextResponse.json(result);
+      }
+
+      return NextResponse.json({ type: 8, data: { choices: [] } });
+    }
+
+    if (interaction.type === 2) {
+      const commandName = interaction.data?.name;
+
+      if (commandName === 'submit') {
+        const result = await handleSubmitCommand(interaction);
+        return NextResponse.json(result);
+      }
+    }
+
+    return NextResponse.json({
+      type: 4,
+      data: { content: 'Command tidak dikenali atau belum ditangani.', flags: 64 },
+    });
+  } catch (error: any) {
+    console.error('Interactions Error:', error);
+    return NextResponse.json(
+      { type: 4, data: { content: 'Terjadi kesalahan sistem internal.', flags: 64 } },
+      { status: 500 }
+    );
+  }
+        }
