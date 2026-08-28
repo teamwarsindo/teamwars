@@ -90,4 +90,4 @@ export function getFooterText(createdAt?: string, updatedAt?: string) {
 export function hexToDecimal(hexString: string, fallbackColor = 11146056): number {
   if (!hexString) return fallbackColor;
   return parseInt(hexString.replace('#', ''), 16) || fallbackColor;
-}
+    }
