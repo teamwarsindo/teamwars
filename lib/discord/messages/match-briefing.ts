@@ -156,7 +156,7 @@ export function getMatchBriefingEmbed() {
   };
 }
 
-// 🔁 HELPER DELETE-REPOST LIVE TRACKER DI CHANNEL CAMP
+// 🔁 HELPER DELETE-REPOST LIVE TRACKER
 export async function sendOrUpdateLiveTracker(params: {
   channelId: string;
   matchDateIso: string;

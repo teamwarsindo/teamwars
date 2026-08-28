@@ -29,7 +29,12 @@ async function resolveTeamAndMatchFromChannel(channelId: string) {
 
   for (const slug of allSlugs) {
     const teamData = await kv.hgetall<any>(`teams:${slug}`);
-    if (teamData && (teamData.channelCampId === channelId || teamData.discordChannelId === channelId)) {
+    if (
+      teamData &&
+      (teamData.channelCampId === channelId ||
+        teamData.discordChannelId === channelId ||
+        teamData.channelId === channelId)
+    ) {
       const activeMatch = schedules.find((m) => {
         const sA = getTeamSlug(m.teamAName);
         const sB = getTeamSlug(m.teamBName);
@@ -42,7 +47,7 @@ async function resolveTeamAndMatchFromChannel(channelId: string) {
   return { teamSlug: null, teamData: null, match: null };
 }
 
-// 🔍 AUTOCOMPLETE DROPDOWN ROSTER TIM
+// 🔍 AUTOCOMPLETE DROPDOWN ROSTER TIM (HANYA NAMPILIN IGN)
 export async function handleSubmitAutocomplete(interaction: any) {
   try {
     const channelId = interaction.channel_id;
@@ -54,7 +59,11 @@ export async function handleSubmitAutocomplete(interaction: any) {
 
     let players: any[] = [];
     if (typeof teamData.players === 'string') {
-      try { players = JSON.parse(teamData.players); } catch { players = []; }
+      try {
+        players = JSON.parse(teamData.players);
+      } catch {
+        players = [];
+      }
     } else if (Array.isArray(teamData.players)) {
       players = teamData.players;
     }
@@ -65,19 +74,24 @@ export async function handleSubmitAutocomplete(interaction: any) {
 
     // Sembunyikan pemain yang sudah tercatat di KV
     const submissionKey = `match:decks:${teamSlug}`;
-    const store = (await kv.get<DeckSubmissionStore>(submissionKey)) || { submittedPlayers: [] };
-    const alreadySubmitted = store.submittedPlayers.map((p) => p.name.toLowerCase());
+    const store: DeckSubmissionStore = (await kv.get<DeckSubmissionStore>(submissionKey)) || {
+      matchId: '',
+      teamSlug,
+      submittedPlayers: [],
+      totalDecks: 0,
+    };
+    const alreadySubmitted = (store.submittedPlayers || []).map((p) => p.name.toLowerCase());
 
     const availablePlayers = players.filter(
-      (p) => !alreadySubmitted.includes((p.ign || '').toLowerCase())
+      (p) => p.ign && !alreadySubmitted.includes(String(p.ign).toLowerCase())
     );
 
     const choices = availablePlayers
-      .filter((p) => (p.ign || '').toLowerCase().includes(searchVal))
+      .filter((p) => String(p.ign).toLowerCase().includes(searchVal))
       .slice(0, 25)
       .map((p) => ({
-        name: `${p.ign} (@${p.discord || '-'})`,
-        value: p.ign,
+        name: String(p.ign),
+        value: String(p.ign),
       }));
 
     return { type: 8, data: { choices } };
@@ -113,9 +127,9 @@ export async function handleSubmitCommand(interaction: any) {
     }
 
     const options = interaction.data?.options || [];
-    const inputPlayers = options
-      .filter((o: any) => o.name.startsWith('pemain_') && o.value)
-      .map((o: any) => (o.value as string).trim());
+    const inputPlayers: string[] = options
+      .filter((o: any) => typeof o.name === 'string' && o.name.startsWith('pemain_') && o.value)
+      .map((o: any) => String(o.value).trim());
 
     if (inputPlayers.length === 0) {
       return {
@@ -125,7 +139,7 @@ export async function handleSubmitCommand(interaction: any) {
     }
 
     const submissionKey = `match:decks:${teamSlug}`;
-    const store = (await kv.get<DeckSubmissionStore>(submissionKey)) || {
+    const store: DeckSubmissionStore = (await kv.get<DeckSubmissionStore>(submissionKey)) || {
       matchId: match?.id || 'manual',
       teamSlug,
       submittedPlayers: [],
@@ -146,9 +160,9 @@ export async function handleSubmitCommand(interaction: any) {
     }
 
     // Deduplikasi dan validasi kuota
-    const uniqueInputs = Array.from(new Set(inputPlayers));
-    const newValidPlayers = uniqueInputs.filter(
-      (name) => !store.submittedPlayers.some((p) => p.name.toLowerCase() === name.toLowerCase())
+    const uniqueInputs: string[] = Array.from(new Set<string>(inputPlayers));
+    const newValidPlayers: string[] = uniqueInputs.filter(
+      (name: string) => !store.submittedPlayers.some((p) => p.name.toLowerCase() === name.toLowerCase())
     );
 
     if (newValidPlayers.length > remainingSlots) {
@@ -164,7 +178,7 @@ export async function handleSubmitCommand(interaction: any) {
     const callerName = interaction.member?.user?.username || 'Staff';
     const nowIso = new Date().toISOString();
 
-    newValidPlayers.forEach((name) => {
+    newValidPlayers.forEach((name: string) => {
       store.submittedPlayers.push({
         name,
         submittedAt: nowIso,
@@ -186,7 +200,7 @@ export async function handleSubmitCommand(interaction: any) {
     store.lastTrackerMessageId = newTrackerId;
     await kv.set(submissionKey, store);
 
-    const addedList = newValidPlayers.map((n) => `• **${n}** *(2 Deck)*`).join('\n');
+    const addedList = newValidPlayers.map((n: string) => `• **${n}** *(2 Deck)*`).join('\n');
 
     return {
       type: 4,

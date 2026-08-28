@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized Cron Request' }, { status: 401 });
     }
 
-    // Ambil jam saat ini di zona WIB (Asia/Jakarta)
     const now = new Date();
     const currentWibHour = parseInt(
       now.toLocaleTimeString('en-US', {
@@ -67,7 +66,7 @@ export async function GET(req: NextRequest) {
         const refPing = match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : match.referee || 'Wasit Bertugas';
 
         // Channel Camp A
-        const chA = teamAData?.channelCampId || teamAData?.discordChannelId;
+        const chA = teamAData?.channelCampId || teamAData?.discordChannelId || teamAData?.channelId;
         if (chA) {
           const roleAPing = (match as any).roleAId ? `<@&${(match as any).roleAId}>` : `**${match.teamAName}**`;
           await discordAPI(`/channels/${chA}/messages`, 'POST', {
@@ -92,7 +91,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Channel Camp B
-        const chB = teamBData?.channelCampId || teamBData?.discordChannelId;
+        const chB = teamBData?.channelCampId || teamBData?.discordChannelId || teamBData?.channelId;
         if (chB) {
           const roleBPing = (match as any).roleBId ? `<@&${(match as any).roleBId}>` : `**${match.teamBName}**`;
           await discordAPI(`/channels/${chB}/messages`, 'POST', {
