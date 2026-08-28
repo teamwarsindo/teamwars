@@ -1,9 +1,9 @@
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { MatchScheduleItem, getTeamSlug } from '@/app/tournament/_library';
+import { MatchScheduleItem } from '@/app/tournament/_library';
 import {
-  DeckSubmissionStore,
   sendOrUpdateLiveTracker,
+  TrackerPlayer,
 } from '@/lib/discord/messages/match-briefing';
 
 function isStaff(interaction: any): boolean {
@@ -23,75 +23,58 @@ function isStaff(interaction: any): boolean {
   }
 }
 
-async function resolveTeamAndMatchFromChannel(channelId: string) {
-  const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-  const allSlugs: string[] = (await kv.smembers('global:teams')) || [];
+// 🔍 Lookup Cepat dari Hash discord:match_messages
+async function resolveMatchAndCampFromChannel(channelId: string) {
+  const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
 
-  for (const slug of allSlugs) {
-    const teamData = await kv.hgetall<any>(`teams:${slug}`);
-    if (
-      teamData &&
-      (teamData.channelCampId === channelId ||
-        teamData.discordChannelId === channelId ||
-        teamData.channelId === channelId)
-    ) {
-      const activeMatch = schedules.find((m) => {
-        const sA = getTeamSlug(m.teamAName);
-        const sB = getTeamSlug(m.teamBName);
-        return (sA === slug || sB === slug) && !(m as any).isFinished;
-      });
-      return { teamSlug: slug, teamData, match: activeMatch || null };
+  for (const [matchId, rawData] of Object.entries(matchMessages)) {
+    const data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+    if (data.campA?.channelId === channelId) {
+      return { matchId, teamKey: 'teamA' as const, campData: data.campA, allData: data };
+    }
+    if (data.campB?.channelId === channelId) {
+      return { matchId, teamKey: 'teamB' as const, campData: data.campB, allData: data };
     }
   }
 
-  return { teamSlug: null, teamData: null, match: null };
+  return { matchId: null, teamKey: null, campData: null, allData: null };
 }
 
-// 🔍 AUTOCOMPLETE DROPDOWN ROSTER TIM (HANYA NAMPILIN IGN)
+// 🔍 AUTOCOMPLETE IGN DARI HASH global:ign
 export async function handleSubmitAutocomplete(interaction: any) {
   try {
     const channelId = interaction.channel_id;
-    const { teamSlug, teamData } = await resolveTeamAndMatchFromChannel(channelId);
+    const { matchId, teamKey, campData } = await resolveMatchAndCampFromChannel(channelId);
 
-    if (!teamSlug || !teamData?.players) {
+    if (!matchId || !campData?.slug) {
       return { type: 8, data: { choices: [] } };
-    }
-
-    let players: any[] = [];
-    if (typeof teamData.players === 'string') {
-      try {
-        players = JSON.parse(teamData.players);
-      } catch {
-        players = [];
-      }
-    } else if (Array.isArray(teamData.players)) {
-      players = teamData.players;
     }
 
     const options = interaction.data?.options || [];
     const focused = options.find((o: any) => o.focused);
     const searchVal = (focused?.value || '').toLowerCase();
 
-    // Sembunyikan pemain yang sudah tercatat di KV
-    const submissionKey = `match:decks:${teamSlug}`;
-    const store: DeckSubmissionStore = (await kv.get<DeckSubmissionStore>(submissionKey)) || {
-      matchId: '',
-      teamSlug,
-      submittedPlayers: [],
-      totalDecks: 0,
-    };
-    const alreadySubmitted = (store.submittedPlayers || []).map((p) => p.name.toLowerCase());
+    // 1. Ambil roster resmi tim dari Hash global:ign
+    const globalIgnHash = (await kv.hgetall<Record<string, string>>('global:ign')) || {};
+    const teamRoster = Object.entries(globalIgnHash)
+      .filter(([_, slug]) => slug.toLowerCase() === campData.slug.toLowerCase())
+      .map(([ign]) => ign);
 
-    const availablePlayers = players.filter(
-      (p) => p.ign && !alreadySubmitted.includes(String(p.ign).toLowerCase())
+    // 2. Ambil data report untuk memfilter yang sudah masuk lineup
+    const reportData = await kv.get<any>(`match:report:${matchId}`);
+    const existingLineup: any[] = reportData?.[teamKey]?.lineup || [];
+    const alreadySubmitted = existingLineup.map((p) => String(p.ign || p.name || '').toLowerCase());
+
+    const availablePlayers = teamRoster.filter(
+      (ign) => !alreadySubmitted.includes(ign.toLowerCase())
     );
 
     const choices = availablePlayers
-      .filter((p) => String(p.ign).toLowerCase().includes(searchVal))
+      .filter((ign) => ign.toLowerCase().includes(searchVal))
       .slice(0, 25)
-      .map((p) => ({
-        name: String(p.ign),
-        value: String(p.ign),
+      .map((ign) => ({
+        name: ign,
+        value: ign,
       }));
 
     return { type: 8, data: { choices } };
@@ -114,13 +97,13 @@ export async function handleSubmitCommand(interaction: any) {
     }
 
     const channelId = interaction.channel_id;
-    const { teamSlug, teamData, match } = await resolveTeamAndMatchFromChannel(channelId);
+    const { matchId, teamKey, campData, allData } = await resolveMatchAndCampFromChannel(channelId);
 
-    if (!teamSlug || !teamData) {
+    if (!matchId || !campData || !teamKey) {
       return {
         type: 4,
         data: {
-          content: '❌ Command ini hanya dapat digunakan di dalam **Channel Camp Tim**!',
+          content: '❌ Command ini hanya dapat digunakan di dalam **Channel Camp Tim** yang aktif!',
           flags: 64,
         },
       };
@@ -138,15 +121,21 @@ export async function handleSubmitCommand(interaction: any) {
       };
     }
 
-    const submissionKey = `match:decks:${teamSlug}`;
-    const store: DeckSubmissionStore = (await kv.get<DeckSubmissionStore>(submissionKey)) || {
-      matchId: match?.id || 'manual',
-      teamSlug,
-      submittedPlayers: [],
-      totalDecks: 0,
+    // Ambil atau inisialisasi dokumen match:report
+    const reportKey = `match:report:${matchId}`;
+    let reportData = (await kv.get<any>(reportKey)) || {
+      matchId,
+      metadata: { date: new Date().toISOString() },
+      teamA: { slug: allData.campA?.slug || '', lineup: [], score: 0, repeatsUsed: 0 },
+      teamB: { slug: allData.campB?.slug || '', lineup: [], score: 0, repeatsUsed: 0 },
+      games: [],
+      finalScore: { teamA: 0, teamB: 0 },
+      winnerTeam: null,
     };
 
-    const currentCount = store.submittedPlayers.length;
+    const targetTeam = reportData[teamKey];
+    const currentLineup: any[] = targetTeam.lineup || [];
+    const currentCount = currentLineup.length;
     const remainingSlots = 5 - currentCount;
 
     if (remainingSlots <= 0) {
@@ -159,11 +148,21 @@ export async function handleSubmitCommand(interaction: any) {
       };
     }
 
-    // Deduplikasi dan validasi kuota
+    // Filter duplikasi input
     const uniqueInputs: string[] = Array.from(new Set<string>(inputPlayers));
     const newValidPlayers: string[] = uniqueInputs.filter(
-      (name: string) => !store.submittedPlayers.some((p) => p.name.toLowerCase() === name.toLowerCase())
+      (name) => !currentLineup.some((p) => String(p.ign || p.name || '').toLowerCase() === name.toLowerCase())
     );
+
+    if (newValidPlayers.length === 0) {
+      return {
+        type: 4,
+        data: {
+          content: '⚠️ Semua pemain yang kamu masukkan sudah terdaftar di lineup!',
+          flags: 64,
+        },
+      };
+    }
 
     if (newValidPlayers.length > remainingSlots) {
       return {
@@ -176,36 +175,51 @@ export async function handleSubmitCommand(interaction: any) {
     }
 
     const callerName = interaction.member?.user?.username || 'Staff';
-    const nowIso = new Date().toISOString();
-
-    newValidPlayers.forEach((name: string) => {
-      store.submittedPlayers.push({
-        name,
-        submittedAt: nowIso,
+    newValidPlayers.forEach((ign) => {
+      currentLineup.push({
+        ign,
         submittedBy: callerName,
+        deck1: null,
+        deck2: null,
       });
     });
 
-    store.totalDecks = store.submittedPlayers.length * 2;
+    targetTeam.lineup = currentLineup;
+    reportData[teamKey] = targetTeam;
+
+    // Ambil jadwal untuk deadline kick-off
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const currentMatch = schedules.find((m) => m.id === matchId);
+    const matchDateIso = currentMatch?.matchDate || new Date().toISOString();
 
     // 🔁 Refresh Live Tracker di Channel Camp
-    const matchDateIso = match?.matchDate || new Date().toISOString();
+    const trackerPlayers: TrackerPlayer[] = currentLineup.map((p) => ({ ign: p.ign || p.name }));
     const newTrackerId = await sendOrUpdateLiveTracker({
       channelId,
       matchDateIso,
-      submittedPlayers: store.submittedPlayers,
-      existingMsgId: store.lastTrackerMessageId,
+      submittedPlayers: trackerPlayers,
+      existingMsgId: campData.trackerMsgId,
     });
 
-    store.lastTrackerMessageId = newTrackerId;
-    await kv.set(submissionKey, store);
+    // Simpan pembaruan ID pesan tracker ke Hash discord:match_messages
+    if (teamKey === 'teamA') {
+      allData.campA.trackerMsgId = newTrackerId;
+    } else {
+      allData.campB.trackerMsgId = newTrackerId;
+    }
+    await kv.hset('discord:match_messages', { [matchId]: JSON.stringify(allData) });
+
+    // Simpan pembaruan lineup ke match:report:${matchId}
+    await kv.set(reportKey, reportData);
 
     const addedList = newValidPlayers.map((n: string) => `• **${n}** *(2 Deck)*`).join('\n');
+    const totalDecks = currentLineup.length * 2;
 
     return {
       type: 4,
       data: {
-        content: `✅ **Berhasil Memvalidasi ${newValidPlayers.length} Pemain!**\n${addedList}\n\n📊 Total terkumpul saat ini: **${store.totalDecks} / 10 Deck** (${store.submittedPlayers.length}/5 Pemain).`,
+        content: `✅ **Berhasil Memvalidasi ${newValidPlayers.length} Pemain!**\n${addedList}\n\n📊 Total terkumpul saat ini: **${totalDecks} / 10 Deck** (${currentLineup.length}/5 Pemain).`,
+        flags: 64,
       },
     };
   } catch (error: any) {
@@ -214,4 +228,4 @@ export async function handleSubmitCommand(interaction: any) {
       data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
     };
   }
-}
+    }
