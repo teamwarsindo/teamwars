@@ -369,7 +369,6 @@ export async function GET(req: Request) {
       ],
     },
 
-    // Tambahkan di dalam array commands pada file app/api/discord/command/route.ts:
     // 📊 11. MATCH REPORT FORWARD COMMAND
     {
       name: 'match-report',
@@ -385,7 +384,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🎥 12. STREAM COMMAND (INPUT LINK & BROADCAST LIVE)
+    // 🎥 12. STREAM COMMAND
     {
       name: 'stream',
       description: '[STREAMER] Masukkan link siaran langsung pertandingan ini dan kirim broadcast',
@@ -395,6 +394,49 @@ export async function GET(req: Request) {
           name: 'link',
           description: 'Masukkan URL siaran langsung (YouTube, TikTok, Twitch, dsb.)',
           required: true,
+        },
+      ],
+    },
+
+    // 🗃️ 13. SUBMIT COMMAND (REVISI BARU)
+    {
+      name: 'submit',
+      description: '[STAFF] Rekapitulasi pengumpulan deck pemain tim di channel camp',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'pemain_1',
+          description: 'Pilih nama pemain ke-1 yang telah mengumpulkan deck',
+          required: true,
+          autocomplete: true,
+        },
+        {
+          type: 3,
+          name: 'pemain_2',
+          description: 'Pilih nama pemain ke-2 (Opsional)',
+          required: false,
+          autocomplete: true,
+        },
+        {
+          type: 3,
+          name: 'pemain_3',
+          description: 'Pilih nama pemain ke-3 (Opsional)',
+          required: false,
+          autocomplete: true,
+        },
+        {
+          type: 3,
+          name: 'pemain_4',
+          description: 'Pilih nama pemain ke-4 (Opsional)',
+          required: false,
+          autocomplete: true,
+        },
+        {
+          type: 3,
+          name: 'pemain_5',
+          description: 'Pilih nama pemain ke-5 (Opsional)',
+          required: false,
+          autocomplete: true,
         },
       ],
     },
