@@ -21,12 +21,11 @@ export async function discordAPI(endpoint: string, method: string, body?: any) {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    // Handle Rate Limit (Discord HTTP 429)
     if (res.status === 429) {
       const retryData = await res.json().catch(() => ({ retry_after: 1 }));
       console.warn(`⚠️ Rate limited oleh Discord. Menunggu ${retryData.retry_after} detik...`);
       await new Promise((resolve) => setTimeout(resolve, (retryData.retry_after || 1) * 1000));
-      return discordAPI(endpoint, method, body); // Coba ulang
+      return discordAPI(endpoint, method, body);
     }
 
     if (!res.ok) {
@@ -59,7 +58,7 @@ export function verifySignature(rawBody: string, signature: string | null, times
 export const toProperCase = (str: string) => str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.substring(1).toLowerCase());
 export const getWIBTime = () => new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "long", timeStyle: "medium" });
 
-// 🔒 KODE LAMA TETAP UTUH (Tidak Diubah Sama Sekali)
+// 🔒 KODE LAMA TETAP UTUH
 export function getFooterText(createdAt?: string, updatedAt?: string) {
   const formatTanggal = (dateRaw: string | Date) => {
     const d = new Date(dateRaw);
@@ -88,27 +87,10 @@ export function getFooterText(createdAt?: string, updatedAt?: string) {
     : `Registered: ${waktuBuat}`;
 }
 
-// 🟢 FUNGSI BARU LINIER (Khusus Embed Match & Tracker Baru)
-export function getEmbedFooterText(updatedAt?: string | Date) {
-  const d = updatedAt ? new Date(updatedAt) : new Date();
-  
-  const dateStr = d.toLocaleDateString("id-ID", {
-    timeZone: "Asia/Jakarta",
-    day: "numeric",
-    month: "short",
-    year: "numeric"
-  });
-
-  const timeStr = d.toLocaleTimeString("id-ID", {
-    timeZone: "Asia/Jakarta",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).replace('.', ':');
-
-  return updatedAt
-    ? `Team Wars Indonesia | Last Updated: ${dateStr}, ${timeStr} WIB`
-    : `Team Wars Indonesia | ${dateStr}, ${timeStr} WIB`;
+// 🟢 FUNGSI BARU: Memanfaatkan getFooterText yang sudah ada
+export function getEmbedFooterText(dateInput?: string | Date) {
+  const isoStr = dateInput instanceof Date ? dateInput.toISOString() : dateInput;
+  return getFooterText(isoStr).replace('Registered:', 'Team Wars Indonesia |');
 }
 
 export function hexToDecimal(hexString: string, fallbackColor = 11146056): number {
