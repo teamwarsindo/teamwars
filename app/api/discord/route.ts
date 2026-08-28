@@ -6,17 +6,14 @@ import { createMatchDiscordChannel } from '@/lib/discord/channels';
 import { revalidatePath } from 'next/cache';
 
 // Slash Commands Handlers
-import { handleReminder } from '@/lib/discord/commands/reminder';
-import { handlePrepare } from '@/lib/discord/commands/prepare';
 import { handleInfo } from '@/lib/discord/commands/info';
-import { handleTimerCommand } from '@/lib/discord/commands/timer';
 import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
 import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
 import { handleTransferCommand, handleTransferAutocomplete } from '@/lib/discord/commands/transfer';
 
-// Submit Command Handlers (Baru)
+// Submit Command Handlers
 import { handleSubmitCommand, handleSubmitAutocomplete } from '@/lib/discord/commands/submit';
 
 // Transfer Execution Services
@@ -85,10 +82,7 @@ export async function POST(req: NextRequest) {
       if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
       if (commandName === 'match-report') return NextResponse.json(await handleMatchReportCommand(body));
       if (commandName === 'stream') return NextResponse.json(await handleStreamCommand(body));
-      if (commandName === 'reminder') return await handleReminder(body);
-      if (commandName === 'prepare') return await handlePrepare(body);
       if (commandName === 'info') return await handleInfo(body);
-      if (commandName === 'timer') return await handleTimerCommand(body);
       if (commandName === 'cek-id') return await handleCekId(body);
       if (commandName === 'blacklist') return await handleBlacklistCommand(body);
       if (commandName === 'cek-roster') return await handleCekRoster(body);
@@ -360,4 +354,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-  }
+                 }
