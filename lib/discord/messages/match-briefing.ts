@@ -1,4 +1,5 @@
 import { discordAPI, getEmbedFooterText } from '../utils';
+import { getMatchWeekNumber } from '@/app/tournament/_library';
 
 export interface DeckSubmissionStore {
   matchId: string;
@@ -62,10 +63,12 @@ export async function checkDiscordMessageExists(channelId: string, messageId?: s
 // 🟡 1. EMBED PENGUMUMAN PAGI (CHANNEL CAMP)
 export function getMorningCampEmbed(params: {
   week?: string | number;
+  matchDateIso?: string;
   deadlineWib: string;
   timeRemainingStr: string;
 }) {
-  const weekLabel = params.week ? `Week ${params.week}` : 'Week 1';
+  const calculatedWeek = params.week || getMatchWeekNumber(params.matchDateIso);
+  const weekLabel = `Week ${calculatedWeek}`;
 
   return {
     title: `⏳ Reminder Submission (${weekLabel})`,
@@ -102,12 +105,14 @@ export function getMorningCampEmbed(params: {
 // 📊 2. EMBED LIVE DECK TRACKER (CHANNEL CAMP)
 export function getLiveDeckTrackerEmbed(params: {
   week?: string | number;
+  matchDateIso?: string;
   deadlineWib: string;
   timeRemainingStr: string;
   submittedPlayers: TrackerPlayer[];
   lastUpdated?: string | Date;
 }) {
-  const weekLabel = params.week ? `Week ${params.week}` : 'Week 1';
+  const calculatedWeek = params.week || getMatchWeekNumber(params.matchDateIso);
+  const weekLabel = `Week ${calculatedWeek}`;
   const count = params.submittedPlayers.length;
   const totalDecks = count * 2;
   const isComplete = count >= 5;
@@ -171,13 +176,6 @@ export function getMatchBriefingEmbed() {
           '• Wajib SS *full screen* di awal duel (hand & field sendiri, hand & field lawan, serta sisa kartu Main/Extra Deck lawan) dan kirim ke channel tim tiap game usai.\n' +
           '• **Sanksi:** Pelanggaran 1 = Peringatan Ringan. **Akumulasi 2x Peringatan Ringan dalam 1 tim = Loss 1 deck**.',
       },
-      {
-        name: '📌 Kuota & Teknis Lainnya',
-        value:
-          '• **Repeat Deck:** Maksimal 2x per tim (hanya jika kalah di game 1 tanpa menang).\n' +
-          '• **Substitute Cadangan:** Maksimal 1x pergantian (izin wasit & deck identik).\n' +
-          '• **DC & Glitch:** Disconnect = **Kalah otomatis**. Klaim glitch wajib lapor bukti video/SS maksimal **5 menit**.',
-      },
     ],
     footer: { text: getEmbedFooterText() },
   };
@@ -200,6 +198,7 @@ export async function sendOrUpdateLiveTracker(params: {
   const deadlineIso = new Date(new Date(params.matchDateIso).getTime() - 60 * 60 * 1000).toISOString();
   const embed = getLiveDeckTrackerEmbed({
     week: params.week,
+    matchDateIso: params.matchDateIso,
     deadlineWib: formatWIBTimeOnly(deadlineIso),
     timeRemainingStr: formatTimeRemaining(deadlineIso),
     submittedPlayers: params.submittedPlayers,
@@ -211,4 +210,4 @@ export async function sendOrUpdateLiveTracker(params: {
   }).catch(() => null);
 
   return res?.id || null;
-      }
+}
