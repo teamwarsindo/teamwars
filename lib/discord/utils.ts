@@ -59,6 +59,7 @@ export function verifySignature(rawBody: string, signature: string | null, times
 export const toProperCase = (str: string) => str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.substring(1).toLowerCase());
 export const getWIBTime = () => new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "long", timeStyle: "medium" });
 
+// 🔒 KODE LAMA TETAP UTUH (Tidak Diubah Sama Sekali)
 export function getFooterText(createdAt?: string, updatedAt?: string) {
   const formatTanggal = (dateRaw: string | Date) => {
     const d = new Date(dateRaw);
@@ -87,7 +88,30 @@ export function getFooterText(createdAt?: string, updatedAt?: string) {
     : `Registered: ${waktuBuat}`;
 }
 
+// 🟢 FUNGSI BARU LINIER (Khusus Embed Match & Tracker Baru)
+export function getEmbedFooterText(updatedAt?: string | Date) {
+  const d = updatedAt ? new Date(updatedAt) : new Date();
+  
+  const dateStr = d.toLocaleDateString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+
+  const timeStr = d.toLocaleTimeString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).replace('.', ':');
+
+  return updatedAt
+    ? `Team Wars Indonesia | Last Updated: ${dateStr}, ${timeStr} WIB`
+    : `Team Wars Indonesia | ${dateStr}, ${timeStr} WIB`;
+}
+
 export function hexToDecimal(hexString: string, fallbackColor = 11146056): number {
   if (!hexString) return fallbackColor;
   return parseInt(hexString.replace('#', ''), 16) || fallbackColor;
-    }
+}
