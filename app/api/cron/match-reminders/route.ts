@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
       const matchDate = new Date(match.matchDate);
       const matchWibKey = getWibDateKey(matchDate);
 
-      // 🔒 KUNCI MUTLAK: Hanya proses match yang tanggalnya HARI INI
+      // 🔒 Hanya proses match yang tanggalnya HARI INI
       if (matchWibKey !== todayWibKey) continue;
 
       const diffMs = matchDate.getTime() - now.getTime();
@@ -86,19 +86,42 @@ export async function GET(req: NextRequest) {
       const roleBPing = roleBId ? `<@&${roleBId}>` : `**${match.teamBName}**`;
       const refPing = match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : match.referee || 'Wasit Bertugas';
 
-      // Load data discord:match_messages & match:report untuk match ini
-      let matchMsgData = matchMessages[match.id];
-      if (typeof matchMsgData === 'string') {
+      // Standardisasi struktur objek matchMessages (bersih dari legacy fields)
+      let rawMsg = matchMessages[match.id];
+      let matchMsgData: any = {};
+      if (typeof rawMsg === 'string') {
         try {
-          matchMsgData = JSON.parse(matchMsgData);
+          matchMsgData = JSON.parse(rawMsg);
         } catch {
           matchMsgData = {};
         }
+      } else if (typeof rawMsg === 'object' && rawMsg !== null) {
+        matchMsgData = rawMsg;
       }
-      matchMsgData = matchMsgData || {
-        campA: { channelId: null, slug: slugA, morningMsgId: null, trackerMsgId: null },
-        campB: { channelId: null, slug: slugB, morningMsgId: null, trackerMsgId: null },
-        matchChannel: { channelId: match.discordChannelId || null, briefingMsgId: null },
+
+      const campAChannel = teamAData?.channelCampId || teamAData?.discordChannelId || teamAData?.channelId || matchMsgData.campA?.channelId || null;
+      const campBChannel = teamBData?.channelCampId || teamBData?.discordChannelId || teamBData?.channelId || matchMsgData.campB?.channelId || null;
+      const currentMatchChannelId = match.discordChannelId || matchMsgData.matchChannel?.channelId || null;
+
+      const cleanMatchMsgData = {
+        campA: {
+          slug: slugA,
+          channelId: campAChannel,
+          morningMsgId: matchMsgData.campA?.morningMsgId || null,
+          trackerMsgId: matchMsgData.campA?.trackerMsgId || null,
+        },
+        campB: {
+          slug: slugB,
+          channelId: campBChannel,
+          morningMsgId: matchMsgData.campB?.morningMsgId || null,
+          trackerMsgId: matchMsgData.campB?.trackerMsgId || null,
+        },
+        matchChannel: {
+          channelId: currentMatchChannelId,
+          briefingMsgId: matchMsgData.matchChannel?.briefingMsgId || (match as any).briefingMsgId || null,
+        },
+        campMorningSent: matchMsgData.campMorningSent ?? Boolean((match as any).campMorningSent),
+        matchBriefingSent: matchMsgData.matchBriefingSent ?? Boolean((match as any).matchBriefingSent),
       };
 
       const reportData = (await kv.get<any>(`match:report:${match.id}`)) || {};
@@ -117,16 +140,16 @@ export async function GET(req: NextRequest) {
         const matchTimeWib = formatWIBTimeOnly(match.matchDate);
         const deadlineWib = formatWIBTimeOnly(deadlineIso);
         const timeRemainingStr = formatTimeRemaining(deadlineIso);
-        const morningEmbed = getMorningCampEmbed({ deadlineWib, timeRemainingStr });
+        const morningEmbed = getMorningCampEmbed({
+          matchDateIso: match.matchDate,
+          deadlineWib,
+          timeRemainingStr,
+        });
 
         // --- PROSES CAMP A ---
-        const chA = teamAData?.channelCampId || teamAData?.discordChannelId || teamAData?.channelId;
-        if (chA) {
-          matchMsgData.campA = matchMsgData.campA || {};
-          matchMsgData.campA.channelId = chA;
-          matchMsgData.campA.slug = slugA;
-
-          const morningMsgExists = await checkDiscordMessageExists(chA, matchMsgData.campA.morningMsgId);
+        if (cleanMatchMsgData.campA.channelId) {
+          const chA = cleanMatchMsgData.campA.channelId;
+          const morningMsgExists = await checkDiscordMessageExists(chA, cleanMatchMsgData.campA.morningMsgId);
 
           if (!morningMsgExists) {
             const morningRes: any = await discordAPI(`/channels/${chA}/messages`, 'POST', {
@@ -142,11 +165,11 @@ export async function GET(req: NextRequest) {
               channelId: chA,
               matchDateIso: match.matchDate,
               submittedPlayers: lineupA,
-              existingMsgId: matchMsgData.campA.trackerMsgId,
+              existingMsgId: cleanMatchMsgData.campA.trackerMsgId,
             });
 
-            matchMsgData.campA.morningMsgId = morningRes?.id || null;
-            matchMsgData.campA.trackerMsgId = trackerAId;
+            cleanMatchMsgData.campA.morningMsgId = morningRes?.id || null;
+            cleanMatchMsgData.campA.trackerMsgId = trackerAId;
             msgStateChanged = true;
             logs.push(`[CAMP SENT] Pengumuman dikirim ke camp ${match.teamAName}`);
           } else {
@@ -155,13 +178,9 @@ export async function GET(req: NextRequest) {
         }
 
         // --- PROSES CAMP B ---
-        const chB = teamBData?.channelCampId || teamBData?.discordChannelId || teamBData?.channelId;
-        if (chB) {
-          matchMsgData.campB = matchMsgData.campB || {};
-          matchMsgData.campB.channelId = chB;
-          matchMsgData.campB.slug = slugB;
-
-          const morningMsgExists = await checkDiscordMessageExists(chB, matchMsgData.campB.morningMsgId);
+        if (cleanMatchMsgData.campB.channelId) {
+          const chB = cleanMatchMsgData.campB.channelId;
+          const morningMsgExists = await checkDiscordMessageExists(chB, cleanMatchMsgData.campB.morningMsgId);
 
           if (!morningMsgExists) {
             const morningRes: any = await discordAPI(`/channels/${chB}/messages`, 'POST', {
@@ -177,11 +196,11 @@ export async function GET(req: NextRequest) {
               channelId: chB,
               matchDateIso: match.matchDate,
               submittedPlayers: lineupB,
-              existingMsgId: matchMsgData.campB.trackerMsgId,
+              existingMsgId: cleanMatchMsgData.campB.trackerMsgId,
             });
 
-            matchMsgData.campB.morningMsgId = morningRes?.id || null;
-            matchMsgData.campB.trackerMsgId = trackerBId;
+            cleanMatchMsgData.campB.morningMsgId = morningRes?.id || null;
+            cleanMatchMsgData.campB.trackerMsgId = trackerBId;
             msgStateChanged = true;
             logs.push(`[CAMP SENT] Pengumuman dikirim ke camp ${match.teamBName}`);
           } else {
@@ -189,6 +208,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
+        cleanMatchMsgData.campMorningSent = true;
         (schedules[i] as any).campMorningSent = true;
         stateChanged = true;
       }
@@ -201,34 +221,37 @@ export async function GET(req: NextRequest) {
           ? false
           : (diffMinutes <= 30 && diffMinutes >= -10) || (isForce && targetType === 'match');
 
-      if (shouldRunBriefing && match.discordChannelId) {
-        matchMsgData.matchChannel = matchMsgData.matchChannel || {};
-        matchMsgData.matchChannel.channelId = match.discordChannelId;
-
-        const briefingMsgId = matchMsgData.matchChannel.briefingMsgId || (match as any).briefingMsgId;
-        const briefingExists = await checkDiscordMessageExists(match.discordChannelId, briefingMsgId);
+      if (shouldRunBriefing && cleanMatchMsgData.matchChannel.channelId) {
+        const matchChannelId = cleanMatchMsgData.matchChannel.channelId;
+        const briefingExists = await checkDiscordMessageExists(
+          matchChannelId,
+          cleanMatchMsgData.matchChannel.briefingMsgId
+        );
 
         if (!briefingExists) {
           const briefingEmbed = getMatchBriefingEmbed();
-          const briefingRes: any = await discordAPI(`/channels/${match.discordChannelId}/messages`, 'POST', {
+          const briefingRes: any = await discordAPI(`/channels/${matchChannelId}/messages`, 'POST', {
             content: `📢 ${roleAPing} vs ${roleBPing} — Pertandingan segera dimulai di bawah kendali Wasit ${refPing}!`,
             embeds: [briefingEmbed],
           }).catch(() => null);
 
-          matchMsgData.matchChannel.briefingMsgId = briefingRes?.id || null;
+          cleanMatchMsgData.matchChannel.briefingMsgId = briefingRes?.id || null;
+          cleanMatchMsgData.matchBriefingSent = true;
+
           (schedules[i] as any).briefingMsgId = briefingRes?.id || null;
           (schedules[i] as any).matchBriefingSent = true;
+
           msgStateChanged = true;
           stateChanged = true;
-          logs.push(`[BRIEFING SENT] Match ${match.id} ke channel ${match.discordChannelId}`);
+          logs.push(`[BRIEFING SENT] Match ${match.id} ke channel ${matchChannelId}`);
         } else {
-          logs.push(`[BRIEFING SKIP] Briefing di channel ${match.discordChannelId} masih aktif.`);
+          logs.push(`[BRIEFING SKIP] Briefing di channel ${matchChannelId} masih aktif.`);
         }
       }
 
-      // Simpan perubahan data pesan discord untuk match ini
-      if (msgStateChanged) {
-        await kv.hset('discord:match_messages', { [match.id]: JSON.stringify(matchMsgData) });
+      // Simpan perubahan data pesan discord yang sudah terstandarisasi
+      if (msgStateChanged || !rawMsg) {
+        await kv.hset('discord:match_messages', { [match.id]: JSON.stringify(cleanMatchMsgData) });
       }
     }
 
@@ -246,4 +269,4 @@ export async function GET(req: NextRequest) {
     console.error('[CRON ERROR] Match Reminders Failed:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
-        }
+}
