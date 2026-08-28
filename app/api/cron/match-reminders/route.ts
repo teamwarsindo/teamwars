@@ -9,7 +9,7 @@ import {
   getMatchBriefingEmbed,
   sendOrUpdateLiveTracker,
   checkDiscordMessageExists,
-  DeckSubmissionStore,
+  TrackerPlayer,
 } from '@/lib/discord/messages/match-briefing';
 
 export const dynamic = 'force-dynamic';
@@ -58,6 +58,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Ambil seluruh map pesan discord yang tersimpan
+    const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
+
     for (let i = 0; i < schedules.length; i++) {
       const match = schedules[i];
       if ((match as any).isFinished || !match.matchDate) continue;
@@ -83,6 +86,24 @@ export async function GET(req: NextRequest) {
       const roleBPing = roleBId ? `<@&${roleBId}>` : `**${match.teamBName}**`;
       const refPing = match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : match.referee || 'Wasit Bertugas';
 
+      // Load data discord:match_messages & match:report untuk match ini
+      let matchMsgData = matchMessages[match.id];
+      if (typeof matchMsgData === 'string') {
+        try {
+          matchMsgData = JSON.parse(matchMsgData);
+        } catch {
+          matchMsgData = {};
+        }
+      }
+      matchMsgData = matchMsgData || {
+        campA: { channelId: null, slug: slugA, morningMsgId: null, trackerMsgId: null },
+        campB: { channelId: null, slug: slugB, morningMsgId: null, trackerMsgId: null },
+        matchChannel: { channelId: match.discordChannelId || null, briefingMsgId: null },
+      };
+
+      const reportData = (await kv.get<any>(`match:report:${match.id}`)) || {};
+      let msgStateChanged = false;
+
       // 🟡 1. PENGUMUMAN PAGI & TRACKER CAMP
       const shouldRunMorning =
         targetType === 'camp'
@@ -101,15 +122,11 @@ export async function GET(req: NextRequest) {
         // --- PROSES CAMP A ---
         const chA = teamAData?.channelCampId || teamAData?.discordChannelId || teamAData?.channelId;
         if (chA) {
-          const storeAKey = `match:decks:${slugA}`;
-          const storeA = (await kv.get<DeckSubmissionStore>(storeAKey)) || {
-            matchId: match.id,
-            teamSlug: slugA,
-            submittedPlayers: [],
-            totalDecks: 0,
-          };
+          matchMsgData.campA = matchMsgData.campA || {};
+          matchMsgData.campA.channelId = chA;
+          matchMsgData.campA.slug = slugA;
 
-          const morningMsgExists = await checkDiscordMessageExists(chA, storeA.morningMsgId);
+          const morningMsgExists = await checkDiscordMessageExists(chA, matchMsgData.campA.morningMsgId);
 
           if (!morningMsgExists) {
             const morningRes: any = await discordAPI(`/channels/${chA}/messages`, 'POST', {
@@ -117,16 +134,20 @@ export async function GET(req: NextRequest) {
               embeds: [morningEmbed],
             }).catch(() => null);
 
+            const lineupA: TrackerPlayer[] = (reportData.teamA?.lineup || []).map((p: any) => ({
+              ign: p.ign || p.name,
+            }));
+
             const trackerAId = await sendOrUpdateLiveTracker({
               channelId: chA,
               matchDateIso: match.matchDate,
-              submittedPlayers: storeA.submittedPlayers || [],
-              existingMsgId: storeA.lastTrackerMessageId,
+              submittedPlayers: lineupA,
+              existingMsgId: matchMsgData.campA.trackerMsgId,
             });
 
-            storeA.morningMsgId = morningRes?.id || null;
-            storeA.lastTrackerMessageId = trackerAId;
-            await kv.set(storeAKey, storeA);
+            matchMsgData.campA.morningMsgId = morningRes?.id || null;
+            matchMsgData.campA.trackerMsgId = trackerAId;
+            msgStateChanged = true;
             logs.push(`[CAMP SENT] Pengumuman dikirim ke camp ${match.teamAName}`);
           } else {
             logs.push(`[CAMP SKIP] Pesan di camp ${match.teamAName} masih aktif.`);
@@ -136,15 +157,11 @@ export async function GET(req: NextRequest) {
         // --- PROSES CAMP B ---
         const chB = teamBData?.channelCampId || teamBData?.discordChannelId || teamBData?.channelId;
         if (chB) {
-          const storeBKey = `match:decks:${slugB}`;
-          const storeB = (await kv.get<DeckSubmissionStore>(storeBKey)) || {
-            matchId: match.id,
-            teamSlug: slugB,
-            submittedPlayers: [],
-            totalDecks: 0,
-          };
+          matchMsgData.campB = matchMsgData.campB || {};
+          matchMsgData.campB.channelId = chB;
+          matchMsgData.campB.slug = slugB;
 
-          const morningMsgExists = await checkDiscordMessageExists(chB, storeB.morningMsgId);
+          const morningMsgExists = await checkDiscordMessageExists(chB, matchMsgData.campB.morningMsgId);
 
           if (!morningMsgExists) {
             const morningRes: any = await discordAPI(`/channels/${chB}/messages`, 'POST', {
@@ -152,16 +169,20 @@ export async function GET(req: NextRequest) {
               embeds: [morningEmbed],
             }).catch(() => null);
 
+            const lineupB: TrackerPlayer[] = (reportData.teamB?.lineup || []).map((p: any) => ({
+              ign: p.ign || p.name,
+            }));
+
             const trackerBId = await sendOrUpdateLiveTracker({
               channelId: chB,
               matchDateIso: match.matchDate,
-              submittedPlayers: storeB.submittedPlayers || [],
-              existingMsgId: storeB.lastTrackerMessageId,
+              submittedPlayers: lineupB,
+              existingMsgId: matchMsgData.campB.trackerMsgId,
             });
 
-            storeB.morningMsgId = morningRes?.id || null;
-            storeB.lastTrackerMessageId = trackerBId;
-            await kv.set(storeBKey, storeB);
+            matchMsgData.campB.morningMsgId = morningRes?.id || null;
+            matchMsgData.campB.trackerMsgId = trackerBId;
+            msgStateChanged = true;
             logs.push(`[CAMP SENT] Pengumuman dikirim ke camp ${match.teamBName}`);
           } else {
             logs.push(`[CAMP SKIP] Pesan di camp ${match.teamBName} masih aktif.`);
@@ -181,7 +202,10 @@ export async function GET(req: NextRequest) {
           : (diffMinutes <= 30 && diffMinutes >= -10) || (isForce && targetType === 'match');
 
       if (shouldRunBriefing && match.discordChannelId) {
-        const briefingMsgId = (match as any).briefingMsgId;
+        matchMsgData.matchChannel = matchMsgData.matchChannel || {};
+        matchMsgData.matchChannel.channelId = match.discordChannelId;
+
+        const briefingMsgId = matchMsgData.matchChannel.briefingMsgId || (match as any).briefingMsgId;
         const briefingExists = await checkDiscordMessageExists(match.discordChannelId, briefingMsgId);
 
         if (!briefingExists) {
@@ -191,13 +215,20 @@ export async function GET(req: NextRequest) {
             embeds: [briefingEmbed],
           }).catch(() => null);
 
+          matchMsgData.matchChannel.briefingMsgId = briefingRes?.id || null;
           (schedules[i] as any).briefingMsgId = briefingRes?.id || null;
           (schedules[i] as any).matchBriefingSent = true;
+          msgStateChanged = true;
           stateChanged = true;
           logs.push(`[BRIEFING SENT] Match ${match.id} ke channel ${match.discordChannelId}`);
         } else {
           logs.push(`[BRIEFING SKIP] Briefing di channel ${match.discordChannelId} masih aktif.`);
         }
+      }
+
+      // Simpan perubahan data pesan discord untuk match ini
+      if (msgStateChanged) {
+        await kv.hset('discord:match_messages', { [match.id]: JSON.stringify(matchMsgData) });
       }
     }
 
@@ -215,4 +246,4 @@ export async function GET(req: NextRequest) {
     console.error('[CRON ERROR] Match Reminders Failed:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
-}
+        }
