@@ -9,6 +9,7 @@ export interface DeckSubmissionStore {
     submittedBy: string;
   }>;
   totalDecks: number;
+  morningMsgId?: string | null;
   lastTrackerMessageId?: string | null;
 }
 
@@ -37,6 +38,17 @@ export function formatWIBTimeOnly(dateIso?: string): string {
       timeZone: 'Asia/Jakarta',
     }) + ' WIB'
   );
+}
+
+// 🔍 HELPER PENGECEKAN KEBERADAAN PESAN DI DISCORD (LIVE CHECK)
+export async function checkDiscordMessageExists(channelId: string, messageId?: string | null): Promise<boolean> {
+  if (!channelId || !messageId) return false;
+  try {
+    const res = await discordAPI(`/channels/${channelId}/messages/${messageId}`, 'GET');
+    return !!(res && res.id);
+  } catch {
+    return false;
+  }
 }
 
 // 🟡 1. EMBED PENGUMUMAN PAGI (CHANNEL CAMP)
@@ -76,7 +88,7 @@ export function getMorningCampEmbed(params: {
   };
 }
 
-// 📊 2. EMBED LIVE DECK TRACKER (CHANNEL CAMP)
+// 📊 2. EMBED LIVE DECK TRACKER (CHANNEL CAMP - MURNI IGN)
 export function getLiveDeckTrackerEmbed(params: {
   deadlineWib: string;
   timeRemainingStr: string;
