@@ -5,7 +5,6 @@ import {
   DeckSubmissionStore,
   sendOrUpdateLiveTracker,
 } from '@/lib/discord/messages/match-briefing';
-import { resolveTeamFastFromChannel } from '@/lib/discord/handlers/autocomplete-handler';
 
 function isStaff(interaction: any): boolean {
   try {
@@ -24,6 +23,83 @@ function isStaff(interaction: any): boolean {
   }
 }
 
+async function resolveTeamAndMatchFromChannel(channelId: string) {
+  const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+  const allSlugs: string[] = (await kv.smembers('global:teams')) || [];
+
+  for (const slug of allSlugs) {
+    const teamData = await kv.hgetall<any>(`teams:${slug}`);
+    if (
+      teamData &&
+      (teamData.channelCampId === channelId ||
+        teamData.discordChannelId === channelId ||
+        teamData.channelId === channelId)
+    ) {
+      const activeMatch = schedules.find((m) => {
+        const sA = getTeamSlug(m.teamAName);
+        const sB = getTeamSlug(m.teamBName);
+        return (sA === slug || sB === slug) && !(m as any).isFinished;
+      });
+      return { teamSlug: slug, teamData, match: activeMatch || null };
+    }
+  }
+
+  return { teamSlug: null, teamData: null, match: null };
+}
+
+// 🔍 AUTOCOMPLETE DROPDOWN ROSTER TIM (HANYA NAMPILIN IGN)
+export async function handleSubmitAutocomplete(interaction: any) {
+  try {
+    const channelId = interaction.channel_id;
+    const { teamSlug, teamData } = await resolveTeamAndMatchFromChannel(channelId);
+
+    if (!teamSlug || !teamData?.players) {
+      return { type: 8, data: { choices: [] } };
+    }
+
+    let players: any[] = [];
+    if (typeof teamData.players === 'string') {
+      try {
+        players = JSON.parse(teamData.players);
+      } catch {
+        players = [];
+      }
+    } else if (Array.isArray(teamData.players)) {
+      players = teamData.players;
+    }
+
+    const options = interaction.data?.options || [];
+    const focused = options.find((o: any) => o.focused);
+    const searchVal = (focused?.value || '').toLowerCase();
+
+    // Sembunyikan pemain yang sudah tercatat di KV
+    const submissionKey = `match:decks:${teamSlug}`;
+    const store: DeckSubmissionStore = (await kv.get<DeckSubmissionStore>(submissionKey)) || {
+      matchId: '',
+      teamSlug,
+      submittedPlayers: [],
+      totalDecks: 0,
+    };
+    const alreadySubmitted = (store.submittedPlayers || []).map((p) => p.name.toLowerCase());
+
+    const availablePlayers = players.filter(
+      (p) => p.ign && !alreadySubmitted.includes(String(p.ign).toLowerCase())
+    );
+
+    const choices = availablePlayers
+      .filter((p) => String(p.ign).toLowerCase().includes(searchVal))
+      .slice(0, 25)
+      .map((p) => ({
+        name: String(p.ign),
+        value: String(p.ign),
+      }));
+
+    return { type: 8, data: { choices } };
+  } catch {
+    return { type: 8, data: { choices: [] } };
+  }
+}
+
 // ⚡ EKSEKUSI COMMAND /submit
 export async function handleSubmitCommand(interaction: any) {
   try {
@@ -38,7 +114,7 @@ export async function handleSubmitCommand(interaction: any) {
     }
 
     const channelId = interaction.channel_id;
-    const { teamSlug, teamData } = await resolveTeamFastFromChannel(channelId);
+    const { teamSlug, teamData, match } = await resolveTeamAndMatchFromChannel(channelId);
 
     if (!teamSlug || !teamData) {
       return {
@@ -62,16 +138,9 @@ export async function handleSubmitCommand(interaction: any) {
       };
     }
 
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const activeMatch = schedules.find((m) => {
-      const sA = getTeamSlug(m.teamAName);
-      const sB = getTeamSlug(m.teamBName);
-      return (sA === teamSlug || sB === teamSlug) && !(m as any).isFinished;
-    });
-
     const submissionKey = `match:decks:${teamSlug}`;
     const store: DeckSubmissionStore = (await kv.get<DeckSubmissionStore>(submissionKey)) || {
-      matchId: activeMatch?.id || 'manual',
+      matchId: match?.id || 'manual',
       teamSlug,
       submittedPlayers: [],
       totalDecks: 0,
@@ -90,6 +159,7 @@ export async function handleSubmitCommand(interaction: any) {
       };
     }
 
+    // Deduplikasi dan validasi kuota
     const uniqueInputs: string[] = Array.from(new Set<string>(inputPlayers));
     const newValidPlayers: string[] = uniqueInputs.filter(
       (name: string) => !store.submittedPlayers.some((p) => p.name.toLowerCase() === name.toLowerCase())
@@ -118,7 +188,8 @@ export async function handleSubmitCommand(interaction: any) {
 
     store.totalDecks = store.submittedPlayers.length * 2;
 
-    const matchDateIso = activeMatch?.matchDate || new Date().toISOString();
+    // 🔁 Refresh Live Tracker di Channel Camp
+    const matchDateIso = match?.matchDate || new Date().toISOString();
     const newTrackerId = await sendOrUpdateLiveTracker({
       channelId,
       matchDateIso,
