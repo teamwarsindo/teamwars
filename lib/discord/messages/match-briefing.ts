@@ -1,16 +1,9 @@
-import { discordAPI, getFooterText } from '../utils';
+import { discordAPI, getEmbedFooterText } from '../utils';
 
-export interface DeckSubmissionStore {
-  matchId: string;
-  teamSlug: string;
-  submittedPlayers: Array<{
-    name: string;
-    submittedAt: string;
-    submittedBy: string;
-  }>;
-  totalDecks: number;
-  morningMsgId?: string | null;
-  lastTrackerMessageId?: string | null;
+export interface TrackerPlayer {
+  ign: string;
+  submittedAt?: string;
+  submittedBy?: string;
 }
 
 export function formatTimeRemaining(targetDateIso?: string): string {
@@ -84,7 +77,7 @@ export function getMorningCampEmbed(params: {
           '• Salah membawa archetype = **Loss 1 deck**.',
       },
     ],
-    footer: { text: getFooterText() },
+    footer: { text: getEmbedFooterText() },
   };
 }
 
@@ -92,7 +85,8 @@ export function getMorningCampEmbed(params: {
 export function getLiveDeckTrackerEmbed(params: {
   deadlineWib: string;
   timeRemainingStr: string;
-  submittedPlayers: Array<{ name: string }>;
+  submittedPlayers: TrackerPlayer[];
+  lastUpdated?: string | Date;
 }) {
   const count = params.submittedPlayers.length;
   const totalDecks = count * 2;
@@ -101,7 +95,7 @@ export function getLiveDeckTrackerEmbed(params: {
   const playerRows: string[] = [];
   for (let i = 0; i < 5; i++) {
     if (i < count) {
-      playerRows.push(`${i + 1}. **${params.submittedPlayers[i].name}** ✅ *(2 Deck)*`);
+      playerRows.push(`${i + 1}. **${params.submittedPlayers[i].ign}** ✅ *(2 Deck)*`);
     } else {
       playerRows.push(`${i + 1}. \`[Slot Kosong]\` ❌`);
     }
@@ -124,7 +118,7 @@ export function getLiveDeckTrackerEmbed(params: {
         value: '• Kirim SS deck di channel ini.\n• Wasit/Admin gunakan `/submit` untuk memvalidasi pemain.',
       },
     ],
-    footer: { text: getFooterText() },
+    footer: { text: getEmbedFooterText(params.lastUpdated || new Date()) },
   };
 }
 
@@ -164,7 +158,7 @@ export function getMatchBriefingEmbed() {
           '• **DC & Glitch:** Disconnect = **Kalah otomatis**. Klaim glitch wajib lapor bukti video/SS maksimal **5 menit**.',
       },
     ],
-    footer: { text: getFooterText() },
+    footer: { text: getEmbedFooterText() },
   };
 }
 
@@ -172,7 +166,7 @@ export function getMatchBriefingEmbed() {
 export async function sendOrUpdateLiveTracker(params: {
   channelId: string;
   matchDateIso: string;
-  submittedPlayers: Array<{ name: string }>;
+  submittedPlayers: TrackerPlayer[];
   existingMsgId?: string | null;
 }): Promise<string | null> {
   if (!params.channelId) return null;
@@ -186,6 +180,7 @@ export async function sendOrUpdateLiveTracker(params: {
     deadlineWib: formatWIBTimeOnly(deadlineIso),
     timeRemainingStr: formatTimeRemaining(deadlineIso),
     submittedPlayers: params.submittedPlayers,
+    lastUpdated: new Date(),
   });
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
