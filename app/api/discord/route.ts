@@ -1,360 +1,461 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
-import { verifySignature } from '@/lib/discord/utils';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { createMatchDiscordChannel } from '@/lib/discord/channels';
-import { revalidatePath } from 'next/cache';
+import { NextResponse } from 'next/server';
+import { discordAPI } from '@/lib/discord/utils';
 
-// Slash Commands Handlers
-import { handleReminder } from '@/lib/discord/commands/reminder';
-import { handlePrepare } from '@/lib/discord/commands/prepare';
-import { handleInfo } from '@/lib/discord/commands/info';
-import { handleTimerCommand } from '@/lib/discord/commands/timer';
-import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
-import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
-import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
-import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
-import { handleTransferCommand, handleTransferAutocomplete } from '@/lib/discord/commands/transfer';
-import { handleStreamCommand } from '@/lib/discord/commands/stream';
-import { handleMatchReportCommand, handleMatchReportSelect } from '@/lib/discord/commands/match-report';
-import { handleSubmitCommand } from '@/lib/discord/commands/submit';
+export async function GET(req: Request) {
+  const appId = process.env.DISCORD_CLIENT_ID;
+  if (!appId) {
+    return NextResponse.json(
+      { error: 'Missing Client ID in Environment Variables' },
+      { status: 500 }
+    );
+  }
 
-// Transfer Execution Services
-import { executeTransferAdd, executeTransferOut, executeTransferEditDl } from '@/lib/discord/services/transfer-service';
+  const commands = [
+    // 🟢 1. ASSIGN COMMAND
+    {
+      name: 'assign',
+      description: 'Tugaskan Referee atau Streamer ke jadwal pertandingan',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'match',
+          description: 'Pilih pertandingan',
+          required: true,
+          autocomplete: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'type',
+          description: 'Pilih peran penugasan staf',
+          required: true,
+          choices: [
+            { name: '⚖️ Referee (Wasit Pertandingan)', value: 'REFEREE' },
+            { name: '🎥 Streamer (Kreator)', value: 'STREAMER' },
+          ],
+        },
+        {
+          type: 3, // STRING
+          name: 'user',
+          description: 'Pilih staf yang ditugaskan',
+          required: true,
+          autocomplete: true,
+        },
+      ],
+    },
 
-// Autocomplete & Staf Handlers
-import {
-  handleAssignAutocomplete,
-  handleRescheduleAutocomplete,
-  handleMatchReportAutocomplete,
-  handleSubmitAutocomplete,
-} from '@/lib/discord/handlers/autocomplete-handler';
-import { handleAssignCommand } from '@/lib/discord/handlers/assign-handler';
-import { handleUnassignCommand } from '@/lib/discord/handlers/unassign-handler';
-import { handleCancelAssignCommand } from '@/lib/discord/handlers/cancel-assign-handler';
-import { handleRescheduleCommand } from '@/lib/discord/handlers/reschedule-handler';
+    // 🔴 2. UNASSIGN COMMAND (MATCH SELESAI)
+    {
+      name: 'unassign',
+      description: 'Konfirmasi penyelesaian tugas staf dan rekap hasil pertandingan',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'match',
+          description: 'Pilih pertandingan yang telah selesai',
+          required: true,
+          autocomplete: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'type',
+          description: 'Pilih peran staf yang menyelesaikan tugas',
+          required: true,
+          choices: [
+            { name: '⚖️ Referee (Wajib menyertakan hasil pertandingan)', value: 'REFEREE' },
+            { name: '🎥 Streamer', value: 'STREAMER' },
+          ],
+        },
+        {
+          type: 4, // INTEGER
+          name: 'score_a',
+          description: 'Skor akhir Tim Kiri (Wajib diisi jika peran Referee)',
+          required: false,
+        },
+        {
+          type: 4, // INTEGER
+          name: 'score_b',
+          description: 'Skor akhir Tim Kanan (Wajib diisi jika peran Referee)',
+          required: false,
+        },
+      ],
+    },
 
-// Button Handlers
-import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
-import { handleBtRole } from '@/lib/discord/buttons/btRole';
-import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
-import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
+    // ❌ 3. CANCEL ASSIGN COMMAND
+    {
+      name: 'cancel-assign',
+      description: 'Batalkan penugasan staf pertandingan yang berhalangan hadir',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'match',
+          description: 'Pilih pertandingan',
+          required: true,
+          autocomplete: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'type',
+          description: 'Pilih peran penugasan yang dibatalkan',
+          required: true,
+          choices: [
+            { name: '⚖️ Referee', value: 'REFEREE' },
+            { name: '🎥 Streamer', value: 'STREAMER' },
+          ],
+        },
+        {
+          type: 3, // STRING
+          name: 'reason',
+          description: 'Alasan pembatalan penugasan secara jelas',
+          required: true,
+        },
+      ],
+    },
 
-// Bidding Module
-import { getBidModal } from '@/lib/discord/buttons/bidding';
-import { processBidSubmission, handleViewFullLog, KV_BID_KEY, BidStore } from '@/lib/discord/bidding';
+    // 📅 4. RESCHEDULE COMMAND
+    {
+      name: 'reschedule',
+      description: 'Perbarui jadwal (hari dan/ jam) pertandingan di channel match',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'tanggal',
+          description: 'Pilih tanggal bertanding (Rabu s/d Minggu)',
+          required: false,
+          autocomplete: true,
+        },
+        {
+          type: 3, // STRING
+          name: 'jam',
+          description: 'Waktu pertandingan dalam format 24 Jam (Contoh: 20.00, 20:30, 21.00)',
+          required: false,
+        },
+        {
+          type: 5, // BOOLEAN
+          name: 'update_recap',
+          description: 'Perbarui rekap jadwal pertandingan',
+          required: false,
+        },
+      ],
+    },
 
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
-export const revalidate = 0;
+    // 👥 5. CEK ROSTER COMMAND
+    {
+      name: 'cek-roster',
+      description: 'Periksa daftar roster tim',
+      options: [
+        {
+          type: 8, // ROLE
+          name: 'team1',
+          description: 'Pilih tim untuk dicek',
+          required: true,
+        },
+        {
+          type: 8, // ROLE
+          name: 'team2',
+          description: 'Pilih tim lain untuk dicek (Opsional)',
+          required: false,
+        },
+      ],
+    },
 
-const BID_DEADLINE_TIMESTAMP = 1786279200;
+    // 🔍 6. CEK ID COMMAND
+    {
+      name: 'cek-id',
+      description: 'Verifikasi kepemilikan ID DL/ ID MD di database Team Wars Indonesia',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'game',
+          description: 'Pilih kategori game yang ingin diperiksa',
+          required: true,
+          choices: [
+            { name: 'Yu-Gi-Oh! Duel Links', value: 'dl' },
+            { name: 'Yu-Gi-Oh! Master Duel', value: 'md' },
+          ],
+        },
+        {
+          type: 3, // STRING
+          name: 'id',
+          description: 'Masukkan nomor ID DL/ ID MD',
+          required: true,
+        },
+      ],
+    },
 
-export async function POST(req: NextRequest) {
-  try {
-    const rawBody = await req.text();
-    const signature = req.headers.get('x-signature-ed25519');
-    const timestamp = req.headers.get('x-signature-timestamp');
+    // ℹ️ 7. INFO COMMAND
+    {
+      name: 'info',
+      description: 'Tampilkan rincian data profil peserta Team Wars Indonesia',
+      options: [
+        {
+          type: 6, // USER
+          name: 'target',
+          description: 'Pilih pemain lain (Kosongkan untuk memeriksa profil diri sendiri)',
+          required: false,
+        },
+      ],
+    },
 
-    // 1. Verifikasi Signature Discord
-    if (!verifySignature(rawBody, signature, timestamp)) {
-      console.warn('⚠️ Request Discord ditolak: Signature Invalid!');
-      return new NextResponse('Akses Ditolak', { status: 401 });
-    }
+    // ⛔ 8. BLACKLIST COMMAND
+    {
+      name: 'blacklist',
+      description: 'Kelola basis data larangan bermain (Blacklist Game ID)',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'action',
+          description: 'Pilih operasi pengelolaan blacklist',
+          required: true,
+          choices: [
+            { name: '➕ Tambah ke Blacklist (Add)', value: 'add' },
+            { name: '➖ Hapus dari Blacklist (Remove)', value: 'remove' },
+            { name: '📋 Tampilkan Seluruh Blacklist (List)', value: 'list' },
+          ],
+        },
+        {
+          type: 3, // STRING
+          name: 'id',
+          description: 'Masukkan Duel Links ID (Diperlukan untuk opsi Add / Remove)',
+          required: false,
+        },
+      ],
+    },
 
-    const body = JSON.parse(rawBody);
+    // 🚫 9. CANCEL BID COMMAND
+    {
+      name: 'cancel-bid',
+      description: '[ADMIN] Anulir penawaran (bid) tertinggi pada divisi tertentu',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'group',
+          description: 'Pilih divisi sasaran',
+          required: true,
+          choices: [
+            { name: 'Divisi Group A', value: 'A' },
+            { name: 'Divisi Group B', value: 'B' },
+          ],
+        },
+        {
+          type: 3, // STRING
+          name: 'alasan',
+          description: 'Uraikan dasar pembatalan penawaran',
+          required: false,
+        },
+      ],
+    },
 
-    // 2. PING TEST DARI DISCORD PORTAL (Type 1)
-    if (body.type === 1) {
-      return new NextResponse(JSON.stringify({ type: 1 }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // ⚡ Slash Commands Execution (Type 2)
-    if (body.type === 2) {
-      const commandName = body.data.name;
-      if (commandName === 'assign') return NextResponse.json(await handleAssignCommand(body));
-      if (commandName === 'unassign') return NextResponse.json(await handleUnassignCommand(body));
-      if (commandName === 'cancel-assign') return NextResponse.json(await handleCancelAssignCommand(body));
-      if (commandName === 'reschedule') return NextResponse.json(await handleRescheduleCommand(body));
-      if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
-      if (commandName === 'match-report') return NextResponse.json(await handleMatchReportCommand(body));
-      if (commandName === 'stream') return NextResponse.json(await handleStreamCommand(body));
-      if (commandName === 'submit') return NextResponse.json(await handleSubmitCommand(body));
-      if (commandName === 'reminder') return await handleReminder(body);
-      if (commandName === 'prepare') return await handlePrepare(body);
-      if (commandName === 'info') return await handleInfo(body);
-      if (commandName === 'timer') return await handleTimerCommand(body);
-      if (commandName === 'cek-id') return await handleCekId(body);
-      if (commandName === 'blacklist') return await handleBlacklistCommand(body);
-      if (commandName === 'cek-roster') return await handleCekRoster(body);
-      if (commandName === 'cancel-bid') return await handleCancelBid(body);
-    }
-
-    // 🔘 Button Interactions (Type 3)
-    if (body.type === 3) {
-      const customId: string = body.data?.custom_id || '';
-      const userId: string = body.member?.user?.id || '';
-      const userRoles: string[] = body.member?.roles || [];
-      const isAdmin = userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
-
-      if (customId === 'bt_verified') return await handleBtVerified(body);
-      if (customId === 'bt_role') return await handleBtRole(body);
-      if (customId === 'btn_edit_team') return await handleBtEditTeam(body);
-      if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') return await handleBtTimer(body);
-      if (customId === 'select_forward_match_report') return await handleMatchReportSelect(body);
-
-      if (customId.startsWith('btn_parse_')) {
-        if (customId === 'btn_parse_CANCEL') {
-          return NextResponse.json({
-            type: 7,
-            data: { content: '❌ **Proses Auto-Parse Transfer Dibatalkan.**', embeds: [], components: [] },
-          });
-        }
-
-        const parts = customId.split('_');
-        const action = parts[3] as 'ADD' | 'OUT' | 'EDIT';
-        const interactionId = parts[4];
-
-        const sessionKey = `parse_session:${interactionId}`;
-        const session = await kv.get<any>(sessionKey);
-
-        if (!session) {
-          return NextResponse.json({
-            type: 4,
-            data: { content: '❌ **Sesi Telah Kadaluarsa!** Silakan jalankan ulang command `/transfer parse`.', flags: 64 },
-          });
-        }
-
-        const { teamSlug, targetDiscordId, targetUsername, ign, idDl } = session;
-
-        try {
-          if (action === 'OUT') {
-            const res = await executeTransferOut(teamSlug, targetUsername);
-            await kv.del(sessionKey);
-            return NextResponse.json({
-              type: 7,
-              data: {
-                content: `✅ **Auto-Parse OUT Berhasil!**\nPemain **${res.removedIgn}** resmi dikeluarkan dari tim **${res.teamName}**.`,
-                embeds: [],
-                components: [],
-              },
-            });
-          }
-
-          if (action === 'EDIT') {
-            if (!idDl) {
-              return NextResponse.json({
-                type: 4,
-                data: { content: '❌ **Gagal Exec Edit!** ID Duel Links Baru tidak ditemukan pada teks.', flags: 64 },
-              });
-            }
-            const res = await executeTransferEditDl(teamSlug, targetUsername, idDl);
-            await kv.del(sessionKey);
-            return NextResponse.json({
-              type: 7,
-              data: {
-                content: `✅ **Auto-Parse EDIT DL Berhasil!**\nID Duel Links **${res.ign}** diperbarui menjadi \`${res.newDl}\` (Sisa kuota: **${2 - res.currentQuota}**)`,
-                embeds: [],
-                components: [],
-              },
-            });
-          }
-
-          if (!ign || !idDl) {
-            return NextResponse.json({
-              type: 4,
-              data: {
-                content: `❌ **Gagal Exec ADD!** Data IGN (\`${ign || '-'}\`) atau ID DL (\`${idDl || '-'}\`) kurang lengkap. Silakan gunakan \`/transfer add\` manual.`,
-                flags: 64,
-              },
-            });
-          }
-
-          const res = await executeTransferAdd({
-            teamSlug,
-            targetDiscordId,
-            targetUsername,
-            ign,
-            rawIdDl: idDl,
-          });
-
-          await kv.del(sessionKey);
-
-          return NextResponse.json({
-            type: 7,
-            data: {
-              content: `✅ **Auto-Parse ADD Berhasil!**\n• Pemain: **${res.addedIgn}** (\`${idDl}\`)\n• Tim: **${res.teamName}**\nℹ️ Sisa kuota transfer tim: **${2 - res.currentQuota}**`,
-              embeds: [],
-              components: [],
+    // 🔄 10. TRANSFER COMMAND
+    {
+      name: 'transfer',
+      description: '[ROSTER] Pengelolaan bursa transfer, pendaftaran, dan mutasi pemain tim',
+      options: [
+        {
+          type: 1, // SUB_COMMAND
+          name: 'out',
+          description: 'Keluarkan peserta dari komposisi roster tim aktif',
+          options: [
+            {
+              type: 3, // STRING
+              name: 'user',
+              description: 'Pilih nama peserta yang akan dilepas dari tim',
+              required: true,
+              autocomplete: true,
             },
-          });
-        } catch (err: any) {
-          return NextResponse.json({
-            type: 4,
-            data: { content: `❌ **Gagal Eksekusi:** ${err.message || 'Terjadi kesalahan'}`, flags: 64 },
-          });
-        }
-      }
+            {
+              type: 3, // STRING
+              name: 'team',
+              description: 'Pilih nama tim target (Wajib ditentukan oleh Admin)',
+              required: false,
+              autocomplete: true,
+            },
+          ],
+        },
+        {
+          type: 1, // SUB_COMMAND
+          name: 'add',
+          description: 'Daftarkan peserta baru ke dalam komposisi roster tim',
+          options: [
+            {
+              type: 6, // USER
+              name: 'user',
+              description: 'Sebut (@mention) akun Discord peserta baru',
+              required: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'ign',
+              description: 'Nama in-game resmi (IGN Duel Links) peserta',
+              required: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'id_dl',
+              description: 'Nomor identifikasi 9 digit Duel Links ID',
+              required: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'team',
+              description: 'Pilih tim tujuan registrasi (Wajib ditentukan oleh Admin)',
+              required: false,
+              autocomplete: true,
+            },
+          ],
+        },
+        {
+          type: 1, // SUB_COMMAND
+          name: 'edit',
+          description: 'Perbarui Game ID atau struktur kepengurusan (Ketua/Wakil) pemain',
+          options: [
+            {
+              type: 3, // STRING
+              name: 'user',
+              description: 'Pilih nama peserta yang datanya akan disesuaikan',
+              required: true,
+              autocomplete: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'new_id_dl',
+              description: 'Duel Links ID baru (Kosongkan jika hanya mengubah jabatan)',
+              required: false,
+            },
+            {
+              type: 3, // STRING
+              name: 'position',
+              description: 'Pilih penetapan jabatan struktural baru',
+              required: false,
+              choices: [
+                { name: 'Ketua Tim (Khusus Admin)', value: 'Ketua' },
+                { name: 'Wakil Ketua Tim', value: 'Wakil Ketua' },
+              ],
+            },
+            {
+              type: 3, // STRING
+              name: 'team',
+              description: 'Pilih tim peserta terkait (Opsional jika data tim terdeteksi)',
+              required: false,
+              autocomplete: true,
+            },
+          ],
+        },
+        {
+          type: 1, // SUB_COMMAND
+          name: 'parse',
+          description: '[ADMIN] Pemrosesan otomatis berdasarkan salinan format pesan registrasi',
+          options: [
+            {
+              type: 3, // STRING
+              name: 'text',
+              description: 'Tempelkan seluruh isi pesan permohonan transfer',
+              required: true,
+            },
+            {
+              type: 6, // USER
+              name: 'user',
+              description: 'Sebut (@mention) akun Discord peserta target',
+              required: true,
+            },
+            {
+              type: 3, // STRING
+              name: 'team',
+              description: 'Pilih tim target yang bersangkutan',
+              required: false,
+              autocomplete: true,
+            },
+          ],
+        },
+      ],
+    },
 
-      if (customId === 'btn_view_full_log') {
-        return await handleViewFullLog();
-      }
+    // 📊 11. MATCH REPORT FORWARD COMMAND
+    {
+      name: 'match-report',
+      description: '[CAMP] Teruskan match report resmi ke channel camp ini',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'team',
+          description: 'Pilih nama tim untuk melihat daftar match report',
+          required: true,
+          autocomplete: true,
+        },
+      ],
+    },
 
-      if (customId.startsWith('btn_bid_')) {
-        if (Date.now() >= BID_DEADLINE_TIMESTAMP * 1000) {
-          return NextResponse.json({
-            type: 4,
-            data: { content: '❌ **Bidding telah resmi ditutup!**', flags: 64 },
-          });
-        }
+    // 🎥 12. STREAM COMMAND
+    {
+      name: 'stream',
+      description: '[STREAMER] Masukkan link siaran langsung pertandingan ini dan kirim broadcast',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'link',
+          description: 'Masukkan URL siaran langsung (YouTube, TikTok, Twitch, dsb.)',
+          required: true,
+        },
+      ],
+    },
 
-        const groupTarget = customId.replace('btn_bid_', '');
-        const data = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null };
+    // 🗃️ 13. SUBMIT COMMAND (REVISI BARU)
+    {
+      name: 'submit',
+      description: '[STAFF] Rekapitulasi pengumpulan deck pemain tim di channel camp',
+      options: [
+        {
+          type: 3, // STRING
+          name: 'pemain_1',
+          description: 'Pilih nama pemain ke-1 yang telah mengumpulkan deck',
+          required: true,
+          autocomplete: true,
+        },
+        {
+          type: 3,
+          name: 'pemain_2',
+          description: 'Pilih nama pemain ke-2 (Opsional)',
+          required: false,
+          autocomplete: true,
+        },
+        {
+          type: 3,
+          name: 'pemain_3',
+          description: 'Pilih nama pemain ke-3 (Opsional)',
+          required: false,
+          autocomplete: true,
+        },
+        {
+          type: 3,
+          name: 'pemain_4',
+          description: 'Pilih nama pemain ke-4 (Opsional)',
+          required: false,
+          autocomplete: true,
+        },
+        {
+          type: 3,
+          name: 'pemain_5',
+          description: 'Pilih nama pemain ke-5 (Opsional)',
+          required: false,
+          autocomplete: true,
+        },
+      ],
+    },
+  ];
 
-        const currentA = data.groupA?.amount || 0;
-        const currentB = data.groupB?.amount || 0;
+  const slashResult = await discordAPI(`/applications/${appId}/commands`, 'PUT', commands);
 
-        const minAmountA = currentA === 0 ? 110000 : currentA + 10000;
-        const minAmountB = currentB === 0 ? 110000 : currentB + 10000;
-
-        const minAmount = groupTarget === 'A' ? minAmountA : minAmountB;
-
-        return NextResponse.json(getBidModal(groupTarget, minAmount));
-      }
-
-      if (customId.startsWith('btn_edit_match_')) {
-        const matchId = customId.replace('btn_edit_match_', '');
-        const schedules = (await kv.get<any[]>('twi:schedules')) || [];
-        const match = schedules.find((m) => m.id === matchId);
-
-        if (!match) {
-          return NextResponse.json({ type: 4, data: { content: '❌ Data match tidak ditemukan.', flags: 64 } });
-        }
-
-        const isReferee = match.refereeDiscordId && match.refereeDiscordId === userId;
-        if (!isAdmin && !isReferee) {
-          return NextResponse.json({ type: 4, data: { content: '⚠️ Akses ditolak! Khusus Wasit bertugas atau Admin.', flags: 64 } });
-        }
-
-        const token = match.refereeToken || '';
-        const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.teamwars.web.id';
-        const magicUrl = `${hostUrl}/tournament/match-input/${matchId}?token=${token}`;
-
-        return NextResponse.json({
-          type: 4,
-          data: { content: `🔒 **Akses Match Report Console**\n🔗 ${magicUrl}`, flags: 64 },
-        });
-      }
-
-      if (customId.startsWith('btn_request_reschedule_')) {
-        const matchId = customId.replace('btn_request_reschedule_', '');
-        const suggestedDate = new Date();
-        suggestedDate.setDate(suggestedDate.getDate() + 2);
-        suggestedDate.setHours(20, 0, 0, 0);
-        const suggestedIso = suggestedDate.toISOString();
-
-        const formattedSuggestedWIB = suggestedDate.toLocaleDateString('id-ID', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'short',
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'Asia/Jakarta',
-        });
-
-        return NextResponse.json({
-          type: 4,
-          data: {
-            content: `📢 **PENGAJUAN RESCHEDULE MATCH**\n\nUsulan waktu baru:\n📅 **${formattedSuggestedWIB} WIB**\n\n*Konfirmasi dari Kapten Tim Lawan atau Admin:*`,
-            components: [
-              {
-                type: 1,
-                components: [
-                  { type: 2, style: 3, label: 'Setujui Reschedule', custom_id: `btn_confirm_reschedule_${matchId}_${suggestedIso}`, emoji: { name: '✅' } },
-                  { type: 2, style: 4, label: 'Tolak', custom_id: `btn_reject_reschedule_${matchId}`, emoji: { name: '❌' } },
-                ],
-              },
-            ],
-          },
-        });
-      }
-
-      if (customId.startsWith('btn_confirm_reschedule_')) {
-        const [, , matchId, newDateIso] = customId.split('_');
-        const schedules = (await kv.get<any[]>('twi:schedules')) || [];
-        const matchIndex = schedules.findIndex((m) => m.id === matchId);
-
-        if (matchIndex !== -1) {
-          schedules[matchIndex].matchDate = newDateIso;
-          await kv.set('twi:schedules', schedules);
-
-          revalidatePath('/tournament');
-          revalidatePath('/admin/dashboard');
-
-          const match = schedules[matchIndex];
-          await createMatchDiscordChannel({
-            matchId: match.id,
-            teamAName: match.teamAName,
-            teamBName: match.teamBName,
-            weekName: `Week ${match.calculatedWeekNumber || 1}`,
-            matchDateIso: match.matchDate,
-            refereeName: match.referee,
-            refereeDiscordId: match.refereeDiscordId,
-            streamerName: match.streamer,
-            streamerDiscordId: match.caster,
-            streamLink: match.streamLink,
-          });
-
-          return NextResponse.json({
-            type: 4,
-            data: { content: `🎉 **Reschedule Disetujui & Resmi Berubah!**` },
-          });
-        }
-      }
-
-      if (customId.startsWith('btn_reject_reschedule_')) {
-        return NextResponse.json({ type: 4, data: { content: '❌ **Pengajuan Reschedule Ditolak.**' } });
-      }
-    }
-
-    // 🔎 Autocomplete Interactions (Type 4)
-    if (body.type === 4) {
-      if (body.data?.name === 'assign' || body.data?.name === 'unassign' || body.data?.name === 'cancel-assign') {
-        const autocompleteResponse = await handleAssignAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
-      if (body.data?.name === 'reschedule') {
-        const autocompleteResponse = await handleRescheduleAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
-      if (body.data?.name === 'transfer') {
-        const autocompleteResponse = await handleTransferAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
-      if (body.data?.name === 'match-report') {
-        const autocompleteResponse = await handleMatchReportAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
-      if (body.data?.name === 'submit') {
-        const autocompleteResponse = await handleSubmitAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
-    }
-
-    // 📝 Modal Submit Interactions (Type 5)
-    if (body.type === 5) {
-      const customId = body.data.custom_id;
-      if (customId.startsWith('modal_bid_')) {
-        return await processBidSubmission(body);
-      }
-    }
-
-    return new NextResponse('Unknown Interaction', { status: 400 });
-  } catch (error) {
-    console.error('Error Webhook DC:', error);
-    return new NextResponse('Internal Error', { status: 500 });
+  if (slashResult && !slashResult.error) {
+    return NextResponse.json({
+      message: '✅ Setup Slash Commands Berhasil Dijalankan!',
+      commands: slashResult,
+    });
+  } else {
+    return NextResponse.json(
+      {
+        error: '❌ Gagal mendaftarkan commands',
+        details: slashResult || 'Discord API mengembalikan null.',
+      },
+      { status: 500 }
+    );
   }
 }
