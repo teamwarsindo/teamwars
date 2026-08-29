@@ -29,7 +29,6 @@ export default function AdminAuditPage() {
       if (json.success && Array.isArray(json.items)) {
         setItems(json.items);
         if (!activeKey && json.items.length > 0) {
-          // Default pilih twi:schedules jika ada, atau item pertama
           const defaultKey = json.items.find((i: KVItem) => i.key === 'twi:schedules')?.key || json.items[0].key;
           setActiveKey(defaultKey);
         }
@@ -47,7 +46,6 @@ export default function AdminAuditPage() {
 
   const currentItem = useMemo(() => items.find((i) => i.key === activeKey), [items, activeKey]);
 
-  // Simpan perubahan data ke Vercel KV
   const persistKeyData = async (key: string, type: string, updatedValue: any) => {
     setIsSaving(true);
     try {
@@ -140,7 +138,7 @@ export default function AdminAuditPage() {
           </div>
         </div>
 
-        {/* Layout 2 Kolom: Sidebar Daftar Key & Area Tabel Excel */}
+        {/* Layout 2 Kolom */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Sidebar List Keys */}
           <div className="lg:col-span-3 rounded-xl border border-border bg-card p-3 space-y-3">
@@ -248,7 +246,6 @@ export default function AdminAuditPage() {
   );
 }
 
-// 🟢 KOMPONEN TABEL EXCEL INTERAKTIF (Bisa Edit Sel, Tambah Baris, Tambah Kolom)
 function InteractiveDataTable({
   kvItem,
   onSave,
@@ -267,7 +264,6 @@ function InteractiveDataTable({
   const [editVal, setEditVal] = useState('');
   const [newColName, setNewColName] = useState('');
 
-  // Sinkronisasi data saat kvItem berganti
   useEffect(() => {
     if (isArray) {
       setRows(kvItem.value);
@@ -277,14 +273,12 @@ function InteractiveDataTable({
       });
       setColumns(Array.from(cols));
     } else if (isObject) {
-      // Ubah Object { a: 1, b: 2 } jadi bentuk baris [{ key: 'a', value: 1 }, { key: 'b', value: 2 }]
       const mapped = Object.entries(kvItem.value).map(([k, v]) => ({ key: k, value: v }));
       setRows(mapped);
       setColumns(['key', 'value']);
     }
   }, [kvItem, isArray, isObject]);
 
-  // Simpan nilai sel yang diedit
   const handleSaveCell = (rowIdx: number, colKey: string) => {
     let parsed: any = editVal;
     if (editVal.toLowerCase() === 'true') parsed = true;
@@ -303,7 +297,6 @@ function InteractiveDataTable({
       const updatedRows = [...rows];
       updatedRows[rowIdx] = { ...updatedRows[rowIdx], [colKey]: parsed };
       setRows(updatedRows);
-      // Rekonstruksi kembali ke bentuk Object
       const reconstructed: Record<string, any> = {};
       updatedRows.forEach((r) => { if (r.key) reconstructed[r.key] = r.value; });
       onSave(reconstructed);
@@ -311,7 +304,6 @@ function InteractiveDataTable({
     setEditingCell(null);
   };
 
-  // Tambah Baris Baru
   const handleAddRow = () => {
     if (isArray) {
       const newRow: any = {};
@@ -328,7 +320,6 @@ function InteractiveDataTable({
     }
   };
 
-  // Hapus Baris
   const handleDeleteRow = (idx: number) => {
     if (!confirm(`Hapus baris ke-${idx + 1}?`)) return;
     const updated = rows.filter((_, i) => i !== idx);
@@ -343,7 +334,6 @@ function InteractiveDataTable({
     }
   };
 
-  // Tambah Kolom Baru (khusus Array)
   const handleAddColumn = () => {
     if (!newColName.trim() || columns.includes(newColName.trim())) return;
     const name = newColName.trim();
@@ -351,7 +341,6 @@ function InteractiveDataTable({
     setNewColName('');
   };
 
-  // Hapus Kolom (khusus Array)
   const handleDeleteColumn = (col: string) => {
     if (!confirm(`Hapus kolom "${col}" dari seluruh baris data?`)) return;
     const updatedCols = columns.filter((c) => c !== col);
@@ -365,7 +354,6 @@ function InteractiveDataTable({
     onSave(updatedRows);
   };
 
-  // Jika berupa String skalar sederhana
   if (!isArray && !isObject) {
     return (
       <div className="space-y-4">
@@ -386,7 +374,7 @@ function InteractiveDataTable({
 
   return (
     <div className="space-y-4">
-      {/* Action Header di Atas Tabel */}
+      {/* Action Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border">
         <div className="flex items-center gap-2">
           <button
@@ -483,15 +471,15 @@ function InteractiveDataTable({
                               autoFocus
                               value={editVal}
                               onChange={(e) => setEditVal(e.target.value)}
-                              onBlur={() => handleSaveCell(rowIdx, colKey: col)}
+                              onBlur={() => handleSaveCell(rowIdx, col)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveCell(rowIdx, colKey: col);
+                                if (e.key === 'Enter') handleSaveCell(rowIdx, col);
                                 if (e.key === 'Escape') setEditingCell(null);
                               }}
                               className="w-full px-2 py-1 text-xs rounded border border-primary bg-background text-foreground"
                             />
                             <button
-                              onClick={() => handleSaveCell(rowIdx, colKey: col)}
+                              onClick={() => handleSaveCell(rowIdx, col)}
                               className="px-2 py-1 text-[10px] rounded bg-primary text-primary-foreground font-bold"
                             >
                               ✓
