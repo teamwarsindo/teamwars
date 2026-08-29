@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server';
-import { waitUntil } from '@vercel/functions';
+import { NextResponse, waitUntil } from 'next/server';
 import { isDiscordAuthorized, executeUnassignStaff } from '@/lib/discord/services/staff-assignment';
 import { discordAPI } from '@/lib/discord/utils';
 
