@@ -1,193 +1,103 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem, DIVISION_MAP } from '@/app/tournament/_library';
 
-const KV_KEY_SCHEDULES = 'twi:schedules';
-
-// Helper: Cek Otorisasi Admin via Cookie Server
 async function isAuthorizedAdmin() {
   const cookieStore = await cookies();
   const adminCookie = cookieStore.get('admin_session')?.value;
   return Boolean(adminCookie);
 }
 
-// 🟢 GET: Audit Data Summary & Fetch Dynamic Key Value
-export async function GET(req: Request) {
+// 🟢 GET: Ambil semua Key, Tipe, dan Isinya secara Universal
+export async function GET() {
   if (!(await isAuthorizedAdmin())) {
-    return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const { searchParams } = new URL(req.url);
-    const targetKey = searchParams.get('key');
-
-    // 1. Jika query parameter ?key=NAMA_KEY dikirim, kembalikan isi value key tersebut
-    if (targetKey) {
-      const val = await kv.get(targetKey);
-      return NextResponse.json({ success: true, key: targetKey, value: val });
-    }
-
-    // 2. Default: Ambil Schedules Array utama
-    const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
-
-    // 3. Scan Seluruh Keys Global di Upstash KV
-    let allKeys: string[] = [];
+    let keys: string[] = [];
     try {
-      allKeys = await kv.keys('*');
+      keys = await kv.keys('*');
     } catch {
-      allKeys = [KV_KEY_SCHEDULES];
+      keys = [];
     }
 
-    // 4. Ambil Detail Meta Tipe Data Seluruh Key
-    const keysMeta = await Promise.all(
-      allKeys.map(async (key) => {
+    // Ambil detail tipe dan value tiap key secara paralel
+    const items = await Promise.all(
+      keys.map(async (key) => {
         const type = await kv.type(key);
-        return { key, type };
+        let value: any = null;
+
+        if (type === 'string') {
+          value = await kv.get(key);
+        } else if (type === 'hash') {
+          value = await kv.hgetall(key);
+        } else if (type === 'list') {
+          value = await kv.lrange(key, 0, -1);
+        } else if (type === 'set') {
+          value = await kv.smembers(key);
+        } else if (type === 'zset') {
+          value = await kv.zrange(key, 0, -1, { withScores: true });
+        } else {
+          value = await kv.get(key);
+        }
+
+        return { key, type, value };
       })
     );
 
-    // 5. Deteksi Mismatch groupName di Schedules ("Group A/B" vs "Anda Yakin? / Sakurasawa Fighters")
-    const mismatchedSchedules = schedules.filter((m) => {
-      const isGroupAOld = m.groupName === 'Group A' || m.groupName === 'GROUP_A';
-      const isGroupBOld = m.groupName === 'Group B' || m.groupName === 'GROUP_B';
-      return isGroupAOld || isGroupBOld;
-    });
-
-    return NextResponse.json({
-      success: true,
-      summary: {
-        totalMatches: schedules.length,
-        mismatchedCount: mismatchedSchedules.length,
-        totalKeysInKv: allKeys.length,
-      },
-      schedules,
-      keysMeta,
-    });
+    return NextResponse.json({ success: true, items });
   } catch (error) {
-    console.error('Error GET KV Audit:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
-// 🔵 POST: Batch Normalisasi Nama Group / Save Custom Schedules / Set Raw Value Key
+// 🔵 POST: Tambah Key Baru / Simpan Perubahan Key yang Diedit
 export async function POST(req: Request) {
   if (!(await isAuthorizedAdmin())) {
-    return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const body = await req.json();
-    const { action, rawKey, rawValue, updatedSchedules } = body;
+    const { key, type, value } = await req.json();
+    if (!key) return NextResponse.json({ error: 'Key wajib diisi' }, { status: 400 });
 
-    // A. Normalisasi Otomatis Nama Group ("Group A" -> DIVISION_MAP.GROUP_A)
-    if (action === 'NORMALIZE_GROUPS') {
-      const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
-      const fixedSchedules = schedules.map((m) => {
-        let normalizedGroup = m.groupName;
-        if (m.groupName === 'Group A' || m.groupName === 'GROUP_A') {
-          normalizedGroup = DIVISION_MAP.GROUP_A;
-        } else if (m.groupName === 'Group B' || m.groupName === 'GROUP_B') {
-          normalizedGroup = DIVISION_MAP.GROUP_B;
-        }
-        return { ...m, groupName: normalizedGroup };
-      });
-
-      await kv.set(KV_KEY_SCHEDULES, fixedSchedules);
-      return NextResponse.json({
-        success: true,
-        message: 'Berhasil menormalisasi seluruh nama Group!',
-      });
+    let parsedValue = value;
+    if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch {
+        parsedValue = value;
+      }
     }
 
-    // B. Simpan Perubahan Array Schedules Hasil Edit Manual
-    if (action === 'SAVE_SCHEDULES' && Array.isArray(updatedSchedules)) {
-      await kv.set(KV_KEY_SCHEDULES, updatedSchedules);
-      return NextResponse.json({
-        success: true,
-        message: 'Daftar Schedule berhasil diperbarui!',
-      });
+    if (type === 'hash' && typeof parsedValue === 'object' && !Array.isArray(parsedValue)) {
+      await kv.del(key);
+      await kv.hset(key, parsedValue);
+    } else {
+      // String, Array, atau Objek generik
+      await kv.set(key, parsedValue);
     }
 
-    // C. Set Custom Value Ke Key Apapun di KV
-    if (action === 'SET_RAW_KEY' && rawKey) {
-      await kv.set(rawKey, rawValue);
-      return NextResponse.json({
-        success: true,
-        message: `Key "${rawKey}" berhasil diperbarui!`,
-      });
-    }
-
-    return NextResponse.json({ error: 'Aksi POST tidak valid' }, { status: 400 });
+    return NextResponse.json({ success: true, message: `Key "${key}" berhasil disimpan` });
   } catch (error) {
-    console.error('Error POST KV Audit:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
-// 🟡 PATCH: Hapus Kolom / Property Field Tertentu Dari Seluruh Data Object Match
-export async function PATCH(req: Request) {
-  if (!(await isAuthorizedAdmin())) {
-    return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
-  }
-
-  try {
-    const { fieldName } = await req.json();
-    if (!fieldName) {
-      return NextResponse.json({ error: 'Nama kolom/field harus diisi' }, { status: 400 });
-    }
-
-    const schedules = (await kv.get<any[]>(KV_KEY_SCHEDULES)) || [];
-    const cleanedSchedules = schedules.map((item) => {
-      const newItem = { ...item };
-      delete newItem[fieldName];
-      return newItem;
-    });
-
-    await kv.set(KV_KEY_SCHEDULES, cleanedSchedules);
-
-    return NextResponse.json({
-      success: true,
-      message: `Kolom/Field "${fieldName}" berhasil dihapus dari seluruh item data!`,
-    });
-  } catch (error) {
-    console.error('Error PATCH KV Audit:', error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
-  }
-}
-
-// 🔴 DELETE: Hapus 1 Baris Match ID atau Flush Key KV Global
+// 🔴 DELETE: Hapus Key Tertentu
 export async function DELETE(req: Request) {
   if (!(await isAuthorizedAdmin())) {
-    return NextResponse.json({ error: 'Unauthorized Access' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const { matchId, kvKey } = await req.json();
+    const { key } = await req.json();
+    if (!key) return NextResponse.json({ error: 'Key wajib diisi' }, { status: 400 });
 
-    // A. Hapus 1 Baris Match Spesifik dari Array Schedules
-    if (matchId) {
-      const schedules = (await kv.get<MatchScheduleItem[]>(KV_KEY_SCHEDULES)) || [];
-      const filtered = schedules.filter((m) => m.id !== matchId);
-      await kv.set(KV_KEY_SCHEDULES, filtered);
-      return NextResponse.json({
-        success: true,
-        message: `Match ID "${matchId}" berhasil dihapus!`,
-      });
-    }
-
-    // B. Flush / Hapus 1 Key KV Global
-    if (kvKey) {
-      await kv.del(kvKey);
-      return NextResponse.json({
-        success: true,
-        message: `Key KV "${kvKey}" berhasil dihapus dari database!`,
-      });
-    }
-
-    return NextResponse.json({ error: 'Parameter hapus tidak valid' }, { status: 400 });
+    await kv.del(key);
+    return NextResponse.json({ success: true, message: `Key "${key}" berhasil dihapus` });
   } catch (error) {
-    console.error('Error DELETE KV Audit:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
