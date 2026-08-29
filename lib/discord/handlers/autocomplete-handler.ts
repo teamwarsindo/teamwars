@@ -14,12 +14,37 @@ export async function handleAssignAutocomplete(interaction: any) {
     // 1. Autocomplete untuk Opsi Match
     if (focusedOption.name === 'match') {
       const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-      
-      const filteredMatches = schedules.filter((m) => {
-        if (commandName === 'unassign') {
-          return !m.isFinished;
+
+      // Ambil match yang belum selesai dan sudah memiliki channel Discord aktif
+      const activeUnfinishedMatches = schedules.filter(
+        (m: any) => !m.isFinished && m.discordChannelId
+      );
+
+      // Cari week terkecil yang sedang berjalan dari match yang belum selesai
+      const currentActiveWeek = activeUnfinishedMatches.length > 0
+        ? Math.min(...activeUnfinishedMatches.map((m: any) => m.weekNumber || 1))
+        : null;
+
+      const filteredMatches = schedules.filter((m: any) => {
+        // Syarat mutlak: Channel Discord sudah ada dan match belum selesai
+        if (m.isFinished || !m.discordChannelId) return false;
+
+        // Kunci tampilan hanya pada Week yang sedang berjalan (jika ada)
+        if (currentActiveWeek !== null && (m.weekNumber || 1) !== currentActiveWeek) {
+          return false;
         }
-        return !m.isFinished;
+
+        // Filter khusus untuk command /unassign
+        if (commandName === 'unassign') {
+          if (typeOption === 'REFEREE') {
+            return Boolean(m.refereeDiscordId);
+          }
+          if (typeOption === 'STREAMER') {
+            return Boolean(m.streamerDiscordId);
+          }
+        }
+
+        return true;
       });
 
       const choices = filteredMatches
