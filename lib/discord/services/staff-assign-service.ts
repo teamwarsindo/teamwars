@@ -28,7 +28,11 @@ export async function executeAssignStaff(params: {
   if (idx === -1) throw new Error('Match tidak ditemukan di database.');
   const match = schedules[idx];
 
-  const busy = schedules.find((m) => m.id !== matchId && (assignType === 'REFEREE' ? m.refereeDiscordId === targetStaffId : m.streamerDiscordId === targetStaffId));
+  const busy = schedules.find(
+    (m) =>
+      m.id !== matchId &&
+      (assignType === 'REFEREE' ? m.refereeDiscordId === targetStaffId : m.streamerDiscordId === targetStaffId)
+  );
   if (busy) throw new Error(`Staf sedang aktif di match **${busy.id}** (${busy.teamAName} vs ${busy.teamBName}).`);
 
   const ctx = await getMatchContext(match);
@@ -42,15 +46,26 @@ export async function executeAssignStaff(params: {
   if (oldStaffId && oldStaffId !== targetStaffId && isValidSnowflake(oldStaffId)) {
     replacedStaffName = (isRef ? match.referee : match.streamer) || oldStaffId;
     await Promise.all([
-      revokeStaffPermissions({ type: assignType, staffId: oldStaffId, matchChannelId, roleAId: ctx.roleAId, roleBId: ctx.roleBId }),
+      revokeStaffPermissions({
+        type: assignType,
+        staffId: oldStaffId,
+        matchChannelId,
+        roleAId: ctx.roleAId,
+        roleBId: ctx.roleBId,
+      }),
       updateStaffHistory(assignType, oldStaffId, match.id, 'REMOVE'),
     ]);
   }
 
   // 2. Set Staf Baru
   const staffName = staffList.find((s) => s.discordId === targetStaffId)?.discordName || targetStaffId;
-  if (isRef) { match.referee = staffName; match.refereeDiscordId = targetStaffId; }
-  else { match.streamer = staffName; match.streamerDiscordId = targetStaffId; }
+  if (isRef) {
+    match.referee = staffName;
+    match.refereeDiscordId = targetStaffId;
+  } else {
+    match.streamer = staffName;
+    match.streamerDiscordId = targetStaffId;
+  }
 
   // 3. Opening & Log Payload
   const baseLog = {
@@ -68,19 +83,58 @@ export async function executeAssignStaff(params: {
 
   const existingLogId = isRef ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId;
 
+  const openingTask = matchChannelId
+    ? sendOrUpdateOpeningEmbed({
+        channelId: matchChannelId,
+        matchId: match.id,
+        groupName: match.groupName,
+        weekName: ctx.calculatedWeek,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        teamAEmoji: ctx.teamAEmoji,
+        teamBEmoji: ctx.teamBEmoji,
+        kodeTimA: ctx.kodeTimA,
+        kodeTimB: ctx.kodeTimB,
+        roleAId: ctx.roleAId,
+        roleBId: ctx.roleBId,
+        matchDateIso: match.matchDate,
+        refereeName: match.referee,
+        refereeDiscordId: match.refereeDiscordId,
+        streamerName: match.streamer,
+        streamerDiscordId: match.streamerDiscordId,
+        streamLink: match.streamLink,
+        existingMsgId: (match as any).openingMsgId,
+        isFinished: false,
+      })
+    : Promise.resolve(null);
+
+  let logTask: Promise<string | null> = Promise.resolve(null);
+  if (DISCORD_CONFIG.CH_ASSIGN) {
+    if (replacedStaffName && existingLogId) {
+      logTask = sendReassignmentLog({
+        ...baseLog,
+        existingMsgId: existingLogId,
+        roleType: assignType,
+        newStaffDiscordId: targetStaffId,
+        oldStaffDiscordId: oldStaffId!,
+      });
+    } else if (isRef) {
+      logTask = sendOrUpdateRefereeAssignmentLog({ ...baseLog, staffDiscordId: targetStaffId });
+    } else {
+      logTask = sendOrUpdateStreamerAssignmentLog({ ...baseLog, staffDiscordId: targetStaffId });
+    }
+  }
+
   const [newOpeningMsgId, newLogId] = await Promise.all([
-    matchChannelId ? sendOrUpdateOpeningEmbed({
-      channelId: matchChannelId, matchId: match.id, groupName: match.groupName, weekName: ctx.calculatedWeek,
-      teamAName: match.teamAName, teamBName: match.teamBName, teamAEmoji: ctx.teamAEmoji, teamBEmoji: ctx.teamBEmoji,
-      kodeTimA: ctx.kodeTimA, kodeTimB: ctx.kodeTimB, roleAId: ctx.roleAId, roleBId: ctx.roleBId, matchDateIso: match.matchDate,
-      refereeName: match.referee, refereeDiscordId: match.refereeDiscordId, streamerName: match.streamer, streamerDiscordId: match.streamerDiscordId,
-      streamLink: match.streamLink, existingMsgId: (match as any).openingMsgId,
-    }) : null,
-    DISCORD_CONFIG.CH_ASSIGN ? (replacedStaffName && existingLogId
-      ? sendReassignmentLog({ ...baseLog, existingMsgId: existingLogId, roleType: assignType, newStaffDiscordId: targetStaffId, oldStaffDiscordId: oldStaffId! })
-      : isRef ? sendOrUpdateRefereeAssignmentLog({ ...baseLog, staffDiscordId: targetStaffId })
-      : sendOrUpdateStreamerAssignmentLog({ ...baseLog, staffDiscordId: targetStaffId })) : null,
-    grantStaffPermissions({ type: assignType, staffId: targetStaffId, matchChannelId, roleAId: ctx.roleAId, roleBId: ctx.roleBId }),
+    openingTask,
+    logTask,
+    grantStaffPermissions({
+      type: assignType,
+      staffId: targetStaffId,
+      matchChannelId,
+      roleAId: ctx.roleAId,
+      roleBId: ctx.roleBId,
+    }),
     updateStaffHistory(assignType, targetStaffId, match.id, 'ADD'),
   ]);
 

@@ -44,22 +44,57 @@ export async function executeUnassignStaff(params: {
     const streamerId = match.streamerDiscordId;
     if (!streamerId || !isValidSnowflake(streamerId)) throw new Error('Tidak ada Streamer aktif di match ini.');
 
-    await Promise.all([
+    const tasks: Promise<any>[] = [
       revokeStaffPermissions({ type: 'STREAMER', staffId: streamerId, matchChannelId }),
       updateStaffHistory('STREAMER', streamerId, match.id, 'REMOVE'),
-      (DISCORD_CONFIG.CH_ASSIGN && (match as any).streamerLogMsgId)
-        ? sendCancelledAssignmentLog({ ...baseLog, existingMsgId: (match as any).streamerLogMsgId, staffDiscordId: streamerId }) : null,
-      matchChannelId ? sendOrUpdateOpeningEmbed({
-        channelId: matchChannelId, matchId: match.id, groupName: match.groupName, weekName: ctx.calculatedWeek,
-        teamAName: match.teamAName, teamBName: match.teamBName, teamAEmoji: ctx.teamAEmoji, teamBEmoji: ctx.teamBEmoji,
-        kodeTimA: ctx.kodeTimA, kodeTimB: ctx.kodeTimB, roleAId: ctx.roleAId, roleBId: ctx.roleBId, matchDateIso: match.matchDate,
-        refereeName: match.referee, refereeDiscordId: match.refereeDiscordId, streamerName: undefined, streamerDiscordId: undefined,
-        streamLink: match.streamLink, existingMsgId: (match as any).openingMsgId,
-      }).then((id) => { if (id) (match as any).openingMsgId = id; }) : null,
-    ]);
+    ];
+
+    if (DISCORD_CONFIG.CH_ASSIGN && (match as any).streamerLogMsgId) {
+      tasks.push(
+        sendCancelledAssignmentLog({
+          ...baseLog,
+          existingMsgId: (match as any).streamerLogMsgId,
+          staffDiscordId: streamerId,
+        })
+      );
+    }
+
+    if (matchChannelId) {
+      tasks.push(
+        sendOrUpdateOpeningEmbed({
+          channelId: matchChannelId,
+          matchId: match.id,
+          groupName: match.groupName,
+          weekName: ctx.calculatedWeek,
+          teamAName: match.teamAName,
+          teamBName: match.teamBName,
+          teamAEmoji: ctx.teamAEmoji,
+          teamBEmoji: ctx.teamBEmoji,
+          kodeTimA: ctx.kodeTimA,
+          kodeTimB: ctx.kodeTimB,
+          roleAId: ctx.roleAId,
+          roleBId: ctx.roleBId,
+          matchDateIso: match.matchDate,
+          refereeName: match.referee,
+          refereeDiscordId: match.refereeDiscordId,
+          streamerName: undefined,
+          streamerDiscordId: undefined,
+          streamLink: match.streamLink,
+          existingMsgId: (match as any).openingMsgId,
+          isFinished: false,
+        }).then((id) => {
+          if (id) (match as any).openingMsgId = id;
+        })
+      );
+    }
+
+    await Promise.all(tasks);
 
     const targetStaffName = match.streamer || `<@${streamerId}>`;
-    match.streamer = undefined; match.streamerDiscordId = undefined; (match as any).streamerLogMsgId = undefined;
+    match.streamer = undefined;
+    match.streamerDiscordId = undefined;
+    (match as any).streamerLogMsgId = undefined;
+
     schedules[idx] = match;
     await kv.set('twi:schedules', schedules);
     return { match, targetStaffName };
@@ -71,33 +106,72 @@ export async function executeUnassignStaff(params: {
 
   const strmId = match.streamerDiscordId;
   const finishTasks: Promise<any>[] = [
-    revokeStaffPermissions({ type: 'REFEREE', staffId: refId, matchChannelId, roleAId: ctx.roleAId, roleBId: ctx.roleBId }),
+    revokeStaffPermissions({
+      type: 'REFEREE',
+      staffId: refId,
+      matchChannelId,
+      roleAId: ctx.roleAId,
+      roleBId: ctx.roleBId,
+    }),
     updateStaffHistory('REFEREE', refId, match.id, 'REMOVE'),
   ];
 
   if (DISCORD_CONFIG.CH_ASSIGN && (match as any).refereeLogMsgId) {
-    finishTasks.push(sendCompletedAssignmentLog({ ...baseLog, existingMsgId: (match as any).refereeLogMsgId, roleType: 'REFEREE', staffDiscordId: refId, scoreA, scoreB }));
+    finishTasks.push(
+      sendCompletedAssignmentLog({
+        ...baseLog,
+        existingMsgId: (match as any).refereeLogMsgId,
+        roleType: 'REFEREE',
+        staffDiscordId: refId,
+        scoreA,
+        scoreB,
+      })
+    );
   }
 
   if (strmId && isValidSnowflake(strmId)) {
     finishTasks.push(
       revokeStaffPermissions({ type: 'STREAMER', staffId: strmId, matchChannelId }),
-      updateStaffHistory('STREAMER', strmId, match.id, 'REMOVE'),
-      (DISCORD_CONFIG.CH_ASSIGN && (match as any).streamerLogMsgId)
-        ? sendCompletedAssignmentLog({ ...baseLog, existingMsgId: (match as any).streamerLogMsgId, roleType: 'STREAMER', staffDiscordId: strmId, streamLink: match.streamLink }) : null
+      updateStaffHistory('STREAMER', strmId, match.id, 'REMOVE')
     );
+
+    if (DISCORD_CONFIG.CH_ASSIGN && (match as any).streamerLogMsgId) {
+      finishTasks.push(
+        sendCompletedAssignmentLog({
+          ...baseLog,
+          existingMsgId: (match as any).streamerLogMsgId,
+          roleType: 'STREAMER',
+          staffDiscordId: strmId,
+          streamLink: match.streamLink,
+        })
+      );
+    }
     match.streamerDiscordId = undefined;
   }
 
   const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
   if (chScore) {
-    finishTasks.push(sendOfficialScoreLog({ channelId: chScore, teamAName: match.teamAName, teamBName: match.teamBName, teamAEmoji: ctx.teamAEmoji, teamBEmoji: ctx.teamBEmoji, scoreA, scoreB }));
+    finishTasks.push(
+      sendOfficialScoreLog({
+        channelId: chScore,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        teamAEmoji: ctx.teamAEmoji,
+        teamBEmoji: ctx.teamBEmoji,
+        scoreA,
+        scoreB,
+      })
+    );
   }
 
   await Promise.all(finishTasks);
 
   const targetStaffName = match.referee || `<@${refId}>`;
-  match.scoreA = scoreA; match.scoreB = scoreB; match.isFinished = true; match.refereeDiscordId = undefined;
+  match.scoreA = scoreA;
+  match.scoreB = scoreB;
+  match.isFinished = true;
+  match.refereeDiscordId = undefined;
+
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
