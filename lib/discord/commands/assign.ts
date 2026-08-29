@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { isDiscordAuthorized, executeAssignStaff } from '@/lib/discord/services/staff-assignment';
-import { discordAPI } from '@/lib/discord/utils';
 
 export async function handleAssignCommand(body: any) {
   try {
@@ -23,45 +22,23 @@ export async function handleAssignCommand(body: any) {
       });
     }
 
-    const token = body.token;
-    const appId = body.application_id || process.env.DISCORD_CLIENT_ID;
+    const roleTitle = assignType === 'REFEREE' ? 'Referee' : 'Streamer';
+    const { match, staffName, replacedStaffName } = await executeAssignStaff({
+      matchId,
+      assignType,
+      targetStaffId: targetId,
+    });
 
-    // Eksekusi proses berat secara background agar tidak timeout 3 detik
-    (async () => {
-      try {
-        const roleTitle = assignType === 'REFEREE' ? 'Referee' : 'Streamer';
-        const { match, staffName, replacedStaffName } = await executeAssignStaff({
-          matchId,
-          assignType,
-          targetStaffId: targetId,
-        });
+    const replaceMsg = replacedStaffName
+      ? `\n🔄 *(Menggantikan ${replacedStaffName} yang berhalangan)*`
+      : '';
 
-        const replaceMsg = replacedStaffName
-          ? `\n🔄 *(Menggantikan ${replacedStaffName} yang berhalangan)*`
-          : '';
-
-        const finalContent = `✅ **${staffName}** berhasil ditugaskan sebagai **${roleTitle}** untuk match **${match.id}**!${replaceMsg}\nRoles/Permissions dan Log channel telah diperbarui.`;
-
-        // Update pesan defer awal
-        if (appId && token) {
-          await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-            content: finalContent,
-          });
-        }
-      } catch (err: any) {
-        console.error('Error background assign execution:', err);
-        if (appId && token) {
-          await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-            content: `❌ ${err.message || 'Gagal memproses assign'}`,
-          });
-        }
-      }
-    })();
-
-    // Kirim respons Defer (Type 5) instan ke Discord dalam < 500ms
     return NextResponse.json({
-      type: 5,
-      data: { flags: 64 },
+      type: 4,
+      data: {
+        content: `✅ **${staffName}** berhasil ditugaskan sebagai **${roleTitle}** untuk match **${match.id}**!${replaceMsg}\nRoles/Permissions dan Log channel telah diperbarui.`,
+        flags: 64,
+      },
     });
   } catch (error: any) {
     console.error('Error handling /assign command:', error);
