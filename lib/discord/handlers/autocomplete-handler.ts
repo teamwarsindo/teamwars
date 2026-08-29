@@ -61,16 +61,21 @@ export async function handleAssignAutocomplete(interaction: any) {
       return { type: 8, data: { choices } };
     }
 
-    // 2. Autocomplete untuk Opsi User Staf
+    // 2. Autocomplete untuk Opsi User Staf (Urut Abjad & Tanpa ID)
     if (focusedOption.name === 'user') {
       const staffType = typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
       const staffList = (await kv.get<StaffItem[]>(staffType)) || [];
 
-      const choices = staffList
-        .filter((s) => s.discordName.toLowerCase().includes(query) || s.discordId.includes(query))
+      // Urutkan berdasarkan nama (Alphabetical A-Z)
+      const sortedStaffList = [...staffList].sort((a, b) =>
+        a.discordName.localeCompare(b.discordName, 'id', { sensitivity: 'base' })
+      );
+
+      const choices = sortedStaffList
+        .filter((s) => s.discordName.toLowerCase().includes(query))
         .slice(0, 25)
         .map((s) => ({
-          name: `${s.discordName} (${s.discordId})`,
+          name: s.discordName,
           value: s.discordId,
         }));
 
