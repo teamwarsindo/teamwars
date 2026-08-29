@@ -58,36 +58,39 @@ export function verifySignature(rawBody: string, signature: string | null, times
 export const toProperCase = (str: string) => str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.substring(1).toLowerCase());
 export const getWIBTime = () => new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "long", timeStyle: "medium" });
 
-// 🔒 KODE LAMA TETAP UTUH
-export function getFooterText(createdAt?: string, updatedAt?: string) {
-  const formatTanggal = (dateRaw: string | Date) => {
-    const d = new Date(dateRaw);
-    
-    const dateStr = d.toLocaleDateString("en-GB", {
-      timeZone: "Asia/Jakarta",
-      day: "numeric",
-      month: "short",
-      year: "numeric"
-    });
-
-    const timeStr = d.toLocaleTimeString("en-GB", {
-      timeZone: "Asia/Jakarta",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false
-    });
-
-    return `${dateStr} at ${timeStr} WIB`;
-  };
-
-  const waktuBuat = createdAt ? formatTanggal(createdAt) : formatTanggal(new Date());
+export function formatWIBDate(dateRaw?: string | Date): string {
+  if (!dateRaw) return 'Belum ditentukan';
+  const d = new Date(dateRaw);
+  if (isNaN(d.getTime())) return 'Belum ditentukan';
   
+  return (
+    d.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    }) +
+    ', ' +
+    d
+      .toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Jakarta',
+      })
+      .replace('.', ':') +
+    ' WIB'
+  );
+}
+
+export function getFooterText(createdAt?: string, updatedAt?: string) {
+  const waktuBuat = createdAt ? formatWIBDate(createdAt) : formatWIBDate(new Date());
   return updatedAt 
-    ? `Registered: ${waktuBuat}\nLast Updated: ${formatTanggal(updatedAt)}` 
+    ? `Registered: ${waktuBuat}\nLast Updated: ${formatWIBDate(updatedAt)}` 
     : `Registered: ${waktuBuat}`;
 }
 
-// 🟢 FUNGSI BARU: Memanfaatkan getFooterText yang sudah ada
 export function getEmbedFooterText(dateInput?: string | Date) {
   const isoStr = dateInput instanceof Date ? dateInput.toISOString() : dateInput;
   return getFooterText(isoStr).replace('Registered:', 'Team Wars Indonesia |');

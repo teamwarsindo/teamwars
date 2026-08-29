@@ -1,4 +1,4 @@
-import { discordAPI } from '../utils';
+import { discordAPI, formatWIBDate, getEmbedFooterText } from '../utils';
 import { DISCORD_CONFIG } from '../config';
 import { DIVISION_MAP } from '@/app/tournament/_library';
 
@@ -24,35 +24,9 @@ export interface OpeningEmbedParams {
   streamerDiscordId?: string;
   streamLink?: string;
   existingMsgId?: string | null;
-  isFinished?: boolean; // ✅ RESMI DIGANTI MENJADI isFinished
+  isFinished?: boolean;
   scoreA?: number;
   scoreB?: number;
-}
-
-function formatWIBDate(dateIso?: string): string {
-  if (!dateIso) return 'Belum ditentukan';
-  const d = new Date(dateIso);
-  if (isNaN(d.getTime())) return 'Belum ditentukan';
-  
-  return (
-    d.toLocaleDateString('id-ID', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'Asia/Jakarta',
-    }) +
-    ', ' +
-    d
-      .toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Jakarta',
-      })
-      .replace('.', '.') +
-    ' WIB'
-  );
 }
 
 export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Promise<string | null> {
@@ -60,7 +34,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   const isFirstOpening = !params.existingMsgId;
 
-  // Resolusi Emoji Tim
   const emojiA =
     params.teamAEmoji ||
     (params.emojiAId ? `<:${(params.kodeTimA || 'team').replace(/\s+/g, '')}:${params.emojiAId}>` : '');
@@ -69,7 +42,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     params.teamBEmoji ||
     (params.emojiBId ? `<:${(params.kodeTimB || 'team').replace(/\s+/g, '')}:${params.emojiBId}>` : '');
 
-  // Logika Wasit & Streamer
   let refText = 'Belum ditentukan';
   let strmText = 'Belum ditentukan';
 
@@ -86,13 +58,12 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   }
 
   const liveStreamText = params.streamLink || 'Belum tersedia';
-  const isFinished = params.isFinished || false; // ✅ Menggunakan isFinished
+  const isFinished = params.isFinished || false;
 
   const scheduleChannelMention = DISCORD_CONFIG.CH_SCHEDULE 
     ? `<#${DISCORD_CONFIG.CH_SCHEDULE}>` 
     : '#schedule-results';
 
-  // Fields Embed
   const fields: any[] = [
     { name: '📅 Jadwal Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
     { name: '⚖️ Referee', value: refText, inline: true },
@@ -122,25 +93,20 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const teamADisplay = `${emojiA ? emojiA + ' ' : ''}**${params.teamAName}**`;
   const teamBDisplay = `${emojiB ? emojiB + ' ' : ''}**${params.teamBName}**`;
 
-  // Resolusi Nama Divisi Resmi
   let groupDisplayName = params.groupName || 'Group Stage';
-  if (groupDisplayName === 'Group A') {
-    groupDisplayName = DIVISION_MAP.GROUP_A;
-  } else if (groupDisplayName === 'Group B') {
-    groupDisplayName = DIVISION_MAP.GROUP_B;
-  }
+  if (groupDisplayName === 'Group A') groupDisplayName = DIVISION_MAP.GROUP_A;
+  else if (groupDisplayName === 'Group B') groupDisplayName = DIVISION_MAP.GROUP_B;
 
   const weekDisplayName = params.weekName || 'Week 1';
 
   const embedData = {
     title: `🏆 ${groupDisplayName} - ${weekDisplayName}`,
-    description: `${teamADisplay} **VS** ${teamBDisplay}\n\nSelamat bertanding di channel khusus pertandingan kalian.`,
+    description: `${teamADisplay} **VS** ${teamBDisplay}`,
     color: isFinished ? 0x2ecc71 : 0x00a8fc,
     fields,
-    footer: { text: 'Team Wars Indonesia Season 7' },
+    footer: { text: getEmbedFooterText() },
   };
 
-  // 🗑️ 1. HAPUS PESAN LAMA JIKA ADA
   if (params.existingMsgId) {
     await discordAPI(
       `/channels/${params.channelId}/messages/${params.existingMsgId}`,
@@ -148,7 +114,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     ).catch(() => null);
   }
 
-  // 📩 2. POST PESAN BARU DI PALING BAWAH
   const roleAMention = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
   const roleBMention = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
 
@@ -157,9 +122,9 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   };
 
   if (isFirstOpening) {
-    postPayload.content = `${roleAMention} ${roleBMention}`;
+    postPayload.content = `Silakan konfirmasi jadwal dan siapkan performa kalian untuk pertandingan ini ${roleAMention} ${roleBMention}`;
   }
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', postPayload).catch(() => null);
   return res?.id || null;
-    }
+}

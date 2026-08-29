@@ -1,193 +1,132 @@
 import { kv } from '@vercel/kv';
-import {
-  MatchScheduleItem,
-  getCurrentServerWeek,
-  TWI_START_DATETIME,
-} from '@/app/tournament/_library';
-import { isValidSnowflake } from '@/lib/discord/utils';
-
-export interface StaffItem {
-  discordId: string;
-  discordName: string;
-  assignMatch?: string[];
-}
-
-// 🟢 Baseline Resmi: Senin Pukul 08.00 WIB
-const START_DATE_ENV = process.env.TWI_START_DATE || TWI_START_DATETIME;
-
-function getMatchWeekNumber(matchDateIso: string): number {
-  if (!matchDateIso) return 1;
-  const matchDate = new Date(matchDateIso).getTime();
-  const startDate = new Date(START_DATE_ENV).getTime();
-
-  if (isNaN(matchDate) || isNaN(startDate)) return 1;
-
-  // Dihitung berdasarkan interval 7 hari (168 jam) dari Senin 08.00 WIB
-  const diffMs = matchDate - startDate;
-  return Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7)) + 1);
-}
-
-// Helper sinkron dengan getCurrentServerWeek (Pukul 08.00 WIB)
-function getCurrentWeekNumber(): number {
-  return getCurrentServerWeek();
-}
-
-function formatWIBShort(isoString: string): string {
-  if (!isoString) return 'TBA';
-  const d = new Date(isoString);
-  if (isNaN(d.getTime())) return 'TBA';
-  const day = d.toLocaleDateString('id-ID', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'Asia/Jakarta',
-  });
-  const time = d
-    .toLocaleTimeString('id-ID', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Asia/Jakarta',
-    })
-    .replace('.', ':');
-  return `${day} • ${time} WIB`;
-}
+import { MatchScheduleItem } from '@/app/tournament/_library';
+import { StaffItem } from '@/lib/discord/services/staff-assignment';
 
 export async function handleAssignAutocomplete(interaction: any) {
-  const options = interaction.data?.options || [];
-  const focusedOption = options.find((opt: any) => opt.focused);
-  if (!focusedOption) return { type: 8, data: { choices: [] } };
-
-  const query = (focusedOption.value || '').toLowerCase();
-
-  // A. AUTO-COMPLETE MATCH (Dinamis Berdasarkan Week Aktif)
-  if (focusedOption.name === 'match') {
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    if (!schedules.length) return { type: 8, data: { choices: [] } };
-
-    // 1. Hitung week number untuk setiap match
-    const schedulesWithWeek = schedules.map((m) => ({
-      ...m,
-      calculatedWeekNumber: m.weekNumber || getMatchWeekNumber(m.matchDate),
-    }));
-
-    // 2. Hitung Minggu Aktif Hari Ini (Baru ganti ke Week 3 setelah Senin 08.00 WIB)
-    const currentWeek = getCurrentWeekNumber();
-
-    // 3. Filter Match Khusus Week Aktif Hari Ini
-    let activeWeekMatches = schedulesWithWeek.filter(
-      (m) => m.calculatedWeekNumber === currentWeek
-    );
-
-    // Fallback: Jika minggu aktif kosong/tidak ada match, tampilkan match yang belum selesai
-    if (activeWeekMatches.length === 0) {
-      activeWeekMatches = schedulesWithWeek.filter((m) => !m.isFinished);
-    }
-
-    // 4. Urutkan berdasarkan Nomor Match (MATCH-1, MATCH-2 ...)
-    const sortedByMatchId = activeWeekMatches.sort((a, b) => {
-      const numA = parseInt(a.id.replace(/[^0-9]/g, ''), 10) || 0;
-      const numB = parseInt(b.id.replace(/[^0-9]/g, ''), 10) || 0;
-      return numA - numB;
-    });
-
-    // 5. Filter Query Pencarian
-    const choices = sortedByMatchId
-      .filter((m) =>
-        `${m.id} ${m.teamAName} vs ${m.teamBName}`.toLowerCase().includes(query)
-      )
-      .slice(0, 25)
-      .map((m) => ({
-        name: `[W${m.calculatedWeekNumber}] ${m.id.toUpperCase()}: ${m.teamAName} vs ${m.teamBName} (${formatWIBShort(m.matchDate)})`,
-        value: m.id,
-      }));
-
-    return { type: 8, data: { choices } };
-  }
-
-  // B. AUTO-COMPLETE USER (Filter Staf & Validasi Discord ID)
-  if (focusedOption.name === 'user') {
-    const typeOption = options.find((opt: any) => opt.name === 'type')?.value;
-    const kvKey =
-      typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
-    const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
-
-    // 🟢 Filter: Wajib memiliki Discord ID valid (Snowflake) dan sesuai query pencarian
-    const choices = staffList
-      .filter(
-        (s) =>
-          isValidSnowflake(s.discordId) &&
-          s.discordName.toLowerCase().includes(query)
-      )
-      .slice(0, 25)
-      .map((s) => ({ name: s.discordName, value: s.discordId }));
-
-    return { type: 8, data: { choices } };
-  }
-
-  return { type: 8, data: { choices: [] } };
-}
-
-// Tambahkan potongan logika berikut di dalam handleAssignAutocomplete (atau buat export baru):
-export async function handleRescheduleAutocomplete(interaction: any) {
-  const channelId = interaction.channel_id;
-  const options = interaction.data?.options || [];
-  const focusedOption = options.find((opt: any) => opt.focused);
-  if (!focusedOption) return { type: 8, data: { choices: [] } };
-
-  const query = (focusedOption.value || '').toLowerCase();
-
-  // Autocomplete Tanggal Pilihan Sesuai Channel Match
-  if (focusedOption.name === 'tanggal') {
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const match = schedules.find((m) => (m as any).discordChannelId === channelId);
-
-    if (!match) return { type: 8, data: { choices: [] } };
-
-    const { getAvailableRescheduleSlots } = await import('@/app/tournament/_library/reschedule-helper');
-    const availableSlots = getAvailableRescheduleSlots(schedules, match);
-
-    const choices = availableSlots
-      .filter((s) => s.name.toLowerCase().includes(query))
-      .slice(0, 25);
-
-    return { type: 8, data: { choices } };
-  }
-
-  return { type: 8, data: { choices: [] } };
-}
-
-// Tambahkan fungsi handleMatchReportAutocomplete
-export async function handleMatchReportAutocomplete(interaction: any) {
   try {
-    const options = interaction.data?.options || [];
-    const focusedOption = options.find((opt: any) => opt.focused);
+    const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
     if (!focusedOption) return { type: 8, data: { choices: [] } };
 
-    const query = (focusedOption.value || '').toLowerCase();
+    const query = (focusedOption.value || '').toString().toLowerCase();
+    const commandName = interaction.data?.name;
+    const typeOption = interaction.data?.options?.find((opt: any) => opt.name === 'type')?.value;
 
-    if (focusedOption.name === 'team') {
-      const allTeamSlugs = (await kv.smembers('global:teams')) || [];
-      const choices: Array<{ name: string; value: string }> = [];
-
-      for (const slug of allTeamSlugs) {
-        const teamData = await kv.hgetall<any>(`teams:${slug}`);
-        if (teamData && teamData.namaTim) {
-          if (teamData.namaTim.toLowerCase().includes(query) || slug.toLowerCase().includes(query)) {
-            choices.push({ name: teamData.namaTim, value: teamData.namaTim });
-          }
+    // 1. Autocomplete untuk Opsi Match
+    if (focusedOption.name === 'match') {
+      const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+      
+      const filteredMatches = schedules.filter((m) => {
+        if (commandName === 'unassign') {
+          return !m.isFinished;
         }
-      }
+        return !m.isFinished;
+      });
 
-      // 🟢 Urutkan nama tim secara alfabetis (A - Z)
-      choices.sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
+      const choices = filteredMatches
+        .filter((m) => {
+          const matchLabel = `${m.id} - ${m.teamAName} vs ${m.teamBName}`.toLowerCase();
+          return matchLabel.includes(query);
+        })
+        .slice(0, 25)
+        .map((m) => ({
+          name: `${m.id}: ${m.teamAName} vs ${m.teamBName}`,
+          value: m.id,
+        }));
 
-      return { type: 8, data: { choices: choices.slice(0, 25) } };
+      return { type: 8, data: { choices } };
+    }
+
+    // 2. Autocomplete untuk Opsi User Staf
+    if (focusedOption.name === 'user') {
+      const staffType = typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
+      const staffList = (await kv.get<StaffItem[]>(staffType)) || [];
+
+      const choices = staffList
+        .filter((s) => s.discordName.toLowerCase().includes(query) || s.discordId.includes(query))
+        .slice(0, 25)
+        .map((s) => ({
+          name: `${s.discordName} (${s.discordId})`,
+          value: s.discordId,
+        }));
+
+      return { type: 8, data: { choices } };
     }
 
     return { type: 8, data: { choices: [] } };
   } catch (error) {
-    console.error('Error Match Report Autocomplete:', error);
+    console.error('Error handling assign autocomplete:', error);
+    return { type: 8, data: { choices: [] } };
+  }
+}
+
+export async function handleRescheduleAutocomplete(interaction: any) {
+  try {
+    const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
+    if (!focusedOption || focusedOption.name !== 'tanggal') {
+      return { type: 8, data: { choices: [] } };
+    }
+
+    const query = (focusedOption.value || '').toString().toLowerCase();
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const channelId = interaction.channel_id;
+
+    const currentMatch = schedules.find((m: any) => m.discordChannelId === channelId);
+    const currentDate = currentMatch ? new Date(currentMatch.matchDate) : new Date();
+
+    const availableDays = [3, 4, 5, 6, 0]; // Rabu (3) s.d. Minggu (0)
+    const choices: { name: string; value: string }[] = [];
+
+    for (let i = -7; i <= 14; i++) {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() + i);
+
+      if (availableDays.includes(d.getDay())) {
+        const isoDate = d.toISOString().split('T')[0];
+        const display = d.toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'Asia/Jakarta',
+        });
+
+        if (display.toLowerCase().includes(query) || isoDate.includes(query)) {
+          choices.push({ name: display, value: isoDate });
+        }
+      }
+      if (choices.length >= 25) break;
+    }
+
+    return { type: 8, data: { choices } };
+  } catch (error) {
+    console.error('Error reschedule autocomplete:', error);
+    return { type: 8, data: { choices: [] } };
+  }
+}
+
+export async function handleMatchReportAutocomplete(interaction: any) {
+  try {
+    const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
+    if (!focusedOption) return { type: 8, data: { choices: [] } };
+
+    const query = (focusedOption.value || '').toString().toLowerCase();
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+
+    const teams = Array.from(
+      new Set(schedules.flatMap((m) => [m.teamAName, m.teamBName]).filter(Boolean))
+    );
+
+    const choices = teams
+      .filter((team) => team.toLowerCase().includes(query))
+      .slice(0, 25)
+      .map((team) => ({
+        name: team,
+        value: team,
+      }));
+
+    return { type: 8, data: { choices } };
+  } catch (error) {
+    console.error('Error match report autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
 }

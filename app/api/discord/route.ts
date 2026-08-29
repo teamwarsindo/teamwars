@@ -12,6 +12,8 @@ import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
 import { handleTransferCommand, handleTransferAutocomplete } from '@/lib/discord/commands/transfer';
+import { handleAssignCommand } from '@/lib/discord/commands/assign';
+import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
 
 // Submit Command Handlers
 import { handleSubmitCommand, handleSubmitAutocomplete } from '@/lib/discord/commands/submit';
@@ -19,11 +21,8 @@ import { handleSubmitCommand, handleSubmitAutocomplete } from '@/lib/discord/com
 // Transfer Execution Services
 import { executeTransferAdd, executeTransferOut, executeTransferEditDl } from '@/lib/discord/services/transfer-service';
 
-// Assign, Unassign, Cancel-Assign & Reschedule Handlers
+// Autocomplete & Reschedule Handlers
 import { handleAssignAutocomplete, handleRescheduleAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
-import { handleAssignCommand } from '@/lib/discord/handlers/assign-handler';
-import { handleUnassignCommand } from '@/lib/discord/handlers/unassign-handler';
-import { handleCancelAssignCommand } from '@/lib/discord/handlers/cancel-assign-handler';
 import { handleRescheduleCommand } from '@/lib/discord/handlers/reschedule-handler';
 
 // Button Handlers
@@ -75,9 +74,8 @@ export async function POST(req: NextRequest) {
     if (body.type === 2) {
       const commandName = body.data.name;
       if (commandName === 'submit') return NextResponse.json(await handleSubmitCommand(body));
-      if (commandName === 'assign') return NextResponse.json(await handleAssignCommand(body));
-      if (commandName === 'unassign') return NextResponse.json(await handleUnassignCommand(body));
-      if (commandName === 'cancel-assign') return NextResponse.json(await handleCancelAssignCommand(body));
+      if (commandName === 'assign') return await handleAssignCommand(body);
+      if (commandName === 'unassign') return await handleUnassignCommand(body);
       if (commandName === 'reschedule') return NextResponse.json(await handleRescheduleCommand(body));
       if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
       if (commandName === 'match-report') return NextResponse.json(await handleMatchReportCommand(body));
@@ -322,7 +320,7 @@ export async function POST(req: NextRequest) {
         const autocompleteResponse = await handleSubmitAutocomplete(body);
         return NextResponse.json(autocompleteResponse);
       }
-      if (body.data?.name === 'assign' || body.data?.name === 'unassign' || body.data?.name === 'cancel-assign') {
+      if (body.data?.name === 'assign' || body.data?.name === 'unassign') {
         const autocompleteResponse = await handleAssignAutocomplete(body);
         return NextResponse.json(autocompleteResponse);
       }
@@ -354,4 +352,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-                 }
+}

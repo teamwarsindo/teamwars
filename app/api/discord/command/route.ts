@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     // 🟢 1. ASSIGN COMMAND
     {
       name: 'assign',
-      description: 'Tugaskan Referee atau Streamer ke jadwal pertandingan',
+      description: 'Tugaskan atau ganti Referee / Streamer pada jadwal pertandingan',
       options: [
         {
           type: 3, // STRING
@@ -36,33 +36,33 @@ export async function GET(req: Request) {
         {
           type: 3, // STRING
           name: 'user',
-          description: 'Pilih staf yang ditugaskan',
+          description: 'Pilih staf yang ditugaskan / pengganti',
           required: true,
           autocomplete: true,
         },
       ],
     },
 
-    // 🔴 2. UNASSIGN COMMAND (MATCH SELESAI)
+    // 🔴 2. UNASSIGN COMMAND
     {
       name: 'unassign',
-      description: 'Konfirmasi penyelesaian tugas staf dan rekap hasil pertandingan',
+      description: 'Konfirmasi penyelesaian tugas Referee (rekap skor) atau pembatalan Streamer',
       options: [
         {
           type: 3, // STRING
           name: 'match',
-          description: 'Pilih pertandingan yang telah selesai',
+          description: 'Pilih pertandingan terkait',
           required: true,
           autocomplete: true,
         },
         {
           type: 3, // STRING
           name: 'type',
-          description: 'Pilih peran staf yang menyelesaikan tugas',
+          description: 'Pilih peran staf yang akan di-unassign',
           required: true,
           choices: [
-            { name: '⚖️ Referee (Wajib menyertakan hasil pertandingan)', value: 'REFEREE' },
-            { name: '🎥 Streamer', value: 'STREAMER' },
+            { name: '⚖️ Referee (Selesaikan Match & Wajib Input Skor)', value: 'REFEREE' },
+            { name: '🎥 Streamer (Batal Siaran Langsung)', value: 'STREAMER' },
           ],
         },
         {
@@ -80,38 +80,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // ❌ 3. CANCEL ASSIGN COMMAND
-    {
-      name: 'cancel-assign',
-      description: 'Batalkan penugasan staf pertandingan yang berhalangan hadir',
-      options: [
-        {
-          type: 3, // STRING
-          name: 'match',
-          description: 'Pilih pertandingan',
-          required: true,
-          autocomplete: true,
-        },
-        {
-          type: 3, // STRING
-          name: 'type',
-          description: 'Pilih peran penugasan yang dibatalkan',
-          required: true,
-          choices: [
-            { name: '⚖️ Referee', value: 'REFEREE' },
-            { name: '🎥 Streamer', value: 'STREAMER' },
-          ],
-        },
-        {
-          type: 3, // STRING
-          name: 'reason',
-          description: 'Alasan pembatalan penugasan secara jelas',
-          required: true,
-        },
-      ],
-    },
-
-    // 📅 4. RESCHEDULE COMMAND
+    // 📅 3. RESCHEDULE COMMAND
     {
       name: 'reschedule',
       description: 'Perbarui jadwal (hari dan/ jam) pertandingan di channel match',
@@ -138,7 +107,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 👥 5. CEK ROSTER COMMAND
+    // 👥 4. CEK ROSTER COMMAND
     {
       name: 'cek-roster',
       description: 'Periksa daftar roster tim',
@@ -158,7 +127,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔍 6. CEK ID COMMAND
+    // 🔍 5. CEK ID COMMAND
     {
       name: 'cek-id',
       description: 'Verifikasi kepemilikan ID DL/ ID MD di database Team Wars Indonesia',
@@ -182,7 +151,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // ℹ️ 7. INFO COMMAND
+    // ℹ️ 6. INFO COMMAND
     {
       name: 'info',
       description: 'Tampilkan rincian data profil peserta Team Wars Indonesia',
@@ -196,7 +165,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // ⛔ 8. BLACKLIST COMMAND
+    // ⛔ 7. BLACKLIST COMMAND
     {
       name: 'blacklist',
       description: 'Kelola basis data larangan bermain (Blacklist Game ID)',
@@ -221,7 +190,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🚫 9. CANCEL BID COMMAND
+    // 🚫 8. CANCEL BID COMMAND
     {
       name: 'cancel-bid',
       description: '[ADMIN] Anulir penawaran (bid) tertinggi pada divisi tertentu',
@@ -245,7 +214,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🔄 10. TRANSFER COMMAND
+    // 🔄 9. TRANSFER COMMAND
     {
       name: 'transfer',
       description: '[ROSTER] Pengelolaan bursa transfer, pendaftaran, dan mutasi pemain tim',
@@ -369,7 +338,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 📊 11. MATCH REPORT FORWARD COMMAND
+    // 📊 10. MATCH REPORT FORWARD COMMAND
     {
       name: 'match-report',
       description: '[CAMP] Teruskan match report resmi ke channel camp ini',
@@ -384,7 +353,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🎥 12. STREAM COMMAND
+    // 🎥 11. STREAM COMMAND
     {
       name: 'stream',
       description: '[STREAMER] Masukkan link siaran langsung pertandingan ini dan kirim broadcast',
@@ -398,7 +367,7 @@ export async function GET(req: Request) {
       ],
     },
 
-    // 🗃️ 13. SUBMIT COMMAND (REVISI BARU)
+    // 🗃️ 12. SUBMIT COMMAND
     {
       name: 'submit',
       description: '[STAFF] Rekapitulasi pengumpulan deck pemain tim di channel camp',
