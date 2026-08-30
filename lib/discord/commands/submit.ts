@@ -1,6 +1,7 @@
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { MatchScheduleItem } from '@/app/tournament/_library';
+import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
 import {
   sendOrUpdateLiveTracker,
   TrackerPlayer,
@@ -40,49 +41,6 @@ async function resolveMatchAndCampFromChannel(channelId: string) {
   return { matchId: null, teamKey: null, campData: null, allData: null };
 }
 
-// 🔍 AUTOCOMPLETE IGN DARI HASH global:ign
-export async function handleSubmitAutocomplete(interaction: any) {
-  try {
-    const channelId = interaction.channel_id;
-    const { matchId, teamKey, campData } = await resolveMatchAndCampFromChannel(channelId);
-
-    if (!matchId || !campData?.slug) {
-      return { type: 8, data: { choices: [] } };
-    }
-
-    const options = interaction.data?.options || [];
-    const focused = options.find((o: any) => o.focused);
-    const searchVal = (focused?.value || '').toLowerCase();
-
-    // 1. Ambil roster resmi tim dari Hash global:ign
-    const globalIgnHash = (await kv.hgetall<Record<string, string>>('global:ign')) || {};
-    const teamRoster = Object.entries(globalIgnHash)
-      .filter(([_, slug]) => slug.toLowerCase() === campData.slug.toLowerCase())
-      .map(([ign]) => ign);
-
-    // 2. Ambil data report untuk memfilter yang sudah masuk lineup
-    const reportData = await kv.get<any>(`match:report:${matchId}`);
-    const existingLineup: any[] = reportData?.[teamKey]?.lineup || [];
-    const alreadySubmitted = existingLineup.map((p) => String(p.ign || p.name || '').toLowerCase());
-
-    const availablePlayers = teamRoster.filter(
-      (ign) => !alreadySubmitted.includes(ign.toLowerCase())
-    );
-
-    const choices = availablePlayers
-      .filter((ign) => ign.toLowerCase().includes(searchVal))
-      .slice(0, 25)
-      .map((ign) => ({
-        name: ign,
-        value: ign,
-      }));
-
-    return { type: 8, data: { choices } };
-  } catch {
-    return { type: 8, data: { choices: [] } };
-  }
-}
-
 // ⚡ EKSEKUSI COMMAND /submit
 export async function handleSubmitCommand(interaction: any) {
   try {
@@ -120,6 +78,10 @@ export async function handleSubmitCommand(interaction: any) {
         data: { content: '❌ Masukkan minimal 1 pemain pada opsi `pemain_1`!', flags: 64 },
       };
     }
+
+    // Ambil data roster tim untuk mencocokkan ID Duel Links
+    const teamData = await kv.hgetall<any>(`teams:${campData.slug}`);
+    const teamRoster: PlayerItem[] = teamData?.players ? parsePlayers(teamData.players) : [];
 
     // Ambil atau inisialisasi dokumen match:report
     const reportKey = `match:report:${matchId}`;
@@ -175,13 +137,22 @@ export async function handleSubmitCommand(interaction: any) {
     }
 
     const callerName = interaction.member?.user?.username || 'Staff';
+    const addedList: string[] = [];
+
     newValidPlayers.forEach((ign) => {
+      const rosterMember = teamRoster.find((p) => p.ign.toLowerCase() === ign.toLowerCase());
+      const idDuelLinks = rosterMember?.idDuelLinks || '';
+
       currentLineup.push({
         ign,
+        idDuelLinks,
         submittedBy: callerName,
         deck1: null,
         deck2: null,
       });
+
+      const dlText = idDuelLinks ? ` (${idDuelLinks})` : '';
+      addedList.push(`• **${ign}**${dlText} *(2 Deck)*`);
     });
 
     targetTeam.lineup = currentLineup;
@@ -192,8 +163,19 @@ export async function handleSubmitCommand(interaction: any) {
     const currentMatch = schedules.find((m) => m.id === matchId);
     const matchDateIso = currentMatch?.matchDate || new Date().toISOString();
 
-    // 🔁 Refresh Live Tracker di Channel Camp
-    const trackerPlayers: TrackerPlayer[] = currentLineup.map((p) => ({ ign: p.ign || p.name }));
+    // 🔁 Refresh Live Tracker di Channel Camp dengan ID Duel Links
+    const trackerPlayers: TrackerPlayer[] = currentLineup.map((p) => {
+      let dl = p.idDuelLinks;
+      if (!dl) {
+        const found = teamRoster.find((r) => r.ign.toLowerCase() === (p.ign || p.name || '').toLowerCase());
+        dl = found?.idDuelLinks || '';
+      }
+      return {
+        ign: p.ign || p.name,
+        idDuelLinks: dl,
+      };
+    });
+
     const newTrackerId = await sendOrUpdateLiveTracker({
       channelId,
       matchDateIso,
@@ -212,13 +194,12 @@ export async function handleSubmitCommand(interaction: any) {
     // Simpan pembaruan lineup ke match:report:${matchId}
     await kv.set(reportKey, reportData);
 
-    const addedList = newValidPlayers.map((n: string) => `• **${n}** *(2 Deck)*`).join('\n');
     const totalDecks = currentLineup.length * 2;
 
     return {
       type: 4,
       data: {
-        content: `✅ **Berhasil Memvalidasi ${newValidPlayers.length} Pemain!**\n${addedList}\n\n📊 Total terkumpul saat ini: **${totalDecks} / 10 Deck** (${currentLineup.length}/5 Pemain).`,
+        content: `✅ **Berhasil Memvalidasi ${newValidPlayers.length} Pemain!**\n${addedList.join('\n')}\n\n📊 Total terkumpul saat ini: **${totalDecks} / 10 Deck** (${currentLineup.length}/5 Pemain).`,
         flags: 64,
       },
     };
@@ -228,4 +209,5 @@ export async function handleSubmitCommand(interaction: any) {
       data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
     };
   }
-    }
+}
+  
