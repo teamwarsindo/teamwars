@@ -7,57 +7,51 @@ import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-servic
 // 1. REUSABLE INTERNAL HELPERS
 // ============================================================================
 
-// Helper membaca seluruh jadwal dari KV
-async function getSchedulesFromKV(): Promise<MatchScheduleItem[]> {
-  try {
-    return (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-  } catch {
-    return [];
-  }
+const getSchedules = async (): Promise<MatchScheduleItem[]> =>
+  (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+
+const getTeamPlayers = async (slug: string): Promise<PlayerItem[]> => {
+  const team = await kv.hgetall<any>(`teams:${slug}`);
+  return team?.players ? parsePlayers(team.players) : [];
+};
+
+const getMasterList = async (key: 'twi:master_decks' | 'twi:master_skills'): Promise<string[]> => {
+  const raw = await kv.get<any>(key);
+  return Array.isArray(raw) ? raw : typeof raw === 'string' ? JSON.parse(raw) : [];
+};
+
+function isToday(dateIso?: string): boolean {
+  if (!dateIso) return false;
+  const now = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  const match = new Date(dateIso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  return now === match;
 }
 
-// Helper membaca & mem-parse roster tim dari KV
-async function getTeamPlayersBySlug(teamSlug: string): Promise<PlayerItem[]> {
-  try {
-    const teamData = await kv.hgetall<any>(`teams:${teamSlug}`);
-    if (!teamData || !teamData.players) return [];
-    return parsePlayers(teamData.players);
-  } catch {
-    return [];
+async function resolveMatchCamp(channelId: string) {
+  const messages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
+  for (const [matchId, raw] of Object.entries(messages)) {
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (data.campA?.channelId === channelId) return { matchId, teamKey: 'teamA' as const, campData: data.campA };
+    if (data.campB?.channelId === channelId) return { matchId, teamKey: 'teamB' as const, campData: data.campB };
   }
+  return { matchId: null, teamKey: null, campData: null };
 }
 
-// Helper validasi apakah pertandingan berlangsung pada HARI INI (Zona Waktu WIB)
-function isMatchScheduledForToday(matchDateIso?: string): boolean {
-  if (!matchDateIso) return false;
-  try {
-    const nowWib = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }); // YYYY-MM-DD
-    const matchWib = new Date(matchDateIso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-    return nowWib === matchWib;
-  } catch {
-    return false;
-  }
-}
-
-// Helper mendeteksi matchId & data camp berdasarkan Channel Discord
-async function resolveMatchAndCampFromChannel(channelId: string) {
-  try {
-    const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
-
-    for (const [matchId, rawData] of Object.entries(matchMessages)) {
-      const data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-      if (data.campA?.channelId === channelId) {
-        return { matchId, teamKey: 'teamA' as const, campData: data.campA, allData: data };
-      }
-      if (data.campB?.channelId === channelId) {
-        return { matchId, teamKey: 'teamB' as const, campData: data.campB, allData: data };
-      }
-    }
-  } catch (error) {
-    console.error('Error resolveMatchAndCampFromChannel:', error);
-  }
-
-  return { matchId: null, teamKey: null, campData: null, allData: null };
+function filterChoices<T>(
+  items: T[],
+  query: string,
+  getLabel: (item: T) => string,
+  getValue: (item: T) => string,
+  matchFn?: (item: T) => string[]
+) {
+  const q = query.toLowerCase();
+  return items
+    .filter((item) => {
+      const matchTargets = matchFn ? matchFn(item) : [getLabel(item), getValue(item)];
+      return matchTargets.some((t) => t.toLowerCase().includes(q));
+    })
+    .slice(0, 25)
+    .map((item) => ({ name: getLabel(item), value: getValue(item) }));
 }
 
 // ============================================================================
@@ -65,58 +59,87 @@ async function resolveMatchAndCampFromChannel(channelId: string) {
 // ============================================================================
 
 // ----------------------------------------------------
-// A. SUBMIT AUTOCOMPLETE (Dengan Cek Hari Ini & Roster)
+// A. SUBMIT (Subcommands: add, change, edit)
 // ----------------------------------------------------
 export async function handleSubmitAutocomplete(interaction: any) {
   try {
-    const channelId = interaction.channel_id;
-    const { matchId, teamKey, campData } = await resolveMatchAndCampFromChannel(channelId);
+    const { matchId, teamKey, campData } = await resolveMatchCamp(interaction.channel_id);
+    if (!matchId || !campData?.slug) return { type: 8, data: { choices: [] } };
 
-    if (!matchId || !campData?.slug) {
-      return { type: 8, data: { choices: [] } };
-    }
+    const [schedules, teamRoster, reportData] = await Promise.all([
+      getSchedules(),
+      getTeamPlayers(campData.slug),
+      kv.get<any>(`match:report:${matchId}`),
+    ]);
 
-    // 1. Cek apakah match dijadwalkan HARI INI
-    const schedules = await getSchedulesFromKV();
     const currentMatch = schedules.find((m) => m.id === matchId);
-    
-    // Jika tidak ada jadwal / match bukan hari ini / match sudah selesai, kosongkan pilihan
-    if (!currentMatch || currentMatch.isFinished || !isMatchScheduledForToday(currentMatch.matchDate)) {
+    if (!currentMatch || currentMatch.isFinished || !isToday(currentMatch.matchDate)) {
       return { type: 8, data: { choices: [] } };
     }
 
-    const options = interaction.data?.options || [];
-    const focused = options.find((o: any) => o.focused);
-    const query = (focused?.value || '').toString().toLowerCase();
+    const rawOptions = interaction.data?.options || [];
+    const subCommand = rawOptions[0]?.type === 1 ? rawOptions[0] : null;
+    const subName = subCommand?.name || 'add';
+    const focused = (subCommand ? subCommand.options || [] : rawOptions).find((o: any) => o.focused);
+    if (!focused) return { type: 8, data: { choices: [] } };
 
-    // 2. Ambil roster resmi dari teams:<slug>
-    const teamRoster = await getTeamPlayersBySlug(campData.slug);
-
-    // 3. Filter pemain yang sudah masuk di match:report:${matchId}
-    const reportData = await kv.get<any>(`match:report:${matchId}`);
+    const fName = focused.name;
+    const query = String(focused.value || '').toLowerCase();
     const existingLineup: any[] = reportData?.[teamKey]?.lineup || [];
-    const alreadySubmitted = existingLineup.map((p) =>
-      String(p.ign || p.name || '').toLowerCase()
-    );
 
-    const availablePlayers = teamRoster.filter(
-      (p) => !alreadySubmitted.includes((p.ign || '').toLowerCase())
-    );
+    // Master Deck / Archetype
+    if (fName.startsWith('deck_') || fName === 'deck') {
+      const masterDecks = await getMasterList('twi:master_decks');
+      const choices = filterChoices(masterDecks, query, (d) => d, (d) => d);
+      if (query && !masterDecks.some((d) => d.toLowerCase() === query)) {
+        choices.unshift({ name: `Gunakan custom: "${focused.value}"`, value: focused.value });
+      }
+      return { type: 8, data: { choices: choices.slice(0, 25) } };
+    }
 
-    // 4. Format pilihan: IGN (ID DL)
-    const choices = availablePlayers
-      .filter((p) => {
-        const ign = (p.ign || '').toLowerCase();
-        const dl = (p.idDuelLinks || '').toLowerCase();
-        return ign.includes(query) || dl.includes(query);
-      })
-      .slice(0, 25)
-      .map((p) => ({
-        name: `${p.ign} (${p.idDuelLinks || '-'})`,
-        value: p.ign,
-      }));
+    // Master Skill
+    if (fName.startsWith('skill_') || fName === 'skill') {
+      const masterSkills = await getMasterList('twi:master_skills');
+      const choices = filterChoices(masterSkills, query, (s) => s, (s) => s);
+      if (query && !masterSkills.some((s) => s.toLowerCase() === query)) {
+        choices.unshift({ name: `Gunakan custom: "${focused.value}"`, value: focused.value });
+      }
+      return { type: 8, data: { choices: choices.slice(0, 25) } };
+    }
 
-    return { type: 8, data: { choices } };
+    // Lineup Pemain (Edit / Change: Pemain Lama)
+    if ((subName === 'edit' && fName === 'pemain') || (subName === 'change' && fName === 'pemain_lama')) {
+      const rosterMap = new Map(teamRoster.map((p) => [(p.ign || '').toLowerCase(), p]));
+      const choices = existingLineup.map((p) => {
+        const ign = p.ign || p.name || '';
+        const dl = p.idDuelLinks || rosterMap.get(ign.toLowerCase())?.idDuelLinks || '-';
+        const d1 = Boolean(p.deck1?.archetype);
+        const d2 = Boolean(p.deck2?.archetype);
+        const badge = d1 && d2 ? '✅ (2/2)' : d1 || d2 ? '⚠️ (1/2)' : '⏳ (0/2)';
+        return { ign, dl, label: `${ign} (${dl}) ${badge}` };
+      });
+
+      return {
+        type: 8,
+        data: {
+          choices: filterChoices(choices, query, (c) => c.label, (c) => c.ign, (c) => [c.ign, c.dl]),
+        },
+      };
+    }
+
+    // Roster Pemain Baru (Add: Pemain 1-5 / Change: Pemain Baru)
+    if (fName.startsWith('pemain')) {
+      const submitted = existingLineup.map((p) => String(p.ign || p.name || '').toLowerCase());
+      const available = teamRoster.filter((p) => !submitted.includes((p.ign || '').toLowerCase()));
+      return {
+        type: 8,
+        data: {
+          choices: filterChoices(available, query, (p) => `${p.ign} (${p.idDuelLinks || '-'})`, (p) => p.ign, (p) => [p.ign || '', p.idDuelLinks || '']),
+        },
+      };
+    }
+
+    return { type: 8, data: { choices: [] } };
   } catch (error) {
     console.error('Error handleSubmitAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
@@ -124,173 +147,127 @@ export async function handleSubmitAutocomplete(interaction: any) {
 }
 
 // ----------------------------------------------------
-// B. TRANSFER AUTOCOMPLETE
+// B. TRANSFER
 // ----------------------------------------------------
 export async function handleTransferAutocomplete(interaction: any) {
   try {
     const channelId = interaction.channel_id;
     let teamSlug = await kv.hget<string>('global:channel_teams', channelId);
-
     if (!teamSlug) {
-      const userId = interaction.member?.user?.id;
-      teamSlug = await kv.hget<string>('global:discord_ids', userId);
+      teamSlug = await kv.hget<string>('global:discord_ids', interaction.member?.user?.id);
     }
-
     if (!teamSlug) return { type: 8, data: { choices: [] } };
 
-    const options = interaction.data?.options || [];
-    const subOptions = options[0]?.options || options;
-    const focusedOption = subOptions.find((opt: any) => opt.focused);
+    const focused = (interaction.data?.options?.[0]?.options || interaction.data?.options || []).find((o: any) => o.focused);
+    if (!focused || focused.name !== 'user') return { type: 8, data: { choices: [] } };
 
-    if (!focusedOption || focusedOption.name !== 'user') {
-      return { type: 8, data: { choices: [] } };
-    }
-
-    const query = (focusedOption.value || '').toString().toLowerCase();
-    const players = await getTeamPlayersBySlug(teamSlug);
-
-    const choices = players
-      .filter((p) => {
-        const ign = (p.ign || '').toLowerCase();
-        const dl = (p.idDuelLinks || '').toLowerCase();
-        const discord = (p.discord || '').toLowerCase();
-        return ign.includes(query) || dl.includes(query) || discord.includes(query);
-      })
-      .slice(0, 25)
-      .map((p) => ({
-        name: `${p.ign} (${p.idDuelLinks || '-'}) - ${p.role || 'Anggota'}`,
-        value: p.discordId || p.discord || p.ign,
-      }));
-
-    return { type: 8, data: { choices } };
+    const players = await getTeamPlayers(teamSlug);
+    return {
+      type: 8,
+      data: {
+        choices: filterChoices(
+          players,
+          focused.value || '',
+          (p) => `${p.ign} (${p.idDuelLinks || '-'}) - ${p.role || 'Anggota'}`,
+          (p) => p.discordId || p.discord || p.ign,
+          (p) => [p.ign || '', p.idDuelLinks || '', p.discord || '']
+        ),
+      },
+    };
   } catch (error) {
-    console.error('Error handling transfer autocomplete:', error);
+    console.error('Error transfer autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
 }
 
 // ----------------------------------------------------
-// C. ASSIGN & UNASSIGN AUTOCOMPLETE
+// C. ASSIGN & UNASSIGN
 // ----------------------------------------------------
 export async function handleAssignAutocomplete(interaction: any) {
   try {
-    const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
-    if (!focusedOption) return { type: 8, data: { choices: [] } };
+    const focused = interaction.data?.options?.find((opt: any) => opt.focused);
+    if (!focused) return { type: 8, data: { choices: [] } };
 
-    const query = (focusedOption.value || '').toString().toLowerCase();
-    const commandName = interaction.data?.name;
     const typeOption = interaction.data?.options?.find((opt: any) => opt.name === 'type')?.value;
+    const query = String(focused.value || '');
 
-    // 1. Opsi Match
-    if (focusedOption.name === 'match') {
-      const schedules = await getSchedulesFromKV();
+    if (focused.name === 'match') {
+      const schedules = await getSchedules();
+      const activeMatches = schedules.filter((m) => !m.isFinished && m.discordChannelId);
+      const activeWeek = activeMatches.length > 0 ? Math.min(...activeMatches.map((m) => m.weekNumber || 1)) : null;
 
-      const activeUnfinishedMatches = schedules.filter(
-        (m: any) => !m.isFinished && m.discordChannelId
-      );
-
-      const currentActiveWeek = activeUnfinishedMatches.length > 0
-        ? Math.min(...activeUnfinishedMatches.map((m: any) => m.weekNumber || 1))
-        : null;
-
-      const filteredMatches = schedules.filter((m: any) => {
-        if (m.isFinished || !m.discordChannelId) return false;
-
-        if (currentActiveWeek !== null && (m.weekNumber || 1) !== currentActiveWeek) {
-          return false;
+      const filtered = schedules.filter((m) => {
+        if (m.isFinished || !m.discordChannelId || (activeWeek !== null && (m.weekNumber || 1) !== activeWeek)) return false;
+        if (interaction.data?.name === 'unassign') {
+          return typeOption === 'REFEREE' ? Boolean(m.refereeDiscordId) : Boolean(m.streamerDiscordId);
         }
-
-        if (commandName === 'unassign') {
-          if (typeOption === 'REFEREE') return Boolean(m.refereeDiscordId);
-          if (typeOption === 'STREAMER') return Boolean(m.streamerDiscordId);
-        }
-
         return true;
       });
 
-      const choices = filteredMatches
-        .filter((m) => {
-          const matchLabel = `${m.id} - ${m.teamAName} vs ${m.teamBName}`.toLowerCase();
-          return matchLabel.includes(query);
-        })
-        .slice(0, 25)
-        .map((m) => ({
-          name: `${m.id}: ${m.teamAName} vs ${m.teamBName}`,
-          value: m.id,
-        }));
-
-      return { type: 8, data: { choices } };
+      return {
+        type: 8,
+        data: {
+          choices: filterChoices(
+            filtered,
+            query,
+            (m) => `${m.id}: ${m.teamAName} vs ${m.teamBName}`,
+            (m) => m.id,
+            (m) => [m.id, m.teamAName, m.teamBName]
+          ),
+        },
+      };
     }
 
-    // 2. Opsi User Staf
-    if (focusedOption.name === 'user') {
-      const staffType = typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
-      const staffList = (await kv.get<StaffItem[]>(staffType)) || [];
+    if (focused.name === 'user') {
+      const staffList = (await kv.get<StaffItem[]>(typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees')) || [];
+      const sorted = [...staffList].sort((a, b) => a.discordName.localeCompare(b.discordName, 'id', { sensitivity: 'base' }));
 
-      const sortedStaffList = [...staffList].sort((a, b) =>
-        a.discordName.localeCompare(b.discordName, 'id', { sensitivity: 'base' })
-      );
-
-      const choices = sortedStaffList
-        .filter((s) => s.discordName.toLowerCase().includes(query))
-        .slice(0, 25)
-        .map((s) => ({
-          name: s.discordName,
-          value: s.discordId,
-        }));
-
-      return { type: 8, data: { choices } };
+      return {
+        type: 8,
+        data: {
+          choices: filterChoices(sorted, query, (s) => s.discordName, (s) => s.discordId),
+        },
+      };
     }
 
     return { type: 8, data: { choices: [] } };
   } catch (error) {
-    console.error('Error handling assign autocomplete:', error);
+    console.error('Error assign autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
 }
 
 // ----------------------------------------------------
-// D. RESCHEDULE AUTOCOMPLETE
+// D. RESCHEDULE
 // ----------------------------------------------------
 export async function handleRescheduleAutocomplete(interaction: any) {
   try {
-    const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
-    if (!focusedOption || focusedOption.name !== 'tanggal') {
-      return { type: 8, data: { choices: [] } };
-    }
+    const focused = interaction.data?.options?.find((opt: any) => opt.focused);
+    if (!focused || focused.name !== 'tanggal') return { type: 8, data: { choices: [] } };
 
-    const query = (focusedOption.value || '').toString().toLowerCase();
-    const schedules = await getSchedulesFromKV();
-    const channelId = interaction.channel_id;
+    const schedules = await getSchedules();
+    const current = schedules.find((m) => m.discordChannelId === interaction.channel_id);
+    const currDate = current ? new Date(current.matchDate) : new Date();
 
-    const currentMatch = schedules.find((m: any) => m.discordChannelId === channelId);
-    const currentDate = currentMatch ? new Date(currentMatch.matchDate) : new Date();
+    const allowedDays = [3, 4, 5, 6, 0]; // Rabu s/d Minggu
+    const dates: { name: string; value: string }[] = [];
 
-    const availableDays = [3, 4, 5, 6, 0]; // Rabu s/d Minggu
-    const choices: { name: string; value: string }[] = [];
-
-    for (let i = -7; i <= 14; i++) {
-      const d = new Date(currentDate);
+    for (let i = -7; i <= 14 && dates.length < 25; i++) {
+      const d = new Date(currDate);
       d.setDate(d.getDate() + i);
-
-      if (availableDays.includes(d.getDay())) {
-        const isoDate = d.toISOString().split('T')[0];
-        const display = d.toLocaleDateString('id-ID', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-          timeZone: 'Asia/Jakarta',
-        });
-
-        if (display.toLowerCase().includes(query) || isoDate.includes(query)) {
-          choices.push({ name: display, value: isoDate });
-        }
+      if (allowedDays.includes(d.getDay())) {
+        const val = d.toISOString().split('T')[0];
+        const name = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' });
+        dates.push({ name, value: val });
       }
-      if (choices.length >= 25) break;
     }
 
-    return { type: 8, data: { choices } };
+    return {
+      type: 8,
+      data: {
+        choices: filterChoices(dates, focused.value || '', (d) => d.name, (d) => d.value),
+      },
+    };
   } catch (error) {
     console.error('Error reschedule autocomplete:', error);
     return { type: 8, data: { choices: [] } };
@@ -298,29 +275,22 @@ export async function handleRescheduleAutocomplete(interaction: any) {
 }
 
 // ----------------------------------------------------
-// E. MATCH REPORT AUTOCOMPLETE
+// E. MATCH REPORT
 // ----------------------------------------------------
 export async function handleMatchReportAutocomplete(interaction: any) {
   try {
-    const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
-    if (!focusedOption) return { type: 8, data: { choices: [] } };
+    const focused = interaction.data?.options?.find((opt: any) => opt.focused);
+    if (!focused) return { type: 8, data: { choices: [] } };
 
-    const query = (focusedOption.value || '').toString().toLowerCase();
-    const schedules = await getSchedulesFromKV();
+    const schedules = await getSchedules();
+    const teams = Array.from(new Set(schedules.flatMap((m) => [m.teamAName, m.teamBName]).filter(Boolean)));
 
-    const teams = Array.from(
-      new Set(schedules.flatMap((m) => [m.teamAName, m.teamBName]).filter(Boolean))
-    );
-
-    const choices = teams
-      .filter((team) => team.toLowerCase().includes(query))
-      .slice(0, 25)
-      .map((team) => ({
-        name: team,
-        value: team,
-      }));
-
-    return { type: 8, data: { choices } };
+    return {
+      type: 8,
+      data: {
+        choices: filterChoices(teams, focused.value || '', (t) => t, (t) => t),
+      },
+    };
   } catch (error) {
     console.error('Error match report autocomplete:', error);
     return { type: 8, data: { choices: [] } };
