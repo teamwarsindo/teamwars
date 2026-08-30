@@ -3,35 +3,19 @@ import { discordAPI, getEmbedFooterText } from '../utils';
 import { getMatchWeekNumber } from '@/app/tournament/_library';
 
 export interface DeckSlotInfo {
-  status?: 'PENDING_INPUT' | 'VERIFIED' | 'NOT_SUBMITTED' | string;
   archetype?: string | null;
   skill?: string | null;
-  ssUrl?: string | null;
-}
-
-export interface DeckSubmissionStore {
-  matchId: string;
-  teamSlug: string;
-  submittedPlayers: Array<{
-    name?: string;
-    ign?: string;
-    idDuelLinks?: string;
-    submittedAt?: string;
-    submittedBy?: string;
-    deck1?: DeckSlotInfo | null;
-    deck2?: DeckSlotInfo | null;
-  }>;
-  totalDecks: number;
-  morningMsgId?: string | null;
-  lastTrackerMessageId?: string | null;
+  wins?: number;
+  losses?: number;
+  isDead?: boolean;
+  isRepeatUsed?: boolean;
+  lastGameNumber?: number | null;
 }
 
 export interface TrackerPlayer {
   ign?: string;
   name?: string;
   idDuelLinks?: string;
-  submittedAt?: string;
-  submittedBy?: string;
   deck1?: DeckSlotInfo | null;
   deck2?: DeckSlotInfo | null;
 }
@@ -116,38 +100,33 @@ export function getMorningCampEmbed(params: {
   };
 }
 
-// Helper format deck line dengan singkatan skill dari KV
+// Helper format deck line dengan singkatan skill dari master KV
 function formatDeckLine(
   prefix: '├─' | '└─',
   deck?: DeckSlotInfo | null,
   isSlotActive = true,
   skillsMap: Record<string, string> = {}
-): { text: string; isSubmitted: boolean; isPending: boolean } {
+): { text: string; isSubmitted: boolean } {
   if (!isSlotActive || deck === null) {
-    return { text: `${prefix} ❌ Belum Submit`, isSubmitted: false, isPending: false };
+    return { text: `${prefix} ❌ Belum Submit`, isSubmitted: false };
   }
 
-  if (deck && deck.status === 'VERIFIED' && deck.archetype) {
+  if (deck && deck.archetype && deck.archetype.trim() !== '') {
     let skillLabel = '';
-    if (deck.skill && deck.skill !== '-') {
+    if (deck.skill && deck.skill !== '-' && deck.skill.trim() !== '') {
       const shortSkill = skillsMap[deck.skill] || deck.skill;
       skillLabel = ` • ${shortSkill}`;
     }
 
-    const label = `${deck.archetype}${skillLabel}`;
-    const lineText = deck.ssUrl ? `[${label}](${deck.ssUrl.trim()})` : label;
-
     return {
-      text: `${prefix} ✅ ${lineText}`,
+      text: `${prefix} ✅ ${deck.archetype}${skillLabel}`,
       isSubmitted: true,
-      isPending: false,
     };
   }
 
   return {
     text: `${prefix} ⏳ Menunggu Input`,
-    isSubmitted: true,
-    isPending: true,
+    isSubmitted: false,
   };
 }
 
@@ -181,10 +160,8 @@ export function getLiveDeckTrackerEmbed(params: {
       const d1 = formatDeckLine('├─', player.deck1, hasDeck1, skillsMap);
       const d2 = formatDeckLine('└─', player.deck2, hasDeck2, skillsMap);
 
-      let playerDeckCount = 0;
-      if (d1.isSubmitted) playerDeckCount++;
-      if (d2.isSubmitted) playerDeckCount++;
-      totalDecksSubmitted += playerDeckCount;
+      if (d1.isSubmitted) totalDecksSubmitted++;
+      if (d2.isSubmitted) totalDecksSubmitted++;
 
       playerFields.push({
         name: `${i + 1}. ${playerName}${dlLabel}`,
@@ -215,7 +192,7 @@ export function getLiveDeckTrackerEmbed(params: {
         name: '📌 Perintah Staff',
         value:
           '• `/submit add` : Daftarkan 1-5 pemain\n' +
-          '• `/submit edit` : Update deck/skill/SS\n' +
+          '• `/submit edit` : Update deck & skill\n' +
           '• `/submit change` : Ganti pemain',
         inline: false,
       },
@@ -271,7 +248,7 @@ export async function sendOrUpdateLiveTracker(params: {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // Ambil mapping skill dari KV
+  // Ambil mapping singkatan skill dari KV
   const skillsMap = (await kv.get<Record<string, string>>('twi:master_skills')) || {};
 
   const deadlineIso = new Date(new Date(params.matchDateIso).getTime() - 60 * 60 * 1000).toISOString();
@@ -293,4 +270,4 @@ export async function sendOrUpdateLiveTracker(params: {
   });
 
   return res?.id || null;
-          }
+}
