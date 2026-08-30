@@ -3,14 +3,6 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
 import { TeamKVData, PlayerItem } from './transfer-service';
 
-export async function sendTransferNewsLog(teamHex: string, messageText: string) {
-  if (!DISCORD_CONFIG.CH_LOG_TRANSFER) return;
-  const payload = {
-    embeds: [{ description: messageText, color: hexToDecimal(teamHex || '#3498db') }],
-  };
-  await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG_TRANSFER}/messages`, 'POST', payload).catch(() => null);
-}
-
 export async function refreshTeamEmbeds(
   teamSlug: string,
   teamData: TeamKVData,
@@ -22,7 +14,6 @@ export async function refreshTeamEmbeds(
   const ketua = players.find((p) => p.role === 'Ketua') || { ign: '-' };
   const wakil = players.find((p) => p.role === 'Wakil Ketua') || { ign: '-' };
 
-  // 🟢 FORMAT WAKTU PRESISI WAKTU INDONESIA BARAT (WIB)
   const getFooterString = () => {
     const dateOpts: Intl.DateTimeFormatOptions = {
       day: '2-digit',
@@ -44,9 +35,7 @@ export async function refreshTeamEmbeds(
     return `Registered: ${regDate} at ${regTime} WIB\nLast Updated: ${upDate} at ${upTime} WIB`;
   };
 
-  // --------------------------------------------------
   // 1. UPDATE EMBED CH_ROSTER
-  // --------------------------------------------------
   if (teamData.adminMsgId && DISCORD_CONFIG.CH_ROSTER) {
     const playerListString = players.map((p) => `${p.ign} (${p.idDuelLinks})`).join('\n');
     const rosterPayload = {
@@ -64,12 +53,14 @@ export async function refreshTeamEmbeds(
         },
       ],
     };
-    await discordAPI(`/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${teamData.adminMsgId}`, 'PATCH', rosterPayload).catch(() => null);
+    await discordAPI(
+      `/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${teamData.adminMsgId}`,
+      'PATCH',
+      rosterPayload
+    ).catch(() => null);
   }
 
-  // --------------------------------------------------
-  // 2. UPDATE EMBED MATCH CAMP TRACKER
-  // --------------------------------------------------
+  // 2. UPDATE EMBED TRACKER CAMP TIM
   if (teamData.trackerMsgId && teamData.discordChannelId) {
     const verifiedHash = (await kv.hgetall<Record<string, string>>('global:verified_users')) || {};
     const verifiedUsernames = new Set(Object.keys(verifiedHash).map((k) => k.toLowerCase()));
@@ -87,18 +78,15 @@ export async function refreshTeamEmbeds(
       const checkIcon = isVerified ? '✅' : '❌';
       if (isVerified) verifiedCount++;
 
-      // 🟢 NEMPELKAN ICON MAHKOTA 👑 & MEDALI 🏅 DI TEKS TRACKER
       let roleBadge = '';
-      if (p.role === 'Ketua') {
-        roleBadge = ' 👑';
-      } else if (p.role === 'Wakil Ketua') {
-        roleBadge = ' 🏅';
-      }
+      if (p.role === 'Ketua') roleBadge = ' 👑';
+      else if (p.role === 'Wakil Ketua') roleBadge = ' 🏅';
 
       rosterText += `${checkIcon} **${p.ign}** (\`@${p.discord}\`)${roleBadge}\n`;
     });
 
-    const currentQuotaUsed = quotaUsedOverride !== undefined ? quotaUsedOverride : (teamData.transferQuotaUsed || 0);
+    const currentQuotaUsed =
+      quotaUsedOverride !== undefined ? quotaUsedOverride : (teamData.transferQuotaUsed || 0);
 
     const trackerPayload = {
       embeds: [
@@ -107,14 +95,30 @@ export async function refreshTeamEmbeds(
           description: `**DAFTAR ROSTER:**\n${rosterText}\n*Keterangan: 👑 Ketua | 🏅 Wakil*`,
           color: hexToDecimal(teamData.warna || '#3498db'),
           fields: [
-            { name: '📌 Role Tim', value: teamData.discordRoleId ? `<@&${teamData.discordRoleId}>` : '*(Belum Ada)*', inline: true },
-            { name: '📊 Status Verifikasi', value: `**${verifiedCount} / ${players.length}** Terverifikasi`, inline: true },
-            { name: '🔄 Kuota Transfer', value: `**${currentQuotaUsed} / 2** Terpakai *(Sisa: ${2 - currentQuotaUsed})*`, inline: false },
+            {
+              name: '📌 Role Tim',
+              value: teamData.discordRoleId ? `<@&${teamData.discordRoleId}>` : '*(Belum Ada)*',
+              inline: true,
+            },
+            {
+              name: '📊 Status Verifikasi',
+              value: `**${verifiedCount} / ${players.length}** Terverifikasi`,
+              inline: true,
+            },
+            {
+              name: '🔄 Kuota Transfer',
+              value: `**${currentQuotaUsed} / 2** Terpakai *(Sisa: ${2 - currentQuotaUsed})*`,
+              inline: false,
+            },
           ],
           footer: { text: getFooterString() },
         },
       ],
     };
-    await discordAPI(`/channels/${teamData.discordChannelId}/messages/${teamData.trackerMsgId}`, 'PATCH', trackerPayload).catch(() => null);
+    await discordAPI(
+      `/channels/${teamData.discordChannelId}/messages/${teamData.trackerMsgId}`,
+      'PATCH',
+      trackerPayload
+    ).catch(() => null);
   }
-}
+              }
