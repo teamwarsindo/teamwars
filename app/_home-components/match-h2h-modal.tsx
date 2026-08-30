@@ -33,7 +33,8 @@ export function MatchH2HModal({
   onClose,
 }: MatchH2HModalProps) {
   const [mounted, setMounted] = useState(false);
-  const [mobileTab, setMobileTab] = useState<"STATS" | "REPORT">("REPORT");
+  // Default tab diset ke STATS
+  const [mobileTab, setMobileTab] = useState<"STATS" | "REPORT">("STATS");
   const modalContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -282,7 +283,7 @@ export function MatchH2HModal({
               </div>
             </div>
 
-            {/* RIWAYAT MATCH (BERSIH TANPA HEADER GANDA & HANYA PEKAN YG SELESAI) */}
+            {/* RIWAYAT MATCH */}
             <div className={`flex flex-col justify-between rounded-2xl border border-border bg-muted/20 p-2.5 sm:p-4 shadow-2xs h-full ${mobileTab === "REPORT" ? "flex" : "hidden lg:flex"}`}>
               <div className="space-y-1.5">
                 {/* LIST KARTU REPORT DINAMIS */}
@@ -330,4 +331,5 @@ export function MatchH2HModal({
     </div>,
     document.body
   );
-                    }
+    }
+                
