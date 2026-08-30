@@ -1,6 +1,13 @@
 import { discordAPI, getEmbedFooterText } from '../utils';
 import { getMatchWeekNumber } from '@/app/tournament/_library';
 
+export interface DeckSlotInfo {
+  status?: 'PENDING_INPUT' | 'VERIFIED' | 'NOT_SUBMITTED' | string;
+  archetype?: string | null;
+  skill?: string | null;
+  ssUrl?: string | null;
+}
+
 export interface DeckSubmissionStore {
   matchId: string;
   teamSlug: string;
@@ -10,6 +17,8 @@ export interface DeckSubmissionStore {
     idDuelLinks?: string;
     submittedAt?: string;
     submittedBy?: string;
+    deck1?: DeckSlotInfo | null;
+    deck2?: DeckSlotInfo | null;
   }>;
   totalDecks: number;
   morningMsgId?: string | null;
@@ -22,6 +31,8 @@ export interface TrackerPlayer {
   idDuelLinks?: string;
   submittedAt?: string;
   submittedBy?: string;
+  deck1?: DeckSlotInfo | null;
+  deck2?: DeckSlotInfo | null;
 }
 
 export function formatTimeRemaining(targetDateIso?: string): string {
@@ -104,6 +115,25 @@ export function getMorningCampEmbed(params: {
   };
 }
 
+// Helper pembuat baris deck sub-list
+function formatDeckLine(prefix: '├─' | '└─', deck?: DeckSlotInfo | null): { text: string; isSubmitted: boolean; isPending: boolean } {
+  if (!deck) {
+    return { text: `${prefix} ❌ Belum Submit`, isSubmitted: false, isPending: false };
+  }
+
+  if (deck.status === 'VERIFIED' && deck.archetype) {
+    const skillText = deck.skill && deck.skill !== '-' ? ` • ${deck.skill}` : '';
+    const ssText = deck.ssUrl ? ` • [Lihat SS](${deck.ssUrl})` : '';
+    return {
+      text: `${prefix} ${deck.archetype}${skillText}${ssText}`,
+      isSubmitted: true,
+      isPending: false,
+    };
+  }
+
+  return { text: `${prefix} ⏳ Menunggu Input`, isSubmitted: true, isPending: true };
+}
+
 // 📊 2. EMBED LIVE DECK TRACKER (CHANNEL CAMP)
 export function getLiveDeckTrackerEmbed(params: {
   week?: string | number;
@@ -116,36 +146,61 @@ export function getLiveDeckTrackerEmbed(params: {
   const calculatedWeek = params.week || getMatchWeekNumber(params.matchDateIso);
   const weekLabel = `Week ${calculatedWeek}`;
   const count = params.submittedPlayers.length;
-  const totalDecks = count * 2;
-  const isComplete = count >= 5;
 
-  const playerRows: string[] = [];
+  let totalDecksSubmitted = 0;
+  const playerBlocks: string[] = [];
+
   for (let i = 0; i < 5; i++) {
     if (i < count) {
       const player = params.submittedPlayers[i];
       const playerName = player.ign || player.name || 'Pemain';
       const dlLabel = player.idDuelLinks ? ` (${player.idDuelLinks})` : '';
-      playerRows.push(`${i + 1}. **${playerName}**${dlLabel} ✅ *(2 Deck)*`);
+
+      const d1 = formatDeckLine('├─', player.deck1);
+      const d2 = formatDeckLine('└─', player.deck2);
+
+      let playerDeckCount = 0;
+      if (d1.isSubmitted) playerDeckCount++;
+      if (d2.isSubmitted) playerDeckCount++;
+      totalDecksSubmitted += playerDeckCount;
+
+      let badge = '⏳ (0/2 Deck)';
+      if (d1.isSubmitted && d2.isSubmitted) {
+        badge = (!d1.isPending && !d2.isPending) ? '✅ (2 Deck)' : '⏳ (2 Deck di Camp)';
+      } else if (playerDeckCount === 1) {
+        badge = '⚠️ (1/2 Deck)';
+      }
+
+      playerBlocks.push(
+        `${i + 1}. **${playerName}**${dlLabel} ${badge}\n   ${d1.text}\n   ${d2.text}`
+      );
     } else {
-      playerRows.push(`${i + 1}. \`[Slot Kosong]\` ❌`);
+      playerBlocks.push(
+        `${i + 1}. \`[Slot Kosong]\` ❌\n   ├─ ❌ Belum Submit\n   └─ ❌ Belum Submit`
+      );
     }
   }
+
+  const isComplete = totalDecksSubmitted >= 10;
 
   return {
     title: `📊 Deck Submission (${weekLabel})`,
     color: isComplete ? 0x2ecc71 : 0x3498db,
     description:
       `⏳ **Batas Waktu Submit:** ${params.deadlineWib} (**${params.timeRemainingStr}**)\n` +
-      `📦 **Total Terkumpul:** **\`${totalDecks} / 10 Deck\`** ${isComplete ? '*(LENGKAP ✅)*' : ''}\n\n` +
+      `📦 **Total Terkumpul:** **\`${totalDecksSubmitted} / 10 Deck\`** ${isComplete ? '*(LENGKAP ✅)*' : ''}\n\n` +
       '🔗 **Regulasi Lengkap:** [teamwars.web.id/rules](https://teamwars.web.id/rules)',
     fields: [
       {
-        name: '👥 Pemain Terdata (2 Deck/Pemain)',
-        value: playerRows.join('\n'),
+        name: '👥 Lineup & Status Deck Pemain',
+        value: playerBlocks.join('\n\n'),
       },
       {
-        name: '📌 Informasi',
-        value: '• Kirim SS deck di channel ini.\n• Wasit/Admin gunakan `/submit` untuk memvalidasi pemain.',
+        name: '📌 Informasi Perintah Staff',
+        value:
+          '• **`/submit add`** : Daftarkan 1 s/d 5 nama pemain ke lineup.\n' +
+          '• **`/submit edit`** : Input/verifikasi detail nama Deck, Skill, dan SS.\n' +
+          '• **`/submit change`** : Pergantian pemain lineup dengan roster cadangan.',
       },
     ],
     footer: { text: getEmbedFooterText(params.lastUpdated) },
@@ -214,4 +269,4 @@ export async function sendOrUpdateLiveTracker(params: {
   }).catch(() => null);
 
   return res?.id || null;
-}
+    }
