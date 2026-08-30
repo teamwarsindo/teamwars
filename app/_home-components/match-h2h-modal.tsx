@@ -33,7 +33,6 @@ export function MatchH2HModal({
   onClose,
 }: MatchH2HModalProps) {
   const [mounted, setMounted] = useState(false);
-  // Default tab diset ke STATS
   const [mobileTab, setMobileTab] = useState<"STATS" | "REPORT">("STATS");
   const modalContentRef = useRef<HTMLDivElement>(null);
 
@@ -222,7 +221,7 @@ export function MatchH2HModal({
             </div>
           </div>
 
-          {/* MOBILE TAB SWITCHER (LG:HIDDEN) */}
+          {/* MOBILE TAB SWITCHER */}
           <div className="flex lg:hidden items-center justify-center p-0.5 rounded-xl bg-muted/60 border border-border/50">
             <button
               onClick={() => setMobileTab("STATS")}
@@ -259,7 +258,7 @@ export function MatchH2HModal({
 
               <div className="rounded-2xl border border-border bg-muted/20 divide-y divide-border overflow-hidden shadow-2xs h-full flex flex-col justify-around">
                 {/* 1. STATUS KLASEMEN */}
-                <div className="grid grid-cols-[1fr_80px_1fr] sm:grid-cols-[1fr_100px_1fr] items-center px-2.5 sm:px-4 py-2">
+                <div className="grid grid-cols-[1fr_80px_1fr] sm:grid-cols-[1fr_100px_1fr] items-center px-2.5 sm:px-4 py-3 sm:py-3.5">
                   <div className="flex justify-center"><QualificationBadge qual={statsA.qualification} /></div>
                   <span className="text-muted-foreground text-xs sm:text-sm font-bold text-center">Klasemen</span>
                   <div className="flex justify-center"><QualificationBadge qual={statsB.qualification} /></div>
@@ -267,7 +266,7 @@ export function MatchH2HModal({
 
                 {/* 2. METRICS */}
                 {metrics.map((m, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_80px_1fr] sm:grid-cols-[1fr_100px_1fr] items-center px-2.5 sm:px-4 py-1.5">
+                  <div key={idx} className="grid grid-cols-[1fr_80px_1fr] sm:grid-cols-[1fr_100px_1fr] items-center px-2.5 sm:px-4 py-2.5 sm:py-3">
                     <div className="flex justify-center"><StatsPill valA={m.valA} valB={m.valB} isA={true} text={m.txtA} /></div>
                     <span className="text-muted-foreground text-xs sm:text-sm font-bold text-center">{m.label}</span>
                     <div className="flex justify-center"><StatsPill valA={m.valA} valB={m.valB} isA={false} text={m.txtB} /></div>
@@ -275,7 +274,7 @@ export function MatchH2HModal({
                 ))}
 
                 {/* 3. FORM LAGA */}
-                <div className="grid grid-cols-[1fr_80px_1fr] sm:grid-cols-[1fr_100px_1fr] items-center px-2.5 sm:px-4 py-1.5">
+                <div className="grid grid-cols-[1fr_80px_1fr] sm:grid-cols-[1fr_100px_1fr] items-center px-2.5 sm:px-4 py-3 sm:py-3.5">
                   <div className="flex justify-center"><FormSlots formList={statsA.form} /></div>
                   <span className="text-muted-foreground text-xs sm:text-sm font-bold text-center">Form Laga</span>
                   <div className="flex justify-center"><FormSlots formList={statsB.form} /></div>
@@ -286,7 +285,6 @@ export function MatchH2HModal({
             {/* RIWAYAT MATCH */}
             <div className={`flex flex-col justify-between rounded-2xl border border-border bg-muted/20 p-2.5 sm:p-4 shadow-2xs h-full ${mobileTab === "REPORT" ? "flex" : "hidden lg:flex"}`}>
               <div className="space-y-1.5">
-                {/* LIST KARTU REPORT DINAMIS */}
                 {pastWeeks.length > 0 ? (
                   <div className="space-y-1.5">
                     {pastWeeks.map((week) => (
@@ -331,5 +329,4 @@ export function MatchH2HModal({
     </div>,
     document.body
   );
-    }
-                
+                    }
