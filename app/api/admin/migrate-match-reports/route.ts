@@ -25,33 +25,37 @@ async function runMigration() {
   // Format YYYY-MM-DD hari ini (WIB)
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 
+  const hashPayload: Record<string, any> = {};
   const processedMatches: string[] = [];
-  const deletedFutureMatches: string[] = [];
+  const deletedOldKeys: string[] = [];
 
   for (const match of schedules) {
     if (!match.id) continue;
 
-    const reportKey = `match:report:${match.id}`;
+    const oldIndividualKey = `match:report:${match.id}`;
     const matchDateStr = match.matchDate ? match.matchDate.split('T')[0] : '';
 
-    // Jika tanggal match lebih dari hari ini, hapus jika ada di KV dan lewati
-    if (matchDateStr && matchDateStr > todayStr) {
-      const exists = await kv.exists(reportKey);
-      if (exists) {
-        await kv.del(reportKey);
-        deletedFutureMatches.push(reportKey);
-      }
-      continue;
+    // Ambil data existing dari string key lama jika ada
+    const existingReport = await kv.get<any>(oldIndividualKey);
+
+    // Hapus string key lama agar tidak spam di KV
+    const exists = await kv.exists(oldIndividualKey);
+    if (exists) {
+      await kv.del(oldIndividualKey);
+      deletedOldKeys.push(oldIndividualKey);
     }
 
-    const existingReport = await kv.get<any>(reportKey);
+    // Hanya masukkan match yang tanggalnya <= hari ini
+    if (matchDateStr && matchDateStr > todayStr) {
+      continue;
+    }
 
     const metadata = {
       date: matchDateStr || existingReport?.metadata?.date || '',
       streamPlatform: match.streamPlatform || existingReport?.metadata?.streamPlatform || 'YouTube',
       streamer: match.streamer || existingReport?.metadata?.streamer || '',
       referee: match.referee || match.judge || existingReport?.metadata?.referee || existingReport?.metadata?.judge || '',
-      streamUrl: match.streamUrl || existingReport?.metadata?.streamUrl || '',
+      streamUrl: match.streamLink || match.streamUrl || existingReport?.metadata?.streamUrl || '',
     };
 
     const formatLineup = (lineup: any[] = []) => {
@@ -89,7 +93,6 @@ async function runMigration() {
     const teamAName = match.teamAName || match.teamAId || existingReport?.teamA?.name || '';
     const teamBName = match.teamBName || match.teamBId || existingReport?.teamB?.name || '';
 
-    // Skor direset 0, isFinished false
     const cleanReport = {
       matchId: match.id,
       week: match.week ?? existingReport?.week ?? 1,
@@ -119,15 +122,22 @@ async function runMigration() {
       isFinished: false,
     };
 
-    await kv.set(reportKey, cleanReport);
-    processedMatches.push(reportKey);
+    hashPayload[match.id] = cleanReport;
+    processedMatches.push(match.id);
+  }
+
+  // Simpan sekaligus ke 1 Hash Key
+  if (Object.keys(hashPayload).length > 0) {
+    await kv.hset('twi:match_reports', hashPayload);
   }
 
   return NextResponse.json({
     success: true,
-    message: `Migrasi selesai. ${processedMatches.length} match aktif disinkronkan, ${deletedFutureMatches.length} match masa depan dibersihkan.`,
-    activeMatches: processedMatches,
-    removedFutureMatches: deletedFutureMatches,
+    message: `Migrasi selesai. ${processedMatches.length} match report digabungkan ke hash 'twi:match_reports'.`,
+    hashKey: 'twi:match_reports',
+    totalEntries: processedMatches.length,
+    matches: processedMatches,
+    deletedOldKeysCount: deletedOldKeys.length,
   });
 }
 
@@ -151,4 +161,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-    }
+}
