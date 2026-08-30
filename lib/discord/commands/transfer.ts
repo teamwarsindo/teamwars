@@ -113,7 +113,8 @@ export async function handleTransferCommand(interaction: any) {
       const targetUserData = resolvedUsers[targetUserId] || {};
       const targetUsername = targetUserData.username || targetUserId;
 
-      const guildMemberRes = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}`);
+      // Request GET Guild Member untuk ambil roles target
+      const guildMemberRes = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}`, 'GET');
       const targetRoles: string[] = guildMemberRes?.roles || [];
 
       const result = await executeTransferAdd({
@@ -182,5 +183,5 @@ export async function handleTransferCommand(interaction: any) {
     );
     return { type: 4, data: failEmbed };
   }
-  }
-      
+                           }
+                           
