@@ -146,12 +146,14 @@ export async function sendCompletedAssignmentLog(
   if (params.roleType === 'REFEREE') {
     const scoreA = params.scoreA ?? 0;
     const scoreB = params.scoreB ?? 0;
+    const isWinA = scoreA > scoreB;
+    const winnerName = isWinA ? params.teamAName : params.teamBName;
     const winScore = Math.max(scoreA, scoreB);
     const loseScore = Math.min(scoreA, scoreB);
 
     fields.push({
       name: '🏆 Hasil Pertandingan',
-      value: `**${winScore}-${loseScore}**`,
+      value: `**${winScore}-${loseScore} (${winnerName} win)**`,
       inline: false,
     });
   } else if (params.streamLink) {
@@ -216,7 +218,7 @@ export async function sendCancelledAssignmentLog(
   return res?.id || null;
 }
 
-// 6. Official Score Log ke #CH_SCORE (POST Baru - 1 Baris Penuh)
+// 6. Official Score Log ke #CH_SCORE (POST Baru)
 export async function sendOfficialScoreLog(params: {
   channelId: string;
   teamAName: string;
@@ -248,4 +250,4 @@ export async function sendOfficialScoreLog(params: {
   }).catch(() => null);
 
   return res?.id || null;
-}
+    }
