@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 
-// Helper slug generator
 function generateSlug(text: string): string {
   return (text || '')
     .toLowerCase()
@@ -13,31 +12,40 @@ function generateSlug(text: string): string {
 }
 
 async function runMigration() {
-  // 1. Ambil data master schedules dari key yang tepat di KV
   const rawSchedules = await kv.get<any>('twi:schedules');
-
-  // Handle jika data tersimpan sebagai JSON string atau Array
   const schedules: any[] = typeof rawSchedules === 'string' ? JSON.parse(rawSchedules) : rawSchedules;
 
   if (!schedules || !Array.isArray(schedules)) {
     return NextResponse.json(
-      { success: false, error: 'Key twi:schedules tidak ditemukan atau bukan array di KV' },
+      { success: false, error: 'Key twi:schedules tidak ditemukan di KV' },
       { status: 404 }
     );
   }
 
-  const updatedMatches: string[] = [];
+  // Format YYYY-MM-DD hari ini (WIB)
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+
+  const processedMatches: string[] = [];
+  const deletedFutureMatches: string[] = [];
 
   for (const match of schedules) {
     if (!match.id) continue;
 
     const reportKey = `match:report:${match.id}`;
-    const existingReport = await kv.get<any>(reportKey);
-
-    // Ambil tanggal ISO (YYYY-MM-DD)
     const matchDateStr = match.matchDate ? match.matchDate.split('T')[0] : '';
 
-    // 1. Metadata murni
+    // Jika tanggal match lebih dari hari ini, hapus jika ada di KV dan lewati
+    if (matchDateStr && matchDateStr > todayStr) {
+      const exists = await kv.exists(reportKey);
+      if (exists) {
+        await kv.del(reportKey);
+        deletedFutureMatches.push(reportKey);
+      }
+      continue;
+    }
+
+    const existingReport = await kv.get<any>(reportKey);
+
     const metadata = {
       date: matchDateStr || existingReport?.metadata?.date || '',
       streamPlatform: match.streamPlatform || existingReport?.metadata?.streamPlatform || 'YouTube',
@@ -46,7 +54,6 @@ async function runMigration() {
       streamUrl: match.streamUrl || existingReport?.metadata?.streamUrl || '',
     };
 
-    // 2. Format & Bersihkan Lineup
     const formatLineup = (lineup: any[] = []) => {
       return lineup.map((player) => ({
         ign: player.ign || '',
@@ -82,10 +89,7 @@ async function runMigration() {
     const teamAName = match.teamAName || match.teamAId || existingReport?.teamA?.name || '';
     const teamBName = match.teamBName || match.teamBId || existingReport?.teamB?.name || '';
 
-    const scoreA = existingReport?.teamA?.score ?? match.scoreA ?? 0;
-    const scoreB = existingReport?.teamB?.score ?? match.scoreB ?? 0;
-
-    // 3. Susun dokumen final murni
+    // Skor direset 0, isFinished false
     const cleanReport = {
       matchId: match.id,
       week: match.week ?? existingReport?.week ?? 1,
@@ -93,7 +97,7 @@ async function runMigration() {
       teamA: {
         name: teamAName,
         slug: generateSlug(teamAName),
-        score: scoreA,
+        score: existingReport?.teamA?.score ?? 0,
         repeatsUsed: existingReport?.teamA?.repeatsUsed ?? 0,
         warningsUsed: existingReport?.teamA?.warningsUsed ?? 0,
         lineup: formatLineup(existingReport?.teamA?.lineup),
@@ -101,29 +105,29 @@ async function runMigration() {
       teamB: {
         name: teamBName,
         slug: generateSlug(teamBName),
-        score: scoreB,
+        score: existingReport?.teamB?.score ?? 0,
         repeatsUsed: existingReport?.teamB?.repeatsUsed ?? 0,
         warningsUsed: existingReport?.teamB?.warningsUsed ?? 0,
         lineup: formatLineup(existingReport?.teamB?.lineup),
       },
       games: existingReport?.games || [],
       finalScore: {
-        teamA: existingReport?.finalScore?.teamA ?? scoreA,
-        teamB: existingReport?.finalScore?.teamB ?? scoreB,
+        teamA: existingReport?.teamA?.score ?? 0,
+        teamB: existingReport?.teamB?.score ?? 0,
       },
-      winnerTeam: existingReport?.winnerTeam || null,
-      isFinished: existingReport?.isFinished ?? match.isFinished ?? false,
+      winnerTeam: null,
+      isFinished: false,
     };
 
-    // Simpan / Buat key baru di KV
     await kv.set(reportKey, cleanReport);
-    updatedMatches.push(reportKey);
+    processedMatches.push(reportKey);
   }
 
   return NextResponse.json({
     success: true,
-    message: `Migrasi selesai. Total ${updatedMatches.length} match report berhasil disinkronkan.`,
-    updatedKeys: updatedMatches,
+    message: `Migrasi selesai. ${processedMatches.length} match aktif disinkronkan, ${deletedFutureMatches.length} match masa depan dibersihkan.`,
+    activeMatches: processedMatches,
+    removedFutureMatches: deletedFutureMatches,
   });
 }
 
@@ -147,4 +151,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-      }
+    }
