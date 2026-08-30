@@ -1,3 +1,4 @@
+import { kv } from '@vercel/kv';
 import { discordAPI, getEmbedFooterText } from '../utils';
 import { getMatchWeekNumber } from '@/app/tournament/_library';
 
@@ -62,7 +63,7 @@ export function formatWIBTimeOnly(dateIso?: string): string {
   );
 }
 
-// 🔍 HELPER PENGECEKAN KEBERADAAN PESAN DI DISCORD (LIVE CHECK)
+// 🔍 Live check message
 export async function checkDiscordMessageExists(channelId: string, messageId?: string | null): Promise<boolean> {
   if (!channelId || !messageId) return false;
   try {
@@ -73,7 +74,7 @@ export async function checkDiscordMessageExists(channelId: string, messageId?: s
   }
 }
 
-// 🟡 1. EMBED PENGUMUMAN PAGI (CHANNEL CAMP)
+// 🟡 1. EMBED PENGUMUMAN PAGI
 export function getMorningCampEmbed(params: {
   week?: string | number;
   matchDateIso?: string;
@@ -115,21 +116,25 @@ export function getMorningCampEmbed(params: {
   };
 }
 
-// Helper pembuat baris deck sub-list dengan status icon langsung di tiap baris deck
+// Helper format deck line dengan singkatan skill dari KV
 function formatDeckLine(
   prefix: '├─' | '└─',
   deck?: DeckSlotInfo | null,
-  isSlotActive = true
+  isSlotActive = true,
+  skillsMap: Record<string, string> = {}
 ): { text: string; isSubmitted: boolean; isPending: boolean } {
-  // Jika slot memang sengaja tidak diisi (hanya 1 deck didaftarkan)
   if (!isSlotActive || deck === null) {
     return { text: `${prefix} ❌ Belum Submit`, isSubmitted: false, isPending: false };
   }
 
-  // Jika sudah diverifikasi dan ada archetypenya
   if (deck && deck.status === 'VERIFIED' && deck.archetype) {
-    const skillText = deck.skill && deck.skill !== '-' ? ` • ${deck.skill}` : '';
-    const label = `${deck.archetype}${skillText}`;
+    let skillLabel = '';
+    if (deck.skill && deck.skill !== '-') {
+      const shortSkill = skillsMap[deck.skill] || deck.skill;
+      skillLabel = ` • ${shortSkill}`;
+    }
+
+    const label = `${deck.archetype}${skillLabel}`;
     const lineText = deck.ssUrl ? `[${label}](${deck.ssUrl.trim()})` : label;
 
     return {
@@ -139,7 +144,6 @@ function formatDeckLine(
     };
   }
 
-  // Jika pemain sudah terdaftar tapi detail deck belum diinput
   return {
     text: `${prefix} ⏳ Menunggu Input`,
     isSubmitted: true,
@@ -147,18 +151,20 @@ function formatDeckLine(
   };
 }
 
-// 📊 2. EMBED LIVE DECK TRACKER (CHANNEL CAMP - 1 FIELD PER PEMAIN)
+// 📊 2. EMBED LIVE DECK TRACKER
 export function getLiveDeckTrackerEmbed(params: {
   week?: string | number;
   matchDateIso?: string;
   deadlineWib: string;
   timeRemainingStr: string;
   submittedPlayers: TrackerPlayer[];
+  skillsMap?: Record<string, string>;
   lastUpdated?: string | Date;
 }) {
   const calculatedWeek = params.week || getMatchWeekNumber(params.matchDateIso);
   const weekLabel = `Week ${calculatedWeek}`;
   const count = params.submittedPlayers.length;
+  const skillsMap = params.skillsMap || {};
 
   let totalDecksSubmitted = 0;
   const playerFields: Array<{ name: string; value: string; inline: boolean }> = [];
@@ -172,8 +178,8 @@ export function getLiveDeckTrackerEmbed(params: {
       const hasDeck1 = player.deck1 !== null;
       const hasDeck2 = player.deck2 !== null;
 
-      const d1 = formatDeckLine('├─', player.deck1, hasDeck1);
-      const d2 = formatDeckLine('└─', player.deck2, hasDeck2);
+      const d1 = formatDeckLine('├─', player.deck1, hasDeck1, skillsMap);
+      const d2 = formatDeckLine('└─', player.deck2, hasDeck2, skillsMap);
 
       let playerDeckCount = 0;
       if (d1.isSubmitted) playerDeckCount++;
@@ -218,7 +224,7 @@ export function getLiveDeckTrackerEmbed(params: {
   };
 }
 
-// ⚔️ 3. EMBED MATCH BRIEFING (CHANNEL MATCH - H-30 MENIT)
+// ⚔️ 3. EMBED MATCH BRIEFING
 export function getMatchBriefingEmbed() {
   return {
     title: '⚔️ IN-GAME MATCH BRIEFING — TWI SEASON 7',
@@ -265,6 +271,9 @@ export async function sendOrUpdateLiveTracker(params: {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
   }
 
+  // Ambil mapping skill dari KV
+  const skillsMap = (await kv.get<Record<string, string>>('twi:master_skills')) || {};
+
   const deadlineIso = new Date(new Date(params.matchDateIso).getTime() - 60 * 60 * 1000).toISOString();
   const embed = getLiveDeckTrackerEmbed({
     week: params.week,
@@ -272,6 +281,7 @@ export async function sendOrUpdateLiveTracker(params: {
     deadlineWib: formatWIBTimeOnly(deadlineIso),
     timeRemainingStr: formatTimeRemaining(deadlineIso),
     submittedPlayers: params.submittedPlayers,
+    skillsMap,
     lastUpdated: new Date(),
   });
 
@@ -283,4 +293,4 @@ export async function sendOrUpdateLiveTracker(params: {
   });
 
   return res?.id || null;
-  }
+          }
