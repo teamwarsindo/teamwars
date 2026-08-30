@@ -1,7 +1,61 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
 import { StaffItem } from '@/lib/discord/services/staff-assignment';
+import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
 
+// ==========================================
+// TRANSFER AUTOCOMPLETE HANDLER
+// ==========================================
+export async function handleTransferAutocomplete(interaction: any) {
+  try {
+    const channelId = interaction.channel_id;
+    let teamSlug = await kv.hget<string>('global:channel_teams', channelId);
+
+    // Fallback jika belum terpetakan di channel camp
+    if (!teamSlug) {
+      const userId = interaction.member?.user?.id;
+      teamSlug = await kv.hget<string>('global:discord_ids', userId);
+    }
+
+    if (!teamSlug) return { type: 8, data: { choices: [] } };
+
+    // Ekstrak nested options dari subcommand
+    const options = interaction.data?.options || [];
+    const subOptions = options[0]?.options || options;
+    const focusedOption = subOptions.find((opt: any) => opt.focused);
+
+    if (!focusedOption || focusedOption.name !== 'user') {
+      return { type: 8, data: { choices: [] } };
+    }
+
+    const query = (focusedOption.value || '').toString().toLowerCase();
+    const teamData = await kv.hgetall<any>(`teams:${teamSlug}`);
+    if (!teamData || !teamData.players) return { type: 8, data: { choices: [] } };
+
+    const players: PlayerItem[] = parsePlayers(teamData.players);
+
+    const choices = players
+      .filter((p) => {
+        const ign = (p.ign || '').toLowerCase();
+        const discord = (p.discord || '').toLowerCase();
+        return ign.includes(query) || discord.includes(query);
+      })
+      .slice(0, 25)
+      .map((p) => ({
+        name: `${p.ign} (@${p.discord || p.ign}) - ${p.role || 'Anggota'}`,
+        value: p.discordId || p.discord || p.ign,
+      }));
+
+    return { type: 8, data: { choices } };
+  } catch (error) {
+    console.error('Error handling transfer autocomplete:', error);
+    return { type: 8, data: { choices: [] } };
+  }
+}
+
+// ==========================================
+// ASSIGN & UNASSIGN AUTOCOMPLETE HANDLER
+// ==========================================
 export async function handleAssignAutocomplete(interaction: any) {
   try {
     const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
@@ -15,26 +69,21 @@ export async function handleAssignAutocomplete(interaction: any) {
     if (focusedOption.name === 'match') {
       const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
-      // Ambil match yang belum selesai dan sudah memiliki channel Discord aktif
       const activeUnfinishedMatches = schedules.filter(
         (m: any) => !m.isFinished && m.discordChannelId
       );
 
-      // Cari week terkecil yang sedang berjalan dari match yang belum selesai
       const currentActiveWeek = activeUnfinishedMatches.length > 0
         ? Math.min(...activeUnfinishedMatches.map((m: any) => m.weekNumber || 1))
         : null;
 
       const filteredMatches = schedules.filter((m: any) => {
-        // Syarat mutlak: Channel Discord sudah ada dan match belum selesai
         if (m.isFinished || !m.discordChannelId) return false;
 
-        // Kunci tampilan hanya pada Week yang sedang berjalan (jika ada)
         if (currentActiveWeek !== null && (m.weekNumber || 1) !== currentActiveWeek) {
           return false;
         }
 
-        // Filter khusus untuk command /unassign
         if (commandName === 'unassign') {
           if (typeOption === 'REFEREE') {
             return Boolean(m.refereeDiscordId);
@@ -66,7 +115,6 @@ export async function handleAssignAutocomplete(interaction: any) {
       const staffType = typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
       const staffList = (await kv.get<StaffItem[]>(staffType)) || [];
 
-      // Urutkan berdasarkan nama (Alphabetical A-Z)
       const sortedStaffList = [...staffList].sort((a, b) =>
         a.discordName.localeCompare(b.discordName, 'id', { sensitivity: 'base' })
       );
@@ -89,6 +137,9 @@ export async function handleAssignAutocomplete(interaction: any) {
   }
 }
 
+// ==========================================
+// RESCHEDULE AUTOCOMPLETE HANDLER
+// ==========================================
 export async function handleRescheduleAutocomplete(interaction: any) {
   try {
     const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
@@ -134,6 +185,9 @@ export async function handleRescheduleAutocomplete(interaction: any) {
   }
 }
 
+// ==========================================
+// MATCH REPORT AUTOCOMPLETE HANDLER
+// ==========================================
 export async function handleMatchReportAutocomplete(interaction: any) {
   try {
     const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
@@ -159,4 +213,5 @@ export async function handleMatchReportAutocomplete(interaction: any) {
     console.error('Error match report autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-}
+  }
+        
