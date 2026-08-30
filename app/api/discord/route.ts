@@ -16,10 +16,13 @@ import { handleAssignCommand } from '@/lib/discord/commands/assign';
 import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
 import { handleSubmitCommand } from '@/lib/discord/commands/submit';
 import { handleRescheduleCommand } from '@/lib/discord/handlers/reschedule-handler';
+import { handleStreamCommand } from '@/lib/discord/commands/stream';
+import { handleMatchReportCommand, handleMatchReportSelect } from '@/lib/discord/commands/match-report';
 
 // Autocomplete
 import { handleAssignAutocomplete, handleSubmitAutocomplete,
-        handleRescheduleAutocomplete, handleTransferAutocomplete}
+        handleRescheduleAutocomplete, handleTransferAutocomplete,
+        handleMatchReportAutocomplete }
   from '@/lib/discord/handlers/autocomplete-handler';
 
 // Button Handlers
@@ -28,16 +31,9 @@ import { handleBtRole } from '@/lib/discord/buttons/btRole';
 import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
 import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 
-// Stream Command
-import { handleStreamCommand } from '@/lib/discord/commands/stream';
-
 // Bidding Module
 import { getBidModal } from '@/lib/discord/buttons/bidding';
 import { processBidSubmission, handleViewFullLog, KV_BID_KEY, BidStore } from '@/lib/discord/bidding';
-
-// Match Report Command & Handlers
-import { handleMatchReportCommand, handleMatchReportSelect } from '@/lib/discord/commands/match-report';
-import { handleMatchReportAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
