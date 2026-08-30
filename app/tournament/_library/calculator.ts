@@ -10,9 +10,9 @@ export interface ExtendedStandingItem extends TeamStandingItem {
 }
 
 export interface QualificationStatus {
-  rankLabel: string;   // "#1 Group" | "#1 Wildcard" | "#10 Wildcard"
-  stageLabel: string;  // "Quarter" | "Play-Ins" | "Eliminasi"
-  isQualified: boolean; // true = Hijau, false = Merah
+  rankLabel: string;
+  stageLabel: string;
+  isQualified: boolean;
 }
 
 export interface MatchHistoryCardItem {
@@ -212,7 +212,6 @@ export function getTeamStatsFromStandings(
   const ptsDiffRate = matchPlayed > 0 ? parseFloat((rawDiff / matchPlayed).toFixed(1)) : 0;
   const groupName = standingItem?.groupName || teamInput?.groupName || DIVISION_MAP.GROUP_A;
 
-  // History & Streak Extractor
   const historyMap = getTeamHistoryMap(teamName, allSchedules);
   const history = Array.from(historyMap.values()).sort((a, b) => b.week - a.week);
   const streak = [...history].slice(0, 5).reverse().map((h) => (h.isWin ? ("W" as const) : ("L" as const)));
@@ -275,7 +274,7 @@ export function getTeamHistoryMap(teamName: string, allSchedules: MatchScheduleI
 }
 
 /**
- * 6. MULTI-VARIABLE MATCH PREDICTION ENGINE
+ * 6. MULTI-VARIABLE MATCH PREDICTION ENGINE (LOGIKA DIPERBAIKI)
  */
 export function calculateMatchPrediction(
   statsA: TeamComparisonStats,
@@ -287,11 +286,33 @@ export function calculateMatchPrediction(
     return { probA: 50, probB: 50, predScoreA: 10, predScoreB: 9 };
   }
 
-  // 1. Base Win Rate (Fondasi)
+  // 1. Base Win Rate (Skala 0 - 100)
   const baseRateA = statsA.matchPlayed > 0 ? (statsA.matchWins / statsA.matchPlayed) * 100 : 50;
   const baseRateB = statsB.matchPlayed > 0 ? (statsB.matchWins / statsB.matchPlayed) * 100 : 50;
 
-  // 2. Strength of Schedule (SoS)
+  // 2. Margin Dominasi / Pts Diff Rate (Skala netral 50, +/- hingga 100)
+  // Rentang ptsDiffRate umumnya -10 s/d +10, kita normalisasi ke skala 0 - 100
+  const diffScoreA = Math.max(0, Math.min(100, 50 + statsA.ptsDiffRate * 5));
+  const diffScoreB = Math.max(0, Math.min(100, 50 + statsB.ptsDiffRate * 5));
+
+  // 3. Form Momentum (4 Laga Terakhir)
+  const computeFormScore = (form: ("W" | "L")[]) => {
+    if (!form.length) return 50;
+    const recent = form.slice(-4);
+    const weights = [1, 1.25, 1.5, 2].slice(4 - recent.length);
+    let pts = 0, totalW = 0;
+    recent.forEach((res, i) => {
+      const w = weights[i] || 1;
+      totalW += w;
+      if (res === "W") pts += 100 * w;
+    });
+    return totalW > 0 ? pts / totalW : 50;
+  };
+
+  const formScoreA = computeFormScore(statsA.form);
+  const formScoreB = computeFormScore(statsB.form);
+
+  // 4. Strength of Schedule (SoS)
   const computeSoS = (teamName: string) => {
     if (!allSchedules.length) return 50;
     const clean = teamName.toLowerCase().trim();
@@ -313,24 +334,7 @@ export function calculateMatchPrediction(
   const sosA = computeSoS(statsA.teamName);
   const sosB = computeSoS(statsB.teamName);
 
-  // 3. Weighted Form Decay (4 Laga Terakhir dengan Bobot Waktu)
-  const computeFormScore = (form: ("W" | "L")[]) => {
-    if (!form.length) return 50;
-    const recent = form.slice(-4);
-    const weights = [1, 1.25, 1.5, 2].slice(4 - recent.length);
-    let pts = 0, totalW = 0;
-    recent.forEach((res, i) => {
-      const w = weights[i] || 1;
-      totalW += w;
-      if (res === "W") pts += 100 * w;
-    });
-    return totalW > 0 ? pts / totalW : 50;
-  };
-
-  const formScoreA = computeFormScore(statsA.form);
-  const formScoreB = computeFormScore(statsB.form);
-
-  // 4. Direct H2H Rekor
+  // 5. Direct H2H Rekor
   const directMatches = allSchedules.filter(
     (m) =>
       m.isFinished &&
@@ -351,26 +355,46 @@ export function calculateMatchPrediction(
     h2hWinRateA = (winsA / directMatches.length) * 100;
   }
 
-  // 5. Pembobotan Power Rating
-  const wBase = 0.3;
-  const wSos = hasH2H ? 0.35 : 0.5;
-  const wForm = 0.2;
-  const wH2H = hasH2H ? 0.15 : 0.0;
+  // 6. Pembobotan Berimbang
+  // Win Rate (40%) + Pts Diff Margin (25%) + Form (20%) + SoS (15%)
+  const wWinRate = 0.40;
+  const wDiff = 0.25;
+  const wForm = 0.20;
+  const wSos = hasH2H ? 0.05 : 0.15;
+  const wH2H = hasH2H ? 0.10 : 0.0;
 
-  const powerA = baseRateA * wBase + sosA * wSos + formScoreA * wForm + h2hWinRateA * wH2H;
-  const powerB = baseRateB * wBase + sosB * wSos + formScoreB * wForm + (100 - h2hWinRateA) * wH2H;
+  const powerA = baseRateA * wWinRate + diffScoreA * wDiff + formScoreA * wForm + sosA * wSos + h2hWinRateA * wH2H;
+  const powerB = baseRateB * wWinRate + diffScoreB * wDiff + formScoreB * wForm + sosB * wSos + (100 - h2hWinRateA) * wH2H;
 
   const total = powerA + powerB || 1;
   const rawProbA = Math.round((powerA / total) * 100);
   const probA = Math.max(15, Math.min(85, rawProbA));
   const probB = 100 - probA;
 
+  // 7. Estimasi Skor Dinamis Berdasarkan Margin Probabilitas & Pts Rata-Rata
   let predScoreA = 10;
   let predScoreB = 10;
-  if (probA >= probB) {
-    predScoreB = Math.max(4, Math.min(9, Math.round((probB / probA) * 9.5)));
+
+  const probDiff = Math.abs(probA - probB);
+
+  // Estimasi skor tim yang kalah: makin lebar beda probabilitas, makin rendah skor tim yang kalah (skor 10-0 s/d 10-9)
+  let loserScore = 9;
+  if (probDiff >= 40) {
+    loserScore = Math.max(1, Math.min(4, Math.round(9 - (probDiff / 50) * 7)));
+  } else if (probDiff >= 20) {
+    loserScore = Math.max(4, Math.min(7, Math.round(9 - (probDiff / 40) * 4)));
+  } else if (probDiff >= 8) {
+    loserScore = 8;
   } else {
-    predScoreA = Math.max(4, Math.min(9, Math.round((probA / probB) * 9.5)));
+    loserScore = 9; // Laga sangat ketat
+  }
+
+  if (probA >= probB) {
+    predScoreA = 10;
+    predScoreB = loserScore;
+  } else {
+    predScoreA = loserScore;
+    predScoreB = 10;
   }
 
   return { probA, probB, predScoreA, predScoreB };
@@ -386,4 +410,4 @@ export function getNextDateMatches(currentWeekSchedules: MatchScheduleItem[], to
   if (!candidates.length) return [];
   const nextDate = getWibDateKey(new Date(candidates[0].matchDate));
   return candidates.filter((m) => getWibDateKey(new Date(m.matchDate)) === nextDate);
-  }                       
+}
