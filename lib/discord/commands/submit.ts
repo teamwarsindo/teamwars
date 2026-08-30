@@ -6,6 +6,7 @@ import {
   sendOrUpdateLiveTracker,
   TrackerPlayer,
 } from '@/lib/discord/messages/match-briefing';
+import { syncCustomDeckAndSkillToMaster } from '@/lib/discord/services/master-sync';
 
 function isStaff(interaction: any): boolean {
   try {
@@ -237,16 +238,31 @@ export async function handleSubmitCommand(interaction: any) {
       const newRosterMember = teamRoster.find((p) => p.ign.toLowerCase() === newPlayerIgn.toLowerCase());
       const newDlId = newRosterMember?.idDuelLinks || '';
 
-      // Set data deck baru (jika diisi wasit via options)
-      const deck1 = optMap.deck_1
-        ? { status: 'VERIFIED', archetype: optMap.deck_1, skill: optMap.skill_1 || '-', ssUrl: optMap.ss_1 || null }
-        : { status: 'PENDING_INPUT', archetype: null, skill: null, ssUrl: null };
+      // Auto-sync deck custom jika disediakan
+      let deck1 = { status: 'PENDING_INPUT', archetype: null as string | null, skill: null as string | null, ssUrl: null as string | null };
+      if (optMap.deck_1) {
+        const sync1 = await syncCustomDeckAndSkillToMaster(optMap.deck_1, optMap.skill_1);
+        deck1 = {
+          status: 'VERIFIED',
+          archetype: sync1.cleanDeck || optMap.deck_1,
+          skill: sync1.cleanSkill || optMap.skill_1 || '-',
+          ssUrl: optMap.ss_1 || null,
+        };
+      }
 
       let deck2 = null;
       if (deckCount === 2) {
-        deck2 = optMap.deck_2
-          ? { status: 'VERIFIED', archetype: optMap.deck_2, skill: optMap.skill_2 || '-', ssUrl: optMap.ss_2 || null }
-          : { status: 'PENDING_INPUT', archetype: null, skill: null, ssUrl: null };
+        if (optMap.deck_2) {
+          const sync2 = await syncCustomDeckAndSkillToMaster(optMap.deck_2, optMap.skill_2);
+          deck2 = {
+            status: 'VERIFIED',
+            archetype: sync2.cleanDeck || optMap.deck_2,
+            skill: sync2.cleanSkill || optMap.skill_2 || '-',
+            ssUrl: optMap.ss_2 || null,
+          };
+        } else {
+          deck2 = { status: 'PENDING_INPUT', archetype: null, skill: null, ssUrl: null };
+        }
       }
 
       currentLineup[oldIndex] = {
@@ -285,26 +301,34 @@ export async function handleSubmitCommand(interaction: any) {
 
       const updatedDecks: string[] = [];
 
-      // Update Deck 1 jika parameter deck_1 diisi
+      // Update Deck 1 dengan Auto-Sync Master KV
       if (optMap.deck_1) {
+        const sync1 = await syncCustomDeckAndSkillToMaster(optMap.deck_1, optMap.skill_1);
+        const finalDeck1 = sync1.cleanDeck || optMap.deck_1;
+        const finalSkill1 = sync1.cleanSkill || optMap.skill_1 || playerObj.deck1?.skill || '-';
+
         playerObj.deck1 = {
           status: 'VERIFIED',
-          archetype: optMap.deck_1,
-          skill: optMap.skill_1 || playerObj.deck1?.skill || '-',
+          archetype: finalDeck1,
+          skill: finalSkill1,
           ssUrl: optMap.ss_1 || playerObj.deck1?.ssUrl || null,
         };
-        updatedDecks.push(`Deck 1: **${optMap.deck_1}** (${optMap.skill_1 || '-'})`);
+        updatedDecks.push(`Deck 1: **${finalDeck1}** (${finalSkill1})`);
       }
 
-      // Update Deck 2 jika parameter deck_2 diisi
+      // Update Deck 2 dengan Auto-Sync Master KV
       if (optMap.deck_2) {
+        const sync2 = await syncCustomDeckAndSkillToMaster(optMap.deck_2, optMap.skill_2);
+        const finalDeck2 = sync2.cleanDeck || optMap.deck_2;
+        const finalSkill2 = sync2.cleanSkill || optMap.skill_2 || playerObj.deck2?.skill || '-';
+
         playerObj.deck2 = {
           status: 'VERIFIED',
-          archetype: optMap.deck_2,
-          skill: optMap.skill_2 || playerObj.deck2?.skill || '-',
+          archetype: finalDeck2,
+          skill: finalSkill2,
           ssUrl: optMap.ss_2 || playerObj.deck2?.ssUrl || null,
         };
-        updatedDecks.push(`Deck 2: **${optMap.deck_2}** (${optMap.skill_2 || '-'})`);
+        updatedDecks.push(`Deck 2: **${finalDeck2}** (${finalSkill2})`);
       }
 
       if (updatedDecks.length === 0) {
