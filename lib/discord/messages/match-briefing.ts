@@ -115,23 +115,36 @@ export function getMorningCampEmbed(params: {
   };
 }
 
-// Helper pembuat baris deck sub-list
-function formatDeckLine(prefix: '├─' | '└─', deck?: DeckSlotInfo | null): { text: string; isSubmitted: boolean; isPending: boolean } {
-  if (!deck) {
+// Helper pembuat baris deck sub-list dengan status icon langsung di tiap baris deck
+function formatDeckLine(
+  prefix: '├─' | '└─',
+  deck?: DeckSlotInfo | null,
+  isSlotActive = true
+): { text: string; isSubmitted: boolean; isPending: boolean } {
+  // Jika slot memang sengaja tidak diisi (hanya 1 deck didaftarkan)
+  if (!isSlotActive || deck === null) {
     return { text: `${prefix} ❌ Belum Submit`, isSubmitted: false, isPending: false };
   }
 
-  if (deck.status === 'VERIFIED' && deck.archetype) {
+  // Jika sudah diverifikasi dan ada archetypenya
+  if (deck && deck.status === 'VERIFIED' && deck.archetype) {
     const skillText = deck.skill && deck.skill !== '-' ? ` • ${deck.skill}` : '';
-    const ssText = deck.ssUrl ? ` • [SS](${deck.ssUrl.trim()})` : '';
+    const label = `${deck.archetype}${skillText}`;
+    const lineText = deck.ssUrl ? `[${label}](${deck.ssUrl.trim()})` : label;
+
     return {
-      text: `${prefix} ${deck.archetype}${skillText}${ssText}`,
+      text: `${prefix} ✅ ${lineText}`,
       isSubmitted: true,
       isPending: false,
     };
   }
 
-  return { text: `${prefix} ⏳ Menunggu Input`, isSubmitted: true, isPending: true };
+  // Jika pemain sudah terdaftar tapi detail deck belum diinput
+  return {
+    text: `${prefix} ⏳ Menunggu Input`,
+    isSubmitted: true,
+    isPending: true,
+  };
 }
 
 // 📊 2. EMBED LIVE DECK TRACKER (CHANNEL CAMP - 1 FIELD PER PEMAIN)
@@ -156,29 +169,25 @@ export function getLiveDeckTrackerEmbed(params: {
       const playerName = player.ign || player.name || 'Pemain';
       const dlLabel = player.idDuelLinks ? ` (${player.idDuelLinks})` : '';
 
-      const d1 = formatDeckLine('├─', player.deck1);
-      const d2 = formatDeckLine('└─', player.deck2);
+      const hasDeck1 = player.deck1 !== null;
+      const hasDeck2 = player.deck2 !== null;
+
+      const d1 = formatDeckLine('├─', player.deck1, hasDeck1);
+      const d2 = formatDeckLine('└─', player.deck2, hasDeck2);
 
       let playerDeckCount = 0;
       if (d1.isSubmitted) playerDeckCount++;
       if (d2.isSubmitted) playerDeckCount++;
       totalDecksSubmitted += playerDeckCount;
 
-      let badge = '⏳ (0/2 Deck)';
-      if (d1.isSubmitted && d2.isSubmitted) {
-        badge = (!d1.isPending && !d2.isPending) ? '✅ (2 Deck)' : '⏳ (2 Deck di Camp)';
-      } else if (playerDeckCount === 1) {
-        badge = '⚠️ (1/2 Deck)';
-      }
-
       playerFields.push({
-        name: `👤 Slot ${i + 1}: ${playerName}${dlLabel} ${badge}`,
+        name: `${i + 1}. ${playerName}${dlLabel}`,
         value: `${d1.text}\n${d2.text}`,
         inline: false,
       });
     } else {
       playerFields.push({
-        name: `👤 Slot ${i + 1}: [Slot Kosong] ❌`,
+        name: `${i + 1}. [Slot Kosong]`,
         value: `├─ ❌ Belum Submit\n└─ ❌ Belum Submit`,
         inline: false,
       });
@@ -274,4 +283,4 @@ export async function sendOrUpdateLiveTracker(params: {
   });
 
   return res?.id || null;
-}
+  }
