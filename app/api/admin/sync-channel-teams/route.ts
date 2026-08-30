@@ -14,7 +14,6 @@ interface FreeDuelistPayload {
 
 export async function GET() {
   try {
-    // 1. Ambil seluruh data dari hash utama global:free_duelists
     const allFreeDuelists = await kv.hgetall<Record<string, string>>('global:free_duelists');
 
     if (!allFreeDuelists || Object.keys(allFreeDuelists).length === 0) {
@@ -25,11 +24,11 @@ export async function GET() {
       });
     }
 
+    const discordIndexMap: Record<string, string> = {};
     const ignIndexMap: Record<string, string> = {};
     const dlIndexMap: Record<string, string> = {};
     let count = 0;
 
-    // 2. Baca setiap entry dan mapping persis aslinya
     for (const [discordId, rawData] of Object.entries(allFreeDuelists)) {
       let data: FreeDuelistPayload;
 
@@ -44,12 +43,17 @@ export async function GET() {
       }
 
       if (data) {
-        // Simpan IGN apa adanya (as-is)
+        // Index Username Discord apa adanya (as-is)
+        if (data.discord) {
+          discordIndexMap[data.discord] = discordId;
+        }
+
+        // Index IGN apa adanya (as-is)
         if (data.ign) {
           ignIndexMap[data.ign] = discordId;
         }
 
-        // Simpan ID Duel Links apa adanya (as-is, termasuk tanda '-')
+        // Index ID Duel Links apa adanya (as-is)
         if (data.idDuelLinks) {
           dlIndexMap[data.idDuelLinks] = discordId;
         }
@@ -58,9 +62,16 @@ export async function GET() {
       }
     }
 
-    // 3. Reset dan tulis ulang key index
-    await kv.del('global:free_duelists_ign', 'global:free_duelists_dl');
+    // Reset dan tulis ulang seluruh key index
+    await kv.del(
+      'global:free_duelists_discord',
+      'global:free_duelists_ign',
+      'global:free_duelists_dl'
+    );
 
+    if (Object.keys(discordIndexMap).length > 0) {
+      await kv.hset('global:free_duelists_discord', discordIndexMap);
+    }
     if (Object.keys(ignIndexMap).length > 0) {
       await kv.hset('global:free_duelists_ign', ignIndexMap);
     }
@@ -70,8 +81,9 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: 'Index global:free_duelists_ign dan global:free_duelists_dl berhasil diperbarui!',
+      message: 'Seluruh index free duelists (Discord Username, IGN, ID DL) berhasil diperbarui!',
       totalIndexed: count,
+      discordIndex: discordIndexMap,
       ignIndex: ignIndexMap,
       dlIndex: dlIndexMap,
     });
@@ -86,4 +98,5 @@ export async function GET() {
       { status: 500 }
     );
   }
-            }
+}
+  
