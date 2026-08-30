@@ -3,71 +3,21 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, isValidSnowflake } from '@/lib/discord/utils';
 import { sendTransferNewsLog } from '../messages/transfer-log';
 import { refreshTeamEmbeds } from './transfer-logger';
+import {
+  PlayerItem,
+  TeamKVData,
+  FreeDuelistRecord,
+  formatDuelId,
+  cleanDuelId,
+  parsePlayers,
+  getTeamBySlug,
+  findPlayerIndex,
+} from './transfer-types';
+import { validateAddAvailability, getConflictingPlayerDetails } from './transfer-validation';
 
-export interface PlayerItem {
-  role: 'Ketua' | 'Wakil Ketua' | 'Anggota';
-  namaLengkap: string;
-  discord: string;
-  discordId: string;
-  ign: string;
-  idDuelLinks: string;
-  teamsJoinedCount?: number;
-}
-
-export interface TeamKVData {
-  [key: string]: unknown;
-  namaTim: string;
-  warna: string;
-  logoTim?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  discordRoleId?: string;
-  discordChannelId?: string;
-  trackerMsgId?: string;
-  adminMsgId?: string;
-  transferQuotaUsed?: number;
-  kodeTim?: string;
-  emojiId?: string;
-  players: string | PlayerItem[];
-}
-
-export interface FreeDuelistRecord {
-  [key: string]: unknown;
-  discord: string;
-  discordId: string;
-  idDuelLinks: string;
-  ign: string;
-  lastTeam: string;
-  releasedAt: string;
-  teamsJoinedCount: number;
-}
-
-export function formatDuelId(input: string): string {
-  if (!input) return '-';
-  const clean = input.replace(/\D/g, '');
-  if (clean.length !== 9) return input.trim();
-  return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6, 9)}`;
-}
-
-export function cleanDuelId(input: string): string {
-  return (input || '').replace(/\D/g, '');
-}
-
-export function parsePlayers(playersData: any): PlayerItem[] {
-  if (Array.isArray(playersData)) return playersData;
-  try {
-    return JSON.parse(playersData);
-  } catch {
-    return [];
-  }
-}
-
-export async function getTeamBySlug(slug: string): Promise<{ key: string; data: TeamKVData } | null> {
-  const key = `teams:${slug}`;
-  const data = await kv.hgetall<TeamKVData>(key);
-  if (!data || !data.namaTim) return null;
-  return { key, data };
-}
+// Re-export tipe & helper agar file lain tidak perlu mengubah import
+export * from './transfer-types';
+export * from './transfer-validation';
 
 async function updateTeamRoster(
   key: string,
@@ -86,10 +36,10 @@ async function updateTeamRoster(
 }
 
 // ----------------------------------------------------
-// CORE ACTIONS
+// ACTIONS
 // ----------------------------------------------------
 
-export async function executeTransferOut(teamSlug: string, targetDiscordId: string) {
+export async function executeTransferOut(teamSlug: string, targetIdentifier: string) {
   const res = await getTeamBySlug(teamSlug);
   if (!res) throw new Error('Data tim tidak ditemukan!');
 
@@ -100,10 +50,8 @@ export async function executeTransferOut(teamSlug: string, targetDiscordId: stri
     throw new Error('Roster tim minimal menyisakan 5 pemain. Tidak dapat mengeluarkan pemain lagi.');
   }
 
-  const targetIdx = players.findIndex((p) => p.discordId === targetDiscordId);
-  if (targetIdx === -1) {
-    throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
-  }
+  const targetIdx = findPlayerIndex(players, targetIdentifier);
+  if (targetIdx === -1) throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
 
   const removed = players[targetIdx];
   if (removed.role === 'Ketua' || removed.role === 'Wakil Ketua') {
@@ -117,13 +65,13 @@ export async function executeTransferOut(teamSlug: string, targetDiscordId: stri
     kv.hdel('global:duellinks', cleanDl),
     kv.hdel('global:duellinks', removed.idDuelLinks),
     kv.hdel('global:ign', removed.ign),
-    kv.hdel('global:discord', removed.discord.toLowerCase()),
-    kv.hdel('global:discord_ids', removed.discordId),
+    kv.hdel('global:discord', (removed.discord || '').toLowerCase()),
+    removed.discordId ? kv.hdel('global:discord_ids', removed.discordId) : Promise.resolve(),
   ]);
 
   const freeRecord: FreeDuelistRecord = {
-    discord: removed.discord,
-    discordId: removed.discordId,
+    discord: removed.discord || '',
+    discordId: removed.discordId || '',
     idDuelLinks: removed.idDuelLinks,
     ign: removed.ign,
     lastTeam: teamSlug,
@@ -131,9 +79,10 @@ export async function executeTransferOut(teamSlug: string, targetDiscordId: stri
     teamsJoinedCount: Number(removed.teamsJoinedCount || 1),
   };
 
-  await kv.hset('global:free_duelists', { [removed.discordId]: JSON.stringify(freeRecord) });
-  if (removed.ign) await kv.hset('global:free_duelists_ign', { [removed.ign]: removed.discordId });
-  if (removed.idDuelLinks) await kv.hset('global:free_duelists_dl', { [removed.idDuelLinks]: removed.discordId });
+  const idKey = removed.discordId || removed.discord || removed.ign;
+  await kv.hset('global:free_duelists', { [idKey]: JSON.stringify(freeRecord) });
+  if (removed.ign) await kv.hset('global:free_duelists_ign', { [removed.ign]: idKey });
+  if (removed.idDuelLinks) await kv.hset('global:free_duelists_dl', { [removed.idDuelLinks]: idKey });
 
   const guildId = DISCORD_CONFIG.GUILD_ID;
   if (guildId && removed.discordId) {
@@ -143,7 +92,8 @@ export async function executeTransferOut(teamSlug: string, targetDiscordId: stri
     await discordAPI(`/guilds/${guildId}/members/${removed.discordId}`, 'PATCH', { nick: null }).catch(() => null);
   }
 
-  await updateTeamRoster(key, teamSlug, teamData, players);
+  const currentQuota = Number(teamData.transferQuotaUsed || 0);
+  await updateTeamRoster(key, teamSlug, teamData, players, currentQuota);
 
   await sendTransferNewsLog({
     teamName: teamData.namaTim,
@@ -152,11 +102,7 @@ export async function executeTransferOut(teamSlug: string, targetDiscordId: stri
     targetIgn: removed.ign,
   });
 
-  return {
-    teamName: teamData.namaTim,
-    removedPlayer: removed,
-    currentQuota: teamData.transferQuotaUsed || 0,
-  };
+  return { teamName: teamData.namaTim, removedPlayer: removed, currentQuota };
 }
 
 export async function executeTransferAdd(params: {
@@ -175,13 +121,16 @@ export async function executeTransferAdd(params: {
   const players = parsePlayers(teamData.players);
 
   if (players.length >= 10) throw new Error('Roster tim sudah penuh (Maksimal 10 Pemain).');
-  if (players.some((p) => p.discordId === targetDiscordId)) throw new Error('Pemain ini sudah terdaftar di roster tim Anda.');
 
   const cleanIgn = ign.trim();
   const formattedDl = formatDuelId(rawIdDl);
   const cleanDl = cleanDuelId(rawIdDl);
   if (cleanDl.length !== 9) throw new Error('ID Duel Links harus terdiri dari 9 angka digit.');
 
+  // Validasi bentrok di tim sendiri & tim lain
+  await validateAddAvailability(teamSlug, players, cleanIgn, targetDiscordId, formattedDl, cleanDl);
+
+  // Deteksi Free Agent vs Pemain Lama
   const hasDuelistRole = targetRoles.includes(DISCORD_CONFIG.ROLE_DUELIST);
   const freeByDiscordId = await kv.hget<string>('global:free_duelists', targetDiscordId);
   const freeDiscordIdByIgn = await kv.hget<string>('global:free_duelists_ign', cleanIgn);
@@ -205,7 +154,7 @@ export async function executeTransferAdd(params: {
 
   const isOldPlayer = hasDuelistRole || !!oldRecord;
   const isPlayoffs = process.env.NEXT_PUBLIC_IS_PLAYOFFS === 'true';
-  let currentQuota = teamData.transferQuotaUsed || 0;
+  let currentQuota = Number(teamData.transferQuotaUsed || 0);
   let teamsJoined = 1;
 
   if (isOldPlayer) {
@@ -262,38 +211,41 @@ export async function executeTransferAdd(params: {
     targetIgn: cleanIgn,
   });
 
-  return {
-    teamName: teamData.namaTim,
-    addedPlayer: newPlayer,
-    isOldPlayer,
-    currentQuota,
-  };
+  return { teamName: teamData.namaTim, addedPlayer: newPlayer, isOldPlayer, currentQuota };
 }
 
-export async function executeTransferEditDl(teamSlug: string, targetDiscordId: string, rawNewIdDl: string) {
+export async function executeTransferEditDl(teamSlug: string, targetIdentifier: string, rawNewIdDl: string) {
   const res = await getTeamBySlug(teamSlug);
   if (!res) throw new Error('Data tim tidak ditemukan!');
 
   const { key, data: teamData } = res;
   const players = parsePlayers(teamData.players);
 
-  let currentQuota = teamData.transferQuotaUsed || 0;
+  let currentQuota = Number(teamData.transferQuotaUsed || 0);
   if (currentQuota >= 2) throw new Error('Kuota transfer tim Anda sudah habis (Maksimal 2/2 Kuota Transfer).');
 
   const formattedDl = formatDuelId(rawNewIdDl);
   const cleanDl = cleanDuelId(rawNewIdDl);
   if (cleanDl.length !== 9) throw new Error('ID Duel Links baru harus 9 digit angka.');
 
-  const player = players.find((p) => p.discordId === targetDiscordId);
-  if (!player) throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
+  const targetIdx = findPlayerIndex(players, targetIdentifier);
+  if (targetIdx === -1) throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
 
+  const player = players[targetIdx];
   const oldDl = player.idDuelLinks;
   const cleanOldDl = cleanDuelId(oldDl);
 
-  if (cleanDl === cleanOldDl) throw new Error('ID Duel Links baru sama persis dengan ID yang sedang terdaftar.');
+  if (cleanDl === cleanOldDl) {
+    throw new Error('ID Duel Links baru sama persis dengan ID yang sedang terdaftar.');
+  }
 
   const existingDlTeam = await kv.hget<string>('global:duellinks', cleanDl);
-  if (existingDlTeam && existingDlTeam !== teamSlug) throw new Error(`ID Game **${formattedDl}** sudah dipakai oleh pemain lain.`);
+  if (existingDlTeam && existingDlTeam !== teamSlug) {
+    const detail = await getConflictingPlayerDetails(existingDlTeam, { dl: cleanDl });
+    throw new Error(
+      `ID Game **${formattedDl}** sudah dipakai oleh pemain di tim lain:\n• **Tim:** ${detail.teamName}\n• **IGN:** ${detail.ign}\n• **Discord:** ${detail.discord}\n• **ID DL:** ${detail.idDuelLinks}`
+    );
+  }
 
   await Promise.all([
     kv.hdel('global:duellinks', cleanOldDl),
@@ -314,62 +266,59 @@ export async function executeTransferEditDl(teamSlug: string, targetDiscordId: s
     newIdDl: formattedDl,
   });
 
-  return {
-    teamName: teamData.namaTim,
-    player,
-    oldDl,
-    newDl: formattedDl,
-    currentQuota,
-  };
+  return { teamName: teamData.namaTim, player, oldDl, newDl: formattedDl, currentQuota };
 }
 
 export async function executeTransferSetLeader(
   teamSlug: string,
-  targetDiscordId: string,
+  targetIdentifier: string,
   newRole: 'Ketua' | 'Wakil Ketua',
   actorId: string,
   isAdmin: boolean,
   isKetua: boolean
 ) {
-  if (targetDiscordId === actorId) throw new Error('Anda tidak diperbolehkan mengubah atau memindahkan jabatan Anda sendiri.');
-
-  if (newRole === 'Ketua' && !isAdmin) throw new Error('Hanya Admin Panitia yang memiliki izin untuk mengangkat Ketua Tim baru.');
-  if (newRole === 'Wakil Ketua' && !isAdmin && !isKetua) throw new Error('Hanya Ketua Tim atau Admin yang memiliki izin untuk mengangkat Wakil Ketua Tim.');
-
   const res = await getTeamBySlug(teamSlug);
   if (!res) throw new Error('Data tim tidak ditemukan!');
 
   const { key, data: teamData } = res;
   const players = parsePlayers(teamData.players);
 
-  const targetIdx = players.findIndex((p) => p.discordId === targetDiscordId);
+  const targetIdx = findPlayerIndex(players, targetIdentifier);
   if (targetIdx === -1) throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
+
+  const targetPlayer = players[targetIdx];
+  if (targetPlayer.discordId === actorId || targetPlayer.discord?.toLowerCase() === actorId.toLowerCase()) {
+    throw new Error('Anda tidak diperbolehkan mengubah atau memindahkan jabatan Anda sendiri.');
+  }
+
+  if (newRole === 'Ketua' && !isAdmin) {
+    throw new Error('Hanya Admin Panitia yang memiliki izin untuk mengangkat Ketua Tim baru.');
+  }
+  if (newRole === 'Wakil Ketua' && !isAdmin && !isKetua) {
+    throw new Error('Hanya Ketua Tim atau Admin yang memiliki izin untuk mengangkat Wakil Ketua Tim.');
+  }
 
   players.forEach((p) => {
     if (p.role === newRole) p.role = 'Anggota';
   });
 
-  players[targetIdx].role = newRole;
+  targetPlayer.role = newRole;
 
   const ketua = players.find((p) => p.role === 'Ketua');
   const wakil = players.find((p) => p.role === 'Wakil Ketua');
   const anggota = players.filter((p) => p.role === 'Anggota');
   const orderedPlayers = [...(ketua ? [ketua] : []), ...(wakil ? [wakil] : []), ...anggota];
 
-  await updateTeamRoster(key, teamSlug, teamData, orderedPlayers);
+  const currentQuota = Number(teamData.transferQuotaUsed || 0);
+  await updateTeamRoster(key, teamSlug, teamData, orderedPlayers, currentQuota);
 
-  const newLeader = players[targetIdx];
   await sendTransferNewsLog({
     teamName: teamData.namaTim,
     teamHex: teamData.warna,
     action: newRole === 'Ketua' ? 'SET_LEADER' : 'SET_WAKIL',
-    targetIgn: newLeader.ign,
+    targetIgn: targetPlayer.ign,
   });
 
-  return {
-    teamName: teamData.namaTim,
-    player: newLeader,
-    newRole,
-    currentQuota: teamData.transferQuotaUsed || 0,
-  };
-}
+  return { teamName: teamData.namaTim, player: targetPlayer, newRole, currentQuota };
+                                                                                }
+                            
