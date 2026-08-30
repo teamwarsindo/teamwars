@@ -25,7 +25,6 @@ function isStaff(interaction: any): boolean {
   }
 }
 
-// Helper ekstraksi opsi parameter dari Discord Interaction
 function getOptionMap(options: any[] = []): Record<string, any> {
   const map: Record<string, any> = {};
   for (const opt of options) {
@@ -49,6 +48,31 @@ async function resolveMatchAndCampFromChannel(channelId: string) {
   }
 
   return { matchId: null, teamKey: null, campData: null, allData: null };
+}
+
+// Helper pembuat objek Deck standar
+function createEmptyDeck() {
+  return {
+    archetype: '',
+    skill: '',
+    wins: 0,
+    losses: 0,
+    isDead: false,
+    isRepeatUsed: false,
+    lastGameNumber: null,
+  };
+}
+
+function createFilledDeck(archetype: string, skill: string = '') {
+  return {
+    archetype: archetype.trim(),
+    skill: (skill || '').trim(),
+    wins: 0,
+    losses: 0,
+    isDead: false,
+    isRepeatUsed: false,
+    lastGameNumber: null,
+  };
 }
 
 // ⚡ EKSEKUSI COMMAND /submit (add, change, edit)
@@ -77,7 +101,6 @@ export async function handleSubmitCommand(interaction: any) {
       };
     }
 
-    // Identifikasi Subcommand (add, change, edit)
     const rawOptions = interaction.data?.options || [];
     const subCommandObj = rawOptions[0]?.type === 1 ? rawOptions[0] : null;
     const subCommandName = subCommandObj?.name || 'add';
@@ -88,21 +111,35 @@ export async function handleSubmitCommand(interaction: any) {
     const teamData = await kv.hgetall<any>(`teams:${campData.slug}`);
     const teamRoster: PlayerItem[] = teamData?.players ? parsePlayers(teamData.players) : [];
 
-    // Ambil atau inisialisasi dokumen match:report
-    const reportKey = `match:report:${matchId}`;
-    let reportData = (await kv.get<any>(reportKey)) || {
-      matchId,
-      metadata: { date: new Date().toISOString() },
-      teamA: { slug: allData.campA?.slug || '', lineup: [], score: 0, repeatsUsed: 0 },
-      teamB: { slug: allData.campB?.slug || '', lineup: [], score: 0, repeatsUsed: 0 },
-      games: [],
-      finalScore: { teamA: 0, teamB: 0 },
-      winnerTeam: null,
-    };
+    // Ambil dokumen match report dari HASH twi:match_reports
+    let reportData = await kv.hget<any>('twi:match_reports', matchId);
+
+    if (!reportData) {
+      reportData = {
+        matchId,
+        week: 1,
+        metadata: { date: new Date().toISOString().split('T')[0], streamPlatform: 'YouTube', streamer: '', referee: '', streamUrl: '' },
+        teamA: { name: allData.campA?.name || '', slug: allData.campA?.slug || '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
+        teamB: { name: allData.campB?.name || '', slug: allData.campB?.slug || '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
+        games: [],
+        finalScore: { teamA: 0, teamB: 0 },
+        winnerTeam: null,
+        isFinished: false,
+      };
+    }
+
+    if (reportData.isFinished) {
+      return {
+        type: 4,
+        data: {
+          content: '⚠️ Pertandingan ini sudah selesai (`isFinished: true`). Lineup sudah dikunci.',
+          flags: 64,
+        },
+      };
+    }
 
     const targetTeam = reportData[teamKey];
     const currentLineup: any[] = targetTeam.lineup || [];
-    const callerName = interaction.member?.user?.username || 'Staff';
     let responseMessage = '';
 
     // ========================================================================
@@ -136,9 +173,8 @@ export async function handleSubmitCommand(interaction: any) {
         };
       }
 
-      // Filter duplikasi input
       const newValidEntries = inputPlayerEntries.filter(
-        (entry) => !currentLineup.some((p) => String(p.ign || p.name || '').toLowerCase() === entry.ign.toLowerCase())
+        (entry) => !currentLineup.some((p) => String(p.ign || '').toLowerCase() === entry.ign.toLowerCase())
       );
 
       if (newValidEntries.length === 0) {
@@ -169,9 +205,11 @@ export async function handleSubmitCommand(interaction: any) {
         currentLineup.push({
           ign,
           idDuelLinks,
-          submittedBy: callerName,
-          deck1: { status: 'PENDING_INPUT', archetype: null, skill: null, ssUrl: null },
-          deck2: count === 1 ? null : { status: 'PENDING_INPUT', archetype: null, skill: null, ssUrl: null },
+          totalWins: 0,
+          totalLosses: 0,
+          remainingLife: count,
+          deck1: createEmptyDeck(),
+          deck2: count === 1 ? null : createEmptyDeck(),
         });
 
         const dlText = idDuelLinks ? ` (${idDuelLinks})` : '';
@@ -198,7 +236,7 @@ export async function handleSubmitCommand(interaction: any) {
       }
 
       const oldIndex = currentLineup.findIndex(
-        (p) => String(p.ign || p.name || '').toLowerCase() === oldPlayerIgn.toLowerCase()
+        (p) => String(p.ign || '').toLowerCase() === oldPlayerIgn.toLowerCase()
       );
 
       if (oldIndex === -1) {
@@ -208,9 +246,8 @@ export async function handleSubmitCommand(interaction: any) {
         };
       }
 
-      // Validasi: Cek apakah pemain lama sudah bertanding di games
       const hasPlayed = (reportData.games || []).some((g: any) => {
-        const duelPlayer = teamKey === 'teamA' ? g.playerA : g.playerB;
+        const duelPlayer = teamKey === 'teamA' ? g.playerA?.ign || g.playerA : g.playerB?.ign || g.playerB;
         return String(duelPlayer || '').toLowerCase() === oldPlayerIgn.toLowerCase();
       });
 
@@ -225,7 +262,7 @@ export async function handleSubmitCommand(interaction: any) {
       }
 
       const isNewAlreadyInLineup = currentLineup.some(
-        (p, idx) => idx !== oldIndex && String(p.ign || p.name || '').toLowerCase() === newPlayerIgn.toLowerCase()
+        (p, idx) => idx !== oldIndex && String(p.ign || '').toLowerCase() === newPlayerIgn.toLowerCase()
       );
 
       if (isNewAlreadyInLineup) {
@@ -238,37 +275,28 @@ export async function handleSubmitCommand(interaction: any) {
       const newRosterMember = teamRoster.find((p) => p.ign.toLowerCase() === newPlayerIgn.toLowerCase());
       const newDlId = newRosterMember?.idDuelLinks || '';
 
-      // Auto-sync deck custom jika disediakan
-      let deck1 = { status: 'PENDING_INPUT', archetype: null as string | null, skill: null as string | null, ssUrl: null as string | null };
+      let deck1 = createEmptyDeck();
       if (optMap.deck_1) {
         const sync1 = await syncCustomDeckAndSkillToMaster(optMap.deck_1, optMap.skill_1);
-        deck1 = {
-          status: 'VERIFIED',
-          archetype: sync1.cleanDeck || optMap.deck_1,
-          skill: sync1.cleanSkill || optMap.skill_1 || '-',
-          ssUrl: optMap.ss_1 || null,
-        };
+        deck1 = createFilledDeck(sync1.cleanDeck || optMap.deck_1, sync1.cleanSkill || optMap.skill_1 || '');
       }
 
       let deck2 = null;
       if (deckCount === 2) {
         if (optMap.deck_2) {
           const sync2 = await syncCustomDeckAndSkillToMaster(optMap.deck_2, optMap.skill_2);
-          deck2 = {
-            status: 'VERIFIED',
-            archetype: sync2.cleanDeck || optMap.deck_2,
-            skill: sync2.cleanSkill || optMap.skill_2 || '-',
-            ssUrl: optMap.ss_2 || null,
-          };
+          deck2 = createFilledDeck(sync2.cleanDeck || optMap.deck_2, sync2.cleanSkill || optMap.skill_2 || '');
         } else {
-          deck2 = { status: 'PENDING_INPUT', archetype: null, skill: null, ssUrl: null };
+          deck2 = createEmptyDeck();
         }
       }
 
       currentLineup[oldIndex] = {
         ign: newPlayerIgn,
         idDuelLinks: newDlId,
-        submittedBy: callerName,
+        totalWins: 0,
+        totalLosses: 0,
+        remainingLife: deckCount,
         deck1,
         deck2,
       };
@@ -289,7 +317,7 @@ export async function handleSubmitCommand(interaction: any) {
       }
 
       const playerObj = currentLineup.find(
-        (p) => String(p.ign || p.name || '').toLowerCase() === targetIgn.toLowerCase()
+        (p) => String(p.ign || '').toLowerCase() === targetIgn.toLowerCase()
       );
 
       if (!playerObj) {
@@ -301,34 +329,30 @@ export async function handleSubmitCommand(interaction: any) {
 
       const updatedDecks: string[] = [];
 
-      // Update Deck 1 dengan Auto-Sync Master KV
       if (optMap.deck_1) {
         const sync1 = await syncCustomDeckAndSkillToMaster(optMap.deck_1, optMap.skill_1);
         const finalDeck1 = sync1.cleanDeck || optMap.deck_1;
-        const finalSkill1 = sync1.cleanSkill || optMap.skill_1 || playerObj.deck1?.skill || '-';
+        const finalSkill1 = sync1.cleanSkill || optMap.skill_1 || playerObj.deck1?.skill || '';
 
         playerObj.deck1 = {
-          status: 'VERIFIED',
+          ...(playerObj.deck1 || createEmptyDeck()),
           archetype: finalDeck1,
           skill: finalSkill1,
-          ssUrl: optMap.ss_1 || playerObj.deck1?.ssUrl || null,
         };
-        updatedDecks.push(`Deck 1: **${finalDeck1}** (${finalSkill1})`);
+        updatedDecks.push(`Deck 1: **${finalDeck1}** (${finalSkill1 || '-'})`);
       }
 
-      // Update Deck 2 dengan Auto-Sync Master KV
       if (optMap.deck_2) {
         const sync2 = await syncCustomDeckAndSkillToMaster(optMap.deck_2, optMap.skill_2);
         const finalDeck2 = sync2.cleanDeck || optMap.deck_2;
-        const finalSkill2 = sync2.cleanSkill || optMap.skill_2 || playerObj.deck2?.skill || '-';
+        const finalSkill2 = sync2.cleanSkill || optMap.skill_2 || playerObj.deck2?.skill || '';
 
         playerObj.deck2 = {
-          status: 'VERIFIED',
+          ...(playerObj.deck2 || createEmptyDeck()),
           archetype: finalDeck2,
           skill: finalSkill2,
-          ssUrl: optMap.ss_2 || playerObj.deck2?.ssUrl || null,
         };
-        updatedDecks.push(`Deck 2: **${finalDeck2}** (${finalSkill2})`);
+        updatedDecks.push(`Deck 2: **${finalDeck2}** (${finalSkill2 || '-'})`);
       }
 
       if (updatedDecks.length === 0) {
@@ -345,7 +369,7 @@ export async function handleSubmitCommand(interaction: any) {
     }
 
     // ========================================================================
-    // SINKRONISASI KE KV & DISCORD TRACKER
+    // SINKRONISASI KE KV HASH twi:match_reports & LIVE TRACKER
     // ========================================================================
     targetTeam.lineup = currentLineup;
     reportData[teamKey] = targetTeam;
@@ -355,18 +379,17 @@ export async function handleSubmitCommand(interaction: any) {
     const currentMatch = schedules.find((m) => m.id === matchId);
     const matchDateIso = currentMatch?.matchDate || new Date().toISOString();
 
-    // Siapkan data pemain untuk tracker format tree
     const trackerPlayers: TrackerPlayer[] = currentLineup.map((p) => {
       let dl = p.idDuelLinks;
       if (!dl) {
-        const found = teamRoster.find((r) => r.ign.toLowerCase() === (p.ign || p.name || '').toLowerCase());
+        const found = teamRoster.find((r) => r.ign.toLowerCase() === (p.ign || '').toLowerCase());
         dl = found?.idDuelLinks || '';
       }
       return {
-        ign: p.ign || p.name,
+        ign: p.ign,
         idDuelLinks: dl,
-        deck1: p.deck1,
-        deck2: p.deck2,
+        deck1: p.deck1 ? { status: p.deck1.archetype ? 'VERIFIED' : 'PENDING_INPUT', archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
+        deck2: p.deck2 ? { status: p.deck2.archetype ? 'VERIFIED' : 'PENDING_INPUT', archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
       };
     });
 
@@ -385,8 +408,8 @@ export async function handleSubmitCommand(interaction: any) {
     }
     await kv.hset('discord:match_messages', { [matchId]: JSON.stringify(allData) });
 
-    // Simpan pembaruan lineup ke match:report:${matchId}
-    await kv.set(reportKey, reportData);
+    // Simpan pembaruan ke 1 Hash Key twi:match_reports
+    await kv.hset('twi:match_reports', { [matchId]: reportData });
 
     return {
       type: 4,
@@ -402,4 +425,4 @@ export async function handleSubmitCommand(interaction: any) {
       data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
     };
   }
-}
+        }
