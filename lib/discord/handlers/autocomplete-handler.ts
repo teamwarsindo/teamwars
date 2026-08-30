@@ -117,17 +117,17 @@ export async function handleSubmitAutocomplete(interaction: any) {
     if (fName.startsWith('deck_') || fName === 'deck') {
       const masterDecks = await getMasterDecks();
       const choices = filterChoices(masterDecks, query, (d) => d, (d) => d);
-      
+
       if (rawVal && !masterDecks.some((d) => d.toLowerCase() === query)) {
-        choices.unshift({ 
-          name: `➕ Tambah Deck "${rawVal}"`, 
-          value: rawVal 
+        choices.unshift({
+          name: `➕ Tambah Deck "${rawVal}"`,
+          value: rawVal,
         });
       }
       return { type: 8, data: { choices: choices.slice(0, 25) } };
     }
 
-    // 2. Master Skill (Dengan Tampilan & Pencarian Singkatan [KODE])
+    // 2. Master Skill (Tampilan & Pencarian Singkatan [KODE])
     if (fName.startsWith('skill_') || fName === 'skill') {
       const skillsMap = await getMasterSkillsMap();
       const skillEntries = Object.entries(skillsMap).map(([name, code]) => ({
@@ -149,11 +149,10 @@ export async function handleSubmitAutocomplete(interaction: any) {
           value: item.fullName,
         }));
 
+      // Tambahkan opsi custom bersih tanpa embel-embel [KODE]
       if (rawVal && !skillEntries.some((s) => s.fullName.toLowerCase() === query || s.code.toLowerCase() === query)) {
-        // Panduan custom input jika belum ada di database
-        const helperGuide = !rawVal.includes('(') && !rawVal.includes('[') ? ` [KODE]` : '';
         filtered.unshift({
-          name: `➕ Tambah Skill "${rawVal}${helperGuide}"`,
+          name: `➕ Tambah Skill "${rawVal}"`,
           value: rawVal,
         });
       }
@@ -349,4 +348,5 @@ export async function handleMatchReportAutocomplete(interaction: any) {
     console.error('Error match report autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-                                                    }
+}
+  
