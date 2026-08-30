@@ -7,6 +7,7 @@ export interface DeckSubmissionStore {
   submittedPlayers: Array<{
     name?: string;
     ign?: string;
+    idDuelLinks?: string;
     submittedAt?: string;
     submittedBy?: string;
   }>;
@@ -18,6 +19,7 @@ export interface DeckSubmissionStore {
 export interface TrackerPlayer {
   ign?: string;
   name?: string;
+  idDuelLinks?: string;
   submittedAt?: string;
   submittedBy?: string;
 }
@@ -120,8 +122,10 @@ export function getLiveDeckTrackerEmbed(params: {
   const playerRows: string[] = [];
   for (let i = 0; i < 5; i++) {
     if (i < count) {
-      const playerName = params.submittedPlayers[i].ign || params.submittedPlayers[i].name || 'Pemain';
-      playerRows.push(`${i + 1}. **${playerName}** ✅ *(2 Deck)*`);
+      const player = params.submittedPlayers[i];
+      const playerName = player.ign || player.name || 'Pemain';
+      const dlLabel = player.idDuelLinks ? ` (${player.idDuelLinks})` : '';
+      playerRows.push(`${i + 1}. **${playerName}**${dlLabel} ✅ *(2 Deck)*`);
     } else {
       playerRows.push(`${i + 1}. \`[Slot Kosong]\` ❌`);
     }
