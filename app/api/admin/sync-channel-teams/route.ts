@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 
 interface OldFreeDuelistData {
+  [key: string]: unknown;
   discord?: string;
   discordId?: string;
   idDuelLinks?: string;
