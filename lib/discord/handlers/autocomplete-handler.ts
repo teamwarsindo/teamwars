@@ -37,12 +37,13 @@ export async function handleTransferAutocomplete(interaction: any) {
     const choices = players
       .filter((p) => {
         const ign = (p.ign || '').toLowerCase();
+        const dl = (p.idDuelLinks || '').toLowerCase();
         const discord = (p.discord || '').toLowerCase();
-        return ign.includes(query) || discord.includes(query);
+        return ign.includes(query) || dl.includes(query) || discord.includes(query);
       })
       .slice(0, 25)
       .map((p) => ({
-        name: `${p.ign} (@${p.discord || p.ign}) - ${p.role || 'Anggota'}`,
+        name: `${p.ign} (${p.idDuelLinks || '-'}) - ${p.role || 'Anggota'}`,
         value: p.discordId || p.discord || p.ign,
       }));
 
@@ -154,7 +155,7 @@ export async function handleRescheduleAutocomplete(interaction: any) {
     const currentMatch = schedules.find((m: any) => m.discordChannelId === channelId);
     const currentDate = currentMatch ? new Date(currentMatch.matchDate) : new Date();
 
-    const availableDays = [3, 4, 5, 6, 0]; // Rabu (3) s.d. Minggu (0)
+    const availableDays = [3, 4, 5, 6, 0];
     const choices: { name: string; value: string }[] = [];
 
     for (let i = -7; i <= 14; i++) {
@@ -213,5 +214,4 @@ export async function handleMatchReportAutocomplete(interaction: any) {
     console.error('Error match report autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-  }
-        
+      }
