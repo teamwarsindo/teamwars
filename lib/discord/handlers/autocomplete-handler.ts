@@ -91,10 +91,11 @@ export async function handleSubmitAutocomplete(interaction: any) {
     const { matchId, teamKey, campData } = await resolveMatchCamp(interaction.channel_id);
     if (!matchId || !campData?.slug) return { type: 8, data: { choices: [] } };
 
+    // Ambil data langsung dari Hash twi:match_reports
     const [schedules, teamRoster, reportData] = await Promise.all([
       getSchedules(),
       getTeamPlayers(campData.slug),
-      kv.get<any>(`match:report:${matchId}`),
+      kv.hget<any>('twi:match_reports', matchId),
     ]);
 
     const currentMatch = schedules.find((m) => m.id === matchId);
@@ -149,7 +150,6 @@ export async function handleSubmitAutocomplete(interaction: any) {
           value: item.fullName,
         }));
 
-      // Tambahkan opsi custom bersih tanpa embel-embel [KODE]
       if (rawVal && !skillEntries.some((s) => s.fullName.toLowerCase() === query || s.code.toLowerCase() === query)) {
         filtered.unshift({
           name: `➕ Tambah Skill "${rawVal}"`,
@@ -164,7 +164,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
     if ((subName === 'edit' && fName === 'pemain') || (subName === 'change' && fName === 'pemain_lama')) {
       const rosterMap = new Map(teamRoster.map((p) => [(p.ign || '').toLowerCase(), p]));
       const choices = existingLineup.map((p) => {
-        const ign = p.ign || p.name || '';
+        const ign = p.ign || '';
         const dl = p.idDuelLinks || rosterMap.get(ign.toLowerCase())?.idDuelLinks || '-';
         const d1 = Boolean(p.deck1?.archetype);
         const d2 = Boolean(p.deck2?.archetype);
@@ -182,7 +182,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
 
     // 4. Roster Pemain Baru (Add: Pemain 1-5 / Change: Pemain Baru)
     if (fName.startsWith('pemain')) {
-      const submitted = existingLineup.map((p) => String(p.ign || p.name || '').toLowerCase());
+      const submitted = existingLineup.map((p) => String(p.ign || '').toLowerCase());
       const available = teamRoster.filter((p) => !submitted.includes((p.ign || '').toLowerCase()));
       return {
         type: 8,
@@ -348,5 +348,4 @@ export async function handleMatchReportAutocomplete(interaction: any) {
     console.error('Error match report autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-}
-  
+      }
