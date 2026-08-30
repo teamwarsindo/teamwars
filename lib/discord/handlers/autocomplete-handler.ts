@@ -3,15 +3,134 @@ import { MatchScheduleItem } from '@/app/tournament/_library';
 import { StaffItem } from '@/lib/discord/services/staff-assignment';
 import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
 
-// ==========================================
-// TRANSFER AUTOCOMPLETE HANDLER
-// ==========================================
+// ============================================================================
+// 1. REUSABLE INTERNAL HELPERS
+// ============================================================================
+
+// Helper membaca seluruh jadwal dari KV
+async function getSchedulesFromKV(): Promise<MatchScheduleItem[]> {
+  try {
+    return (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+  } catch {
+    return [];
+  }
+}
+
+// Helper membaca & mem-parse roster tim dari KV
+async function getTeamPlayersBySlug(teamSlug: string): Promise<PlayerItem[]> {
+  try {
+    const teamData = await kv.hgetall<any>(`teams:${teamSlug}`);
+    if (!teamData || !teamData.players) return [];
+    return parsePlayers(teamData.players);
+  } catch {
+    return [];
+  }
+}
+
+// Helper validasi apakah pertandingan berlangsung pada HARI INI (Zona Waktu WIB)
+function isMatchScheduledForToday(matchDateIso?: string): boolean {
+  if (!matchDateIso) return false;
+  try {
+    const nowWib = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }); // YYYY-MM-DD
+    const matchWib = new Date(matchDateIso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    return nowWib === matchWib;
+  } catch {
+    return false;
+  }
+}
+
+// Helper mendeteksi matchId & data camp berdasarkan Channel Discord
+async function resolveMatchAndCampFromChannel(channelId: string) {
+  try {
+    const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
+
+    for (const [matchId, rawData] of Object.entries(matchMessages)) {
+      const data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+      if (data.campA?.channelId === channelId) {
+        return { matchId, teamKey: 'teamA' as const, campData: data.campA, allData: data };
+      }
+      if (data.campB?.channelId === channelId) {
+        return { matchId, teamKey: 'teamB' as const, campData: data.campB, allData: data };
+      }
+    }
+  } catch (error) {
+    console.error('Error resolveMatchAndCampFromChannel:', error);
+  }
+
+  return { matchId: null, teamKey: null, campData: null, allData: null };
+}
+
+// ============================================================================
+// 2. AUTOCOMPLETE HANDLERS
+// ============================================================================
+
+// ----------------------------------------------------
+// A. SUBMIT AUTOCOMPLETE (Dengan Cek Hari Ini & Roster)
+// ----------------------------------------------------
+export async function handleSubmitAutocomplete(interaction: any) {
+  try {
+    const channelId = interaction.channel_id;
+    const { matchId, teamKey, campData } = await resolveMatchAndCampFromChannel(channelId);
+
+    if (!matchId || !campData?.slug) {
+      return { type: 8, data: { choices: [] } };
+    }
+
+    // 1. Cek apakah match dijadwalkan HARI INI
+    const schedules = await getSchedulesFromKV();
+    const currentMatch = schedules.find((m) => m.id === matchId);
+    
+    // Jika tidak ada jadwal / match bukan hari ini / match sudah selesai, kosongkan pilihan
+    if (!currentMatch || currentMatch.isFinished || !isMatchScheduledForToday(currentMatch.matchDate)) {
+      return { type: 8, data: { choices: [] } };
+    }
+
+    const options = interaction.data?.options || [];
+    const focused = options.find((o: any) => o.focused);
+    const query = (focused?.value || '').toString().toLowerCase();
+
+    // 2. Ambil roster resmi dari teams:<slug>
+    const teamRoster = await getTeamPlayersBySlug(campData.slug);
+
+    // 3. Filter pemain yang sudah masuk di match:report:${matchId}
+    const reportData = await kv.get<any>(`match:report:${matchId}`);
+    const existingLineup: any[] = reportData?.[teamKey]?.lineup || [];
+    const alreadySubmitted = existingLineup.map((p) =>
+      String(p.ign || p.name || '').toLowerCase()
+    );
+
+    const availablePlayers = teamRoster.filter(
+      (p) => !alreadySubmitted.includes((p.ign || '').toLowerCase())
+    );
+
+    // 4. Format pilihan: IGN (ID DL)
+    const choices = availablePlayers
+      .filter((p) => {
+        const ign = (p.ign || '').toLowerCase();
+        const dl = (p.idDuelLinks || '').toLowerCase();
+        return ign.includes(query) || dl.includes(query);
+      })
+      .slice(0, 25)
+      .map((p) => ({
+        name: `${p.ign} (${p.idDuelLinks || '-'})`,
+        value: p.ign,
+      }));
+
+    return { type: 8, data: { choices } };
+  } catch (error) {
+    console.error('Error handleSubmitAutocomplete:', error);
+    return { type: 8, data: { choices: [] } };
+  }
+}
+
+// ----------------------------------------------------
+// B. TRANSFER AUTOCOMPLETE
+// ----------------------------------------------------
 export async function handleTransferAutocomplete(interaction: any) {
   try {
     const channelId = interaction.channel_id;
     let teamSlug = await kv.hget<string>('global:channel_teams', channelId);
 
-    // Fallback jika belum terpetakan di channel camp
     if (!teamSlug) {
       const userId = interaction.member?.user?.id;
       teamSlug = await kv.hget<string>('global:discord_ids', userId);
@@ -19,7 +138,6 @@ export async function handleTransferAutocomplete(interaction: any) {
 
     if (!teamSlug) return { type: 8, data: { choices: [] } };
 
-    // Ekstrak nested options dari subcommand
     const options = interaction.data?.options || [];
     const subOptions = options[0]?.options || options;
     const focusedOption = subOptions.find((opt: any) => opt.focused);
@@ -29,10 +147,7 @@ export async function handleTransferAutocomplete(interaction: any) {
     }
 
     const query = (focusedOption.value || '').toString().toLowerCase();
-    const teamData = await kv.hgetall<any>(`teams:${teamSlug}`);
-    if (!teamData || !teamData.players) return { type: 8, data: { choices: [] } };
-
-    const players: PlayerItem[] = parsePlayers(teamData.players);
+    const players = await getTeamPlayersBySlug(teamSlug);
 
     const choices = players
       .filter((p) => {
@@ -54,9 +169,9 @@ export async function handleTransferAutocomplete(interaction: any) {
   }
 }
 
-// ==========================================
-// ASSIGN & UNASSIGN AUTOCOMPLETE HANDLER
-// ==========================================
+// ----------------------------------------------------
+// C. ASSIGN & UNASSIGN AUTOCOMPLETE
+// ----------------------------------------------------
 export async function handleAssignAutocomplete(interaction: any) {
   try {
     const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
@@ -66,9 +181,9 @@ export async function handleAssignAutocomplete(interaction: any) {
     const commandName = interaction.data?.name;
     const typeOption = interaction.data?.options?.find((opt: any) => opt.name === 'type')?.value;
 
-    // 1. Autocomplete untuk Opsi Match
+    // 1. Opsi Match
     if (focusedOption.name === 'match') {
-      const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+      const schedules = await getSchedulesFromKV();
 
       const activeUnfinishedMatches = schedules.filter(
         (m: any) => !m.isFinished && m.discordChannelId
@@ -86,12 +201,8 @@ export async function handleAssignAutocomplete(interaction: any) {
         }
 
         if (commandName === 'unassign') {
-          if (typeOption === 'REFEREE') {
-            return Boolean(m.refereeDiscordId);
-          }
-          if (typeOption === 'STREAMER') {
-            return Boolean(m.streamerDiscordId);
-          }
+          if (typeOption === 'REFEREE') return Boolean(m.refereeDiscordId);
+          if (typeOption === 'STREAMER') return Boolean(m.streamerDiscordId);
         }
 
         return true;
@@ -111,7 +222,7 @@ export async function handleAssignAutocomplete(interaction: any) {
       return { type: 8, data: { choices } };
     }
 
-    // 2. Autocomplete untuk Opsi User Staf (Urut Abjad & Tanpa ID)
+    // 2. Opsi User Staf
     if (focusedOption.name === 'user') {
       const staffType = typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
       const staffList = (await kv.get<StaffItem[]>(staffType)) || [];
@@ -138,9 +249,9 @@ export async function handleAssignAutocomplete(interaction: any) {
   }
 }
 
-// ==========================================
-// RESCHEDULE AUTOCOMPLETE HANDLER
-// ==========================================
+// ----------------------------------------------------
+// D. RESCHEDULE AUTOCOMPLETE
+// ----------------------------------------------------
 export async function handleRescheduleAutocomplete(interaction: any) {
   try {
     const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
@@ -149,13 +260,13 @@ export async function handleRescheduleAutocomplete(interaction: any) {
     }
 
     const query = (focusedOption.value || '').toString().toLowerCase();
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const schedules = await getSchedulesFromKV();
     const channelId = interaction.channel_id;
 
     const currentMatch = schedules.find((m: any) => m.discordChannelId === channelId);
     const currentDate = currentMatch ? new Date(currentMatch.matchDate) : new Date();
 
-    const availableDays = [3, 4, 5, 6, 0];
+    const availableDays = [3, 4, 5, 6, 0]; // Rabu s/d Minggu
     const choices: { name: string; value: string }[] = [];
 
     for (let i = -7; i <= 14; i++) {
@@ -186,16 +297,16 @@ export async function handleRescheduleAutocomplete(interaction: any) {
   }
 }
 
-// ==========================================
-// MATCH REPORT AUTOCOMPLETE HANDLER
-// ==========================================
+// ----------------------------------------------------
+// E. MATCH REPORT AUTOCOMPLETE
+// ----------------------------------------------------
 export async function handleMatchReportAutocomplete(interaction: any) {
   try {
     const focusedOption = interaction.data?.options?.find((opt: any) => opt.focused);
     if (!focusedOption) return { type: 8, data: { choices: [] } };
 
     const query = (focusedOption.value || '').toString().toLowerCase();
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const schedules = await getSchedulesFromKV();
 
     const teams = Array.from(
       new Set(schedules.flatMap((m) => [m.teamAName, m.teamBName]).filter(Boolean))
@@ -214,4 +325,4 @@ export async function handleMatchReportAutocomplete(interaction: any) {
     console.error('Error match report autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-      }
+}
