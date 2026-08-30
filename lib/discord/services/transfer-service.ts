@@ -274,7 +274,7 @@ export async function executeTransferEditDl(teamSlug: string, targetIdentifier: 
     teamHex: teamData.warna,
     action: 'EDIT_DL',
     targetIgn: player.ign,
-    oldIdDl,
+    oldIdDl: oldDl,
     newIdDl: formattedDl,
   }).catch(console.error);
 
