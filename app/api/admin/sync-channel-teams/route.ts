@@ -1,102 +1,74 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-
-interface FreeDuelistPayload {
-  [key: string]: unknown;
-  discord?: string;
-  discordId?: string;
-  idDuelLinks?: string;
-  ign?: string;
-  lastTeam?: string;
-  releasedAt?: string;
-  teamsJoinedCount?: number | string;
-}
+import { refreshTeamEmbeds } from '@/lib/discord/services/transfer-logger';
+import { parsePlayers, formatDuelId, cleanDuelId } from '@/lib/discord/services/transfer-service';
 
 export async function GET() {
   try {
-    const allFreeDuelists = await kv.hgetall<Record<string, string>>('global:free_duelists');
+    const teamSlug = 'kings-united'; // Slug tim Kings United
+    const targetDiscord = 'joko_888'; // Target pemain [K]JJJ
+    const originalDlFormatted = '409-959-068';
+    const originalDlClean = cleanDuelId(originalDlFormatted);
 
-    if (!allFreeDuelists || Object.keys(allFreeDuelists).length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'Tidak ada data di global:free_duelists untuk dibuatkan index.',
-        totalIndexed: 0,
-      });
+    const wrongDlFormatted = '162-193-119';
+    const wrongDlClean = cleanDuelId(wrongDlFormatted);
+
+    const key = `teams:${teamSlug}`;
+    const teamData = await kv.hgetall<any>(key);
+
+    if (!teamData) {
+      return NextResponse.json({ success: false, message: 'Data tim tidak ditemukan!' }, { status: 404 });
     }
 
-    const discordIndexMap: Record<string, string> = {};
-    const ignIndexMap: Record<string, string> = {};
-    const dlIndexMap: Record<string, string> = {};
-    let count = 0;
-
-    for (const [discordId, rawData] of Object.entries(allFreeDuelists)) {
-      let data: FreeDuelistPayload;
-
-      if (typeof rawData === 'string') {
-        try {
-          data = JSON.parse(rawData);
-        } catch {
-          continue;
-        }
-      } else {
-        data = rawData as FreeDuelistPayload;
-      }
-
-      if (data) {
-        // Index Username Discord apa adanya (as-is)
-        if (data.discord) {
-          discordIndexMap[data.discord] = discordId;
-        }
-
-        // Index IGN apa adanya (as-is)
-        if (data.ign) {
-          ignIndexMap[data.ign] = discordId;
-        }
-
-        // Index ID Duel Links apa adanya (as-is)
-        if (data.idDuelLinks) {
-          dlIndexMap[data.idDuelLinks] = discordId;
-        }
-
-        count++;
-      }
-    }
-
-    // Reset dan tulis ulang seluruh key index
-    await kv.del(
-      'global:free_duelists_discord',
-      'global:free_duelists_ign',
-      'global:free_duelists_dl'
+    const players = parsePlayers(teamData.players);
+    const player = players.find(
+      (p) =>
+        p.discord.toLowerCase() === targetDiscord.toLowerCase() ||
+        p.ign.toLowerCase().includes('jjj')
     );
 
-    if (Object.keys(discordIndexMap).length > 0) {
-      await kv.hset('global:free_duelists_discord', discordIndexMap);
+    if (!player) {
+      return NextResponse.json({ success: false, message: 'Pemain [K]JJJ tidak ditemukan di roster!' }, { status: 404 });
     }
-    if (Object.keys(ignIndexMap).length > 0) {
-      await kv.hset('global:free_duelists_ign', ignIndexMap);
-    }
-    if (Object.keys(dlIndexMap).length > 0) {
-      await kv.hset('global:free_duelists_dl', dlIndexMap);
-    }
+
+    // 1. Kembalikan ID Duel Links pemain ke ID awal
+    player.idDuelLinks = originalDlFormatted;
+
+    // 2. Bersihkan mapping ID yang salah & pasang kembali ID awal di global:duellinks
+    await Promise.all([
+      kv.hdel('global:duellinks', wrongDlClean),
+      kv.hdel('global:duellinks', wrongDlFormatted),
+      kv.hset('global:duellinks', {
+        [originalDlClean]: teamSlug,
+        [originalDlFormatted]: teamSlug,
+      }),
+    ]);
+
+    // 3. Reset kuota transfer ke 0 numerik
+    const resetQuota = 0;
+    const nowIso = new Date().toISOString();
+
+    await kv.hset(key, {
+      players: JSON.stringify(players),
+      transferQuotaUsed: resetQuota,
+      updatedAt: nowIso,
+    });
+
+    teamData.updatedAt = nowIso;
+
+    // 4. Update otomatis tampilan Embed Tracker Camp & Admin Roster
+    await refreshTeamEmbeds(teamSlug, teamData, players, resetQuota);
 
     return NextResponse.json({
       success: true,
-      message: 'Seluruh index free duelists (Discord Username, IGN, ID DL) berhasil diperbarui!',
-      totalIndexed: count,
-      discordIndex: discordIndexMap,
-      ignIndex: ignIndexMap,
-      dlIndex: dlIndexMap,
+      message: 'Berhasil mengembalikan kondisi awal Kings United & [K]JJJ!',
+      data: {
+        player: player.ign,
+        restoredId: player.idDuelLinks,
+        transferQuotaUsed: resetQuota,
+      },
     });
   } catch (error: any) {
-    console.error('Gagal rebuild index free duelists:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Terjadi kesalahan saat rebuild index',
-        error: error.message || 'Internal Server Error',
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
-  
