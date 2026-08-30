@@ -11,7 +11,7 @@ import { handleCekId } from '@/lib/discord/commands/cek-id-dl';
 import { handleBlacklistCommand } from '@/lib/discord/commands/blacklist';
 import { handleCekRoster } from '@/lib/discord/commands/cek-roster';
 import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
-import { handleTransferCommand, handleTransferAutocomplete } from '@/lib/discord/commands/transfer';
+import { handleTransferCommand } from '@/lib/discord/commands/transfer';
 import { handleAssignCommand } from '@/lib/discord/commands/assign';
 import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
 
@@ -19,7 +19,7 @@ import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
 import { handleSubmitCommand, handleSubmitAutocomplete } from '@/lib/discord/commands/submit';
 
 // Autocomplete & Reschedule Handlers
-import { handleAssignAutocomplete, handleRescheduleAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
+import { handleAssignAutocomplete, handleRescheduleAutocomplete, handleTransferAutocomplete} from '@/lib/discord/handlers/autocomplete-handler';
 import { handleRescheduleCommand } from '@/lib/discord/handlers/reschedule-handler';
 
 // Button Handlers
