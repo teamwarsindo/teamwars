@@ -18,9 +18,6 @@ import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
 // Submit Command Handlers
 import { handleSubmitCommand, handleSubmitAutocomplete } from '@/lib/discord/commands/submit';
 
-// Transfer Execution Services
-import { executeTransferAdd, executeTransferOut, executeTransferEditDl } from '@/lib/discord/services/transfer-service';
-
 // Autocomplete & Reschedule Handlers
 import { handleAssignAutocomplete, handleRescheduleAutocomplete } from '@/lib/discord/handlers/autocomplete-handler';
 import { handleRescheduleCommand } from '@/lib/discord/handlers/reschedule-handler';
@@ -99,103 +96,7 @@ export async function POST(req: NextRequest) {
       if (customId === 'btn_edit_team') return await handleBtEditTeam(body);
       if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') return await handleBtTimer(body);
       if (customId === 'select_forward_match_report') return await handleMatchReportSelect(body);
-
-      if (customId.startsWith('btn_parse_')) {
-        if (customId === 'btn_parse_CANCEL') {
-          return NextResponse.json({
-            type: 7,
-            data: { content: '❌ **Proses Auto-Parse Transfer Dibatalkan.**', embeds: [], components: [] },
-          });
-        }
-
-        const parts = customId.split('_');
-        const action = parts[3] as 'ADD' | 'OUT' | 'EDIT';
-        const interactionId = parts[4];
-
-        const sessionKey = `parse_session:${interactionId}`;
-        const session = await kv.get<any>(sessionKey);
-
-        if (!session) {
-          return NextResponse.json({
-            type: 4,
-            data: { content: '❌ **Sesi Telah Kadaluarsa!** Silakan jalankan ulang command `/transfer parse`.', flags: 64 },
-          });
-        }
-
-        const { teamSlug, targetDiscordId, targetUsername, ign, idDl } = session;
-
-        try {
-          if (action === 'OUT') {
-            const res = await executeTransferOut(teamSlug, targetUsername);
-            await kv.del(sessionKey);
-            return NextResponse.json({
-              type: 7,
-              data: {
-                content: `✅ **Auto-Parse OUT Berhasil!**\nPemain **${res.removedIgn}** resmi dikeluarkan dari tim **${res.teamName}**.`,
-                embeds: [],
-                components: [],
-              },
-            });
-          }
-
-          if (action === 'EDIT') {
-            if (!idDl) {
-              return NextResponse.json({
-                type: 4,
-                data: { content: '❌ **Gagal Exec Edit!** ID Duel Links Baru tidak ditemukan pada teks.', flags: 64 },
-              });
-            }
-            const res = await executeTransferEditDl(teamSlug, targetUsername, idDl);
-            await kv.del(sessionKey);
-            return NextResponse.json({
-              type: 7,
-              data: {
-                content: `✅ **Auto-Parse EDIT DL Berhasil!**\nID Duel Links **${res.ign}** diperbarui menjadi \`${res.newDl}\` (Sisa kuota: **${2 - res.currentQuota}**)`,
-                embeds: [],
-                components: [],
-              },
-            });
-          }
-
-          if (!ign || !idDl) {
-            return NextResponse.json({
-              type: 4,
-              data: {
-                content: `❌ **Gagal Exec ADD!** Data IGN (\`${ign || '-'}\`) atau ID DL (\`${idDl || '-'}\`) kurang lengkap. Silakan gunakan \`/transfer add\` manual.`,
-                flags: 64,
-              },
-            });
-          }
-
-          const res = await executeTransferAdd({
-            teamSlug,
-            targetDiscordId,
-            targetUsername,
-            ign,
-            rawIdDl: idDl,
-          });
-
-          await kv.del(sessionKey);
-
-          return NextResponse.json({
-            type: 7,
-            data: {
-              content: `✅ **Auto-Parse ADD Berhasil!**\n• Pemain: **${res.addedIgn}** (\`${idDl}\`)\n• Tim: **${res.teamName}**\nℹ️ Sisa kuota transfer tim: **${2 - res.currentQuota}**`,
-              embeds: [],
-              components: [],
-            },
-          });
-        } catch (err: any) {
-          return NextResponse.json({
-            type: 4,
-            data: { content: `❌ **Gagal Eksekusi:** ${err.message || 'Terjadi kesalahan'}`, flags: 64 },
-          });
-        }
-      }
-
-      if (customId === 'btn_view_full_log') {
-        return await handleViewFullLog();
-      }
+      if (customId === 'btn_view_full_log') return await handleViewFullLog();
 
       if (customId.startsWith('btn_bid_')) {
         if (Date.now() >= BID_DEADLINE_TIMESTAMP * 1000) {
@@ -316,35 +217,17 @@ export async function POST(req: NextRequest) {
 
     // 🔎 Autocomplete Interactions (Type 4)
     if (body.type === 4) {
-      if (body.data?.name === 'submit') {
-        const autocompleteResponse = await handleSubmitAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
-      if (body.data?.name === 'assign' || body.data?.name === 'unassign') {
-        const autocompleteResponse = await handleAssignAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
-      if (body.data?.name === 'reschedule') {
-        const autocompleteResponse = await handleRescheduleAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
-      if (body.data?.name === 'transfer') {
-        const autocompleteResponse = await handleTransferAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
-      if (body.data?.name === 'match-report') {
-        const autocompleteResponse = await handleMatchReportAutocomplete(body);
-        return NextResponse.json(autocompleteResponse);
-      }
+      if (body.data?.name === 'submit') return NextResponse.json(await handleSubmitAutocomplete(body));
+      if (body.data?.name === 'assign' || body.data?.name === 'unassign') return NextResponse.json(await handleAssignAutocomplete(body));
+      if (body.data?.name === 'reschedule') return NextResponse.json(await handleRescheduleAutocomplete(body));
+      if (body.data?.name === 'transfer') return NextResponse.json(await handleTransferAutocomplete(body));
+      if (body.data?.name === 'match-report') return NextResponse.json(await handleMatchReportAutocomplete(body));
     }
 
     // 📝 Modal Submit Interactions (Type 5)
     if (body.type === 5) {
       const customId = body.data.custom_id;
-
-      if (customId.startsWith('modal_bid_')) {
-        return await processBidSubmission(body);
-      }
+      if (customId.startsWith('modal_bid_')) return await processBidSubmission(body);
     }
 
     return new NextResponse('Unknown Interaction', { status: 400 });
