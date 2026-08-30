@@ -15,13 +15,6 @@ export const rosterCommands = [
             required: true,
             autocomplete: true,
           },
-          {
-            type: 3,
-            name: 'team',
-            description: 'Pilih nama tim target (Wajib ditentukan oleh Admin)',
-            required: false,
-            autocomplete: true,
-          },
         ],
       },
       {
@@ -46,13 +39,6 @@ export const rosterCommands = [
             name: 'id_dl',
             description: 'Nomor identifikasi 9 digit Duel Links ID',
             required: true,
-          },
-          {
-            type: 3,
-            name: 'team',
-            description: 'Pilih tim tujuan registrasi (Wajib ditentukan oleh Admin)',
-            required: false,
-            autocomplete: true,
           },
         ],
       },
@@ -83,39 +69,6 @@ export const rosterCommands = [
               { name: 'Ketua Tim (Khusus Admin)', value: 'Ketua' },
               { name: 'Wakil Ketua Tim', value: 'Wakil Ketua' },
             ],
-          },
-          {
-            type: 3,
-            name: 'team',
-            description: 'Pilih tim peserta terkait (Opsional jika data tim terdeteksi)',
-            required: false,
-            autocomplete: true,
-          },
-        ],
-      },
-      {
-        type: 1,
-        name: 'parse',
-        description: '[ADMIN] Pemrosesan otomatis berdasarkan salinan format pesan registrasi',
-        options: [
-          {
-            type: 3,
-            name: 'text',
-            description: 'Tempelkan seluruh isi pesan permohonan transfer',
-            required: true,
-          },
-          {
-            type: 6,
-            name: 'user',
-            description: 'Sebut (@mention) akun Discord peserta target',
-            required: true,
-          },
-          {
-            type: 3,
-            name: 'team',
-            description: 'Pilih tim target yang bersangkutan',
-            required: false,
-            autocomplete: true,
           },
         ],
       },
@@ -174,4 +127,3 @@ export const rosterCommands = [
     ],
   },
 ];
-          
