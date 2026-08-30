@@ -15,7 +15,6 @@ import {
 } from './transfer-types';
 import { validateAddAvailability, getConflictingPlayerDetails } from './transfer-validation';
 
-// Re-export tipe & helper agar file lain tidak perlu mengubah import
 export * from './transfer-types';
 export * from './transfer-validation';
 
@@ -30,14 +29,19 @@ async function updateTeamRoster(
   const updateData: any = { players: JSON.stringify(players), updatedAt: nowIso };
   if (quotaUsed !== undefined) updateData.transferQuotaUsed = quotaUsed;
 
+  // 1. Tulis ke database KV secara instan
   await kv.hset(key, updateData);
   teamData.updatedAt = nowIso;
-  await refreshTeamEmbeds(teamSlug, teamData, players, quotaUsed);
+
+  // 2. Jalankan pembaruan embed Discord secara non-blocking agar respon interaksi di bawah 1 detik
+  refreshTeamEmbeds(teamSlug, teamData, players, quotaUsed).catch((err) =>
+    console.error('Error refreshTeamEmbeds:', err)
+  );
 }
 
-// ----------------------------------------------------
-// ACTIONS
-// ----------------------------------------------------
+// ==========================================
+// CORE ACTIONS
+// ==========================================
 
 export async function executeTransferOut(teamSlug: string, targetIdentifier: string) {
   const res = await getTeamBySlug(teamSlug);
@@ -87,20 +91,23 @@ export async function executeTransferOut(teamSlug: string, targetIdentifier: str
   const guildId = DISCORD_CONFIG.GUILD_ID;
   if (guildId && removed.discordId) {
     if (teamData.discordRoleId) {
-      await discordAPI(`/guilds/${guildId}/members/${removed.discordId}/roles/${teamData.discordRoleId}`, 'DELETE').catch(() => null);
+      discordAPI(`/guilds/${guildId}/members/${removed.discordId}/roles/${teamData.discordRoleId}`, 'DELETE').catch(() => null);
     }
-    await discordAPI(`/guilds/${guildId}/members/${removed.discordId}`, 'PATCH', { nick: null }).catch(() => null);
+    discordAPI(`/guilds/${guildId}/members/${removed.discordId}`, 'PATCH', { nick: null }).catch(() => null);
   }
 
   const currentQuota = Number(teamData.transferQuotaUsed || 0);
   await updateTeamRoster(key, teamSlug, teamData, players, currentQuota);
 
-  await sendTransferNewsLog({
+  sendTransferNewsLog({
     teamName: teamData.namaTim,
+    teamKode: teamData.kodeTim,
+    teamEmojiId: teamData.emojiId,
     teamHex: teamData.warna,
     action: 'OUT',
     targetIgn: removed.ign,
-  });
+    oldIdDl: removed.idDuelLinks,
+  }).catch(console.error);
 
   return { teamName: teamData.namaTim, removedPlayer: removed, currentQuota };
 }
@@ -127,10 +134,9 @@ export async function executeTransferAdd(params: {
   const cleanDl = cleanDuelId(rawIdDl);
   if (cleanDl.length !== 9) throw new Error('ID Duel Links harus terdiri dari 9 angka digit.');
 
-  // Validasi bentrok di tim sendiri & tim lain
+  // Validasi bentrok data tim sendiri & tim lain
   await validateAddAvailability(teamSlug, players, cleanIgn, targetDiscordId, formattedDl, cleanDl);
 
-  // Deteksi Free Agent vs Pemain Lama
   const hasDuelistRole = targetRoles.includes(DISCORD_CONFIG.ROLE_DUELIST);
   const freeByDiscordId = await kv.hget<string>('global:free_duelists', targetDiscordId);
   const freeDiscordIdByIgn = await kv.hget<string>('global:free_duelists_ign', cleanIgn);
@@ -195,21 +201,24 @@ export async function executeTransferAdd(params: {
 
   const guildId = DISCORD_CONFIG.GUILD_ID;
   if (guildId && isValidSnowflake(targetDiscordId)) {
-    if (teamData.discordRoleId) await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`, 'PUT').catch(() => null);
-    if (DISCORD_CONFIG.ROLE_DUELIST) await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_DUELIST}`, 'PUT').catch(() => null);
-    if (DISCORD_CONFIG.ROLE_VERIFIED) await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_VERIFIED}`, 'PUT').catch(() => null);
+    if (teamData.discordRoleId) discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`, 'PUT').catch(() => null);
+    if (DISCORD_CONFIG.ROLE_DUELIST) discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_DUELIST}`, 'PUT').catch(() => null);
+    if (DISCORD_CONFIG.ROLE_VERIFIED) discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_VERIFIED}`, 'PUT').catch(() => null);
     const tagPrefix = teamData.kodeTim ? `[${teamData.kodeTim}] ` : '';
-    await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: `${tagPrefix}${cleanIgn}` }).catch(() => null);
+    discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: `${tagPrefix}${cleanIgn}` }).catch(() => null);
   }
 
   await updateTeamRoster(key, teamSlug, teamData, players, currentQuota);
 
-  await sendTransferNewsLog({
+  sendTransferNewsLog({
     teamName: teamData.namaTim,
+    teamKode: teamData.kodeTim,
+    teamEmojiId: teamData.emojiId,
     teamHex: teamData.warna,
     action: 'ADD',
     targetIgn: cleanIgn,
-  });
+    newIdDl: formattedDl,
+  }).catch(console.error);
 
   return { teamName: teamData.namaTim, addedPlayer: newPlayer, isOldPlayer, currentQuota };
 }
@@ -258,13 +267,16 @@ export async function executeTransferEditDl(teamSlug: string, targetIdentifier: 
   currentQuota += 1;
   await updateTeamRoster(key, teamSlug, teamData, players, currentQuota);
 
-  await sendTransferNewsLog({
+  sendTransferNewsLog({
     teamName: teamData.namaTim,
+    teamKode: teamData.kodeTim,
+    teamEmojiId: teamData.emojiId,
     teamHex: teamData.warna,
     action: 'EDIT_DL',
     targetIgn: player.ign,
+    oldIdDl,
     newIdDl: formattedDl,
-  });
+  }).catch(console.error);
 
   return { teamName: teamData.namaTim, player, oldDl, newDl: formattedDl, currentQuota };
 }
@@ -312,13 +324,14 @@ export async function executeTransferSetLeader(
   const currentQuota = Number(teamData.transferQuotaUsed || 0);
   await updateTeamRoster(key, teamSlug, teamData, orderedPlayers, currentQuota);
 
-  await sendTransferNewsLog({
+  sendTransferNewsLog({
     teamName: teamData.namaTim,
+    teamKode: teamData.kodeTim,
+    teamEmojiId: teamData.emojiId,
     teamHex: teamData.warna,
     action: newRole === 'Ketua' ? 'SET_LEADER' : 'SET_WAKIL',
     targetIgn: targetPlayer.ign,
-  });
+  }).catch(console.error);
 
   return { teamName: teamData.namaTim, player: targetPlayer, newRole, currentQuota };
-                                                                                }
-                            
+}

@@ -3,36 +3,46 @@ import { DISCORD_CONFIG } from '../config';
 
 export interface TransferLogParams {
   teamName: string;
+  teamKode?: string;
+  teamEmojiId?: string;
   teamHex: string;
   action: 'OUT' | 'ADD' | 'EDIT_DL' | 'SET_LEADER' | 'SET_WAKIL';
   targetIgn: string;
+  oldIdDl?: string;
   newIdDl?: string;
 }
 
-// 1. BROADCAST TRANSFER NEWS LOG (CH_LOG_TRANSFER)
+// 1. BROADCAST TRANSFER NEWS LOG (MENGGUNAKAN FORMAT <:kodeTim:emojiId>)
 export async function sendTransferNewsLog(params: TransferLogParams): Promise<string | null> {
-  const { teamName, teamHex, action, targetIgn, newIdDl } = params;
+  const { teamName, teamKode, teamEmojiId, teamHex, action, targetIgn, oldIdDl, newIdDl } = params;
   const channelId = DISCORD_CONFIG.CH_LOG_TRANSFER;
 
   if (!channelId) return null;
+
+  // Render emoji Discord sesuai format KV: <:kodeTim:emojiId>
+  const teamEmoji = (teamKode && teamEmojiId)
+    ? `<:${teamKode}:${teamEmojiId}> `
+    : teamEmojiId
+      ? `<:team:${teamEmojiId}> `
+      : '';
 
   let description = '';
 
   switch (action) {
     case 'OUT':
-      description = `**${teamName}** mengeluarkan **${targetIgn}** dari rosternya.`;
+      description = `**${targetIgn}** (${oldIdDl || '-'}) telah dikeluarkan dari roster tim ${teamEmoji}**${teamName}**`;
       break;
     case 'ADD':
-      description = `**${teamName}** memasukkan **${targetIgn}** ke dalam rosternya.`;
+      description = `**${targetIgn}** (${newIdDl || '-'}) telah ditambahkan ke roster tim ${teamEmoji}**${teamName}**`;
       break;
     case 'EDIT_DL':
-      description = `**${teamName}** mengganti ID Duel Links **${targetIgn}** (\`${newIdDl}\`).`;
+      description = `**${targetIgn}** dari tim ${teamEmoji}**${teamName}** telah mengganti ID Game dari ${oldIdDl || '-'} menjadi **${newIdDl}**`;
       break;
     case 'SET_LEADER':
-      description = `**${teamName}** mengganti Ketua menjadi **${targetIgn}**.`;
+      description = `**${targetIgn}** telah diangkat menjadi **Ketua Tim** ${teamEmoji}**${teamName}**`;
       break;
     case 'SET_WAKIL':
-      description = `**${teamName}** mengganti Wakil Ketua menjadi **${targetIgn}**.`;
+      description = `**${targetIgn}** telah diangkat menjadi **Wakil Ketua** ${teamEmoji}**${teamName}**`;
       break;
   }
 
@@ -95,7 +105,11 @@ export function createCampFailureEmbed(
   ];
 
   if (targetId) {
-    fields.push({ name: '🎯 Target', value: `<@${targetId}>`, inline: false });
+    fields.push({
+      name: '🎯 Target',
+      value: targetId.startsWith('<@') ? targetId : targetId.length === 18 || targetId.length === 19 ? `<@${targetId}>` : `\`${targetId}\``,
+      inline: false,
+    });
   }
 
   fields.push({ name: '⚠️ Alasan Ditolak', value: reason, inline: false });
@@ -109,4 +123,4 @@ export function createCampFailureEmbed(
       },
     ],
   };
-  }
+}
