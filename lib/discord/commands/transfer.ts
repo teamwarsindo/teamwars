@@ -1,33 +1,16 @@
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { discordAPI } from '@/lib/discord/utils';
 import {
   executeTransferOut,
   executeTransferAdd,
   executeTransferEditDl,
   executeTransferSetLeader,
   PlayerItem,
-} from '@/lib/discord/services/transfer-service';
-import {
+  getTeamBySlug,
   parsePlayers,
-  parseTransferSmartText,
-  formatDuelId,
-} from '@/lib/discord/utils/transfer-helpers';
-
-function isAuth(interaction: any): boolean {
-  try {
-    const member = interaction?.member;
-    const roles: string[] = member?.roles || [];
-    const permissions = BigInt(member?.permissions || '0');
-    const isAdmin = (permissions & BigInt(0x8)) === BigInt(0x8);
-    return (
-      isAdmin ||
-      (!!DISCORD_CONFIG.ROLE_ADMIN && roles.includes(DISCORD_CONFIG.ROLE_ADMIN)) ||
-      (!!DISCORD_CONFIG.ROLE_CHIEF && roles.includes(DISCORD_CONFIG.ROLE_CHIEF))
-    );
-  } catch {
-    return false;
-  }
-}
+} from '@/lib/discord/services/transfer-service';
+import { createCampSuccessEmbed, createCampFailureEmbed } from '@/lib/discord/messages/transfer-log';
 
 function getSubcommandData(interaction: any) {
   const options = interaction.data?.options || [];
@@ -41,294 +24,163 @@ function getSubcommandData(interaction: any) {
 
 export async function handleTransferAutocomplete(interaction: any) {
   try {
+    const channelId = interaction.channel_id;
+    const teamSlug = await kv.hget<string>('global:channel_teams', channelId);
+    if (!teamSlug) return { type: 8, data: { choices: [] } };
+
     const { opts } = getSubcommandData(interaction);
     const focusedOption = opts.find((o: any) => o.focused);
-    if (!focusedOption) return { type: 8, data: { choices: [] } };
+    if (!focusedOption || focusedOption.name !== 'user') return { type: 8, data: { choices: [] } };
 
-    const userId = interaction.member?.user?.id;
-    const userUsername = interaction.member?.user?.username;
+    const teamData = await kv.hgetall<any>(`teams:${teamSlug}`);
+    if (!teamData || !teamData.players) return { type: 8, data: { choices: [] } };
 
-    if (focusedOption.name === 'team') {
-      const allTeamSlugs = (await kv.smembers('global:teams')) || [];
-      const searchValue = (focusedOption.value || '').toLowerCase();
-      const choices = [];
+    const players: PlayerItem[] = parsePlayers(teamData.players);
+    const searchValue = (focusedOption.value || '').toLowerCase();
 
-      for (const slug of allTeamSlugs) {
-        const teamData = await kv.hgetall<any>(`teams:${slug}`);
-        if (teamData && teamData.namaTim) {
-          if (teamData.namaTim.toLowerCase().includes(searchValue) || slug.includes(searchValue)) {
-            choices.push({ name: teamData.namaTim, value: slug });
-          }
-        }
-        if (choices.length >= 25) break;
-      }
-      return { type: 8, data: { choices } };
-    }
+    const choices = players
+      .filter((p) => p.ign.toLowerCase().includes(searchValue) || p.discord.toLowerCase().includes(searchValue))
+      .slice(0, 25)
+      .map((p) => ({
+        name: `${p.ign} (@${p.discord}) - ${p.role}`,
+        value: p.discordId,
+      }));
 
-    if (focusedOption.name === 'user') {
-      const selectedTeamOpt = opts.find((o: any) => o.name === 'team')?.value;
-      let targetTeamSlug = selectedTeamOpt;
-
-      if (!targetTeamSlug) {
-        targetTeamSlug = await kv.hget<string>('global:discord_ids', userId);
-        if (!targetTeamSlug && userUsername) {
-          targetTeamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
-        }
-      }
-
-      if (!targetTeamSlug) return { type: 8, data: { choices: [] } };
-
-      const teamData = await kv.hgetall<any>(`teams:${targetTeamSlug}`);
-      if (!teamData || !teamData.players) return { type: 8, data: { choices: [] } };
-
-      const players: PlayerItem[] = parsePlayers(teamData.players);
-      const searchValue = (focusedOption.value || '').toLowerCase();
-
-      const choices = players
-        .filter((p) => p.ign.toLowerCase().includes(searchValue) || p.discord.toLowerCase().includes(searchValue))
-        .slice(0, 25)
-        .map((p) => ({
-          name: `${p.ign} (@${p.discord}) - ${p.role}`,
-          value: p.discord,
-        }));
-
-      return { type: 8, data: { choices } };
-    }
-
-    return { type: 8, data: { choices: [] } };
+    return { type: 8, data: { choices } };
   } catch {
     return { type: 8, data: { choices: [] } };
   }
 }
 
 export async function handleTransferCommand(interaction: any) {
+  const { subcommand, opts } = getSubcommandData(interaction);
+  const channelId = interaction.channel_id;
+  const actorId = interaction.member?.user?.id;
+  const actorRoles: string[] = interaction.member?.roles || [];
+
+  if (!subcommand) {
+    return { type: 4, data: { content: '❌ Subcommand tidak valid!', flags: 64 } };
+  }
+
+  // 1. Deteksi Tim dari Channel Camp
+  const teamSlug = await kv.hget<string>('global:channel_teams', channelId);
+  if (!teamSlug) {
+    return {
+      type: 4,
+      data: { content: '❌ Slash command `/transfer` hanya dapat digunakan di dalam Channel Camp Tim resmi.', flags: 64 },
+    };
+  }
+
+  // 2. Ambil data Tim & Validasi Role Aktor
+  const teamRes = await getTeamBySlug(teamSlug);
+  if (!teamRes) {
+    return {
+      type: 4,
+      data: { content: `❌ Data tim dengan slug \`${teamSlug}\` tidak ditemukan di database.`, flags: 64 },
+    };
+  }
+
+  const { data: teamData } = teamRes;
+  const players: PlayerItem[] = parsePlayers(teamData.players);
+  const isAdmin = !!DISCORD_CONFIG.ROLE_ADMIN && actorRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
+  const actorInRoster = players.find((p) => p.discordId === actorId);
+  const isKetua = actorInRoster?.role === 'Ketua';
+  const isWakil = actorInRoster?.role === 'Wakil Ketua';
+
+  if (!isAdmin && !isKetua && !isWakil) {
+    return {
+      type: 4,
+      data: { content: '❌ **Akses Ditolak!** Hanya Ketua Tim, Wakil Ketua Tim, atau Admin yang dapat mengeksekusi transfer.', flags: 64 },
+    };
+  }
+
+  const actorRoleText = isAdmin ? 'Admin' : isKetua ? 'Ketua Tim' : 'Wakil Ketua Tim';
+  const targetUserId = opts.find((o: any) => o.name === 'user')?.value;
+
   try {
-    const { subcommand, opts } = getSubcommandData(interaction);
-    if (!subcommand) return { type: 4, data: { content: '❌ Subcommand tidak valid!', flags: 64 } };
-
-    const userId = interaction.member?.user?.id;
-    const userUsername = interaction.member?.user?.username;
-    const isAdmin = isAuth(interaction);
-
-    const inputTeamSlug = opts.find((o: any) => o.name === 'team')?.value;
-
-    let teamSlug = inputTeamSlug;
-    if (!teamSlug) {
-      teamSlug = await kv.hget<string>('global:discord_ids', userId);
-      if (!teamSlug && userUsername) {
-        teamSlug = await kv.hget<string>('global:discord', userUsername.toLowerCase());
-      }
-    }
-
-    if (isAdmin && !inputTeamSlug && !teamSlug) {
-      return {
-        type: 4,
-        data: { content: '❌ **Akses Admin:** Kamu wajib memilih opsi `team` saat menggunakan command transfer!', flags: 64 },
-      };
-    }
-
-    if (!teamSlug) {
-      return {
-        type: 4,
-        data: { content: '❌ **Akses Ditolak!** Kamu harus menjadi Ketua/Wakil/Admin tim untuk menggunakan command ini.', flags: 64 },
-      };
-    }
-
     // -------------------------------------------------------------
-    // 1. SUBCOMMAND: OUT
-    // -------------------------------------------------------------
-    if (subcommand === 'out') {
-      const targetUser = opts.find((o: any) => o.name === 'user')?.value;
-      if (!targetUser) return { type: 4, data: { content: '❌ Option `user` wajib diisi!', flags: 64 } };
-
-      const result = await executeTransferOut(teamSlug, targetUser);
-      return {
-        type: 4,
-        data: { content: `✅ **Berhasil!** Pemain **${result.removedIgn}** telah dikeluarkan dari tim **${result.teamName}**.`, flags: 64 },
-      };
-    }
-
-    // -------------------------------------------------------------
-    // 2. SUBCOMMAND: ADD
+    // SUBCOMMAND: ADD
     // -------------------------------------------------------------
     if (subcommand === 'add') {
-      const targetDiscordId = opts.find((o: any) => o.name === 'user')?.value;
       const ign = opts.find((o: any) => o.name === 'ign')?.value;
       const rawIdDl = opts.find((o: any) => o.name === 'id_dl')?.value;
 
-      if (!targetDiscordId || !ign || !rawIdDl) {
+      if (!targetUserId || !ign || !rawIdDl) {
         return { type: 4, data: { content: '❌ Option `user`, `ign`, dan `id_dl` wajib diisi!', flags: 64 } };
       }
 
       const resolvedUsers = interaction.data?.resolved?.users || {};
-      const targetUserData = resolvedUsers[targetDiscordId] || {};
-      const targetUsername = targetUserData.username || targetDiscordId;
+      const targetUserData = resolvedUsers[targetUserId] || {};
+      const targetUsername = targetUserData.username || targetUserId;
+
+      const guildMemberRes = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}`);
+      const targetRoles: string[] = guildMemberRes?.roles || [];
 
       const result = await executeTransferAdd({
         teamSlug,
-        targetDiscordId,
+        targetDiscordId: targetUserId,
         targetUsername,
         ign,
         rawIdDl,
+        targetRoles,
       });
 
-      return {
-        type: 4,
-        data: {
-          content: `✅ **Berhasil!** Pemain **${result.addedIgn}** berhasil dimasukkan ke dalam tim **${result.teamName}**.\nℹ️ Sisa kuota transfer tim saat ini: **${
-            2 - result.currentQuota
-          }**`,
-          flags: 64,
-        },
-      };
+      const statusNote = result.isOldPlayer ? 'Transfer Pemain Lama (Potong Kuota)' : 'Free Agent Murni (Gratis Kuota)';
+      const details = `**Akun:** <@${targetUserId}>\n**IGN:** ${result.addedPlayer.ign}\n**ID Duel Links:** ${result.addedPlayer.idDuelLinks}\n**Status:** ${statusNote}`;
+      const successEmbed = createCampSuccessEmbed(actorId, actorRoleText, 'ADD (Tambah Pemain)', details, result.currentQuota);
+
+      return { type: 4, data: successEmbed };
     }
 
     // -------------------------------------------------------------
-    // 3. SUBCOMMAND: EDIT
+    // SUBCOMMAND: OUT
+    // -------------------------------------------------------------
+    if (subcommand === 'out') {
+      if (!targetUserId) return { type: 4, data: { content: '❌ Option `user` wajib diisi!', flags: 64 } };
+
+      const result = await executeTransferOut(teamSlug, targetUserId);
+      const details = `**Akun:** <@${result.removedPlayer.discordId}>\n**IGN:** ${result.removedPlayer.ign}\n**ID Duel Links:** ${result.removedPlayer.idDuelLinks}\n**Status:** Dipindahkan ke Free Agent Pool`;
+      const successEmbed = createCampSuccessEmbed(actorId, actorRoleText, 'OUT (Keluarkan Pemain)', details, result.currentQuota);
+
+      return { type: 4, data: successEmbed };
+    }
+
+    // -------------------------------------------------------------
+    // SUBCOMMAND: EDIT
     // -------------------------------------------------------------
     if (subcommand === 'edit') {
-      const targetUser = opts.find((o: any) => o.name === 'user')?.value;
       const newIdDl = opts.find((o: any) => o.name === 'new_id_dl')?.value;
       const position = opts.find((o: any) => o.name === 'position')?.value as 'Ketua' | 'Wakil Ketua' | undefined;
 
-      if (!targetUser) return { type: 4, data: { content: '❌ Option `user` wajib diisi!', flags: 64 } };
-
+      if (!targetUserId) return { type: 4, data: { content: '❌ Option `user` wajib diisi!', flags: 64 } };
       if (!newIdDl && !position) {
         return { type: 4, data: { content: '❌ Wajib mengisikan salah satu opsi: `new_id_dl` atau `position`!', flags: 64 } };
       }
 
-      const results = [];
-
       if (newIdDl) {
-        const resDl = await executeTransferEditDl(teamSlug, targetUser, newIdDl);
-        results.push(`ID Game **${resDl.ign}** diperbarui menjadi \`${resDl.newDl}\` (Sisa kuota transfer: **${2 - resDl.currentQuota}**)`);
+        const resultDl = await executeTransferEditDl(teamSlug, targetUserId, newIdDl);
+        const details = `**Akun:** <@${targetUserId}>\n**IGN:** ${resultDl.player.ign}\n**ID Lama:** ${resultDl.oldDl}\n**ID Baru:** ${resultDl.newDl}`;
+        const successEmbed = createCampSuccessEmbed(actorId, actorRoleText, 'EDIT (Ganti ID Duel Links)', details, resultDl.currentQuota);
+        return { type: 4, data: successEmbed };
       }
 
       if (position) {
-        const resLeader = await executeTransferSetLeader(teamSlug, targetUser, position, isAdmin);
-        results.push(`**${resLeader.ign}** sekarang ditugaskan sebagai **${resLeader.newRole}** tim **${resLeader.teamName}**`);
+        const resultLeader = await executeTransferSetLeader(teamSlug, targetUserId, position, actorId, isAdmin, isKetua);
+        const details = `**Akun:** <@${targetUserId}>\n**IGN:** ${resultLeader.player.ign}\n**Jabatan Baru:** \`${resultLeader.newRole}\``;
+        const successEmbed = createCampSuccessEmbed(actorId, actorRoleText, `EDIT (Angkat ${resultLeader.newRole})`, details, resultLeader.currentQuota);
+        return { type: 4, data: successEmbed };
       }
-
-      return {
-        type: 4,
-        data: { content: `✅ **Berhasil!**\n• ${results.join('\n• ')}`, flags: 64 },
-      };
     }
 
-    // -------------------------------------------------------------
-    // 4. SUBCOMMAND: PARSE (SAFE PREVIEW ADMIN)
-    // -------------------------------------------------------------
-    if (subcommand === 'parse') {
-      if (!isAdmin) {
-        return { type: 4, data: { content: '❌ Fitur Parse Request khusus untuk **Admin**!', flags: 64 } };
-      }
-
-      const rawText = opts.find((o: any) => o.name === 'text')?.value || '';
-      const targetDiscordId = opts.find((o: any) => o.name === 'user')?.value;
-
-      if (!rawText || !targetDiscordId) {
-        return { type: 4, data: { content: '❌ Option `text` dan `user` wajib diisi!', flags: 64 } };
-      }
-
-      const parsed = parseTransferSmartText(rawText);
-
-      const resolvedUsers = interaction.data?.resolved?.users || {};
-      const targetUserData = resolvedUsers[targetDiscordId] || {};
-      const targetUsername = targetUserData.username || targetDiscordId;
-
-      const interactionId = interaction.id || Date.now().toString();
-      const sessionKey = `parse_session:${interactionId}`;
-
-      try {
-        await kv.set(
-          sessionKey,
-          {
-            teamSlug,
-            targetDiscordId,
-            targetUsername,
-            ign: parsed.ign || '',
-            idDl: parsed.idDl || '',
-            action: parsed.action,
-          },
-          { ex: 600 }
-        );
-      } catch (kvErr) {
-        console.error('KV Session Save Error:', kvErr);
-      }
-
-      return {
-        type: 4,
-        data: {
-          flags: 64,
-          embeds: [
-            {
-              title: '🔍 PREVIEW AUTO-PARSE TRANSFER REQUEST',
-              description: 'Periksa data di bawah ini. Data **BELUM** tersimpan ke database sampai kamu menekan tombol Proses.',
-              color: 0x3498db,
-              fields: [
-                { name: '⚡ Aksi Terdeteksi', value: `**${parsed.action}**`, inline: true },
-                { name: '👤 Target User', value: `<@${targetDiscordId}> (\`@${targetUsername}\`)`, inline: true },
-                { name: '🛡️ Tim Target', value: `**${teamSlug}**`, inline: true },
-                { name: '🎮 IGN Pemain', value: parsed.ign ? `\`${parsed.ign}\`` : '⚠️ *Tidak Ditemukan*', inline: true },
-                { name: '🆔 ID Game', value: parsed.idDl ? `\`${formatDuelId(parsed.idDl)}\`` : '⚠️ *Tidak Ditemukan*', inline: true },
-                { name: '📝 Teks Pesan Asli', value: `\`\`\`${rawText.slice(0, 180)}\`\`\``, inline: false },
-              ],
-              footer: { text: 'Klik "Proses" jika sesuai, atau klik tombol "Paksa Ubah" jika deteksi aksi keliru.' },
-            },
-          ],
-          components: [
-            {
-              type: 1,
-              components: [
-                {
-                  type: 2,
-                  style: 3,
-                  label: `Proses ${parsed.action}`,
-                  custom_id: `btn_parse_EXEC_${parsed.action}_${interactionId}`,
-                  emoji: { name: '✅' },
-                },
-                {
-                  type: 2,
-                  style: 4,
-                  label: 'Batal',
-                  custom_id: 'btn_parse_CANCEL',
-                  emoji: { name: '❌' },
-                },
-              ],
-            },
-            {
-              type: 1,
-              components: [
-                {
-                  type: 2,
-                  style: 2,
-                  label: 'Paksa Ubah ke ADD',
-                  custom_id: `btn_parse_EXEC_ADD_${interactionId}`,
-                },
-                {
-                  type: 2,
-                  style: 2,
-                  label: 'Paksa Ubah ke OUT',
-                  custom_id: `btn_parse_EXEC_OUT_${interactionId}`,
-                },
-                {
-                  type: 2,
-                  style: 2,
-                  label: 'Paksa Ubah ke EDIT DL',
-                  custom_id: `btn_parse_EXEC_EDIT_${interactionId}`,
-                },
-              ],
-            },
-          ],
-        },
-      };
-    }
-
-    return { type: 4, data: { content: '❌ Action tidak dikenali!', flags: 64 } };
+    return { type: 4, data: { content: '❌ Subcommand tidak dikenali!', flags: 64 } };
   } catch (error: any) {
-    return {
-      type: 4,
-      data: { content: `❌ **Gagal Memproses Transfer:** ${error.message || 'Terjadi kesalahan internal'}`, flags: 64 },
-    };
+    const failEmbed = createCampFailureEmbed(
+      actorId,
+      subcommand.toUpperCase(),
+      targetUserId || null,
+      error.message || 'Terjadi kesalahan saat memproses transfer.'
+    );
+    return { type: 4, data: failEmbed };
   }
-                                }
+  }
+      
