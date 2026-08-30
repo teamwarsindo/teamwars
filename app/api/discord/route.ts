@@ -14,13 +14,13 @@ import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
 import { handleTransferCommand } from '@/lib/discord/commands/transfer';
 import { handleAssignCommand } from '@/lib/discord/commands/assign';
 import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
-
-// Submit Command Handlers
-import { handleSubmitCommand, handleSubmitAutocomplete } from '@/lib/discord/commands/submit';
-
-// Autocomplete & Reschedule Handlers
-import { handleAssignAutocomplete, handleRescheduleAutocomplete, handleTransferAutocomplete} from '@/lib/discord/handlers/autocomplete-handler';
+import { handleSubmitCommand } from '@/lib/discord/commands/submit';
 import { handleRescheduleCommand } from '@/lib/discord/handlers/reschedule-handler';
+
+// Autocomplete
+import { handleAssignAutocomplete, handleSubmitAutocomplete,
+        handleRescheduleAutocomplete, handleTransferAutocomplete}
+  from '@/lib/discord/handlers/autocomplete-handler';
 
 // Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
