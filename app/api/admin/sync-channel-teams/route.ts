@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 
-interface OldFreeDuelistData {
+interface FreeDuelistPayload {
   [key: string]: unknown;
   discord?: string;
   discordId?: string;
@@ -14,85 +14,53 @@ interface OldFreeDuelistData {
 
 export async function GET() {
   try {
-    // 1. Scan/ambil seluruh key lama dengan pattern 'global:free_duelists:*'
-    const oldKeys: string[] = [];
-    let cursor = 0;
+    // 1. Ambil seluruh data dari hash utama global:free_duelists
+    const allFreeDuelists = await kv.hgetall<Record<string, string>>('global:free_duelists');
 
-    do {
-      const [nextCursor, keys] = await kv.scan(cursor, {
-        match: 'global:free_duelists:*',
-        count: 100,
-      });
-      cursor = typeof nextCursor === 'string' ? parseInt(nextCursor, 10) : nextCursor;
-      if (keys && keys.length > 0) {
-        oldKeys.push(...keys);
-      }
-    } while (cursor !== 0);
-
-    if (oldKeys.length === 0) {
+    if (!allFreeDuelists || Object.keys(allFreeDuelists).length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'Tidak ada data lama global:free_duelists:* yang perlu dimigrasi.',
-        totalMigrated: 0,
+        message: 'Tidak ada data di global:free_duelists untuk dibuatkan index.',
+        totalIndexed: 0,
       });
     }
 
-    const freeDuelistsMap: Record<string, string> = {};
     const ignIndexMap: Record<string, string> = {};
     const dlIndexMap: Record<string, string> = {};
-    const migratedList: any[] = [];
-    const keysToDelete: string[] = [];
+    let count = 0;
 
-    // 2. Baca isi data dari setiap key lama
-    for (const key of oldKeys) {
-      // Lewati jika bukan key individual (safety check)
-      if (
-        key === 'global:free_duelists' ||
-        key === 'global:free_duelists_ign' ||
-        key === 'global:free_duelists_dl'
-      ) {
-        continue;
+    // 2. Baca setiap entry dan mapping persis aslinya
+    for (const [discordId, rawData] of Object.entries(allFreeDuelists)) {
+      let data: FreeDuelistPayload;
+
+      if (typeof rawData === 'string') {
+        try {
+          data = JSON.parse(rawData);
+        } catch {
+          continue;
+        }
+      } else {
+        data = rawData as FreeDuelistPayload;
       }
 
-      const data = await kv.hgetall<OldFreeDuelistData>(key);
-
-      if (data && data.discordId) {
-        const discordId = data.discordId;
-        const normalizedIgn = (data.ign || '').trim().toLowerCase();
-        const cleanDlId = (data.idDuelLinks || '').replace(/[^0-9]/g, '');
-
-        const payload = {
-          discord: data.discord || '',
-          discordId: discordId,
-          idDuelLinks: data.idDuelLinks || '',
-          ign: data.ign || '',
-          lastTeam: data.lastTeam || '',
-          releasedAt: data.releasedAt || new Date().toISOString(),
-          teamsJoinedCount: Number(data.teamsJoinedCount || 1),
-        };
-
-        // Masukkan ke Hash Utama (Field: discordId, Value: JSON string)
-        freeDuelistsMap[discordId] = JSON.stringify(payload);
-
-        // Masukkan ke Index IGN
-        if (normalizedIgn) {
-          ignIndexMap[normalizedIgn] = discordId;
+      if (data) {
+        // Simpan IGN apa adanya (as-is)
+        if (data.ign) {
+          ignIndexMap[data.ign] = discordId;
         }
 
-        // Masukkan ke Index ID Duel Links
-        if (cleanDlId) {
-          dlIndexMap[cleanDlId] = discordId;
+        // Simpan ID Duel Links apa adanya (as-is, termasuk tanda '-')
+        if (data.idDuelLinks) {
+          dlIndexMap[data.idDuelLinks] = discordId;
         }
 
-        migratedList.push(payload);
-        keysToDelete.push(key);
+        count++;
       }
     }
 
-    // 3. Simpan ke 3 key baru
-    if (Object.keys(freeDuelistsMap).length > 0) {
-      await kv.hset('global:free_duelists', freeDuelistsMap);
-    }
+    // 3. Reset dan tulis ulang key index
+    await kv.del('global:free_duelists_ign', 'global:free_duelists_dl');
+
     if (Object.keys(ignIndexMap).length > 0) {
       await kv.hset('global:free_duelists_ign', ignIndexMap);
     }
@@ -100,28 +68,22 @@ export async function GET() {
       await kv.hset('global:free_duelists_dl', dlIndexMap);
     }
 
-    // 4. Bersihkan key-key individual lama
-    if (keysToDelete.length > 0) {
-      await kv.del(...keysToDelete);
-    }
-
     return NextResponse.json({
       success: true,
-      message: 'Migrasi global:free_duelists dan index berhasil!',
-      totalMigrated: migratedList.length,
-      migratedList,
-      deletedKeysCount: keysToDelete.length,
+      message: 'Index global:free_duelists_ign dan global:free_duelists_dl berhasil diperbarui!',
+      totalIndexed: count,
+      ignIndex: ignIndexMap,
+      dlIndex: dlIndexMap,
     });
   } catch (error: any) {
-    console.error('Gagal migrasi global:free_duelists:', error);
+    console.error('Gagal rebuild index free duelists:', error);
     return NextResponse.json(
       {
         success: false,
-        message: 'Terjadi kesalahan saat migrasi',
+        message: 'Terjadi kesalahan saat rebuild index',
         error: error.message || 'Internal Server Error',
       },
       { status: 500 }
     );
   }
-}
-  
+            }
