@@ -55,10 +55,11 @@ export function QualificationBadge({ qual }: { qual: QualificationStatus }) {
 }
 
 export function FormSlots({ formList }: { formList: ("W" | "L")[] }) {
-  const slots = Array.from({ length: 8 }, (_, i) => formList[i] || null);
+  // 7 slot horizontal sejajar sesuai 7 pekan reguler
+  const slots = Array.from({ length: 7 }, (_, i) => formList[i] || null);
 
   return (
-    <div className="grid grid-cols-4 gap-1 w-fit mx-auto justify-items-center items-center">
+    <div className="flex items-center justify-center gap-1 w-fit mx-auto">
       {slots.map((res, i) =>
         res ? (
           <span
@@ -107,9 +108,7 @@ export function MatchReportCompactItem({
   const content = (
     <div className="w-full">
       {isA ? (
-        /* TIM A: 2 BARIS DI MOBILE, 1 BARIS SEJAJAR DI DESKTOP */
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-start gap-1 sm:gap-2.5 w-full">
-          {/* BARIS 1: [W/L] [SKOR] [LOGO] */}
           <div className="flex items-center justify-start gap-1.5 sm:gap-2 shrink-0">
             <span
               className={`inline-flex h-4.5 w-4.5 sm:h-5 sm:w-5 items-center justify-center rounded text-[8.5px] sm:text-[9.5px] font-black border shadow-2xs ${badgeColor}`}
@@ -126,7 +125,6 @@ export function MatchReportCompactItem({
             />
           </div>
 
-          {/* BARIS 2: NAMA TIM LAWAN (UTUH) */}
           <span
             className={`font-semibold text-[11px] sm:text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-[150px] lg:max-w-[180px] text-left ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
@@ -136,9 +134,7 @@ export function MatchReportCompactItem({
           </span>
         </div>
       ) : (
-        /* TIM B: 2 BARIS DI MOBILE, 1 BARIS SEJAJAR DI DESKTOP */
         <div className="flex flex-col sm:flex-row-reverse sm:items-center sm:justify-start gap-1 sm:gap-2.5 w-full">
-          {/* BARIS 1: [LOGO] [SKOR] [W/L] */}
           <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
             <img
               src={item.oppLogo || "/logo.webp"}
@@ -155,7 +151,6 @@ export function MatchReportCompactItem({
             </span>
           </div>
 
-          {/* BARIS 2: NAMA TIM LAWAN (UTUH) */}
           <span
             className={`font-semibold text-[11px] sm:text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-[150px] lg:max-w-[180px] text-right ${
               item.reportLink ? "group-hover:text-primary group-hover:underline" : ""
