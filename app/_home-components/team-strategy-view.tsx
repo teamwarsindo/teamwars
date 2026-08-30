@@ -23,44 +23,58 @@ export function TeamStrategyView({
 
   return (
     <div className="space-y-2.5 rounded-2xl border border-border bg-muted/20 p-2.5 sm:p-3 text-card-foreground">
-      {/* 1. STATUS PELUANG (DINAMIS JIKA QUARTER 0%) */}
+      {/* 1. STATUS PELUANG (DINAMIS & TOTAL SELALU 100%) */}
       <div className="space-y-1">
         <div className="flex justify-between text-[10px] font-bold">
           {data.quarterFinalsProb > 0 && (
             <span className="text-sky-700 dark:text-sky-400">Quarter: {data.quarterFinalsProb}%</span>
           )}
-          <span className="text-emerald-700 dark:text-emerald-400">Play-Ins (Top 8): {data.playInsProb}%</span>
+          {data.playInsProb > 0 && (
+            <span className="text-emerald-700 dark:text-emerald-400">Play-Ins (Top 8): {data.playInsProb}%</span>
+          )}
           <span className="text-rose-700 dark:text-rose-400">Gugur: {data.eliminationProb}%</span>
         </div>
         <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted/60">
           {data.quarterFinalsProb > 0 && (
             <div style={{ width: `${data.quarterFinalsProb}%` }} className="bg-sky-500 transition-all duration-300" />
           )}
-          <div style={{ width: `${data.playInsProb}%` }} className="bg-emerald-500 transition-all duration-300" />
-          <div style={{ width: `${data.eliminationProb}%` }} className="bg-rose-500 transition-all duration-300" />
+          {data.playInsProb > 0 && (
+            <div style={{ width: `${data.playInsProb}%` }} className="bg-emerald-500 transition-all duration-300" />
+          )}
+          {data.eliminationProb > 0 && (
+            <div style={{ width: `${data.eliminationProb}%` }} className="bg-rose-500 transition-all duration-300" />
+          )}
         </div>
       </div>
 
-      {/* 2. DUA KARTU SYARAT KELOLOSAN */}
+      {/* 2. DUA KARTU SYARAT KELOLOSAN (DINAMIS) */}
       <div className="grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-2 space-y-0.5">
           <span className="text-[8px] font-bold text-emerald-700 dark:text-emerald-400 uppercase flex items-center gap-1">
-            <Award className="h-3 w-3" /> Target Top 8
+            <Award className="h-3 w-3" /> {data.targetTitle}
           </span>
-          <span className="font-black text-foreground block text-[11px] leading-tight">Min. 3 Match Wins</span>
-          <span className="text-[8.5px] text-muted-foreground block font-medium">Wajib Pts Diff ≥ +6</span>
+          <span className="font-black text-foreground block text-[11px] leading-tight">
+            {data.targetPrimary}
+          </span>
+          <span className="text-[8.5px] text-muted-foreground block font-medium">
+            {data.targetSecondary}
+          </span>
         </div>
 
         <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-2 space-y-0.5">
           <span className="text-[8.5px] font-bold text-rose-700 dark:text-rose-400 uppercase flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" /> Batas Gugur
+            <AlertTriangle className="h-3 w-3" /> {data.eliminationTitle}
           </span>
-          <span className="font-black text-foreground block text-[11px] leading-tight">Maks. 1x Match Lose</span>
-          <span className="text-[8.5px] text-rose-600 dark:text-rose-400 block font-bold">2x Lose = Pasti Gugur</span>
+          <span className="font-black text-foreground block text-[11px] leading-tight">
+            {data.eliminationPrimary}
+          </span>
+          <span className="text-[8.5px] text-rose-600 dark:text-rose-400 block font-bold">
+            {data.eliminationSecondary}
+          </span>
         </div>
       </div>
 
-      {/* 3. ROADMAP PEKAN (KRONOLOGIS SISA 4 MATCH) */}
+      {/* 3. ROADMAP PEKAN */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-[8.5px] font-bold text-muted-foreground uppercase px-0.5">
           <span className="flex items-center gap-1">
@@ -107,6 +121,12 @@ export function TeamStrategyView({
               </div>
             </div>
           ))}
+
+          {data.weeklyRoadmap.length === 0 && (
+            <p className="rounded-xl border border-border bg-muted/10 p-2 text-center text-[9.5px] text-muted-foreground">
+              Semua pertandingan babak reguler telah selesai.
+            </p>
+          )}
         </div>
       </div>
 
@@ -119,4 +139,4 @@ export function TeamStrategyView({
       </div>
     </div>
   );
-                }
+}
