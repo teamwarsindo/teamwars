@@ -13,7 +13,12 @@ export interface BaseLogParams {
   matchDateIso?: string;
 }
 
-function createTeamDisplays(params: { teamAName: string; teamBName: string; teamAEmoji?: string; teamBEmoji?: string }) {
+function createTeamDisplays(params: {
+  teamAName: string;
+  teamBName: string;
+  teamAEmoji?: string;
+  teamBEmoji?: string;
+}) {
   return {
     teamADisplay: `${params.teamAEmoji ? params.teamAEmoji + ' ' : ''}**${params.teamAName}**`,
     teamBDisplay: `${params.teamBEmoji ? params.teamBEmoji + ' ' : ''}**${params.teamBName}**`,
@@ -32,7 +37,11 @@ export async function sendOrUpdateRefereeAssignmentLog(
     color: 0x00a8fc,
     fields: [
       { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
-      { name: '📌 Match Channel', value: params.matchChannelId ? `<#${params.matchChannelId}>` : 'Belum tersedia', inline: false },
+      {
+        name: '📌 Match Channel',
+        value: params.matchChannelId ? `<#${params.matchChannelId}>` : 'Belum tersedia',
+        inline: false,
+      },
     ],
     footer: { text: getEmbedFooterText() },
   };
@@ -58,7 +67,11 @@ export async function sendOrUpdateStreamerAssignmentLog(
     color: 0x9b59b6,
     fields: [
       { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
-      { name: '📌 Match Channel', value: params.matchChannelId ? `<#${params.matchChannelId}>` : 'Belum tersedia', inline: false },
+      {
+        name: '📌 Match Channel',
+        value: params.matchChannelId ? `<#${params.matchChannelId}>` : 'Belum tersedia',
+        inline: false,
+      },
     ],
     footer: { text: getEmbedFooterText() },
   };
@@ -93,7 +106,11 @@ export async function sendReassignmentLog(
     color: embedColor,
     fields: [
       { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
-      { name: '📌 Match Channel', value: params.matchChannelId ? `<#${params.matchChannelId}>` : 'Belum tersedia', inline: false },
+      {
+        name: '📌 Match Channel',
+        value: params.matchChannelId ? `<#${params.matchChannelId}>` : 'Belum tersedia',
+        inline: false,
+      },
     ],
     footer: { text: getEmbedFooterText() },
   };
@@ -129,15 +146,12 @@ export async function sendCompletedAssignmentLog(
   if (params.roleType === 'REFEREE') {
     const scoreA = params.scoreA ?? 0;
     const scoreB = params.scoreB ?? 0;
-    const isWinA = scoreA > scoreB;
-    const winnerDisplay = isWinA ? teamADisplay : teamBDisplay;
-    const loserDisplay = isWinA ? teamBDisplay : teamADisplay;
     const winScore = Math.max(scoreA, scoreB);
     const loseScore = Math.min(scoreA, scoreB);
 
     fields.push({
       name: '🏆 Hasil Pertandingan',
-      value: `${winnerDisplay} defeated ${loserDisplay}\nwith a score of **${winScore}-${loseScore}**`,
+      value: `**${winScore}-${loseScore}**`,
       inline: false,
     });
   } else if (params.streamLink) {
@@ -202,7 +216,7 @@ export async function sendCancelledAssignmentLog(
   return res?.id || null;
 }
 
-// 6. Official Score Log ke #CH_SCORE (POST Baru)
+// 6. Official Score Log ke #CH_SCORE (POST Baru - 1 Baris Penuh)
 export async function sendOfficialScoreLog(params: {
   channelId: string;
   teamAName: string;
@@ -225,7 +239,7 @@ export async function sendOfficialScoreLog(params: {
   const loserDisplay = `${loserEmoji ? loserEmoji + ' ' : ''}**${loserName}**`;
 
   const embedData = {
-    description: `${winnerDisplay} defeated ${loserDisplay}\nwith a score of **${winScore}-${loseScore}**`,
+    description: `${winnerDisplay} defeated ${loserDisplay} with a score of **${winScore}-${loseScore}**`,
     color: 0x22c55e,
   };
 
