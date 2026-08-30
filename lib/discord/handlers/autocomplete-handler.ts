@@ -15,20 +15,34 @@ const getTeamPlayers = async (slug: string): Promise<PlayerItem[]> => {
   return team?.players ? parsePlayers(team.players) : [];
 };
 
-const getMasterList = async (key: 'twi:master_decks' | 'twi:master_skills'): Promise<string[]> => {
-  const raw = await kv.get<any>(key);
+const getMasterDecks = async (): Promise<string[]> => {
+  const raw = await kv.get<any>('twi:master_decks');
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
-  if (typeof raw === 'object') return Object.keys(raw);
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : Object.keys(parsed);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
   }
   return [];
+};
+
+const getMasterSkillsMap = async (): Promise<Record<string, string>> => {
+  const raw = await kv.get<any>('twi:master_skills');
+  if (!raw) return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
 };
 
 function isToday(dateIso?: string): boolean {
@@ -95,30 +109,59 @@ export async function handleSubmitAutocomplete(interaction: any) {
     if (!focused) return { type: 8, data: { choices: [] } };
 
     const fName = focused.name;
-    const query = String(focused.value || '').toLowerCase();
+    const rawVal = String(focused.value || '').trim();
+    const query = rawVal.toLowerCase();
     const existingLineup: any[] = reportData?.[teamKey]?.lineup || [];
 
-    // Master Deck / Archetype
+    // 1. Master Deck / Archetype
     if (fName.startsWith('deck_') || fName === 'deck') {
-      const masterDecks = await getMasterList('twi:master_decks');
+      const masterDecks = await getMasterDecks();
       const choices = filterChoices(masterDecks, query, (d) => d, (d) => d);
-      if (query && !masterDecks.some((d) => d.toLowerCase() === query)) {
-        choices.unshift({ name: `Gunakan custom: "${focused.value}"`, value: focused.value });
+      
+      if (rawVal && !masterDecks.some((d) => d.toLowerCase() === query)) {
+        choices.unshift({ 
+          name: `➕ Tambah Deck "${rawVal}"`, 
+          value: rawVal 
+        });
       }
       return { type: 8, data: { choices: choices.slice(0, 25) } };
     }
 
-    // Master Skill
+    // 2. Master Skill (Dengan Tampilan & Pencarian Singkatan [KODE])
     if (fName.startsWith('skill_') || fName === 'skill') {
-      const masterSkills = await getMasterList('twi:master_skills');
-      const choices = filterChoices(masterSkills, query, (s) => s, (s) => s);
-      if (query && !masterSkills.some((s) => s.toLowerCase() === query)) {
-        choices.unshift({ name: `Gunakan custom: "${focused.value}"`, value: focused.value });
+      const skillsMap = await getMasterSkillsMap();
+      const skillEntries = Object.entries(skillsMap).map(([name, code]) => ({
+        fullName: name,
+        code: code || '',
+        displayLabel: code ? `${name} [${code}]` : name,
+      }));
+
+      const filtered = skillEntries
+        .filter((item) => {
+          return (
+            item.fullName.toLowerCase().includes(query) ||
+            item.code.toLowerCase().includes(query)
+          );
+        })
+        .slice(0, 25)
+        .map((item) => ({
+          name: item.displayLabel,
+          value: item.fullName,
+        }));
+
+      if (rawVal && !skillEntries.some((s) => s.fullName.toLowerCase() === query || s.code.toLowerCase() === query)) {
+        // Panduan custom input jika belum ada di database
+        const helperGuide = !rawVal.includes('(') && !rawVal.includes('[') ? ` [KODE]` : '';
+        filtered.unshift({
+          name: `➕ Tambah Skill "${rawVal}${helperGuide}"`,
+          value: rawVal,
+        });
       }
-      return { type: 8, data: { choices: choices.slice(0, 25) } };
+
+      return { type: 8, data: { choices: filtered.slice(0, 25) } };
     }
 
-    // Lineup Pemain (Edit / Change: Pemain Lama)
+    // 3. Lineup Pemain (Edit / Change: Pemain Lama)
     if ((subName === 'edit' && fName === 'pemain') || (subName === 'change' && fName === 'pemain_lama')) {
       const rosterMap = new Map(teamRoster.map((p) => [(p.ign || '').toLowerCase(), p]));
       const choices = existingLineup.map((p) => {
@@ -138,7 +181,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
       };
     }
 
-    // Roster Pemain Baru (Add: Pemain 1-5 / Change: Pemain Baru)
+    // 4. Roster Pemain Baru (Add: Pemain 1-5 / Change: Pemain Baru)
     if (fName.startsWith('pemain')) {
       const submitted = existingLineup.map((p) => String(p.ign || p.name || '').toLowerCase());
       const available = teamRoster.filter((p) => !submitted.includes((p.ign || '').toLowerCase()));
@@ -306,5 +349,4 @@ export async function handleMatchReportAutocomplete(interaction: any) {
     console.error('Error match report autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-    }
-                                          
+                                                    }
