@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
       const roleBPing = roleBId ? `<@&${roleBId}>` : `**${match.teamBName}**`;
       const refPing = match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : match.referee || 'Wasit Bertugas';
 
-      // Standardisasi struktur objek matchMessages (bersih dari legacy fields)
+      // Standardisasi struktur objek matchMessages
       let rawMsg = matchMessages[match.id];
       let matchMsgData: any = {};
       if (typeof rawMsg === 'string') {
@@ -124,7 +124,8 @@ export async function GET(req: NextRequest) {
         matchBriefingSent: matchMsgData.matchBriefingSent ?? Boolean((match as any).matchBriefingSent),
       };
 
-      const reportData = (await kv.get<any>(`match:report:${match.id}`)) || {};
+      // 🔄 Baca data langsung dari HASH twi:match_reports
+      const reportData = (await kv.hget<any>('twi:match_reports', match.id)) || {};
       let msgStateChanged = false;
 
       // 🟡 1. PENGUMUMAN PAGI & TRACKER CAMP
@@ -159,6 +160,9 @@ export async function GET(req: NextRequest) {
 
             const lineupA: TrackerPlayer[] = (reportData.teamA?.lineup || []).map((p: any) => ({
               ign: p.ign || p.name,
+              idDuelLinks: p.idDuelLinks || '',
+              deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
+              deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
             }));
 
             const trackerAId = await sendOrUpdateLiveTracker({
@@ -190,6 +194,9 @@ export async function GET(req: NextRequest) {
 
             const lineupB: TrackerPlayer[] = (reportData.teamB?.lineup || []).map((p: any) => ({
               ign: p.ign || p.name,
+              idDuelLinks: p.idDuelLinks || '',
+              deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
+              deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
             }));
 
             const trackerBId = await sendOrUpdateLiveTracker({
@@ -249,7 +256,7 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Simpan perubahan data pesan discord yang sudah terstandarisasi
+      // Simpan perubahan data pesan discord
       if (msgStateChanged || !rawMsg) {
         await kv.hset('discord:match_messages', { [match.id]: JSON.stringify(cleanMatchMsgData) });
       }
