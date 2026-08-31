@@ -3,7 +3,7 @@ import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
 import { discordAPI, formatWIBDate, getEmbedFooterText } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { getMatchContext } from '@/lib/discord/commands/staff-helpers';
+import { getMatchContext } from '@/lib/discord/services/staff-helpers';
 import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
