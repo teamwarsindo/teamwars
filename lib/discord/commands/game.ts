@@ -93,32 +93,37 @@ async function syncCampTrackers(matchId: string, matchDateIso: string, reportDat
   }
 }
 
-// ⚡ HANDLER UTAMA /game (add & del)
-export async function handleGameCommand(interaction: any) {
+// 🚀 Helper edit deferred interaction message (@original)
+async function sendFollowup(interaction: any, payload: any) {
+  const appId = process.env.DISCORD_CLIENT_ID;
+  const token = interaction.token;
+  await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', payload).catch(console.error);
+}
+
+// ⚡ EKSEKUSI ASYNC (BACKGROUND)
+export async function executeGameTask(interaction: any) {
   try {
     if (!isStaff(interaction)) {
-      return {
-        type: 4,
-        data: { content: '❌ Akses Ditolak! Hanya **Wasit** dan **Admin** yang dapat menggunakan command ini.', flags: 64 },
-      };
+      return sendFollowup(interaction, {
+        content: '❌ Akses Ditolak! Hanya **Wasit Bertugas** dan **Admin** yang dapat menggunakan command ini.',
+      });
     }
 
     const channelId = interaction.channel_id;
     const match = await resolveMatchFromChannel(channelId);
 
+    // 🔒 Deteksi: Pastikan hanya berjalan di Channel Match yang aktif
     if (!match) {
-      return {
-        type: 4,
-        data: { content: '❌ Command ini hanya dapat dijalankan di dalam **Channel Match** yang aktif!', flags: 64 },
-      };
+      return sendFollowup(interaction, {
+        content: '❌ Command ini hanya dapat dijalankan di dalam **Channel Match** yang aktif!',
+      });
     }
 
-    const reportData = await kv.hget<any>('twi:match_reports', match.id);
-    if (!reportData) {
-      return {
-        type: 4,
-        data: { content: '❌ Dokumen match report belum ditemukan untuk pertandingan ini.', flags: 64 },
-      };
+    const reportData = (await kv.hget<any>('twi:match_reports', match.id)) || {};
+    if (!reportData.teamA || !reportData.teamB) {
+      return sendFollowup(interaction, {
+        content: '❌ Dokumen match report belum ditemukan untuk pertandingan ini.',
+      });
     }
 
     const rawOptions = interaction.data?.options || [];
@@ -128,14 +133,17 @@ export async function handleGameCommand(interaction: any) {
     const optMap = getOptionMap(subOptions);
 
     // ========================================================================
-    // SUBCOMMAND 1: ADD (Catat Hasil Game Baru)
+    // 🟢 SUBCOMMAND 1: ADD (Catat Hasil Game Baru)
     // ========================================================================
     if (subCommandName === 'add') {
-      if (reportData.isFinished) {
-        return {
-          type: 4,
-          data: { content: '⚠️ Pertandingan ini sudah dinyatakan selesai (`isFinished: true`).', flags: 64 },
-        };
+      const scoreA = reportData.teamA?.score || 0;
+      const scoreB = reportData.teamB?.score || 0;
+
+      // 🔒 KUNCI: Tidak bisa add jika sudah ada tim yang mencapai 10 skor atau status match selesai
+      if (scoreA >= 10 || scoreB >= 10 || reportData.isFinished) {
+        return sendFollowup(interaction, {
+          content: '⚠️ **Pertandingan sudah selesai!** Skor telah mencapai batas kemenangan. Jika ada kesalahan input ronde, gunakan `/game del` terlebih dahulu untuk melakukan rollback.',
+        });
       }
 
       const winnerOpt = optMap.pemenang; // 'A' | 'B'
@@ -152,22 +160,21 @@ export async function handleGameCommand(interaction: any) {
       const pA = lineupA.find((p) => String(p.ign || '').toLowerCase() === playerAIgn.toLowerCase());
       const pB = lineupB.find((p) => String(p.ign || '').toLowerCase() === playerBIgn.toLowerCase());
 
-      if (!pA) return { type: 4, data: { content: `❌ Pemain Tim A **${playerAIgn}** tidak terdaftar di lineup!`, flags: 64 } };
-      if (!pB) return { type: 4, data: { content: `❌ Pemain Tim B **${playerBIgn}** tidak terdaftar di lineup!`, flags: 64 } };
+      if (!pA) return sendFollowup(interaction, { content: `❌ Pemain Tim A **${playerAIgn}** tidak terdaftar di lineup!` });
+      if (!pB) return sendFollowup(interaction, { content: `❌ Pemain Tim B **${playerBIgn}** tidak terdaftar di lineup!` });
 
       const dA = [pA.deck1, pA.deck2].find((d) => d && String(d.archetype || '').toLowerCase() === deckAName.toLowerCase());
       const dB = [pB.deck1, pB.deck2].find((d) => d && String(d.archetype || '').toLowerCase() === deckBName.toLowerCase());
 
-      if (!dA) return { type: 4, data: { content: `❌ Deck **${deckAName}** milik ${pA.ign} tidak valid!`, flags: 64 } };
-      if (!dB) return { type: 4, data: { content: `❌ Deck **${deckBName}** milik ${pB.ign} tidak valid!`, flags: 64 } };
+      if (!dA) return sendFollowup(interaction, { content: `❌ Deck **${deckAName}** milik ${pA.ign} tidak valid!` });
+      if (!dB) return sendFollowup(interaction, { content: `❌ Deck **${deckBName}** milik ${pB.ign} tidak valid!` });
 
       const gameNumber = (reportData.games?.length || 0) + 1;
       const winnerTeamKey = winnerOpt === 'A' ? 'teamA' : 'teamB';
-      const loserTeamKey = winnerOpt === 'A' ? 'teamB' : 'teamA';
 
-      // Update Statistik Game
+      // Kalkulasi Kemenangan & Kekalahan
       if (winnerOpt === 'A') {
-        reportData.teamA.score = (reportData.teamA.score || 0) + 1;
+        reportData.teamA.score = scoreA + 1;
         dA.wins = (dA.wins || 0) + 1;
         pA.totalWins = (pA.totalWins || 0) + 1;
 
@@ -186,7 +193,7 @@ export async function handleGameCommand(interaction: any) {
           pB.totalLosses = (pB.totalLosses || 0) + 1;
         }
       } else {
-        reportData.teamB.score = (reportData.teamB.score || 0) + 1;
+        reportData.teamB.score = scoreB + 1;
         dB.wins = (dB.wins || 0) + 1;
         pB.totalWins = (pB.totalWins || 0) + 1;
 
@@ -209,7 +216,7 @@ export async function handleGameCommand(interaction: any) {
       dA.lastGameNumber = gameNumber;
       dB.lastGameNumber = gameNumber;
 
-      // Catat Dokumen Game
+      // Catat Ronde Game
       const gameRecord = {
         gameNumber,
         winner: winnerTeamKey,
@@ -224,7 +231,7 @@ export async function handleGameCommand(interaction: any) {
       reportData.games.push(gameRecord);
       reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
 
-      // Cek Kondisi Menang (Skor mencapai target kemenangan)
+      // Cek apakah match selesai setelah penambahan game ini
       const isTeamAWon = reportData.teamA.score >= 10 || lineupB.every((p: any) => (p.remainingLife ?? 0) <= 0);
       const isTeamBWon = reportData.teamB.score >= 10 || lineupA.every((p: any) => (p.remainingLife ?? 0) <= 0);
 
@@ -239,10 +246,10 @@ export async function handleGameCommand(interaction: any) {
       // Simpan ke KV
       await kv.hset('twi:match_reports', { [match.id]: reportData });
 
-      // Trigger Sinkronisasi Live Tracker di Kedua Camp Tim
+      // Sinkronisasi Live Tracker ke kedua camp tim
       syncCampTrackers(match.id, match.matchDate, reportData).catch(console.error);
 
-      // Buat Embed Pengumuman Game Result di Channel Match
+      // Kirim Game Result Log standar ke Channel Match
       const winnerName = winnerOpt === 'A' ? reportData.teamA.name : reportData.teamB.name;
       const gameEmbed = {
         title: `⚔️ HASIL GAME ${gameNumber} — ${winnerName} WIN!`,
@@ -256,73 +263,89 @@ export async function handleGameCommand(interaction: any) {
         footer: { text: getEmbedFooterText() },
       };
 
-      return {
-        type: 4,
-        data: { embeds: [gameEmbed] },
-      };
+      return sendFollowup(interaction, { embeds: [gameEmbed] });
     }
 
     // ========================================================================
-    // SUBCOMMAND 2: DEL (Rollback Game Terakhir)
+    // 🔴 SUBCOMMAND 2: DEL (Rollback Game Terakhir)
     // ========================================================================
     if (subCommandName === 'del') {
       const games: any[] = reportData.games || [];
+
+      // 🔒 KUNCI: Tidak bisa rollback jika riwayat game masih kosong
       if (games.length === 0) {
-        return {
-          type: 4,
-          data: { content: '⚠️ Belum ada riwayat game yang dapat dihapus/di-rollback.', flags: 64 },
-        };
+        return sendFollowup(interaction, {
+          content: '⚠️ **Belum ada riwayat game yang dicatat!** Tidak ada ronde yang dapat dihapus/di-rollback.',
+        });
       }
 
       const targetGameNum = optMap.game_number ? Number(optMap.game_number) : games.length;
       if (targetGameNum !== games.length) {
-        return {
-          type: 4,
-          data: { content: `❌ Saat ini rollback hanya dapat dilakukan pada game terakhir (**Game ${games.length}**)!`, flags: 64 },
-        };
+        return sendFollowup(interaction, {
+          content: `❌ Rollback saat ini hanya dapat dilakukan pada game terakhir (**Game ${games.length}**)!`,
+        });
       }
 
       const poppedGame = games.pop();
       const winner = poppedGame.winner;
+      const lossCondition = poppedGame.lossCondition || 'REGULAR';
 
-      // Rollback Skor & Status
+      // Rollback Skor
       if (winner === 'teamA') {
         reportData.teamA.score = Math.max(0, (reportData.teamA.score || 1) - 1);
       } else {
         reportData.teamB.score = Math.max(0, (reportData.teamB.score || 1) - 1);
       }
 
-      // Rollback Lineup Deck Pemain A & B
+      // Rollback Pemain & Deck Tim A
       const pA = (reportData.teamA.lineup || []).find((p: any) => p.ign.toLowerCase() === poppedGame.playerA.ign.toLowerCase());
-      const pB = (reportData.teamB.lineup || []).find((p: any) => p.ign.toLowerCase() === poppedGame.playerB.ign.toLowerCase());
-
       if (pA) {
         const dA = [pA.deck1, pA.deck2].find((d) => d && d.archetype?.toLowerCase() === poppedGame.playerA.archetype?.toLowerCase());
         if (winner === 'teamA') {
           if (dA) dA.wins = Math.max(0, (dA.wins || 1) - 1);
           pA.totalWins = Math.max(0, (pA.totalWins || 1) - 1);
         } else {
-          if (dA) {
-            dA.isDead = false;
-            dA.losses = Math.max(0, (dA.losses || 1) - 1);
+          if (lossCondition === 'REPEAT') {
+            reportData.teamA.repeatsUsed = Math.max(0, (reportData.teamA.repeatsUsed || 1) - 1);
+            if (dA) dA.isRepeatUsed = false;
+          } else if (lossCondition === 'PENALTY_2') {
+            pA.remainingLife = Math.min(2, (pA.remainingLife || 0) + 2);
+            if (pA.deck1) pA.deck1.isDead = false;
+            if (pA.deck2) pA.deck2.isDead = false;
+          } else {
+            if (dA) {
+              dA.isDead = false;
+              dA.losses = Math.max(0, (dA.losses || 1) - 1);
+            }
+            pA.remainingLife = Math.min(2, (pA.remainingLife || 0) + 1);
+            pA.totalLosses = Math.max(0, (pA.totalLosses || 1) - 1);
           }
-          pA.remainingLife = Math.min(2, (pA.remainingLife || 0) + 1);
-          pA.totalLosses = Math.max(0, (pA.totalLosses || 1) - 1);
         }
       }
 
+      // Rollback Pemain & Deck Tim B
+      const pB = (reportData.teamB.lineup || []).find((p: any) => p.ign.toLowerCase() === poppedGame.playerB.ign.toLowerCase());
       if (pB) {
         const dB = [pB.deck1, pB.deck2].find((d) => d && d.archetype?.toLowerCase() === poppedGame.playerB.archetype?.toLowerCase());
         if (winner === 'teamB') {
           if (dB) dB.wins = Math.max(0, (dB.wins || 1) - 1);
           pB.totalWins = Math.max(0, (pB.totalWins || 1) - 1);
         } else {
-          if (dB) {
-            dB.isDead = false;
-            dB.losses = Math.max(0, (dB.losses || 1) - 1);
+          if (lossCondition === 'REPEAT') {
+            reportData.teamB.repeatsUsed = Math.max(0, (reportData.teamB.repeatsUsed || 1) - 1);
+            if (dB) dB.isRepeatUsed = false;
+          } else if (lossCondition === 'PENALTY_2') {
+            pB.remainingLife = Math.min(2, (pB.remainingLife || 0) + 2);
+            if (pB.deck1) pB.deck1.isDead = false;
+            if (pB.deck2) pB.deck2.isDead = false;
+          } else {
+            if (dB) {
+              dB.isDead = false;
+              dB.losses = Math.max(0, (dB.losses || 1) - 1);
+            }
+            pB.remainingLife = Math.min(2, (pB.remainingLife || 0) + 1);
+            pB.totalLosses = Math.max(0, (pB.totalLosses || 1) - 1);
           }
-          pB.remainingLife = Math.min(2, (pB.remainingLife || 0) + 1);
-          pB.totalLosses = Math.max(0, (pB.totalLosses || 1) - 1);
         }
       }
 
@@ -333,21 +356,21 @@ export async function handleGameCommand(interaction: any) {
       await kv.hset('twi:match_reports', { [match.id]: reportData });
       syncCampTrackers(match.id, match.matchDate, reportData).catch(console.error);
 
-      return {
-        type: 4,
-        data: {
-          content: `🔄 **Game ${targetGameNum} Berhasil Dihapus & Di-Rollback!**\nSkor kembali menjadi **${reportData.teamA.name} \`${reportData.teamA.score}\` — \`${reportData.teamB.score}\` ${reportData.teamB.name}**.`,
-        },
-      };
+      return sendFollowup(interaction, {
+        content: `🔄 **Game ${targetGameNum} Berhasil Dihapus & Di-Rollback!**\nSkor kembali menjadi **${reportData.teamA.name} \`${reportData.teamA.score}\` — \`${reportData.teamB.score}\` ${reportData.teamB.name}**.`,
+      });
     }
 
-    return { type: 4, data: { content: 'Unknown subcommand', flags: 64 } };
+    return sendFollowup(interaction, { content: 'Subcommand tidak dikenali.' });
   } catch (error: any) {
-    console.error('Error handleGameCommand:', error);
-    return {
-      type: 4,
-      data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
-    };
+    console.error('Error executeGameTask:', error);
+    return sendFollowup(interaction, { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}` });
   }
-                    }
-      
+}
+
+// 🟢 Entry point command: Balas seketika dengan Type 5 (Deferred Response)
+export async function handleGameCommand(interaction: any) {
+  executeGameTask(interaction);
+  return { type: 5 };
+      }
+          
