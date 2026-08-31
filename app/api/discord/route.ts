@@ -16,15 +16,15 @@ import { handleAssignCommand } from '@/lib/discord/commands/assign';
 import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
 import { handleSubmitCommand } from '@/lib/discord/commands/submit';
 import { handleGameCommand } from '@/lib/discord/commands/game';
-import { handleRescheduleCommand } from '@/lib/discord/handlers/reschedule-handler';
 import { handleStreamCommand } from '@/lib/discord/commands/stream';
 import { handleMatchReportCommand, handleMatchReportSelect } from '@/lib/discord/commands/match-report';
 
 // Autocomplete
 import { handleAssignAutocomplete, handleSubmitAutocomplete,
-        handleRescheduleAutocomplete, handleTransferAutocomplete,
-        handleMatchReportAutocomplete, handleGameAutocomplete }
+        handleTransferAutocomplete, handleMatchReportAutocomplete, handleGameAutocomplete }
   from '@/lib/discord/handlers/autocomplete-handler';
+
+import { handleRescheduleCommand, handleRescheduleAutocomplete } from '@/lib/discord/handlers/reschedule-handler';
 
 // Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
