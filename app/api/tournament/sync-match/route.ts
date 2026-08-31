@@ -6,8 +6,9 @@ import { executeAssignStaff, executeUnassignStaff } from '@/lib/discord/services
 
 // Helper slug nama tim
 function getTeamSlug(teamName: string) {
-  return teamName
+  return (teamName || '')
     .toLowerCase()
+    .trim()
     .replace(/[^a-z0-9]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-+/, '')
@@ -20,7 +21,7 @@ function getTournamentStartDate(): number {
   return new Date(`${startDateStr}T00:00:00+07:00`).getTime();
 }
 
-// Helper hitung minggu berbasis tanggal jika field weekNumber di KV belum ada
+// Helper hitung minggu berbasis tanggal
 function getMatchWeekNumber(dateString?: string): number {
   if (!dateString) return 1;
   const startDate = getTournamentStartDate();
@@ -29,6 +30,51 @@ function getMatchWeekNumber(dateString?: string): number {
 
   const diffDays = Math.floor((matchDate - startDate) / (1000 * 60 * 60 * 24));
   return Math.max(1, Math.floor(diffDays / 7) + 1);
+}
+
+// Helper Inisialisasi / Buat Dokumen Match Report di Hash twi:match_reports
+async function ensureMatchReportInitialized(match: MatchScheduleItem, weekNumber: number) {
+  const existingReport = await kv.hget<any>('twi:match_reports', match.id);
+
+  if (!existingReport) {
+    const slugA = getTeamSlug(match.teamAName);
+    const slugB = getTeamSlug(match.teamBName);
+    const matchDateStr = match.matchDate ? match.matchDate.split('T')[0] : '';
+
+    const newReport = {
+      matchId: match.id,
+      week: weekNumber,
+      metadata: {
+        date: matchDateStr,
+        streamPlatform: (match as any).streamPlatform || 'YouTube',
+        streamer: match.streamer || '',
+        referee: match.referee || '',
+        streamUrl: match.streamLink || (match as any).streamUrl || '',
+      },
+      teamA: {
+        name: match.teamAName,
+        slug: slugA,
+        score: 0,
+        repeatsUsed: 0,
+        warningsUsed: 0,
+        lineup: [],
+      },
+      teamB: {
+        name: match.teamBName,
+        slug: slugB,
+        score: 0,
+        repeatsUsed: 0,
+        warningsUsed: 0,
+        lineup: [],
+      },
+      games: [],
+      finalScore: { teamA: 0, teamB: 0 },
+      winnerTeam: null,
+      isFinished: false,
+    };
+
+    await kv.hset('twi:match_reports', { [match.id]: newReport });
+  }
 }
 
 // Helper delay mencegah Rate Limit Discord API (429)
@@ -79,6 +125,7 @@ export async function POST(req: Request) {
           kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
         ]);
 
+        // Buat channel match Discord
         const res = await createMatchDiscordChannel({
           matchId: match.id,
           groupName: match.groupName,
@@ -101,6 +148,9 @@ export async function POST(req: Request) {
           openingMsgId: (match as any).openingMsgId,
         });
 
+        // 📝 Inisialisasi otomatis ke hash twi:match_reports jika belum ada
+        await ensureMatchReportInitialized(match, weekNumber);
+
         if (res.channelId) {
           (updatedMatches[idx] as any).discordChannelId = res.channelId;
           if (res.openingMsgId) {
@@ -116,7 +166,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `Sync Channel ${targetWeek} berhasil dieksekusi!`,
+        message: `Sync Channel & Inisialisasi Match Report untuk ${targetWeek} berhasil dieksekusi!`,
         channels: syncedChannelMap,
       });
     }
@@ -193,6 +243,9 @@ export async function POST(req: Request) {
       openingMsgId: (match as any).openingMsgId,
     });
 
+    // 📝 Inisialisasi otomatis ke hash twi:match_reports
+    await ensureMatchReportInitialized(match, computedWeekNum);
+
     if (res.channelId) {
       (schedules[matchIdx] as any).discordChannelId = res.channelId;
       if (res.openingMsgId) {
@@ -203,7 +256,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Sync Channel untuk match ${matchId} berhasil!`,
+      message: `Sync Channel & Match Report untuk ${matchId} berhasil!`,
       channelId: res.channelId,
       openingMsgId: res.openingMsgId,
     });
@@ -212,4 +265,4 @@ export async function POST(req: Request) {
     console.error('Error Syncing Match:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-            }
+          }
