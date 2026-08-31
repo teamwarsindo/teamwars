@@ -15,6 +15,7 @@ import { handleTransferCommand } from '@/lib/discord/commands/transfer';
 import { handleAssignCommand } from '@/lib/discord/commands/assign';
 import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
 import { handleSubmitCommand } from '@/lib/discord/commands/submit';
+import { handleGameCommand } from '@/lib/discord/commands/game';
 import { handleRescheduleCommand } from '@/lib/discord/handlers/reschedule-handler';
 import { handleStreamCommand } from '@/lib/discord/commands/stream';
 import { handleMatchReportCommand, handleMatchReportSelect } from '@/lib/discord/commands/match-report';
@@ -22,7 +23,7 @@ import { handleMatchReportCommand, handleMatchReportSelect } from '@/lib/discord
 // Autocomplete
 import { handleAssignAutocomplete, handleSubmitAutocomplete,
         handleRescheduleAutocomplete, handleTransferAutocomplete,
-        handleMatchReportAutocomplete }
+        handleMatchReportAutocomplete, handleGameAutocomplete }
   from '@/lib/discord/handlers/autocomplete-handler';
 
 // Button Handlers
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
     if (body.type === 2) {
       const commandName = body.data.name;
       if (commandName === 'submit') return NextResponse.json(await handleSubmitCommand(body));
+      if (commandName === 'game') return NextResponse.json(await handleGameCommand(body));
       if (commandName === 'assign') return await handleAssignCommand(body);
       if (commandName === 'unassign') return await handleUnassignCommand(body);
       if (commandName === 'reschedule') return NextResponse.json(await handleRescheduleCommand(body));
@@ -214,6 +216,7 @@ export async function POST(req: NextRequest) {
     // 🔎 Autocomplete Interactions (Type 4)
     if (body.type === 4) {
       if (body.data?.name === 'submit') return NextResponse.json(await handleSubmitAutocomplete(body));
+      if (body.data?.name === 'game') return NextResponse.json(await handleGameAutocomplete(body));
       if (body.data?.name === 'assign' || body.data?.name === 'unassign') return NextResponse.json(await handleAssignAutocomplete(body));
       if (body.data?.name === 'reschedule') return NextResponse.json(await handleRescheduleAutocomplete(body));
       if (body.data?.name === 'transfer') return NextResponse.json(await handleTransferAutocomplete(body));
@@ -231,4 +234,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-}
+    }
