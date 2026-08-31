@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const MATCH_ID = '29';
+    const MATCH_ID = 'match-29';
     const RESULT_MSG_ID = '1543776228073279492';
     const ASSIGN_LOG_MSG_ID = '1543776228304101488';
 
@@ -19,10 +19,10 @@ export async function GET() {
 
     // 1. Ambil & Perbarui Master Schedules di KV
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const idx = schedules.findIndex((m) => String(m.id) === MATCH_ID);
+    const idx = schedules.findIndex((m) => String(m.id).toLowerCase() === MATCH_ID.toLowerCase());
 
     if (idx === -1) {
-      return NextResponse.json({ success: false, error: 'Match tidak ditemukan di database.' }, { status: 404 });
+      return NextResponse.json({ success: false, error: `Match ID ${MATCH_ID} tidak ditemukan di database.` }, { status: 404 });
     }
 
     const match = schedules[idx];
@@ -95,10 +95,10 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: 'Match 29 scores successfully corrected to 10-7 and Discord embeds patched.',
+      message: `Match ${MATCH_ID} scores successfully corrected to 10-7 and Discord embeds patched.`,
     });
   } catch (error: any) {
-    console.error('Error fixing match 29:', error);
+    console.error('Error fixing match-29:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
