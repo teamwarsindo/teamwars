@@ -272,4 +272,86 @@ export const tournamentCommands = [
       },
     ],
   },
-];            
+  {
+    name: 'game',
+    description: '[WASIT] Kelola input hasil duel game pertandingan',
+    options: [
+      {
+        type: 1, // SUB_COMMAND: add
+        name: 'add',
+        description: 'Catat hasil game baru yang baru saja selesai',
+        options: [
+          {
+            type: 3,
+            name: 'pemenang',
+            description: 'Pilih tim pemenang pada game ini',
+            required: true,
+            choices: [
+              { name: 'Tim A', value: 'A' },
+              { name: 'Tim B', value: 'B' },
+            ],
+          },
+          {
+            type: 3,
+            name: 'pemain_a',
+            description: 'Pemain dari Tim A yang bertanding',
+            required: true,
+            autocomplete: true,
+          },
+          {
+            type: 3,
+            name: 'deck_a',
+            description: 'Deck/Archetype pemain Tim A (Deck hidup)',
+            required: true,
+            autocomplete: true,
+          },
+          {
+            type: 3,
+            name: 'pemain_b',
+            description: 'Pemain dari Tim B yang bertanding',
+            required: true,
+            autocomplete: true,
+          },
+          {
+            type: 3,
+            name: 'deck_b',
+            description: 'Deck/Archetype pemain Tim B (Deck hidup)',
+            required: true,
+            autocomplete: true,
+          },
+          {
+            type: 3,
+            name: 'status_kalah',
+            description: 'Kondisi kekalahan pemain yang kalah',
+            required: false,
+            choices: [
+              { name: 'Regular Loss (Nyawa berkurang 1)', value: 'REGULAR' },
+              { name: 'Repeat Deck (Gunakan kuota Repeat)', value: 'REPEAT' },
+              { name: 'Illegal Deck / Akun (Loss 2 Deck)', value: 'PENALTY_2' },
+            ],
+          },
+          {
+            type: 3,
+            name: 'catatan',
+            description: 'Catatan tambahan wasit (misal: DC, replay, sanksi kartu)',
+            required: false,
+          },
+        ],
+      },
+      {
+        type: 1, // SUB_COMMAND: del
+        name: 'del',
+        description: 'Hapus dan rollback game terakhir yang baru saja diinput',
+        options: [
+          {
+            type: 4, // INTEGER
+            name: 'game_number',
+            description: 'Nomor game yang ingin dihapus (Default: Game terakhir)',
+            required: false,
+          },
+        ],
+      },
+    ],
+  },
+];
+              
