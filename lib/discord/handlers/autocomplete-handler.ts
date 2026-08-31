@@ -423,44 +423,7 @@ export async function handleAssignAutocomplete(interaction: any) {
 }
 
 // ----------------------------------------------------
-// E. RESCHEDULE
-// ----------------------------------------------------
-export async function handleRescheduleAutocomplete(interaction: any) {
-  try {
-    const focused = interaction.data?.options?.find((opt: any) => opt.focused);
-    if (!focused || focused.name !== 'tanggal') return { type: 8, data: { choices: [] } };
-
-    const schedules = await getSchedules();
-    const current = schedules.find((m) => m.discordChannelId === interaction.channel_id);
-    const currDate = current ? new Date(current.matchDate) : new Date();
-
-    const allowedDays = [3, 4, 5, 6, 0]; // Rabu s/d Minggu
-    const dates: { name: string; value: string }[] = [];
-
-    for (let i = -7; i <= 14 && dates.length < 25; i++) {
-      const d = new Date(currDate);
-      d.setDate(d.getDate() + i);
-      if (allowedDays.includes(d.getDay())) {
-        const val = d.toISOString().split('T')[0];
-        const name = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' });
-        dates.push({ name, value: val });
-      }
-    }
-
-    return {
-      type: 8,
-      data: {
-        choices: filterChoices(dates, focused.value || '', (d) => d.name, (d) => d.value),
-      },
-    };
-  } catch (error) {
-    console.error('Error reschedule autocomplete:', error);
-    return { type: 8, data: { choices: [] } };
-  }
-}
-
-// ----------------------------------------------------
-// F. MATCH REPORT
+// E. MATCH REPORT
 // ----------------------------------------------------
 export async function handleMatchReportAutocomplete(interaction: any) {
   try {
