@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { PlayerLineup, createEmptyPlayer } from './_types';
-import MatchBanner from './_components/MatchBanner';
-import LineupTab from './_components/LineupTab';
-import GameTab from './_components/GameTab';
+import MatchBanner from './_components/match-banner';
+import LineupTab from './_components/lineup-tab';
+import GameTab from './_components/game-tab';
 
 export default function AdminMatchReportPage() {
   const [schedules, setSchedules] = useState<any[]>([]);
