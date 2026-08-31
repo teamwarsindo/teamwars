@@ -3,12 +3,47 @@ import { MatchScheduleItem, getTeamSlug } from '@/app/tournament/_library';
 import {
   buildNewRescheduleIso,
   formatConfirmationWIB,
+  getAvailableRescheduleSlots,
 } from '@/app/tournament/_library/reschedule-helper';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://teamwars.web.id';
 
+// ============================================================================
+// 1. AUTOCOMPLETE HANDLER (Type 8)
+// ============================================================================
+export async function handleRescheduleAutocomplete(interaction: any) {
+  try {
+    const channelId = interaction.channel_id;
+    const options = interaction.data?.options || [];
+    const focusedOption = options.find((opt: any) => opt.focused);
+    if (!focusedOption || focusedOption.name !== 'tanggal') {
+      return { type: 8, data: { choices: [] } };
+    }
+
+    const query = (focusedOption.value || '').toString().toLowerCase();
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const match = schedules.find((m: any) => m.discordChannelId === channelId);
+
+    if (!match) return { type: 8, data: { choices: [] } };
+
+    const availableSlots = getAvailableRescheduleSlots(schedules, match);
+
+    const choices = availableSlots
+      .filter((s) => s.name.toLowerCase().includes(query) || s.value.toLowerCase().includes(query))
+      .slice(0, 25);
+
+    return { type: 8, data: { choices } };
+  } catch (error) {
+    console.error('Error reschedule autocomplete:', error);
+    return { type: 8, data: { choices: [] } };
+  }
+}
+
+// ============================================================================
+// 2. COMMAND EXECUTION HANDLER (Type 4)
+// ============================================================================
 export async function handleRescheduleCommand(interaction: any) {
   const channelId = interaction.channel_id;
   const userRoles: string[] = interaction.member?.roles || [];
@@ -97,7 +132,6 @@ export async function handleRescheduleCommand(interaction: any) {
     kv.hgetall<any>(`teams:${slugB}`),
   ]);
 
-  // Resolusi Emoji Tim persis seperti setup channel awal
   const emojiA =
     teamA?.discordEmoji ||
     teamA?.emoji ||
@@ -140,7 +174,7 @@ export async function handleRescheduleCommand(interaction: any) {
     await kv.set('twi:schedules', schedules);
   }
 
-  // 🚀 8. Eksekusi Weekly Recap (Ditunggu dengan await agar tidak dihentikan Vercel)
+  // 🚀 8. Eksekusi Weekly Recap
   if (optUpdateRecap) {
     const targetWeekStr = `Week ${match.weekNumber || 1}`;
     try {
@@ -167,4 +201,4 @@ export async function handleRescheduleCommand(interaction: any) {
       flags: 64,
     },
   };
-    }
+}
