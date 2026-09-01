@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { waitUntil } from '@vercel/functions';
 import { kv } from '@vercel/kv';
+import { waitUntil } from '@vercel/functions';
 import { MatchScheduleItem, getTeamSlug } from '@/app/tournament/_library';
 import {
   buildNewRescheduleIso,
@@ -52,7 +52,7 @@ export async function handleRescheduleCommand(body: any) {
     const userRoles: string[] = body.member?.roles || [];
     const isAdmin = userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
 
-    // 🔒 1. Validasi Akses Admin
+    // 🔒 1. Validasi Akses Admin Instan
     if (!isAdmin) {
       return NextResponse.json({
         type: 4,
@@ -67,7 +67,7 @@ export async function handleRescheduleCommand(body: any) {
     const options = body.data?.options || [];
     const optTanggal = options.find((o: any) => o.name === 'tanggal')?.value;
     const optJam = options.find((o: any) => o.name === 'jam')?.value;
-    const optUpdateRecap = options.find((o: any) => o.name === 'update_recap')?.value ?? false;
+    const optUpdateRecap = options.find((o: any) => o.name === 'update_recap')?.value ?? true;
 
     if (!optTanggal && !optJam) {
       return NextResponse.json({
@@ -82,7 +82,7 @@ export async function handleRescheduleCommand(body: any) {
     const token = body.token;
     const appId = body.application_id || process.env.DISCORD_CLIENT_ID;
 
-    // ⚡ 2. Eksekusi Background dengan proteksi waitUntil
+    // ⚡ 2. Eksekusi Background Worker yang Dijaga oleh waitUntil
     waitUntil(
       (async () => {
         try {
@@ -113,81 +113,89 @@ export async function handleRescheduleCommand(body: any) {
           const oldScheduleFormatted = formatConfirmationWIB(match.matchDate);
           const newScheduleFormatted = formatConfirmationWIB(newMatchDateIso);
 
-          // Ambil data tim untuk emoji & role
-          const slugA = getTeamSlug(match.teamAName);
-          const slugB = getTeamSlug(match.teamBName);
-
-          const [teamA, teamB] = await Promise.all([
-            kv.hgetall<any>(`teams:${slugA}`),
-            kv.hgetall<any>(`teams:${slugB}`),
-          ]);
-
-          const emojiA =
-            teamA?.discordEmoji ||
-            teamA?.emoji ||
-            (teamA?.emojiId ? `<:${teamA?.kodeTim || 'team'}:${teamA?.emojiId}>` : undefined);
-
-          const emojiB =
-            teamB?.discordEmoji ||
-            teamB?.emoji ||
-            (teamB?.emojiId ? `<:${teamB?.kodeTim || 'team'}:${teamB?.emojiId}>` : undefined);
-
-          // Kirim atau update pesan Opening Embed
-          let newOpeningMsgId: string | null = null;
-          try {
-            newOpeningMsgId = await sendOrUpdateOpeningEmbed({
-              channelId,
-              matchId: match.id,
-              groupName: match.groupName,
-              teamAName: match.teamAName,
-              teamBName: match.teamBName,
-              kodeTimA: teamA?.kodeTim || slugA.toUpperCase(),
-              kodeTimB: teamB?.kodeTim || slugB.toUpperCase(),
-              teamAEmoji: emojiA,
-              teamBEmoji: emojiB,
-              emojiAId: teamA?.emojiId,
-              emojiBId: teamB?.emojiId,
-              roleAId: teamA?.discordRoleId || teamA?.roleId || '',
-              roleBId: teamB?.discordRoleId || teamB?.roleId || '',
-              weekName: `Week ${match.weekNumber || 1}`,
-              matchDateIso: newMatchDateIso,
-              refereeName: match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : match.referee,
-              refereeDiscordId: match.refereeDiscordId,
-              streamerName: match.streamerDiscordId ? `<@${match.streamerDiscordId}>` : match.streamer,
-              streamerDiscordId: match.streamerDiscordId,
-              streamLink: match.streamLink,
-              existingMsgId: (match as any).openingMsgId,
-              isFinished: false,
-              scoreA: match.scoreA,
-              scoreB: match.scoreB,
-            });
-          } catch (embedError) {
-            console.error('[OPENING EMBED ERROR - NON FATAL]:', embedError);
-          }
-
-          // 💾 Simpan jadwal baru & ID pesan terbaru ke database KV
+          // 💾 LANGKAH 1: SIMPAN PERUBAHAN JADWAL KE KV DULU
           match.matchDate = newMatchDateIso;
-          if (newOpeningMsgId) {
-            (match as any).openingMsgId = newOpeningMsgId;
-          }
           schedules[matchIndex] = match;
           await kv.set('twi:schedules', schedules);
 
-          // 3. Trigger Sinkronisasi Rekap Mingguan
+          // ⚡ LANGKAH 2: EKSEKUSI PEMBARUAN DISCORD (PARALEL)
+          const syncTasks: Promise<any>[] = [];
+
+          // Task A: Update Opening Embed di Channel Match
+          const slugA = getTeamSlug(match.teamAName);
+          const slugB = getTeamSlug(match.teamBName);
+
+          const openingTask = (async () => {
+            const [teamA, teamB] = await Promise.all([
+              kv.hgetall<any>(`teams:${slugA}`),
+              kv.hgetall<any>(`teams:${slugB}`),
+            ]);
+
+            const emojiA =
+              teamA?.discordEmoji ||
+              teamA?.emoji ||
+              (teamA?.emojiId ? `<:${teamA?.kodeTim || 'team'}:${teamA?.emojiId}>` : undefined);
+
+            const emojiB =
+              teamB?.discordEmoji ||
+              teamB?.emoji ||
+              (teamB?.emojiId ? `<:${teamB?.kodeTim || 'team'}:${teamB?.emojiId}>` : undefined);
+
+            let newOpeningMsgId: string | null = null;
+            try {
+              newOpeningMsgId = await sendOrUpdateOpeningEmbed({
+                channelId,
+                matchId: match.id,
+                groupName: match.groupName,
+                teamAName: match.teamAName,
+                teamBName: match.teamBName,
+                kodeTimA: teamA?.kodeTim || slugA.toUpperCase(),
+                kodeTimB: teamB?.kodeTim || slugB.toUpperCase(),
+                teamAEmoji: emojiA,
+                teamBEmoji: emojiB,
+                emojiAId: teamA?.emojiId,
+                emojiBId: teamB?.emojiId,
+                roleAId: teamA?.discordRoleId || teamA?.roleId || '',
+                roleBId: teamB?.discordRoleId || teamB?.roleId || '',
+                weekName: `Week ${match.weekNumber || 1}`,
+                matchDateIso: newMatchDateIso,
+                refereeName: match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : match.referee,
+                refereeDiscordId: match.refereeDiscordId,
+                streamerName: match.streamerDiscordId ? `<@${match.streamerDiscordId}>` : match.streamer,
+                streamerDiscordId: match.streamerDiscordId,
+                streamLink: match.streamLink,
+                existingMsgId: (match as any).openingMsgId,
+                isFinished: false,
+                scoreA: match.scoreA,
+                scoreB: match.scoreB,
+              });
+            } catch (embedError) {
+              console.error('[OPENING EMBED NON-FATAL ERROR]:', embedError);
+            }
+
+            // Jika ada ID opening baru yang terbentuk, perbarui KV
+            if (newOpeningMsgId && (match as any).openingMsgId !== newOpeningMsgId) {
+              schedules[matchIndex] = { ...match, openingMsgId: newOpeningMsgId } as any;
+              await kv.set('twi:schedules', schedules);
+            }
+          })();
+          syncTasks.push(openingTask);
+
+          // Task B: Trigger Sinkronisasi Rekap Mingguan
           if (optUpdateRecap) {
             const targetWeekStr = `Week ${match.weekNumber || 1}`;
-            try {
-              await fetch(`${APP_URL}/api/tournament/weekly-recap`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targetWeek: targetWeekStr }),
-              });
-            } catch (err) {
-              console.error('[RESCHEDULE RECAP ERROR]:', err);
-            }
+            const recapTask = fetch(`${APP_URL}/api/tournament/weekly-recap`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ targetWeek: targetWeekStr }),
+            }).catch((err) => console.error('[RESCHEDULE RECAP ERROR]:', err));
+
+            syncTasks.push(recapTask);
           }
 
-          // 4. Update Thinking message menjadi konfirmasi sukses
+          await Promise.all(syncTasks);
+
+          // 📝 LANGKAH 3: UPDATE PESAN ORIGINAL INTERACTION KE ADMIN
           if (appId && token) {
             await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
               content:
@@ -195,14 +203,14 @@ export async function handleRescheduleCommand(body: any) {
                 `⚔️ **Match:** \`${match.id.toUpperCase()}\` (${match.teamAName} vs ${match.teamBName})\n` +
                 `⏱️ **Jadwal Semula:** ${oldScheduleFormatted}\n` +
                 `📅 **Jadwal Baru:** **${newScheduleFormatted}**\n\n` +
-                `📌 *Opening message telah diperbarui${optUpdateRecap ? ' & jadwal di channel rekap telah disinkronkan' : ''}.*`,
+                `📌 *Opening message channel telah diperbarui${optUpdateRecap ? ' & jadwal di channel rekap telah disinkronkan' : ''}.*`,
             });
           }
         } catch (err: any) {
-          console.error('[BACKGROUND RESCHEDULE FATAL ERROR]:', err);
+          console.error('[BACKGROUND RESCHEDULE ERROR]:', err);
           if (appId && token) {
             await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-              content: `❌ **Gagal Reschedule:** ${err.message || 'Terjadi kesalahan internal'}`,
+              content: `❌ **Terjadi kesalahan saat reschedule:** ${err.message || err}`,
             });
           }
         }
@@ -221,4 +229,4 @@ export async function handleRescheduleCommand(body: any) {
       data: { content: `❌ ${error.message || 'Gagal memproses reschedule'}`, flags: 64 },
     });
   }
-}
+      }
