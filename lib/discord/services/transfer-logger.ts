@@ -1,7 +1,15 @@
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
+import { discordAPI, hexToDecimal, getFooterText } from '../utils';
 import { TeamKVData, PlayerItem } from './transfer-service';
+
+function getRoleIcon(role?: string): string {
+  if (!role) return '';
+  const r = role.toLowerCase();
+  if (r.includes('ketua') && !r.includes('wakil')) return ' 👑';
+  if (r.includes('wakil')) return ' 🎖️';
+  return '';
+}
 
 export async function refreshTeamEmbeds(
   teamSlug: string,
@@ -13,27 +21,6 @@ export async function refreshTeamEmbeds(
   const updatedAt = teamData.updatedAt || new Date().toISOString();
   const ketua = players.find((p) => p.role === 'Ketua') || { ign: '-' };
   const wakil = players.find((p) => p.role === 'Wakil Ketua') || { ign: '-' };
-
-  const getFooterString = () => {
-    const dateOpts: Intl.DateTimeFormatOptions = {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'Asia/Jakarta',
-    };
-    const timeOpts: Intl.DateTimeFormatOptions = {
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'Asia/Jakarta',
-    };
-
-    const regDate = new Date(createdAt).toLocaleDateString('id-ID', dateOpts);
-    const regTime = new Date(createdAt).toLocaleTimeString('id-ID', timeOpts);
-    const upDate = new Date(updatedAt).toLocaleDateString('id-ID', dateOpts);
-    const upTime = new Date(updatedAt).toLocaleTimeString('id-ID', timeOpts);
-
-    return `Registered: ${regDate} at ${regTime} WIB\nLast Updated: ${upDate} at ${upTime} WIB`;
-  };
 
   // 1. UPDATE EMBED CH_ROSTER
   if (teamData.adminMsgId && DISCORD_CONFIG.CH_ROSTER) {
@@ -49,7 +36,7 @@ export async function refreshTeamEmbeds(
             { name: 'Wakil', value: wakil.ign, inline: true },
             { name: 'Players', value: playerListString, inline: false },
           ],
-          footer: { text: getFooterString() },
+          footer: { text: getFooterText(createdAt, updatedAt) },
         },
       ],
     };
@@ -57,7 +44,7 @@ export async function refreshTeamEmbeds(
       `/channels/${DISCORD_CONFIG.CH_ROSTER}/messages/${teamData.adminMsgId}`,
       'PATCH',
       rosterPayload
-    ).catch(() => null);
+    ).catch((err) => console.error('[ROSTER EMBED PATCH ERROR]:', err));
   }
 
   // 2. UPDATE EMBED TRACKER CAMP TIM
@@ -70,29 +57,32 @@ export async function refreshTeamEmbeds(
     let rosterText = '';
 
     players.forEach((p) => {
-      const pDiscordClean = p.discord ? p.discord.trim().toLowerCase() : '';
+      const rawIgn = (p.ign || '').trim();
+      const discordUser = (p.discord || '').trim().replace(/^@/, '');
+      const pDiscordClean = discordUser.toLowerCase();
+
       const isVerified =
         (pDiscordClean && verifiedUsernames.has(pDiscordClean)) ||
         (p.discordId && verifiedIds.has(p.discordId));
 
-      const checkIcon = isVerified ? '✅' : '❌';
       if (isVerified) verifiedCount++;
 
-      let roleBadge = '';
-      if (p.role === 'Ketua') roleBadge = ' 👑';
-      else if (p.role === 'Wakil Ketua') roleBadge = ' 🏅';
+      const checkIcon = isVerified ? '✅' : '❌';
+      const roleIconSuffix = getRoleIcon(p.role);
 
-      rosterText += `${checkIcon} **${p.ign}** (\`@${p.discord}\`)${roleBadge}\n`;
+      rosterText += `${checkIcon} **${rawIgn || '-'}** (@${discordUser || '-'})${roleIconSuffix}\n`;
     });
 
+    const maxTransferQuota = 2;
     const currentQuotaUsed =
       quotaUsedOverride !== undefined ? quotaUsedOverride : (teamData.transferQuotaUsed || 0);
+    const remainingQuota = Math.max(0, maxTransferQuota - currentQuotaUsed);
 
     const trackerPayload = {
       embeds: [
         {
           title: teamData.namaTim,
-          description: `**DAFTAR ROSTER:**\n${rosterText}\n*Keterangan: 👑 Ketua | 🏅 Wakil*`,
+          description: `**DAFTAR ROSTER:**\n${rosterText}\n*Keterangan: 👑 Ketua | 🎖️ Wakil*`,
           color: hexToDecimal(teamData.warna || '#3498db'),
           fields: [
             {
@@ -107,18 +97,19 @@ export async function refreshTeamEmbeds(
             },
             {
               name: '🔄 Kuota Transfer',
-              value: `**${currentQuotaUsed} / 2** Terpakai *(Sisa: ${2 - currentQuotaUsed})*`,
+              value: `**${currentQuotaUsed} / ${maxTransferQuota}** Terpakai *(Sisa: ${remainingQuota})*`,
               inline: false,
             },
           ],
-          footer: { text: getFooterString() },
+          footer: { text: getFooterText(createdAt, updatedAt) },
         },
       ],
     };
+
     await discordAPI(
       `/channels/${teamData.discordChannelId}/messages/${teamData.trackerMsgId}`,
       'PATCH',
       trackerPayload
-    ).catch(() => null);
+    ).catch((err) => console.error('[TRACKER EMBED PATCH ERROR]:', err));
   }
-              }
+}
