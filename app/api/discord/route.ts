@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       if (commandName === 'game') return NextResponse.json(await handleGameCommand(body));
       if (commandName === 'assign') return await handleAssignCommand(body);
       if (commandName === 'unassign') return await handleUnassignCommand(body);
-      if (commandName === 'reschedule') return await handleRescheduleCommand(body); // 🟢 Direct return NextResponse
+      if (commandName === 'reschedule') return await handleRescheduleCommand(body);
       if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
       if (commandName === 'match-report') return NextResponse.json(await handleMatchReportCommand(body));
       if (commandName === 'stream') return NextResponse.json(await handleStreamCommand(body));
@@ -241,4 +241,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-              }
+}
