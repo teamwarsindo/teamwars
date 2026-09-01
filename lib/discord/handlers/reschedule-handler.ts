@@ -52,7 +52,7 @@ export async function handleRescheduleCommand(body: any) {
     const userRoles: string[] = body.member?.roles || [];
     const isAdmin = userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
 
-    // 🔒 1. Validasi Akses Admin Instan
+    // 🔒 1. Validasi Akses Admin
     if (!isAdmin) {
       return NextResponse.json({
         type: 4,
@@ -82,7 +82,7 @@ export async function handleRescheduleCommand(body: any) {
     const token = body.token;
     const appId = body.application_id || process.env.DISCORD_CLIENT_ID;
 
-    // ⚡ 2. Bungkus proses berat di waitUntil agar Vercel tidak freeze
+    // ⚡ 2. Eksekusi Background dengan proteksi waitUntil
     waitUntil(
       (async () => {
         try {
@@ -92,7 +92,7 @@ export async function handleRescheduleCommand(body: any) {
           if (matchIndex === -1) {
             if (appId && token) {
               await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-                content: '⛔ **Akses Ditolak!** Perintah `/reschedule` wajib dijalankan langsung di dalam **Channel Match** terkait.',
+                content: '⛔ **Akses Ditolak!** Perintah `/reschedule` wajib dijalankan di dalam **Channel Match** terkait.',
               });
             }
             return;
@@ -113,12 +113,7 @@ export async function handleRescheduleCommand(body: any) {
           const oldScheduleFormatted = formatConfirmationWIB(match.matchDate);
           const newScheduleFormatted = formatConfirmationWIB(newMatchDateIso);
 
-          // 1. Simpan perubahan ke KV
-          match.matchDate = newMatchDateIso;
-          schedules[matchIndex] = match;
-          await kv.set('twi:schedules', schedules);
-
-          // 2. Ambil data tim & update embed channel match
+          // Ambil data tim untuk emoji & role
           const slugA = getTeamSlug(match.teamAName);
           const slugB = getTeamSlug(match.teamBName);
 
@@ -137,39 +132,48 @@ export async function handleRescheduleCommand(body: any) {
             teamB?.emoji ||
             (teamB?.emojiId ? `<:${teamB?.kodeTim || 'team'}:${teamB?.emojiId}>` : undefined);
 
-          const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
-            channelId,
-            matchId: match.id,
-            groupName: match.groupName,
-            teamAName: match.teamAName,
-            teamBName: match.teamBName,
-            kodeTimA: teamA?.kodeTim || slugA.toUpperCase(),
-            kodeTimB: teamB?.kodeTim || slugB.toUpperCase(),
-            teamAEmoji: emojiA,
-            teamBEmoji: emojiB,
-            emojiAId: teamA?.emojiId,
-            emojiBId: teamB?.emojiId,
-            roleAId: teamA?.discordRoleId || teamA?.roleId || '',
-            roleBId: teamB?.discordRoleId || teamB?.roleId || '',
-            weekName: `Week ${match.weekNumber || 1}`,
-            matchDateIso: newMatchDateIso,
-            refereeName: match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : match.referee,
-            refereeDiscordId: match.refereeDiscordId,
-            streamerName: match.streamerDiscordId ? `<@${match.streamerDiscordId}>` : match.streamer,
-            streamerDiscordId: match.streamerDiscordId,
-            streamLink: match.streamLink,
-            existingMsgId: (match as any).openingMsgId,
-            isFinished: false,
-            scoreA: match.scoreA,
-            scoreB: match.scoreB,
-          });
-
-          if (newOpeningMsgId && (match as any).openingMsgId !== newOpeningMsgId) {
-            schedules[matchIndex] = { ...match, openingMsgId: newOpeningMsgId } as any;
-            await kv.set('twi:schedules', schedules);
+          // Kirim atau update pesan Opening Embed
+          let newOpeningMsgId: string | null = null;
+          try {
+            newOpeningMsgId = await sendOrUpdateOpeningEmbed({
+              channelId,
+              matchId: match.id,
+              groupName: match.groupName,
+              teamAName: match.teamAName,
+              teamBName: match.teamBName,
+              kodeTimA: teamA?.kodeTim || slugA.toUpperCase(),
+              kodeTimB: teamB?.kodeTim || slugB.toUpperCase(),
+              teamAEmoji: emojiA,
+              teamBEmoji: emojiB,
+              emojiAId: teamA?.emojiId,
+              emojiBId: teamB?.emojiId,
+              roleAId: teamA?.discordRoleId || teamA?.roleId || '',
+              roleBId: teamB?.discordRoleId || teamB?.roleId || '',
+              weekName: `Week ${match.weekNumber || 1}`,
+              matchDateIso: newMatchDateIso,
+              refereeName: match.refereeDiscordId ? `<@${match.refereeDiscordId}>` : match.referee,
+              refereeDiscordId: match.refereeDiscordId,
+              streamerName: match.streamerDiscordId ? `<@${match.streamerDiscordId}>` : match.streamer,
+              streamerDiscordId: match.streamerDiscordId,
+              streamLink: match.streamLink,
+              existingMsgId: (match as any).openingMsgId,
+              isFinished: false,
+              scoreA: match.scoreA,
+              scoreB: match.scoreB,
+            });
+          } catch (embedError) {
+            console.error('[OPENING EMBED ERROR - NON FATAL]:', embedError);
           }
 
-          // 3. Trigger Sinkronisasi Rekap Mingguan (jika dipilih)
+          // 💾 Simpan jadwal baru & ID pesan terbaru ke database KV
+          match.matchDate = newMatchDateIso;
+          if (newOpeningMsgId) {
+            (match as any).openingMsgId = newOpeningMsgId;
+          }
+          schedules[matchIndex] = match;
+          await kv.set('twi:schedules', schedules);
+
+          // 3. Trigger Sinkronisasi Rekap Mingguan
           if (optUpdateRecap) {
             const targetWeekStr = `Week ${match.weekNumber || 1}`;
             try {
@@ -183,7 +187,7 @@ export async function handleRescheduleCommand(body: any) {
             }
           }
 
-          // 4. Update Original Thinking Message menjadi pesan konfirmasi sukses
+          // 4. Update Thinking message menjadi konfirmasi sukses
           if (appId && token) {
             await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
               content:
@@ -195,7 +199,7 @@ export async function handleRescheduleCommand(body: any) {
             });
           }
         } catch (err: any) {
-          console.error('[BACKGROUND RESCHEDULE ERROR]:', err);
+          console.error('[BACKGROUND RESCHEDULE FATAL ERROR]:', err);
           if (appId && token) {
             await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
               content: `❌ **Gagal Reschedule:** ${err.message || 'Terjadi kesalahan internal'}`,
@@ -205,7 +209,7 @@ export async function handleRescheduleCommand(body: any) {
       })()
     );
 
-    // 🚀 3. Respon Instan Type 5 (< 100ms) ke Discord
+    // 🚀 3. Respon Instan Type 5 ke Discord (< 100ms)
     return NextResponse.json({
       type: 5,
       data: { flags: 64 },
