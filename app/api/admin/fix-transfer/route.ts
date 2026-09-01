@@ -7,9 +7,13 @@ import { parsePlayers, PlayerItem, TeamKVData } from '@/lib/discord/services/tra
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
+async function runFixTransfer(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
+    let body: any = {};
+    if (req.method === 'POST') {
+      body = await req.json().catch(() => ({}));
+    }
+
     const targetSlug = body.teamSlug || 'licht-united';
     const dazzleUsername = (body.dazzleUsername || 'maxtav9090').toLowerCase().replace(/^@/, '');
     const isekkuuDiscordId = body.isekkuuDiscordId || '1268522970591133769';
@@ -76,7 +80,6 @@ export async function POST(req: NextRequest) {
     // 4. PERBAIKI iSekkuu (Set Nickname & Role Discord)
     // -------------------------------------------------------------
     if (isekkuuDiscordId && guildId) {
-      // Pastikan role tim terpasang
       if (teamData.discordRoleId) {
         await discordAPI(
           `/guilds/${guildId}/members/${isekkuuDiscordId}/roles/${teamData.discordRoleId}`,
@@ -96,11 +99,10 @@ export async function POST(req: NextRequest) {
         ).catch(() => null);
       }
 
-      // Paksa set Nickname format [TAG] IGN
       const targetNick = `${tagPrefix}iSekkuu`;
       await discordAPI(`/guilds/${guildId}/members/${isekkuuDiscordId}`, 'PATCH', { nick: targetNick })
         .then(() => logs.push(`✅ Nickname iSekkuu berhasil diubah menjadi: "${targetNick}"`))
-        .catch((err) => logs.push(`⚠️ Gagal mengubah nickname iSekkuu: ${err.message || err} (Periksa posisi role Bot di Server Discord)`));
+        .catch((err) => logs.push(`⚠️ Gagal mengubah nickname iSekkuu: ${err.message || err}`));
     }
 
     // -------------------------------------------------------------
@@ -144,4 +146,12 @@ export async function POST(req: NextRequest) {
     console.error('Error fix-transfer endpoint:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
-                                }
+}
+
+export async function GET(req: NextRequest) {
+  return runFixTransfer(req);
+}
+
+export async function POST(req: NextRequest) {
+  return runFixTransfer(req);
+}
