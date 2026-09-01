@@ -40,9 +40,8 @@ async function updateTeamRoster(
   await kv.hset(key, updateData);
   teamData.updatedAt = nowIso;
 
-  // Jalankan pembaruan embed Tracker Camp & CH_ROSTER
   refreshTeamEmbeds(teamSlug, teamData, players, quotaUsed).catch((err) =>
-    console.error('Error refreshTeamEmbeds:', err)
+    console.error('[REFRESH TEAM EMBEDS ERROR]:', err)
   );
 }
 
@@ -69,7 +68,6 @@ export async function executeTransferOut(teamSlug: string, targetIdentifier: str
     throw new Error(`Target masih menjabat sebagai ${removed.role}. Turunkan jabatan ke Anggota terlebih dahulu.`);
   }
 
-  // 🔍 Cari Discord ID jika data lama belum memilikinya
   const targetDiscordId = await resolveDiscordId(removed.discord, removed.discordId);
 
   players.splice(targetIdx, 1);
@@ -98,7 +96,6 @@ export async function executeTransferOut(teamSlug: string, targetIdentifier: str
   if (removed.ign) await kv.hset('global:free_duelists_ign', { [removed.ign]: idKey });
   if (removed.idDuelLinks) await kv.hset('global:free_duelists_dl', { [removed.idDuelLinks]: idKey });
 
-  // 🔄 Cabut Role Tim & Reset Nickname di Discord Server
   const guildId = DISCORD_CONFIG.GUILD_ID;
   if (guildId && targetDiscordId) {
     if (teamData.discordRoleId) {
@@ -213,14 +210,12 @@ export async function executeTransferAdd(params: {
     kv.hset('global:verified_users', { [targetUsername.toLowerCase()]: targetDiscordId }),
   ]);
 
-  // 🔄 Beri Role Discord & Set Nickname Format [TAG] IGN
   const guildId = DISCORD_CONFIG.GUILD_ID;
   if (guildId && isValidSnowflake(targetDiscordId)) {
     if (teamData.discordRoleId) discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`, 'PUT').catch(() => null);
     if (DISCORD_CONFIG.ROLE_DUELIST) discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_DUELIST}`, 'PUT').catch(() => null);
     if (DISCORD_CONFIG.ROLE_VERIFIED) discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_VERIFIED}`, 'PUT').catch(() => null);
-    const tagPrefix = teamData.kodeTim ? `[${teamData.kodeTim}] ` : '';
-    discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: `${tagPrefix}${cleanIgn}` }).catch((err) =>
+    discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: cleanIgn }).catch((err) =>
       console.error('[SET NICKNAME ERROR]:', err)
     );
   }
@@ -353,4 +348,4 @@ export async function executeTransferSetLeader(
   }).catch(console.error);
 
   return { teamName: teamData.namaTim, player: targetPlayer, newRole, currentQuota };
-}
+            }
