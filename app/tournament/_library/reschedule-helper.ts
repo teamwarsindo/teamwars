@@ -14,64 +14,43 @@ export function getAvailableRescheduleSlots(
   schedules: MatchScheduleItem[],
   targetMatch: MatchScheduleItem
 ): RescheduleSlotChoice[] {
-  // 1. Tentukan tanggal target match dalam kalender WIB
-  const targetDateKey = getWibDateKey(new Date(targetMatch.matchDate)); // "YYYY-MM-DD"
-  const [tYear, tMonth, tDay] = targetDateKey.split('-').map(Number);
-  
-  // Konstruksi Date murni lokal WIB (pukul 12:00 siang WIB agar aman dari pergeseran DST/UTC)
-  const targetWibDate = new Date(Date.UTC(tYear, tMonth - 1, tDay, 5, 0, 0)); // 05:00 UTC = 12:00 WIB
+  const matchWeek = targetMatch.weekNumber || getMatchWeekNumber(targetMatch.matchDate);
+  const weekMatches = schedules.filter(
+    (m) => (m.weekNumber || getMatchWeekNumber(m.matchDate)) === matchWeek
+  );
 
-  // 2. Hitung hari dalam seminggu versi WIB (0=Minggu, 1=Senin, ..., 3=Rabu)
-  const targetDayWib = new Intl.DateTimeFormat('en-US', {
-    weekday: 'short',
-    timeZone: 'Asia/Jakarta',
-  }).format(targetWibDate);
+  const matchTimestamps = weekMatches.map((m) => new Date(m.matchDate).getTime()).sort((a, b) => a - b);
+  const earliestDate = new Date(matchTimestamps[0] || targetMatch.matchDate);
 
-  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  const dayOfWeek = dayMap[targetDayWib] ?? 3;
-
-  // 3. Cari tanggal Rabu di pekan target match
+  const dayOfWeek = earliestDate.getDay(); // 0=Min, 1=Sen, ..., 3=Rab
   const diffToWed = dayOfWeek >= 3 ? dayOfWeek - 3 : dayOfWeek + 4;
-  const wednesdayDate = new Date(targetWibDate);
-  wednesdayDate.setUTCDate(wednesdayDate.getUTCDate() - diffToWed);
+  const wednesdayDate = new Date(earliestDate);
+  wednesdayDate.setDate(earliestDate.getDate() - diffToWed);
 
-  // Buat daftar 5 tanggal pekan turnamen (Rabu s/d Minggu)
-  const weekDateKeys: string[] = [];
-  const weekDates: Date[] = [];
-  for (let i = 0; i < 5; i++) {
-    const d = new Date(wednesdayDate);
-    d.setUTCDate(wednesdayDate.getUTCDate() + i);
-    weekDateKeys.push(getWibDateKey(d));
-    weekDates.push(d);
-  }
-
-  // 4. Hitung jumlah match di masing-masing dari 5 tanggal tersebut dari seluruh data schedules
+  // Hitung jumlah match eksisting per tanggal
   const matchCountByDate = new Map<string, number>();
-  weekDateKeys.forEach((key) => matchCountByDate.set(key, 0));
-
-  schedules.forEach((m) => {
-    if (!m.matchDate) return;
-    const dateKey = getWibDateKey(new Date(m.matchDate));
-    if (matchCountByDate.has(dateKey)) {
-      matchCountByDate.set(dateKey, (matchCountByDate.get(dateKey) || 0) + 1);
-    }
+  weekMatches.forEach((m) => {
+    const key = getWibDateKey(new Date(m.matchDate));
+    matchCountByDate.set(key, (matchCountByDate.get(key) || 0) + 1);
   });
 
   const slots: RescheduleSlotChoice[] = [];
 
-  // 5. Generate pilihan dropdown
+  // Slot turnamen: 5 hari (Rabu s/d Minggu)
   for (let i = 0; i < 5; i++) {
-    const d = weekDates[i];
-    const dateKey = weekDateKeys[i];
+    const d = new Date(wednesdayDate);
+    d.setDate(wednesdayDate.getDate() + i);
+
+    const dateKey = getWibDateKey(d); // YYYY-MM-DD
     const count = matchCountByDate.get(dateKey) || 0;
-    const remainingSlots = Math.max(0, 3 - count); // Kuota 3 match per hari
-    const isCurrentMatchDate = targetDateKey === dateKey;
+    const remainingSlots = Math.max(0, 3 - count); // Maksimal 3 match per hari
+    const isCurrentMatchDate = getWibDateKey(new Date(targetMatch.matchDate)) === dateKey;
 
     // 🔴 Abaikan jika kuota penuh (sisa <= 0) ATAU merupakan tanggal match saat ini
     if (remainingSlots <= 0 || isCurrentMatchDate) {
       continue;
     }
-
+    
     const formattedDay = d.toLocaleDateString('id-ID', {
       weekday: 'short',
       day: 'numeric',
@@ -79,9 +58,13 @@ export function getAvailableRescheduleSlots(
       year: 'numeric',
       timeZone: 'Asia/Jakarta',
     });
+    
+    const statusLabel = isCurrentMatchDate
+      ? '(Jadwal Saat Ini)'
+      : `(Sisa ${remainingSlots} Match)`;
 
     slots.push({
-      name: `${formattedDay} (Sisa ${remainingSlots} Match)`,
+      name: `${formattedDay} ${statusLabel}`,
       value: dateKey,
     });
   }
@@ -109,7 +92,7 @@ export function parseTimeInput(timeStr?: string): { hour: number; minute: number
 }
 
 /**
- * 🟢 Bangun ISO String Baru Standard (.000Z) dari kombinasi tanggal dan jam input
+ * 🟢 Bangun ISO String Baru WIB (+07:00) dari kombinasi tanggal dan jam input
  */
 export function buildNewRescheduleIso(
   currentIso: string,
@@ -120,9 +103,9 @@ export function buildNewRescheduleIso(
 
   // 1. Tentukan tanggal (YYYY-MM-DD)
   const targetDateKey = newDateKey || getWibDateKey(baseDate);
-  const [yearStr, monthStr, dayStr] = targetDateKey.split('-').map(Number);
+  const [yearStr, monthStr, dayStr] = targetDateKey.split('-');
 
-  // 2. Tentukan jam & menit WIB
+  // 2. Tentukan jam & menit
   const parsedTime = parseTimeInput(timeInput);
   let finalHour: number;
   let finalMinute: number;
@@ -131,21 +114,21 @@ export function buildNewRescheduleIso(
     finalHour = parsedTime.hour;
     finalMinute = parsedTime.minute;
   } else {
+    // Pertahankan jam & menit lama (dalam zona WIB)
     const currentWibTime = baseDate.toLocaleTimeString('id-ID', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
       timeZone: 'Asia/Jakarta',
     });
-    const [h, m] = currentWibTime.replace('.', ':').split(':').map(Number);
+    const [h, m] = currentWibTime.replace('.', ':').split(':').map((v) => parseInt(v, 10));
     finalHour = h;
     finalMinute = m;
   }
 
-  // 3. Konversi WIB (UTC+7) ke UTC Standard (.toISOString())
-  // Jam UTC = Jam WIB - 7
-  const utcDate = new Date(Date.UTC(yearStr, monthStr - 1, dayStr, finalHour - 7, finalMinute, 0));
-  return utcDate.toISOString();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  // Format ISO dengan offset WIB (+07:00)
+  return `${yearStr}-${monthStr}-${dayStr}T${pad(finalHour)}:${pad(finalMinute)}:00+07:00`;
 }
 
 /**
