@@ -18,6 +18,14 @@ import { validateAddAvailability, getConflictingPlayerDetails } from './transfer
 export * from './transfer-types';
 export * from './transfer-validation';
 
+async function resolveDiscordId(discordUsername?: string, existingId?: string): Promise<string | null> {
+  if (existingId && isValidSnowflake(existingId)) return existingId;
+  if (!discordUsername) return null;
+  const cleanUsername = discordUsername.trim().toLowerCase().replace(/^@/, '');
+  const id = await kv.hget<string>('global:verified_users', cleanUsername);
+  return id && isValidSnowflake(id) ? id : null;
+}
+
 async function updateTeamRoster(
   key: string,
   teamSlug: string,
@@ -29,11 +37,10 @@ async function updateTeamRoster(
   const updateData: any = { players: JSON.stringify(players), updatedAt: nowIso };
   if (quotaUsed !== undefined) updateData.transferQuotaUsed = quotaUsed;
 
-  // 1. Tulis ke database KV secara instan
   await kv.hset(key, updateData);
   teamData.updatedAt = nowIso;
 
-  // 2. Jalankan pembaruan embed Discord secara non-blocking agar respon interaksi di bawah 1 detik
+  // Jalankan pembaruan embed Tracker Camp & CH_ROSTER
   refreshTeamEmbeds(teamSlug, teamData, players, quotaUsed).catch((err) =>
     console.error('Error refreshTeamEmbeds:', err)
   );
@@ -62,6 +69,9 @@ export async function executeTransferOut(teamSlug: string, targetIdentifier: str
     throw new Error(`Target masih menjabat sebagai ${removed.role}. Turunkan jabatan ke Anggota terlebih dahulu.`);
   }
 
+  // 🔍 Cari Discord ID jika data lama belum memilikinya
+  const targetDiscordId = await resolveDiscordId(removed.discord, removed.discordId);
+
   players.splice(targetIdx, 1);
 
   const cleanDl = cleanDuelId(removed.idDuelLinks);
@@ -70,12 +80,12 @@ export async function executeTransferOut(teamSlug: string, targetIdentifier: str
     kv.hdel('global:duellinks', removed.idDuelLinks),
     kv.hdel('global:ign', removed.ign),
     kv.hdel('global:discord', (removed.discord || '').toLowerCase()),
-    removed.discordId ? kv.hdel('global:discord_ids', removed.discordId) : Promise.resolve(),
+    targetDiscordId ? kv.hdel('global:discord_ids', targetDiscordId) : Promise.resolve(),
   ]);
 
   const freeRecord: FreeDuelistRecord = {
     discord: removed.discord || '',
-    discordId: removed.discordId || '',
+    discordId: targetDiscordId || '',
     idDuelLinks: removed.idDuelLinks,
     ign: removed.ign,
     lastTeam: teamSlug,
@@ -83,17 +93,22 @@ export async function executeTransferOut(teamSlug: string, targetIdentifier: str
     teamsJoinedCount: Number(removed.teamsJoinedCount || 1),
   };
 
-  const idKey = removed.discordId || removed.discord || removed.ign;
+  const idKey = targetDiscordId || removed.discord || removed.ign;
   await kv.hset('global:free_duelists', { [idKey]: JSON.stringify(freeRecord) });
   if (removed.ign) await kv.hset('global:free_duelists_ign', { [removed.ign]: idKey });
   if (removed.idDuelLinks) await kv.hset('global:free_duelists_dl', { [removed.idDuelLinks]: idKey });
 
+  // 🔄 Cabut Role Tim & Reset Nickname di Discord Server
   const guildId = DISCORD_CONFIG.GUILD_ID;
-  if (guildId && removed.discordId) {
+  if (guildId && targetDiscordId) {
     if (teamData.discordRoleId) {
-      discordAPI(`/guilds/${guildId}/members/${removed.discordId}/roles/${teamData.discordRoleId}`, 'DELETE').catch(() => null);
+      discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`, 'DELETE').catch((err) =>
+        console.error('[REMOVE TEAM ROLE ERROR]:', err)
+      );
     }
-    discordAPI(`/guilds/${guildId}/members/${removed.discordId}`, 'PATCH', { nick: null }).catch(() => null);
+    discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: null }).catch((err) =>
+      console.error('[RESET NICKNAME ERROR]:', err)
+    );
   }
 
   const currentQuota = Number(teamData.transferQuotaUsed || 0);
@@ -109,7 +124,7 @@ export async function executeTransferOut(teamSlug: string, targetIdentifier: str
     oldIdDl: removed.idDuelLinks,
   }).catch(console.error);
 
-  return { teamName: teamData.namaTim, removedPlayer: removed, currentQuota };
+  return { teamName: teamData.namaTim, removedPlayer: { ...removed, discordId: targetDiscordId || '' }, currentQuota };
 }
 
 export async function executeTransferAdd(params: {
@@ -134,7 +149,6 @@ export async function executeTransferAdd(params: {
   const cleanDl = cleanDuelId(rawIdDl);
   if (cleanDl.length !== 9) throw new Error('ID Duel Links harus terdiri dari 9 angka digit.');
 
-  // Validasi bentrok data tim sendiri & tim lain
   await validateAddAvailability(teamSlug, players, cleanIgn, targetDiscordId, formattedDl, cleanDl);
 
   const hasDuelistRole = targetRoles.includes(DISCORD_CONFIG.ROLE_DUELIST);
@@ -143,19 +157,19 @@ export async function executeTransferAdd(params: {
   const freeDiscordIdByDl = await kv.hget<string>('global:free_duelists_dl', formattedDl);
 
   let oldRecord: FreeDuelistRecord | null = null;
-  let detectedOldDiscordId = targetDiscordId;
+  let detectedOldKey = targetDiscordId;
 
   if (freeByDiscordId) {
     oldRecord = typeof freeByDiscordId === 'string' ? JSON.parse(freeByDiscordId) : freeByDiscordId;
-    detectedOldDiscordId = targetDiscordId;
+    detectedOldKey = targetDiscordId;
   } else if (freeDiscordIdByIgn) {
     const raw = await kv.hget<string>('global:free_duelists', freeDiscordIdByIgn);
     oldRecord = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
-    detectedOldDiscordId = freeDiscordIdByIgn;
+    detectedOldKey = freeDiscordIdByIgn;
   } else if (freeDiscordIdByDl) {
     const raw = await kv.hget<string>('global:free_duelists', freeDiscordIdByDl);
     oldRecord = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
-    detectedOldDiscordId = freeDiscordIdByDl;
+    detectedOldKey = freeDiscordIdByDl;
   }
 
   const isOldPlayer = hasDuelistRole || !!oldRecord;
@@ -173,7 +187,7 @@ export async function executeTransferAdd(params: {
     teamsJoined = currentTeamsCount + 1;
 
     if (oldRecord) {
-      await kv.hdel('global:free_duelists', detectedOldDiscordId);
+      await kv.hdel('global:free_duelists', detectedOldKey);
       if (oldRecord.ign) await kv.hdel('global:free_duelists_ign', oldRecord.ign);
       if (oldRecord.idDuelLinks) await kv.hdel('global:free_duelists_dl', oldRecord.idDuelLinks);
     }
@@ -199,13 +213,16 @@ export async function executeTransferAdd(params: {
     kv.hset('global:verified_users', { [targetUsername.toLowerCase()]: targetDiscordId }),
   ]);
 
+  // 🔄 Beri Role Discord & Set Nickname Format [TAG] IGN
   const guildId = DISCORD_CONFIG.GUILD_ID;
   if (guildId && isValidSnowflake(targetDiscordId)) {
     if (teamData.discordRoleId) discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`, 'PUT').catch(() => null);
     if (DISCORD_CONFIG.ROLE_DUELIST) discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_DUELIST}`, 'PUT').catch(() => null);
     if (DISCORD_CONFIG.ROLE_VERIFIED) discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${DISCORD_CONFIG.ROLE_VERIFIED}`, 'PUT').catch(() => null);
     const tagPrefix = teamData.kodeTim ? `[${teamData.kodeTim}] ` : '';
-    discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: `${tagPrefix}${cleanIgn}` }).catch(() => null);
+    discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: `${tagPrefix}${cleanIgn}` }).catch((err) =>
+      console.error('[SET NICKNAME ERROR]:', err)
+    );
   }
 
   await updateTeamRoster(key, teamSlug, teamData, players, currentQuota);
@@ -299,7 +316,9 @@ export async function executeTransferSetLeader(
   if (targetIdx === -1) throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
 
   const targetPlayer = players[targetIdx];
-  if (targetPlayer.discordId === actorId || targetPlayer.discord?.toLowerCase() === actorId.toLowerCase()) {
+  const targetDiscordId = await resolveDiscordId(targetPlayer.discord, targetPlayer.discordId);
+
+  if (targetDiscordId === actorId || targetPlayer.discord?.toLowerCase() === actorId.toLowerCase()) {
     throw new Error('Anda tidak diperbolehkan mengubah atau memindahkan jabatan Anda sendiri.');
   }
 
