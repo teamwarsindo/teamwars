@@ -52,14 +52,22 @@ function isToday(dateIso?: string): boolean {
   return now === match;
 }
 
+// ⚡ Lookup Instan O(1) dari Hash twi:active_camp_channels
 async function resolveMatchCamp(channelId: string) {
-  const messages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
-  for (const [matchId, raw] of Object.entries(messages)) {
-    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (data.campA?.channelId === channelId) return { matchId, teamKey: 'teamA' as const, campData: data.campA };
-    if (data.campB?.channelId === channelId) return { matchId, teamKey: 'teamB' as const, campData: data.campB };
+  const activeCamp = await kv.hget<any>('twi:active_camp_channels', channelId);
+  if (!activeCamp || !activeCamp.matchId || !activeCamp.teamKey) {
+    return { matchId: null, teamKey: null, campData: null };
   }
-  return { matchId: null, teamKey: null, campData: null };
+
+  if (!isToday(activeCamp.matchDate)) {
+    return { matchId: null, teamKey: null, campData: null };
+  }
+
+  return {
+    matchId: activeCamp.matchId as string,
+    teamKey: activeCamp.teamKey as 'teamA' | 'teamB',
+    campData: activeCamp,
+  };
 }
 
 async function resolveMatchFromMatchChannel(channelId: string) {
@@ -106,14 +114,12 @@ export async function handleSubmitAutocomplete(interaction: any) {
     const { matchId, teamKey, campData } = await resolveMatchCamp(interaction.channel_id);
     if (!matchId || !campData?.slug) return { type: 8, data: { choices: [] } };
 
-    const [schedules, teamRoster, reportData] = await Promise.all([
-      getSchedules(),
+    const [teamRoster, reportData] = await Promise.all([
       getTeamPlayers(campData.slug),
       kv.hget<any>('twi:match_reports', matchId),
     ]);
 
-    const currentMatch = schedules.find((m) => m.id === matchId);
-    if (!currentMatch || currentMatch.isFinished || !isToday(currentMatch.matchDate)) {
+    if (reportData?.isFinished) {
       return { type: 8, data: { choices: [] } };
     }
 
@@ -238,7 +244,6 @@ export async function handleGameAutocomplete(interaction: any) {
     // 1. Pemain Tim A
     if (fName === 'pemain_a') {
       const lineupA: any[] = reportData.teamA?.lineup || [];
-      // Tampilkan pemain yang masih memiliki sisa nyawa > 0 atau minimal 1 deck hidup
       const activePlayers = lineupA.filter((p) => (p.remainingLife ?? 2) > 0 || !p.deck1?.isDead || (p.deck2 && !p.deck2.isDead));
       return {
         type: 8,
