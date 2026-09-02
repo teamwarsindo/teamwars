@@ -23,7 +23,6 @@ function getSubcommandData(interaction: any) {
   };
 }
 
-// 🟢 Helper format waktu WIB untuk Audit Log
 function getWibTimestamp(): string {
   return (
     new Intl.DateTimeFormat('id-ID', {
@@ -34,7 +33,6 @@ function getWibTimestamp(): string {
   );
 }
 
-// 🟢 Fungsi Pengiriman Audit Log ke CH_LOG
 async function sendAdminAuditLog(params: {
   actorId: string;
   actorRoleText: string;
@@ -101,7 +99,6 @@ async function sendAdminAuditLog(params: {
     });
   }
 
-  // Log Mutasi Role Discord
   if (roleChanges) {
     if (roleChanges.added && roleChanges.added.length > 0) {
       fields.push({
@@ -194,13 +191,11 @@ export async function handleTransferCommand(interaction: any) {
   const token = interaction.token;
   const appId = interaction.application_id || process.env.DISCORD_CLIENT_ID;
 
-  // 🔒 1. Validasi Hak Akses Murni Berdasarkan Role Discord Server
   const isAdmin = !!DISCORD_CONFIG.ROLE_ADMIN && actorRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
   const isKetua = !!DISCORD_CONFIG.ROLE_KETUA && actorRoles.includes(DISCORD_CONFIG.ROLE_KETUA);
   const isWakil = !!DISCORD_CONFIG.ROLE_WAKIL && actorRoles.includes(DISCORD_CONFIG.ROLE_WAKIL);
 
   if (!isAdmin && !isKetua && !isWakil) {
-    // Catat log percobaan akses ilegal ke CH_LOG
     sendAdminAuditLog({
       actorId,
       actorRoleText: 'User Biasa (Tanpa Role)',
@@ -227,7 +222,6 @@ export async function handleTransferCommand(interaction: any) {
     return { type: 4, data: { content: '❌ Subcommand tidak valid!', flags: 64 } };
   }
 
-  // ⚡ 2. Eksekusi Background Worker dengan waitUntil
   waitUntil(
     (async () => {
       const targetUserId = opts.find((o: any) => o.name === 'user')?.value;
@@ -235,14 +229,12 @@ export async function handleTransferCommand(interaction: any) {
       let detectedTeamName = '';
 
       try {
-        // 1. Deteksi Tim dari Channel Camp
         const teamSlug = await kv.hget<string>('global:channel_teams', channelId);
         if (!teamSlug) {
           throw new Error('Slash command `/transfer` hanya dapat digunakan di dalam Channel Camp Tim resmi.');
         }
         detectedTeamSlug = teamSlug;
 
-        // 2. Ambil Data Tim
         const teamRes = await getTeamBySlug(teamSlug);
         if (!teamRes) {
           throw new Error(`Data tim dengan slug \`${teamSlug}\` tidak ditemukan di database.`);
@@ -267,7 +259,6 @@ export async function handleTransferCommand(interaction: any) {
           const targetUserData = resolvedUsers[targetUserId] || {};
           const targetUsername = targetUserData.username || targetUserId;
 
-          // Request GET Guild Member untuk periksa role target
           const guildMemberRes = await discordAPI(`/guilds/${DISCORD_CONFIG.GUILD_ID}/members/${targetUserId}`, 'GET');
           const targetRoles: string[] = guildMemberRes?.roles || [];
 
@@ -280,19 +271,17 @@ export async function handleTransferCommand(interaction: any) {
             targetRoles,
           });
 
-          // Catat role yang diberikan ke target
           const rolesAdded: string[] = [];
           if (teamRes.data.discordRoleId) rolesAdded.push(`Role Tim: <@&${teamRes.data.discordRoleId}>`);
           if (DISCORD_CONFIG.ROLE_DUELIST) rolesAdded.push(`Role Duelist: <@&${DISCORD_CONFIG.ROLE_DUELIST}>`);
           if (DISCORD_CONFIG.ROLE_VERIFIED) rolesAdded.push(`Role Verified: <@&${DISCORD_CONFIG.ROLE_VERIFIED}>`);
-          rolesAdded.push(`Nickname Server: \`[${teamRes.data.kodeTim || 'TIM'}] ${result.addedPlayer.ign}\``);
+          rolesAdded.push(`Nickname Server: \`${result.addedPlayer.ign}\``);
           roleChanges.added = rolesAdded;
 
           const statusNote = result.isOldPlayer ? 'Transfer Pemain Lama (Potong Kuota)' : 'Free Agent Murni (Gratis Kuota)';
           const details = `**Akun:** <@${targetUserId}>\n**IGN:** ${result.addedPlayer.ign}\n**ID Duel Links:** ${result.addedPlayer.idDuelLinks}\n**Status:** ${statusNote}`;
           responsePayload = createCampSuccessEmbed(actorId, actorRoleText, 'ADD (Tambah Pemain)', details, result.currentQuota);
 
-          // Kirim Admin Audit Log
           await sendAdminAuditLog({
             actorId,
             actorRoleText,
@@ -321,17 +310,16 @@ export async function handleTransferCommand(interaction: any) {
           rolesRemoved.push('Nickname Server Direset ke Default (null)');
           roleChanges.removed = rolesRemoved;
 
-          const details = `**Akun:** <@${result.removedPlayer.discordId}>\n**IGN:** ${result.removedPlayer.ign}\n**ID Duel Links:** ${result.removedPlayer.idDuelLinks}\n**Status:** Dipindahkan ke Free Agent Pool`;
+          const details = `**Akun:** <@${result.removedPlayer.discordId || targetUserId}>\n**IGN:** ${result.removedPlayer.ign}\n**ID Duel Links:** ${result.removedPlayer.idDuelLinks}\n**Status:** Dipindahkan ke Free Agent Pool`;
           responsePayload = createCampSuccessEmbed(actorId, actorRoleText, 'OUT (Keluarkan Pemain)', details, result.currentQuota);
 
-          // Kirim Admin Audit Log
           await sendAdminAuditLog({
             actorId,
             actorRoleText,
             teamSlug,
             teamName: detectedTeamName,
             subcommand: 'OUT',
-            targetUserId: result.removedPlayer.discordId,
+            targetUserId: result.removedPlayer.discordId || targetUserId,
             targetIgn: result.removedPlayer.ign,
             targetDl: result.removedPlayer.idDuelLinks,
             roleChanges,
@@ -388,14 +376,12 @@ export async function handleTransferCommand(interaction: any) {
           }
         }
 
-        // Update Thinking Message dengan Embed Hasil
         if (appId && token && responsePayload) {
           await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', responsePayload);
         }
       } catch (error: any) {
         console.error('[TRANSFER EXECUTION ERROR]:', error);
 
-        // Kirim Audit Log Kegagalan ke CH_LOG
         await sendAdminAuditLog({
           actorId,
           actorRoleText,
@@ -407,7 +393,6 @@ export async function handleTransferCommand(interaction: any) {
           errorMessage: error.message || 'Terjadi kesalahan sistem saat mengeksekusi transfer.',
         });
 
-        // Update Thinking Message dengan Embed Failure
         if (appId && token) {
           const failEmbed = createCampFailureEmbed(
             actorId,
@@ -421,10 +406,8 @@ export async function handleTransferCommand(interaction: any) {
     })()
   );
 
-  // 🚀 3. Respon Instan Type 5 ke Discord (< 50ms)
   return {
     type: 5,
     data: { flags: 64 },
   };
-}
-  
+                            }
