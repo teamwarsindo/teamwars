@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem, getTeamSlug, getWibDateKey } from '@/app/tournament/_library';
+import { MatchScheduleItem, getTeamSlug, getWibDateKey, getMatchWeekNumber } from '@/app/tournament/_library';
 import { discordAPI } from '@/lib/discord/utils';
 import {
   formatWIBTimeOnly,
@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
 
       const diffMs = matchDate.getTime() - now.getTime();
       const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      const matchWeek = (match as any).weekNumber || getMatchWeekNumber(match.matchDate);
 
       const slugA = getTeamSlug(match.teamAName);
       const slugB = getTeamSlug(match.teamBName);
@@ -108,13 +109,13 @@ export async function GET(req: NextRequest) {
           slug: slugA,
           channelId: campAChannel,
           morningMsgId: matchMsgData.campA?.morningMsgId || null,
-          trackerMsgId: matchMsgData.campA?.trackerMsgId || null,
+          submitMsgId: matchMsgData.campA?.submitMsgId || matchMsgData.campA?.trackerMsgId || null,
         },
         campB: {
           slug: slugB,
           channelId: campBChannel,
           morningMsgId: matchMsgData.campB?.morningMsgId || null,
-          trackerMsgId: matchMsgData.campB?.trackerMsgId || null,
+          submitMsgId: matchMsgData.campB?.submitMsgId || matchMsgData.campB?.trackerMsgId || null,
         },
         matchChannel: {
           channelId: currentMatchChannelId,
@@ -142,6 +143,7 @@ export async function GET(req: NextRequest) {
         const deadlineWib = formatWIBTimeOnly(deadlineIso);
         const timeRemainingStr = formatTimeRemaining(deadlineIso);
         const morningEmbed = getMorningCampEmbed({
+          week: matchWeek,
           matchDateIso: match.matchDate,
           deadlineWib,
           timeRemainingStr,
@@ -168,12 +170,27 @@ export async function GET(req: NextRequest) {
             const trackerAId = await sendOrUpdateLiveTracker({
               channelId: chA,
               matchDateIso: match.matchDate,
+              week: matchWeek,
               submittedPlayers: lineupA,
-              existingMsgId: cleanMatchMsgData.campA.trackerMsgId,
+              existingMsgId: cleanMatchMsgData.campA.submitMsgId,
             });
 
             cleanMatchMsgData.campA.morningMsgId = morningRes?.id || null;
-            cleanMatchMsgData.campA.trackerMsgId = trackerAId;
+            cleanMatchMsgData.campA.submitMsgId = trackerAId;
+
+            // Direct Mapping Key untuk akses O(1) di bot
+            await kv.hset('twi:active_camp_channels', {
+              [chA]: {
+                matchId: match.id,
+                teamKey: 'teamA',
+                slug: slugA,
+                name: match.teamAName,
+                matchDate: match.matchDate,
+                week: matchWeek,
+                submitMsgId: trackerAId,
+              },
+            });
+
             msgStateChanged = true;
             logs.push(`[CAMP SENT] Pengumuman dikirim ke camp ${match.teamAName}`);
           } else {
@@ -202,12 +219,27 @@ export async function GET(req: NextRequest) {
             const trackerBId = await sendOrUpdateLiveTracker({
               channelId: chB,
               matchDateIso: match.matchDate,
+              week: matchWeek,
               submittedPlayers: lineupB,
-              existingMsgId: cleanMatchMsgData.campB.trackerMsgId,
+              existingMsgId: cleanMatchMsgData.campB.submitMsgId,
             });
 
             cleanMatchMsgData.campB.morningMsgId = morningRes?.id || null;
-            cleanMatchMsgData.campB.trackerMsgId = trackerBId;
+            cleanMatchMsgData.campB.submitMsgId = trackerBId;
+
+            // Direct Mapping Key untuk akses O(1) di bot
+            await kv.hset('twi:active_camp_channels', {
+              [chB]: {
+                matchId: match.id,
+                teamKey: 'teamB',
+                slug: slugB,
+                name: match.teamBName,
+                matchDate: match.matchDate,
+                week: matchWeek,
+                submitMsgId: trackerBId,
+              },
+            });
+
             msgStateChanged = true;
             logs.push(`[CAMP SENT] Pengumuman dikirim ke camp ${match.teamBName}`);
           } else {
