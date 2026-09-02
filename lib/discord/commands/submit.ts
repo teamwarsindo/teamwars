@@ -1,6 +1,7 @@
 import { kv } from '@vercel/kv';
 import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
 import { sendOrUpdateLiveTracker, TrackerPlayer } from '@/lib/discord/messages/match-briefing';
+import { discordAPI } from '@/lib/discord/utils';
 import {
   isStaff,
   isAdminOrChief,
@@ -58,10 +59,10 @@ export async function handleSubmitCommand(interaction: any) {
     const matchIsToday = isToday(activeCamp.matchDate);
     const isWithinGracePeriod = isWithinAdminGracePeriod(activeCamp.matchDate);
 
-    // Proteksi Waktu: Referee hanya hari H, Admin/Chief kebal sampai Selasa 23:59 WIB pekan depan
+    // Proteksi Waktu: Referee hanya hari H, Admin/Chief kebal sampai Selasa 23:59 WIB pekan berikutnya
     if (!matchIsToday) {
       if (userIsAdmin && isWithinGracePeriod) {
-        // Akses khusus Admin / Chief
+        // Bypass akses untuk Admin / Chief
       } else {
         return {
           type: 4,
@@ -157,9 +158,16 @@ export async function handleSubmitCommand(interaction: any) {
     const targetLineup = reportData[teamKey].lineup || [];
     const isFullyComplete = checkIsLineupFullyCompleted(targetLineup);
     const manualPublish = Boolean(optMap.publish ?? false);
-
-    // Otomatis Repost jika deck lengkap 100% ATAU user memilih publish: true
     const shouldRepost = manualPublish || isFullyComplete;
+
+    // 🧹 Jika harus repost (publish/lengkap) dan pesan lama ada, hapus dulu agar pesan baru turun ke paling bawah
+    if (shouldRepost && activeCamp.submitMsgId) {
+      try {
+        await discordAPI(`/channels/${channelId}/messages/${activeCamp.submitMsgId}`, 'DELETE');
+      } catch (delErr) {
+        console.warn('Gagal menghapus pesan tracker lama:', delErr);
+      }
+    }
 
     const trackerPlayers: TrackerPlayer[] = targetLineup.map((p: any) => ({
       ign: p.ign,
@@ -168,13 +176,13 @@ export async function handleSubmitCommand(interaction: any) {
       deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
     }));
 
+    // Jika shouldRepost = true, kirim null agar fungsi sendOrUpdateLiveTracker membuat pesan baru (POST)
     const newSubmitMsgId = await sendOrUpdateLiveTracker({
       channelId,
       matchDateIso: activeCamp.matchDate || new Date().toISOString(),
       week: reportData.week,
       submittedPlayers: trackerPlayers,
-      existingMsgId: activeCamp.submitMsgId,
-      repost: shouldRepost,
+      existingMsgId: shouldRepost ? null : activeCamp.submitMsgId,
     });
 
     activeCamp.submitMsgId = newSubmitMsgId;
@@ -202,5 +210,4 @@ export async function handleSubmitCommand(interaction: any) {
       data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
     };
   }
-}
-  
+  }
