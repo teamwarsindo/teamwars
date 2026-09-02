@@ -7,6 +7,14 @@ import { DIVISION_MAP } from '@/app/tournament/_library';
 
 function detectPlatform(url: string): string {
   const cleanUrl = url.toLowerCase();
+  if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) return 'YouTube';
+  if (cleanUrl.includes('tiktok.com')) return 'TikTok';
+  if (cleanUrl.includes('twitch.tv')) return 'Twitch';
+  return 'YouTube';
+}
+
+function detectPlatformBadge(url: string): string {
+  const cleanUrl = url.toLowerCase();
   if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) return 'YouTube Live 🔴';
   if (cleanUrl.includes('tiktok.com')) return 'TikTok Live 🎵';
   if (cleanUrl.includes('twitch.tv')) return 'Twitch 🟣';
@@ -76,10 +84,21 @@ export async function handleStreamCommand(interaction: any) {
       };
     }
 
-    // 3. Update streamLink di data match
+    // 3. Update streamLink di data match schedule
     match.streamLink = rawLink;
 
-    // 4. Update / Kirim Ulang Opening Embed di Channel Match
+    // 🔴 4. SINKRONKAN LANGSUNG KE twi:match_reports
+    const reportData = await kv.hget<any>('twi:match_reports', match.id);
+    if (reportData) {
+      reportData.metadata = {
+        ...(reportData.metadata || {}),
+        streamUrl: rawLink,
+        streamPlatform: detectPlatform(rawLink),
+      };
+      await kv.hset('twi:match_reports', { [match.id]: reportData });
+    }
+
+    // 5. Update / Kirim Ulang Opening Embed di Channel Match
     const teamAData = (await kv.hgetall<any>(`teams:${match.teamAId}`)) || {};
     const teamBData = (await kv.hgetall<any>(`teams:${match.teamBId}`)) || {};
 
@@ -117,7 +136,7 @@ export async function handleStreamCommand(interaction: any) {
     schedules[matchIndex] = match;
     await kv.set('twi:schedules', schedules);
 
-    // 5. Kirim Broadcast Pengumuman Live ke Channel Live
+    // 6. Kirim Broadcast Pengumuman Live ke Channel Live
     const chLive = (DISCORD_CONFIG as any).CH_LIVE || DISCORD_CONFIG.CH_EXHI;
     if (chLive) {
       let groupDisplayName = match.groupName || 'Group Stage';
@@ -127,7 +146,7 @@ export async function handleStreamCommand(interaction: any) {
       const emojiA = teamAData.emojiId ? `<:${(teamAData.kodeTim || 'twi').replace(/\s+/g, '')}:${teamAData.emojiId}> ` : '';
       const emojiB = teamBData.emojiId ? `<:${(teamBData.kodeTim || 'twi').replace(/\s+/g, '')}:${teamBData.emojiId}> ` : '';
       const streamerMention = match.streamerDiscordId ? `<@${match.streamerDiscordId}>` : (match.streamer || 'Streamer Official');
-      const platformName = detectPlatform(rawLink);
+      const platformBadge = detectPlatformBadge(rawLink);
       const scheduleText = formatMatchScheduleAt(match.matchDate);
 
       const broadcastContent = `@everyone\n\n` +
@@ -137,7 +156,7 @@ export async function handleStreamCommand(interaction: any) {
         `⚔️ ${emojiA}**${match.teamAName}** VS ${emojiB}**${match.teamBName}**\n\n` +
         `⏰ **Jadwal Match:** ${scheduleText}\n` +
         `🎥 **Streamer:** ${streamerMention}\n` +
-        `🌐 **Platform:** ${platformName}\n\n` +
+        `🌐 **Platform:** ${platformBadge}\n\n` +
         `🔗 **Tonton Siaran Langsung di:**\n` +
         `${rawLink}\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -151,7 +170,7 @@ export async function handleStreamCommand(interaction: any) {
     return {
       type: 4,
       data: {
-        content: `✅ **Link Streaming Berhasil Disimpan & Disiarkan!**\n• URL: ${rawLink}\n• Embed channel match diperbarui.\n• Broadcast @everyone terkirim ke channel live!`,
+        content: `✅ **Link Streaming Berhasil Disimpan & Disiarkan!**\n• URL: ${rawLink}\n• Embed channel match diperbarui.\n• Metadata match report disinkronkan.\n• Broadcast @everyone terkirim ke channel live!`,
         flags: 64,
       },
     };
@@ -163,4 +182,3 @@ export async function handleStreamCommand(interaction: any) {
     };
   }
 }
-  
