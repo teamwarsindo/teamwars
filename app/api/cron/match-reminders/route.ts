@@ -152,6 +152,20 @@ export async function GET(req: NextRequest) {
         // --- PROSES CAMP A ---
         if (cleanMatchMsgData.campA.channelId) {
           const chA = cleanMatchMsgData.campA.channelId;
+
+          // ⚡ Pendaftaran map aktif O(1) selalu berjalan terlepas dari status chat Discord
+          await kv.hset('twi:active_camp_channels', {
+            [chA]: {
+              matchId: match.id,
+              teamKey: 'teamA',
+              slug: slugA,
+              name: match.teamAName,
+              matchDate: match.matchDate,
+              week: matchWeek,
+              submitMsgId: cleanMatchMsgData.campA.submitMsgId,
+            },
+          });
+
           const morningMsgExists = await checkDiscordMessageExists(chA, cleanMatchMsgData.campA.morningMsgId);
 
           if (!morningMsgExists) {
@@ -178,7 +192,7 @@ export async function GET(req: NextRequest) {
             cleanMatchMsgData.campA.morningMsgId = morningRes?.id || null;
             cleanMatchMsgData.campA.submitMsgId = trackerAId;
 
-            // Direct Mapping Key untuk akses O(1) di bot
+            // Perbarui submitMsgId jika pesan tracker baru terbit
             await kv.hset('twi:active_camp_channels', {
               [chA]: {
                 matchId: match.id,
@@ -201,6 +215,20 @@ export async function GET(req: NextRequest) {
         // --- PROSES CAMP B ---
         if (cleanMatchMsgData.campB.channelId) {
           const chB = cleanMatchMsgData.campB.channelId;
+
+          // ⚡ Pendaftaran map aktif O(1) selalu berjalan terlepas dari status chat Discord
+          await kv.hset('twi:active_camp_channels', {
+            [chB]: {
+              matchId: match.id,
+              teamKey: 'teamB',
+              slug: slugB,
+              name: match.teamBName,
+              matchDate: match.matchDate,
+              week: matchWeek,
+              submitMsgId: cleanMatchMsgData.campB.submitMsgId,
+            },
+          });
+
           const morningMsgExists = await checkDiscordMessageExists(chB, cleanMatchMsgData.campB.morningMsgId);
 
           if (!morningMsgExists) {
@@ -227,7 +255,7 @@ export async function GET(req: NextRequest) {
             cleanMatchMsgData.campB.morningMsgId = morningRes?.id || null;
             cleanMatchMsgData.campB.submitMsgId = trackerBId;
 
-            // Direct Mapping Key untuk akses O(1) di bot
+            // Perbarui submitMsgId jika pesan tracker baru terbit
             await kv.hset('twi:active_camp_channels', {
               [chB]: {
                 matchId: match.id,
@@ -308,4 +336,4 @@ export async function GET(req: NextRequest) {
     console.error('[CRON ERROR] Match Reminders Failed:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
-}
+      }
