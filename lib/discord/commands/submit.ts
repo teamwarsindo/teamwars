@@ -33,21 +33,30 @@ function getOptionMap(options: any[] = []): Record<string, any> {
   return map;
 }
 
-// 🔍 Lookup Cepat dari Hash discord:match_messages
-async function resolveMatchAndCampFromChannel(channelId: string) {
-  const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
+function isToday(dateIso?: string): boolean {
+  if (!dateIso) return false;
+  const now = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  const match = new Date(dateIso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  return now === match;
+}
 
-  for (const [matchId, rawData] of Object.entries(matchMessages)) {
-    const data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-    if (data.campA?.channelId === channelId) {
-      return { matchId, teamKey: 'teamA' as const, campData: data.campA, allData: data };
-    }
-    if (data.campB?.channelId === channelId) {
-      return { matchId, teamKey: 'teamB' as const, campData: data.campB, allData: data };
-    }
+// ⚡ Lookup Instan O(1) dari Hash twi:active_camp_channels
+async function resolveMatchAndCampFromChannel(channelId: string) {
+  const activeCamp = await kv.hget<any>('twi:active_camp_channels', channelId);
+  if (!activeCamp || !activeCamp.matchId || !activeCamp.teamKey) {
+    return { matchId: null, teamKey: null, campData: null };
   }
 
-  return { matchId: null, teamKey: null, campData: null, allData: null };
+  // Tolak otomatis jika jadwal pertandingan bukan hari ini
+  if (!isToday(activeCamp.matchDate)) {
+    return { matchId: null, teamKey: null, campData: null, isExpired: true };
+  }
+
+  return {
+    matchId: activeCamp.matchId as string,
+    teamKey: activeCamp.teamKey as 'teamA' | 'teamB',
+    campData: activeCamp,
+  };
 }
 
 // Helper pembuat objek Deck standar
@@ -89,13 +98,25 @@ export async function handleSubmitCommand(interaction: any) {
     }
 
     const channelId = interaction.channel_id;
-    const { matchId, teamKey, campData, allData } = await resolveMatchAndCampFromChannel(channelId);
+    const resolved = await resolveMatchAndCampFromChannel(channelId);
+
+    if ((resolved as any).isExpired) {
+      return {
+        type: 4,
+        data: {
+          content: '⚠️ Pertandingan di camp ini tidak dijadwalkan untuk hari ini atau sudah berakhir.',
+          flags: 64,
+        },
+      };
+    }
+
+    const { matchId, teamKey, campData } = resolved;
 
     if (!matchId || !campData || !teamKey) {
       return {
         type: 4,
         data: {
-          content: '❌ Command ini hanya dapat digunakan di dalam **Channel Camp Tim** yang aktif!',
+          content: '❌ Command ini hanya dapat digunakan di dalam **Channel Camp Tim** yang aktif bertanding hari ini!',
           flags: 64,
         },
       };
@@ -117,10 +138,10 @@ export async function handleSubmitCommand(interaction: any) {
     if (!reportData) {
       reportData = {
         matchId,
-        week: 1,
+        week: campData.week || 1,
         metadata: { date: new Date().toISOString().split('T')[0], streamPlatform: 'YouTube', streamer: '', referee: '', streamUrl: '' },
-        teamA: { name: allData.campA?.name || '', slug: allData.campA?.slug || '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
-        teamB: { name: allData.campB?.name || '', slug: allData.campB?.slug || '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
+        teamA: { name: teamKey === 'teamA' ? campData.name : '', slug: teamKey === 'teamA' ? campData.slug : '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
+        teamB: { name: teamKey === 'teamB' ? campData.name : '', slug: teamKey === 'teamB' ? campData.slug : '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
         games: [],
         finalScore: { teamA: 0, teamB: 0 },
         winnerTeam: null,
@@ -377,7 +398,7 @@ export async function handleSubmitCommand(interaction: any) {
     // Ambil jadwal untuk deadline kick-off
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const currentMatch = schedules.find((m) => m.id === matchId);
-    const matchDateIso = currentMatch?.matchDate || new Date().toISOString();
+    const matchDateIso = currentMatch?.matchDate || campData.matchDate || new Date().toISOString();
 
     const trackerPlayers: TrackerPlayer[] = currentLineup.map((p) => {
       let dl = p.idDuelLinks;
@@ -388,25 +409,22 @@ export async function handleSubmitCommand(interaction: any) {
       return {
         ign: p.ign,
         idDuelLinks: dl,
-        deck1: p.deck1 ? { status: p.deck1.archetype ? 'VERIFIED' : 'PENDING_INPUT', archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
-        deck2: p.deck2 ? { status: p.deck2.archetype ? 'VERIFIED' : 'PENDING_INPUT', archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
+        deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
+        deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
       };
     });
 
-    const newTrackerId = await sendOrUpdateLiveTracker({
+    const newSubmitMsgId = await sendOrUpdateLiveTracker({
       channelId,
       matchDateIso,
+      week: reportData.week,
       submittedPlayers: trackerPlayers,
-      existingMsgId: campData.trackerMsgId,
+      existingMsgId: campData.submitMsgId,
     });
 
-    // Simpan pembaruan ID pesan tracker ke Hash discord:match_messages
-    if (teamKey === 'teamA') {
-      allData.campA.trackerMsgId = newTrackerId;
-    } else {
-      allData.campB.trackerMsgId = newTrackerId;
-    }
-    await kv.hset('discord:match_messages', { [matchId]: JSON.stringify(allData) });
+    // Simpan pembaruan submitMsgId langsung ke Hash twi:active_camp_channels
+    campData.submitMsgId = newSubmitMsgId;
+    await kv.hset('twi:active_camp_channels', { [channelId]: campData });
 
     // Simpan pembaruan ke 1 Hash Key twi:match_reports
     await kv.hset('twi:match_reports', { [matchId]: reportData });
@@ -425,4 +443,4 @@ export async function handleSubmitCommand(interaction: any) {
       data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
     };
   }
-        }
+}
