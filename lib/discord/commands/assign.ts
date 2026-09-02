@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
+import { kv } from '@vercel/kv';
 import { isDiscordAuthorized, executeAssignStaff } from '@/lib/discord/services/staff-assignment';
 import { discordAPI } from '@/lib/discord/utils';
 
@@ -38,11 +39,21 @@ export async function handleAssignCommand(body: any) {
             targetStaffId: targetId,
           });
 
+          // 🔴 SINKRONKAN LANGSUNG KE twi:match_reports
+          const reportData = await kv.hget<any>('twi:match_reports', matchId);
+          if (reportData) {
+            reportData.metadata = {
+              ...(reportData.metadata || {}),
+              [assignType === 'REFEREE' ? 'referee' : 'streamer']: staffName,
+            };
+            await kv.hset('twi:match_reports', { [matchId]: reportData });
+          }
+
           const replaceMsg = replacedStaffName
             ? `\n🔄 *(Menggantikan ${replacedStaffName} yang berhalangan)*`
             : '';
 
-          const finalContent = `✅ **${staffName}** berhasil ditugaskan sebagai **${roleTitle}** untuk match **${match.id}**!${replaceMsg}\nRoles/Permissions dan Log channel telah diperbarui.`;
+          const finalContent = `✅ **${staffName}** berhasil ditugaskan sebagai **${roleTitle}** untuk match **${match.id}**!${replaceMsg}\nRoles/Permissions, Match Report Metadata, dan Log channel telah diperbarui.`;
 
           if (appId && token) {
             await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
