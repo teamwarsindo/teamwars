@@ -10,11 +10,12 @@ import {
   isWithinAdminGracePeriod,
 } from './submit/types';
 import { handleSubAdd } from './submit/add';
-import { handleSubChange } from './submit/change';
+import { handleSubDel } from './submit/del';
 import { handleSubEdit } from './submit/edit';
 
+// 🔍 Auto-publish berlaku jika minimal 4 pemain dan seluruh deck yang dialokasikan terisi
 function checkIsLineupFullyCompleted(lineup: any[]): boolean {
-  if (!Array.isArray(lineup) || lineup.length < 5) return false;
+  if (!Array.isArray(lineup) || lineup.length < 4) return false;
 
   for (const p of lineup) {
     if (!p.deck1 || !p.deck1.archetype || !p.deck1.archetype.trim()) {
@@ -59,7 +60,7 @@ export async function handleSubmitCommand(interaction: any) {
     const matchIsToday = isToday(activeCamp.matchDate);
     const isWithinGracePeriod = isWithinAdminGracePeriod(activeCamp.matchDate);
 
-    // Proteksi Waktu: Referee hanya hari H, Admin/Chief kebal sampai Selasa 23:59 WIB pekan berikutnya
+    // Proteksi Waktu: Referee hanya hari H, Admin kebal s/d Selasa 23:59 WIB pekan berikutnya
     if (!matchIsToday) {
       if (userIsAdmin && isWithinGracePeriod) {
         // Bypass akses untuk Admin / Chief
@@ -145,8 +146,8 @@ export async function handleSubmitCommand(interaction: any) {
 
     if (subCommandName === 'add') {
       result = handleSubAdd(ctx);
-    } else if (subCommandName === 'change') {
-      result = await handleSubChange(ctx);
+    } else if (subCommandName === 'del') {
+      result = await handleSubDel(ctx);
     } else if (subCommandName === 'edit') {
       result = await handleSubEdit(ctx);
     }
@@ -160,7 +161,7 @@ export async function handleSubmitCommand(interaction: any) {
     const manualPublish = Boolean(optMap.publish ?? false);
     const shouldRepost = manualPublish || isFullyComplete;
 
-    // 🧹 Jika harus repost (publish/lengkap) dan pesan lama ada, hapus dulu agar pesan baru turun ke paling bawah
+    // Hapus pesan lama jika repost aktif agar pesan baru muncul di paling bawah
     if (shouldRepost && activeCamp.submitMsgId) {
       try {
         await discordAPI(`/channels/${channelId}/messages/${activeCamp.submitMsgId}`, 'DELETE');
@@ -176,7 +177,6 @@ export async function handleSubmitCommand(interaction: any) {
       deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
     }));
 
-    // Jika shouldRepost = true, kirim null agar fungsi sendOrUpdateLiveTracker membuat pesan baru (POST)
     const newSubmitMsgId = await sendOrUpdateLiveTracker({
       channelId,
       matchDateIso: activeCamp.matchDate || new Date().toISOString(),
@@ -191,7 +191,7 @@ export async function handleSubmitCommand(interaction: any) {
 
     let publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
     if (isFullyComplete) {
-      publishNotice = '\n🎉 **Semua Deck & Lineup Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
+      publishNotice = '\n🎉 **Lineup & Deck Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
     } else if (manualPublish) {
       publishNotice = '\n📢 *Live tracker di-publish ulang ke paling bawah channel!*';
     }
@@ -210,4 +210,4 @@ export async function handleSubmitCommand(interaction: any) {
       data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
     };
   }
-  }
+      }
