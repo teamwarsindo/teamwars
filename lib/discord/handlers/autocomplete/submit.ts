@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
-import { filterChoices, isToday } from './types';
+import { filterChoices } from './types';
 
 const getTeamPlayers = async (slug: string): Promise<PlayerItem[]> => {
   const team = await kv.hgetall<any>(`teams:${slug}`);
@@ -42,9 +42,6 @@ async function resolveMatchCamp(channelId: string) {
   if (!activeCamp || !activeCamp.matchId || !activeCamp.teamKey) {
     return { matchId: null, teamKey: null, campData: null };
   }
-  if (!isToday(activeCamp.matchDate)) {
-    return { matchId: null, teamKey: null, campData: null };
-  }
   return {
     matchId: activeCamp.matchId as string,
     teamKey: activeCamp.teamKey as 'teamA' | 'teamB',
@@ -57,12 +54,13 @@ export async function handleSubmitAutocomplete(interaction: any) {
     const { matchId, teamKey, campData } = await resolveMatchCamp(interaction.channel_id);
     if (!matchId || !campData?.slug) return { type: 8, data: { choices: [] } };
 
+    // ⚡ Buka filter tanggal untuk autocomplete:
+    // Pengecekan expired tanggal dan role admin biar ditangani saat submit dijalankan.
+
     const [teamRoster, reportData] = await Promise.all([
       getTeamPlayers(campData.slug),
       kv.hget<any>('twi:match_reports', matchId),
     ]);
-
-    if (reportData?.isFinished) return { type: 8, data: { choices: [] } };
 
     const rawOptions = interaction.data?.options || [];
     const subCommand = rawOptions[0]?.type === 1 ? rawOptions[0] : null;
@@ -75,7 +73,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
     const query = rawVal.toLowerCase();
     const existingLineup: any[] = reportData?.[teamKey]?.lineup || [];
 
-    // Master Deck
+    // 1. Master Deck
     if (fName.startsWith('deck_') || fName === 'deck') {
       const masterDecks = await getMasterDecks();
       const choices = filterChoices(masterDecks, query, (d) => d, (d) => d);
@@ -85,7 +83,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
       return { type: 8, data: { choices: choices.slice(0, 25) } };
     }
 
-    // Master Skill
+    // 2. Master Skill
     if (fName.startsWith('skill_') || fName === 'skill') {
       const skillsMap = await getMasterSkillsMap();
       const skillEntries = Object.entries(skillsMap).map(([name, code]) => ({
@@ -105,7 +103,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
       return { type: 8, data: { choices: filtered.slice(0, 25) } };
     }
 
-    // Lineup Pemain (Edit / Change Pemain Lama)
+    // 3. Lineup Pemain (Edit / Change: Pemain Lama)
     if ((subName === 'edit' && fName === 'pemain') || (subName === 'change' && fName === 'pemain_lama')) {
       if (existingLineup.length === 0) {
         return {
@@ -132,7 +130,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
       };
     }
 
-    // Roster Pemain Baru (Add 1-5 / Change Pemain Baru)
+    // 4. Roster Pemain Baru (Add 1-5 / Change Pemain Baru)
     if (fName.startsWith('pemain')) {
       const submitted = existingLineup.map((p) => String(p.ign || '').toLowerCase());
       const available = teamRoster.filter((p) => !submitted.includes((p.ign || '').toLowerCase()));
@@ -155,4 +153,4 @@ export async function handleSubmitAutocomplete(interaction: any) {
     console.error('Error handleSubmitAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-                   }
+}
