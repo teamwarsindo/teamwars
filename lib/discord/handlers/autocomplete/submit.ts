@@ -54,9 +54,6 @@ export async function handleSubmitAutocomplete(interaction: any) {
     const { matchId, teamKey, campData } = await resolveMatchCamp(interaction.channel_id);
     if (!matchId || !campData?.slug) return { type: 8, data: { choices: [] } };
 
-    // ⚡ Buka filter tanggal untuk autocomplete:
-    // Pengecekan expired tanggal dan role admin biar ditangani saat submit dijalankan.
-
     const [teamRoster, reportData] = await Promise.all([
       getTeamPlayers(campData.slug),
       kv.hget<any>('twi:match_reports', matchId),
@@ -103,8 +100,8 @@ export async function handleSubmitAutocomplete(interaction: any) {
       return { type: 8, data: { choices: filtered.slice(0, 25) } };
     }
 
-    // 3. Lineup Pemain (Edit / Change: Pemain Lama)
-    if ((subName === 'edit' && fName === 'pemain') || (subName === 'change' && fName === 'pemain_lama')) {
+    // 3. Lineup Pemain (Edit & Del: Menampilkan pemain yang sudah ada di lineup)
+    if ((subName === 'edit' && fName === 'pemain') || (subName === 'del' && fName.startsWith('pemain_'))) {
       if (existingLineup.length === 0) {
         return {
           type: 8,
@@ -121,7 +118,11 @@ export async function handleSubmitAutocomplete(interaction: any) {
         const d1 = Boolean(p.deck1?.archetype);
         const d2 = Boolean(p.deck2?.archetype);
         const badge = d1 && d2 ? '✅ (2/2)' : d1 || d2 ? '⚠️ (1/2)' : '⏳ (0/2)';
-        return { ign, dl, label: `${ign} (${dl}) ${badge}` };
+        return {
+          ign,
+          dl,
+          label: subName === 'del' ? `${ign} (${dl})` : `${ign} (${dl}) ${badge}`,
+        };
       });
 
       return {
@@ -130,8 +131,17 @@ export async function handleSubmitAutocomplete(interaction: any) {
       };
     }
 
-    // 4. Roster Pemain Baru (Add 1-5 / Change Pemain Baru)
-    if (fName.startsWith('pemain')) {
+    // 4. Roster Pemain Baru (Add: Menampilkan pemain roster yang belum masuk lineup)
+    if (subName === 'add' && fName.startsWith('pemain')) {
+      if (existingLineup.length >= 5) {
+        return {
+          type: 8,
+          data: {
+            choices: [{ name: '⚠️ Kuota lineup sudah penuh (5/5)! Hapus pemain via /submit del jika ingin mengganti.', value: 'FULL_LINEUP' }],
+          },
+        };
+      }
+
       const submitted = existingLineup.map((p) => String(p.ign || '').toLowerCase());
       const available = teamRoster.filter((p) => !submitted.includes((p.ign || '').toLowerCase()));
       return {
