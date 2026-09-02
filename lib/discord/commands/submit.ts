@@ -1,6 +1,5 @@
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { MatchScheduleItem } from '@/app/tournament/_library';
 import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
 import {
   sendOrUpdateLiveTracker,
@@ -40,6 +39,16 @@ function isToday(dateIso?: string): boolean {
   return now === match;
 }
 
+// 🔍 Parser format "IGN (ID)" menjadi 2 nilai terpisah
+function parseIgnAndId(input: string): { ign: string; idDuelLinks: string } {
+  const match = input.match(/^(.*?)(?:\s*\(([\d\-]+)\))?$/);
+  if (!match) return { ign: input.trim(), idDuelLinks: '' };
+  return {
+    ign: match[1].trim(),
+    idDuelLinks: (match[2] || '').trim(),
+  };
+}
+
 // ⚡ Lookup Instan O(1) dari Hash twi:active_camp_channels
 async function resolveMatchAndCampFromChannel(channelId: string) {
   const activeCamp = await kv.hget<any>('twi:active_camp_channels', channelId);
@@ -47,7 +56,6 @@ async function resolveMatchAndCampFromChannel(channelId: string) {
     return { matchId: null, teamKey: null, campData: null };
   }
 
-  // Tolak otomatis jika jadwal pertandingan bukan hari ini
   if (!isToday(activeCamp.matchDate)) {
     return { matchId: null, teamKey: null, campData: null, isExpired: true };
   }
@@ -59,7 +67,6 @@ async function resolveMatchAndCampFromChannel(channelId: string) {
   };
 }
 
-// Helper pembuat objek Deck standar
 function createEmptyDeck() {
   return {
     archetype: '',
@@ -128,7 +135,7 @@ export async function handleSubmitCommand(interaction: any) {
     const subOptions = subCommandObj ? subCommandObj.options || [] : rawOptions;
     const optMap = getOptionMap(subOptions);
 
-    // Ambil data roster tim
+    // Ambil data roster tim langsung dari hash profil tim
     const teamData = await kv.hgetall<any>(`teams:${campData.slug}`);
     const teamRoster: PlayerItem[] = teamData?.players ? parsePlayers(teamData.players) : [];
 
@@ -139,9 +146,29 @@ export async function handleSubmitCommand(interaction: any) {
       reportData = {
         matchId,
         week: campData.week || 1,
-        metadata: { date: new Date().toISOString().split('T')[0], streamPlatform: 'YouTube', streamer: '', referee: '', streamUrl: '' },
-        teamA: { name: teamKey === 'teamA' ? campData.name : '', slug: teamKey === 'teamA' ? campData.slug : '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
-        teamB: { name: teamKey === 'teamB' ? campData.name : '', slug: teamKey === 'teamB' ? campData.slug : '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
+        metadata: {
+          date: campData.matchDate ? campData.matchDate.split('T')[0] : new Date().toISOString().split('T')[0],
+          streamPlatform: 'YouTube',
+          streamer: '',
+          referee: '',
+          streamUrl: '',
+        },
+        teamA: {
+          name: teamKey === 'teamA' ? campData.name : '',
+          slug: teamKey === 'teamA' ? campData.slug : '',
+          score: 0,
+          repeatsUsed: 0,
+          warningsUsed: 0,
+          lineup: [],
+        },
+        teamB: {
+          name: teamKey === 'teamB' ? campData.name : '',
+          slug: teamKey === 'teamB' ? campData.slug : '',
+          score: 0,
+          repeatsUsed: 0,
+          warningsUsed: 0,
+          lineup: [],
+        },
         games: [],
         finalScore: { teamA: 0, teamB: 0 },
         winnerTeam: null,
@@ -167,12 +194,12 @@ export async function handleSubmitCommand(interaction: any) {
     // SUBCOMMAND 1: ADD (Tambah 1 s/d 5 Pemain ke Lineup)
     // ========================================================================
     if (subCommandName === 'add') {
-      const inputPlayerEntries: { ign: string; count: number }[] = [];
+      const inputPlayerEntries: { rawInput: string; count: number }[] = [];
       for (let i = 1; i <= 5; i++) {
-        const ign = optMap[`pemain_${i}`];
-        if (ign && typeof ign === 'string' && ign.trim()) {
+        const raw = optMap[`pemain_${i}`];
+        if (raw && typeof raw === 'string' && raw.trim()) {
           const count = Number(optMap[`deck_count_${i}`]) || 2;
-          inputPlayerEntries.push({ ign: ign.trim(), count });
+          inputPlayerEntries.push({ rawInput: raw.trim(), count });
         }
       }
 
@@ -194,7 +221,18 @@ export async function handleSubmitCommand(interaction: any) {
         };
       }
 
-      const newValidEntries = inputPlayerEntries.filter(
+      // Parse seluruh input pemain ke IGN & ID Duel Links yang bersih
+      const parsedEntries = inputPlayerEntries.map((item) => {
+        const parsed = parseIgnAndId(item.rawInput);
+        let idDl = parsed.idDuelLinks;
+        if (!idDl) {
+          const found = teamRoster.find((p) => p.ign.toLowerCase() === parsed.ign.toLowerCase());
+          idDl = found?.idDuelLinks || '';
+        }
+        return { ign: parsed.ign, idDuelLinks: idDl, count: item.count };
+      });
+
+      const newValidEntries = parsedEntries.filter(
         (entry) => !currentLineup.some((p) => String(p.ign || '').toLowerCase() === entry.ign.toLowerCase())
       );
 
@@ -219,10 +257,7 @@ export async function handleSubmitCommand(interaction: any) {
       }
 
       const addedList: string[] = [];
-      newValidEntries.forEach(({ ign, count }) => {
-        const rosterMember = teamRoster.find((p) => p.ign.toLowerCase() === ign.toLowerCase());
-        const idDuelLinks = rosterMember?.idDuelLinks || '';
-
+      newValidEntries.forEach(({ ign, idDuelLinks, count }) => {
         currentLineup.push({
           ign,
           idDuelLinks,
@@ -245,11 +280,11 @@ export async function handleSubmitCommand(interaction: any) {
     // SUBCOMMAND 2: CHANGE (Ganti 1 Pemain di Lineup)
     // ========================================================================
     else if (subCommandName === 'change') {
-      const oldPlayerIgn = String(optMap.pemain_lama || '').trim();
-      const newPlayerIgn = String(optMap.pemain_baru || '').trim();
+      const oldParsed = parseIgnAndId(String(optMap.pemain_lama || ''));
+      const newParsed = parseIgnAndId(String(optMap.pemain_baru || ''));
       const deckCount = Number(optMap.deck_count) || 2;
 
-      if (!oldPlayerIgn || !newPlayerIgn) {
+      if (!oldParsed.ign || !newParsed.ign) {
         return {
           type: 4,
           data: { content: '❌ Opsi `pemain_lama` dan `pemain_baru` wajib diisi!', flags: 64 },
@@ -257,44 +292,47 @@ export async function handleSubmitCommand(interaction: any) {
       }
 
       const oldIndex = currentLineup.findIndex(
-        (p) => String(p.ign || '').toLowerCase() === oldPlayerIgn.toLowerCase()
+        (p) => String(p.ign || '').toLowerCase() === oldParsed.ign.toLowerCase()
       );
 
       if (oldIndex === -1) {
         return {
           type: 4,
-          data: { content: `❌ Pemain lama **${oldPlayerIgn}** tidak ditemukan di lineup!`, flags: 64 },
+          data: { content: `❌ Pemain lama **${oldParsed.ign}** tidak ditemukan di lineup!`, flags: 64 },
         };
       }
 
       const hasPlayed = (reportData.games || []).some((g: any) => {
         const duelPlayer = teamKey === 'teamA' ? g.playerA?.ign || g.playerA : g.playerB?.ign || g.playerB;
-        return String(duelPlayer || '').toLowerCase() === oldPlayerIgn.toLowerCase();
+        return String(duelPlayer || '').toLowerCase() === oldParsed.ign.toLowerCase();
       });
 
       if (hasPlayed) {
         return {
           type: 4,
           data: {
-            content: `❌ **Pergantian Ditolak!** Pemain **${oldPlayerIgn}** sudah memiliki riwayat duel di pertandingan ini.`,
+            content: `❌ **Pergantian Ditolak!** Pemain **${oldParsed.ign}** sudah memiliki riwayat duel di pertandingan ini.`,
             flags: 64,
           },
         };
       }
 
       const isNewAlreadyInLineup = currentLineup.some(
-        (p, idx) => idx !== oldIndex && String(p.ign || '').toLowerCase() === newPlayerIgn.toLowerCase()
+        (p, idx) => idx !== oldIndex && String(p.ign || '').toLowerCase() === newParsed.ign.toLowerCase()
       );
 
       if (isNewAlreadyInLineup) {
         return {
           type: 4,
-          data: { content: `❌ Pemain baru **${newPlayerIgn}** sudah ada di lineup!`, flags: 64 },
+          data: { content: `❌ Pemain baru **${newParsed.ign}** sudah ada di lineup!`, flags: 64 },
         };
       }
 
-      const newRosterMember = teamRoster.find((p) => p.ign.toLowerCase() === newPlayerIgn.toLowerCase());
-      const newDlId = newRosterMember?.idDuelLinks || '';
+      let newDlId = newParsed.idDuelLinks;
+      if (!newDlId) {
+        const rosterMember = teamRoster.find((p) => p.ign.toLowerCase() === newParsed.ign.toLowerCase());
+        newDlId = rosterMember?.idDuelLinks || '';
+      }
 
       let deck1 = createEmptyDeck();
       if (optMap.deck_1) {
@@ -313,7 +351,7 @@ export async function handleSubmitCommand(interaction: any) {
       }
 
       currentLineup[oldIndex] = {
-        ign: newPlayerIgn,
+        ign: newParsed.ign,
         idDuelLinks: newDlId,
         totalWins: 0,
         totalLosses: 0,
@@ -322,15 +360,15 @@ export async function handleSubmitCommand(interaction: any) {
         deck2,
       };
 
-      responseMessage = `🔄 **Pergantian Pemain Berhasil!**\n• Keluar: **${oldPlayerIgn}**\n• Masuk: **${newPlayerIgn}** (${newDlId || '-'})`;
+      responseMessage = `🔄 **Pergantian Pemain Berhasil!**\n• Keluar: **${oldParsed.ign}**\n• Masuk: **${newParsed.ign}** (${newDlId || '-'})`;
     }
 
     // ========================================================================
     // SUBCOMMAND 3: EDIT (Input / Verifikasi Detail Deck Per Pemain)
     // ========================================================================
     else if (subCommandName === 'edit') {
-      const targetIgn = String(optMap.pemain || '').trim();
-      if (!targetIgn) {
+      const parsedTarget = parseIgnAndId(String(optMap.pemain || ''));
+      if (!parsedTarget.ign) {
         return {
           type: 4,
           data: { content: '❌ Pilih pemain di lineup yang ingin diedit!', flags: 64 },
@@ -338,13 +376,13 @@ export async function handleSubmitCommand(interaction: any) {
       }
 
       const playerObj = currentLineup.find(
-        (p) => String(p.ign || '').toLowerCase() === targetIgn.toLowerCase()
+        (p) => String(p.ign || '').toLowerCase() === parsedTarget.ign.toLowerCase()
       );
 
       if (!playerObj) {
         return {
           type: 4,
-          data: { content: `❌ Pemain **${targetIgn}** tidak ditemukan di lineup!`, flags: 64 },
+          data: { content: `❌ Pemain **${parsedTarget.ign}** tidak ditemukan di lineup!`, flags: 64 },
         };
       }
 
@@ -386,7 +424,7 @@ export async function handleSubmitCommand(interaction: any) {
         };
       }
 
-      responseMessage = `📝 **Berhasil Memperbarui Data Pemain:** **${targetIgn}**\n${updatedDecks.map((d) => `• ${d}`).join('\n')}`;
+      responseMessage = `📝 **Berhasil Memperbarui Data Pemain:** **${parsedTarget.ign}**\n${updatedDecks.map((d) => `• ${d}`).join('\n')}`;
     }
 
     // ========================================================================
@@ -395,24 +433,14 @@ export async function handleSubmitCommand(interaction: any) {
     targetTeam.lineup = currentLineup;
     reportData[teamKey] = targetTeam;
 
-    // Ambil jadwal untuk deadline kick-off
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const currentMatch = schedules.find((m) => m.id === matchId);
-    const matchDateIso = currentMatch?.matchDate || campData.matchDate || new Date().toISOString();
+    const matchDateIso = campData.matchDate || new Date().toISOString();
 
-    const trackerPlayers: TrackerPlayer[] = currentLineup.map((p) => {
-      let dl = p.idDuelLinks;
-      if (!dl) {
-        const found = teamRoster.find((r) => r.ign.toLowerCase() === (p.ign || '').toLowerCase());
-        dl = found?.idDuelLinks || '';
-      }
-      return {
-        ign: p.ign,
-        idDuelLinks: dl,
-        deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
-        deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
-      };
-    });
+    const trackerPlayers: TrackerPlayer[] = currentLineup.map((p) => ({
+      ign: p.ign,
+      idDuelLinks: p.idDuelLinks || '',
+      deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
+      deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
+    }));
 
     const newSubmitMsgId = await sendOrUpdateLiveTracker({
       channelId,
@@ -422,11 +450,8 @@ export async function handleSubmitCommand(interaction: any) {
       existingMsgId: campData.submitMsgId,
     });
 
-    // Simpan pembaruan submitMsgId langsung ke Hash twi:active_camp_channels
     campData.submitMsgId = newSubmitMsgId;
     await kv.hset('twi:active_camp_channels', { [channelId]: campData });
-
-    // Simpan pembaruan ke 1 Hash Key twi:match_reports
     await kv.hset('twi:match_reports', { [matchId]: reportData });
 
     return {
@@ -443,4 +468,5 @@ export async function handleSubmitCommand(interaction: any) {
       data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
     };
   }
-}
+          }
+      
