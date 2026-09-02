@@ -1,24 +1,32 @@
 import { kv } from '@vercel/kv';
 import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
 import { sendOrUpdateLiveTracker, TrackerPlayer } from '@/lib/discord/messages/match-briefing';
-import { isStaff, getOptionMap, isToday } from './submit/types';
+import {
+  isStaff,
+  isAdminOrChief,
+  getOptionMap,
+  isToday,
+  isWithinAdminGracePeriod,
+} from './submit/types';
 import { handleSubAdd } from './submit/add';
 import { handleSubChange } from './submit/change';
 import { handleSubEdit } from './submit/edit';
 
-async function resolveMatchAndCampFromChannel(channelId: string) {
-  const activeCamp = await kv.hget<any>('twi:active_camp_channels', channelId);
-  if (!activeCamp?.matchId || !activeCamp?.teamKey) {
-    return { matchId: null, teamKey: null, campData: null };
+function checkIsLineupFullyCompleted(lineup: any[]): boolean {
+  if (!Array.isArray(lineup) || lineup.length < 5) return false;
+
+  for (const p of lineup) {
+    if (!p.deck1 || !p.deck1.archetype || !p.deck1.archetype.trim()) {
+      return false;
+    }
+    if (p.deck2 !== null) {
+      if (!p.deck2 || !p.deck2.archetype || !p.deck2.archetype.trim()) {
+        return false;
+      }
+    }
   }
-  if (!isToday(activeCamp.matchDate)) {
-    return { matchId: null, teamKey: null, campData: null, isExpired: true };
-  }
-  return {
-    matchId: activeCamp.matchId as string,
-    teamKey: activeCamp.teamKey as 'teamA' | 'teamB',
-    campData: activeCamp,
-  };
+
+  return true;
 }
 
 export async function handleSubmitCommand(interaction: any) {
@@ -26,51 +34,87 @@ export async function handleSubmitCommand(interaction: any) {
     if (!isStaff(interaction)) {
       return {
         type: 4,
-        data: { content: '❌ Akses Ditolak! Hanya **Referee** dan **Admin** yang dapat menggunakan command ini.', flags: 64 },
+        data: {
+          content: '❌ Akses Ditolak! Hanya **Referee** dan **Admin** yang dapat menggunakan command ini.',
+          flags: 64,
+        },
       };
     }
 
     const channelId = interaction.channel_id;
-    const resolved = await resolveMatchAndCampFromChannel(channelId);
+    const activeCamp = await kv.hget<any>('twi:active_camp_channels', channelId);
 
-    if ((resolved as any).isExpired) {
+    if (!activeCamp?.matchId || !activeCamp?.teamKey) {
       return {
         type: 4,
-        data: { content: '⚠️ Pertandingan di camp ini tidak dijadwalkan untuk hari ini atau sudah berakhir.', flags: 64 },
+        data: {
+          content: '❌ Command ini hanya dapat digunakan di dalam **Channel Camp Tim** yang terdaftar!',
+          flags: 64,
+        },
       };
     }
 
-    const { matchId, teamKey, campData } = resolved;
-    if (!matchId || !campData || !teamKey) {
-      return {
-        type: 4,
-        data: { content: '❌ Command ini hanya dapat digunakan di dalam **Channel Camp Tim** yang aktif bertanding hari ini!', flags: 64 },
-      };
+    const userIsAdmin = isAdminOrChief(interaction);
+    const matchIsToday = isToday(activeCamp.matchDate);
+    const isWithinGracePeriod = isWithinAdminGracePeriod(activeCamp.matchDate);
+
+    // Proteksi Waktu: Referee hanya hari H, Admin/Chief kebal sampai Selasa 23:59 WIB pekan depan
+    if (!matchIsToday) {
+      if (userIsAdmin && isWithinGracePeriod) {
+        // Akses khusus Admin / Chief
+      } else {
+        return {
+          type: 4,
+          data: {
+            content: userIsAdmin
+              ? '⚠️ Match ini sudah melewati batas rekap pekan (Selasa 23:59 WIB). Akses edit ditutup.'
+              : '⚠️ Pertandingan di camp ini tidak dijadwalkan untuk hari ini atau sudah berakhir. (Hubungi Admin jika butuh revisi).',
+            flags: 64,
+          },
+        };
+      }
     }
 
+    const { matchId, teamKey } = activeCamp;
     const rawOptions = interaction.data?.options || [];
     const subCommandObj = rawOptions[0]?.type === 1 ? rawOptions[0] : null;
     const subCommandName = subCommandObj?.name || 'add';
     const subOptions = subCommandObj ? subCommandObj.options || [] : rawOptions;
     const optMap = getOptionMap(subOptions);
 
-    const teamData = await kv.hgetall<any>(`teams:${campData.slug}`);
+    const teamData = await kv.hgetall<any>(`teams:${activeCamp.slug}`);
     const teamRoster: PlayerItem[] = teamData?.players ? parsePlayers(teamData.players) : [];
 
     let reportData = await kv.hget<any>('twi:match_reports', matchId);
     if (!reportData) {
       reportData = {
         matchId,
-        week: campData.week || 1,
+        week: activeCamp.week || 1,
         metadata: {
-          date: campData.matchDate ? campData.matchDate.split('T')[0] : new Date().toISOString().split('T')[0],
+          date: activeCamp.matchDate
+            ? activeCamp.matchDate.split('T')[0]
+            : new Date().toISOString().split('T')[0],
           streamPlatform: 'YouTube',
           streamer: '',
           referee: '',
           streamUrl: '',
         },
-        teamA: { name: teamKey === 'teamA' ? campData.name : '', slug: teamKey === 'teamA' ? campData.slug : '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
-        teamB: { name: teamKey === 'teamB' ? campData.name : '', slug: teamKey === 'teamB' ? campData.slug : '', score: 0, repeatsUsed: 0, warningsUsed: 0, lineup: [] },
+        teamA: {
+          name: teamKey === 'teamA' ? activeCamp.name : '',
+          slug: teamKey === 'teamA' ? activeCamp.slug : '',
+          score: 0,
+          repeatsUsed: 0,
+          warningsUsed: 0,
+          lineup: [],
+        },
+        teamB: {
+          name: teamKey === 'teamB' ? activeCamp.name : '',
+          slug: teamKey === 'teamB' ? activeCamp.slug : '',
+          score: 0,
+          repeatsUsed: 0,
+          warningsUsed: 0,
+          lineup: [],
+        },
         games: [],
         finalScore: { teamA: 0, teamB: 0 },
         winnerTeam: null,
@@ -78,14 +122,24 @@ export async function handleSubmitCommand(interaction: any) {
       };
     }
 
-    if (reportData.isFinished) {
+    if (reportData.isFinished && !userIsAdmin) {
       return {
         type: 4,
         data: { content: '⚠️ Pertandingan ini sudah selesai (`isFinished: true`). Lineup sudah dikunci.', flags: 64 },
       };
     }
 
-    const ctx = { interaction, channelId, matchId, teamKey, campData, reportData, teamRoster, optMap };
+    const ctx = {
+      interaction,
+      channelId,
+      matchId,
+      teamKey,
+      campData: activeCamp,
+      reportData,
+      teamRoster,
+      optMap,
+    };
+
     let result: { error?: string; message?: string } = {};
 
     if (subCommandName === 'add') {
@@ -100,8 +154,13 @@ export async function handleSubmitCommand(interaction: any) {
       return { type: 4, data: { content: result.error, flags: 64 } };
     }
 
-    // Sinkronisasi Live Tracker & KV
     const targetLineup = reportData[teamKey].lineup || [];
+    const isFullyComplete = checkIsLineupFullyCompleted(targetLineup);
+    const manualPublish = Boolean(optMap.publish ?? false);
+
+    // Otomatis Repost jika deck lengkap 100% ATAU user memilih publish: true
+    const shouldRepost = manualPublish || isFullyComplete;
+
     const trackerPlayers: TrackerPlayer[] = targetLineup.map((p: any) => ({
       ign: p.ign,
       idDuelLinks: p.idDuelLinks || '',
@@ -111,20 +170,28 @@ export async function handleSubmitCommand(interaction: any) {
 
     const newSubmitMsgId = await sendOrUpdateLiveTracker({
       channelId,
-      matchDateIso: campData.matchDate || new Date().toISOString(),
+      matchDateIso: activeCamp.matchDate || new Date().toISOString(),
       week: reportData.week,
       submittedPlayers: trackerPlayers,
-      existingMsgId: campData.submitMsgId,
+      existingMsgId: activeCamp.submitMsgId,
+      repost: shouldRepost,
     });
 
-    campData.submitMsgId = newSubmitMsgId;
-    await kv.hset('twi:active_camp_channels', { [channelId]: campData });
+    activeCamp.submitMsgId = newSubmitMsgId;
+    await kv.hset('twi:active_camp_channels', { [channelId]: activeCamp });
     await kv.hset('twi:match_reports', { [matchId]: reportData });
+
+    let publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
+    if (isFullyComplete) {
+      publishNotice = '\n🎉 **Semua Deck & Lineup Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
+    } else if (manualPublish) {
+      publishNotice = '\n📢 *Live tracker di-publish ulang ke paling bawah channel!*';
+    }
 
     return {
       type: 4,
       data: {
-        content: `${result.message}\n\n📊 Status Lineup: **${targetLineup.length}/5 Pemain Terdaftar**.`,
+        content: `${result.message}\n\n📊 Status Lineup: **${targetLineup.length}/5 Pemain Terdaftar**.${publishNotice}`,
         flags: 64,
       },
     };
@@ -136,3 +203,4 @@ export async function handleSubmitCommand(interaction: any) {
     };
   }
 }
+  
