@@ -221,7 +221,6 @@ export async function handleSubmitCommand(interaction: any) {
         };
       }
 
-      // Parse seluruh input pemain ke IGN & ID Duel Links yang bersih
       const parsedEntries = inputPlayerEntries.map((item) => {
         const parsed = parseIgnAndId(item.rawInput);
         let idDl = parsed.idDuelLinks;
@@ -280,8 +279,31 @@ export async function handleSubmitCommand(interaction: any) {
     // SUBCOMMAND 2: CHANGE (Ganti 1 Pemain di Lineup)
     // ========================================================================
     else if (subCommandName === 'change') {
-      const oldParsed = parseIgnAndId(String(optMap.pemain_lama || ''));
-      const newParsed = parseIgnAndId(String(optMap.pemain_baru || ''));
+      if (currentLineup.length === 0) {
+        return {
+          type: 4,
+          data: {
+            content: '⚠️ **Lineup tim ini masih kosong!** Daftarkan pemain terlebih dahulu dengan `/submit add`.',
+            flags: 64,
+          },
+        };
+      }
+
+      const rawOld = String(optMap.pemain_lama || '');
+      const rawNew = String(optMap.pemain_baru || '');
+
+      if (rawOld === 'EMPTY_LINEUP') {
+        return {
+          type: 4,
+          data: {
+            content: '⚠️ Lineup tim masih kosong. Silakan gunakan `/submit add` terlebih dahulu!',
+            flags: 64,
+          },
+        };
+      }
+
+      const oldParsed = parseIgnAndId(rawOld);
+      const newParsed = parseIgnAndId(rawNew);
       const deckCount = Number(optMap.deck_count) || 2;
 
       if (!oldParsed.ign || !newParsed.ign) {
@@ -367,7 +389,28 @@ export async function handleSubmitCommand(interaction: any) {
     // SUBCOMMAND 3: EDIT (Input / Verifikasi Detail Deck Per Pemain)
     // ========================================================================
     else if (subCommandName === 'edit') {
-      const parsedTarget = parseIgnAndId(String(optMap.pemain || ''));
+      if (currentLineup.length === 0) {
+        return {
+          type: 4,
+          data: {
+            content: '⚠️ **Lineup tim ini masih kosong!** Daftarkan pemain terlebih dahulu dengan `/submit add`.',
+            flags: 64,
+          },
+        };
+      }
+
+      const rawPemain = String(optMap.pemain || '');
+      if (rawPemain === 'EMPTY_LINEUP') {
+        return {
+          type: 4,
+          data: {
+            content: '⚠️ Lineup tim masih kosong. Daftarkan pemain terlebih dahulu dengan `/submit add`!',
+            flags: 64,
+          },
+        };
+      }
+
+      const parsedTarget = parseIgnAndId(rawPemain);
       if (!parsedTarget.ign) {
         return {
           type: 4,
@@ -468,5 +511,4 @@ export async function handleSubmitCommand(interaction: any) {
       data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
     };
   }
-          }
-      
+      }
