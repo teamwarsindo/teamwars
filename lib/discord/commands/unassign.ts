@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
+import { kv } from '@vercel/kv';
 import { isDiscordAuthorized, executeUnassignStaff } from '@/lib/discord/services/staff-assignment';
 import { discordAPI } from '@/lib/discord/utils';
+import { MatchScheduleItem } from '@/app/tournament/_library';
 
 export async function handleUnassignCommand(body: any) {
   try {
@@ -49,10 +51,32 @@ export async function handleUnassignCommand(body: any) {
             scoreB,
           });
 
+          // 🔴 KHUSUS STREAMER: Hapus streamer & link streaming di twi:match_reports dan twi:schedules
+          // JIKA REFEREE: Data tetap dibiarkan aman sebagai arsip wasit bertugas
+          if (assignType === 'STREAMER') {
+            // 1. Bersihkan di Hash twi:match_reports
+            const reportData = await kv.hget<any>('twi:match_reports', matchId);
+            if (reportData && reportData.metadata) {
+              reportData.metadata.streamer = '';
+              reportData.metadata.streamUrl = '';
+              reportData.metadata.streamPlatform = 'YouTube';
+              await kv.hset('twi:match_reports', { [matchId]: reportData });
+            }
+
+            // 2. Bersihkan streamLink di twi:schedules
+            const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+            const targetIdx = schedules.findIndex((m) => m.id === matchId);
+            if (targetIdx !== -1) {
+              schedules[targetIdx].streamLink = undefined;
+              (schedules[targetIdx] as any).streamUrl = undefined;
+              await kv.set('twi:schedules', schedules);
+            }
+          }
+
           const extraMsg =
             assignType === 'REFEREE'
               ? `\n🏆 Skor Akhir: **${scoreA} - ${scoreB}** (Terkirim ke channel skor)`
-              : `\nℹ️ Slot streamer match **${match.id}** kini telah dilepas / batal siaran.`;
+              : `\nℹ️ Slot streamer match **${match.id}** beserta tautan siaran telah dilepas / dibersihkan.`;
 
           const finalContent = `✅ **Unassign Berhasil!** Tugas **${targetStaffName}** sebagai **${roleTitle}** pada match **${match.id}** telah Selesai.${extraMsg}\nRole/Akses Discord telah dibersihkan!`;
 
@@ -72,7 +96,6 @@ export async function handleUnassignCommand(body: any) {
       })()
     );
 
-    // Respon instan ke Discord (< 200ms) agar tidak timeout
     return NextResponse.json({
       type: 5,
       data: { flags: 64 },
