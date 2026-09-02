@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
+import { kv } from '@vercel/kv';
 import { isDiscordAuthorized } from '@/lib/discord/services/staff-assignment';
 import { executeSwapAssignStaff } from '@/lib/discord/services/staff-swap-service';
 import { discordAPI } from '@/lib/discord/utils';
@@ -38,7 +39,28 @@ export async function handleSwapAssignCommand(body: any) {
             assignType,
           });
 
-          const finalContent = `🔄 **Swap ${roleTitle} Berhasil!**\n• **${staffAName}** ➔ Ditugaskan ke match **${matchB.id}**\n• **${staffBName}** ➔ Ditugaskan ke match **${matchA.id}**\n\nRoles, permissions, opening embeds (re-posted), dan logs telah diperbarui.`;
+          // 🔴 TUKAR METADATA DI twi:match_reports (staffA -> matchB, staffB -> matchA)
+          const targetField = assignType === 'REFEREE' ? 'referee' : 'streamer';
+          const [reportA, reportB] = await Promise.all([
+            kv.hget<any>('twi:match_reports', matchAId),
+            kv.hget<any>('twi:match_reports', matchBId),
+          ]);
+
+          const updates: Record<string, any> = {};
+          if (reportA) {
+            reportA.metadata = { ...(reportA.metadata || {}), [targetField]: staffBName };
+            updates[matchAId] = reportA;
+          }
+          if (reportB) {
+            reportB.metadata = { ...(reportB.metadata || {}), [targetField]: staffAName };
+            updates[matchBId] = reportB;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await kv.hset('twi:match_reports', updates);
+          }
+
+          const finalContent = `🔄 **Swap ${roleTitle} Berhasil!**\n• **${staffAName}** ➔ Ditugaskan ke match **${matchB.id}**\n• **${staffBName}** ➔ Ditugaskan ke match **${matchA.id}**\n\nRoles, permissions, opening embeds, metadata match reports, dan logs telah diperbarui.`;
 
           if (appId && token) {
             await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
