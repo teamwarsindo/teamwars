@@ -143,6 +143,12 @@ export const tournamentCommands = [
               { name: '1 Deck (Baru 1 SS)', value: 1 },
             ],
           },
+          {
+            type: 5, // BOOLEAN
+            name: 'publish',
+            description: 'Kirim ulang tracker ke paling bawah chat? (Default: False / Edit di tempat)',
+            required: false,
+          },
         ],
       },
       {
@@ -190,12 +196,6 @@ export const tournamentCommands = [
           },
           {
             type: 3,
-            name: 'ss_1',
-            description: 'URL screenshot deck ke-1 pemain baru (Opsional)',
-            required: false,
-          },
-          {
-            type: 3,
             name: 'deck_2',
             description: 'Nama archetype/deck ke-2 pemain baru (Opsional)',
             required: false,
@@ -209,9 +209,9 @@ export const tournamentCommands = [
             autocomplete: true,
           },
           {
-            type: 3,
-            name: 'ss_2',
-            description: 'URL screenshot deck ke-2 pemain baru (Opsional)',
+            type: 5, // BOOLEAN
+            name: 'publish',
+            description: 'Kirim ulang tracker ke paling bawah chat? (Default: False / Edit di tempat)',
             required: false,
           },
         ],
@@ -219,7 +219,7 @@ export const tournamentCommands = [
       {
         type: 1, // SUB_COMMAND: edit
         name: 'edit',
-        description: 'Input/perbarui detail deck, skill, dan SS per pemain',
+        description: 'Input/perbarui detail deck dan skill per pemain',
         options: [
           {
             type: 3,
@@ -244,12 +244,6 @@ export const tournamentCommands = [
           },
           {
             type: 3,
-            name: 'ss_1',
-            description: 'URL link screenshot deck ke-1',
-            required: false,
-          },
-          {
-            type: 3,
             name: 'deck_2',
             description: 'Nama archetype/deck ke-2',
             required: false,
@@ -263,9 +257,9 @@ export const tournamentCommands = [
             autocomplete: true,
           },
           {
-            type: 3,
-            name: 'ss_2',
-            description: 'URL link screenshot deck ke-2',
+            type: 5, // BOOLEAN
+            name: 'publish',
+            description: 'Kirim ulang tracker ke paling bawah chat? (Default: False / Edit di tempat)',
             required: false,
           },
         ],
@@ -354,4 +348,3 @@ export const tournamentCommands = [
     ],
   },
 ];
-              
