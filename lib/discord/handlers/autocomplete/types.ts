@@ -1,34 +1,23 @@
-export interface AutocompleteContext {
-  channelId: string;
-  matchId: string;
-  teamKey: 'teamA' | 'teamB';
-  campData: any;
-  subName: string;
-  fName: string;
-  query: string;
-}
-
 export function filterChoices<T>(
   items: T[],
   query: string,
   getLabel: (item: T) => string,
   getValue: (item: T) => string,
-  getSearchTerms?: (item: T) => string[]
-): { name: string; value: string }[] {
+  matchFn?: (item: T) => string[]
+) {
   const q = (query || '').toLowerCase().trim();
-  const matched = items.filter((it) => {
-    if (!q) return true;
-    const label = getLabel(it).toLowerCase();
-    const val = getValue(it).toLowerCase();
-    if (label.includes(q) || val.includes(q)) return true;
-    if (getSearchTerms) {
-      return getSearchTerms(it).some((term) => term.toLowerCase().includes(q));
-    }
-    return false;
-  });
+  return items
+    .filter((item) => {
+      const matchTargets = matchFn ? matchFn(item) : [getLabel(item), getValue(item)];
+      return matchTargets.some((t) => t.toLowerCase().includes(q));
+    })
+    .slice(0, 25)
+    .map((item) => ({ name: getLabel(item), value: getValue(item) }));
+}
 
-  return matched.slice(0, 25).map((it) => ({
-    name: getLabel(it).slice(0, 100),
-    value: getValue(it).slice(0, 100),
-  }));
+export function isToday(dateIso?: string): boolean {
+  if (!dateIso) return false;
+  const now = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  const match = new Date(dateIso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  return now === match;
 }
