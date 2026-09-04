@@ -28,7 +28,7 @@ export async function handleGameDel(ctx: GameContext) {
     reportData.teamB.score = Math.max(0, (reportData.teamB.score || 1) - 1);
   }
 
-  // Rollback Warning
+  // Rollback Warning SS Hand
   if (poppedGame.ssHandA === false) {
     reportData.teamA.warningsUsed = Math.max(0, (reportData.teamA.warningsUsed || 1) - 1);
   }
@@ -86,9 +86,11 @@ export async function handleGameDel(ctx: GameContext) {
   reportData.isFinished = false;
   reportData.winnerTeam = null;
 
+  const matchWeek = match.weekNumber || 5;
+
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
-    syncCampTrackers(match.id, match.week || 5, reportData).catch(console.error);
+    syncCampTrackers(match.id, matchWeek, reportData).catch(console.error);
   }
 
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
