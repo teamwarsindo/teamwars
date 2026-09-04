@@ -25,7 +25,8 @@ export function formatTimeRemaining(targetDateIso?: string): string {
   const diffMs = new Date(targetDateIso).getTime() - Date.now();
   if (diffMs <= 0) return 'waktu telah berakhir';
 
-  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  // Pembulatan ke atas (Math.ceil) agar sisa detik terhitung akurat
+  const totalMinutes = Math.ceil(diffMs / (1000 * 60));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
@@ -47,7 +48,6 @@ export function formatWIBTimeOnly(dateIso?: string): string {
   );
 }
 
-// 🔍 Live check message
 export async function checkDiscordMessageExists(channelId: string, messageId?: string | null): Promise<boolean> {
   if (!channelId || !messageId) return false;
   try {
@@ -58,7 +58,6 @@ export async function checkDiscordMessageExists(channelId: string, messageId?: s
   }
 }
 
-// 🟡 1. EMBED PENGUMUMAN PAGI
 export function getMorningCampEmbed(params: {
   week?: string | number;
   matchDateIso?: string;
@@ -100,7 +99,6 @@ export function getMorningCampEmbed(params: {
   };
 }
 
-// Helper format deck line dengan singkatan skill dari master KV
 function formatDeckLine(
   prefix: '├─' | '└─',
   deck?: DeckSlotInfo | null,
@@ -111,16 +109,21 @@ function formatDeckLine(
     return { text: `${prefix} ❌ Belum Submit`, isSubmitted: false };
   }
 
-  if (deck && deck.archetype && deck.archetype.trim() !== '') {
+  const hasArchetype = Boolean(deck?.archetype && deck.archetype.trim() !== '');
+  const hasSkill = Boolean(deck?.skill && deck.skill !== '-' && deck.skill.trim() !== '');
+
+  if (hasArchetype || hasSkill) {
+    const archetypeLabel = hasArchetype ? deck!.archetype : '*(Menunggu Archetype)*';
     let skillLabel = '';
-    if (deck.skill && deck.skill !== '-' && deck.skill.trim() !== '') {
-      const shortSkill = skillsMap[deck.skill] || deck.skill;
+
+    if (hasSkill) {
+      const shortSkill = skillsMap[deck!.skill!] || deck!.skill;
       skillLabel = ` • ${shortSkill}`;
     }
 
     return {
-      text: `${prefix} ✅ ${deck.archetype}${skillLabel}`,
-      isSubmitted: true,
+      text: `${prefix} ${hasArchetype ? '✅' : '⏳'} ${archetypeLabel}${skillLabel}`,
+      isSubmitted: hasArchetype,
     };
   }
 
@@ -130,7 +133,6 @@ function formatDeckLine(
   };
 }
 
-// 📊 2. EMBED LIVE DECK TRACKER
 export function getLiveDeckTrackerEmbed(params: {
   week?: string | number;
   matchDateIso?: string;
@@ -201,7 +203,6 @@ export function getLiveDeckTrackerEmbed(params: {
   };
 }
 
-// ⚔️ 3. EMBED MATCH BRIEFING
 export function getMatchBriefingEmbed() {
   return {
     title: '⚔️ IN-GAME MATCH BRIEFING — TWI SEASON 7',
@@ -234,7 +235,6 @@ export function getMatchBriefingEmbed() {
   };
 }
 
-// 🔁 HELPER LIVE TRACKER (PATCH atau DELETE-REPOST)
 export async function sendOrUpdateLiveTracker(params: {
   channelId: string;
   matchDateIso: string;
@@ -245,9 +245,7 @@ export async function sendOrUpdateLiveTracker(params: {
 }): Promise<string | null> {
   if (!params.channelId) return null;
 
-  // Ambil mapping singkatan skill dari KV
   const skillsMap = (await kv.get<Record<string, string>>('twi:master_skills')) || {};
-
   const deadlineIso = new Date(new Date(params.matchDateIso).getTime() - 60 * 60 * 1000).toISOString();
   const embed = getLiveDeckTrackerEmbed({
     week: params.week,
@@ -259,7 +257,7 @@ export async function sendOrUpdateLiveTracker(params: {
     lastUpdated: new Date(),
   });
 
-  // 1. Jika TIDAK minta repost dan ID pesan lama ada -> Lakukan PATCH di tempat
+  // 1. Edit di tempat jika tidak minta repost dan ID pesan ada
   if (!params.shouldRepost && params.existingMsgId) {
     try {
       const res = await discordAPI(
@@ -269,16 +267,16 @@ export async function sendOrUpdateLiveTracker(params: {
       );
       if (res?.id) return res.id;
     } catch (patchErr) {
-      console.warn('Gagal PATCH pesan tracker lama, fallback kirim pesan baru:', patchErr);
+      console.warn('Gagal PATCH live tracker lama, fallback POST pesan baru:', patchErr);
     }
   }
 
-  // 2. Jika minta REPOST dan ada pesan lama -> Hapus pesan lama
+  // 2. Hapus pesan lama jika mode repost
   if (params.shouldRepost && params.existingMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // 3. Kirim pesan baru (untuk submit pertama kali, repost eksplisit, atau fallback jika patch gagal)
+  // 3. Buat pesan baru
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
     embeds: [embed],
   }).catch((err) => {
@@ -287,5 +285,4 @@ export async function sendOrUpdateLiveTracker(params: {
   });
 
   return res?.id || null;
-        }
-      
+}
