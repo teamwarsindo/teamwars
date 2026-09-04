@@ -94,8 +94,8 @@ export async function handleGameAdd(ctx: GameContext) {
   if (!ssHandA) {
     const currentW = (reportData.teamA.warningsUsed || 0) + 1;
     if (currentW >= 2) {
-      reportData.teamA.warningsUsed = 0; // Reset ke 0
-      reportData.teamB.score = (reportData.teamB.score || 0) + 1; // Poin deckloss untuk lawan
+      reportData.teamA.warningsUsed = 0;
+      reportData.teamB.score = (reportData.teamB.score || 0) + 1;
       decklossNotice += `\n⚠️ **${reportData.teamA.name}** terkena akumulasi 2x Warning SS Hand! Kena sanksi **Deckloss** (+1 Poin untuk ${reportData.teamB.name}) & status warning di-reset ke 0.`;
     } else {
       reportData.teamA.warningsUsed = currentW;
@@ -105,8 +105,8 @@ export async function handleGameAdd(ctx: GameContext) {
   if (!ssHandB) {
     const currentW = (reportData.teamB.warningsUsed || 0) + 1;
     if (currentW >= 2) {
-      reportData.teamB.warningsUsed = 0; // Reset ke 0
-      reportData.teamA.score = (reportData.teamA.score || 0) + 1; // Poin deckloss untuk lawan
+      reportData.teamB.warningsUsed = 0;
+      reportData.teamA.score = (reportData.teamA.score || 0) + 1;
       decklossNotice += `\n⚠️ **${reportData.teamB.name}** terkena akumulasi 2x Warning SS Hand! Kena sanksi **Deckloss** (+1 Poin untuk ${reportData.teamA.name}) & status warning di-reset ke 0.`;
     } else {
       reportData.teamB.warningsUsed = currentW;
@@ -139,9 +139,11 @@ export async function handleGameAdd(ctx: GameContext) {
     reportData.winnerTeam = 'teamB';
   }
 
+  const matchWeek = match.weekNumber || 5;
+
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
-    syncCampTrackers(match.id, match.week || 5, reportData).catch(console.error);
+    syncCampTrackers(match.id, matchWeek, reportData).catch(console.error);
   }
 
   // 4. Susun Match Logs baris per baris
@@ -186,7 +188,7 @@ export async function handleGameAdd(ctx: GameContext) {
     : '-';
 
   const matchEmbed = {
-    title: `⚔️ LIVE MATCH REPORT — WEEK ${match.week || 5}`,
+    title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: winnerOpt === 'A' ? 0x3b82f6 : 0xef4444,
     description:
       `${emojiA} **${reportData.teamA.name}** \`${reportData.teamA.score}\` ⸺ \`${reportData.teamB.score}\` **${reportData.teamB.name}** ${emojiB}\n\n` +
@@ -209,5 +211,4 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-}
-  
+    }
