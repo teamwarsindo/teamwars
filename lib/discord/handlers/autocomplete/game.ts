@@ -70,21 +70,41 @@ export async function handleGameAutocomplete(interaction: any) {
     const rawVal = String(focused.value || '').trim();
     const query = rawVal.toLowerCase();
 
+    const games: any[] = reportData.games || [];
+    const lastGame = games.length > 0 ? games[games.length - 1] : null;
+
     // 1. Pemain Tim A
     if (fName === 'pemain_a') {
       const lineupA: any[] = reportData.teamA?.lineup || [];
-      const activePlayers = lineupA.filter((p) => {
-        const canRepeat =
-          (reportData.teamA?.repeatsUsed || 0) < 1 &&
-          (p.totalWins || 0) === 0 &&
-          (p.totalLosses || 0) === 1;
-        return (p.remainingLife ?? 2) > 0 || canRepeat;
-      });
+      let eligiblePlayers: any[] = [];
+
+      if (lastGame) {
+        const lastPlayerA = lineupA.find(
+          (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerA?.ign || '').toLowerCase()
+        );
+
+        // Kunci jika pemain terakhir masih memiliki nyawa (baik menang maupun kalah)
+        if (lastPlayerA && (lastPlayerA.remainingLife ?? 2) > 0) {
+          eligiblePlayers = [lastPlayerA];
+        }
+      }
+
+      // Jika Game 1, atau pemain terakhir sudah gugur (remainingLife <= 0)
+      if (eligiblePlayers.length === 0) {
+        eligiblePlayers = lineupA.filter((p) => {
+          const canRepeat =
+            (reportData.teamA?.repeatsUsed || 0) < 1 &&
+            (p.totalWins || 0) === 0 &&
+            (p.totalLosses || 0) === 1;
+          return (p.remainingLife ?? 2) > 0 || canRepeat;
+        });
+      }
+
       return {
         type: 8,
         data: {
           choices: filterChoices(
-            activePlayers,
+            eligiblePlayers,
             query,
             (p) => `${p.ign} (Sisa Life: ${p.remainingLife ?? 2})`,
             (p) => p.ign,
@@ -110,18 +130,35 @@ export async function handleGameAutocomplete(interaction: any) {
     // 3. Pemain Tim B
     if (fName === 'pemain_b') {
       const lineupB: any[] = reportData.teamB?.lineup || [];
-      const activePlayers = lineupB.filter((p) => {
-        const canRepeat =
-          (reportData.teamB?.repeatsUsed || 0) < 1 &&
-          (p.totalWins || 0) === 0 &&
-          (p.totalLosses || 0) === 1;
-        return (p.remainingLife ?? 2) > 0 || canRepeat;
-      });
+      let eligiblePlayers: any[] = [];
+
+      if (lastGame) {
+        const lastPlayerB = lineupB.find(
+          (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerB?.ign || '').toLowerCase()
+        );
+
+        // Kunci jika pemain terakhir masih memiliki nyawa (baik menang maupun kalah)
+        if (lastPlayerB && (lastPlayerB.remainingLife ?? 2) > 0) {
+          eligiblePlayers = [lastPlayerB];
+        }
+      }
+
+      // Jika Game 1, atau pemain terakhir sudah gugur (remainingLife <= 0)
+      if (eligiblePlayers.length === 0) {
+        eligiblePlayers = lineupB.filter((p) => {
+          const canRepeat =
+            (reportData.teamB?.repeatsUsed || 0) < 1 &&
+            (p.totalWins || 0) === 0 &&
+            (p.totalLosses || 0) === 1;
+          return (p.remainingLife ?? 2) > 0 || canRepeat;
+        });
+      }
+
       return {
         type: 8,
         data: {
           choices: filterChoices(
-            activePlayers,
+            eligiblePlayers,
             query,
             (p) => `${p.ign} (Sisa Life: ${p.remainingLife ?? 2})`,
             (p) => p.ign,
@@ -163,4 +200,4 @@ export async function handleGameAutocomplete(interaction: any) {
     console.error('Error handleGameAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-  }
+}
