@@ -139,7 +139,7 @@ export async function handleGameAdd(ctx: GameContext) {
     reportData.winnerTeam = 'teamB';
   }
 
-  const matchWeek = match.weekNumber;
+  const matchWeek = match.weekNumber!;
 
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
