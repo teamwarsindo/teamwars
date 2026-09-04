@@ -35,8 +35,9 @@ export async function resolveMatchFromChannel(channelId: string) {
   return null;
 }
 
-// Resolusi Emoji Tim sesuai format OpeningEmbedParams
+// Resolusi Emoji Tim kustom Discord
 export function getTeamEmojiFromMatch(match: any, teamKey: 'A' | 'B', fallbackSlug: string): string {
+  if (!match) return '⚔️';
   if (teamKey === 'A') {
     if (match.teamAEmoji) return match.teamAEmoji;
     if (match.emojiAId) return `<:${match.kodeTimA || fallbackSlug}:${match.emojiAId}>`;
@@ -81,7 +82,7 @@ export function generateCampInstruction(team: any, opponentName: string, isWinne
   return `${team.name} pilih pemain berikutnya.`;
 }
 
-// Render Discord Embed untuk Camp Room
+// Render Embed Tracker Camp
 export function renderCampTrackerEmbed(teamKey: 'teamA' | 'teamB', reportData: any, match: any, matchWeek: number | string) {
   const team = teamKey === 'teamA' ? reportData.teamA : reportData.teamB;
   const opponent = teamKey === 'teamA' ? reportData.teamB : reportData.teamA;
@@ -158,54 +159,49 @@ export function renderCampTrackerEmbed(teamKey: 'teamA' | 'teamB', reportData: a
   };
 }
 
-// Sync Tracker Camp (Hapus briefing submission lama sekali saat G1 + delete/post tracker)
+// Sinkronisasi Tracker Camp
 export async function syncCampTrackers(matchId: string, matchWeek: number | string, reportData: any, match: any) {
-  const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
-  const rawMsg = matchMessages[matchId];
-  if (!rawMsg) return;
+  try {
+    const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
+    const rawMsg = matchMessages[matchId];
+    if (!rawMsg) return;
 
-  const msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
-  let changed = false;
+    const msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
+    let changed = false;
 
-  // Camp Tim A
-  if (msgData.campA?.channelId) {
-    if (msgData.campA.submissionMsgId) {
-      await discordAPI(`/channels/${msgData.campA.channelId}/messages/${msgData.campA.submissionMsgId}`, 'DELETE').catch(() => null);
-      delete msgData.campA.submissionMsgId;
-      changed = true;
+    // Camp Tim A
+    if (msgData.campA?.channelId) {
+      if (msgData.campA.trackerMsgId) {
+        await discordAPI(`/channels/${msgData.campA.channelId}/messages/${msgData.campA.trackerMsgId}`, 'DELETE').catch(() => null);
+      }
+      const resA = await discordAPI(`/channels/${msgData.campA.channelId}/messages`, 'POST', {
+        embeds: [renderCampTrackerEmbed('teamA', reportData, match, matchWeek)],
+      });
+      if (resA?.id) {
+        msgData.campA.trackerMsgId = resA.id;
+        changed = true;
+      }
     }
-    if (msgData.campA.trackerMsgId) {
-      await discordAPI(`/channels/${msgData.campA.channelId}/messages/${msgData.campA.trackerMsgId}`, 'DELETE').catch(() => null);
-    }
-    const resA = await discordAPI(`/channels/${msgData.campA.channelId}/messages`, 'POST', {
-      embeds: [renderCampTrackerEmbed('teamA', reportData, match, matchWeek)],
-    });
-    if (resA?.id) {
-      msgData.campA.trackerMsgId = resA.id;
-      changed = true;
-    }
-  }
 
-  // Camp Tim B
-  if (msgData.campB?.channelId) {
-    if (msgData.campB.submissionMsgId) {
-      await discordAPI(`/channels/${msgData.campB.channelId}/messages/${msgData.campB.submissionMsgId}`, 'DELETE').catch(() => null);
-      delete msgData.campB.submissionMsgId;
-      changed = true;
+    // Camp Tim B
+    if (msgData.campB?.channelId) {
+      if (msgData.campB.trackerMsgId) {
+        await discordAPI(`/channels/${msgData.campB.channelId}/messages/${msgData.campB.trackerMsgId}`, 'DELETE').catch(() => null);
+      }
+      const resB = await discordAPI(`/channels/${msgData.campB.channelId}/messages`, 'POST', {
+        embeds: [renderCampTrackerEmbed('teamB', reportData, match, matchWeek)],
+      });
+      if (resB?.id) {
+        msgData.campB.trackerMsgId = resB.id;
+        changed = true;
+      }
     }
-    if (msgData.campB.trackerMsgId) {
-      await discordAPI(`/channels/${msgData.campB.channelId}/messages/${msgData.campB.trackerMsgId}`, 'DELETE').catch(() => null);
-    }
-    const resB = await discordAPI(`/channels/${msgData.campB.channelId}/messages`, 'POST', {
-      embeds: [renderCampTrackerEmbed('teamB', reportData, match, matchWeek)],
-    });
-    if (resB?.id) {
-      msgData.campB.trackerMsgId = resB.id;
-      changed = true;
-    }
-  }
 
-  if (changed) {
-    await kv.hset('discord:match_messages', { [matchId]: JSON.stringify(msgData) });
+    if (changed) {
+      await kv.hset('discord:match_messages', { [matchId]: JSON.stringify(msgData) });
+    }
+  } catch (err) {
+    console.error('Error syncing camp trackers:', err);
   }
 }
+  
