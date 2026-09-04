@@ -35,16 +35,33 @@ export async function resolveMatchFromChannel(channelId: string) {
   return null;
 }
 
-// Resolusi Emoji Tim kustom Discord
-export function getTeamEmojiFromMatch(match: any, teamKey: 'A' | 'B', fallbackSlug: string): string {
+// Mengambil emoji tim dari database 'twi:teams' berdasarkan teamAId / teamBId dari match
+export async function getTeamEmojiByMatch(match: any, teamKey: 'A' | 'B'): Promise<string> {
   if (!match) return '⚔️';
-  if (teamKey === 'A') {
-    if (match.teamAEmoji) return match.teamAEmoji;
-    if (match.emojiAId) return `<:${match.kodeTimA || fallbackSlug}:${match.emojiAId}>`;
-  } else {
-    if (match.teamBEmoji) return match.teamBEmoji;
-    if (match.emojiBId) return `<:${match.kodeTimB || fallbackSlug}:${match.emojiBId}>`;
+  const targetId = teamKey === 'A' ? (match.teamAId || match.teamA) : (match.teamBId || match.teamB);
+  if (!targetId) return '⚔️';
+
+  try {
+    const teams = (await kv.get<any[]>('twi:teams')) || [];
+    const found = teams.find((t) => 
+      String(t.id).toLowerCase() === String(targetId).toLowerCase() ||
+      String(t.slug).toLowerCase() === String(targetId).toLowerCase() ||
+      String(t.name).toLowerCase() === String(targetId).toLowerCase()
+    );
+
+    if (found?.emoji) return found.emoji;
+    if (found?.emojiId) {
+      const code = found.slug || found.code || targetId;
+      return `<:${code}:${found.emojiId}>`;
+    }
+  } catch (err) {
+    console.error('Error fetching team emoji:', err);
   }
+
+  // Fallback ke properti pembuka langsung jika ada
+  if (teamKey === 'A' && match.teamAEmoji) return match.teamAEmoji;
+  if (teamKey === 'B' && match.teamBEmoji) return match.teamBEmoji;
+
   return '⚔️';
 }
 
@@ -82,11 +99,11 @@ export function generateCampInstruction(team: any, opponentName: string, isWinne
   return `${team.name} pilih pemain berikutnya.`;
 }
 
-// Render Embed Tracker Camp
-export function renderCampTrackerEmbed(teamKey: 'teamA' | 'teamB', reportData: any, match: any, matchWeek: number | string) {
+// Render Discord Embed Tracker di Camp
+export async function renderCampTrackerEmbed(teamKey: 'teamA' | 'teamB', reportData: any, match: any, matchWeek: number | string) {
   const team = teamKey === 'teamA' ? reportData.teamA : reportData.teamB;
   const opponent = teamKey === 'teamA' ? reportData.teamB : reportData.teamA;
-  const emoji = getTeamEmojiFromMatch(match, teamKey === 'teamA' ? 'A' : 'B', team.slug || team.name);
+  const emoji = await getTeamEmojiByMatch(match, teamKey === 'teamA' ? 'A' : 'B');
 
   const games: any[] = reportData.games || [];
   const lastGame = games.length > 0 ? games[games.length - 1] : null;
@@ -159,7 +176,7 @@ export function renderCampTrackerEmbed(teamKey: 'teamA' | 'teamB', reportData: a
   };
 }
 
-// Sinkronisasi Tracker Camp
+// Sync Tracker ke Channel Camp (Delete-and-Post Tracker Terkini)
 export async function syncCampTrackers(matchId: string, matchWeek: number | string, reportData: any, match: any) {
   try {
     const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
@@ -174,9 +191,8 @@ export async function syncCampTrackers(matchId: string, matchWeek: number | stri
       if (msgData.campA.trackerMsgId) {
         await discordAPI(`/channels/${msgData.campA.channelId}/messages/${msgData.campA.trackerMsgId}`, 'DELETE').catch(() => null);
       }
-      const resA = await discordAPI(`/channels/${msgData.campA.channelId}/messages`, 'POST', {
-        embeds: [renderCampTrackerEmbed('teamA', reportData, match, matchWeek)],
-      });
+      const embedA = await renderCampTrackerEmbed('teamA', reportData, match, matchWeek);
+      const resA = await discordAPI(`/channels/${msgData.campA.channelId}/messages`, 'POST', { embeds: [embedA] });
       if (resA?.id) {
         msgData.campA.trackerMsgId = resA.id;
         changed = true;
@@ -188,9 +204,8 @@ export async function syncCampTrackers(matchId: string, matchWeek: number | stri
       if (msgData.campB.trackerMsgId) {
         await discordAPI(`/channels/${msgData.campB.channelId}/messages/${msgData.campB.trackerMsgId}`, 'DELETE').catch(() => null);
       }
-      const resB = await discordAPI(`/channels/${msgData.campB.channelId}/messages`, 'POST', {
-        embeds: [renderCampTrackerEmbed('teamB', reportData, match, matchWeek)],
-      });
+      const embedB = await renderCampTrackerEmbed('teamB', reportData, match, matchWeek);
+      const resB = await discordAPI(`/channels/${msgData.campB.channelId}/messages`, 'POST', { embeds: [embedB] });
       if (resB?.id) {
         msgData.campB.trackerMsgId = resB.id;
         changed = true;
@@ -203,5 +218,4 @@ export async function syncCampTrackers(matchId: string, matchWeek: number | stri
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
   }
-}
-  
+    }
