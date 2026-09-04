@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import { discordAPI, formatWIBDate, getEmbedFooterText } from '@/lib/discord/utils';
-import { GameContext, syncCampTrackers, getTeamEmojiFromMatch } from './types';
+import { GameContext, syncCampTrackers, getTeamEmojiByMatch } from './types';
 
 export async function handleGameAdd(ctx: GameContext) {
   const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff, userIsAdmin } = ctx;
@@ -144,16 +144,16 @@ export async function handleGameAdd(ctx: GameContext) {
     syncCampTrackers(match.id, matchWeek, reportData, match).catch(console.error);
   }
 
-  // 4. Match Logs 1 Baris dengan format [W] ⸺ [L]
+  // 4. Match Logs Format Rapat [W]-[L] Tanpa Spasi Lebar
   const matchLogsLines = reportData.games.map((g: any) => {
     const isAWin = g.winner === 'teamA';
-    const tagRA = g.playerA.isRepeat ? ' `[R]`' : '';
-    const tagRB = g.playerB.isRepeat ? ' `[R]`' : '';
-    const resultFormat = isAWin ? '`[W]` ⸺ `[L]`' : '`[L]` ⸺ `[W]`';
-    return `• **G${g.gameNumber}:** ${g.playerA.ign}${tagRA} ${resultFormat} ${g.playerB.ign}${tagRB}`;
+    const tagRA = g.playerA.isRepeat ? ' [R]' : '';
+    const tagRB = g.playerB.isRepeat ? ' [R]' : '';
+    const scoreStr = isAWin ? '[W]-[L]' : '[L]-[W]';
+    return `• **G${g.gameNumber}:** ${g.playerA.ign}${tagRA} ${scoreStr} ${g.playerB.ign}${tagRB}`;
   });
 
-  // 5. Helper Deteksi Riwayat Game untuk Setiap Deck dari games[]
+  // 5. Helper Deteksi Riwayat Game untuk Setiap Deck (Semua Game yang Dimainkan Pasti Ter-reveal)
   const getDeckGameNumbers = (playerIgn: string, archetype: string): number[] => {
     const history: number[] = [];
     (reportData.games || []).forEach((g: any) => {
@@ -167,7 +167,7 @@ export async function handleGameAdd(ctx: GameContext) {
     return history;
   };
 
-  // 6. Rekap Lineup Publik (Opsi 3: Anti-Bocor)
+  // 6. Rekap Lineup Publik (Anti-Bocor Sisa Pemain, Tapi Deck Tanding Pasti Terbuka)
   const renderPublicDeck = (pIgn: string, deck: any, isLast: boolean) => {
     const prefix = isLast ? '┗' : '┣';
     if (!deck) return `${prefix} ❓ *[Belum Terbuka]*`;
@@ -231,8 +231,8 @@ export async function handleGameAdd(ctx: GameContext) {
 
   // 7. Header Metadata & Instruksi
   const m = match as any;
-  const emojiA = getTeamEmojiFromMatch(match, 'A', reportData.teamA.slug || reportData.teamA.name);
-  const emojiB = getTeamEmojiFromMatch(match, 'B', reportData.teamB.slug || reportData.teamB.name);
+  const emojiA = await getTeamEmojiByMatch(match, 'A');
+  const emojiB = await getTeamEmojiByMatch(match, 'B');
 
   const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName || 'Belum ditentukan';
 
@@ -265,7 +265,7 @@ export async function handleGameAdd(ctx: GameContext) {
     ? `• Pertandingan telah selesai! Selamat kepada **${winnerOpt === 'A' ? reportData.teamA.name : reportData.teamB.name}** atas kemenangannya.`
     : `• **${winnerPlayerIgn}** bertahan di meja\n${loserInstruction}`;
 
-  // 8. Susun Embed dengan Skor di Bagian Bawah
+  // 8. Susun Embed Bersih (Tanpa Garis Strip Putus-putus Jelek, Skor Heading Murni di Bawah)
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: winnerOpt === 'A' ? 0x3b82f6 : 0xef4444,
@@ -274,18 +274,15 @@ export async function handleGameAdd(ctx: GameContext) {
       `• **Referee:** ${refereeDisplay}\n` +
       `• **Streamer:** ${streamerDisplay}\n` +
       `• **Jadwal:** ${scheduleDisplay}\n` +
-      (decklossNotice ? `${decklossNotice}\n` : '') +
-      `\n━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `**Lineup & Status Deck:**\n\n` +
+      (decklossNotice ? `\n${decklossNotice}\n` : '') +
+      `\n**Lineup & Status Deck:**\n\n` +
       `${emojiA} **${String(reportData.teamA.name).toUpperCase()}**\n` +
       `${renderTeamLineupPublic(reportData.teamA)}\n\n` +
       `${emojiB} **${String(reportData.teamB.name).toUpperCase()}**\n` +
       `${renderTeamLineupPublic(reportData.teamB)}\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `**Match Logs:**\n` +
       matchLogsLines.join('\n') +
-      `\n\n━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `# ${emojiA} \` ${reportData.teamA.score} ⸺ ${reportData.teamB.score} \` ${emojiB}\n\n` +
+      `\n\n# ${emojiA} **${reportData.teamA.score} — ${reportData.teamB.score}** ${emojiB}\n\n` +
       `📢 **Instruksi:**\n${instructions}`,
     footer: { text: getEmbedFooterText() },
   };
