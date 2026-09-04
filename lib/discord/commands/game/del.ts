@@ -28,17 +28,18 @@ export async function handleGameDel(ctx: GameContext) {
     reportData.teamB.score = Math.max(0, (reportData.teamB.score || 1) - 1);
   }
 
-  if (!poppedGame.ssHandA) reportData.teamA.warningsUsed = Math.max(0, (reportData.teamA.warningsUsed || 1) - 1);
-  if (!poppedGame.ssHandB) reportData.teamB.warningsUsed = Math.max(0, (reportData.teamB.warningsUsed || 1) - 1);
+  // Rollback Warning
+  if (poppedGame.ssHandA === false) {
+    reportData.teamA.warningsUsed = Math.max(0, (reportData.teamA.warningsUsed || 1) - 1);
+  }
+  if (poppedGame.ssHandB === false) {
+    reportData.teamB.warningsUsed = Math.max(0, (reportData.teamB.warningsUsed || 1) - 1);
+  }
 
   // Rollback Tim A
-  const pA = (reportData.teamA.lineup || []).find(
-    (p: any) => p.ign.toLowerCase() === poppedGame.playerA.ign.toLowerCase()
-  );
+  const pA = (reportData.teamA.lineup || []).find((p: any) => p.ign.toLowerCase() === poppedGame.playerA.ign.toLowerCase());
   if (pA) {
-    const dA = [pA.deck1, pA.deck2].find(
-      (d) => d && d.archetype?.toLowerCase() === poppedGame.playerA.archetype?.toLowerCase()
-    );
+    const dA = [pA.deck1, pA.deck2].find((d) => d && d.archetype?.toLowerCase() === poppedGame.playerA.archetype?.toLowerCase());
     if (winner === 'teamA') {
       if (dA) dA.wins = Math.max(0, (dA.wins || 1) - 1);
       pA.totalWins = Math.max(0, (pA.totalWins || 1) - 1);
@@ -59,13 +60,9 @@ export async function handleGameDel(ctx: GameContext) {
   }
 
   // Rollback Tim B
-  const pB = (reportData.teamB.lineup || []).find(
-    (p: any) => p.ign.toLowerCase() === poppedGame.playerB.ign.toLowerCase()
-  );
+  const pB = (reportData.teamB.lineup || []).find((p: any) => p.ign.toLowerCase() === poppedGame.playerB.ign.toLowerCase());
   if (pB) {
-    const dB = [pB.deck1, pB.deck2].find(
-      (d) => d && d.archetype?.toLowerCase() === poppedGame.playerB.archetype?.toLowerCase()
-    );
+    const dB = [pB.deck1, pB.deck2].find((d) => d && d.archetype?.toLowerCase() === poppedGame.playerB.archetype?.toLowerCase());
     if (winner === 'teamB') {
       if (dB) dB.wins = Math.max(0, (dB.wins || 1) - 1);
       pB.totalWins = Math.max(0, (pB.totalWins || 1) - 1);
@@ -91,7 +88,7 @@ export async function handleGameDel(ctx: GameContext) {
 
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
-    syncCampTrackers(match.id, match.matchDate, reportData).catch(console.error);
+    syncCampTrackers(match.id, match.week || 5, reportData).catch(console.error);
   }
 
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
