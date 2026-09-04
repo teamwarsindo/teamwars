@@ -39,9 +39,6 @@ export async function handleGameDel(ctx: GameContext) {
   const pA = (reportData.teamA.lineup || []).find((p: any) => p.ign.toLowerCase() === poppedGame.playerA.ign.toLowerCase());
   if (pA) {
     const dA = [pA.deck1, pA.deck2].find((d) => d && d.archetype?.toLowerCase() === poppedGame.playerA.archetype?.toLowerCase());
-    if (dA?.gameHistory) {
-      dA.gameHistory = dA.gameHistory.filter((num: number) => num !== poppedGame.gameNumber);
-    }
     if (winner === 'teamA') {
       if (dA) dA.wins = Math.max(0, (dA.wins || 1) - 1);
       pA.totalWins = Math.max(0, (pA.totalWins || 1) - 1);
@@ -65,9 +62,6 @@ export async function handleGameDel(ctx: GameContext) {
   const pB = (reportData.teamB.lineup || []).find((p: any) => p.ign.toLowerCase() === poppedGame.playerB.ign.toLowerCase());
   if (pB) {
     const dB = [pB.deck1, pB.deck2].find((d) => d && d.archetype?.toLowerCase() === poppedGame.playerB.archetype?.toLowerCase());
-    if (dB?.gameHistory) {
-      dB.gameHistory = dB.gameHistory.filter((num: number) => num !== poppedGame.gameNumber);
-    }
     if (winner === 'teamB') {
       if (dB) dB.wins = Math.max(0, (dB.wins || 1) - 1);
       pB.totalWins = Math.max(0, (pB.totalWins || 1) - 1);
