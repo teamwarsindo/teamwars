@@ -1,7 +1,6 @@
 import { kv } from '@vercel/kv';
 import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
 import { sendOrUpdateLiveTracker, TrackerPlayer } from '@/lib/discord/messages/match-briefing';
-import { discordAPI } from '@/lib/discord/utils';
 import {
   isStaff,
   isAdminOrChief,
@@ -158,17 +157,14 @@ export async function handleSubmitCommand(interaction: any) {
 
     const targetLineup = reportData[teamKey].lineup || [];
     const isFullyComplete = checkIsLineupFullyCompleted(targetLineup);
-    const manualPublish = Boolean(optMap.publish ?? false);
-    const shouldRepost = manualPublish || isFullyComplete;
 
-    // Hapus pesan lama jika repost aktif agar pesan baru muncul di paling bawah
-    if (shouldRepost && activeCamp.submitMsgId) {
-      try {
-        await discordAPI(`/channels/${channelId}/messages/${activeCamp.submitMsgId}`, 'DELETE');
-      } catch (delErr) {
-        console.warn('Gagal menghapus pesan tracker lama:', delErr);
-      }
-    }
+    // Parsing publish: aman terhadap boolean true maupun string "true"
+    const hasPublishOption = optMap.publish !== undefined;
+    const manualPublish = optMap.publish === true || optMap.publish === 'true';
+
+    // Prioritas: jika user mengisi publish eksplisit, ikuti pilihan user.
+    // Jika tidak diisi sama sekali, hanya repost jika lineup sudah lengkap semua deck-nya.
+    const shouldRepost = hasPublishOption ? manualPublish : isFullyComplete;
 
     const trackerPlayers: TrackerPlayer[] = targetLineup.map((p: any) => ({
       ign: p.ign,
@@ -177,12 +173,14 @@ export async function handleSubmitCommand(interaction: any) {
       deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
     }));
 
+    // Delegasikan proses PATCH atau REPOST ke helper
     const newSubmitMsgId = await sendOrUpdateLiveTracker({
       channelId,
       matchDateIso: activeCamp.matchDate || new Date().toISOString(),
       week: reportData.week,
       submittedPlayers: trackerPlayers,
-      existingMsgId: shouldRepost ? null : activeCamp.submitMsgId,
+      existingMsgId: activeCamp.submitMsgId,
+      shouldRepost,
     });
 
     activeCamp.submitMsgId = newSubmitMsgId;
@@ -190,10 +188,10 @@ export async function handleSubmitCommand(interaction: any) {
     await kv.hset('twi:match_reports', { [matchId]: reportData });
 
     let publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
-    if (isFullyComplete) {
-      publishNotice = '\n🎉 **Lineup & Deck Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
-    } else if (manualPublish) {
+    if (manualPublish) {
       publishNotice = '\n📢 *Live tracker di-publish ulang ke paling bawah channel!*';
+    } else if (isFullyComplete && !hasPublishOption) {
+      publishNotice = '\n🎉 **Lineup & Deck Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
     }
 
     return {
@@ -210,4 +208,4 @@ export async function handleSubmitCommand(interaction: any) {
       data: { content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`, flags: 64 },
     };
   }
-      }
+            }
