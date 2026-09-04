@@ -28,36 +28,62 @@ export async function handleSubEdit(ctx: SubmitContext): Promise<{ error?: strin
     return { error: `❌ Pemain **${parsedTarget.ign}** tidak ditemukan di lineup!` };
   }
 
+  const rawDeck1 = optMap.deck_1?.trim();
+  const rawSkill1 = optMap.skill_1?.trim();
+  const rawDeck2 = optMap.deck_2?.trim();
+  const rawSkill2 = optMap.skill_2?.trim();
+
+  // Validasi fleksibel: Terima bila salah satu dari keempat opsi diisi
+  if (!rawDeck1 && !rawSkill1 && !rawDeck2 && !rawSkill2) {
+    return { error: '⚠️ Masukkan minimal salah satu data: **Nama Deck** atau **Skill** untuk memperbarui data!' };
+  }
+
   const updatedDecks: string[] = [];
 
-  if (optMap.deck_1) {
-    const sync1 = await syncCustomDeckAndSkillToMaster(optMap.deck_1, optMap.skill_1);
-    const finalDeck1 = sync1.cleanDeck || optMap.deck_1;
-    const finalSkill1 = sync1.cleanSkill || optMap.skill_1 || playerObj.deck1?.skill || '';
+  // -------------------------------------------------------------
+  // PROSES DECK 1
+  // -------------------------------------------------------------
+  if (rawDeck1 || rawSkill1) {
+    const existingDeck1 = playerObj.deck1 || createEmptyDeck();
+    const targetDeckName = rawDeck1 !== undefined ? rawDeck1 : existingDeck1.archetype || '';
+    const targetSkillName = rawSkill1 !== undefined ? rawSkill1 : existingDeck1.skill || '';
+
+    const sync1 = await syncCustomDeckAndSkillToMaster(targetDeckName, targetSkillName);
+    const finalDeck1 = sync1.cleanDeck || targetDeckName;
+    const finalSkill1 = sync1.cleanSkill || targetSkillName;
 
     playerObj.deck1 = {
-      ...(playerObj.deck1 || createEmptyDeck()),
+      ...existingDeck1,
       archetype: finalDeck1,
       skill: finalSkill1,
     };
-    updatedDecks.push(`Deck 1: **${finalDeck1}** (${finalSkill1 || '-'})`);
+
+    const deckLabel = finalDeck1 ? `**${finalDeck1}**` : '*(Menunggu Archetype)*';
+    const skillLabel = finalSkill1 ? `(${finalSkill1})` : '(-)';
+    updatedDecks.push(`Deck 1: ${deckLabel} ${skillLabel}`);
   }
 
-  if (optMap.deck_2) {
-    const sync2 = await syncCustomDeckAndSkillToMaster(optMap.deck_2, optMap.skill_2);
-    const finalDeck2 = sync2.cleanDeck || optMap.deck_2;
-    const finalSkill2 = sync2.cleanSkill || optMap.skill_2 || playerObj.deck2?.skill || '';
+  // -------------------------------------------------------------
+  // PROSES DECK 2
+  // -------------------------------------------------------------
+  if (rawDeck2 || rawSkill2) {
+    const existingDeck2 = playerObj.deck2 || createEmptyDeck();
+    const targetDeckName = rawDeck2 !== undefined ? rawDeck2 : existingDeck2.archetype || '';
+    const targetSkillName = rawSkill2 !== undefined ? rawSkill2 : existingDeck2.skill || '';
+
+    const sync2 = await syncCustomDeckAndSkillToMaster(targetDeckName, targetSkillName);
+    const finalDeck2 = sync2.cleanDeck || targetDeckName;
+    const finalSkill2 = sync2.cleanSkill || targetSkillName;
 
     playerObj.deck2 = {
-      ...(playerObj.deck2 || createEmptyDeck()),
+      ...existingDeck2,
       archetype: finalDeck2,
       skill: finalSkill2,
     };
-    updatedDecks.push(`Deck 2: **${finalDeck2}** (${finalSkill2 || '-'})`);
-  }
 
-  if (updatedDecks.length === 0) {
-    return { error: '⚠️ Masukkan minimal nama `deck_1` atau `deck_2` untuk memperbarui data!' };
+    const deckLabel = finalDeck2 ? `**${finalDeck2}**` : '*(Menunggu Archetype)*';
+    const skillLabel = finalSkill2 ? `(${finalSkill2})` : '(-)';
+    updatedDecks.push(`Deck 2: ${deckLabel} ${skillLabel}`);
   }
 
   targetTeam.lineup = currentLineup;
