@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import { discordAPI, formatWIBDate, getEmbedFooterText } from '@/lib/discord/utils';
-import { GameContext, syncCampTrackers, getTeamEmoji } from './types';
+import { GameContext, syncCampTrackers, getTeamEmojiFromMatch } from './types';
 
 export async function handleGameAdd(ctx: GameContext) {
   const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff, userIsAdmin } = ctx;
@@ -14,7 +14,7 @@ export async function handleGameAdd(ctx: GameContext) {
     });
   }
 
-  const winnerOpt = optMap.pemenang; // 'A' | 'B'
+  const winnerOpt = optMap.pemenang;
   const playerAIgn = String(optMap.pemain_a || '').trim();
   const rawDeckA = String(optMap.deck_a || '').trim();
   const playerBIgn = String(optMap.pemain_b || '').trim();
@@ -43,7 +43,16 @@ export async function handleGameAdd(ctx: GameContext) {
   if (!dA) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckAName}** milik ${pA.ign} tidak valid!` });
   if (!dB) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckBName}** milik ${pB.ign} tidak valid!` });
 
-  // 1. Logika Repeat (Maksimal 2x per tim)
+  const gameNumber = (reportData.games?.length || 0) + 1;
+
+  // Catat riwayat nomor game pada deck
+  if (!dA.gameHistory) dA.gameHistory = [];
+  dA.gameHistory.push(gameNumber);
+
+  if (!dB.gameHistory) dB.gameHistory = [];
+  dB.gameHistory.push(gameNumber);
+
+  // 1. Logika Repeat
   if (isRepeatA) {
     reportData.teamA.repeatsUsed = (reportData.teamA.repeatsUsed || 0) + 1;
     dA.isRepeatUsed = true;
@@ -62,7 +71,6 @@ export async function handleGameAdd(ctx: GameContext) {
     pB.remainingLife = 1;
   }
 
-  const gameNumber = (reportData.games?.length || 0) + 1;
   const winnerTeamKey = winnerOpt === 'A' ? 'teamA' : 'teamB';
 
   // 2. Kalkulasi Skor & Status Hidup
@@ -86,10 +94,7 @@ export async function handleGameAdd(ctx: GameContext) {
     pA.totalLosses = (pA.totalLosses || 0) + 1;
   }
 
-  dA.lastGameNumber = gameNumber;
-  dB.lastGameNumber = gameNumber;
-
-  // 3. Logika 2x Warning SS Hand = Deckloss & Reset
+  // 3. Akumulasi Warning SS Hand
   let decklossNotice = '';
   if (!ssHandA) {
     const currentW = (reportData.teamA.warningsUsed || 0) + 1;
@@ -139,24 +144,101 @@ export async function handleGameAdd(ctx: GameContext) {
     reportData.winnerTeam = 'teamB';
   }
 
-  const matchWeek = match.weekNumber!;
+  const matchWeek = match.weekNumber ?? 5;
 
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
-    syncCampTrackers(match.id, matchWeek, reportData).catch(console.error);
+    syncCampTrackers(match.id, matchWeek, reportData, match).catch(console.error);
   }
 
-  // 4. Susun Match Logs
+  // 4. Match Logs 1 Baris
   const matchLogsLines = reportData.games.map((g: any) => {
     const isAWin = g.winner === 'teamA';
-    const tagRA = g.playerA.isRepeat ? ' `[R]`' : '';
-    const tagRB = g.playerB.isRepeat ? ' `[R]`' : '';
-    const resA = isAWin ? '`[W]`' : '`[L]`';
-    const resB = !isAWin ? '`[W]`' : '`[L]`';
-    return `• **G${g.gameNumber}:** **${g.playerA.ign}** *(${g.playerA.archetype})*${tagRA} ${resA} ⸺ ${resB} **${g.playerB.ign}** *(${g.playerB.archetype})*${tagRB}`;
+    const tagR = g.playerA.isRepeat || g.playerB.isRepeat ? ' `[R]`' : '';
+    const scoreStr = isAWin ? '`1 - 0`' : '`0 - 1`';
+    return `• **G${g.gameNumber}:** ${g.playerA.ign} ${scoreStr} ${g.playerB.ign}${tagR}`;
   });
 
-  // 5. Susun Instruksi Publik Singkat & Umum (Anti-Spoiler)
+  // 5. Rekap Lineup Terbuka (Opsi 3: Anti-Bocor)
+  const renderPublicDeck = (deck: any, isLast: boolean) => {
+    const prefix = isLast ? '┗' : '┣';
+    if (!deck) return `${prefix} ❓ *[Belum Terbuka]*`;
+
+    const history: number[] = deck.gameHistory || [];
+    if (history.length > 0) {
+      const gStr = deck.isRepeatUsed ? `[G${history.join(', G')}:R]` : `[G${history.join(', G')}]`;
+      const skillText = deck.skill ? ` • ${deck.skill}` : '';
+      if (deck.isDead) {
+        return `${prefix} 🔴 ~~${deck.archetype}${skillText}~~ \`${gStr}\``;
+      }
+      return `${prefix} 🟢 ${deck.archetype}${skillText} \`${gStr}\``;
+    }
+
+    if (deck.isDead && !deck.losses) {
+      return `${prefix} ⚫ *~~[Hangus: Repeat]~~*`;
+    }
+
+    return `${prefix} ❓ *[Belum Terbuka]*`;
+  };
+
+  const renderTeamLineupPublic = (team: any) => {
+    const activeOrPlayed: string[] = [];
+    let unplayedCount = 0;
+
+    (team.lineup || []).forEach((p: any, idx: number) => {
+      const d1Played = (p.deck1?.gameHistory || []).length > 0;
+      const d2Played = (p.deck2?.gameHistory || []).length > 0;
+      const d1Burned = p.deck1?.isDead && !p.deck1?.losses;
+      const d2Burned = p.deck2?.isDead && !p.deck2?.losses;
+
+      if (d1Played || d2Played || d1Burned || d2Burned) {
+        const life = p.remainingLife ?? 2;
+        let badge = '[❤️❤️]';
+        let status = '*(Sedang Main)*';
+        let nameStr = `**${p.ign}**`;
+
+        if (life === 1) badge = '[❤️]';
+        if (life <= 0) {
+          badge = '[💀]';
+          status = '*(Gugur)*';
+          nameStr = `~~${p.ign}~~`;
+        }
+
+        activeOrPlayed.push(
+          `${activeOrPlayed.length + 1}. \`${badge}\` ${nameStr} ${status}\n` +
+          `${renderPublicDeck(p.deck1, false)}\n` +
+          `${renderPublicDeck(p.deck2, true)}`
+        );
+      } else {
+        unplayedCount++;
+      }
+    });
+
+    if (unplayedCount > 0) {
+      activeOrPlayed.push(`• *Sisa ${unplayedCount} Pemain Belum Bertanding*`);
+    }
+
+    return activeOrPlayed.join('\n');
+  };
+
+  // 6. Header Metadata & Instruksi
+  const m = match as any;
+  const emojiA = getTeamEmojiFromMatch(match, 'A', reportData.teamA.slug || reportData.teamA.name);
+  const emojiB = getTeamEmojiFromMatch(match, 'B', reportData.teamB.slug || reportData.teamB.name);
+
+  const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName || 'Belum ditentukan';
+
+  let streamerDisplay = 'Belum tersedia';
+  if (m.streamLink) {
+    streamerDisplay = `[YouTube Live Stream](${m.streamLink})`;
+  } else if (m.streamerDiscordId) {
+    streamerDisplay = `<@${m.streamerDiscordId}>`;
+  } else if (m.streamerName) {
+    streamerDisplay = m.streamerName;
+  }
+
+  const scheduleDisplay = formatWIBDate(match.matchDate);
+
   const winnerPlayerIgn = winnerOpt === 'A' ? pA.ign : pB.ign;
   const loserPlayerObj = winnerOpt === 'A' ? pB : pA;
   const loserTeam = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
@@ -175,35 +257,24 @@ export async function handleGameAdd(ctx: GameContext) {
     ? `• Pertandingan telah selesai! Selamat kepada **${winnerOpt === 'A' ? reportData.teamA.name : reportData.teamB.name}** atas kemenangannya.`
     : `• **${winnerPlayerIgn}** bertahan di meja\n${loserInstruction}`;
 
-  // 6. Header & Metadata Pertandingan
-  const m = match as any;
-  const emojiA = getTeamEmoji(reportData.teamA);
-  const emojiB = getTeamEmoji(reportData.teamB);
-
-  const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName;
-
-  let streamerDisplay = 'Belum tersedia';
-  if (m.streamLink) {
-    streamerDisplay = `[YouTube Live Stream](${m.streamLink})`;
-  } else if (m.streamerDiscordId) {
-    streamerDisplay = `<@${m.streamerDiscordId}>`;
-  } else if (m.streamerName) {
-    streamerDisplay = m.streamerName;
-  }
-
-  const scheduleDisplay = formatWIBDate(match.matchDate);
-
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: winnerOpt === 'A' ? 0x3b82f6 : 0xef4444,
     description:
-      `${emojiA} **${reportData.teamA.name}** \`${reportData.teamA.score}\` ⸺ \`${reportData.teamB.score}\` **${reportData.teamB.name}** ${emojiB}\n\n` +
-      `**Informasi:**\n` +
+      `# ${emojiA} \` ${reportData.teamA.score} ⸺ ${reportData.teamB.score} \` ${emojiB}\n\n` +
+      `**Informasi Pertandingan:**\n` +
       `• **Referee:** ${refereeDisplay}\n` +
       `• **Streamer:** ${streamerDisplay}\n` +
       `• **Jadwal:** ${scheduleDisplay}\n` +
       (decklossNotice ? `${decklossNotice}\n` : '') +
-      `\n**Match Logs:**\n` +
+      `\n━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `**Lineup & Status Deck:**\n\n` +
+      `${emojiA} **${String(reportData.teamA.name).toUpperCase()}**\n` +
+      `${renderTeamLineupPublic(reportData.teamA)}\n\n` +
+      `${emojiB} **${String(reportData.teamB.name).toUpperCase()}**\n` +
+      `${renderTeamLineupPublic(reportData.teamB)}\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `**Match Logs:**\n` +
       matchLogsLines.join('\n') +
       `\n\n📢 **Instruksi:**\n${instructions}`,
     footer: { text: getEmbedFooterText() },
@@ -218,3 +289,4 @@ export async function handleGameAdd(ctx: GameContext) {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
 }
+  
