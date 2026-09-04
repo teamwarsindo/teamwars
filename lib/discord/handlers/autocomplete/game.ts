@@ -17,13 +17,29 @@ async function resolveMatchFromMatchChannel(channelId: string) {
   return null;
 }
 
-function getDeckChoices(playerObj: any, teamData: any): Array<{ name: string; value: string }> {
+function getDeckChoices(
+  playerObj: any,
+  teamData: any,
+  lastWinningDeckArchetype?: string | null
+): Array<{ name: string; value: string }> {
   if (!playerObj) return [];
   const choices: Array<{ name: string; value: string }> = [];
 
   const d1 = playerObj.deck1;
   const d2 = playerObj.deck2;
   const repeatsUsed = teamData?.repeatsUsed || 0;
+
+  // 🔒 ATURAN KUNCI DECK PEMENANG (Winner Stays Deck):
+  // Jika pemain ini baru saja menang di game sebelumnya, wajib pakai deck tersebut sampai gugur
+  if (lastWinningDeckArchetype) {
+    const winningDeck = [d1, d2].find(
+      (d) => d && String(d.archetype || '').toLowerCase() === lastWinningDeckArchetype.toLowerCase()
+    );
+    if (winningDeck && !winningDeck.isDead) {
+      const skill = winningDeck.skill ? ` • ${winningDeck.skill}` : '';
+      return [{ name: `${winningDeck.archetype}${skill}`, value: winningDeck.archetype }];
+    }
+  }
 
   // Syarat repeat: kuota tim masih ada (< 1), belum pernah menang, dan baru kalah 1x
   const canRepeat = repeatsUsed < 1 && (playerObj.totalWins || 0) === 0 && (playerObj.totalLosses || 0) === 1;
@@ -38,7 +54,7 @@ function getDeckChoices(playerObj: any, teamData: any): Array<{ name: string; va
     }
   }
 
-  // 2. Deck 2 (Aktifkan repeat jika pemain memainkan deck 2 di awal)
+  // 2. Deck 2
   if (d2?.archetype) {
     const skill2 = d2.skill ? ` • ${d2.skill}` : '';
     if (!d2.isDead) {
@@ -78,18 +94,18 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupA: any[] = reportData.teamA?.lineup || [];
       let eligiblePlayers: any[] = [];
 
+      // Kunci pemain jika pemain terakhir masih punya nyawa (baik menang maupun kalah)
       if (lastGame) {
         const lastPlayerA = lineupA.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerA?.ign || '').toLowerCase()
         );
 
-        // Kunci jika pemain terakhir masih memiliki nyawa (baik menang maupun kalah)
         if (lastPlayerA && (lastPlayerA.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerA];
         }
       }
 
-      // Jika Game 1, atau pemain terakhir sudah gugur (remainingLife <= 0)
+      // Jika Game 1, atau pemain sebelumnya sudah gugur habis nyawa
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupA.filter((p) => {
           const canRepeat =
@@ -123,7 +139,16 @@ export async function handleGameAutocomplete(interaction: any) {
       const playerObj = lineupA.find(
         (p) => String(p.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()
       );
-      const choices = getDeckChoices(playerObj, reportData.teamA);
+
+      // Cek apakah pemain Tim A menang di ronde terakhir untuk mengunci deck kemenangannya
+      let lastWinningDeckA: string | null = null;
+      if (lastGame && lastGame.winner === 'teamA') {
+        if (String(lastGame.playerA?.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()) {
+          lastWinningDeckA = lastGame.playerA?.archetype || null;
+        }
+      }
+
+      const choices = getDeckChoices(playerObj, reportData.teamA, lastWinningDeckA);
       return { type: 8, data: { choices: filterChoices(choices, query, (d) => d.name, (d) => d.value) } };
     }
 
@@ -132,18 +157,18 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupB: any[] = reportData.teamB?.lineup || [];
       let eligiblePlayers: any[] = [];
 
+      // Kunci pemain jika pemain terakhir masih punya nyawa (baik menang maupun kalah)
       if (lastGame) {
         const lastPlayerB = lineupB.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerB?.ign || '').toLowerCase()
         );
 
-        // Kunci jika pemain terakhir masih memiliki nyawa (baik menang maupun kalah)
         if (lastPlayerB && (lastPlayerB.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerB];
         }
       }
 
-      // Jika Game 1, atau pemain terakhir sudah gugur (remainingLife <= 0)
+      // Jika Game 1, atau pemain sebelumnya sudah gugur habis nyawa
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupB.filter((p) => {
           const canRepeat =
@@ -177,7 +202,16 @@ export async function handleGameAutocomplete(interaction: any) {
       const playerObj = lineupB.find(
         (p) => String(p.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()
       );
-      const choices = getDeckChoices(playerObj, reportData.teamB);
+
+      // Cek apakah pemain Tim B menang di ronde terakhir untuk mengunci deck kemenangannya
+      let lastWinningDeckB: string | null = null;
+      if (lastGame && lastGame.winner === 'teamB') {
+        if (String(lastGame.playerB?.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()) {
+          lastWinningDeckB = lastGame.playerB?.archetype || null;
+        }
+      }
+
+      const choices = getDeckChoices(playerObj, reportData.teamB, lastWinningDeckB);
       return { type: 8, data: { choices: filterChoices(choices, query, (d) => d.name, (d) => d.value) } };
     }
 
