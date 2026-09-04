@@ -86,7 +86,7 @@ export async function handleGameDel(ctx: GameContext) {
   reportData.isFinished = false;
   reportData.winnerTeam = null;
 
-  const matchWeek = match.weekNumber || 5;
+  const matchWeek = match.weekNumber;
 
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
@@ -96,4 +96,4 @@ export async function handleGameDel(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `🔄 **Game ${poppedGame.gameNumber} Di-Rollback!** Skor kembali menjadi **${reportData.teamA.name} \`${reportData.teamA.score}\` — \`${reportData.teamB.score}\` ${reportData.teamB.name}**.`,
   });
-}
+                                             }
