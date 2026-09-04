@@ -260,16 +260,6 @@ export const tournamentCommands = [
         options: [
           {
             type: 3,
-            name: 'pemenang',
-            description: 'Pilih tim pemenang pada game ini',
-            required: true,
-            choices: [
-              { name: 'Tim A', value: 'A' },
-              { name: 'Tim B', value: 'B' },
-            ],
-          },
-          {
-            type: 3,
             name: 'pemain_a',
             description: 'Pemain dari Tim A yang bertanding',
             required: true,
@@ -278,7 +268,7 @@ export const tournamentCommands = [
           {
             type: 3,
             name: 'deck_a',
-            description: 'Deck/Archetype pemain Tim A (Deck hidup)',
+            description: 'Pilih deck hidup pemain Tim A',
             required: true,
             autocomplete: true,
           },
@@ -292,25 +282,33 @@ export const tournamentCommands = [
           {
             type: 3,
             name: 'deck_b',
-            description: 'Deck/Archetype pemain Tim B (Deck hidup)',
+            description: 'Pilih deck hidup pemain Tim B',
             required: true,
             autocomplete: true,
           },
           {
             type: 3,
-            name: 'status_kalah',
-            description: 'Kondisi kekalahan pemain yang kalah',
+            name: 'pemenang',
+            description: 'Pilih tim pemenang pada game ini',
+            required: true,
+            autocomplete: true,
+          },
+          {
+            type: 5, // BOOLEAN
+            name: 'ss_hand_a',
+            description: 'Apakah Tim A mengirimkan SS starting hand? (Default: True)',
             required: false,
-            choices: [
-              { name: 'Regular Loss (Nyawa berkurang 1)', value: 'REGULAR' },
-              { name: 'Repeat Deck (Gunakan kuota Repeat)', value: 'REPEAT' },
-              { name: 'Illegal Deck / Akun (Loss 2 Deck)', value: 'PENALTY_2' },
-            ],
+          },
+          {
+            type: 5, // BOOLEAN
+            name: 'ss_hand_b',
+            description: 'Apakah Tim B mengirimkan SS starting hand? (Default: True)',
+            required: false,
           },
           {
             type: 3,
             name: 'catatan',
-            description: 'Catatan tambahan wasit (misal: DC, replay, sanksi kartu)',
+            description: 'Catatan tambahan wasit (misal: DC, salah bawa skill, dll.)',
             required: false,
           },
         ],
@@ -331,3 +329,4 @@ export const tournamentCommands = [
     ],
   },
 ];
+        
