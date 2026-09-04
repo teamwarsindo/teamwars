@@ -45,13 +45,6 @@ export async function handleGameAdd(ctx: GameContext) {
 
   const gameNumber = (reportData.games?.length || 0) + 1;
 
-  // Catat riwayat nomor game pada deck
-  if (!dA.gameHistory) dA.gameHistory = [];
-  dA.gameHistory.push(gameNumber);
-
-  if (!dB.gameHistory) dB.gameHistory = [];
-  dB.gameHistory.push(gameNumber);
-
   // 1. Logika Repeat
   if (isRepeatA) {
     reportData.teamA.repeatsUsed = (reportData.teamA.repeatsUsed || 0) + 1;
@@ -151,20 +144,35 @@ export async function handleGameAdd(ctx: GameContext) {
     syncCampTrackers(match.id, matchWeek, reportData, match).catch(console.error);
   }
 
-  // 4. Match Logs 1 Baris
+  // 4. Match Logs 1 Baris dengan format [W] ⸺ [L]
   const matchLogsLines = reportData.games.map((g: any) => {
     const isAWin = g.winner === 'teamA';
-    const tagR = g.playerA.isRepeat || g.playerB.isRepeat ? ' `[R]`' : '';
-    const scoreStr = isAWin ? '`1 - 0`' : '`0 - 1`';
-    return `• **G${g.gameNumber}:** ${g.playerA.ign} ${scoreStr} ${g.playerB.ign}${tagR}`;
+    const tagRA = g.playerA.isRepeat ? ' `[R]`' : '';
+    const tagRB = g.playerB.isRepeat ? ' `[R]`' : '';
+    const resultFormat = isAWin ? '`[W]` ⸺ `[L]`' : '`[L]` ⸺ `[W]`';
+    return `• **G${g.gameNumber}:** ${g.playerA.ign}${tagRA} ${resultFormat} ${g.playerB.ign}${tagRB}`;
   });
 
-  // 5. Rekap Lineup Terbuka (Opsi 3: Anti-Bocor)
-  const renderPublicDeck = (deck: any, isLast: boolean) => {
+  // 5. Helper Deteksi Riwayat Game untuk Setiap Deck dari games[]
+  const getDeckGameNumbers = (playerIgn: string, archetype: string): number[] => {
+    const history: number[] = [];
+    (reportData.games || []).forEach((g: any) => {
+      if (
+        (g.playerA?.ign?.toLowerCase() === playerIgn.toLowerCase() && g.playerA?.archetype?.toLowerCase() === archetype.toLowerCase()) ||
+        (g.playerB?.ign?.toLowerCase() === playerIgn.toLowerCase() && g.playerB?.archetype?.toLowerCase() === archetype.toLowerCase())
+      ) {
+        history.push(g.gameNumber);
+      }
+    });
+    return history;
+  };
+
+  // 6. Rekap Lineup Publik (Opsi 3: Anti-Bocor)
+  const renderPublicDeck = (pIgn: string, deck: any, isLast: boolean) => {
     const prefix = isLast ? '┗' : '┣';
     if (!deck) return `${prefix} ❓ *[Belum Terbuka]*`;
 
-    const history: number[] = deck.gameHistory || [];
+    const history = getDeckGameNumbers(pIgn, deck.archetype);
     if (history.length > 0) {
       const gStr = deck.isRepeatUsed ? `[G${history.join(', G')}:R]` : `[G${history.join(', G')}]`;
       const skillText = deck.skill ? ` • ${deck.skill}` : '';
@@ -185,13 +193,13 @@ export async function handleGameAdd(ctx: GameContext) {
     const activeOrPlayed: string[] = [];
     let unplayedCount = 0;
 
-    (team.lineup || []).forEach((p: any, idx: number) => {
-      const d1Played = (p.deck1?.gameHistory || []).length > 0;
-      const d2Played = (p.deck2?.gameHistory || []).length > 0;
+    (team.lineup || []).forEach((p: any) => {
+      const d1Games = p.deck1 ? getDeckGameNumbers(p.ign, p.deck1.archetype) : [];
+      const d2Games = p.deck2 ? getDeckGameNumbers(p.ign, p.deck2.archetype) : [];
       const d1Burned = p.deck1?.isDead && !p.deck1?.losses;
       const d2Burned = p.deck2?.isDead && !p.deck2?.losses;
 
-      if (d1Played || d2Played || d1Burned || d2Burned) {
+      if (d1Games.length > 0 || d2Games.length > 0 || d1Burned || d2Burned) {
         const life = p.remainingLife ?? 2;
         let badge = '[❤️❤️]';
         let status = '*(Sedang Main)*';
@@ -206,8 +214,8 @@ export async function handleGameAdd(ctx: GameContext) {
 
         activeOrPlayed.push(
           `${activeOrPlayed.length + 1}. \`${badge}\` ${nameStr} ${status}\n` +
-          `${renderPublicDeck(p.deck1, false)}\n` +
-          `${renderPublicDeck(p.deck2, true)}`
+          `${renderPublicDeck(p.ign, p.deck1, false)}\n` +
+          `${renderPublicDeck(p.ign, p.deck2, true)}`
         );
       } else {
         unplayedCount++;
@@ -221,7 +229,7 @@ export async function handleGameAdd(ctx: GameContext) {
     return activeOrPlayed.join('\n');
   };
 
-  // 6. Header Metadata & Instruksi
+  // 7. Header Metadata & Instruksi
   const m = match as any;
   const emojiA = getTeamEmojiFromMatch(match, 'A', reportData.teamA.slug || reportData.teamA.name);
   const emojiB = getTeamEmojiFromMatch(match, 'B', reportData.teamB.slug || reportData.teamB.name);
@@ -257,11 +265,11 @@ export async function handleGameAdd(ctx: GameContext) {
     ? `• Pertandingan telah selesai! Selamat kepada **${winnerOpt === 'A' ? reportData.teamA.name : reportData.teamB.name}** atas kemenangannya.`
     : `• **${winnerPlayerIgn}** bertahan di meja\n${loserInstruction}`;
 
+  // 8. Susun Embed dengan Skor di Bagian Bawah
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: winnerOpt === 'A' ? 0x3b82f6 : 0xef4444,
     description:
-      `# ${emojiA} \` ${reportData.teamA.score} ⸺ ${reportData.teamB.score} \` ${emojiB}\n\n` +
       `**Informasi Pertandingan:**\n` +
       `• **Referee:** ${refereeDisplay}\n` +
       `• **Streamer:** ${streamerDisplay}\n` +
@@ -276,7 +284,9 @@ export async function handleGameAdd(ctx: GameContext) {
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `**Match Logs:**\n` +
       matchLogsLines.join('\n') +
-      `\n\n📢 **Instruksi:**\n${instructions}`,
+      `\n\n━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `# ${emojiA} \` ${reportData.teamA.score} ⸺ ${reportData.teamB.score} \` ${emojiB}\n\n` +
+      `📢 **Instruksi:**\n${instructions}`,
     footer: { text: getEmbedFooterText() },
   };
 
@@ -284,9 +294,26 @@ export async function handleGameAdd(ctx: GameContext) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
   }
 
-  await discordAPI(`/channels/${channelId}/messages`, 'POST', { embeds: [matchEmbed] });
+  // 9. Bersihkan Pesan Report Sebelumnya di Match Channel
+  const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
+  const rawMsg = matchMessages[match.id];
+  let msgData: any = {};
+  if (rawMsg) {
+    msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
+    if (msgData.matchChannel?.lastReportMsgId) {
+      await discordAPI(`/channels/${channelId}/messages/${msgData.matchChannel.lastReportMsgId}`, 'DELETE').catch(() => null);
+    }
+  }
+
+  const postRes = await discordAPI(`/channels/${channelId}/messages`, 'POST', { embeds: [matchEmbed] });
+
+  if (postRes?.id) {
+    if (!msgData.matchChannel) msgData.matchChannel = { channelId };
+    msgData.matchChannel.lastReportMsgId = postRes.id;
+    await kv.hset('discord:match_messages', { [match.id]: JSON.stringify(msgData) });
+  }
+
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-}
-  
+      }
