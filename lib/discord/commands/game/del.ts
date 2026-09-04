@@ -86,7 +86,7 @@ export async function handleGameDel(ctx: GameContext) {
   reportData.isFinished = false;
   reportData.winnerTeam = null;
 
-  const matchWeek = match.weekNumber;
+  const matchWeek = match.weekNumber!;
 
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
