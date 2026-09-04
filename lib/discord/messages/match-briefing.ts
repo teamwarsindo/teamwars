@@ -20,13 +20,22 @@ export interface TrackerPlayer {
   deck2?: DeckSlotInfo | null;
 }
 
-export function formatTimeRemaining(targetDateIso?: string): string {
+// ⏱️ Hitung sisa waktu selaras dengan jam menit footer (detik dinormalisasi ke 00)
+export function formatTimeRemaining(targetDateIso?: string, referenceDate: Date = new Date()): string {
   if (!targetDateIso) return 'belum ditentukan';
-  const diffMs = new Date(targetDateIso).getTime() - Date.now();
+
+  const targetDate = new Date(targetDateIso);
+
+  const refNorm = new Date(referenceDate);
+  refNorm.setSeconds(0, 0);
+
+  const targetNorm = new Date(targetDate);
+  targetNorm.setSeconds(0, 0);
+
+  const diffMs = targetNorm.getTime() - refNorm.getTime();
   if (diffMs <= 0) return 'waktu telah berakhir';
 
-  // Pembulatan ke atas (Math.ceil) agar sisa detik terhitung akurat
-  const totalMinutes = Math.ceil(diffMs / (1000 * 60));
+  const totalMinutes = Math.round(diffMs / (1000 * 60));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
@@ -48,6 +57,7 @@ export function formatWIBTimeOnly(dateIso?: string): string {
   );
 }
 
+// 🔍 Live check message
 export async function checkDiscordMessageExists(channelId: string, messageId?: string | null): Promise<boolean> {
   if (!channelId || !messageId) return false;
   try {
@@ -58,6 +68,7 @@ export async function checkDiscordMessageExists(channelId: string, messageId?: s
   }
 }
 
+// 🟡 1. EMBED PENGUMUMAN PAGI
 export function getMorningCampEmbed(params: {
   week?: string | number;
   matchDateIso?: string;
@@ -99,6 +110,7 @@ export function getMorningCampEmbed(params: {
   };
 }
 
+// Helper format deck line dengan singkatan skill dari master KV
 function formatDeckLine(
   prefix: '├─' | '└─',
   deck?: DeckSlotInfo | null,
@@ -133,6 +145,7 @@ function formatDeckLine(
   };
 }
 
+// 📊 2. EMBED LIVE DECK TRACKER
 export function getLiveDeckTrackerEmbed(params: {
   week?: string | number;
   matchDateIso?: string;
@@ -203,6 +216,7 @@ export function getLiveDeckTrackerEmbed(params: {
   };
 }
 
+// ⚔️ 3. EMBED MATCH BRIEFING
 export function getMatchBriefingEmbed() {
   return {
     title: '⚔️ IN-GAME MATCH BRIEFING — TWI SEASON 7',
@@ -235,6 +249,7 @@ export function getMatchBriefingEmbed() {
   };
 }
 
+// 🔁 HELPER LIVE TRACKER (PATCH atau DELETE-REPOST)
 export async function sendOrUpdateLiveTracker(params: {
   channelId: string;
   matchDateIso: string;
@@ -245,19 +260,21 @@ export async function sendOrUpdateLiveTracker(params: {
 }): Promise<string | null> {
   if (!params.channelId) return null;
 
+  const now = new Date();
   const skillsMap = (await kv.get<Record<string, string>>('twi:master_skills')) || {};
   const deadlineIso = new Date(new Date(params.matchDateIso).getTime() - 60 * 60 * 1000).toISOString();
+
   const embed = getLiveDeckTrackerEmbed({
     week: params.week,
     matchDateIso: params.matchDateIso,
     deadlineWib: formatWIBTimeOnly(deadlineIso),
-    timeRemainingStr: formatTimeRemaining(deadlineIso),
+    timeRemainingStr: formatTimeRemaining(deadlineIso, now),
     submittedPlayers: params.submittedPlayers,
     skillsMap,
-    lastUpdated: new Date(),
+    lastUpdated: now,
   });
 
-  // 1. Edit di tempat jika tidak minta repost dan ID pesan ada
+  // 1. Edit di tempat jika BUKAN mode repost dan ID pesan tracker lama tersedia
   if (!params.shouldRepost && params.existingMsgId) {
     try {
       const res = await discordAPI(
@@ -271,12 +288,12 @@ export async function sendOrUpdateLiveTracker(params: {
     }
   }
 
-  // 2. Hapus pesan lama jika mode repost
+  // 2. Hapus pesan tracker lama jika mode repost diaktifkan
   if (params.shouldRepost && params.existingMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
   }
 
-  // 3. Buat pesan baru
+  // 3. Buat pesan baru ke dasar channel
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
     embeds: [embed],
   }).catch((err) => {
@@ -285,4 +302,4 @@ export async function sendOrUpdateLiveTracker(params: {
   });
 
   return res?.id || null;
-}
+    }
