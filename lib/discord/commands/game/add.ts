@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { discordAPI, getEmbedFooterText } from '@/lib/discord/utils';
+import { discordAPI, formatWIBDate, getEmbedFooterText } from '@/lib/discord/utils';
 import { GameContext, syncCampTrackers, getTeamEmoji } from './types';
 
 export async function handleGameAdd(ctx: GameContext) {
@@ -139,14 +139,14 @@ export async function handleGameAdd(ctx: GameContext) {
     reportData.winnerTeam = 'teamB';
   }
 
-  const matchWeek = match.weekNumber || 5;
+  const matchWeek = match.weekNumber;
 
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
     syncCampTrackers(match.id, matchWeek, reportData).catch(console.error);
   }
 
-  // 4. Susun Match Logs baris per baris
+  // 4. Susun Match Logs
   const matchLogsLines = reportData.games.map((g: any) => {
     const isAWin = g.winner === 'teamA';
     const tagRA = g.playerA.isRepeat ? ' `[R]`' : '';
@@ -175,17 +175,23 @@ export async function handleGameAdd(ctx: GameContext) {
     ? `• Pertandingan telah selesai! Selamat kepada **${winnerOpt === 'A' ? reportData.teamA.name : reportData.teamB.name}** atas kemenangannya.`
     : `• **${winnerPlayerIgn}** bertahan di meja\n${loserInstruction}`;
 
-  // 6. Data Header & Streamer
+  // 6. Header & Metadata Pertandingan
+  const m = match as any;
   const emojiA = getTeamEmoji(reportData.teamA);
   const emojiB = getTeamEmoji(reportData.teamB);
-  const refereeName = match.refereeName || match.referee || 'Wasit Bertugas';
-  const streamerInfo = match.streamUrl ? `[Tonton Live Streaming](${match.streamUrl})` : (match.streamer || '-');
-  const dateFormatted = match.matchDate
-    ? new Date(match.matchDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '-';
-  const timeFormatted = match.matchDate
-    ? new Date(match.matchDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(':', '.') + ' WIB'
-    : '-';
+
+  const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName;
+
+  let streamerDisplay = 'Belum tersedia';
+  if (m.streamLink) {
+    streamerDisplay = `[YouTube Live Stream](${m.streamLink})`;
+  } else if (m.streamerDiscordId) {
+    streamerDisplay = `<@${m.streamerDiscordId}>`;
+  } else if (m.streamerName) {
+    streamerDisplay = m.streamerName;
+  }
+
+  const scheduleDisplay = formatWIBDate(match.matchDate);
 
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
@@ -193,9 +199,9 @@ export async function handleGameAdd(ctx: GameContext) {
     description:
       `${emojiA} **${reportData.teamA.name}** \`${reportData.teamA.score}\` ⸺ \`${reportData.teamB.score}\` **${reportData.teamB.name}** ${emojiB}\n\n` +
       `**Informasi:**\n` +
-      `• **Referee:** ${refereeName}\n` +
-      `• **Streamer:** ${streamerInfo}\n` +
-      `• **Jadwal:** ${dateFormatted} • ${timeFormatted}\n` +
+      `• **Referee:** ${refereeDisplay}\n` +
+      `• **Streamer:** ${streamerDisplay}\n` +
+      `• **Jadwal:** ${scheduleDisplay}\n` +
       (decklossNotice ? `${decklossNotice}\n` : '') +
       `\n**Match Logs:**\n` +
       matchLogsLines.join('\n') +
@@ -211,4 +217,4 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-    }
+}
