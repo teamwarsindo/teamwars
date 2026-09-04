@@ -234,19 +234,16 @@ export function getMatchBriefingEmbed() {
   };
 }
 
-// 🔁 HELPER DELETE-REPOST LIVE TRACKER
+// 🔁 HELPER LIVE TRACKER (PATCH atau DELETE-REPOST)
 export async function sendOrUpdateLiveTracker(params: {
   channelId: string;
   matchDateIso: string;
   week?: string | number;
   submittedPlayers: TrackerPlayer[];
   existingMsgId?: string | null;
+  shouldRepost?: boolean;
 }): Promise<string | null> {
   if (!params.channelId) return null;
-
-  if (params.existingMsgId) {
-    await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
-  }
 
   // Ambil mapping singkatan skill dari KV
   const skillsMap = (await kv.get<Record<string, string>>('twi:master_skills')) || {};
@@ -262,6 +259,26 @@ export async function sendOrUpdateLiveTracker(params: {
     lastUpdated: new Date(),
   });
 
+  // 1. Jika TIDAK minta repost dan ID pesan lama ada -> Lakukan PATCH di tempat
+  if (!params.shouldRepost && params.existingMsgId) {
+    try {
+      const res = await discordAPI(
+        `/channels/${params.channelId}/messages/${params.existingMsgId}`,
+        'PATCH',
+        { embeds: [embed] }
+      );
+      if (res?.id) return res.id;
+    } catch (patchErr) {
+      console.warn('Gagal PATCH pesan tracker lama, fallback kirim pesan baru:', patchErr);
+    }
+  }
+
+  // 2. Jika minta REPOST dan ada pesan lama -> Hapus pesan lama
+  if (params.shouldRepost && params.existingMsgId) {
+    await discordAPI(`/channels/${params.channelId}/messages/${params.existingMsgId}`, 'DELETE').catch(() => null);
+  }
+
+  // 3. Kirim pesan baru (untuk submit pertama kali, repost eksplisit, atau fallback jika patch gagal)
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
     embeds: [embed],
   }).catch((err) => {
@@ -270,4 +287,5 @@ export async function sendOrUpdateLiveTracker(params: {
   });
 
   return res?.id || null;
-}
+        }
+      
