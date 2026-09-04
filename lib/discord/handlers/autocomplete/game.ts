@@ -24,9 +24,11 @@ function getDeckChoices(playerObj: any, teamData: any): Array<{ name: string; va
   const d1 = playerObj.deck1;
   const d2 = playerObj.deck2;
   const repeatsUsed = teamData?.repeatsUsed || 0;
+
+  // Syarat repeat: kuota tim masih ada (< 1), belum pernah menang, dan baru kalah 1x
   const canRepeat = repeatsUsed < 1 && (playerObj.totalWins || 0) === 0 && (playerObj.totalLosses || 0) === 1;
 
-  // Deck 1
+  // 1. Deck 1
   if (d1?.archetype) {
     const skill1 = d1.skill ? ` • ${d1.skill}` : '';
     if (!d1.isDead) {
@@ -36,10 +38,14 @@ function getDeckChoices(playerObj: any, teamData: any): Array<{ name: string; va
     }
   }
 
-  // Deck 2
-  if (d2?.archetype && !d2.isDead) {
+  // 2. Deck 2 (Aktifkan repeat jika pemain memainkan deck 2 di awal)
+  if (d2?.archetype) {
     const skill2 = d2.skill ? ` • ${d2.skill}` : '';
-    choices.push({ name: `${d2.archetype}${skill2}`, value: d2.archetype });
+    if (!d2.isDead) {
+      choices.push({ name: `${d2.archetype}${skill2}`, value: d2.archetype });
+    } else if (canRepeat && (d2.wins || 0) === 0 && !d2.isRepeatUsed) {
+      choices.push({ name: `Repeat (${d2.archetype}${skill2})`, value: `REPEAT:${d2.archetype}` });
+    }
   }
 
   return choices;
@@ -68,7 +74,10 @@ export async function handleGameAutocomplete(interaction: any) {
     if (fName === 'pemain_a') {
       const lineupA: any[] = reportData.teamA?.lineup || [];
       const activePlayers = lineupA.filter((p) => {
-        const canRepeat = (reportData.teamA?.repeatsUsed || 0) < 1 && (p.totalWins || 0) === 0 && (p.totalLosses || 0) === 1;
+        const canRepeat =
+          (reportData.teamA?.repeatsUsed || 0) < 1 &&
+          (p.totalWins || 0) === 0 &&
+          (p.totalLosses || 0) === 1;
         return (p.remainingLife ?? 2) > 0 || canRepeat;
       });
       return {
@@ -87,9 +96,13 @@ export async function handleGameAutocomplete(interaction: any) {
 
     // 2. Deck Tim A
     if (fName === 'deck_a') {
-      const selectedPlayerIgn = String(options.find((o: any) => o.name === 'pemain_a')?.value || '').trim();
+      const selectedPlayerIgn = String(
+        options.find((o: any) => o.name === 'pemain_a')?.value || ''
+      ).trim();
       const lineupA: any[] = reportData.teamA?.lineup || [];
-      const playerObj = lineupA.find((p) => String(p.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase());
+      const playerObj = lineupA.find(
+        (p) => String(p.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()
+      );
       const choices = getDeckChoices(playerObj, reportData.teamA);
       return { type: 8, data: { choices: filterChoices(choices, query, (d) => d.name, (d) => d.value) } };
     }
@@ -98,7 +111,10 @@ export async function handleGameAutocomplete(interaction: any) {
     if (fName === 'pemain_b') {
       const lineupB: any[] = reportData.teamB?.lineup || [];
       const activePlayers = lineupB.filter((p) => {
-        const canRepeat = (reportData.teamB?.repeatsUsed || 0) < 1 && (p.totalWins || 0) === 0 && (p.totalLosses || 0) === 1;
+        const canRepeat =
+          (reportData.teamB?.repeatsUsed || 0) < 1 &&
+          (p.totalWins || 0) === 0 &&
+          (p.totalLosses || 0) === 1;
         return (p.remainingLife ?? 2) > 0 || canRepeat;
       });
       return {
@@ -117,14 +133,18 @@ export async function handleGameAutocomplete(interaction: any) {
 
     // 4. Deck Tim B
     if (fName === 'deck_b') {
-      const selectedPlayerIgn = String(options.find((o: any) => o.name === 'pemain_b')?.value || '').trim();
+      const selectedPlayerIgn = String(
+        options.find((o: any) => o.name === 'pemain_b')?.value || ''
+      ).trim();
       const lineupB: any[] = reportData.teamB?.lineup || [];
-      const playerObj = lineupB.find((p) => String(p.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase());
+      const playerObj = lineupB.find(
+        (p) => String(p.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()
+      );
       const choices = getDeckChoices(playerObj, reportData.teamB);
       return { type: 8, data: { choices: filterChoices(choices, query, (d) => d.name, (d) => d.value) } };
     }
 
-    // 5. Pilihan Tim Pemenang (Dinamis Nama Asli Tim)
+    // 5. Tim Pemenang
     if (fName === 'pemenang') {
       const nameA = reportData.teamA?.name || 'Tim A';
       const nameB = reportData.teamB?.name || 'Tim B';
@@ -132,7 +152,10 @@ export async function handleGameAutocomplete(interaction: any) {
         { name: `${nameA} (Tim A)`, value: 'A' },
         { name: `${nameB} (Tim B)`, value: 'B' },
       ];
-      return { type: 8, data: { choices: filterChoices(winnerChoices, query, (w) => w.name, (w) => w.value) } };
+      return {
+        type: 8,
+        data: { choices: filterChoices(winnerChoices, query, (w) => w.name, (w) => w.value) },
+      };
     }
 
     return { type: 8, data: { choices: [] } };
@@ -140,4 +163,4 @@ export async function handleGameAutocomplete(interaction: any) {
     console.error('Error handleGameAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-}
+  }
