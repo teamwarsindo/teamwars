@@ -50,7 +50,7 @@ export function generateCampInstruction(team: any, opponentName: string, isWinne
   const p = (team.lineup || []).find((x: any) => x.ign.toLowerCase() === lastPlayer.ign.toLowerCase());
   const remainingLife = p?.remainingLife ?? 2;
 
-  // Jika tim ini yang menang di ronde tadi
+  // Jika tim ini menang di ronde tadi
   if (isWinner) {
     return `**${lastPlayer.ign}** bertahan di meja tanding. Menunggu lawan dari ${opponentName}.`;
   }
@@ -81,7 +81,7 @@ export function generateCampInstruction(team: any, opponentName: string, isWinne
 }
 
 // Render tampilan text Tracker Camp
-export function renderCampTrackerText(teamKey: 'teamA' | 'teamB', reportData: any, matchWeek: number | string = 5): string {
+export function renderCampTrackerText(teamKey: 'teamA' | 'teamB', reportData: any, matchWeek: number | string): string {
   const team = teamKey === 'teamA' ? reportData.teamA : reportData.teamB;
   const opponent = teamKey === 'teamA' ? reportData.teamB : reportData.teamA;
   const emoji = getTeamEmoji(team);
@@ -94,7 +94,7 @@ export function renderCampTrackerText(teamKey: 'teamA' | 'teamB', reportData: an
   const repeatCount = team.repeatsUsed || 0;
   const warningCount = team.warningsUsed || 0;
 
-  // Daftar pelanggaran SS
+  // Daftar pelanggaran SS Hand
   const ssViolations: string[] = [];
   games.forEach((g) => {
     if (teamKey === 'teamA' && g.ssHandA === false) {
@@ -127,7 +127,7 @@ export function renderCampTrackerText(teamKey: 'teamA' | 'teamB', reportData: an
         return `${prefix} 🔴 ~~${d.archetype}${skillText}~~${repeatTag}`;
       }
       if (d.isDead && !d.losses) {
-        return `${prefix} ⚫ ~~${d.archetype}${skillText}~~`; // Hangus kena repeat pasangannya
+        return `${prefix} ⚫ ~~${d.archetype}${skillText}~~`;
       }
       if (d.isDead) {
         return `${prefix} 🔴 ~~${d.archetype}${skillText}~~`;
@@ -156,7 +156,7 @@ export function renderCampTrackerText(teamKey: 'teamA' | 'teamB', reportData: an
   );
 }
 
-// 🔄 Helper Sync Live Tracker Camp (DELETE lalu POST ULANG)
+// Helper Sync Live Tracker Camp (DELETE lalu POST ULANG)
 export async function syncCampTrackers(matchId: string, matchWeek: number | string, reportData: any) {
   const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
   const rawMsg = matchMessages[matchId];
@@ -196,4 +196,4 @@ export async function syncCampTrackers(matchId: string, matchWeek: number | stri
   if (changed) {
     await kv.hset('discord:match_messages', { [matchId]: JSON.stringify(msgData) });
   }
-  }
+      }
