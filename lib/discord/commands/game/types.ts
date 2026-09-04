@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
-import { sendOrUpdateLiveTracker, TrackerPlayer } from '@/lib/discord/messages/match-briefing';
+import { discordAPI } from '@/lib/discord/utils';
 
 export interface GameContext {
   interaction: any;
@@ -35,43 +35,165 @@ export async function resolveMatchFromChannel(channelId: string) {
   return null;
 }
 
-export async function syncCampTrackers(matchId: string, matchDateIso: string, reportData: any) {
+// Format emoji slug tim <:kodeTim:emojiId>
+export function getTeamEmoji(teamData: any): string {
+  if (teamData?.emojiId && teamData?.slug) {
+    return `<:${teamData.slug}:${teamData.emojiId}>`;
+  }
+  return '⚔️';
+}
+
+// Generate teks instruksi khusus Camp Tim
+export function generateCampInstruction(team: any, opponentName: string, isWinner: boolean, lastPlayer: any): string {
+  if (!lastPlayer) return `${team.name} tentukan pemain.`;
+
+  const p = (team.lineup || []).find((x: any) => x.ign.toLowerCase() === lastPlayer.ign.toLowerCase());
+  const remainingLife = p?.remainingLife ?? 2;
+
+  // Jika tim ini yang menang di ronde tadi
+  if (isWinner) {
+    return `**${lastPlayer.ign}** bertahan di meja tanding. Menunggu lawan dari ${opponentName}.`;
+  }
+
+  // Jika tim ini kalah ronde tadi
+  if (remainingLife <= 0) {
+    const alivePlayers = (team.lineup || []).filter((x: any) => (x.remainingLife ?? 2) > 0);
+    const countGugur = (team.lineup || []).filter((x: any) => (x.remainingLife ?? 2) <= 0).length;
+    const urutanStr = ['pertama', 'kedua', 'ketiga', 'keempat', 'kelima'][countGugur] || 'berikutnya';
+
+    if (alivePlayers.length === 0) return `Semua pemain telah tereliminasi. Pertandingan berakhir.`;
+    return `${team.name} pilih pemain ${urutanStr}.`;
+  }
+
+  // Jika masih ada sisa nyawa (Kalah ronde pertama)
+  const canRepeat = (team.repeatsUsed || 0) < 2 && (p.totalWins || 0) === 0;
+  const d1 = p.deck1;
+  const d2 = p.deck2;
+  const unusedDeck = [d1, d2].find((d) => d && !d.isDead);
+
+  if (canRepeat && unusedDeck) {
+    return `${p.ign} gunakan repeat untuk deck ${lastPlayer.archetype} atau gunakan deck ${unusedDeck.archetype}.`;
+  } else if (unusedDeck) {
+    return `${p.ign} gunakan deck ${unusedDeck.archetype}.`;
+  }
+
+  return `${team.name} pilih pemain berikutnya.`;
+}
+
+// Render tampilan text Tracker Camp
+export function renderCampTrackerText(teamKey: 'teamA' | 'teamB', reportData: any, matchWeek: number | string = 5): string {
+  const team = teamKey === 'teamA' ? reportData.teamA : reportData.teamB;
+  const opponent = teamKey === 'teamA' ? reportData.teamB : reportData.teamA;
+  const emoji = getTeamEmoji(team);
+
+  const games: any[] = reportData.games || [];
+  const lastGame = games.length > 0 ? games[games.length - 1] : null;
+  const isWinner = lastGame ? lastGame.winner === teamKey : false;
+  const lastPlayer = lastGame ? (teamKey === 'teamA' ? lastGame.playerA : lastGame.playerB) : null;
+
+  const repeatCount = team.repeatsUsed || 0;
+  const warningCount = team.warningsUsed || 0;
+
+  // Daftar pelanggaran SS
+  const ssViolations: string[] = [];
+  games.forEach((g) => {
+    if (teamKey === 'teamA' && g.ssHandA === false) {
+      ssViolations.push(`• ${g.playerA?.ign} (Game ${g.gameNumber})`);
+    }
+    if (teamKey === 'teamB' && g.ssHandB === false) {
+      ssViolations.push(`• ${g.playerB?.ign} (Game ${g.gameNumber})`);
+    }
+  });
+
+  // Lineup
+  const lineupLines = (team.lineup || []).map((p: any, idx: number) => {
+    const life = p.remainingLife ?? 2;
+    let lifeBadge = '[❤️❤️]';
+    let nameDisplay = `**${p.ign}**`;
+
+    if (life === 1) lifeBadge = '[❤️]';
+    if (life <= 0) {
+      lifeBadge = '[💀]';
+      nameDisplay = `~~${p.ign}~~`;
+    }
+
+    const renderDeckLine = (d: any, isLast: boolean) => {
+      const prefix = isLast ? '┗' : '┣';
+      if (!d) return `${prefix} ⚪ Kosong`;
+      const skillText = d.skill ? ` • ${d.skill}` : '';
+      const repeatTag = d.isRepeatUsed ? ' `[R]`' : '';
+
+      if (d.isDead && d.isRepeatUsed) {
+        return `${prefix} 🔴 ~~${d.archetype}${skillText}~~${repeatTag}`;
+      }
+      if (d.isDead && !d.losses) {
+        return `${prefix} ⚫ ~~${d.archetype}${skillText}~~`; // Hangus kena repeat pasangannya
+      }
+      if (d.isDead) {
+        return `${prefix} 🔴 ~~${d.archetype}${skillText}~~`;
+      }
+      return `${prefix} 🟢 ${d.archetype}${skillText}`;
+    };
+
+    return (
+      `**${idx + 1}. \`${lifeBadge}\` ${nameDisplay}** (${p.idDuelLinks || '-'})\n` +
+      `${renderDeckLine(p.deck1, false)}\n` +
+      `${renderDeckLine(p.deck2, true)}`
+    );
+  });
+
+  const instructionText = generateCampInstruction(team, opponent.name, isWinner, lastPlayer);
+
+  return (
+    `📊 **LIVE MATCH TRACKER — WEEK ${matchWeek}**\n` +
+    `${emoji} **${String(team.name).toUpperCase()}**\n\n` +
+    `Repeat: \`${repeatCount}/2\` | Warning SS: \`${warningCount}/2\`\n` +
+    `Pelanggaran SS:\n` +
+    (ssViolations.length > 0 ? `${ssViolations.join('\n')}\n\n` : `• Tidak ada\n\n`) +
+    `**Lineup & Deck:**\n` +
+    lineupLines.join('\n\n') +
+    `\n\n📢 **Instruksi:**\n${instructionText}`
+  );
+}
+
+// 🔄 Helper Sync Live Tracker Camp (DELETE lalu POST ULANG)
+export async function syncCampTrackers(matchId: string, matchWeek: number | string, reportData: any) {
   const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
   const rawMsg = matchMessages[matchId];
   if (!rawMsg) return;
 
   const msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
-  const mapTracker = (lineup: any[]): TrackerPlayer[] =>
-    (lineup || []).map((p) => ({
-      ign: p.ign,
-      idDuelLinks: p.idDuelLinks || '',
-      deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
-      deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
-    }));
-
   let changed = false;
+
+  // Camp Tim A
   if (msgData.campA?.channelId) {
-    const trackerIdA = await sendOrUpdateLiveTracker({
-      channelId: msgData.campA.channelId,
-      matchDateIso,
-      submittedPlayers: mapTracker(reportData.teamA?.lineup),
-      existingMsgId: msgData.campA.trackerMsgId,
+    if (msgData.campA.trackerMsgId) {
+      await discordAPI(`/channels/${msgData.campA.channelId}/messages/${msgData.campA.trackerMsgId}`, 'DELETE').catch(() => null);
+    }
+    const resA = await discordAPI(`/channels/${msgData.campA.channelId}/messages`, 'POST', {
+      content: renderCampTrackerText('teamA', reportData, matchWeek),
     });
-    msgData.campA.trackerMsgId = trackerIdA;
-    changed = true;
+    if (resA?.id) {
+      msgData.campA.trackerMsgId = resA.id;
+      changed = true;
+    }
   }
+
+  // Camp Tim B
   if (msgData.campB?.channelId) {
-    const trackerIdB = await sendOrUpdateLiveTracker({
-      channelId: msgData.campB.channelId,
-      matchDateIso,
-      submittedPlayers: mapTracker(reportData.teamB?.lineup),
-      existingMsgId: msgData.campB.trackerMsgId,
+    if (msgData.campB.trackerMsgId) {
+      await discordAPI(`/channels/${msgData.campB.channelId}/messages/${msgData.campB.trackerMsgId}`, 'DELETE').catch(() => null);
+    }
+    const resB = await discordAPI(`/channels/${msgData.campB.channelId}/messages`, 'POST', {
+      content: renderCampTrackerText('teamB', reportData, matchWeek),
     });
-    msgData.campB.trackerMsgId = trackerIdB;
-    changed = true;
+    if (resB?.id) {
+      msgData.campB.trackerMsgId = resB.id;
+      changed = true;
+    }
   }
 
   if (changed) {
     await kv.hset('discord:match_messages', { [matchId]: JSON.stringify(msgData) });
   }
-}
+  }
