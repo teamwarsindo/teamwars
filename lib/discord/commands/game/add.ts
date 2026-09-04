@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import { discordAPI, getEmbedFooterText } from '@/lib/discord/utils';
-import { GameContext, syncCampTrackers } from './types';
+import { GameContext, syncCampTrackers, getTeamEmoji } from './types';
 
 export async function handleGameAdd(ctx: GameContext) {
   const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff, userIsAdmin } = ctx;
@@ -34,36 +34,16 @@ export async function handleGameAdd(ctx: GameContext) {
   const pA = lineupA.find((p) => String(p.ign || '').toLowerCase() === playerAIgn.toLowerCase());
   const pB = lineupB.find((p) => String(p.ign || '').toLowerCase() === playerBIgn.toLowerCase());
 
-  if (!pA) {
-    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-      content: `❌ Pemain Tim A **${playerAIgn}** tidak terdaftar!`,
-    });
-  }
-  if (!pB) {
-    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-      content: `❌ Pemain Tim B **${playerBIgn}** tidak terdaftar!`,
-    });
-  }
+  if (!pA) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Pemain Tim A **${playerAIgn}** tidak terdaftar!` });
+  if (!pB) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Pemain Tim B **${playerBIgn}** tidak terdaftar!` });
 
-  const dA = [pA.deck1, pA.deck2].find(
-    (d) => d && String(d.archetype || '').toLowerCase() === deckAName.toLowerCase()
-  );
-  const dB = [pB.deck1, pB.deck2].find(
-    (d) => d && String(d.archetype || '').toLowerCase() === deckBName.toLowerCase()
-  );
+  const dA = [pA.deck1, pA.deck2].find((d) => d && String(d.archetype || '').toLowerCase() === deckAName.toLowerCase());
+  const dB = [pB.deck1, pB.deck2].find((d) => d && String(d.archetype || '').toLowerCase() === deckBName.toLowerCase());
 
-  if (!dA) {
-    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-      content: `❌ Deck **${deckAName}** milik ${pA.ign} tidak valid!`,
-    });
-  }
-  if (!dB) {
-    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-      content: `❌ Deck **${deckBName}** milik ${pB.ign} tidak valid!`,
-    });
-  }
+  if (!dA) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckAName}** milik ${pA.ign} tidak valid!` });
+  if (!dB) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckBName}** milik ${pB.ign} tidak valid!` });
 
-  // Eksekusi Repeat Tim A: Matikan deck pasangannya secara dinamis
+  // 1. Logika Repeat (Maksimal 2x per tim)
   if (isRepeatA) {
     reportData.teamA.repeatsUsed = (reportData.teamA.repeatsUsed || 0) + 1;
     dA.isRepeatUsed = true;
@@ -73,7 +53,6 @@ export async function handleGameAdd(ctx: GameContext) {
     pA.remainingLife = 1;
   }
 
-  // Eksekusi Repeat Tim B: Matikan deck pasangannya secara dinamis
   if (isRepeatB) {
     reportData.teamB.repeatsUsed = (reportData.teamB.repeatsUsed || 0) + 1;
     dB.isRepeatUsed = true;
@@ -86,7 +65,7 @@ export async function handleGameAdd(ctx: GameContext) {
   const gameNumber = (reportData.games?.length || 0) + 1;
   const winnerTeamKey = winnerOpt === 'A' ? 'teamA' : 'teamB';
 
-  // Kalkulasi Skor & Status Hidup
+  // 2. Kalkulasi Skor & Status Hidup
   if (winnerOpt === 'A') {
     reportData.teamA.score = scoreA + 1;
     dA.wins = (dA.wins || 0) + 1;
@@ -110,22 +89,35 @@ export async function handleGameAdd(ctx: GameContext) {
   dA.lastGameNumber = gameNumber;
   dB.lastGameNumber = gameNumber;
 
-  // Warning SS Hand
-  const warningLogs: string[] = [];
+  // 3. Logika 2x Warning SS Hand = Deckloss & Reset
+  let decklossNotice = '';
   if (!ssHandA) {
-    reportData.teamA.warningsUsed = (reportData.teamA.warningsUsed || 0) + 1;
-    warningLogs.push(`⚠️ ${reportData.teamA.name} tidak kirim SS Hand (Warning ke-${reportData.teamA.warningsUsed})`);
+    const currentW = (reportData.teamA.warningsUsed || 0) + 1;
+    if (currentW >= 2) {
+      reportData.teamA.warningsUsed = 0; // Reset ke 0
+      reportData.teamB.score = (reportData.teamB.score || 0) + 1; // Poin deckloss untuk lawan
+      decklossNotice += `\n⚠️ **${reportData.teamA.name}** terkena akumulasi 2x Warning SS Hand! Kena sanksi **Deckloss** (+1 Poin untuk ${reportData.teamB.name}) & status warning di-reset ke 0.`;
+    } else {
+      reportData.teamA.warningsUsed = currentW;
+    }
   }
+
   if (!ssHandB) {
-    reportData.teamB.warningsUsed = (reportData.teamB.warningsUsed || 0) + 1;
-    warningLogs.push(`⚠️ ${reportData.teamB.name} tidak kirim SS Hand (Warning ke-${reportData.teamB.warningsUsed})`);
+    const currentW = (reportData.teamB.warningsUsed || 0) + 1;
+    if (currentW >= 2) {
+      reportData.teamB.warningsUsed = 0; // Reset ke 0
+      reportData.teamA.score = (reportData.teamA.score || 0) + 1; // Poin deckloss untuk lawan
+      decklossNotice += `\n⚠️ **${reportData.teamB.name}** terkena akumulasi 2x Warning SS Hand! Kena sanksi **Deckloss** (+1 Poin untuk ${reportData.teamA.name}) & status warning di-reset ke 0.`;
+    } else {
+      reportData.teamB.warningsUsed = currentW;
+    }
   }
 
   const gameRecord = {
     gameNumber,
     winner: winnerTeamKey,
-    playerA: { ign: pA.ign, idDuelLinks: pA.idDuelLinks, archetype: dA.archetype, skill: dA.skill, isRepeat: isRepeatA },
-    playerB: { ign: pB.ign, idDuelLinks: pB.idDuelLinks, archetype: dB.archetype, skill: dB.skill, isRepeat: isRepeatB },
+    playerA: { ign: pA.ign, archetype: dA.archetype, skill: dA.skill, isRepeat: isRepeatA },
+    playerB: { ign: pB.ign, archetype: dB.archetype, skill: dB.skill, isRepeat: isRepeatB },
     ssHandA,
     ssHandB,
     notes,
@@ -147,35 +139,75 @@ export async function handleGameAdd(ctx: GameContext) {
     reportData.winnerTeam = 'teamB';
   }
 
-  // Bypass KV jika mode tes admin sebelum kickoff
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
-    syncCampTrackers(match.id, match.matchDate, reportData).catch(console.error);
+    syncCampTrackers(match.id, match.week || 5, reportData).catch(console.error);
   }
 
-  const winnerName = winnerOpt === 'A' ? reportData.teamA.name : reportData.teamB.name;
-  const gameEmbed = {
-    title: `⚔️ HASIL GAME ${gameNumber} — ${winnerName} WIN!`,
+  // 4. Susun Match Logs baris per baris
+  const matchLogsLines = reportData.games.map((g: any) => {
+    const isAWin = g.winner === 'teamA';
+    const tagRA = g.playerA.isRepeat ? ' `[R]`' : '';
+    const tagRB = g.playerB.isRepeat ? ' `[R]`' : '';
+    const resA = isAWin ? '`[W]`' : '`[L]`';
+    const resB = !isAWin ? '`[W]`' : '`[L]`';
+    return `• **G${g.gameNumber}:** **${g.playerA.ign}** *(${g.playerA.archetype})*${tagRA} ${resA} ⸺ ${resB} **${g.playerB.ign}** *(${g.playerB.archetype})*${tagRB}`;
+  });
+
+  // 5. Susun Instruksi Publik Singkat & Umum (Anti-Spoiler)
+  const winnerPlayerIgn = winnerOpt === 'A' ? pA.ign : pB.ign;
+  const loserPlayerObj = winnerOpt === 'A' ? pB : pA;
+  const loserTeam = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
+  const loserTeamLineup = winnerOpt === 'A' ? lineupB : lineupA;
+
+  let loserInstruction = '';
+  if ((loserPlayerObj.remainingLife ?? 2) <= 0) {
+    const countGugur = loserTeamLineup.filter((x: any) => (x.remainingLife ?? 2) <= 0).length;
+    const urutanStr = ['pertama', 'kedua', 'ketiga', 'keempat', 'kelima'][countGugur] || 'berikutnya';
+    loserInstruction = `• **${loserTeam.name}** pilih pemain ${urutanStr}`;
+  } else {
+    loserInstruction = `• **${loserPlayerObj.ign}** silakan gunakan repeat atau pakai deck selanjutnya`;
+  }
+
+  const instructions = reportData.isFinished
+    ? `• Pertandingan telah selesai! Selamat kepada **${winnerOpt === 'A' ? reportData.teamA.name : reportData.teamB.name}** atas kemenangannya.`
+    : `• **${winnerPlayerIgn}** bertahan di meja\n${loserInstruction}`;
+
+  // 6. Data Header & Streamer
+  const emojiA = getTeamEmoji(reportData.teamA);
+  const emojiB = getTeamEmoji(reportData.teamB);
+  const refereeName = match.refereeName || match.referee || 'Wasit Bertugas';
+  const streamerInfo = match.streamUrl ? `[Tonton Live Streaming](${match.streamUrl})` : (match.streamer || '-');
+  const dateFormatted = match.matchDate
+    ? new Date(match.matchDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '-';
+  const timeFormatted = match.matchDate
+    ? new Date(match.matchDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(':', '.') + ' WIB'
+    : '-';
+
+  const matchEmbed = {
+    title: `⚔️ LIVE MATCH REPORT — WEEK ${match.week || 5}`,
     color: winnerOpt === 'A' ? 0x3b82f6 : 0xef4444,
     description:
-      `**${reportData.teamA.name}** \`${reportData.teamA.score}\` — \`${reportData.teamB.score}\` **${reportData.teamB.name}**\n\n` +
-      `• **Tim A:** ${pA.ign} (${isRepeatA ? 'Repeat ' : ''}${dA.archetype})\n` +
-      `• **Tim B:** ${pB.ign} (${isRepeatB ? 'Repeat ' : ''}${dB.archetype})\n` +
-      (warningLogs.length > 0 ? `• ${warningLogs.join('\n• ')}\n` : '') +
-      (notes ? `• **Catatan Wasit:** *${notes}*\n` : ''),
+      `${emojiA} **${reportData.teamA.name}** \`${reportData.teamA.score}\` ⸺ \`${reportData.teamB.score}\` **${reportData.teamB.name}** ${emojiB}\n\n` +
+      `**Informasi:**\n` +
+      `• **Referee:** ${refereeName}\n` +
+      `• **Streamer:** ${streamerInfo}\n` +
+      `• **Jadwal:** ${dateFormatted} • ${timeFormatted}\n` +
+      (decklossNotice ? `${decklossNotice}\n` : '') +
+      `\n**Match Logs:**\n` +
+      matchLogsLines.join('\n') +
+      `\n\n📢 **Instruksi:**\n${instructions}`,
     footer: { text: getEmbedFooterText() },
   };
 
-  // Respon simulasi khusus admin (ephemeral)
   if (isBeforeKickoff && userIsAdmin) {
-    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-      embeds: [gameEmbed],
-    });
+    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
   }
 
-  // Kirim embed publik & patch respon wasit
-  await discordAPI(`/channels/${channelId}/messages`, 'POST', { embeds: [gameEmbed] });
+  await discordAPI(`/channels/${channelId}/messages`, 'POST', { embeds: [matchEmbed] });
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
 }
+  
