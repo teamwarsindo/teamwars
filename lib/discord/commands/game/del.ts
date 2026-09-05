@@ -1,10 +1,9 @@
 import { kv } from '@vercel/kv';
-import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
-import { GameContext, syncCampTrackers, getTeamEmojiByMatch, resolveStreamDisplay } from './types';
-import { syncOfficialMatchReport } from './official-report';
+import { discordAPI } from '@/lib/discord/utils';
+import { GameContext } from './types';
 
 export async function handleGameDel(ctx: GameContext) {
-  const { channelId, appId, token, match, reportData } = ctx;
+  const { appId, token, match, reportData } = ctx;
 
   const games: any[] = reportData.games || [];
   if (games.length === 0) {
@@ -13,14 +12,13 @@ export async function handleGameDel(ctx: GameContext) {
     });
   }
 
-  // Ambil game terakhir yang akan di-rollback
+  // Ambil game paling terakhir untuk di-rollback (LIFO)
   const lastGame = games.pop();
   const deletedGameNumber = lastGame.gameNumber;
 
-  // 1. Rollback Statistik Tim & Pemain
+  // 1. Rollback Statistik Skor Tim & Pemain
   const isAWin = lastGame.winner === 'teamA';
   const winnerTeamKey = isAWin ? 'teamA' : 'teamB';
-  const loserTeamKey = isAWin ? 'teamB' : 'teamA';
 
   reportData[winnerTeamKey].score = Math.max(0, (reportData[winnerTeamKey].score || 0) - 1);
 
@@ -59,7 +57,7 @@ export async function handleGameDel(ctx: GameContext) {
     }
   }
 
-  // Rollback status repeat jika duel tersebut memakai repeat
+  // Rollback status repeat jika duel menggunakan repeat
   if (lastGame.playerA?.isRepeat && pA && dA) {
     reportData.teamA.repeatsUsed = Math.max(0, (reportData.teamA.repeatsUsed || 0) - 1);
     dA.isRepeatUsed = false;
@@ -76,7 +74,7 @@ export async function handleGameDel(ctx: GameContext) {
     pB.remainingLife = 2;
   }
 
-  // Rollback pelanggaran SS Hand & Deckloss
+  // Rollback warning SS Hand & sanksi Deckloss
   if (lastGame.ssHandA === false) {
     if (lastGame.isDeckloss && lastGame.decklossTeam === 'teamA') {
       reportData.teamA.warningsUsed = 1;
@@ -97,125 +95,18 @@ export async function handleGameDel(ctx: GameContext) {
 
   reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
 
-  // 2. Reset Status Selesai jika skor turun di bawah 10
-  const isStillEnded = reportData.teamA.score >= 10 || reportData.teamB.score >= 10;
+  // 2. Reset status penyelesaian jika skor turun di bawah 10
+  const isStillEnded = (reportData.teamA?.score || 0) >= 10 || (reportData.teamB?.score || 0) >= 10;
   if (!isStillEnded) {
     reportData.isFinished = false;
     reportData.winnerTeam = null;
   }
 
-  const matchWeek = match.weekNumber ?? reportData.week ?? 5;
-
-  // Simpan KV
+  // 3. Simpan data KV yang telah bersih
   await kv.hset('twi:match_reports', { [match.id]: reportData });
 
-  // Sync Camp Trackers setelah rollback
-  const currentLastGame = games.length > 0 ? games[games.length - 1] : null;
-  await syncCampTrackers(match.id, matchWeek, reportData, match, currentLastGame).catch(console.error);
-
-  // Jika sebelumnya sudah mengirim official report dan sekarang skor turun, lakukan patch ulang
-  if (isStillEnded) {
-    await syncOfficialMatchReport(match, reportData).catch(console.error);
-  }
-
-  // 3. Render Ulang Embed Match Report di Match Channel
-  let hasRepeatInLogs = false;
-  let hasDecklossInLogs = false;
-
-  const matchLogsLines = games.map((g: any) => {
-    const isWin = g.winner === 'teamA';
-    const isDecklossA = g.isDeckloss && g.decklossTeam === 'teamA';
-    const isDecklossB = g.isDeckloss && g.decklossTeam === 'teamB';
-
-    if (g.isDeckloss) hasDecklossInLogs = true;
-    if (g.playerA?.isRepeat || g.playerB?.isRepeat) hasRepeatInLogs = true;
-
-    let tagA = isWin ? 'W' : 'L';
-    let tagB = isWin ? 'L' : 'W';
-
-    if (g.playerA?.isRepeat) tagA = isWin ? 'WR' : 'LR';
-    if (g.playerB?.isRepeat) tagB = isWin ? 'LR' : 'WR';
-    if (isDecklossA) tagA = 'TL';
-    if (isDecklossB) tagB = 'TL';
-
-    return `• **G${g.gameNumber}:** ${g.playerA.ign} **${tagA} — ${tagB}** ${g.playerB.ign}`;
-  });
-
-  let glossaryText = '';
-  if (hasRepeatInLogs && hasDecklossInLogs) {
-    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*`;
-  } else if (hasRepeatInLogs) {
-    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat)*`;
-  } else if (hasDecklossInLogs) {
-    glossaryText = `\n\n*Keterangan: TL = Technical Loss (Deckloss)*`;
-  }
-
-  const m = match as any;
-  const emojiA = await getTeamEmojiByMatch(match, 'A', reportData.teamA?.slug || reportData.teamA?.name);
-  const emojiB = await getTeamEmojiByMatch(match, 'B', reportData.teamB?.slug || reportData.teamB?.name);
-
-  const teamNameA = String(reportData.teamA?.name || 'TIM A').toUpperCase();
-  const teamNameB = String(reportData.teamB?.name || 'TIM B').toUpperCase();
-
-  const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName || m.referee || 'Belum ditentukan';
-  const { streamerDisplay, streamUrlDisplay } = resolveStreamDisplay(match, reportData);
-
-  const nextGameNumber = games.length + 1;
-  let sectionHeader = `📢 **Instruksi Game #${nextGameNumber}:**`;
-  let instructionLines: string[] = [];
-
-  if (games.length === 0) {
-    instructionLines.push(`• Pertandingan di-reset ke Game 1. Persiapkan pemain pertama.`);
-  } else {
-    instructionLines.push(`• Game ${deletedGameNumber} telah dihapus. Silakan wasit mencatat ulang Game #${nextGameNumber}.`);
-  }
-
-  const matchEmbed = {
-    title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
-    color: hexToDecimal('#f59e0b'),
-    description:
-      `**Informasi Pertandingan:**\n` +
-      `• **Referee:** ${refereeDisplay}\n` +
-      `• **Streamer:** ${streamerDisplay}\n` +
-      `• **Live Match:** ${streamUrlDisplay}\n\n` +
-      `**Match Logs:**\n` +
-      (matchLogsLines.length > 0 ? matchLogsLines.join('\n') : '• Belum ada log duel.') +
-      `${glossaryText}\n\n` +
-      `${sectionHeader}\n` +
-      instructionLines.join('\n') +
-      `\n\n` +
-      `### ${emojiA} ${teamNameA} vs ${teamNameB} ${emojiB}\n` +
-      `# **${reportData.teamA.score} — ${reportData.teamB.score}**`,
-    footer: { text: getEmbedFooterText() },
-  };
-
-  // Delete pesan match report lama lalu kirim yang baru
-  try {
-    const rawMsg = await kv.hget<any>('discord:match_messages', match.id);
-    let msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
-
-    const oldReportMsgId = msgData.matchChannel?.lastReportMsgId;
-    if (oldReportMsgId) {
-      await discordAPI(`/channels/${channelId}/messages/${oldReportMsgId}`, 'DELETE').catch(() => null);
-    }
-
-    const postRes = await discordAPI(`/channels/${channelId}/messages`, 'POST', { embeds: [matchEmbed] });
-
-    if (postRes?.id) {
-      const freshRaw = await kv.hget<any>('discord:match_messages', match.id);
-      let freshData: any = freshRaw ? (typeof freshRaw === 'string' ? JSON.parse(freshRaw) : freshRaw) : msgData;
-
-      if (!freshData.matchChannel) freshData.matchChannel = { channelId };
-      freshData.matchChannel.channelId = channelId;
-      freshData.matchChannel.lastReportMsgId = postRes.id;
-
-      await kv.hset('discord:match_messages', { [match.id]: freshData });
-    }
-  } catch (err) {
-    console.error('Error saat update match report di del.ts:', err);
-  }
-
+  // 4. Balas respon command secara langsung tanpa menyentuh postingan room
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-    content: `🗑️ **Game ${deletedGameNumber} berhasil dihapus dan skor di-rollback.**`,
+    content: `🗑️ **Game ${deletedGameNumber} berhasil dihapus dan data KV telah di-rollback.**`,
   });
 }
