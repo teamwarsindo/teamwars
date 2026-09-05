@@ -152,9 +152,10 @@ export async function handleGameAdd(ctx: GameContext) {
 
   const matchWeek = match.weekNumber ?? 5;
 
+  // Simpan KV & Tunggu Sync Camp Trackers Selesai
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
-    syncCampTrackers(match.id, matchWeek, reportData, match, gameRecord).catch(console.error);
+    await syncCampTrackers(match.id, matchWeek, reportData, match, gameRecord).catch(console.error);
   }
 
   // 4. Format Match Logs Simetris
@@ -180,7 +181,7 @@ export async function handleGameAdd(ctx: GameContext) {
     return `• **G${g.gameNumber}:** ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
   });
 
-  // Keterangan Legenda Rapat (Single Line)
+  // Keterangan Legenda Rapat
   let glossaryText = '';
   if (hasRepeatInLogs && hasDecklossInLogs) {
     glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*`;
@@ -234,7 +235,7 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // 7. Render Embed Match Report Padat & Rapat
+  // 7. Render Embed Match Report Rapat
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: hexToDecimal(winnerColorHex),
@@ -256,26 +257,38 @@ export async function handleGameAdd(ctx: GameContext) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
   }
 
-  // 8. Delete-and-Repost Match Report di Channel Utama
-  const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
-  const rawMsg = matchMessages[match.id];
-  let msgData: any = {};
-  if (rawMsg) {
-    msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
-    if (msgData.matchChannel?.lastReportMsgId) {
-      await discordAPI(`/channels/${channelId}/messages/${msgData.matchChannel.lastReportMsgId}`, 'DELETE').catch(() => null);
+  // 8. Delete Terlebih Dahulu, Lalu Post Baru & Simpan ID
+  try {
+    const rawMsg = await kv.hget<any>('discord:match_messages', match.id);
+    let msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
+
+    // Hapus pesan report lama jika ID-nya ada
+    const oldReportMsgId = msgData.matchChannel?.lastReportMsgId;
+    if (oldReportMsgId) {
+      await discordAPI(`/channels/${channelId}/messages/${oldReportMsgId}`, 'DELETE').catch((err) => {
+        console.warn(`Gagal menghapus pesan lama ${oldReportMsgId}:`, err);
+      });
     }
-  }
 
-  const postRes = await discordAPI(`/channels/${channelId}/messages`, 'POST', { embeds: [matchEmbed] });
+    // Setelah delete berhasil dijalankan, baru kirim embed baru
+    const postRes = await discordAPI(`/channels/${channelId}/messages`, 'POST', { embeds: [matchEmbed] });
 
-  if (postRes?.id) {
-    if (!msgData.matchChannel) msgData.matchChannel = { channelId };
-    msgData.matchChannel.lastReportMsgId = postRes.id;
-    await kv.hset('discord:match_messages', { [match.id]: JSON.stringify(msgData) });
+    // Simpan ID pesan yang baru saja di-post ke database
+    if (postRes?.id) {
+      const freshRaw = await kv.hget<any>('discord:match_messages', match.id);
+      let freshData: any = freshRaw ? (typeof freshRaw === 'string' ? JSON.parse(freshRaw) : freshRaw) : msgData;
+
+      if (!freshData.matchChannel) freshData.matchChannel = { channelId };
+      freshData.matchChannel.channelId = channelId;
+      freshData.matchChannel.lastReportMsgId = postRes.id;
+
+      await kv.hset('discord:match_messages', { [match.id]: freshData });
+    }
+  } catch (err) {
+    console.error('Error saat delete-and-repost match report:', err);
   }
 
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-}
+      }
