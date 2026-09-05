@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
-import { discordAPI, getEmbedFooterText } from '@/lib/discord/utils';
+import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
 
 export interface GameContext {
   interaction: any;
@@ -255,16 +255,26 @@ export async function renderCampTrackerEmbed(
     `📢 **Instruksi Pertandingan**\n` +
     `${instructionLines.join('\n')}`;
 
+  const teamColorHex = teamKey === 'teamA' 
+    ? (match?.teamAColor || '#2ecc71') 
+    : (match?.teamBColor || '#00a8fc');
+
   return {
     title: `📊 LIVE MATCH TRACKER — WEEK ${matchWeek}`,
-    color: teamKey === 'teamA' ? 0x2ecc71 : 0x00a8fc,
+    color: hexToDecimal(teamColorHex),
     description,
     footer: { text: getEmbedFooterText() },
   };
 }
 
 // 🔁 Sync Camp Tracker (Delete-and-Repost Terkini)
-export async function syncCampTrackers(matchId: string, matchWeek: number | string, reportData: any, match: any) {
+export async function syncCampTrackers(
+  matchId: string,
+  matchWeek: number | string,
+  reportData: any,
+  match: any,
+  lastGameRecord?: any
+) {
   try {
     const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
     const rawMsg = matchMessages[matchId];
@@ -273,8 +283,19 @@ export async function syncCampTrackers(matchId: string, matchWeek: number | stri
     const msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
     let isChanged = false;
 
+    // Filter: hanya kirim ke camp jika ada perubahan status (kalah, warning, deckloss, atau game awal)
+    const teamAAffected = !lastGameRecord || 
+      lastGameRecord.winner === 'teamB' || 
+      lastGameRecord.ssHandA === false || 
+      lastGameRecord.isDeckloss;
+
+    const teamBAffected = !lastGameRecord || 
+      lastGameRecord.winner === 'teamA' || 
+      lastGameRecord.ssHandB === false || 
+      lastGameRecord.isDeckloss;
+
     // --- Camp Tim A ---
-    if (msgData.campA?.channelId) {
+    if (msgData.campA?.channelId && teamAAffected) {
       const oldMsgId = msgData.campA.submitMsgId || msgData.campA.trackerMsgId;
       if (oldMsgId) {
         await discordAPI(`/channels/${msgData.campA.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
@@ -289,7 +310,7 @@ export async function syncCampTrackers(matchId: string, matchWeek: number | stri
     }
 
     // --- Camp Tim B ---
-    if (msgData.campB?.channelId) {
+    if (msgData.campB?.channelId && teamBAffected) {
       const oldMsgId = msgData.campB.submitMsgId || msgData.campB.trackerMsgId;
       if (oldMsgId) {
         await discordAPI(`/channels/${msgData.campB.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
@@ -309,4 +330,5 @@ export async function syncCampTrackers(matchId: string, matchWeek: number | stri
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
   }
-}
+        }
+                                                 
