@@ -12,11 +12,10 @@ export async function handleGameDel(ctx: GameContext) {
     });
   }
 
-  // Ambil game paling terakhir untuk di-rollback (LIFO)
+  // Ambil game terakhir untuk di-rollback
   const lastGame = games.pop();
   const deletedGameNumber = lastGame.gameNumber;
 
-  // 1. Rollback Statistik Skor Tim & Pemain
   const isAWin = lastGame.winner === 'teamA';
   const winnerTeamKey = isAWin ? 'teamA' : 'teamB';
 
@@ -31,6 +30,7 @@ export async function handleGameDel(ctx: GameContext) {
   const dA = pA ? [pA.deck1, pA.deck2].find((d) => d && d.archetype?.toLowerCase() === lastGame.playerA?.archetype?.toLowerCase()) : null;
   const dB = pB ? [pB.deck1, pB.deck2].find((d) => d && d.archetype?.toLowerCase() === lastGame.playerB?.archetype?.toLowerCase()) : null;
 
+  // 1. Rollback Statistik Duel Normal
   if (isAWin) {
     if (pA) pA.totalWins = Math.max(0, (pA.totalWins || 0) - 1);
     if (dA) dA.wins = Math.max(0, (dA.wins || 0) - 1);
@@ -57,55 +57,61 @@ export async function handleGameDel(ctx: GameContext) {
     }
   }
 
-  // Rollback status repeat jika duel menggunakan repeat
+  // 2. Rollback Status Repeat (Perbaikan: Kembalikan deck mati yang bukan repeat)
   if (lastGame.playerA?.isRepeat && pA && dA) {
-    reportData.teamA.repeatsUsed = Math.max(0, (reportData.teamA.repeatsUsed || 0) - 1);
     dA.isRepeatUsed = false;
-    if (pA.deck1) pA.deck1.isDead = false;
-    if (pA.deck2) pA.deck2.isDead = false;
-    pA.remainingLife = 2;
+    // Deck yang barusan dipakai repeat kembali menjadi deck yang sudah kalah sebelumnya
+    dA.isDead = true;
+
+    // Deck pasangannya dihidupkan kembali sebagai opsi deck yang masih tersisa
+    const otherDeckA = dA === pA.deck1 ? pA.deck2 : pA.deck1;
+    if (otherDeckA) otherDeckA.isDead = false;
+
+    // Sisa life pemain setelah membatalkan aktivasi repeat kembali ke 1
+    pA.remainingLife = 1;
   }
 
   if (lastGame.playerB?.isRepeat && pB && dB) {
-    reportData.teamB.repeatsUsed = Math.max(0, (reportData.teamB.repeatsUsed || 0) - 1);
     dB.isRepeatUsed = false;
-    if (pB.deck1) pB.deck1.isDead = false;
-    if (pB.deck2) pB.deck2.isDead = false;
-    pB.remainingLife = 2;
+    dB.isDead = true;
+
+    const otherDeckB = dB === pB.deck1 ? pB.deck2 : pB.deck1;
+    if (otherDeckB) otherDeckB.isDead = false;
+
+    pB.remainingLife = 1;
   }
 
-  // Rollback warning SS Hand & sanksi Deckloss
+  // Hitung ulang total repeat yang valid murni dari lineup
+  reportData.teamA.repeatsUsed = lineupA.reduce(
+    (count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
+    0
+  );
+  reportData.teamB.repeatsUsed = lineupB.reduce(
+    (count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
+    0
+  );
+
+  // 3. Rollback Warning SS Hand (Cukup kurangi 1 jika game yang dihapus ada pelanggaran SS)
   if (lastGame.ssHandA === false) {
-    if (lastGame.isDeckloss && lastGame.decklossTeam === 'teamA') {
-      reportData.teamA.warningsUsed = 1;
-      reportData.teamB.score = Math.max(0, (reportData.teamB.score || 0) - 1);
-    } else {
-      reportData.teamA.warningsUsed = Math.max(0, (reportData.teamA.warningsUsed || 0) - 1);
-    }
+    reportData.teamA.warningsUsed = Math.max(0, (reportData.teamA.warningsUsed || 0) - 1);
   }
 
   if (lastGame.ssHandB === false) {
-    if (lastGame.isDeckloss && lastGame.decklossTeam === 'teamB') {
-      reportData.teamB.warningsUsed = 1;
-      reportData.teamA.score = Math.max(0, (reportData.teamA.score || 0) - 1);
-    } else {
-      reportData.teamB.warningsUsed = Math.max(0, (reportData.teamB.warningsUsed || 0) - 1);
-    }
+    reportData.teamB.warningsUsed = Math.max(0, (reportData.teamB.warningsUsed || 0) - 1);
   }
 
   reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
 
-  // 2. Reset status penyelesaian jika skor turun di bawah 10
+  // 4. Reset status penyelesaian jika skor turun di bawah 10
   const isStillEnded = (reportData.teamA?.score || 0) >= 10 || (reportData.teamB?.score || 0) >= 10;
   if (!isStillEnded) {
     reportData.isFinished = false;
     reportData.winnerTeam = null;
   }
 
-  // 3. Simpan data KV yang telah bersih
+  // 5. Simpan data KV yang telah di-rollback
   await kv.hset('twi:match_reports', { [match.id]: reportData });
 
-  // 4. Balas respon command secara langsung tanpa menyentuh postingan room
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `🗑️ **Game ${deletedGameNumber} berhasil dihapus dan data KV telah di-rollback.**`,
   });
