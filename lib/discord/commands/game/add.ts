@@ -67,9 +67,8 @@ export async function handleGameAdd(ctx: GameContext) {
 
   const gameNumber = (reportData.games?.length || 0) + 1;
 
-  // 1. Logika Repeat
-  if (isRepeatA) {
-    reportData.teamA.repeatsUsed = (reportData.teamA.repeatsUsed || 0) + 1;
+  // 1. Logika Aktivasi Repeat (Hanya ubah status jika pertama kali dieksekusi)
+  if (isRepeatA && !dA.isRepeatUsed) {
     dA.isRepeatUsed = true;
     dA.isDead = false;
     if (dA === pA.deck1 && pA.deck2) pA.deck2.isDead = true;
@@ -77,14 +76,23 @@ export async function handleGameAdd(ctx: GameContext) {
     pA.remainingLife = 1;
   }
 
-  if (isRepeatB) {
-    reportData.teamB.repeatsUsed = (reportData.teamB.repeatsUsed || 0) + 1;
+  if (isRepeatB && !dB.isRepeatUsed) {
     dB.isRepeatUsed = true;
     dB.isDead = false;
     if (dB === pB.deck1 && pB.deck2) pB.deck2.isDead = true;
     if (dB === pB.deck2 && pB.deck1) pB.deck1.isDead = true;
     pB.remainingLife = 1;
   }
+
+  // Hitung repeatsUsed secara dinamis murni dari total deck yang isRepeatUsed === true di lineup
+  reportData.teamA.repeatsUsed = lineupA.reduce(
+    (count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
+    0
+  );
+  reportData.teamB.repeatsUsed = lineupB.reduce(
+    (count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
+    0
+  );
 
   const winnerTeamKey = winnerOpt === 'A' ? 'teamA' : 'teamB';
 
@@ -141,6 +149,7 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
+  // Selama deck yang dipakai berstatus repeat, tetap tandai true agar logs menampilkan WR / LR
   const isPlayerARepeatActive = dA.isRepeatUsed === true;
   const isPlayerBRepeatActive = dB.isRepeatUsed === true;
 
@@ -351,4 +360,5 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-}
+                          }
+  
