@@ -1,7 +1,7 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { isValidSnowflake, discordAPI } from '@/lib/discord/utils';
+import { isValidSnowflake } from '@/lib/discord/utils';
 import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
 import { sendReassignmentLog } from '@/lib/discord/messages/assignment-log';
 import { getMatchContext, updateStaffHistory } from './staff-helpers';
@@ -106,70 +106,64 @@ export async function executeSwapAssignStaff(params: {
     updateStaffHistory(assignType, staffAId, matchB.id, 'ADD'),
   ];
 
-  // 4. Update Opening Embed (Delete & Post Baru)
+  // 4. Update Opening Embed (Sama persis dengan pola staff-assign-service)
   const openingTasks: Promise<any>[] = [];
 
   if (chAId) {
     openingTasks.push(
-      (async () => {
-        const oldMsgId = (matchA as any).openingMsgId;
-        if (oldMsgId) {
-          await discordAPI(`/channels/${chAId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
-        }
-        const newMsgId = await sendOrUpdateOpeningEmbed({
-          channelId: chAId,
-          matchId: matchA.id,
-          groupName: matchA.groupName,
-          weekName: ctxA.calculatedWeek,
-          teamAName: matchA.teamAName,
-          teamBName: matchA.teamBName,
-          teamAEmoji: ctxA.teamAEmoji,
-          teamBEmoji: ctxA.teamBEmoji,
-          kodeTimA: ctxA.kodeTimA,
-          kodeTimB: ctxA.kodeTimB,
-          roleAId: ctxA.roleAId,
-          roleBId: ctxA.roleBId,
-          matchDateIso: matchA.matchDate,
-          refereeName: matchA.referee,
-          refereeDiscordId: matchA.refereeDiscordId,
-          streamerName: matchA.streamer,
-          streamerDiscordId: matchA.streamerDiscordId,
-          streamLink: matchA.streamLink,
-        });
+      sendOrUpdateOpeningEmbed({
+        channelId: chAId,
+        matchId: matchA.id,
+        groupName: matchA.groupName,
+        weekName: ctxA.calculatedWeek,
+        teamAName: matchA.teamAName,
+        teamBName: matchA.teamBName,
+        teamAEmoji: ctxA.teamAEmoji,
+        teamBEmoji: ctxA.teamBEmoji,
+        kodeTimA: ctxA.kodeTimA,
+        kodeTimB: ctxA.kodeTimB,
+        roleAId: ctxA.roleAId,
+        roleBId: ctxA.roleBId,
+        matchDateIso: matchA.matchDate,
+        refereeName: matchA.referee,
+        refereeDiscordId: matchA.refereeDiscordId,
+        streamerName: matchA.streamer,
+        streamerDiscordId: matchA.streamerDiscordId,
+        streamLink: matchA.streamLink,
+        existingMsgId: (matchA as any).openingMsgId,
+        isFinished: false,
+      }).then((newMsgId) => {
         if (newMsgId) (matchA as any).openingMsgId = newMsgId;
-      })()
+      })
     );
   }
 
   if (chBId) {
     openingTasks.push(
-      (async () => {
-        const oldMsgId = (matchB as any).openingMsgId;
-        if (oldMsgId) {
-          await discordAPI(`/channels/${chBId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
-        }
-        const newMsgId = await sendOrUpdateOpeningEmbed({
-          channelId: chBId,
-          matchId: matchB.id,
-          groupName: matchB.groupName,
-          weekName: ctxB.calculatedWeek,
-          teamAName: matchB.teamAName,
-          teamBName: matchB.teamBName,
-          teamAEmoji: ctxB.teamAEmoji,
-          teamBEmoji: ctxB.teamBEmoji,
-          kodeTimA: ctxB.kodeTimA,
-          kodeTimB: ctxB.kodeTimB,
-          roleAId: ctxB.roleAId,
-          roleBId: ctxB.roleBId,
-          matchDateIso: matchB.matchDate,
-          refereeName: matchB.referee,
-          refereeDiscordId: matchB.refereeDiscordId,
-          streamerName: matchB.streamer,
-          streamerDiscordId: matchB.streamerDiscordId,
-          streamLink: matchB.streamLink,
-        });
+      sendOrUpdateOpeningEmbed({
+        channelId: chBId,
+        matchId: matchB.id,
+        groupName: matchB.groupName,
+        weekName: ctxB.calculatedWeek,
+        teamAName: matchB.teamAName,
+        teamBName: matchB.teamBName,
+        teamAEmoji: ctxB.teamAEmoji,
+        teamBEmoji: ctxB.teamBEmoji,
+        kodeTimA: ctxB.kodeTimA,
+        kodeTimB: ctxB.kodeTimB,
+        roleAId: ctxB.roleAId,
+        roleBId: ctxB.roleBId,
+        matchDateIso: matchB.matchDate,
+        refereeName: matchB.referee,
+        refereeDiscordId: matchB.refereeDiscordId,
+        streamerName: matchB.streamer,
+        streamerDiscordId: matchB.streamerDiscordId,
+        streamLink: matchB.streamLink,
+        existingMsgId: (matchB as any).openingMsgId,
+        isFinished: false,
+      }).then((newMsgId) => {
         if (newMsgId) (matchB as any).openingMsgId = newMsgId;
-      })()
+      })
     );
   }
 
@@ -239,4 +233,4 @@ export async function executeSwapAssignStaff(params: {
   await kv.set('twi:schedules', schedules);
 
   return { matchA, matchB, staffAName, staffBName };
-          }
+}
