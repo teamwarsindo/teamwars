@@ -25,7 +25,9 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
   const teamNameB = String(reportData.teamB?.name || 'TIM B').toUpperCase();
 
   const m = match as any;
-  const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName || reportData.metadata?.referee || 'Belum ditentukan';
+  const refereeDisplay = m.refereeDiscordId
+    ? `<@${m.refereeDiscordId}>`
+    : m.refereeName || reportData.metadata?.referee || 'Belum ditentukan';
   const { streamerDisplay, streamUrlDisplay } = resolveStreamDisplay(match, reportData);
 
   // 1. Lineup 5 Pemain Bersih (Hanya IGN dan ID Duel Links)
@@ -34,12 +36,12 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
       .slice(0, 5)
       .map((p, idx) => {
         const idTag = p.idDuelLinks ? ` (${p.idDuelLinks})` : '';
-        return `  ${idx + 1}. ${p.ign || 'Pemain'}${idTag}`;
+        return `${idx + 1}. ${p.ign || 'Pemain'}${idTag}`;
       })
       .join('\n');
   };
 
-  // 2. Format Match Logs (Lengkap dengan Archetype & Skill)
+  // 2. Format Game Logs Bertingkat (W — L di tengah, sub-baris deck & skill)
   const games: any[] = reportData.games || [];
   const skillsMap: Record<string, string> = (await kv.get('twi:master_skills')) || {};
 
@@ -62,15 +64,20 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     if (isDecklossA) tagA = 'TL';
     if (isDecklossB) tagB = 'TL';
 
+    // Format Deck & Skill Pemain A
     const shortSkillA = g.playerA?.skill ? (skillsMap[g.playerA.skill] || g.playerA.skill) : '';
-    const skillTextA = shortSkillA ? ` • ${shortSkillA}` : '';
-    const deckInfoA = g.playerA?.archetype ? ` *(${g.playerA.archetype}${skillTextA})*` : '';
+    const deckA = g.playerA?.archetype || 'Unknown';
+    const deckAStr = shortSkillA ? `(${deckA} • ${shortSkillA})` : `(${deckA})`;
 
+    // Format Deck & Skill Pemain B
     const shortSkillB = g.playerB?.skill ? (skillsMap[g.playerB.skill] || g.playerB.skill) : '';
-    const skillTextB = shortSkillB ? ` • ${shortSkillB}` : '';
-    const deckInfoB = g.playerB?.archetype ? ` *(${g.playerB.archetype}${skillTextB})*` : '';
+    const deckB = g.playerB?.archetype || 'Unknown';
+    const deckBStr = shortSkillB ? `(${deckB} • ${shortSkillB})` : `(${deckB})`;
 
-    return `• **G${g.gameNumber}:** ${g.playerA.ign}${deckInfoA} **${tagA} — ${tagB}** ${g.playerB.ign}${deckInfoB}`;
+    const rowPlayer = `• G${g.gameNumber}: ${g.playerA.ign} ${tagA} — ${tagB} ${g.playerB.ign}`;
+    const rowDeck = `  └ ${deckAStr} vs ${deckBStr}`;
+
+    return `${rowPlayer}\n${rowDeck}`;
   });
 
   let glossaryText = '';
@@ -98,7 +105,7 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
   const sortedMvp = Object.values(winCounts).sort((a, b) => b.wins - a.wins);
   const topMvp = sortedMvp[0];
   const mvpText = topMvp
-    ? `**${topMvp.ign}** (${topMvp.wins} Kemenangan) — Menjadi kontributor poin kemenangan bagi ${topMvp.team}.`
+    ? `**${topMvp.ign}** (${topMvp.wins} Kemenangan)\n— Menjadi kontributor poin kemenangan bagi ${topMvp.team}.`
     : '-';
 
   const winnerTeamName = scoreA >= 10 ? reportData.teamA.name : reportData.teamB.name;
@@ -112,27 +119,27 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
   });
   const violationNote = violations.length > 0 ? violations.join(' ') : 'Tidak ada pelanggaran kartu/SS Hand selama duel.';
 
-  // 4. Susunan Embed Resmi CH_SCORE_REPORT (2 Baris Skor)
+  // 4. Susunan Embed Resmi CH_SCORE_REPORT
   const officialEmbed = {
-    title: `🏆 OFFICIAL MATCH REPORT — WEEK ${matchWeek}`,
+    title: '🏆 OFFICIAL MATCH REPORT',
     color: hexToDecimal(scoreA >= 10 ? '#3b82f6' : '#ef4444'),
     description:
       `**Informasi Pertandingan:**\n` +
-      `• **Match:** ${matchCode} — ${groupOrDivision}\n` +
+      `• **Divisi:** ${groupOrDivision} — Week ${matchWeek}\n` +
+      `• **Match:** ${matchCode} — ${teamNameA} vs ${teamNameB}\n` +
       `• **Referee:** ${refereeDisplay}\n` +
       `• **Streamer:** ${streamerDisplay}\n` +
       `• **Live Match:** ${streamUrlDisplay}\n\n` +
-      `### ${emojiA} ${teamNameA} vs ${teamNameB} ${emojiB}\n` +
-      `# **${scoreA} — ${scoreB}**\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `${emojiA || '🔴'} (${scoreA}) — (${scoreB}) ${emojiB || '🔵'}\n` +
+      `──────────────────────────────\n\n` +
       `👥 **Lineup Pertandingan:**\n` +
       `• **${teamNameA}:**\n${formatCleanLineup(reportData.teamA?.lineup)}\n\n` +
-      `• **${teamNameB}:**\n${formatCleanLineup(reportData.teamB?.lineup)}\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `📜 **Match Logs:**\n` +
-      logsFormatted.join('\n') +
-      `${glossaryText}\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `• **${teamNameB}:**\n${formatCleanLineup(reportData.teamB?.lineup)}\n` +
+      `──────────────────────────────\n\n` +
+      `📜 **Game Logs:**\n` +
+      logsFormatted.join('\n\n') +
+      `${glossaryText}\n` +
+      `──────────────────────────────\n\n` +
       `📝 **Match Summary:**\n` +
       `• **MVP Match:** ${mvpText}\n` +
       `• **Ringkasan Duel:** ${matchSummaryText}\n` +
@@ -171,5 +178,4 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
   } catch (err) {
     console.error('Error saat sync official match report:', err);
   }
-                                       }
-                
+}
