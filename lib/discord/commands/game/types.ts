@@ -35,7 +35,7 @@ export async function resolveMatchFromChannel(channelId: string) {
   return null;
 }
 
-// Mengambil emoji tim dari database 'twi:teams' berdasarkan teamAId / teamBId dari match
+// 🏷️ Ambil emoji tim dari database 'twi:teams'
 export async function getTeamEmojiByMatch(match: any, teamKey: 'A' | 'B'): Promise<string> {
   if (!match) return '⚔️';
   const targetId = teamKey === 'A' ? (match.teamAId || match.teamA) : (match.teamBId || match.teamB);
@@ -43,10 +43,11 @@ export async function getTeamEmojiByMatch(match: any, teamKey: 'A' | 'B'): Promi
 
   try {
     const teams = (await kv.get<any[]>('twi:teams')) || [];
-    const found = teams.find((t) => 
-      String(t.id).toLowerCase() === String(targetId).toLowerCase() ||
-      String(t.slug).toLowerCase() === String(targetId).toLowerCase() ||
-      String(t.name).toLowerCase() === String(targetId).toLowerCase()
+    const found = teams.find(
+      (t) =>
+        String(t.id).toLowerCase() === String(targetId).toLowerCase() ||
+        String(t.slug).toLowerCase() === String(targetId).toLowerCase() ||
+        String(t.name).toLowerCase() === String(targetId).toLowerCase()
     );
 
     if (found?.emoji) return found.emoji;
@@ -58,125 +59,206 @@ export async function getTeamEmojiByMatch(match: any, teamKey: 'A' | 'B'): Promi
     console.error('Error fetching team emoji:', err);
   }
 
-  // Fallback ke properti pembuka langsung jika ada
   if (teamKey === 'A' && match.teamAEmoji) return match.teamAEmoji;
   if (teamKey === 'B' && match.teamBEmoji) return match.teamBEmoji;
 
   return '⚔️';
 }
 
-// Format instruksi Camp
-export function generateCampInstruction(team: any, opponentName: string, isWinner: boolean, lastPlayer: any): string {
-  if (!lastPlayer) return `${team.name} tentukan pemain.`;
+// 🎥 Helper deteksi platform dan tautan live streaming
+export function resolveStreamDisplay(match: any, reportData?: any): { streamerDisplay: string; streamUrlDisplay: string } {
+  const meta = reportData?.metadata || {};
+  const streamerId = match?.streamerDiscordId || meta.streamerDiscordId;
+  const streamerName = match?.streamer || match?.streamerName || meta.streamer;
+  const streamUrl = match?.streamLink || meta.streamUrl || meta.streamLink;
 
-  const p = (team.lineup || []).find((x: any) => x.ign.toLowerCase() === lastPlayer.ign.toLowerCase());
-  const remainingLife = p?.remainingLife ?? 2;
-
-  if (isWinner) {
-    return `**${lastPlayer.ign}** bertahan di meja tanding. Menunggu lawan dari ${opponentName}.`;
+  let streamerDisplay = '-';
+  if (streamerId) {
+    streamerDisplay = `<@${streamerId}>`;
+  } else if (streamerName && streamerName.trim() !== '') {
+    streamerDisplay = streamerName;
   }
 
-  if (remainingLife <= 0) {
-    const alivePlayers = (team.lineup || []).filter((x: any) => (x.remainingLife ?? 2) > 0);
-    const countGugur = (team.lineup || []).filter((x: any) => (x.remainingLife ?? 2) <= 0).length;
-    const urutanStr = ['pertama', 'kedua', 'ketiga', 'keempat', 'kelima'][countGugur] || 'berikutnya';
-
-    if (alivePlayers.length === 0) return `Semua pemain telah tereliminasi. Pertandingan berakhir.`;
-    return `${team.name} pilih pemain ${urutanStr}.`;
+  let streamUrlDisplay = 'Sharescreen Pemain';
+  if (streamUrl && typeof streamUrl === 'string' && streamUrl.trim() !== '') {
+    const cleanUrl = streamUrl.trim();
+    if (cleanUrl.includes('tiktok.com')) {
+      streamUrlDisplay = `[TikTok Live](${cleanUrl})`;
+    } else if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) {
+      streamUrlDisplay = `[YouTube Live](${cleanUrl})`;
+    } else {
+      streamUrlDisplay = `[Live Streaming](${cleanUrl})`;
+    }
   }
 
-  const canRepeat = (team.repeatsUsed || 0) < 2 && (p.totalWins || 0) === 0;
-  const d1 = p.deck1;
-  const d2 = p.deck2;
-  const unusedDeck = [d1, d2].find((d) => d && !d.isDead);
-
-  if (canRepeat && unusedDeck) {
-    return `${p.ign} gunakan repeat untuk deck ${lastPlayer.archetype} atau gunakan deck ${unusedDeck.archetype}.`;
-  } else if (unusedDeck) {
-    return `${p.ign} gunakan deck ${unusedDeck.archetype}.`;
-  }
-
-  return `${team.name} pilih pemain berikutnya.`;
+  return { streamerDisplay, streamUrlDisplay };
 }
 
-// Render Discord Embed Tracker di Camp
-export async function renderCampTrackerEmbed(teamKey: 'teamA' | 'teamB', reportData: any, match: any, matchWeek: number | string) {
+// 🏷️ Helper format riwayat game per deck ([G1, G2R, G3R, G4R])
+function formatDeckHistoryTag(games: any[], playerIgn: string, archetype: string): string {
+  const matchingGames = games.filter((g) => {
+    const isA =
+      g.playerA?.ign?.toLowerCase() === playerIgn.toLowerCase() &&
+      g.playerA?.archetype?.toLowerCase() === archetype.toLowerCase();
+    const isB =
+      g.playerB?.ign?.toLowerCase() === playerIgn.toLowerCase() &&
+      g.playerB?.archetype?.toLowerCase() === archetype.toLowerCase();
+    return isA || isB;
+  });
+
+  if (matchingGames.length === 0) return '';
+
+  const tags = matchingGames.map((g) => {
+    const isA = g.playerA?.ign?.toLowerCase() === playerIgn.toLowerCase();
+    const isRepeat = isA ? g.playerA?.isRepeat : g.playerB?.isRepeat;
+    return isRepeat ? `G${g.gameNumber}R` : `G${g.gameNumber}`;
+  });
+
+  return ` [${tags.join(', ')}]`;
+}
+
+// 📊 Render Embed Live Match Tracker di Camp
+export async function renderCampTrackerEmbed(
+  teamKey: 'teamA' | 'teamB',
+  reportData: any,
+  match: any,
+  matchWeek: number | string
+) {
   const team = teamKey === 'teamA' ? reportData.teamA : reportData.teamB;
   const opponent = teamKey === 'teamA' ? reportData.teamB : reportData.teamA;
-  const emoji = await getTeamEmojiByMatch(match, teamKey === 'teamA' ? 'A' : 'B');
-
   const games: any[] = reportData.games || [];
+  const skillsMap: Record<string, string> = (await kv.get('twi:master_skills')) || {};
+
+  // 1. Hitung Sisa Nyawa Tim (Akumulasi deck aktif)
+  let aliveDecksCount = 0;
+  (team.lineup || []).forEach((p: any) => {
+    if (p.deck1 && !p.deck1.isDead) aliveDecksCount++;
+    if (p.deck2 && !p.deck2.isDead) aliveDecksCount++;
+  });
+
+  const repeatsUsed = team.repeatsUsed || 0;
+  const warningsUsed = team.warningsUsed || 0;
+
+  // 2. Format Lineup Pemain & Cabang Deck
+  const lineupSections = (team.lineup || []).map((p: any, idx: number) => {
+    const pIgn = p.ign || 'Pemain';
+    const dlId = p.idDuelLinks ? ` (${p.idDuelLinks})` : '';
+
+    const formatDeck = (deck: any, isLast: boolean) => {
+      const branch = isLast ? '┗' : '┣';
+      if (!deck) return `${branch} ❌ Belum Submit`;
+
+      const shortSkill = deck.skill ? skillsMap[deck.skill] || deck.skill : '';
+      const skillText = shortSkill ? ` • ${shortSkill}` : '';
+      const fullName = `${deck.archetype}${skillText}`;
+
+      // Kasus Hangus akibat Repeat
+      if (deck.isDead && !deck.losses && !deck.wins) {
+        return `${branch} ❌ ~~${fullName}~~ [Hangus]`;
+      }
+
+      // Kasus Gugur / Kalah
+      if (deck.isDead) {
+        const historyTag = formatDeckHistoryTag(games, pIgn, deck.archetype);
+        return `${branch} ❌ ~~${fullName}~~${historyTag}`;
+      }
+
+      // Kasus Deck Masih Aktif
+      const historyTag = formatDeckHistoryTag(games, pIgn, deck.archetype);
+      return `${branch} ✅ ${fullName}${historyTag}`;
+    };
+
+    return `${idx + 1}. ${pIgn}${dlId}\n${formatDeck(p.deck1, false)}\n${formatDeck(p.deck2, true)}`;
+  });
+
+  // 3. Riwayat Pelanggaran SS Hand
+  const ssViolations: string[] = [];
+  let warningCounter = 0;
+  games.forEach((g: any) => {
+    const isViolatorA = teamKey === 'teamA' && g.ssHandA === false;
+    const isViolatorB = teamKey === 'teamB' && g.ssHandB === false;
+
+    if (isViolatorA || isViolatorB) {
+      warningCounter++;
+      const violatorIgn = isViolatorA ? g.playerA?.ign : g.playerB?.ign;
+      if (warningCounter === 1) {
+        ssViolations.push(`• G${g.gameNumber}: ${violatorIgn} *(Warning 1)*`);
+      } else if (warningCounter === 2) {
+        ssViolations.push(`• G${g.gameNumber}: ${violatorIgn} *(Warning 2 / Deckloss)*`);
+        warningCounter = 0;
+      }
+    }
+  });
+
+  const violationText = ssViolations.length > 0 ? ssViolations.join('\n') : '• Tidak ada';
+
+  // 4. Instruksi Pertandingan Dinamis Tanpa Asumsi
   const lastGame = games.length > 0 ? games[games.length - 1] : null;
   const isWinner = lastGame ? lastGame.winner === teamKey : false;
   const lastPlayer = lastGame ? (teamKey === 'teamA' ? lastGame.playerA : lastGame.playerB) : null;
+  const lastPlayerObj = lastPlayer
+    ? (team.lineup || []).find((x: any) => x.ign?.toLowerCase() === lastPlayer.ign?.toLowerCase())
+    : null;
 
-  const repeatCount = team.repeatsUsed || 0;
-  const warningCount = team.warningsUsed || 0;
+  let instructionLines: string[] = [];
 
-  const ssViolations: string[] = [];
-  games.forEach((g) => {
-    if (teamKey === 'teamA' && g.ssHandA === false) {
-      ssViolations.push(`• ${g.playerA?.ign} (Game ${g.gameNumber})`);
-    }
-    if (teamKey === 'teamB' && g.ssHandB === false) {
-      ssViolations.push(`• ${g.playerB?.ign} (Game ${g.gameNumber})`);
-    }
-  });
-
-  const lineupLines = (team.lineup || []).map((p: any, idx: number) => {
-    const life = p.remainingLife ?? 2;
-    let lifeBadge = '[❤️❤️]';
-    let nameDisplay = `**${p.ign}**`;
-
-    if (life === 1) lifeBadge = '[❤️]';
-    if (life <= 0) {
-      lifeBadge = '[💀]';
-      nameDisplay = `~~${p.ign}~~`;
-    }
-
-    const renderDeckLine = (d: any, isLast: boolean) => {
-      const prefix = isLast ? '┗' : '┣';
-      if (!d) return `${prefix} ⚪ Kosong`;
-      const skillText = d.skill ? ` • ${d.skill}` : '';
-      const repeatTag = d.isRepeatUsed ? ' `[R]`' : '';
-
-      if (d.isDead && d.isRepeatUsed) {
-        return `${prefix} 🔴 ~~${d.archetype}${skillText}~~${repeatTag}`;
-      }
-      if (d.isDead && !d.losses) {
-        return `${prefix} ⚫ ~~${d.archetype}${skillText}~~`;
-      }
-      if (d.isDead) {
-        return `${prefix} 🔴 ~~${d.archetype}${skillText}~~`;
-      }
-      return `${prefix} 🟢 ${d.archetype}${skillText}`;
-    };
-
-    return (
-      `**${idx + 1}. \`${lifeBadge}\` ${nameDisplay}** (${p.idDuelLinks || '-'})\n` +
-      `${renderDeckLine(p.deck1, false)}\n` +
-      `${renderDeckLine(p.deck2, true)}`
+  if (reportData.isFinished) {
+    const isMatchWinner = reportData.winnerTeam === teamKey;
+    instructionLines.push(
+      isMatchWinner
+        ? `• Selamat kepada **${team.name}** atas kemenangannya!`
+        : `• Pertandingan telah selesai. Terima kasih atas partisipasinya!`
     );
-  });
+  } else if (!lastGame) {
+    instructionLines.push(`• **${team.name}** persiapkan pemain pertama.`);
+  } else if (isWinner) {
+    instructionLines.push(`• **${lastPlayer.ign}** (Stay table)`);
+    instructionLines.push(`• Menunggu lawan dari **${opponent.name}**.`);
+  } else {
+    const isDecklossTriggered =
+      (teamKey === 'teamA' && lastGame.ssHandA === false && warningsUsed === 0) ||
+      (teamKey === 'teamB' && lastGame.ssHandB === false && warningsUsed === 0);
 
-  const instructionText = generateCampInstruction(team, opponent.name, isWinner, lastPlayer);
+    const isPlayerDead = (lastPlayerObj?.remainingLife ?? 0) <= 0;
+
+    if (isDecklossTriggered && isPlayerDead) {
+      instructionLines.push(`• **${team.name}** terkena sanksi akumulasi 2x Warning SS Hand (Deckloss)`);
+      instructionLines.push(`• **${lastPlayer.ign}** telah gugur, sanksi Deckloss wajib dibebankan ke pemain pilihan tim selanjutnya`);
+      instructionLines.push(`• **${team.name}** tentukan pemain berikutnya beserta deck yang akan dipotong Deckloss`);
+    } else if (isPlayerDead) {
+      instructionLines.push(`• **${lastPlayer.ign}** telah gugur.`);
+      instructionLines.push(`• **${team.name}** tentukan pemain berikutnya.`);
+    } else {
+      const canRepeat = repeatsUsed < 2 && (lastPlayerObj?.totalWins || 0) === 0;
+      if (canRepeat) {
+        instructionLines.push(`• **${lastPlayer.ign}** gunakan repeat untuk deck ${lastPlayer.archetype} atau gunakan deck kedua.`);
+      } else {
+        instructionLines.push(`• **${lastPlayer.ign}** silakan gunakan deck berikutnya.`);
+      }
+    }
+  }
+
+  // 5. Susun Embed Murni Acuan Tangkapan Layar
+  const description =
+    `🟩 **EMBED: Live Tracker (Week ${matchWeek})**\n\n` +
+    `📦 **Sisa Nyawa Tim:** ${aliveDecksCount} / 10\n` +
+    `🔄 **Repeat:** ${repeatsUsed} / 2\n` +
+    `⚠️ **Warning SS Aktif:** ${warningsUsed} / 2\n\n` +
+    `🔗 **Regulasi:** [teamwars.web.id/rules](https://teamwars.web.id/rules)\n\n` +
+    `${lineupSections.join('\n\n')}\n\n` +
+    `⚠️ **Riwayat Pelanggaran SS Hand**\n` +
+    `${violationText}\n\n` +
+    `📢 **Instruksi Pertandingan**\n` +
+    `${instructionLines.join('\n')}`;
 
   return {
-    title: `📊 LIVE MATCH TRACKER — WEEK ${matchWeek}`,
-    color: teamKey === 'teamA' ? 0x2ecc71 : 0x00a8fc,
-    description:
-      `${emoji} **${String(team.name).toUpperCase()}**\n\n` +
-      `Repeat: \`${repeatCount}/2\` | Warning SS: \`${warningCount}/2\`\n` +
-      `Pelanggaran SS:\n` +
-      (ssViolations.length > 0 ? `${ssViolations.join('\n')}\n\n` : `• Tidak ada\n\n`) +
-      `**Lineup & Deck:**\n` +
-      lineupLines.join('\n\n') +
-      `\n\n📢 **Instruksi:**\n${instructionText}`,
+    color: 0x2ecc71,
+    description,
     footer: { text: getEmbedFooterText() },
   };
 }
 
-// Sync Tracker ke Channel Camp (Delete-and-Post Tracker Terkini)
+// 🔁 Sync Tracker ke Camp (Delete-and-Repost)
 export async function syncCampTrackers(matchId: string, matchWeek: number | string, reportData: any, match: any) {
   try {
     const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
