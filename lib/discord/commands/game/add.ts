@@ -152,7 +152,6 @@ export async function handleGameAdd(ctx: GameContext) {
 
   const matchWeek = match.weekNumber ?? 5;
 
-  // Simpan KV & Sync Camp Trackers
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
     syncCampTrackers(match.id, matchWeek, reportData, match, gameRecord).catch(console.error);
@@ -181,13 +180,14 @@ export async function handleGameAdd(ctx: GameContext) {
     return `• **G${g.gameNumber}:** ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
   });
 
+  // Keterangan Legenda Rapat (Single Line)
   let glossaryText = '';
   if (hasRepeatInLogs && hasDecklossInLogs) {
-    glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*\n`;
+    glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*`;
   } else if (hasRepeatInLogs) {
-    glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat)*\n`;
+    glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat)*`;
   } else if (hasDecklossInLogs) {
-    glossaryText = `\n*Keterangan: TL = Technical Loss (Deckloss)*\n`;
+    glossaryText = `\n*Keterangan: TL = Technical Loss (Deckloss)*`;
   }
 
   // 5. Metadata Pertandingan & Warna Garis
@@ -234,7 +234,7 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // 7. Render Embed Match Report Padat
+  // 7. Render Embed Match Report Padat & Rapat
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: hexToDecimal(winnerColorHex),
@@ -245,8 +245,8 @@ export async function handleGameAdd(ctx: GameContext) {
       `• **Live Match:** ${streamUrlDisplay}\n\n` +
       `**Match Logs:**\n` +
       matchLogsLines.join('\n') +
-      `${glossaryText}\n` +
-      `# ${emojiA} **${reportData.teamA.score} — ${reportData.teamB.score}** ${emojiB}\n\n` +
+      `${glossaryText}\n\n` +
+      `## ${emojiA} **${reportData.teamA.score} — ${reportData.teamB.score}** ${emojiB}\n\n` +
       `📢 **Instruksi Game #${nextGameNumber}:**\n` +
       instructionLines.join('\n'),
     footer: { text: getEmbedFooterText() },
