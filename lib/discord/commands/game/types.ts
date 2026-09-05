@@ -187,9 +187,8 @@ export async function renderCampTrackerEmbed(
       const violatorIgn = isViolatorA ? g.playerA?.ign : g.playerB?.ign;
       if (warningCounter === 1) {
         ssViolations.push(`• G${g.gameNumber}: ${violatorIgn} *(Warning 1)*`);
-      } else if (warningCounter === 2) {
-        ssViolations.push(`• G${g.gameNumber}: ${violatorIgn} *(Warning 2 / Deckloss)*`);
-        warningCounter = 0;
+      } else if (warningCounter >= 2) {
+        ssViolations.push(`• G${g.gameNumber}: ${violatorIgn} *(Warning ${warningCounter} / Deckloss)*`);
       }
     }
   });
@@ -205,6 +204,9 @@ export async function renderCampTrackerEmbed(
     ? (team.lineup || []).find((x: any) => x.ign?.toLowerCase() === lastPlayer.ign?.toLowerCase())
     : null;
 
+  const thisTeamPenalty = warningsUsed >= 2;
+  const opponentPenalty = (opponent?.warningsUsed || 0) >= 2;
+
   let sectionTitle = '📢 **Instruksi Pertandingan:**';
   let instructionLines: string[] = [];
 
@@ -218,29 +220,52 @@ export async function renderCampTrackerEmbed(
     }
   } else if (!lastGame) {
     instructionLines.push(`• **${team.name}** persiapkan pemain pertama.`);
+  } else if (thisTeamPenalty) {
+    // ⚠️ KONDISI: Tim ini sendiri yang menunggak sanksi 2x Warning SS Hand
+    instructionLines.push(`• ⚠️ **${team.name}** (2x Warning SS Hand)`);
+    if (lastPlayer) {
+      instructionLines.push(`  └ **${lastPlayer.ign}** (Deckloss)`);
+    }
+
+    const isLastPlayerOut =
+      (lastPlayerObj?.remainingLife ?? 1) <= 1 ||
+      Boolean(lastPlayerObj?.deck1?.isRepeatUsed || lastPlayerObj?.deck2?.isRepeatUsed);
+
+    if (isLastPlayerOut) {
+      instructionLines.push(`• **${team.name}** (Next player)`);
+    } else {
+      const canRepeat = repeatsUsed < 2 && (lastPlayerObj?.totalWins || 0) <= 1;
+      if (canRepeat) {
+        instructionLines.push(`• **${lastPlayer?.ign}** (Next deck or repeat)`);
+      } else {
+        instructionLines.push(`• **${lastPlayer?.ign}** (Next deck)`);
+      }
+    }
+    instructionLines.push(`• Menunggu keputusan/lawan dari **${opponent.name}**.`);
+  } else if (opponentPenalty) {
+    // ⚠️ KONDISI: Tim lawan yang kena penalti 2x Warning
+    if (isWinner) {
+      instructionLines.push(`• **${lastPlayer?.ign}** (Stay table)`);
+    }
+    instructionLines.push(`• Lawan (**${opponent.name}**) terkena 2x Warning SS Hand (Deckloss).`);
+    instructionLines.push(`• **${team.name}** tentukan/siapkan pemain untuk klaim Technical Win.`);
   } else if (isWinner) {
-    instructionLines.push(`• **${lastPlayer.ign}** (Stay table)`);
+    // ⚔️ KONDISI NORMAL: Pemenang Stay Table
+    instructionLines.push(`• **${lastPlayer?.ign}** (Stay table)`);
     instructionLines.push(`• Menunggu lawan dari **${opponent.name}**.`);
   } else {
-    const isDecklossTriggered =
-      (teamKey === 'teamA' && lastGame.ssHandA === false && warningsUsed === 0) ||
-      (teamKey === 'teamB' && lastGame.ssHandB === false && warningsUsed === 0);
-
+    // ⚔️ KONDISI NORMAL: Kalah duel biasa
     const isPlayerDead = (lastPlayerObj?.remainingLife ?? 0) <= 0;
 
-    if (isDecklossTriggered && isPlayerDead) {
-      instructionLines.push(`• **${team.name}** terkena sanksi akumulasi 2x Warning SS Hand (Deckloss)`);
-      instructionLines.push(`• **${lastPlayer.ign}** telah gugur, sanksi Deckloss wajib dibebankan ke pemain pilihan tim selanjutnya`);
-      instructionLines.push(`• **${team.name}** tentukan pemain berikutnya beserta deck yang akan dipotong Deckloss`);
-    } else if (isPlayerDead) {
-      instructionLines.push(`• **${lastPlayer.ign}** telah gugur.`);
+    if (isPlayerDead) {
+      instructionLines.push(`• **${lastPlayer?.ign}** telah gugur.`);
       instructionLines.push(`• **${team.name}** tentukan pemain berikutnya.`);
     } else {
       const canRepeat = repeatsUsed < 2 && (lastPlayerObj?.totalWins || 0) === 0;
       if (canRepeat) {
-        instructionLines.push(`• **${lastPlayer.ign}** gunakan repeat untuk deck ${lastPlayer.archetype} atau gunakan deck kedua.`);
+        instructionLines.push(`• **${lastPlayer?.ign}** gunakan repeat untuk deck ${lastPlayer?.archetype} atau gunakan deck kedua.`);
       } else {
-        instructionLines.push(`• **${lastPlayer.ign}** silakan gunakan deck berikutnya.`);
+        instructionLines.push(`• **${lastPlayer?.ign}** silakan gunakan deck berikutnya.`);
       }
     }
   }
@@ -270,13 +295,13 @@ export async function renderCampTrackerEmbed(
   };
 }
 
-// 🔁 Sync Camp Tracker (Delete-and-Repost Terkini & Kebal Race Condition)
+// 🔁 Sync Camp Tracker (Selalu update kedua camp tiap ronde agar konsisten)
 export async function syncCampTrackers(
   matchId: string,
   matchWeek: number | string,
   reportData: any,
   match: any,
-  lastGameRecord?: any
+  _lastGameRecord?: any
 ) {
   try {
     const rawMsg = await kv.hget<any>('discord:match_messages', matchId);
@@ -285,26 +310,10 @@ export async function syncCampTrackers(
       msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
     }
 
-    const isMatchEnded = (reportData.teamA?.score || 0) >= 10 || (reportData.teamB?.score || 0) >= 10;
-
-    const teamAAffected =
-      isMatchEnded ||
-      !lastGameRecord ||
-      lastGameRecord.winner === 'teamB' ||
-      lastGameRecord.ssHandA === false ||
-      lastGameRecord.isDeckloss;
-
-    const teamBAffected =
-      isMatchEnded ||
-      !lastGameRecord ||
-      lastGameRecord.winner === 'teamA' ||
-      lastGameRecord.ssHandB === false ||
-      lastGameRecord.isDeckloss;
-
     let isChanged = false;
 
     // --- Camp Tim A ---
-    if (msgData.campA?.channelId && teamAAffected) {
+    if (msgData.campA?.channelId) {
       const campAChannelId = msgData.campA.channelId;
       const oldMsgIdA = msgData.campA.submitMsgId || msgData.campA.trackerMsgId;
 
@@ -325,7 +334,7 @@ export async function syncCampTrackers(
     }
 
     // --- Camp Tim B ---
-    if (msgData.campB?.channelId && teamBAffected) {
+    if (msgData.campB?.channelId) {
       const campBChannelId = msgData.campB.channelId;
       const oldMsgIdB = msgData.campB.submitMsgId || msgData.campB.trackerMsgId;
 
@@ -360,4 +369,4 @@ export async function syncCampTrackers(
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
   }
-       }
+}
