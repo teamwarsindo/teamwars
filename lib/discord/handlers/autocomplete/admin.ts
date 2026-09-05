@@ -10,7 +10,6 @@ export async function handleAssignAutocomplete(interaction: any) {
     if (!focused) return { type: 8, data: { choices: [] } };
 
     const typeOption = interaction.data?.options?.find((opt: any) => opt.name === 'type')?.value;
-    const commandName = interaction.data?.name;
     const query = String(focused.value || '');
 
     // 🟢 Dukung opsi 'match' (assign/unassign) serta 'match_a' dan 'match_b' (swap-assign)
@@ -20,11 +19,9 @@ export async function handleAssignAutocomplete(interaction: any) {
       const activeWeek = activeMatches.length > 0 ? Math.min(...activeMatches.map((m) => m.weekNumber || 1)) : null;
 
       const filtered = schedules.filter((m) => {
-        if (m.isFinished || !m.discordChannelId || (activeWeek !== null && (m.weekNumber || 1) !== activeWeek)) return false;
-
-        // Untuk 'unassign' dan 'swap-assign', match harus sudah memiliki staf aktif sesuai tipenya
-        if (commandName === 'unassign' || commandName === 'swap-assign') {
-          return typeOption === 'REFEREE' ? Boolean(m.refereeDiscordId) : Boolean(m.streamerDiscordId);
+        // Cukup pastikan: belum selesai, memiliki channel room, dan sesuai week aktif
+        if (m.isFinished || !m.discordChannelId || (activeWeek !== null && (m.weekNumber || 1) !== activeWeek)) {
+          return false;
         }
 
         return true;
