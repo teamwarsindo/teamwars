@@ -35,37 +35,40 @@ export async function resolveMatchFromChannel(channelId: string) {
   return null;
 }
 
-// 🏷️ Ambil emoji tim dari database 'twi:teams'
-export async function getTeamEmojiByMatch(match: any, teamKey: 'A' | 'B'): Promise<string> {
-  if (!match) return '⚔️';
-  const targetId = teamKey === 'A' ? (match.teamAId || match.teamA) : (match.teamBId || match.teamB);
-  if (!targetId) return '⚔️';
+// 🏷️ Ambil emoji tim langsung dari HASH 'teams:{slug}'
+export async function getTeamEmojiByMatch(match: any, teamKey: 'A' | 'B', teamSlugOrName?: string): Promise<string> {
+  const rawTarget = teamKey === 'A' 
+    ? (match?.teamAId || match?.teamA || match?.teamASlug || teamSlugOrName)
+    : (match?.teamBId || match?.teamB || match?.teamBSlug || teamSlugOrName);
+
+  if (!rawTarget) return '⚔️';
+
+  const slug = String(rawTarget)
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
 
   try {
-    const teams = (await kv.get<any[]>('twi:teams')) || [];
-    const found = teams.find(
-      (t) =>
-        String(t.id).toLowerCase() === String(targetId).toLowerCase() ||
-        String(t.slug).toLowerCase() === String(targetId).toLowerCase() ||
-        String(t.name).toLowerCase() === String(targetId).toLowerCase()
-    );
-
-    if (found?.emoji) return found.emoji;
-    if (found?.emojiId) {
-      const code = found.slug || found.code || targetId;
-      return `<:${code}:${found.emojiId}>`;
+    const teamData = await kv.hgetall<Record<string, any>>(`teams:${slug}`);
+    if (teamData) {
+      if (teamData.emoji) return teamData.emoji;
+      if (teamData.emojiId) {
+        const code = teamData.kodeTim || teamData.slug || slug;
+        return `<:${code}:${teamData.emojiId}>`;
+      }
     }
   } catch (err) {
-    console.error('Error fetching team emoji:', err);
+    console.error(`Gagal mengambil emoji teams:${slug}:`, err);
   }
 
-  if (teamKey === 'A' && match.teamAEmoji) return match.teamAEmoji;
-  if (teamKey === 'B' && match.teamBEmoji) return match.teamBEmoji;
+  if (teamKey === 'A' && match?.teamAEmoji) return match.teamAEmoji;
+  if (teamKey === 'B' && match?.teamBEmoji) return match.teamBEmoji;
 
   return '⚔️';
 }
 
-// 🎥 Helper deteksi platform dan tautan live streaming
+// 🎥 Helper deteksi tautan live streaming
 export function resolveStreamDisplay(match: any, reportData?: any): { streamerDisplay: string; streamUrlDisplay: string } {
   const meta = reportData?.metadata || {};
   const streamerId = match?.streamerDiscordId || meta.streamerDiscordId;
@@ -75,7 +78,7 @@ export function resolveStreamDisplay(match: any, reportData?: any): { streamerDi
   let streamerDisplay = '-';
   if (streamerId) {
     streamerDisplay = `<@${streamerId}>`;
-  } else if (streamerName && streamerName.trim() !== '') {
+  } else if (streamerName && String(streamerName).trim() !== '') {
     streamerDisplay = streamerName;
   }
 
@@ -94,7 +97,7 @@ export function resolveStreamDisplay(match: any, reportData?: any): { streamerDi
   return { streamerDisplay, streamUrlDisplay };
 }
 
-// 🏷️ Helper format riwayat game per deck ([G1, G2R, G3R, G4R])
+// 🏷️ Format riwayat game per deck ([G1, G2R, G3R, G4R])
 function formatDeckHistoryTag(games: any[], playerIgn: string, archetype: string): string {
   const matchingGames = games.filter((g) => {
     const isA =
@@ -128,8 +131,9 @@ export async function renderCampTrackerEmbed(
   const opponent = teamKey === 'teamA' ? reportData.teamB : reportData.teamA;
   const games: any[] = reportData.games || [];
   const skillsMap: Record<string, string> = (await kv.get('twi:master_skills')) || {};
+  const teamEmoji = await getTeamEmojiByMatch(match, teamKey === 'teamA' ? 'A' : 'B', team.slug || team.name);
 
-  // 1. Hitung Sisa Nyawa Tim (Akumulasi deck aktif)
+  // 1. Sisa Nyawa Tim
   let aliveDecksCount = 0;
   (team.lineup || []).forEach((p: any) => {
     if (p.deck1 && !p.deck1.isDead) aliveDecksCount++;
@@ -139,7 +143,7 @@ export async function renderCampTrackerEmbed(
   const repeatsUsed = team.repeatsUsed || 0;
   const warningsUsed = team.warningsUsed || 0;
 
-  // 2. Format Lineup Pemain & Cabang Deck
+  // 2. Format Lineup Padat
   const lineupSections = (team.lineup || []).map((p: any, idx: number) => {
     const pIgn = p.ign || 'Pemain';
     const dlId = p.idDuelLinks ? ` (${p.idDuelLinks})` : '';
@@ -148,7 +152,7 @@ export async function renderCampTrackerEmbed(
       const branch = isLast ? '┗' : '┣';
       if (!deck) return `${branch} ❌ Belum Submit`;
 
-      const shortSkill = deck.skill ? skillsMap[deck.skill] || deck.skill : '';
+      const shortSkill = deck.skill ? (skillsMap[deck.skill] || deck.skill) : '';
       const skillText = shortSkill ? ` • ${shortSkill}` : '';
       const fullName = `${deck.archetype}${skillText}`;
 
@@ -168,7 +172,7 @@ export async function renderCampTrackerEmbed(
       return `${branch} ✅ ${fullName}${historyTag}`;
     };
 
-    return `${idx + 1}. ${pIgn}${dlId}\n${formatDeck(p.deck1, false)}\n${formatDeck(p.deck2, true)}`;
+    return `${idx + 1}. **${pIgn}**${dlId}\n${formatDeck(p.deck1, false)}\n${formatDeck(p.deck2, true)}`;
   });
 
   // 3. Riwayat Pelanggaran SS Hand
@@ -192,7 +196,7 @@ export async function renderCampTrackerEmbed(
 
   const violationText = ssViolations.length > 0 ? ssViolations.join('\n') : '• Tidak ada';
 
-  // 4. Instruksi Pertandingan Dinamis Tanpa Asumsi
+  // 4. Instruksi Pertandingan
   const lastGame = games.length > 0 ? games[games.length - 1] : null;
   const isWinner = lastGame ? lastGame.winner === teamKey : false;
   const lastPlayer = lastGame ? (teamKey === 'teamA' ? lastGame.playerA : lastGame.playerB) : null;
@@ -238,27 +242,28 @@ export async function renderCampTrackerEmbed(
     }
   }
 
-  // 5. Susun Embed Murni Acuan Tangkapan Layar
+  // 5. Susunan Konten Deskripsi Embed Rapat
   const description =
-    `🟩 **EMBED: Live Tracker (Week ${matchWeek})**\n\n` +
-    `📦 **Sisa Nyawa Tim:** ${aliveDecksCount} / 10\n` +
-    `🔄 **Repeat:** ${repeatsUsed} / 2\n` +
-    `⚠️ **Warning SS Aktif:** ${warningsUsed} / 2\n\n` +
-    `🔗 **Regulasi:** [teamwars.web.id/rules](https://teamwars.web.id/rules)\n\n` +
-    `${lineupSections.join('\n\n')}\n\n` +
+    `${teamEmoji} **${String(team.name).toUpperCase()}**\n\n` +
+    `📦 Sisa Nyawa Tim: **${aliveDecksCount} / 10**\n` +
+    `🔄 Repeat: **${repeatsUsed} / 2**\n` +
+    `⚠️ Warning SS Aktif: **${warningsUsed} / 2**\n` +
+    `🔗 Regulasi: [teamwars.web.id/rules](https://teamwars.web.id/rules)\n\n` +
+    `${lineupSections.join('\n')}\n\n` +
     `⚠️ **Riwayat Pelanggaran SS Hand**\n` +
     `${violationText}\n\n` +
     `📢 **Instruksi Pertandingan**\n` +
     `${instructionLines.join('\n')}`;
 
   return {
-    color: 0x2ecc71,
+    title: `📊 LIVE MATCH TRACKER — WEEK ${matchWeek}`,
+    color: teamKey === 'teamA' ? 0x2ecc71 : 0x00a8fc,
     description,
     footer: { text: getEmbedFooterText() },
   };
 }
 
-// 🔁 Sync Tracker ke Camp (Delete-and-Repost)
+// 🔁 Sync Camp Tracker (Delete-and-Repost Terkini)
 export async function syncCampTrackers(matchId: string, matchWeek: number | string, reportData: any, match: any) {
   try {
     const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
@@ -266,38 +271,42 @@ export async function syncCampTrackers(matchId: string, matchWeek: number | stri
     if (!rawMsg) return;
 
     const msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
-    let changed = false;
+    let isChanged = false;
 
-    // Camp Tim A
+    // --- Camp Tim A ---
     if (msgData.campA?.channelId) {
-      if (msgData.campA.trackerMsgId) {
-        await discordAPI(`/channels/${msgData.campA.channelId}/messages/${msgData.campA.trackerMsgId}`, 'DELETE').catch(() => null);
+      const oldMsgId = msgData.campA.submitMsgId || msgData.campA.trackerMsgId;
+      if (oldMsgId) {
+        await discordAPI(`/channels/${msgData.campA.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
       }
       const embedA = await renderCampTrackerEmbed('teamA', reportData, match, matchWeek);
       const resA = await discordAPI(`/channels/${msgData.campA.channelId}/messages`, 'POST', { embeds: [embedA] });
       if (resA?.id) {
+        msgData.campA.submitMsgId = resA.id;
         msgData.campA.trackerMsgId = resA.id;
-        changed = true;
+        isChanged = true;
       }
     }
 
-    // Camp Tim B
+    // --- Camp Tim B ---
     if (msgData.campB?.channelId) {
-      if (msgData.campB.trackerMsgId) {
-        await discordAPI(`/channels/${msgData.campB.channelId}/messages/${msgData.campB.trackerMsgId}`, 'DELETE').catch(() => null);
+      const oldMsgId = msgData.campB.submitMsgId || msgData.campB.trackerMsgId;
+      if (oldMsgId) {
+        await discordAPI(`/channels/${msgData.campB.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
       }
       const embedB = await renderCampTrackerEmbed('teamB', reportData, match, matchWeek);
       const resB = await discordAPI(`/channels/${msgData.campB.channelId}/messages`, 'POST', { embeds: [embedB] });
       if (resB?.id) {
+        msgData.campB.submitMsgId = resB.id;
         msgData.campB.trackerMsgId = resB.id;
-        changed = true;
+        isChanged = true;
       }
     }
 
-    if (changed) {
+    if (isChanged) {
       await kv.hset('discord:match_messages', { [matchId]: JSON.stringify(msgData) });
     }
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
   }
-    }
+}
