@@ -10,18 +10,23 @@ export async function handleAssignAutocomplete(interaction: any) {
     if (!focused) return { type: 8, data: { choices: [] } };
 
     const typeOption = interaction.data?.options?.find((opt: any) => opt.name === 'type')?.value;
+    const commandName = interaction.data?.name;
     const query = String(focused.value || '');
 
-    if (focused.name === 'match') {
+    // 🟢 Dukung opsi 'match' (assign/unassign) serta 'match_a' dan 'match_b' (swap-assign)
+    if (focused.name === 'match' || focused.name === 'match_a' || focused.name === 'match_b') {
       const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
       const activeMatches = schedules.filter((m) => !m.isFinished && m.discordChannelId);
       const activeWeek = activeMatches.length > 0 ? Math.min(...activeMatches.map((m) => m.weekNumber || 1)) : null;
 
       const filtered = schedules.filter((m) => {
         if (m.isFinished || !m.discordChannelId || (activeWeek !== null && (m.weekNumber || 1) !== activeWeek)) return false;
-        if (interaction.data?.name === 'unassign') {
+
+        // Untuk 'unassign' dan 'swap-assign', match harus sudah memiliki staf aktif sesuai tipenya
+        if (commandName === 'unassign' || commandName === 'swap-assign') {
           return typeOption === 'REFEREE' ? Boolean(m.refereeDiscordId) : Boolean(m.streamerDiscordId);
         }
+
         return true;
       });
 
