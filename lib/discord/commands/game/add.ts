@@ -121,32 +121,13 @@ export async function handleGameAdd(ctx: GameContext) {
     pA.totalLosses = (pA.totalLosses || 0) + 1;
   }
 
-  // 3. Akumulasi Warning SS Hand & Deckloss
-  let isDecklossOccurred = false;
-  let decklossTeam = '';
-
+  // 3. Akumulasi Warning SS Hand (Hanya mencatat akumulasi seperti warning biasa tanpa eksekusi deckloss otomatis)
   if (!ssHandA) {
-    const currentW = (reportData.teamA.warningsUsed || 0) + 1;
-    if (currentW >= 2) {
-      reportData.teamA.warningsUsed = 0;
-      reportData.teamB.score = (reportData.teamB.score || 0) + 1;
-      isDecklossOccurred = true;
-      decklossTeam = 'teamA';
-    } else {
-      reportData.teamA.warningsUsed = currentW;
-    }
+    reportData.teamA.warningsUsed = (reportData.teamA.warningsUsed || 0) + 1;
   }
 
   if (!ssHandB) {
-    const currentW = (reportData.teamB.warningsUsed || 0) + 1;
-    if (currentW >= 2) {
-      reportData.teamB.warningsUsed = 0;
-      reportData.teamA.score = (reportData.teamA.score || 0) + 1;
-      isDecklossOccurred = true;
-      decklossTeam = 'teamB';
-    } else {
-      reportData.teamB.warningsUsed = currentW;
-    }
+    reportData.teamB.warningsUsed = (reportData.teamB.warningsUsed || 0) + 1;
   }
 
   // Selama deck yang dipakai berstatus repeat, tetap tandai true agar logs menampilkan WR / LR
@@ -172,8 +153,8 @@ export async function handleGameAdd(ctx: GameContext) {
     },
     ssHandA,
     ssHandB,
-    isDeckloss: isDecklossOccurred,
-    decklossTeam,
+    isDeckloss: false,
+    decklossTeam: '',
     notes,
     timestamp: new Date().toISOString(),
   };
@@ -262,7 +243,7 @@ export async function handleGameAdd(ctx: GameContext) {
     ? (match?.teamAColor || '#3b82f6') 
     : (match?.teamBColor || '#ef4444');
 
-  // 7. Bagian Instruksi / Status Pertandingan
+  // 7. Bagian Instruksi / Status Pertandingan Normal
   const nextGameNumber = reportData.games.length + 1;
   const winnerPlayerIgn = winnerOpt === 'A' ? pA.ign : pB.ign;
   const loserPlayerObj = winnerOpt === 'A' ? pB : pA;
@@ -281,11 +262,7 @@ export async function handleGameAdd(ctx: GameContext) {
   } else {
     instructionLines.push(`• **${winnerPlayerIgn}** (Stay table)`);
 
-    if (isDecklossOccurred && (loserPlayerObj.remainingLife ?? 0) <= 0) {
-      instructionLines.push(`• **${loserTeam.name}** terkena sanksi akumulasi 2x Warning SS Hand (Deckloss)`);
-      instructionLines.push(`• **${loserPlayerObj.ign}** telah gugur, sanksi Deckloss wajib dibebankan ke pemain pilihan tim selanjutnya`);
-      instructionLines.push(`• **${loserTeam.name}** tentukan pemain berikutnya beserta deck yang akan dipotong Deckloss`);
-    } else if ((loserPlayerObj.remainingLife ?? 0) <= 0) {
+    if ((loserPlayerObj.remainingLife ?? 0) <= 0) {
       instructionLines.push(`• **${loserTeam.name}** (Next player)`);
     } else {
       const canRepeat = loserTeamRepeatsUsed < 2 && (loserPlayerObj.totalWins || 0) === 0;
@@ -360,5 +337,5 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-                          }
-  
+      }
+                                       
