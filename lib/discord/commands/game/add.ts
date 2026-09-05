@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { discordAPI, getEmbedFooterText } from '@/lib/discord/utils';
+import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
 import { GameContext, syncCampTrackers, getTeamEmojiByMatch, resolveStreamDisplay } from './types';
 
 export async function handleGameAdd(ctx: GameContext) {
@@ -50,7 +50,6 @@ export async function handleGameAdd(ctx: GameContext) {
     reportData.teamA.repeatsUsed = (reportData.teamA.repeatsUsed || 0) + 1;
     dA.isRepeatUsed = true;
     dA.isDead = false;
-    // Deck pasangannya hangus
     if (dA === pA.deck1 && pA.deck2) pA.deck2.isDead = true;
     if (dA === pA.deck2 && pA.deck1) pA.deck1.isDead = true;
     pA.remainingLife = 1;
@@ -60,7 +59,6 @@ export async function handleGameAdd(ctx: GameContext) {
     reportData.teamB.repeatsUsed = (reportData.teamB.repeatsUsed || 0) + 1;
     dB.isRepeatUsed = true;
     dB.isDead = false;
-    // Deck pasangannya hangus
     if (dB === pB.deck1 && pB.deck2) pB.deck2.isDead = true;
     if (dB === pB.deck2 && pB.deck1) pB.deck1.isDead = true;
     pB.remainingLife = 1;
@@ -93,7 +91,7 @@ export async function handleGameAdd(ctx: GameContext) {
     pA.totalLosses = (pA.totalLosses || 0) + 1;
   }
 
-  // 3. Akumulasi Warning SS Hand & Trigger Deckloss
+  // 3. Akumulasi Warning SS Hand & Deckloss
   let isDecklossOccurred = false;
   let decklossTeam = '';
 
@@ -121,7 +119,6 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // Catat riwayat game (apakah repeat sedang aktif di deck tersebut)
   const isPlayerARepeatActive = dA.isRepeatUsed === true;
   const isPlayerBRepeatActive = dB.isRepeatUsed === true;
 
@@ -142,7 +139,6 @@ export async function handleGameAdd(ctx: GameContext) {
   reportData.games.push(gameRecord);
   reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
 
-  // Cek kondisi akhir pertandingan
   const isTeamAWon = reportData.teamA.score >= 10 || lineupB.every((p: any) => (p.remainingLife ?? 0) <= 0);
   const isTeamBWon = reportData.teamB.score >= 10 || lineupA.every((p: any) => (p.remainingLife ?? 0) <= 0);
 
@@ -156,13 +152,13 @@ export async function handleGameAdd(ctx: GameContext) {
 
   const matchWeek = match.weekNumber ?? 5;
 
-  // Simpan KV & Trigger sinkronisasi camp
+  // Simpan KV & Sync Camp Trackers
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
-    syncCampTrackers(match.id, matchWeek, reportData, match).catch(console.error);
+    syncCampTrackers(match.id, matchWeek, reportData, match, gameRecord).catch(console.error);
   }
 
-  // 4. Match Logs Format Simetris: W, WR, LR, TL
+  // 4. Format Match Logs Simetris
   let hasRepeatInLogs = false;
   let hasDecklossInLogs = false;
 
@@ -177,18 +173,14 @@ export async function handleGameAdd(ctx: GameContext) {
     let scoreTagA = isAWin ? 'W' : 'L';
     let scoreTagB = isAWin ? 'L' : 'W';
 
-    // Tag Repeat
     if (g.playerA?.isRepeat) scoreTagA = isAWin ? 'WR' : 'LR';
     if (g.playerB?.isRepeat) scoreTagB = isAWin ? 'LR' : 'WR';
-
-    // Tag Deckloss
     if (isDecklossA) scoreTagA = 'TL';
     if (isDecklossB) scoreTagB = 'TL';
 
     return `• **G${g.gameNumber}:** ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
   });
 
-  // Legenda Dinamis
   let glossaryText = '';
   if (hasRepeatInLogs && hasDecklossInLogs) {
     glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*\n`;
@@ -198,15 +190,19 @@ export async function handleGameAdd(ctx: GameContext) {
     glossaryText = `\n*Keterangan: TL = Technical Loss (Deckloss)*\n`;
   }
 
-  // 5. Metadata Wasit & Siaran
+  // 5. Metadata Pertandingan & Warna Garis
   const m = match as any;
-  const emojiA = await getTeamEmojiByMatch(match, 'A');
-  const emojiB = await getTeamEmojiByMatch(match, 'B');
+  const emojiA = await getTeamEmojiByMatch(match, 'A', reportData.teamA?.slug || reportData.teamA?.name);
+  const emojiB = await getTeamEmojiByMatch(match, 'B', reportData.teamB?.slug || reportData.teamB?.name);
 
   const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName || m.referee || 'Belum ditentukan';
   const { streamerDisplay, streamUrlDisplay } = resolveStreamDisplay(match, reportData);
 
-  // 6. Instruksi Baku TWI Game Berikutnya
+  const winnerColorHex = winnerOpt === 'A' 
+    ? (match?.teamAColor || '#3b82f6') 
+    : (match?.teamBColor || '#ef4444');
+
+  // 6. Instruksi Game Berikutnya
   const nextGameNumber = reportData.games.length + 1;
   const winnerPlayerIgn = winnerOpt === 'A' ? pA.ign : pB.ign;
   const loserPlayerObj = winnerOpt === 'A' ? pB : pA;
@@ -220,19 +216,15 @@ export async function handleGameAdd(ctx: GameContext) {
       `• Pertandingan telah selesai! Selamat kepada **${winnerOpt === 'A' ? reportData.teamA.name : reportData.teamB.name}** atas kemenangannya.`
     );
   } else {
-    // Pemenang selalu Stay table
     instructionLines.push(`• **${winnerPlayerIgn}** (Stay table)`);
 
-    // Sanksi Deckloss meja kosong
     if (isDecklossOccurred && (loserPlayerObj.remainingLife ?? 0) <= 0) {
       instructionLines.push(`• **${loserTeam.name}** terkena sanksi akumulasi 2x Warning SS Hand (Deckloss)`);
       instructionLines.push(`• **${loserPlayerObj.ign}** telah gugur, sanksi Deckloss wajib dibebankan ke pemain pilihan tim selanjutnya`);
       instructionLines.push(`• **${loserTeam.name}** tentukan pemain berikutnya beserta deck yang akan dipotong Deckloss`);
     } else if ((loserPlayerObj.remainingLife ?? 0) <= 0) {
-      // Pemain kalah 2x (Gugur)
       instructionLines.push(`• **${loserTeam.name}** (Next player)`);
     } else {
-      // Pemain masih punya sisa 1 deck
       const canRepeat = loserTeamRepeatsUsed < 2 && (loserPlayerObj.totalWins || 0) === 0;
       if (canRepeat) {
         instructionLines.push(`• **${loserPlayerObj.ign}** (Next deck or repeat)`);
@@ -242,10 +234,10 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // 7. Susun Embed Match Report Bersih & Padat (1 Layar HP)
+  // 7. Render Embed Match Report Padat
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
-    color: winnerOpt === 'A' ? 0x3b82f6 : 0xef4444,
+    color: hexToDecimal(winnerColorHex),
     description:
       `**Informasi Pertandingan:**\n` +
       `• **Referee:** ${refereeDisplay}\n` +
@@ -264,7 +256,7 @@ export async function handleGameAdd(ctx: GameContext) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
   }
 
-  // 8. Siklus Delete-and-Repost di Channel Match
+  // 8. Delete-and-Repost Match Report di Channel Utama
   const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
   const rawMsg = matchMessages[match.id];
   let msgData: any = {};
@@ -286,4 +278,4 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-      }
+}
