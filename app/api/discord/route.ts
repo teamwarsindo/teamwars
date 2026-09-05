@@ -14,6 +14,7 @@ import { handleCancelBid } from '@/lib/discord/commands/cancel-bid';
 import { handleTransferCommand } from '@/lib/discord/commands/transfer';
 import { handleAssignCommand } from '@/lib/discord/commands/assign';
 import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
+import { handleSwapAssignCommand } from '@/lib/discord/commands/swap-assign'; // 👈 Eksekusi swap-assign
 import { handleSubmitCommand } from '@/lib/discord/commands/submit';
 import { handleGameCommand } from '@/lib/discord/commands/game';
 import { handleStreamCommand } from '@/lib/discord/commands/stream';
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
       if (commandName === 'game') return NextResponse.json(await handleGameCommand(body));
       if (commandName === 'assign') return await handleAssignCommand(body);
       if (commandName === 'unassign') return await handleUnassignCommand(body);
+      if (commandName === 'swap-assign') return await handleSwapAssignCommand(body); // 👈 Eksekusi Type 2
       if (commandName === 'reschedule') return await handleRescheduleCommand(body);
       if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
       if (commandName === 'match-report') return NextResponse.json(await handleMatchReportCommand(body));
@@ -224,7 +226,12 @@ export async function POST(req: NextRequest) {
     if (body.type === 4) {
       if (body.data?.name === 'submit') return NextResponse.json(await handleSubmitAutocomplete(body));
       if (body.data?.name === 'game') return NextResponse.json(await handleGameAutocomplete(body));
-      if (body.data?.name === 'assign' || body.data?.name === 'unassign') return NextResponse.json(await handleAssignAutocomplete(body));
+      
+      // 🟢 Autocomplete untuk assign, unassign, dan swap-assign
+      if (body.data?.name === 'assign' || body.data?.name === 'unassign' || body.data?.name === 'swap-assign') {
+        return NextResponse.json(await handleAssignAutocomplete(body));
+      }
+
       if (body.data?.name === 'reschedule') return NextResponse.json(await handleRescheduleAutocomplete(body));
       if (body.data?.name === 'transfer') return NextResponse.json(await handleTransferAutocomplete(body));
       if (body.data?.name === 'match-report') return NextResponse.json(await handleMatchReportAutocomplete(body));
