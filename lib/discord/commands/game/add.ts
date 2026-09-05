@@ -1,6 +1,7 @@
 import { kv } from '@vercel/kv';
 import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
 import { GameContext, syncCampTrackers, getTeamEmojiByMatch, resolveStreamDisplay } from './types';
+import { syncOfficialMatchReport } from './official-report';
 
 export async function handleGameAdd(ctx: GameContext) {
   const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff, userIsAdmin } = ctx;
@@ -8,7 +9,6 @@ export async function handleGameAdd(ctx: GameContext) {
   const scoreA = reportData.teamA?.score || 0;
   const scoreB = reportData.teamB?.score || 0;
 
-  // Cek skor murni tanpa mengandalkan flag isFinished
   if (scoreA >= 10 || scoreB >= 10) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
       content: '⚠️ **Pertandingan sudah selesai!** Skor telah mencapai batas kemenangan 10.',
@@ -126,8 +126,20 @@ export async function handleGameAdd(ctx: GameContext) {
   const gameRecord = {
     gameNumber,
     winner: winnerTeamKey,
-    playerA: { ign: pA.ign, archetype: dA.archetype, skill: dA.skill, isRepeat: isPlayerARepeatActive },
-    playerB: { ign: pB.ign, archetype: dB.archetype, skill: dB.skill, isRepeat: isPlayerBRepeatActive },
+    playerA: {
+      ign: pA.ign,
+      idDuelLinks: pA.idDuelLinks,
+      archetype: dA.archetype,
+      skill: dA.skill,
+      isRepeat: isPlayerARepeatActive,
+    },
+    playerB: {
+      ign: pB.ign,
+      idDuelLinks: pB.idDuelLinks,
+      archetype: dB.archetype,
+      skill: dB.skill,
+      isRepeat: isPlayerBRepeatActive,
+    },
     ssHandA,
     ssHandB,
     isDeckloss: isDecklossOccurred,
@@ -140,16 +152,33 @@ export async function handleGameAdd(ctx: GameContext) {
   reportData.games.push(gameRecord);
   reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
 
-  const isMatchEnded = reportData.teamA.score >= 10 || reportData.teamB.score >= 10;
-  const matchWeek = match.weekNumber ?? 5;
+  // 4. Update status final di KV saat menyentuh 10
+  const isTeamAWon = reportData.teamA.score >= 10;
+  const isTeamBWon = reportData.teamB.score >= 10;
+  const isMatchEnded = isTeamAWon || isTeamBWon;
 
-  // Simpan KV & Tunggu Sync Camp Trackers Selesai (tanpa mengubah isFinished)
+  if (isMatchEnded) {
+    reportData.isFinished = true;
+    reportData.winnerTeam = isTeamAWon ? 'teamA' : 'teamB';
+  } else {
+    reportData.isFinished = false;
+    reportData.winnerTeam = null;
+  }
+
+  const matchWeek = match.weekNumber ?? reportData.week ?? 5;
+
+  // Simpan KV twi:match_reports
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
     await syncCampTrackers(match.id, matchWeek, reportData, match, gameRecord).catch(console.error);
+
+    // Kirim / Patch ke CH_SCORE_REPORT jika skor 10
+    if (isMatchEnded) {
+      await syncOfficialMatchReport(match, reportData).catch(console.error);
+    }
   }
 
-  // 4. Format Match Logs Simetris
+  // 5. Match Logs Ramping dengan Keterangan Terpisah Jarak
   let hasRepeatInLogs = false;
   let hasDecklossInLogs = false;
 
@@ -172,17 +201,16 @@ export async function handleGameAdd(ctx: GameContext) {
     return `• **G${g.gameNumber}:** ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
   });
 
-  // Legenda Rapat
   let glossaryText = '';
   if (hasRepeatInLogs && hasDecklossInLogs) {
-    glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*`;
+    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*`;
   } else if (hasRepeatInLogs) {
-    glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat)*`;
+    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat)*`;
   } else if (hasDecklossInLogs) {
-    glossaryText = `\n*Keterangan: TL = Technical Loss (Deckloss)*`;
+    glossaryText = `\n\n*Keterangan: TL = Technical Loss (Deckloss)*`;
   }
 
-  // 5. Metadata Pertandingan & Warna Garis
+  // 6. Metadata Pertandingan & Header Skor 2 Baris
   const m = match as any;
   const emojiA = await getTeamEmojiByMatch(match, 'A', reportData.teamA?.slug || reportData.teamA?.name);
   const emojiB = await getTeamEmojiByMatch(match, 'B', reportData.teamB?.slug || reportData.teamB?.name);
@@ -197,7 +225,7 @@ export async function handleGameAdd(ctx: GameContext) {
     ? (match?.teamAColor || '#3b82f6') 
     : (match?.teamBColor || '#ef4444');
 
-  // 6. Bagian Instruksi / Status Pertandingan (Di Atas Skor)
+  // 7. Bagian Instruksi di Atas Skor
   const nextGameNumber = reportData.games.length + 1;
   const winnerPlayerIgn = winnerOpt === 'A' ? pA.ign : pB.ign;
   const loserPlayerObj = winnerOpt === 'A' ? pB : pA;
@@ -232,7 +260,7 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // 7. Render Embed Match Report: Instruksi di atas, Skor Nama Lengkap di bawah
+  // 8. Render Embed Match Report Utama (Skor 2 Baris di Bawah)
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: hexToDecimal(winnerColorHex),
@@ -247,7 +275,8 @@ export async function handleGameAdd(ctx: GameContext) {
       `${sectionHeader}\n` +
       instructionLines.join('\n') +
       `\n\n` +
-      `### ${emojiA} ${teamNameA} **${reportData.teamA.score} — ${reportData.teamB.score}** ${teamNameB} ${emojiB}`,
+      `### ${emojiA} ${teamNameA} vs ${teamNameB} ${emojiB}\n` +
+      `# **${reportData.teamA.score} — ${reportData.teamB.score}**`,
     footer: { text: getEmbedFooterText() },
   };
 
@@ -255,7 +284,7 @@ export async function handleGameAdd(ctx: GameContext) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
   }
 
-  // 8. Delete Terlebih Dahulu, Lalu Post Baru & Simpan ID
+  // 9. Hapus Pesan Lama Lalu Kirim Baru
   try {
     const rawMsg = await kv.hget<any>('discord:match_messages', match.id);
     let msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
@@ -286,5 +315,4 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-    }
-        
+                                    }
