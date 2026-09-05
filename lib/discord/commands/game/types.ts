@@ -196,7 +196,7 @@ export async function renderCampTrackerEmbed(
 
   const violationText = ssViolations.length > 0 ? ssViolations.join('\n') : '• Tidak ada';
 
-  // 4. Instruksi Pertandingan / Status Pertandingan (Jika Skor 10)
+  // 4. Status Pertandingan / Instruksi Khusus Internal Camp
   const isMatchEnded = (reportData.teamA?.score || 0) >= 10 || (reportData.teamB?.score || 0) >= 10;
   const lastGame = games.length > 0 ? games[games.length - 1] : null;
   const isWinner = lastGame ? lastGame.winner === teamKey : false;
@@ -205,15 +205,17 @@ export async function renderCampTrackerEmbed(
     ? (team.lineup || []).find((x: any) => x.ign?.toLowerCase() === lastPlayer.ign?.toLowerCase())
     : null;
 
-  let sectionTitle = '📢 **Instruksi Pertandingan**';
+  let sectionTitle = '📢 **Instruksi Pertandingan:**';
   let instructionLines: string[] = [];
 
   if (isMatchEnded) {
     sectionTitle = '📢 **Status Pertandingan:**';
-    const winnerTeamObj = (reportData.teamA?.score || 0) >= 10 ? reportData.teamA : reportData.teamB;
-    const loserTeamObj = (reportData.teamA?.score || 0) >= 10 ? reportData.teamB : reportData.teamA;
-    instructionLines.push(`• Selamat kepada **${winnerTeamObj.name}** atas kemenangannya!`);
-    instructionLines.push(`• Terima kasih kepada **${loserTeamObj.name}** atas partisipasinya!`);
+    const isThisTeamWinner = (team.score || 0) >= 10;
+    if (isThisTeamWinner) {
+      instructionLines.push(`• Selamat kepada **${team.name}** atas kemenangannya!`);
+    } else {
+      instructionLines.push(`• Seluruh sisa nyawa habis. Terima kasih kepada **${team.name}** atas perjuangannya!`);
+    }
   } else if (!lastGame) {
     instructionLines.push(`• **${team.name}** persiapkan pemain pertama.`);
   } else if (isWinner) {
@@ -285,7 +287,6 @@ export async function syncCampTrackers(
 
     const isMatchEnded = (reportData.teamA?.score || 0) >= 10 || (reportData.teamB?.score || 0) >= 10;
 
-    // Filter: kirim ke camp jika match selesai, atau jika ada perubahan status
     const teamAAffected =
       isMatchEnded ||
       !lastGameRecord ||
@@ -344,7 +345,6 @@ export async function syncCampTrackers(
       }
     }
 
-    // Simpan kembali objek tanpa JSON.stringify manual
     if (isChanged) {
       const freshRaw = await kv.hget<any>('discord:match_messages', matchId);
       let freshData: any = freshRaw ? (typeof freshRaw === 'string' ? JSON.parse(freshRaw) : freshRaw) : {};
@@ -360,4 +360,4 @@ export async function syncCampTrackers(
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
   }
-      }
+       }
