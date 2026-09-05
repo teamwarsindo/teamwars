@@ -267,7 +267,7 @@ export async function renderCampTrackerEmbed(
   };
 }
 
-// 🔁 Sync Camp Tracker (Delete-and-Repost Terkini)
+// 🔁 Sync Camp Tracker (Delete-and-Repost Terkini & Kebal Race Condition)
 export async function syncCampTrackers(
   matchId: string,
   matchWeek: number | string,
@@ -276,32 +276,41 @@ export async function syncCampTrackers(
   lastGameRecord?: any
 ) {
   try {
-    const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
-    const rawMsg = matchMessages[matchId];
-    if (!rawMsg) return;
+    const rawMsg = await kv.hget<any>('discord:match_messages', matchId);
+    let msgData: any = {};
+    if (rawMsg) {
+      msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
+    }
 
-    const msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
+    // Filter: hanya kirim ke camp jika ada perubahan status
+    const teamAAffected =
+      !lastGameRecord ||
+      lastGameRecord.winner === 'teamB' ||
+      lastGameRecord.ssHandA === false ||
+      lastGameRecord.isDeckloss;
+
+    const teamBAffected =
+      !lastGameRecord ||
+      lastGameRecord.winner === 'teamA' ||
+      lastGameRecord.ssHandB === false ||
+      lastGameRecord.isDeckloss;
+
     let isChanged = false;
-
-    // Filter: hanya kirim ke camp jika ada perubahan status (kalah, warning, deckloss, atau game awal)
-    const teamAAffected = !lastGameRecord || 
-      lastGameRecord.winner === 'teamB' || 
-      lastGameRecord.ssHandA === false || 
-      lastGameRecord.isDeckloss;
-
-    const teamBAffected = !lastGameRecord || 
-      lastGameRecord.winner === 'teamA' || 
-      lastGameRecord.ssHandB === false || 
-      lastGameRecord.isDeckloss;
 
     // --- Camp Tim A ---
     if (msgData.campA?.channelId && teamAAffected) {
-      const oldMsgId = msgData.campA.submitMsgId || msgData.campA.trackerMsgId;
-      if (oldMsgId) {
-        await discordAPI(`/channels/${msgData.campA.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
+      const campAChannelId = msgData.campA.channelId;
+      const oldMsgIdA = msgData.campA.submitMsgId || msgData.campA.trackerMsgId;
+
+      if (oldMsgIdA) {
+        await discordAPI(`/channels/${campAChannelId}/messages/${oldMsgIdA}`, 'DELETE').catch((err) => {
+          console.warn(`[Camp A] Gagal delete pesan lama ${oldMsgIdA}:`, err);
+        });
       }
+
       const embedA = await renderCampTrackerEmbed('teamA', reportData, match, matchWeek);
-      const resA = await discordAPI(`/channels/${msgData.campA.channelId}/messages`, 'POST', { embeds: [embedA] });
+      const resA = await discordAPI(`/channels/${campAChannelId}/messages`, 'POST', { embeds: [embedA] });
+
       if (resA?.id) {
         msgData.campA.submitMsgId = resA.id;
         msgData.campA.trackerMsgId = resA.id;
@@ -311,12 +320,18 @@ export async function syncCampTrackers(
 
     // --- Camp Tim B ---
     if (msgData.campB?.channelId && teamBAffected) {
-      const oldMsgId = msgData.campB.submitMsgId || msgData.campB.trackerMsgId;
-      if (oldMsgId) {
-        await discordAPI(`/channels/${msgData.campB.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
+      const campBChannelId = msgData.campB.channelId;
+      const oldMsgIdB = msgData.campB.submitMsgId || msgData.campB.trackerMsgId;
+
+      if (oldMsgIdB) {
+        await discordAPI(`/channels/${campBChannelId}/messages/${oldMsgIdB}`, 'DELETE').catch((err) => {
+          console.warn(`[Camp B] Gagal delete pesan lama ${oldMsgIdB}:`, err);
+        });
       }
+
       const embedB = await renderCampTrackerEmbed('teamB', reportData, match, matchWeek);
-      const resB = await discordAPI(`/channels/${msgData.campB.channelId}/messages`, 'POST', { embeds: [embedB] });
+      const resB = await discordAPI(`/channels/${campBChannelId}/messages`, 'POST', { embeds: [embedB] });
+
       if (resB?.id) {
         msgData.campB.submitMsgId = resB.id;
         msgData.campB.trackerMsgId = resB.id;
@@ -324,11 +339,20 @@ export async function syncCampTrackers(
       }
     }
 
+    // Simpan kembali objek tanpa JSON.stringify manual
     if (isChanged) {
-      await kv.hset('discord:match_messages', { [matchId]: JSON.stringify(msgData) });
+      const freshRaw = await kv.hget<any>('discord:match_messages', matchId);
+      let freshData: any = freshRaw ? (typeof freshRaw === 'string' ? JSON.parse(freshRaw) : freshRaw) : {};
+
+      freshData = {
+        ...freshData,
+        campA: { ...(freshData.campA || {}), ...(msgData.campA || {}) },
+        campB: { ...(freshData.campB || {}), ...(msgData.campB || {}) },
+      };
+
+      await kv.hset('discord:match_messages', { [matchId]: freshData });
     }
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
   }
-        }
-                                                 
+  }
