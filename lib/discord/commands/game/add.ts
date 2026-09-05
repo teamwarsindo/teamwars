@@ -3,6 +3,27 @@ import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/util
 import { GameContext, syncCampTrackers, getTeamEmojiByMatch, resolveStreamDisplay } from './types';
 import { syncOfficialMatchReport } from './official-report';
 
+// Helper format hari dan tanggal Indonesia (Sabtu, 5 September 2026 — 20.00 WIB)
+function formatMatchSchedule(matchDateStr?: string, matchTimeStr?: string): string {
+  if (!matchDateStr) return 'Belum ditentukan';
+
+  try {
+    const d = new Date(matchDateStr);
+    const dateFormatted = d.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    });
+
+    const timeFormatted = matchTimeStr ? ` — ${matchTimeStr.replace(':', '.')} WIB` : '';
+    return `${dateFormatted}${timeFormatted}`;
+  } catch {
+    return matchDateStr + (matchTimeStr ? ` — ${matchTimeStr} WIB` : '');
+  }
+}
+
 export async function handleGameAdd(ctx: GameContext) {
   const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff, userIsAdmin } = ctx;
 
@@ -178,7 +199,7 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // 5. Format Match Logs Simetris (Status score W — L bold sejak game awal)
+  // 5. Format Game Logs Sederhana (1 Baris Ringkas, Skor W — L di-bold)
   let hasRepeatInLogs = false;
   let hasDecklossInLogs = false;
 
@@ -210,15 +231,23 @@ export async function handleGameAdd(ctx: GameContext) {
     glossaryText = `\n\n*Keterangan: TL = Technical Loss (Deckloss)*`;
   }
 
-  // 6. Metadata Pertandingan & Divisi
+  // 6. Metadata Pertandingan & Header Disamakan dengan Score Report
   const m = match as any;
   const groupOrDivision = match?.groupName || match?.stage || 'Regular Season';
 
   const emojiA = await getTeamEmojiByMatch(match, 'A', reportData.teamA?.slug || reportData.teamA?.name);
   const emojiB = await getTeamEmojiByMatch(match, 'B', reportData.teamB?.slug || reportData.teamB?.name);
 
+  const teamNameA = String(reportData.teamA?.name || 'TIM A').toUpperCase();
+  const teamNameB = String(reportData.teamB?.name || 'TIM B').toUpperCase();
+
   const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName || m.referee || 'Belum ditentukan';
   const { streamerDisplay, streamUrlDisplay } = resolveStreamDisplay(match, reportData);
+
+  const scheduleDisplay = formatMatchSchedule(
+    m.matchDate || m.date || reportData.metadata?.date,
+    m.matchTime || m.time || reportData.metadata?.time
+  );
 
   const winnerColorHex = winnerOpt === 'A' 
     ? (match?.teamAColor || '#3b82f6') 
@@ -259,17 +288,18 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // Judul Skor Sesuai Status Laga
   const scoreSectionTitle = isMatchEnded ? '🏆 **Skor Akhir:**' : '📊 **Skor Sementara:**';
   const separator = '──────────────────────────────';
 
-  // 8. Render Embed Live Match Report dengan Skor Besar di Bawah
+  // 8. Render Embed Live Match Report
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: hexToDecimal(winnerColorHex),
     description:
       `**Informasi Pertandingan:**\n` +
-      `• **Divisi:** ${groupOrDivision}\n` +
+      `• **Divisi:** ${groupOrDivision} — Week ${matchWeek}\n` +
+      `• **Match:** ${teamNameA} vs ${teamNameB}\n` +
+      `• **Jadwal:** ${scheduleDisplay}\n` +
       `• **Referee:** ${refereeDisplay}\n` +
       `• **Streamer:** ${streamerDisplay}\n` +
       `• **Live Match:** ${streamUrlDisplay}\n` +
@@ -290,7 +320,7 @@ export async function handleGameAdd(ctx: GameContext) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
   }
 
-  // 9. Delete Terlebih Dahulu Pesan Report Lama, Lalu Kirim Baru (Pin di paling bawah)
+  // 9. Hapus Pesan Lama dan Kirim Pesan Baru ke Channel Match
   try {
     const rawMsg = await kv.hget<any>('discord:match_messages', match.id);
     let msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
