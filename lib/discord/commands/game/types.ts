@@ -196,7 +196,8 @@ export async function renderCampTrackerEmbed(
 
   const violationText = ssViolations.length > 0 ? ssViolations.join('\n') : '• Tidak ada';
 
-  // 4. Instruksi Pertandingan
+  // 4. Instruksi Pertandingan / Status Pertandingan (Jika Skor 10)
+  const isMatchEnded = (reportData.teamA?.score || 0) >= 10 || (reportData.teamB?.score || 0) >= 10;
   const lastGame = games.length > 0 ? games[games.length - 1] : null;
   const isWinner = lastGame ? lastGame.winner === teamKey : false;
   const lastPlayer = lastGame ? (teamKey === 'teamA' ? lastGame.playerA : lastGame.playerB) : null;
@@ -204,15 +205,15 @@ export async function renderCampTrackerEmbed(
     ? (team.lineup || []).find((x: any) => x.ign?.toLowerCase() === lastPlayer.ign?.toLowerCase())
     : null;
 
+  let sectionTitle = '📢 **Instruksi Pertandingan**';
   let instructionLines: string[] = [];
 
-  if (reportData.isFinished) {
-    const isMatchWinner = reportData.winnerTeam === teamKey;
-    instructionLines.push(
-      isMatchWinner
-        ? `• Selamat kepada **${team.name}** atas kemenangannya!`
-        : `• Pertandingan telah selesai. Terima kasih atas partisipasinya!`
-    );
+  if (isMatchEnded) {
+    sectionTitle = '📢 **Status Pertandingan:**';
+    const winnerTeamObj = (reportData.teamA?.score || 0) >= 10 ? reportData.teamA : reportData.teamB;
+    const loserTeamObj = (reportData.teamA?.score || 0) >= 10 ? reportData.teamB : reportData.teamA;
+    instructionLines.push(`• Selamat kepada **${winnerTeamObj.name}** atas kemenangannya!`);
+    instructionLines.push(`• Terima kasih kepada **${loserTeamObj.name}** atas partisipasinya!`);
   } else if (!lastGame) {
     instructionLines.push(`• **${team.name}** persiapkan pemain pertama.`);
   } else if (isWinner) {
@@ -252,7 +253,7 @@ export async function renderCampTrackerEmbed(
     `${lineupSections.join('\n')}\n\n` +
     `⚠️ **Riwayat Pelanggaran SS Hand**\n` +
     `${violationText}\n\n` +
-    `📢 **Instruksi Pertandingan**\n` +
+    `${sectionTitle}\n` +
     `${instructionLines.join('\n')}`;
 
   const teamColorHex = teamKey === 'teamA' 
@@ -282,14 +283,18 @@ export async function syncCampTrackers(
       msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
     }
 
-    // Filter: hanya kirim ke camp jika ada perubahan status
+    const isMatchEnded = (reportData.teamA?.score || 0) >= 10 || (reportData.teamB?.score || 0) >= 10;
+
+    // Filter: kirim ke camp jika match selesai, atau jika ada perubahan status
     const teamAAffected =
+      isMatchEnded ||
       !lastGameRecord ||
       lastGameRecord.winner === 'teamB' ||
       lastGameRecord.ssHandA === false ||
       lastGameRecord.isDeckloss;
 
     const teamBAffected =
+      isMatchEnded ||
       !lastGameRecord ||
       lastGameRecord.winner === 'teamA' ||
       lastGameRecord.ssHandB === false ||
@@ -355,4 +360,4 @@ export async function syncCampTrackers(
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
   }
-  }
+      }
