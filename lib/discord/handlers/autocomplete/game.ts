@@ -45,7 +45,7 @@ function getDeckChoices(
   // Kuota repeat resmi TWI: maksimal 2 per tim (< 2)
   const canTakeNewRepeat = repeatsUsed < 2 && (playerObj.totalWins || 0) === 0 && (playerObj.totalLosses || 0) === 1;
 
-  // 1. Deck 1
+  // 1. Pilihan Deck 1
   if (d1?.archetype) {
     const skill1 = d1.skill ? ` • ${d1.skill}` : '';
     if (!d1.isDead) {
@@ -57,7 +57,7 @@ function getDeckChoices(
     }
   }
 
-  // 2. Deck 2
+  // 2. Pilihan Deck 2
   if (d2?.archetype) {
     const skill2 = d2.skill ? ` • ${d2.skill}` : '';
     if (!d2.isDead) {
@@ -99,17 +99,18 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupA: any[] = reportData.teamA?.lineup || [];
       let eligiblePlayers: any[] = [];
 
-      // Kunci hanya jika Tim A adalah PEMENANG di game sebelumnya (Stay table)
-      if (lastGame && lastGame.winner === 'teamA') {
+      if (lastGame) {
         const lastPlayerA = lineupA.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerA?.ign || '').toLowerCase()
         );
+
+        // Kunci jika pemain ronde lalu masih hidup (baik menang stay table, maupun kalah lanjut deck ke-2/repeat)
         if (lastPlayerA && (lastPlayerA.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerA];
         }
       }
 
-      // Jika Game 1, atau Tim A kalah ronde lalu (bebas pilih pemain hidup / yang berhak repeat)
+      // Jika Game 1, atau pemain sebelumnya sudah gugur total (remainingLife === 0)
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupA.filter((p) => {
           const canRepeat =
@@ -160,17 +161,18 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupB: any[] = reportData.teamB?.lineup || [];
       let eligiblePlayers: any[] = [];
 
-      // Kunci hanya jika Tim B adalah PEMENANG di game sebelumnya (Stay table)
-      if (lastGame && lastGame.winner === 'teamB') {
+      if (lastGame) {
         const lastPlayerB = lineupB.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerB?.ign || '').toLowerCase()
         );
+
+        // Kunci jika pemain ronde lalu masih hidup (baik menang stay table, maupun kalah lanjut deck ke-2/repeat)
         if (lastPlayerB && (lastPlayerB.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerB];
         }
       }
 
-      // Jika Game 1, atau Tim B kalah ronde lalu
+      // Jika Game 1, atau pemain sebelumnya sudah gugur total
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupB.filter((p) => {
           const canRepeat =
@@ -235,4 +237,4 @@ export async function handleGameAutocomplete(interaction: any) {
     console.error('Error handleGameAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-      }
+            }
