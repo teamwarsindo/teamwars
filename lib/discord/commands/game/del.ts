@@ -1,9 +1,9 @@
 import { kv } from '@vercel/kv';
-import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
-import { GameContext, syncCampTrackers, getTeamEmojiByMatch, resolveStreamDisplay } from './types';
+import { discordAPI } from '@/lib/discord/utils';
+import { GameContext } from './types';
 
 export async function handleGameDel(ctx: GameContext) {
-  const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff } = ctx;
+  const { appId, token, match, reportData, optMap, isBeforeKickoff } = ctx;
   const games: any[] = reportData.games || [];
 
   if (games.length === 0) {
@@ -15,21 +15,22 @@ export async function handleGameDel(ctx: GameContext) {
   const targetGameNum = optMap.game_number ? Number(optMap.game_number) : games.length;
   if (targetGameNum !== games.length) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-      content: `❌ Rollback saat ini hanya dapat dilakukan pada game terakhir (**Game ${games.length}**)!`,
+      content: `❌ Rollback hanya dapat dilakukan pada game terakhir (**Game ${games.length}**)!`,
     });
   }
 
+  // 1. Ambil & Hapus Data Game Terakhir
   const poppedGame = games.pop();
   const winner = poppedGame.winner;
 
-  // 1. Rollback Skor Dasar Duel
+  // 2. Rollback Skor Dasar Duel
   if (winner === 'teamA') {
     reportData.teamA.score = Math.max(0, (reportData.teamA.score || 1) - 1);
   } else {
     reportData.teamB.score = Math.max(0, (reportData.teamB.score || 1) - 1);
   }
 
-  // 2. Rollback Sanksi Deckloss Tambahan
+  // 3. Rollback Sanksi Deckloss Tambahan (Jika Ada)
   if (poppedGame.isDeckloss) {
     if (poppedGame.decklossTeam === 'teamA') {
       reportData.teamB.score = Math.max(0, (reportData.teamB.score || 1) - 1);
@@ -47,8 +48,8 @@ export async function handleGameDel(ctx: GameContext) {
     }
   }
 
-  // 3. Rollback State Pemain & Deck Tim A
-  const pA = (reportData.teamA.lineup || []).find(
+  // 4. Rollback State Pemain & Deck Tim A
+  const pA = (reportData.teamA?.lineup || []).find(
     (p: any) => p.ign?.toLowerCase() === poppedGame.playerA?.ign?.toLowerCase()
   );
   if (pA) {
@@ -82,8 +83,8 @@ export async function handleGameDel(ctx: GameContext) {
     }
   }
 
-  // 4. Rollback State Pemain & Deck Tim B
-  const pB = (reportData.teamB.lineup || []).find(
+  // 5. Rollback State Pemain & Deck Tim B
+  const pB = (reportData.teamB?.lineup || []).find(
     (p: any) => p.ign?.toLowerCase() === poppedGame.playerB?.ign?.toLowerCase()
   );
   if (pB) {
@@ -117,128 +118,21 @@ export async function handleGameDel(ctx: GameContext) {
     }
   }
 
-  // 5. Update Status Match Selesai & Skor Akhir
+  // 6. Reset Status Match Selesai
   reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
   reportData.isFinished = false;
   reportData.winnerTeam = null;
 
-  const matchWeek = match.weekNumber ?? 5;
-
+  // 7. Simpan Kembali Data Bersih ke Upstash KV
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
-    // Pada rollback selalu trigger pembaruan tracker
-    syncCampTrackers(match.id, matchWeek, reportData, match).catch(console.error);
   }
 
-  // 6. Susun Ulang Match Report Embed Setelah Rollback
-  const m = match as any;
-  const emojiA = await getTeamEmojiByMatch(match, 'A', reportData.teamA?.slug || reportData.teamA?.name);
-  const emojiB = await getTeamEmojiByMatch(match, 'B', reportData.teamB?.slug || reportData.teamB?.name);
-  const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName || m.referee || 'Belum ditentukan';
-  const { streamerDisplay, streamUrlDisplay } = resolveStreamDisplay(match, reportData);
-
-  let hasRepeatInLogs = false;
-  let hasDecklossInLogs = false;
-
-  const matchLogsLines = games.map((g: any) => {
-    const isAWin = g.winner === 'teamA';
-    const isDecklossA = g.isDeckloss && g.decklossTeam === 'teamA';
-    const isDecklossB = g.isDeckloss && g.decklossTeam === 'teamB';
-
-    if (g.isDeckloss) hasDecklossInLogs = true;
-    if (g.playerA?.isRepeat || g.playerB?.isRepeat) hasRepeatInLogs = true;
-
-    let scoreTagA = isAWin ? 'W' : 'L';
-    let scoreTagB = isAWin ? 'L' : 'W';
-
-    if (g.playerA?.isRepeat) scoreTagA = isAWin ? 'WR' : 'LR';
-    if (g.playerB?.isRepeat) scoreTagB = isAWin ? 'LR' : 'WR';
-    if (isDecklossA) scoreTagA = 'TL';
-    if (isDecklossB) scoreTagB = 'TL';
-
-    return `• **G${g.gameNumber}:** ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
-  });
-
-  let glossaryText = '';
-  if (hasRepeatInLogs && hasDecklossInLogs) {
-    glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*`;
-  } else if (hasRepeatInLogs) {
-    glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat)*`;
-  } else if (hasDecklossInLogs) {
-    glossaryText = `\n*Keterangan: TL = Technical Loss (Deckloss)*`;
-  }
-
-  const nextGameNumber = games.length + 1;
-  const lastGame = games.length > 0 ? games[games.length - 1] : null;
-  let instructionLines: string[] = [];
-
-  if (!lastGame) {
-    instructionLines.push(`• **${reportData.teamA.name}** & **${reportData.teamB.name}** persiapkan pemain pertama.`);
-  } else {
-    const isLastWinA = lastGame.winner === 'teamA';
-    const winPlayer = isLastWinA ? lastGame.playerA?.ign : lastGame.playerB?.ign;
-    const losePlayerObj = isLastWinA
-      ? (reportData.teamB.lineup || []).find((p: any) => p.ign?.toLowerCase() === lastGame.playerB?.ign?.toLowerCase())
-      : (reportData.teamA.lineup || []).find((p: any) => p.ign?.toLowerCase() === lastGame.playerA?.ign?.toLowerCase());
-    const loseTeam = isLastWinA ? reportData.teamB : reportData.teamA;
-
-    instructionLines.push(`• **${winPlayer}** (Stay table)`);
-    if ((losePlayerObj?.remainingLife ?? 0) <= 0) {
-      instructionLines.push(`• **${loseTeam.name}** (Next player)`);
-    } else {
-      const canRepeat = (loseTeam.repeatsUsed || 0) < 2 && (losePlayerObj?.totalWins || 0) === 0;
-      if (canRepeat) {
-        instructionLines.push(`• **${losePlayerObj?.ign}** (Next deck or repeat)`);
-      } else {
-        instructionLines.push(`• **${losePlayerObj?.ign}** (Next deck)`);
-      }
-    }
-  }
-
-  // Gunakan warna tim pemenang dari game terakhir, atau default amber saat rollback ke game awal
-  let rollbackColorHex = '#f59e0b';
-  if (lastGame) {
-    rollbackColorHex = lastGame.winner === 'teamA' 
-      ? (match?.teamAColor || '#3b82f6') 
-      : (match?.teamBColor || '#ef4444');
-  }
-
-  const matchEmbed = {
-    title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
-    color: hexToDecimal(rollbackColorHex),
-    description:
-      `**Informasi Pertandingan:**\n` +
-      `• **Referee:** ${refereeDisplay}\n` +
-      `• **Streamer:** ${streamerDisplay}\n` +
-      `• **Live Match:** ${streamUrlDisplay}\n\n` +
-      `**Match Logs:**\n` +
-      (matchLogsLines.length > 0 ? matchLogsLines.join('\n') : '• *Belum ada riwayat game.*') +
-      `${glossaryText}\n\n` +
-      `## ${emojiA} **${reportData.teamA.score} — ${reportData.teamB.score}** ${emojiB}\n\n` +
-      `📢 **Instruksi Game #${nextGameNumber}:**\n` +
-      instructionLines.join('\n'),
-    footer: { text: getEmbedFooterText() },
-  };
-
-  // 7. Delete-and-Repost Match Report di Channel Utama
-  const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
-  const rawMsg = matchMessages[match.id];
-  let msgData: any = {};
-  if (rawMsg) {
-    msgData = typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg;
-    if (msgData.matchChannel?.lastReportMsgId) {
-      await discordAPI(`/channels/${channelId}/messages/${msgData.matchChannel.lastReportMsgId}`, 'DELETE').catch(() => null);
-    }
-  }
-
-  const postRes = await discordAPI(`/channels/${channelId}/messages`, 'POST', { embeds: [matchEmbed] });
-  if (postRes?.id) {
-    if (!msgData.matchChannel) msgData.matchChannel = { channelId };
-    msgData.matchChannel.lastReportMsgId = postRes.id;
-    await kv.hset('discord:match_messages', { [match.id]: JSON.stringify(msgData) });
-  }
-
+  // 8. Beri Notifikasi Respon
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-    content: `🔄 **Game ${poppedGame.gameNumber} Di-Rollback!** Skor kembali menjadi **${reportData.teamA.name} \`${reportData.teamA.score}\` — \`${reportData.teamB.score}\` ${reportData.teamB.name}**.`,
+    content:
+      `🗑️ **Data Game ${poppedGame.gameNumber} berhasil dihapus dari database!**\n` +
+      `Skor saat ini kembali ke: **${reportData.teamA.name} \`${reportData.teamA.score}\` — \`${reportData.teamB.score}\` ${reportData.teamB.name}**.\n\n` +
+      `👉 *Silakan gunakan perintah \`/game add\` untuk menambahkan data log game yang benar. Embed laporan pertandingan akan otomatis diperbarui setelah data baru ditambahkan.*`,
   });
 }
