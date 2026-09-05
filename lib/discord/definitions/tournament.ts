@@ -317,14 +317,6 @@ export const tournamentCommands = [
         type: 1, // SUB_COMMAND: del
         name: 'del',
         description: 'Hapus dan rollback game terakhir yang baru saja diinput',
-        options: [
-          {
-            type: 4, // INTEGER
-            name: 'game_number',
-            description: 'Nomor game yang ingin dihapus (Default: Game terakhir)',
-            required: false,
-          },
-        ],
       },
     ],
   },
