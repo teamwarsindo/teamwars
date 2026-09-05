@@ -3,6 +3,27 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
 import { getTeamEmojiByMatch, resolveStreamDisplay } from './types';
 
+// Helper format hari dan tanggal Indonesia (Sabtu, 5 September 2026)
+function formatMatchSchedule(matchDateStr?: string, matchTimeStr?: string): string {
+  if (!matchDateStr) return 'Belum ditentukan';
+
+  try {
+    const d = new Date(matchDateStr);
+    const dateFormatted = d.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    });
+
+    const timeFormatted = matchTimeStr ? ` — ${matchTimeStr.replace(':', '.')} WIB` : '';
+    return `${dateFormatted}${timeFormatted}`;
+  } catch {
+    return matchDateStr + (matchTimeStr ? ` — ${matchTimeStr} WIB` : '');
+  }
+}
+
 export async function syncOfficialMatchReport(match: any, reportData: any) {
   const targetChannelId = DISCORD_CONFIG.CH_SCORE_REPORT || DISCORD_CONFIG.CH_REPORT;
   if (!targetChannelId) {
@@ -16,7 +37,6 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
 
   const matchWeek = reportData.week || match?.weekNumber || 5;
   const groupOrDivision = match?.groupName || match?.stage || 'Regular Season';
-  const matchCode = match?.id ? String(match.id).toUpperCase().replace('MATCH-', 'M') : 'MATCH';
 
   const emojiA = await getTeamEmojiByMatch(match, 'A', reportData.teamA?.slug || reportData.teamA?.name);
   const emojiB = await getTeamEmojiByMatch(match, 'B', reportData.teamB?.slug || reportData.teamB?.name);
@@ -30,6 +50,12 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     : m.refereeName || reportData.metadata?.referee || 'Belum ditentukan';
   const { streamerDisplay, streamUrlDisplay } = resolveStreamDisplay(match, reportData);
 
+  // Jadwal Hari, Tanggal & Jam Pertandingan
+  const scheduleDisplay = formatMatchSchedule(
+    m.matchDate || m.date || reportData.metadata?.date,
+    m.matchTime || m.time || reportData.metadata?.time
+  );
+
   // 1. Lineup 5 Pemain Bersih (Hanya IGN dan ID Duel Links)
   const formatCleanLineup = (lineup: any[] = []) => {
     return lineup
@@ -41,7 +67,7 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
       .join('\n');
   };
 
-  // 2. Format Game Logs Bertingkat (W — L di tengah, sub-baris deck & skill)
+  // 2. Format Game Logs Bertingkat (Status score dibold: **W — L**)
   const games: any[] = reportData.games || [];
   const skillsMap: Record<string, string> = (await kv.get('twi:master_skills')) || {};
 
@@ -74,7 +100,9 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     const deckB = g.playerB?.archetype || 'Unknown';
     const deckBStr = shortSkillB ? `(${deckB} • ${shortSkillB})` : `(${deckB})`;
 
-    const rowPlayer = `• G${g.gameNumber}: ${g.playerA.ign} ${tagA} — ${tagB} ${g.playerB.ign}`;
+    // Baris 1: Score dibold (**W — L**)
+    const rowPlayer = `• G${g.gameNumber}: ${g.playerA.ign} **${tagA} — ${tagB}** ${g.playerB.ign}`;
+    // Baris 2: Sub-baris matchup deck & skill
     const rowDeck = `  └ ${deckAStr} vs ${deckBStr}`;
 
     return `${rowPlayer}\n${rowDeck}`;
@@ -126,11 +154,12 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     description:
       `**Informasi Pertandingan:**\n` +
       `• **Divisi:** ${groupOrDivision} — Week ${matchWeek}\n` +
-      `• **Match:** ${matchCode} — ${teamNameA} vs ${teamNameB}\n` +
+      `• **Match:** ${teamNameA} vs ${teamNameB}\n` +
+      `• **Jadwal:** ${scheduleDisplay}\n` +
       `• **Referee:** ${refereeDisplay}\n` +
       `• **Streamer:** ${streamerDisplay}\n` +
       `• **Live Match:** ${streamUrlDisplay}\n\n` +
-      `${emojiA || '🔴'} (${scoreA}) — (${scoreB}) ${emojiB || '🔵'}\n` +
+      `# ${emojiA || '🔴'} ${scoreA} ── ${scoreB} ${emojiB || '🔵'}\n` +
       `──────────────────────────────\n\n` +
       `👥 **Lineup Pertandingan:**\n` +
       `• **${teamNameA}:**\n${formatCleanLineup(reportData.teamA?.lineup)}\n\n` +
