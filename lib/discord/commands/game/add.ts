@@ -178,7 +178,7 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // 5. Format Match Logs Simetris
+  // 5. Format Match Logs Simetris (Status score W — L bold sejak game awal)
   let hasRepeatInLogs = false;
   let hasDecklossInLogs = false;
 
@@ -198,7 +198,7 @@ export async function handleGameAdd(ctx: GameContext) {
     if (isDecklossA) scoreTagA = 'TL';
     if (isDecklossB) scoreTagB = 'TL';
 
-    return `• **G${g.gameNumber}:** ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
+    return `• G${g.gameNumber}: ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
   });
 
   let glossaryText = '';
@@ -210,13 +210,12 @@ export async function handleGameAdd(ctx: GameContext) {
     glossaryText = `\n\n*Keterangan: TL = Technical Loss (Deckloss)*`;
   }
 
-  // 6. Metadata Pertandingan & Header Skor Linier Vertikal
+  // 6. Metadata Pertandingan & Divisi
   const m = match as any;
+  const groupOrDivision = match?.groupName || match?.stage || 'Regular Season';
+
   const emojiA = await getTeamEmojiByMatch(match, 'A', reportData.teamA?.slug || reportData.teamA?.name);
   const emojiB = await getTeamEmojiByMatch(match, 'B', reportData.teamB?.slug || reportData.teamB?.name);
-
-  const teamNameA = String(reportData.teamA?.name || 'TIM A').toUpperCase();
-  const teamNameB = String(reportData.teamB?.name || 'TIM B').toUpperCase();
 
   const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName || m.referee || 'Belum ditentukan';
   const { streamerDisplay, streamUrlDisplay } = resolveStreamDisplay(match, reportData);
@@ -225,7 +224,7 @@ export async function handleGameAdd(ctx: GameContext) {
     ? (match?.teamAColor || '#3b82f6') 
     : (match?.teamBColor || '#ef4444');
 
-  // 7. Bagian Instruksi di Atas Skor
+  // 7. Bagian Instruksi / Status Pertandingan
   const nextGameNumber = reportData.games.length + 1;
   const winnerPlayerIgn = winnerOpt === 'A' ? pA.ign : pB.ign;
   const loserPlayerObj = winnerOpt === 'A' ? pB : pA;
@@ -262,25 +261,28 @@ export async function handleGameAdd(ctx: GameContext) {
 
   // Judul Skor Sesuai Status Laga
   const scoreSectionTitle = isMatchEnded ? '🏆 **Skor Akhir:**' : '📊 **Skor Sementara:**';
+  const separator = '──────────────────────────────';
 
-  // 8. Render Embed Match Report Utama
+  // 8. Render Embed Live Match Report dengan Skor Besar di Bawah
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: hexToDecimal(winnerColorHex),
     description:
       `**Informasi Pertandingan:**\n` +
+      `• **Divisi:** ${groupOrDivision}\n` +
       `• **Referee:** ${refereeDisplay}\n` +
       `• **Streamer:** ${streamerDisplay}\n` +
-      `• **Live Match:** ${streamUrlDisplay}\n\n` +
-      `**Match Logs:**\n` +
+      `• **Live Match:** ${streamUrlDisplay}\n` +
+      `${separator}\n\n` +
+      `📜 **Game Logs:**\n` +
       matchLogsLines.join('\n') +
-      `${glossaryText}\n\n` +
+      `${glossaryText}\n` +
+      `${separator}\n\n` +
       `${sectionHeader}\n` +
       instructionLines.join('\n') +
       `\n\n` +
       `${scoreSectionTitle}\n` +
-      `• **${reportData.teamA.score}** — ${emojiA} ${teamNameA}\n` +
-      `• **${reportData.teamB.score}** — ${emojiB} ${teamNameB}`,
+      `# ${emojiA || '🔴'} ${reportData.teamA.score} ── ${reportData.teamB.score} ${emojiB || '🔵'}`,
     footer: { text: getEmbedFooterText() },
   };
 
@@ -288,7 +290,7 @@ export async function handleGameAdd(ctx: GameContext) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
   }
 
-  // 9. Delete Terlebih Dahulu Pesan Report Lama, Lalu Kirim Baru
+  // 9. Delete Terlebih Dahulu Pesan Report Lama, Lalu Kirim Baru (Pin di paling bawah)
   try {
     const rawMsg = await kv.hget<any>('discord:match_messages', match.id);
     let msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
@@ -320,4 +322,3 @@ export async function handleGameAdd(ctx: GameContext) {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
 }
-  
