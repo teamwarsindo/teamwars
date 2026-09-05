@@ -8,9 +8,10 @@ export async function handleGameAdd(ctx: GameContext) {
   const scoreA = reportData.teamA?.score || 0;
   const scoreB = reportData.teamB?.score || 0;
 
-  if (scoreA >= 10 || scoreB >= 10 || reportData.isFinished) {
+  // Cek skor murni tanpa mengandalkan flag isFinished
+  if (scoreA >= 10 || scoreB >= 10) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-      content: '⚠️ **Pertandingan sudah selesai!** Skor telah mencapai batas kemenangan.',
+      content: '⚠️ **Pertandingan sudah selesai!** Skor telah mencapai batas kemenangan 10.',
     });
   }
 
@@ -139,20 +140,10 @@ export async function handleGameAdd(ctx: GameContext) {
   reportData.games.push(gameRecord);
   reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
 
-  const isTeamAWon = reportData.teamA.score >= 10 || lineupB.every((p: any) => (p.remainingLife ?? 0) <= 0);
-  const isTeamBWon = reportData.teamB.score >= 10 || lineupA.every((p: any) => (p.remainingLife ?? 0) <= 0);
-
-  if (isTeamAWon) {
-    reportData.isFinished = true;
-    reportData.winnerTeam = 'teamA';
-  } else if (isTeamBWon) {
-    reportData.isFinished = true;
-    reportData.winnerTeam = 'teamB';
-  }
-
+  const isMatchEnded = reportData.teamA.score >= 10 || reportData.teamB.score >= 10;
   const matchWeek = match.weekNumber ?? 5;
 
-  // Simpan KV & Tunggu Sync Camp Trackers Selesai
+  // Simpan KV & Tunggu Sync Camp Trackers Selesai (tanpa mengubah isFinished)
   if (!isBeforeKickoff) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
     await syncCampTrackers(match.id, matchWeek, reportData, match, gameRecord).catch(console.error);
@@ -181,7 +172,7 @@ export async function handleGameAdd(ctx: GameContext) {
     return `• **G${g.gameNumber}:** ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
   });
 
-  // Keterangan Legenda Rapat
+  // Legenda Rapat
   let glossaryText = '';
   if (hasRepeatInLogs && hasDecklossInLogs) {
     glossaryText = `\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*`;
@@ -196,6 +187,9 @@ export async function handleGameAdd(ctx: GameContext) {
   const emojiA = await getTeamEmojiByMatch(match, 'A', reportData.teamA?.slug || reportData.teamA?.name);
   const emojiB = await getTeamEmojiByMatch(match, 'B', reportData.teamB?.slug || reportData.teamB?.name);
 
+  const teamNameA = String(reportData.teamA?.name || 'TIM A').toUpperCase();
+  const teamNameB = String(reportData.teamB?.name || 'TIM B').toUpperCase();
+
   const refereeDisplay = m.refereeDiscordId ? `<@${m.refereeDiscordId}>` : m.refereeName || m.referee || 'Belum ditentukan';
   const { streamerDisplay, streamUrlDisplay } = resolveStreamDisplay(match, reportData);
 
@@ -203,19 +197,22 @@ export async function handleGameAdd(ctx: GameContext) {
     ? (match?.teamAColor || '#3b82f6') 
     : (match?.teamBColor || '#ef4444');
 
-  // 6. Instruksi Game Berikutnya
+  // 6. Bagian Instruksi / Status Pertandingan (Di Atas Skor)
   const nextGameNumber = reportData.games.length + 1;
   const winnerPlayerIgn = winnerOpt === 'A' ? pA.ign : pB.ign;
   const loserPlayerObj = winnerOpt === 'A' ? pB : pA;
   const loserTeam = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
   const loserTeamRepeatsUsed = loserTeam.repeatsUsed || 0;
 
+  let sectionHeader = `📢 **Instruksi Game #${nextGameNumber}:**`;
   let instructionLines: string[] = [];
 
-  if (reportData.isFinished) {
-    instructionLines.push(
-      `• Pertandingan telah selesai! Selamat kepada **${winnerOpt === 'A' ? reportData.teamA.name : reportData.teamB.name}** atas kemenangannya.`
-    );
+  if (isMatchEnded) {
+    sectionHeader = `📢 **Status Pertandingan:**`;
+    const winnerTeamObj = reportData.teamA.score >= 10 ? reportData.teamA : reportData.teamB;
+    const loserTeamObj = reportData.teamA.score >= 10 ? reportData.teamB : reportData.teamA;
+    instructionLines.push(`• Selamat kepada **${winnerTeamObj.name}** atas kemenangannya!`);
+    instructionLines.push(`• Terima kasih kepada **${loserTeamObj.name}** atas partisipasinya!`);
   } else {
     instructionLines.push(`• **${winnerPlayerIgn}** (Stay table)`);
 
@@ -235,7 +232,7 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // 7. Render Embed Match Report Rapat
+  // 7. Render Embed Match Report: Instruksi di atas, Skor Nama Lengkap di bawah
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: hexToDecimal(winnerColorHex),
@@ -247,9 +244,10 @@ export async function handleGameAdd(ctx: GameContext) {
       `**Match Logs:**\n` +
       matchLogsLines.join('\n') +
       `${glossaryText}\n\n` +
-      `## ${emojiA} **${reportData.teamA.score} — ${reportData.teamB.score}** ${emojiB}\n\n` +
-      `📢 **Instruksi Game #${nextGameNumber}:**\n` +
-      instructionLines.join('\n'),
+      `${sectionHeader}\n` +
+      instructionLines.join('\n') +
+      `\n\n` +
+      `### ${emojiA} ${teamNameA} **${reportData.teamA.score} — ${reportData.teamB.score}** ${teamNameB} ${emojiB}`,
     footer: { text: getEmbedFooterText() },
   };
 
@@ -262,7 +260,6 @@ export async function handleGameAdd(ctx: GameContext) {
     const rawMsg = await kv.hget<any>('discord:match_messages', match.id);
     let msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
 
-    // Hapus pesan report lama jika ID-nya ada
     const oldReportMsgId = msgData.matchChannel?.lastReportMsgId;
     if (oldReportMsgId) {
       await discordAPI(`/channels/${channelId}/messages/${oldReportMsgId}`, 'DELETE').catch((err) => {
@@ -270,10 +267,8 @@ export async function handleGameAdd(ctx: GameContext) {
       });
     }
 
-    // Setelah delete berhasil dijalankan, baru kirim embed baru
     const postRes = await discordAPI(`/channels/${channelId}/messages`, 'POST', { embeds: [matchEmbed] });
 
-    // Simpan ID pesan yang baru saja di-post ke database
     if (postRes?.id) {
       const freshRaw = await kv.hget<any>('discord:match_messages', match.id);
       let freshData: any = freshRaw ? (typeof freshRaw === 'string' ? JSON.parse(freshRaw) : freshRaw) : msgData;
@@ -291,4 +286,5 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-      }
+    }
+        
