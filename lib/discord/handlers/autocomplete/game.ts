@@ -29,27 +29,30 @@ function getDeckChoices(
   const d2 = playerObj.deck2;
   const repeatsUsed = teamData?.repeatsUsed || 0;
 
-  // 🔒 ATURAN KUNCI DECK PEMENANG (Winner Stays Deck):
-  // Jika pemain ini baru saja menang di game sebelumnya, wajib pakai deck tersebut sampai gugur
+  // 🔒 ATURAN KUNCI DECK PEMENANG (Winner Stays Table & Deck):
   if (lastWinningDeckArchetype) {
     const winningDeck = [d1, d2].find(
       (d) => d && String(d.archetype || '').toLowerCase() === lastWinningDeckArchetype.toLowerCase()
     );
     if (winningDeck && !winningDeck.isDead) {
       const skill = winningDeck.skill ? ` • ${winningDeck.skill}` : '';
-      return [{ name: `${winningDeck.archetype}${skill}`, value: winningDeck.archetype }];
+      const prefix = winningDeck.isRepeatUsed ? 'Repeat: ' : '';
+      const val = winningDeck.isRepeatUsed ? `REPEAT:${winningDeck.archetype}` : winningDeck.archetype;
+      return [{ name: `${prefix}${winningDeck.archetype}${skill}`, value: val }];
     }
   }
 
-  // Syarat repeat: kuota tim masih ada (< 1), belum pernah menang, dan baru kalah 1x
-  const canRepeat = repeatsUsed < 1 && (playerObj.totalWins || 0) === 0 && (playerObj.totalLosses || 0) === 1;
+  // Kuota repeat resmi TWI: maksimal 2 per tim (< 2)
+  const canTakeNewRepeat = repeatsUsed < 2 && (playerObj.totalWins || 0) === 0 && (playerObj.totalLosses || 0) === 1;
 
   // 1. Deck 1
   if (d1?.archetype) {
     const skill1 = d1.skill ? ` • ${d1.skill}` : '';
     if (!d1.isDead) {
-      choices.push({ name: `${d1.archetype}${skill1}`, value: d1.archetype });
-    } else if (canRepeat && (d1.wins || 0) === 0 && !d1.isRepeatUsed) {
+      const val = d1.isRepeatUsed ? `REPEAT:${d1.archetype}` : d1.archetype;
+      const prefix = d1.isRepeatUsed ? 'Repeat: ' : '';
+      choices.push({ name: `${prefix}${d1.archetype}${skill1}`, value: val });
+    } else if (canTakeNewRepeat && (d1.wins || 0) === 0 && !d1.isRepeatUsed) {
       choices.push({ name: `Repeat (${d1.archetype}${skill1})`, value: `REPEAT:${d1.archetype}` });
     }
   }
@@ -58,8 +61,10 @@ function getDeckChoices(
   if (d2?.archetype) {
     const skill2 = d2.skill ? ` • ${d2.skill}` : '';
     if (!d2.isDead) {
-      choices.push({ name: `${d2.archetype}${skill2}`, value: d2.archetype });
-    } else if (canRepeat && (d2.wins || 0) === 0 && !d2.isRepeatUsed) {
+      const val = d2.isRepeatUsed ? `REPEAT:${d2.archetype}` : d2.archetype;
+      const prefix = d2.isRepeatUsed ? 'Repeat: ' : '';
+      choices.push({ name: `${prefix}${d2.archetype}${skill2}`, value: val });
+    } else if (canTakeNewRepeat && (d2.wins || 0) === 0 && !d2.isRepeatUsed) {
       choices.push({ name: `Repeat (${d2.archetype}${skill2})`, value: `REPEAT:${d2.archetype}` });
     }
   }
@@ -94,22 +99,21 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupA: any[] = reportData.teamA?.lineup || [];
       let eligiblePlayers: any[] = [];
 
-      // Kunci pemain jika pemain terakhir masih punya nyawa (baik menang maupun kalah)
-      if (lastGame) {
+      // Kunci hanya jika Tim A adalah PEMENANG di game sebelumnya (Stay table)
+      if (lastGame && lastGame.winner === 'teamA') {
         const lastPlayerA = lineupA.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerA?.ign || '').toLowerCase()
         );
-
         if (lastPlayerA && (lastPlayerA.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerA];
         }
       }
 
-      // Jika Game 1, atau pemain sebelumnya sudah gugur habis nyawa
+      // Jika Game 1, atau Tim A kalah ronde lalu (bebas pilih pemain hidup / yang berhak repeat)
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupA.filter((p) => {
           const canRepeat =
-            (reportData.teamA?.repeatsUsed || 0) < 1 &&
+            (reportData.teamA?.repeatsUsed || 0) < 2 &&
             (p.totalWins || 0) === 0 &&
             (p.totalLosses || 0) === 1;
           return (p.remainingLife ?? 2) > 0 || canRepeat;
@@ -140,7 +144,6 @@ export async function handleGameAutocomplete(interaction: any) {
         (p) => String(p.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()
       );
 
-      // Cek apakah pemain Tim A menang di ronde terakhir untuk mengunci deck kemenangannya
       let lastWinningDeckA: string | null = null;
       if (lastGame && lastGame.winner === 'teamA') {
         if (String(lastGame.playerA?.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()) {
@@ -157,22 +160,21 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupB: any[] = reportData.teamB?.lineup || [];
       let eligiblePlayers: any[] = [];
 
-      // Kunci pemain jika pemain terakhir masih punya nyawa (baik menang maupun kalah)
-      if (lastGame) {
+      // Kunci hanya jika Tim B adalah PEMENANG di game sebelumnya (Stay table)
+      if (lastGame && lastGame.winner === 'teamB') {
         const lastPlayerB = lineupB.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerB?.ign || '').toLowerCase()
         );
-
         if (lastPlayerB && (lastPlayerB.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerB];
         }
       }
 
-      // Jika Game 1, atau pemain sebelumnya sudah gugur habis nyawa
+      // Jika Game 1, atau Tim B kalah ronde lalu
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupB.filter((p) => {
           const canRepeat =
-            (reportData.teamB?.repeatsUsed || 0) < 1 &&
+            (reportData.teamB?.repeatsUsed || 0) < 2 &&
             (p.totalWins || 0) === 0 &&
             (p.totalLosses || 0) === 1;
           return (p.remainingLife ?? 2) > 0 || canRepeat;
@@ -203,7 +205,6 @@ export async function handleGameAutocomplete(interaction: any) {
         (p) => String(p.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()
       );
 
-      // Cek apakah pemain Tim B menang di ronde terakhir untuk mengunci deck kemenangannya
       let lastWinningDeckB: string | null = null;
       if (lastGame && lastGame.winner === 'teamB') {
         if (String(lastGame.playerB?.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()) {
@@ -234,4 +235,4 @@ export async function handleGameAutocomplete(interaction: any) {
     console.error('Error handleGameAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-}
+      }
