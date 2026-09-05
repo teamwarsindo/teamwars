@@ -152,7 +152,7 @@ export async function handleGameAdd(ctx: GameContext) {
   reportData.games.push(gameRecord);
   reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
 
-  // 4. Update status final di KV saat menyentuh 10
+  // 4. Update status pemenang & penyelesaian di KV jika skor 10
   const isTeamAWon = reportData.teamA.score >= 10;
   const isTeamBWon = reportData.teamB.score >= 10;
   const isMatchEnded = isTeamAWon || isTeamBWon;
@@ -172,13 +172,13 @@ export async function handleGameAdd(ctx: GameContext) {
     await kv.hset('twi:match_reports', { [match.id]: reportData });
     await syncCampTrackers(match.id, matchWeek, reportData, match, gameRecord).catch(console.error);
 
-    // Kirim / Patch ke CH_SCORE_REPORT jika skor 10
+    // Kirim atau Patch ke CH_SCORE_REPORT jika sudah menyentuh skor 10
     if (isMatchEnded) {
       await syncOfficialMatchReport(match, reportData).catch(console.error);
     }
   }
 
-  // 5. Match Logs Ramping dengan Keterangan Terpisah Jarak
+  // 5. Format Match Logs Simetris
   let hasRepeatInLogs = false;
   let hasDecklossInLogs = false;
 
@@ -210,7 +210,7 @@ export async function handleGameAdd(ctx: GameContext) {
     glossaryText = `\n\n*Keterangan: TL = Technical Loss (Deckloss)*`;
   }
 
-  // 6. Metadata Pertandingan & Header Skor 2 Baris
+  // 6. Metadata Pertandingan & Header Skor Linier Vertikal
   const m = match as any;
   const emojiA = await getTeamEmojiByMatch(match, 'A', reportData.teamA?.slug || reportData.teamA?.name);
   const emojiB = await getTeamEmojiByMatch(match, 'B', reportData.teamB?.slug || reportData.teamB?.name);
@@ -260,7 +260,10 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
-  // 8. Render Embed Match Report Utama (Skor 2 Baris di Bawah)
+  // Judul Skor Sesuai Status Laga
+  const scoreSectionTitle = isMatchEnded ? '🏆 **Skor Akhir:**' : '📊 **Skor Sementara:**';
+
+  // 8. Render Embed Match Report Utama
   const matchEmbed = {
     title: `⚔️ LIVE MATCH REPORT — WEEK ${matchWeek}`,
     color: hexToDecimal(winnerColorHex),
@@ -275,8 +278,9 @@ export async function handleGameAdd(ctx: GameContext) {
       `${sectionHeader}\n` +
       instructionLines.join('\n') +
       `\n\n` +
-      `### ${emojiA} ${teamNameA} vs ${teamNameB} ${emojiB}\n` +
-      `# **${reportData.teamA.score} — ${reportData.teamB.score}**`,
+      `${scoreSectionTitle}\n` +
+      `• **${reportData.teamA.score}** — ${emojiA} ${teamNameA}\n` +
+      `• **${reportData.teamB.score}** — ${emojiB} ${teamNameB}`,
     footer: { text: getEmbedFooterText() },
   };
 
@@ -284,7 +288,7 @@ export async function handleGameAdd(ctx: GameContext) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
   }
 
-  // 9. Hapus Pesan Lama Lalu Kirim Baru
+  // 9. Delete Terlebih Dahulu Pesan Report Lama, Lalu Kirim Baru
   try {
     const rawMsg = await kv.hget<any>('discord:match_messages', match.id);
     let msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
@@ -315,4 +319,5 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-                                    }
+}
+  
