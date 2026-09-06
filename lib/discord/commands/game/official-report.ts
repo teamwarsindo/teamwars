@@ -1,28 +1,7 @@
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
-import { getTeamEmojiByMatch, resolveStreamDisplay } from './types';
-
-// Helper format hari dan tanggal Indonesia (Sabtu, 5 September 2026)
-function formatMatchSchedule(matchDateStr?: string, matchTimeStr?: string): string {
-  if (!matchDateStr) return 'Belum ditentukan';
-
-  try {
-    const d = new Date(matchDateStr);
-    const dateFormatted = d.toLocaleDateString('id-ID', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'Asia/Jakarta',
-    });
-
-    const timeFormatted = matchTimeStr ? ` — ${matchTimeStr.replace(':', '.')} WIB` : '';
-    return `${dateFormatted}${timeFormatted}`;
-  } catch {
-    return matchDateStr + (matchTimeStr ? ` — ${matchTimeStr} WIB` : '');
-  }
-}
+import { getTeamEmojiByMatch, resolveStreamDisplay, formatMatchSchedule } from './types';
 
 export async function syncOfficialMatchReport(match: any, reportData: any) {
   const targetChannelId = DISCORD_CONFIG.CH_SCORE_REPORT || DISCORD_CONFIG.CH_REPORT;
@@ -50,13 +29,11 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     : m.refereeName || reportData.metadata?.referee || 'Belum ditentukan';
   const { streamerDisplay, streamUrlDisplay } = resolveStreamDisplay(match, reportData);
 
-  // Jadwal Hari, Tanggal & Jam Pertandingan
   const scheduleDisplay = formatMatchSchedule(
     m.matchDate || m.date || reportData.metadata?.date,
     m.matchTime || m.time || reportData.metadata?.time
   );
 
-  // 1. Lineup 5 Pemain Bersih (Hanya IGN dan ID Duel Links)
   const formatCleanLineup = (lineup: any[] = []) => {
     return lineup
       .slice(0, 5)
@@ -67,7 +44,6 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
       .join('\n');
   };
 
-  // 2. Format Game Logs Bertingkat (Status score dibold: **W — L**)
   const games: any[] = reportData.games || [];
   const skillsMap: Record<string, string> = (await kv.get('twi:master_skills')) || {};
 
@@ -90,22 +66,15 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     if (isDecklossA) tagA = 'TL';
     if (isDecklossB) tagB = 'TL';
 
-    // Format Deck & Skill Pemain A
-    const shortSkillA = g.playerA?.skill ? (skillsMap[g.playerA.skill] || g.playerA.skill) : '';
+    const shortSkillA = g.playerA?.skill ? skillsMap[g.playerA.skill] || g.playerA.skill : '';
     const deckA = g.playerA?.archetype || 'Unknown';
     const deckAStr = shortSkillA ? `(${deckA} • ${shortSkillA})` : `(${deckA})`;
 
-    // Format Deck & Skill Pemain B
-    const shortSkillB = g.playerB?.skill ? (skillsMap[g.playerB.skill] || g.playerB.skill) : '';
+    const shortSkillB = g.playerB?.skill ? skillsMap[g.playerB.skill] || g.playerB.skill : '';
     const deckB = g.playerB?.archetype || 'Unknown';
     const deckBStr = shortSkillB ? `(${deckB} • ${shortSkillB})` : `(${deckB})`;
 
-    // Baris 1: Score dibold (**W — L**)
-    const rowPlayer = `• G${g.gameNumber}: ${g.playerA.ign} **${tagA} — ${tagB}** ${g.playerB.ign}`;
-    // Baris 2: Sub-baris matchup deck & skill
-    const rowDeck = `  └ ${deckAStr} vs ${deckBStr}`;
-
-    return `${rowPlayer}\n${rowDeck}`;
+    return `• G${g.gameNumber}: ${g.playerA.ign} **${tagA} — ${tagB}** ${g.playerB.ign}\n  └ ${deckAStr} vs ${deckBStr}`;
   });
 
   let glossaryText = '';
@@ -117,7 +86,6 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     glossaryText = `\n\n*Keterangan: TL = Technical Loss (Deckloss)*`;
   }
 
-  // 3. Kalkulasi MVP & Catatan Match
   const winCounts: Record<string, { ign: string; team: string; wins: number }> = {};
   games.forEach((g: any) => {
     const winnerPlayer = g.winner === 'teamA' ? g.playerA : g.playerB;
@@ -130,8 +98,7 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     }
   });
 
-  const sortedMvp = Object.values(winCounts).sort((a, b) => b.wins - a.wins);
-  const topMvp = sortedMvp[0];
+  const topMvp = Object.values(winCounts).sort((a, b) => b.wins - a.wins)[0];
   const mvpText = topMvp
     ? `**${topMvp.ign}** (${topMvp.wins} Kemenangan)\n— Menjadi kontributor poin kemenangan bagi ${topMvp.team}.`
     : '-';
@@ -147,7 +114,6 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
   });
   const violationNote = violations.length > 0 ? violations.join(' ') : 'Tidak ada pelanggaran kartu/SS Hand selama duel.';
 
-  // 4. Susunan Embed Resmi CH_SCORE_REPORT
   const officialEmbed = {
     title: '🏆 OFFICIAL MATCH REPORT',
     color: hexToDecimal(scoreA >= 10 ? '#3b82f6' : '#ef4444'),
@@ -176,7 +142,6 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     footer: { text: getEmbedFooterText() },
   };
 
-  // 5. Eksekusi PATCH jika sudah ada, atau POST baru (Idempotent)
   try {
     const rawMsg = await kv.hget<any>('discord:match_messages', match.id);
     let msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
