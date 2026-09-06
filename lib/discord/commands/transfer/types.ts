@@ -1,15 +1,8 @@
 import { kv } from '@vercel/kv';
-import { isValidSnowflake } from '@/lib/discord/utils';
+import { isValidSnowflake, parsePlayers, PlayerItem } from '@/lib/discord/utils';
 
-export interface PlayerItem {
-  role: 'Ketua' | 'Wakil Ketua' | 'Anggota';
-  namaLengkap: string;
-  discord: string;
-  discordId: string;
-  ign: string;
-  idDuelLinks: string;
-  teamsJoinedCount?: number;
-}
+// Re-export agar sub-command di folder transfer tetap kompatibel
+export { parsePlayers, type PlayerItem };
 
 export interface TeamKVData {
   [key: string]: unknown;
@@ -55,7 +48,7 @@ export interface TransferContext {
   opts: any[];
 }
 
-// ── Utilitas Parsing & Format ───────────────────────────────────
+// ── Utilitas Format & Query Transfer ────────────────────────────
 
 export function formatDuelId(input: string): string {
   if (!input) return '-';
@@ -66,15 +59,6 @@ export function formatDuelId(input: string): string {
 
 export function cleanDuelId(input: string): string {
   return (input || '').replace(/\D/g, '');
-}
-
-export function parsePlayers(playersData: any): PlayerItem[] {
-  if (Array.isArray(playersData)) return playersData;
-  try {
-    return JSON.parse(playersData);
-  } catch {
-    return [];
-  }
 }
 
 export function findPlayerIndex(players: PlayerItem[], targetInput: string): number {
@@ -95,7 +79,7 @@ export async function getTeamBySlug(slug: string): Promise<{ key: string; data: 
   return { key, data };
 }
 
-// 🔍 Resolusi Tunggal Discord ID (Mencegah bug <@username>)
+// 🔍 Resolusi Tunggal Discord ID (Fallback global:verified_users)
 export async function resolveDiscordId(discordUsername?: string, existingId?: string): Promise<string | null> {
   if (existingId && isValidSnowflake(existingId)) return existingId;
   if (!discordUsername) return null;
