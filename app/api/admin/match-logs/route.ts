@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
         .toLowerCase()
         .replace(/\s+/g, '-');
 
+      // Ambil roster pemain Tim A dan Tim B
       const [rawPlayersA, rawPlayersB] = await Promise.all([
         teamASlug ? kv.hget<any>(`teams:${teamASlug}`, 'players') : null,
         teamBSlug ? kv.hget<any>(`teams:${teamBSlug}`, 'players') : null,
@@ -49,8 +50,10 @@ export async function GET(req: NextRequest) {
         ? JSON.parse(rawPlayersB)
         : [];
 
+      // Susun mapping resolusi pemain: id / username / ign -> { teamSlug, ign }
       const playerTeamMap: Record<string, { teamSlug: string; ign: string }> = {};
 
+      // 1. Roster Tim A
       playersA.forEach((p: any) => {
         const teamSlug = teamASlug;
         const ign = p.ign || p.namaLengkap || p.discord;
@@ -58,6 +61,7 @@ export async function GET(req: NextRequest) {
         if (p.ign) playerTeamMap[p.ign.trim().toLowerCase()] = { teamSlug, ign };
       });
 
+      // 2. Roster Tim B
       playersB.forEach((p: any) => {
         const teamSlug = teamBSlug;
         const ign = p.ign || p.namaLengkap || p.discord;
@@ -65,6 +69,7 @@ export async function GET(req: NextRequest) {
         if (p.ign) playerTeamMap[p.ign.trim().toLowerCase()] = { teamSlug, ign };
       });
 
+      // 3. Tambahkan dari global:discord
       if (globalDiscordMap) {
         Object.entries(globalDiscordMap).forEach(([discordUser, slug]) => {
           const cleanUser = discordUser.trim().toLowerCase();
@@ -77,6 +82,7 @@ export async function GET(req: NextRequest) {
         });
       }
 
+      // 4. Tambahkan dari global:ign
       if (globalIgnMap) {
         Object.entries(globalIgnMap).forEach(([ignKey, slug]) => {
           const cleanIgn = ignKey.trim().toLowerCase();
@@ -89,6 +95,7 @@ export async function GET(req: NextRequest) {
         });
       }
 
+      // 5. Resolusi userId dari global:verified_users (ID Discord -> Username Discord -> TeamSlug/IGN)
       if (globalVerifiedUsers) {
         Object.entries(globalVerifiedUsers).forEach(([k, v]) => {
           const isKeyId = /^\d{17,20}$/.test(k);
@@ -120,7 +127,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. Ambil list schedules yang valid
+    // 2. Ambil list schedules yang valid (aktif / sudah dibackup)
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const validArchivedSchedules = schedules.filter((m: any) => {
       const hasActiveChannel = Boolean(m.discordChannelId && String(m.discordChannelId).trim() !== '');
@@ -143,18 +150,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'matchId dan channelId wajib disertakan' }, { status: 400 });
     }
 
+    // Panggil helper backup dengan membawa parameter includeBots
     const { channelName, messages } = await backupDiscordChannelMessages({
       matchId,
       channelId,
       week: Number(week) || 1,
+      includeBots,
     });
 
-    // Filter pesan bot jika toggle tidak diaktifkan
-    const filteredMessages = includeBots
-      ? messages
-      : messages.filter((m: any) => !m.isBot && !m.author?.bot);
-
-    const payload = { channelName, logs: filteredMessages };
+    const payload = { channelName, logs: messages };
     await kv.set(`twi:match_logs:${matchId}`, payload);
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
@@ -172,10 +176,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil mencadangkan ${filteredMessages.length} pesan.`,
+      message: `Berhasil mencadangkan ${messages.length} pesan.`,
       channelName,
-      count: filteredMessages.length,
-      logs: filteredMessages,
+      count: messages.length,
+      logs: messages,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
