@@ -6,7 +6,7 @@ import { MatchScheduleItem } from "@/app/tournament/_library/types";
 import { MatchSearchInput } from "./_components/match-search-input";
 import { MatchChatCard } from "./_components/match-chat-card";
 import { ChatLogMessage } from "./_components/chat-message-item";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Hash } from "lucide-react";
 import Swal from "sweetalert2";
 
 function MatchLogViewerContent() {
@@ -71,7 +71,7 @@ function MatchLogViewerContent() {
     [schedules, selectedMatchId]
   );
 
-  const handleBackupNow = async () => {
+  const handleBackupNow = async (includeBots: boolean) => {
     if (!activeMatch) return;
     const channelId = activeMatch.discordChannelId;
     if (!channelId) {
@@ -93,6 +93,7 @@ function MatchLogViewerContent() {
           matchId: activeMatch.id,
           channelId,
           week: activeMatch.weekNumber || 1,
+          includeBots,
         }),
       });
 
@@ -170,19 +171,29 @@ function MatchLogViewerContent() {
     }
   };
 
+  const displayChannelName = channelName || (activeMatch ? `⚔️-${activeMatch.id}` : "");
+
   return (
     <main className="flex-1 min-h-0 w-full max-w-4xl mx-auto px-3 py-2 flex flex-col gap-2 overflow-hidden">
-      {/* Search Bar Tetap */}
-      <div className="shrink-0">
-        <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
+      {/* SEARCH BAR MATCH + BADGE NAMA CHANNEL */}
+      <div className="shrink-0 flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
+        </div>
+
+        {selectedMatchId && activeMatch && (
+          <span className="px-2.5 h-10 rounded-xl bg-card border border-border text-muted-foreground font-medium font-mono text-[11px] inline-flex items-center gap-1.5 shrink-0 max-w-[170px] sm:max-w-[220px] shadow-2xs">
+            <Hash className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+            <span className="truncate">{displayChannelName}</span>
+          </span>
+        )}
       </div>
 
-      {/* Konten Chat Otomatis Menyesuaikan Sisa Layar */}
+      {/* KONTEN CHAT */}
       {selectedMatchId && activeMatch ? (
         <div className="flex-1 min-h-0 flex flex-col">
           <MatchChatCard
             match={activeMatch}
-            channelName={channelName}
             logs={activeLogs}
             loadingChat={loadingChat}
             isBackingUp={isBackingUp}
