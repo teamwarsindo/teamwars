@@ -1,7 +1,7 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
 import { StaffItem } from '@/lib/discord/services/staff-assignment';
-import { parsePlayers } from '@/lib/discord/services/transfer-service';
+import { parsePlayers } from '@/lib/discord/utils';
 import { filterChoices } from './types';
 
 export async function handleAssignAutocomplete(interaction: any) {
