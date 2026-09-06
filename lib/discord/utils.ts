@@ -1,5 +1,28 @@
 import nacl from 'tweetnacl';
 
+// ── ROSTER TYPES & UTILS GLOBAL ────────────────────────────────
+
+export interface PlayerItem {
+  role: 'Ketua' | 'Wakil Ketua' | 'Anggota';
+  namaLengkap: string;
+  discord: string;
+  discordId: string;
+  ign: string;
+  idDuelLinks: string;
+  teamsJoinedCount?: number;
+}
+
+export function parsePlayers(playersData: any): PlayerItem[] {
+  if (Array.isArray(playersData)) return playersData;
+  try {
+    return JSON.parse(playersData);
+  } catch {
+    return [];
+  }
+}
+
+// ── DISCORD ID & API UTILS ─────────────────────────────────────
+
 export function isValidSnowflake(id?: string): boolean {
   return !!id && /^\d{17,20}$/.test(id);
 }
@@ -7,7 +30,7 @@ export function isValidSnowflake(id?: string): boolean {
 export async function discordAPI(endpoint: string, method: string, body?: any) {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) {
-    console.error("❌ DISCORD_BOT_TOKEN tidak ditemukan di .env");
+    console.error('❌ DISCORD_BOT_TOKEN tidak ditemukan di .env');
     return null;
   }
 
@@ -15,7 +38,7 @@ export async function discordAPI(endpoint: string, method: string, body?: any) {
     const res = await fetch(`https://discord.com/api/v10${endpoint}`, {
       method,
       headers: {
-        'Authorization': `Bot ${token}`,
+        Authorization: `Bot ${token}`,
         'Content-Type': 'application/json',
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -55,14 +78,23 @@ export function verifySignature(rawBody: string, signature: string | null, times
   }
 }
 
-export const toProperCase = (str: string) => str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.substring(1).toLowerCase());
-export const getWIBTime = () => new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "long", timeStyle: "medium" });
+// ── STRING & TIME FORMATTERS ───────────────────────────────────
+
+export const toProperCase = (str: string) =>
+  str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.substring(1).toLowerCase());
+
+export const getWIBTime = () =>
+  new Date().toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    dateStyle: 'long',
+    timeStyle: 'medium',
+  });
 
 export function formatWIBDate(dateRaw?: string | Date): string {
   if (!dateRaw) return 'Belum ditentukan';
   const d = new Date(dateRaw);
   if (isNaN(d.getTime())) return 'Belum ditentukan';
-  
+
   return (
     d.toLocaleDateString('id-ID', {
       weekday: 'long',
@@ -86,8 +118,8 @@ export function formatWIBDate(dateRaw?: string | Date): string {
 
 export function getFooterText(createdAt?: string, updatedAt?: string) {
   const waktuBuat = createdAt ? formatWIBDate(createdAt) : formatWIBDate(new Date());
-  return updatedAt 
-    ? `Registered: ${waktuBuat}\nLast Updated: ${formatWIBDate(updatedAt)}` 
+  return updatedAt
+    ? `Registered: ${waktuBuat}\nLast Updated: ${formatWIBDate(updatedAt)}`
     : `Registered: ${waktuBuat}`;
 }
 
