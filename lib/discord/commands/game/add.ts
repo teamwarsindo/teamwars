@@ -27,7 +27,10 @@ export async function handleGameAdd(ctx: GameContext) {
   const rawDeckB = String(optMap.deck_b || '').trim();
   const ssHandA = optMap.ss_hand_a !== undefined ? Boolean(optMap.ss_hand_a) : true;
   const ssHandB = optMap.ss_hand_b !== undefined ? Boolean(optMap.ss_hand_b) : true;
-  const isDecklossOpt = Boolean(optMap.is_deckloss);
+
+  // 🎯 SINKRONISASI DENGAN tournamentCommands (tipe_game)
+  const tipeGame = String(optMap.tipe_game || 'NORMAL').toUpperCase();
+  const isDecklossOpt = tipeGame === 'DECKLOSS_TIMER';
   const notes = optMap.catatan || '';
 
   const isRepeatA = rawDeckA.startsWith('REPEAT:');
@@ -50,7 +53,7 @@ export async function handleGameAdd(ctx: GameContext) {
   if (!dA) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckAName}** milik ${pA.ign} tidak valid!` });
   if (!dB) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckBName}** milik ${pB.ign} tidak valid!` });
 
-  // 📸 1. SIMPAN SNAPSHOT UTUH SEBELUM TERJADI MUTASI APAPUN
+  // 📸 1. SIMPAN SNAPSHOT KONDISI TIM SEBELUM MUTASI DATA
   const snapshotBeforeGame = {
     teamA: JSON.parse(JSON.stringify(reportData.teamA)),
     teamB: JSON.parse(JSON.stringify(reportData.teamB)),
@@ -105,7 +108,7 @@ export async function handleGameAdd(ctx: GameContext) {
     pA.totalLosses = (pA.totalLosses || 0) + 1;
   }
 
-  // 4. Warning SS Hand (hanya dihitung jika duel normal, bukan penalti timer)
+  // 4. Warning SS Hand (hanya dihitung jika duel normal, sanksi timer tidak menambah counter)
   if (!isDecklossOpt) {
     if (!ssHandA) reportData.teamA.warningsUsed = (reportData.teamA.warningsUsed || 0) + 1;
     if (!ssHandB) reportData.teamB.warningsUsed = (reportData.teamB.warningsUsed || 0) + 1;
@@ -136,7 +139,7 @@ export async function handleGameAdd(ctx: GameContext) {
     decklossTeam: isDecklossOpt ? loserTeamKey : '',
     notes: notes || (isDecklossOpt ? 'Sanksi Deckloss (Timer Habis)' : ''),
     timestamp: new Date().toISOString(),
-    snapshot: snapshotBeforeGame, // 👈 Kunci utama rollback otomatis tanpa bug repeat
+    snapshot: snapshotBeforeGame,
   };
 
   if (!reportData.games) reportData.games = [];
@@ -148,22 +151,22 @@ export async function handleGameAdd(ctx: GameContext) {
   reportData.isFinished = isTeamAWon || isTeamBWon;
   reportData.winnerTeam = isTeamAWon ? 'teamA' : isTeamBWon ? 'teamB' : null;
 
-  // 5. Instruksi Ronde Berikutnya via Renderer
+  // 5. Evaluasi Instruksi Ronde Berikutnya
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
 
-  // Jika ini game deckloss timer dan belum selesai, modifikasi instruksi untuk menyertakan Extra Timer 3 Menit
+  // Jika ini game deckloss timer dan pertandingan belum selesai, susun instruksi dengan format standar
   if (isDecklossOpt && !reportData.isFinished) {
     const penaltyTeam = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
     const penaltyPlayer = winnerOpt === 'A' ? pB : pA;
     const innocentPlayer = winnerOpt === 'A' ? pA : pB;
-
     const nextGameNumber = gameNumber + 1;
-    const instructionLines: string[] = [];
 
+    const instructionLines: string[] = [];
+    instructionLines.push(`• **${penaltyTeam.name}** (Sanksi Deckloss Timer)`);
     if ((penaltyPlayer.remainingLife || 0) <= 0) {
-      instructionLines.push(`• **${penaltyTeam.name}** (Next player) — Extra Timer 3 Menit`);
+      instructionLines.push(`  └ **${penaltyTeam.name}** (Next player) — Extra Timer 3 Menit`);
     } else {
-      instructionLines.push(`• **${penaltyPlayer.ign}** (Next deck) — Extra Timer 3 Menit`);
+      instructionLines.push(`  └ **${penaltyPlayer.ign}** (Next deck) — Extra Timer 3 Menit`);
     }
     instructionLines.push(`• **${innocentPlayer.ign}** (Stay table)`);
 
@@ -190,7 +193,7 @@ export async function handleGameAdd(ctx: GameContext) {
     const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
     const innocentTeam = isTeamAPenalty ? reportData.teamB : reportData.teamA;
     const innocentTeamKey = isTeamAPenalty ? 'teamB' : 'teamA';
-    const components = buildDecklossClaimMenu(match.id, innocentTeamKey, innocentTeam);
+    const components = buildDecklossClaimMenu(match.id, innocentTeamKey, innocentTeam, 'warning');
 
     if (components) {
       return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
@@ -212,4 +215,3 @@ export async function handleGameAdd(ctx: GameContext) {
     content: successMsg,
   });
 }
-  
