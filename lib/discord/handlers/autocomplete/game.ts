@@ -106,17 +106,26 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupA: any[] = reportData.teamA?.lineup || [];
       let eligiblePlayers: any[] = [];
 
-      // Hanya kunci pemain jika Tim A adalah PEMENANG game terakhir (Stay table)
-      if (lastGame && lastGame.winner === 'teamA') {
+      if (lastGame) {
         const lastPlayerA = lineupA.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerA?.ign || '').toLowerCase()
         );
-        if (lastPlayerA && (lastPlayerA.remainingLife ?? 2) > 0) {
-          eligiblePlayers = [lastPlayerA];
+
+        // KUNCI 1: Pemenang wajib stay table
+        if (lastGame.winner === 'teamA') {
+          if (lastPlayerA && (lastPlayerA.remainingLife ?? 2) > 0) {
+            eligiblePlayers = [lastPlayerA];
+          }
+        }
+        // KUNCI 2: Jika kalah tapi masih ada sisa nyawa/deck, wajib selesaikan nyawa keduanya
+        else if (lastGame.winner === 'teamB') {
+          if (lastPlayerA && (lastPlayerA.remainingLife ?? 0) > 0) {
+            eligiblePlayers = [lastPlayerA];
+          }
         }
       }
 
-      // Jika Game 1, atau Tim A kalah / pemain gugur: buka pilihan seluruh pemain yang masih punya nyawa / hak repeat
+      // Jika Game 1, atau pemain ronde sebelumnya telah gugur total (sisa 0 nyawa)
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupA.filter((p) => {
           const hasWonPhysically = hasPlayerPhysicalWin(games, p.ign);
@@ -169,17 +178,26 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupB: any[] = reportData.teamB?.lineup || [];
       let eligiblePlayers: any[] = [];
 
-      // Hanya kunci pemain jika Tim B adalah PEMENANG game terakhir (Stay table)
-      if (lastGame && lastGame.winner === 'teamB') {
+      if (lastGame) {
         const lastPlayerB = lineupB.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerB?.ign || '').toLowerCase()
         );
-        if (lastPlayerB && (lastPlayerB.remainingLife ?? 2) > 0) {
-          eligiblePlayers = [lastPlayerB];
+
+        // KUNCI 1: Pemenang wajib stay table
+        if (lastGame.winner === 'teamB') {
+          if (lastPlayerB && (lastPlayerB.remainingLife ?? 2) > 0) {
+            eligiblePlayers = [lastPlayerB];
+          }
+        }
+        // KUNCI 2: Jika kalah tapi masih ada sisa nyawa/deck, wajib selesaikan nyawa keduanya
+        else if (lastGame.winner === 'teamA') {
+          if (lastPlayerB && (lastPlayerB.remainingLife ?? 0) > 0) {
+            eligiblePlayers = [lastPlayerB];
+          }
         }
       }
 
-      // Jika Game 1, atau Tim B kalah / pemain gugur: buka pilihan seluruh pemain yang masih punya nyawa / hak repeat
+      // Jika Game 1, atau pemain ronde sebelumnya telah gugur total (sisa 0 nyawa)
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupB.filter((p) => {
           const hasWonPhysically = hasPlayerPhysicalWin(games, p.ign);
