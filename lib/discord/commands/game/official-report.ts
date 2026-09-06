@@ -63,8 +63,17 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
 
     if (g.playerA?.isRepeat) tagA = isAWin ? 'WR' : 'LR';
     if (g.playerB?.isRepeat) tagB = isAWin ? 'LR' : 'WR';
-    if (isDecklossA) tagA = 'TL';
-    if (isDecklossB) tagB = 'TL';
+
+    // Format Sanksi Deckloss: TW — TL atau TL — TW
+    if (g.isDeckloss) {
+      if (isDecklossA) {
+        tagA = 'TL';
+        tagB = 'TW';
+      } else if (isDecklossB) {
+        tagA = 'TW';
+        tagB = 'TL';
+      }
+    }
 
     const shortSkillA = g.playerA?.skill ? skillsMap[g.playerA.skill] || g.playerA.skill : '';
     const deckA = g.playerA?.archetype || 'Unknown';
@@ -77,13 +86,14 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
     return `• G${g.gameNumber}: ${g.playerA.ign} **${tagA} — ${tagB}** ${g.playerB.ign}\n  └ ${deckAStr} vs ${deckBStr}`;
   });
 
+  // Glosarium Keterangan
   let glossaryText = '';
   if (hasRepeat && hasDeckloss) {
-    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*`;
+    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat) • TW/TL = Technical Win/Loss (Deckloss)*`;
   } else if (hasRepeat) {
     glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat)*`;
   } else if (hasDeckloss) {
-    glossaryText = `\n\n*Keterangan: TL = Technical Loss (Deckloss)*`;
+    glossaryText = `\n\n*Keterangan: TW/TL = Technical Win/Loss (Deckloss)*`;
   }
 
   const winCounts: Record<string, { ign: string; team: string; wins: number }> = {};
@@ -106,13 +116,24 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
   const winnerTeamName = scoreA >= 10 ? reportData.teamA.name : reportData.teamB.name;
   const matchSummaryText = `Pertandingan berlangsung sengit hingga Game ${games.length}. **${winnerTeamName}** keluar sebagai pemenang setelah berhasil mengunci target skor 10.`;
 
+  // Rekap Catatan Insiden / Audit Trail
   const violations: string[] = [];
   games.forEach((g: any) => {
-    if (g.ssHandA === false) violations.push(`1x Warning SS Hand dicatat atas nama **${g.playerA?.ign}** pada Game ${g.gameNumber}.`);
-    if (g.ssHandB === false) violations.push(`1x Warning SS Hand dicatat atas nama **${g.playerB?.ign}** pada Game ${g.gameNumber}.`);
-    if (g.isDeckloss) violations.push(`Sanksi Deckloss dijatuhkan kepada **${g.decklossTeam === 'teamA' ? reportData.teamA.name : reportData.teamB.name}** pada Game ${g.gameNumber}.`);
+    if (g.ssHandA === false) {
+      violations.push(`1x Warning SS Hand dicatat atas nama **${g.playerA?.ign}** pada Game ${g.gameNumber}.`);
+    }
+    if (g.ssHandB === false) {
+      violations.push(`1x Warning SS Hand dicatat atas nama **${g.playerB?.ign}** pada Game ${g.gameNumber}.`);
+    }
+    if (g.isDeckloss) {
+      const penaltyTeamName = g.decklossTeam === 'teamA' ? reportData.teamA.name : reportData.teamB.name;
+      const detailNote = g.notes ? ` (${g.notes})` : '';
+      violations.push(`Sanksi Deckloss dijatuhkan kepada **${penaltyTeamName}** pada Game ${g.gameNumber}${detailNote}.`);
+    } else if (g.notes && g.notes.trim()) {
+      violations.push(`Game ${g.gameNumber}: ${g.notes.trim()}`);
+    }
   });
-  const violationNote = violations.length > 0 ? violations.join(' ') : 'Tidak ada pelanggaran kartu/SS Hand selama duel.';
+  const violationNote = violations.length > 0 ? violations.join('\n• ') : 'Tidak ada pelanggaran kartu/SS Hand selama duel.';
 
   const officialEmbed = {
     title: '🏆 OFFICIAL MATCH REPORT',
@@ -138,7 +159,7 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
       `📝 **Match Summary:**\n` +
       `• **MVP Match:** ${mvpText}\n` +
       `• **Ringkasan Duel:** ${matchSummaryText}\n` +
-      `• **Catatan Pertandingan:** ${violationNote}`,
+      `• **Catatan Pertandingan:**\n• ${violationNote}`,
     footer: { text: getEmbedFooterText() },
   };
 
@@ -172,4 +193,4 @@ export async function syncOfficialMatchReport(match: any, reportData: any) {
   } catch (err) {
     console.error('Error saat sync official match report:', err);
   }
-}
+    }
