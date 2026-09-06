@@ -84,8 +84,9 @@ export async function backupDiscordChannelMessages(params: {
   channelId: string;
   matchId: string;
   week: number;
+  includeBots?: boolean;
 }): Promise<BackupResult> {
-  const { channelId, matchId, week } = params;
+  const { channelId, matchId, week, includeBots = false } = params;
   const guildId = DISCORD_CONFIG.GUILD_ID;
 
   await ensureMatchLogsFolderExists();
@@ -127,8 +128,12 @@ export async function backupDiscordChannelMessages(params: {
     if (batch.length < 100) hasMore = false;
   }
 
-  // Filter bot DAN filter pesan pin sistem (type === 6 adalah Pinned Message)
-  const userMessages = allMessages.filter((msg: any) => !msg.author?.bot && msg.type !== 6);
+  // Filter pesan sistem pin (type === 6). Bot hanya di-filter jika includeBots === false
+  const userMessages = allMessages.filter((msg: any) => {
+    if (msg.type === 6) return false;
+    if (!includeBots && msg.author?.bot) return false;
+    return true;
+  });
 
   const uniqueAuthorIds = Array.from(new Set(userMessages.map((m: any) => m.author.id)));
   const memberDetailsMap: Record<string, { nick?: string; roles: string[] }> = {};
@@ -165,7 +170,6 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Rekam mention dari pesan yang dibalas agar tidak menghasilkan @User
     if (msg.referenced_message && Array.isArray(msg.referenced_message.mentions)) {
       msg.referenced_message.mentions.forEach((u: any) => {
         const targetMember = memberDetailsMap[u.id];
@@ -185,7 +189,6 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Rekam channel mention (<#channelId>)
     const channelMentions: Record<string, { name: string }> = {};
     const channelMatches = (msg.content || '').match(/<#(\d+)>/g);
     if (channelMatches) {
@@ -202,7 +205,7 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
-    // 1. Forwarded Message (Pastikan bersih dari reply)
+    // 1. Forwarded Message
     let forwarded: SavedChatLogItem['forwarded'] = undefined;
     if (Array.isArray(msg.message_snapshots) && msg.message_snapshots.length > 0) {
       const snap = msg.message_snapshots[0]?.message;
@@ -248,7 +251,7 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
-    // 2. Reply Resolution (Hanya jika bukan forward)
+    // 2. Reply Resolution
     let replyTo: SavedChatLogItem['replyTo'] = undefined;
     if (!forwarded && msg.message_reference) {
       if (msg.referenced_message) {
@@ -274,10 +277,19 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
-    // Embed & Attachments biasa
+    // Ekstraksi konten embed (karena bot Discord sering mengirim teks di embed)
+    let extractedContent = msg.content || '';
     if (Array.isArray(msg.embeds) && msg.embeds.length > 0) {
       for (let eIdx = 0; eIdx < msg.embeds.length; eIdx++) {
         const embed = msg.embeds[eIdx];
+
+        // Jika pesan bot tidak punya content, ambil dari embed title & description
+        if (!extractedContent && (embed.title || embed.description)) {
+          const title = embed.title ? `**${embed.title}**\n` : '';
+          const desc = embed.description || '';
+          extractedContent = `${title}${desc}`.trim();
+        }
+
         const mediaUrl = embed.image?.url || embed.thumbnail?.url;
         if (mediaUrl && (embed.type === 'gifv' || embed.type === 'image')) {
           const public_id = `w${week}_${matchId}_emb_${msg.id}_${eIdx}`;
@@ -291,6 +303,7 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
+    // Attachments biasa
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
@@ -318,7 +331,7 @@ export async function backupDiscordChannelMessages(params: {
       authorAvatar: msg.author.avatar
         ? `https://cdn.discordapp.com/avatars/${msg.author.id}/${msg.author.avatar}.webp?size=64`
         : 'https://cdn.discordapp.com/embed/avatars/0.png',
-      content: msg.content || '',
+      content: extractedContent,
       timestamp: msg.timestamp,
       userMentions,
       roleMentions,
@@ -333,4 +346,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-}
+    }
