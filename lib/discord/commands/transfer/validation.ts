@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { getTeamBySlug, parsePlayers, cleanDuelId, PlayerItem } from './transfer-types';
+import { getTeamBySlug, parsePlayers, cleanDuelId, PlayerItem } from './types';
 
 export async function getConflictingPlayerDetails(
   teamSlug: string,
@@ -34,9 +34,11 @@ export async function validateAddAvailability(
   formattedDl: string,
   cleanDl: string
 ) {
-  // 1. Cek di tim sendiri
+  // 1. Cek di roster tim sendiri
   const existingInTeam = players.find(
-    (p) => p.ign.toLowerCase() === cleanIgn.toLowerCase() || (p.discordId && p.discordId === targetDiscordId)
+    (p) =>
+      p.ign.toLowerCase() === cleanIgn.toLowerCase() ||
+      (p.discordId && p.discordId === targetDiscordId)
   );
   if (existingInTeam) {
     throw new Error(
@@ -44,7 +46,7 @@ export async function validateAddAvailability(
     );
   }
 
-  // 2. Cek ID Duel Links di tim lain
+  // 2. Cek apakah ID Duel Links aktif di tim lain
   const existingTeamByDl = await kv.hget<string>('global:duellinks', cleanDl);
   if (existingTeamByDl && existingTeamByDl !== teamSlug) {
     const detail = await getConflictingPlayerDetails(existingTeamByDl, { dl: cleanDl });
@@ -53,7 +55,7 @@ export async function validateAddAvailability(
     );
   }
 
-  // 3. Cek IGN di tim lain
+  // 3. Cek apakah IGN aktif di tim lain
   const existingTeamByIgn = await kv.hget<string>('global:ign', cleanIgn);
   if (existingTeamByIgn && existingTeamByIgn !== teamSlug) {
     const detail = await getConflictingPlayerDetails(existingTeamByIgn, { ign: cleanIgn });
@@ -62,7 +64,7 @@ export async function validateAddAvailability(
     );
   }
 
-  // 4. Cek Akun Discord di tim lain
+  // 4. Cek apakah Akun Discord aktif di tim lain
   const existingTeamByDiscord = await kv.hget<string>('global:discord_ids', targetDiscordId);
   if (existingTeamByDiscord && existingTeamByDiscord !== teamSlug) {
     const detail = await getConflictingPlayerDetails(existingTeamByDiscord, { discordId: targetDiscordId });
