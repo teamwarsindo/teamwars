@@ -27,6 +27,7 @@ export async function handleGameAdd(ctx: GameContext) {
   const rawDeckB = String(optMap.deck_b || '').trim();
   const ssHandA = optMap.ss_hand_a !== undefined ? Boolean(optMap.ss_hand_a) : true;
   const ssHandB = optMap.ss_hand_b !== undefined ? Boolean(optMap.ss_hand_b) : true;
+  const isDecklossOpt = Boolean(optMap.is_deckloss);
   const notes = optMap.catatan || '';
 
   const isRepeatA = rawDeckA.startsWith('REPEAT:');
@@ -49,29 +50,37 @@ export async function handleGameAdd(ctx: GameContext) {
   if (!dA) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckAName}** milik ${pA.ign} tidak valid!` });
   if (!dB) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckBName}** milik ${pB.ign} tidak valid!` });
 
+  // 📸 1. SIMPAN SNAPSHOT UTUH SEBELUM TERJADI MUTASI APAPUN
+  const snapshotBeforeGame = {
+    teamA: JSON.parse(JSON.stringify(reportData.teamA)),
+    teamB: JSON.parse(JSON.stringify(reportData.teamB)),
+  };
+
   const gameNumber = (reportData.games?.length || 0) + 1;
 
-  // 1. Aktivasi Repeat
-  if (isRepeatA && !dA.isRepeatUsed) {
-    dA.isRepeatUsed = true;
-    dA.isDead = false;
-    if (dA === pA.deck1 && pA.deck2) pA.deck2.isDead = true;
-    if (dA === pA.deck2 && pA.deck1) pA.deck1.isDead = true;
-    pA.remainingLife = 1;
+  // 2. Aktivasi Repeat (Hanya jika duel fisik normal)
+  if (!isDecklossOpt) {
+    if (isRepeatA && !dA.isRepeatUsed) {
+      dA.isRepeatUsed = true;
+      dA.isDead = false;
+      if (dA === pA.deck1 && pA.deck2) pA.deck2.isDead = true;
+      if (dA === pA.deck2 && pA.deck1) pA.deck1.isDead = true;
+      pA.remainingLife = 1;
+    }
+
+    if (isRepeatB && !dB.isRepeatUsed) {
+      dB.isRepeatUsed = true;
+      dB.isDead = false;
+      if (dB === pB.deck1 && pB.deck2) pB.deck2.isDead = true;
+      if (dB === pB.deck2 && pB.deck1) pB.deck1.isDead = true;
+      pB.remainingLife = 1;
+    }
+
+    reportData.teamA.repeatsUsed = lineupA.reduce((count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0), 0);
+    reportData.teamB.repeatsUsed = lineupB.reduce((count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0), 0);
   }
 
-  if (isRepeatB && !dB.isRepeatUsed) {
-    dB.isRepeatUsed = true;
-    dB.isDead = false;
-    if (dB === pB.deck1 && pB.deck2) pB.deck2.isDead = true;
-    if (dB === pB.deck2 && pB.deck1) pB.deck1.isDead = true;
-    pB.remainingLife = 1;
-  }
-
-  reportData.teamA.repeatsUsed = lineupA.reduce((count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0), 0);
-  reportData.teamB.repeatsUsed = lineupB.reduce((count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0), 0);
-
-  // 2. Kalkulasi Skor & Status Hidup
+  // 3. Kalkulasi Skor & Status Hidup
   if (winnerOpt === 'A') {
     reportData.teamA.score = scoreA + 1;
     dA.wins = (dA.wins || 0) + 1;
@@ -96,21 +105,38 @@ export async function handleGameAdd(ctx: GameContext) {
     pA.totalLosses = (pA.totalLosses || 0) + 1;
   }
 
-  // 3. Warning SS Hand
-  if (!ssHandA) reportData.teamA.warningsUsed = (reportData.teamA.warningsUsed || 0) + 1;
-  if (!ssHandB) reportData.teamB.warningsUsed = (reportData.teamB.warningsUsed || 0) + 1;
+  // 4. Warning SS Hand (hanya dihitung jika duel normal, bukan penalti timer)
+  if (!isDecklossOpt) {
+    if (!ssHandA) reportData.teamA.warningsUsed = (reportData.teamA.warningsUsed || 0) + 1;
+    if (!ssHandB) reportData.teamB.warningsUsed = (reportData.teamB.warningsUsed || 0) + 1;
+  }
+
+  const loserTeamKey = winnerOpt === 'A' ? 'teamB' : 'teamA';
 
   const gameRecord = {
     gameNumber,
     winner: winnerOpt === 'A' ? 'teamA' : 'teamB',
-    playerA: { ign: pA.ign, idDuelLinks: pA.idDuelLinks, archetype: dA.archetype, skill: dA.skill, isRepeat: Boolean(dA.isRepeatUsed) },
-    playerB: { ign: pB.ign, idDuelLinks: pB.idDuelLinks, archetype: dB.archetype, skill: dB.skill, isRepeat: Boolean(dB.isRepeatUsed) },
+    playerA: {
+      ign: pA.ign,
+      idDuelLinks: pA.idDuelLinks,
+      archetype: dA.archetype,
+      skill: dA.skill,
+      isRepeat: Boolean(dA.isRepeatUsed),
+    },
+    playerB: {
+      ign: pB.ign,
+      idDuelLinks: pB.idDuelLinks,
+      archetype: dB.archetype,
+      skill: dB.skill,
+      isRepeat: Boolean(dB.isRepeatUsed),
+    },
     ssHandA,
     ssHandB,
-    isDeckloss: false,
-    decklossTeam: '',
-    notes,
+    isDeckloss: isDecklossOpt,
+    decklossTeam: isDecklossOpt ? loserTeamKey : '',
+    notes: notes || (isDecklossOpt ? 'Sanksi Deckloss (Timer Habis)' : ''),
     timestamp: new Date().toISOString(),
+    snapshot: snapshotBeforeGame, // 👈 Kunci utama rollback otomatis tanpa bug repeat
   };
 
   if (!reportData.games) reportData.games = [];
@@ -122,8 +148,30 @@ export async function handleGameAdd(ctx: GameContext) {
   reportData.isFinished = isTeamAWon || isTeamBWon;
   reportData.winnerTeam = isTeamAWon ? 'teamA' : isTeamBWon ? 'teamB' : null;
 
-  // 4. Instruksi & Sinkronisasi via Renderer
+  // 5. Instruksi Ronde Berikutnya via Renderer
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
+
+  // Jika ini game deckloss timer dan belum selesai, modifikasi instruksi untuk menyertakan Extra Timer 3 Menit
+  if (isDecklossOpt && !reportData.isFinished) {
+    const penaltyTeam = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
+    const penaltyPlayer = winnerOpt === 'A' ? pB : pA;
+    const innocentPlayer = winnerOpt === 'A' ? pA : pB;
+
+    const nextGameNumber = gameNumber + 1;
+    const instructionLines: string[] = [];
+
+    if ((penaltyPlayer.remainingLife || 0) <= 0) {
+      instructionLines.push(`• **${penaltyTeam.name}** (Next player) — Extra Timer 3 Menit`);
+    } else {
+      instructionLines.push(`• **${penaltyPlayer.ign}** (Next deck) — Extra Timer 3 Menit`);
+    }
+    instructionLines.push(`• **${innocentPlayer.ign}** (Stay table)`);
+
+    reportData.currentInstructions = {
+      header: `📢 **Instruksi Game #${nextGameNumber}:**`,
+      lines: instructionLines,
+    };
+  }
 
   if (!isBeforeKickoff) {
     await saveAndSyncMatchState(match, reportData);
@@ -137,7 +185,7 @@ export async function handleGameAdd(ctx: GameContext) {
 
   await publishMatchReport(channelId, match.id, matchEmbed);
 
-  // 5. Select Menu Sanksi Deckloss jika tembus 2x Warning
+  // 6. Select Menu Sanksi Deckloss jika tembus 2x Warning SS Hand
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
     const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
     const innocentTeam = isTeamAPenalty ? reportData.teamB : reportData.teamA;
@@ -156,7 +204,12 @@ export async function handleGameAdd(ctx: GameContext) {
     }
   }
 
+  const successMsg = isDecklossOpt
+    ? `⚖️ **Game ${gameNumber} berhasil dicatat sebagai Sanksi Deckloss (Timer Habis)!**`
+    : `✅ **Game ${gameNumber} berhasil dicatat.**`;
+
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-    content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
+    content: successMsg,
   });
-      }
+}
+  
