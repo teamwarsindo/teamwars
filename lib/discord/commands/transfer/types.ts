@@ -1,6 +1,43 @@
 import { kv } from '@vercel/kv';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI, isValidSnowflake } from '@/lib/discord/utils';
+import { isValidSnowflake } from '@/lib/discord/utils';
+
+export interface PlayerItem {
+  role: 'Ketua' | 'Wakil Ketua' | 'Anggota';
+  namaLengkap: string;
+  discord: string;
+  discordId: string;
+  ign: string;
+  idDuelLinks: string;
+  teamsJoinedCount?: number;
+}
+
+export interface TeamKVData {
+  [key: string]: unknown;
+  namaTim: string;
+  warna: string;
+  logoTim?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  discordRoleId?: string;
+  discordChannelId?: string;
+  trackerMsgId?: string;
+  adminMsgId?: string;
+  transferQuotaUsed?: number;
+  kodeTim?: string;
+  emojiId?: string;
+  players: string | PlayerItem[];
+}
+
+export interface FreeDuelistRecord {
+  [key: string]: unknown;
+  discord: string;
+  discordId: string;
+  idDuelLinks: string;
+  ign: string;
+  lastTeam: string;
+  releasedAt: string;
+  teamsJoinedCount: number;
+}
 
 export interface TransferContext {
   interaction: any;
@@ -14,8 +51,61 @@ export interface TransferContext {
   appId: string;
   teamSlug: string;
   teamName: string;
-  teamData: any;
+  teamData: TeamKVData;
   opts: any[];
+}
+
+// ── Utilitas Parsing & Format ───────────────────────────────────
+
+export function formatDuelId(input: string): string {
+  if (!input) return '-';
+  const clean = input.replace(/\D/g, '');
+  if (clean.length !== 9) return input.trim();
+  return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6, 9)}`;
+}
+
+export function cleanDuelId(input: string): string {
+  return (input || '').replace(/\D/g, '');
+}
+
+export function parsePlayers(playersData: any): PlayerItem[] {
+  if (Array.isArray(playersData)) return playersData;
+  try {
+    return JSON.parse(playersData);
+  } catch {
+    return [];
+  }
+}
+
+export function findPlayerIndex(players: PlayerItem[], targetInput: string): number {
+  if (!targetInput) return -1;
+  const targetClean = targetInput.trim().toLowerCase();
+  return players.findIndex(
+    (p) =>
+      (p.ign && p.ign.toLowerCase() === targetClean) ||
+      (p.discordId && p.discordId.toLowerCase() === targetClean) ||
+      (p.discord && p.discord.toLowerCase() === targetClean)
+  );
+}
+
+export async function getTeamBySlug(slug: string): Promise<{ key: string; data: TeamKVData } | null> {
+  const key = `teams:${slug}`;
+  const data = await kv.hgetall<TeamKVData>(key);
+  if (!data || !data.namaTim) return null;
+  return { key, data };
+}
+
+// 🔍 Resolusi Tunggal Discord ID (Mencegah bug <@username>)
+export async function resolveDiscordId(discordUsername?: string, existingId?: string): Promise<string | null> {
+  if (existingId && isValidSnowflake(existingId)) return existingId;
+  if (!discordUsername) return null;
+
+  const clean = discordUsername.trim();
+  if (isValidSnowflake(clean)) return clean;
+
+  const cleanUsername = clean.toLowerCase().replace(/^@/, '');
+  const id = await kv.hget<string>('global:verified_users', cleanUsername);
+  return id && isValidSnowflake(id) ? id : null;
 }
 
 export function getSubcommandData(interaction: any) {
@@ -35,136 +125,5 @@ export function getWibTimestamp(): string {
       dateStyle: 'medium',
       timeStyle: 'medium',
     }).format(new Date()) + ' WIB'
-  );
-}
-
-// 🔍 Resolusi Discord ID (Fallback ke global:verified_users)
-export async function resolveTargetDiscordId(rawIdentifier?: string): Promise<string | null> {
-  if (!rawIdentifier) return null;
-  const clean = String(rawIdentifier).trim();
-
-  // Jika sudah merupakan Snowflake angka murni
-  if (isValidSnowflake(clean)) return clean;
-
-  // Jika berupa username (dengan atau tanpa @)
-  const cleanUsername = clean.toLowerCase().replace(/^@/, '');
-  const id = await kv.hget<string>('global:verified_users', cleanUsername);
-  return id && isValidSnowflake(id) ? id : null;
-}
-
-export async function sendAdminAuditLog(params: {
-  actorId: string;
-  actorRoleText: string;
-  teamSlug: string;
-  teamName: string;
-  subcommand: string;
-  targetUserId?: string;
-  targetIgn?: string;
-  targetDl?: string;
-  roleChanges?: { added?: string[]; removed?: string[] };
-  quotaUsed?: number;
-  status: 'SUCCESS' | 'FAILED';
-  errorMessage?: string;
-}) {
-  const {
-    actorId,
-    actorRoleText,
-    teamSlug,
-    teamName,
-    subcommand,
-    targetUserId,
-    targetIgn,
-    targetDl,
-    roleChanges,
-    quotaUsed,
-    status,
-    errorMessage,
-  } = params;
-
-  if (!DISCORD_CONFIG.CH_LOG) return;
-
-  const isSuccess = status === 'SUCCESS';
-  const color = isSuccess ? 0x2ecc71 : 0xe74c3c;
-  const title = isSuccess
-    ? `📋 [TRANSFER LOG] /transfer ${subcommand.toUpperCase()} - Berhasil`
-    : `⚠️ [TRANSFER FAILED] /transfer ${subcommand.toUpperCase()} - Gagal`;
-
-  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
-    {
-      name: '👤 Eksekutor / Aktor',
-      value: `<@${actorId}> (\`${actorId}\`)\n**Jabatan:** ${actorRoleText}`,
-      inline: true,
-    },
-    {
-      name: '🛡️ Tim Terkait',
-      value: `**${teamName || teamSlug}** (\`${teamSlug}\`)`,
-      inline: true,
-    },
-  ];
-
-  if (targetUserId) {
-    const isSnowflake = isValidSnowflake(targetUserId);
-    const userMention = isSnowflake ? `<@${targetUserId}>` : `@${targetUserId}`;
-    const targetDetails = [
-      `**Akun:** ${userMention} (\`${targetUserId}\`)`,
-      targetIgn ? `**IGN:** \`${targetIgn}\`` : null,
-      targetDl ? `**ID DL:** \`${targetDl}\`` : null,
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    fields.push({
-      name: '🎯 Target Pemain',
-      value: targetDetails,
-      inline: false,
-    });
-  }
-
-  if (roleChanges) {
-    if (roleChanges.added && roleChanges.added.length > 0) {
-      fields.push({
-        name: '🟢 Role Discord Ditambahkan',
-        value: roleChanges.added.map((r) => `• ${r}`).join('\n'),
-        inline: false,
-      });
-    }
-    if (roleChanges.removed && roleChanges.removed.length > 0) {
-      fields.push({
-        name: '🔴 Role Discord Dicabut / Direset',
-        value: roleChanges.removed.map((r) => `• ${r}`).join('\n'),
-        inline: false,
-      });
-    }
-  }
-
-  if (quotaUsed !== undefined) {
-    fields.push({
-      name: '📊 Sisa Kuota Tim',
-      value: `Terpakai: **${quotaUsed}/2**`,
-      inline: true,
-    });
-  }
-
-  if (!isSuccess && errorMessage) {
-    fields.push({
-      name: '❌ Alasan Error / Kegagalan',
-      value: `\`\`\`${errorMessage}\`\`\``,
-      inline: false,
-    });
-  }
-
-  const payload = {
-    embeds: [
-      {
-        title,
-        color,
-        fields,
-        footer: { text: `Eksekusi: ${getWibTimestamp()} • Team Wars Indonesia` },
-      },
-    ],
-  };
-
-  await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG}/messages`, 'POST', payload).catch((err) =>
-    console.error('[ADMIN AUDIT LOG ERROR]:', err)
   );
 }
