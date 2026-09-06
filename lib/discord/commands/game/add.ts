@@ -1,6 +1,12 @@
 import { kv } from '@vercel/kv';
 import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
-import { GameContext, syncCampTrackers, getTeamEmojiByMatch, resolveStreamDisplay } from './types';
+import {
+  GameContext,
+  syncCampTrackers,
+  getTeamEmojiByMatch,
+  resolveStreamDisplay,
+  hasPlayerPhysicalWin,
+} from './types';
 import { syncOfficialMatchReport } from './official-report';
 
 // Helper format hari dan tanggal Indonesia (Sabtu, 5 September 2026 — 20.00 WIB)
@@ -121,7 +127,7 @@ export async function handleGameAdd(ctx: GameContext) {
     pA.totalLosses = (pA.totalLosses || 0) + 1;
   }
 
-  // 3. Akumulasi Warning SS Hand (Tetap akumulasi bertahap, tanpa auto-deckloss)
+  // 3. Akumulasi Warning SS Hand
   if (!ssHandA) {
     reportData.teamA.warningsUsed = (reportData.teamA.warningsUsed || 0) + 1;
   }
@@ -194,17 +200,19 @@ export async function handleGameAdd(ctx: GameContext) {
     if (g.playerB?.isRepeat) scoreTagB = isAWin ? 'LR' : 'WR';
     if (isDecklossA) scoreTagA = 'TL';
     if (isDecklossB) scoreTagB = 'TL';
+    if (g.isDeckloss && !isDecklossA && isAWin) scoreTagA = 'TW';
+    if (g.isDeckloss && !isDecklossB && !isAWin) scoreTagB = 'TW';
 
     return `• G${g.gameNumber}: ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
   });
 
   let glossaryText = '';
   if (hasRepeatInLogs && hasDecklossInLogs) {
-    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL = Technical Loss (Deckloss)*`;
+    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL/TW = Technical Loss/Win (Deckloss)*`;
   } else if (hasRepeatInLogs) {
     glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat)*`;
   } else if (hasDecklossInLogs) {
-    glossaryText = `\n\n*Keterangan: TL = Technical Loss (Deckloss)*`;
+    glossaryText = `\n\n*Keterangan: TL/TW = Technical Loss/Win (Deckloss)*`;
   }
 
   // 6. Metadata Header Embed
@@ -266,7 +274,8 @@ export async function handleGameAdd(ctx: GameContext) {
     if (isWinnerOut) {
       instructionLines.push(`• **${winnerTeamObj.name}** (Next player)`);
     } else {
-      const canRepeat = winnerTeamRepeatsUsed < 2 && (winnerPlayerObj.totalWins || 0) <= 1;
+      const hasWinnerPhysicalWin = hasPlayerPhysicalWin(reportData.games, winnerPlayerObj.ign);
+      const canRepeat = winnerTeamRepeatsUsed < 2 && !hasWinnerPhysicalWin;
       if (canRepeat) {
         instructionLines.push(`• **${winnerPlayerIgn}** (Next deck or repeat)`);
       } else {
@@ -290,7 +299,8 @@ export async function handleGameAdd(ctx: GameContext) {
       if ((loserPlayerObj.remainingLife ?? 0) <= 0) {
         instructionLines.push(`  └ **${loserTeamObj.name}** (Next player) (Deckloss)`);
       } else {
-        const canRepeat = loserTeamRepeatsUsed < 2 && (loserPlayerObj.totalWins || 0) === 0;
+        const hasLoserPhysicalWin = hasPlayerPhysicalWin(reportData.games, loserPlayerObj.ign);
+        const canRepeat = loserTeamRepeatsUsed < 2 && !hasLoserPhysicalWin;
         if (canRepeat) {
           instructionLines.push(`  └ **${loserPlayerObj.ign}** (Next deck or repeat) (Deckloss)`);
         } else {
@@ -302,7 +312,8 @@ export async function handleGameAdd(ctx: GameContext) {
       if ((loserPlayerObj.remainingLife ?? 0) <= 0) {
         instructionLines.push(`• **${loserTeamObj.name}** (Next player)`);
       } else {
-        const canRepeat = loserTeamRepeatsUsed < 2 && (loserPlayerObj.totalWins || 0) === 0;
+        const hasLoserPhysicalWin = hasPlayerPhysicalWin(reportData.games, loserPlayerObj.ign);
+        const canRepeat = loserTeamRepeatsUsed < 2 && !hasLoserPhysicalWin;
         if (canRepeat) {
           instructionLines.push(`• **${loserPlayerObj.ign}** (Next deck or repeat)`);
         } else {
@@ -390,8 +401,61 @@ export async function handleGameAdd(ctx: GameContext) {
     console.error('Error saat delete-and-repost match report:', err);
   }
 
+  // 11. Cek Sanksi Deckloss: Jika 2x Warning SS Hand terpicu, kirim Select Menu untuk Wasit
+  if (!isMatchEnded && (isTeamAPenalty || isTeamBPenalty)) {
+    const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
+    const innocentTeam = isTeamAPenalty ? reportData.teamB : reportData.teamA;
+    const innocentTeamKey = isTeamAPenalty ? 'teamB' : 'teamA';
+
+    // Ambil pemain lawan yang masih memiliki nyawa aktif
+    const eligiblePlayers = (innocentTeam.lineup || []).filter((p: any) => (p.remainingLife ?? 2) > 0);
+    const selectOptions: any[] = [];
+
+    eligiblePlayers.forEach((p: any) => {
+      if (p.deck1 && !p.deck1.isDead) {
+        selectOptions.push({
+          label: `${p.ign} — ${p.deck1.archetype}`,
+          value: `${innocentTeamKey}::${p.ign}::${p.deck1.archetype}`,
+          description: `Deck 1 • Sisa Life: ${p.remainingLife}`,
+        });
+      }
+      if (p.deck2 && !p.deck2.isDead) {
+        selectOptions.push({
+          label: `${p.ign} — ${p.deck2.archetype}`,
+          value: `${innocentTeamKey}::${p.ign}::${p.deck2.archetype}`,
+          description: `Deck 2 • Sisa Life: ${p.remainingLife}`,
+        });
+      }
+    });
+
+    if (selectOptions.length > 0) {
+      return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
+        content:
+          `✅ **Game ${gameNumber} berhasil dicatat.**\n\n` +
+          `⚠️ **PERINGATAN SANKSI DECKLOSS!**\n` +
+          `• **${penaltyTeam.name}** telah mencapai **2x Warning SS Hand**.\n` +
+          `• Silakan pilih pemain dan deck dari **${innocentTeam.name}** untuk klaim **Technical Win (TW)**:`,
+        components: [
+          {
+            type: 1, // Action Row
+            components: [
+              {
+                type: 3, // String Select Menu
+                custom_id: `deckloss_claim_${match.id}`,
+                placeholder: 'Pilih pemain penerima Technical Win...',
+                min_values: 1,
+                max_values: 1,
+                options: selectOptions.slice(0, 25),
+              },
+            ],
+          },
+        ],
+      });
+    }
+  }
+
+  // Respon standar jika tidak ada penalti 2x Warning
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `✅ **Game ${gameNumber} berhasil dicatat.**`,
   });
-      }
-    
+}
