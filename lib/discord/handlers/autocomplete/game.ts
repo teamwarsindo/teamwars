@@ -106,18 +106,17 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupA: any[] = reportData.teamA?.lineup || [];
       let eligiblePlayers: any[] = [];
 
-      if (lastGame) {
+      // Hanya kunci pemain jika Tim A adalah PEMENANG game terakhir (Stay table)
+      if (lastGame && lastGame.winner === 'teamA') {
         const lastPlayerA = lineupA.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerA?.ign || '').toLowerCase()
         );
-
-        // Kunci jika pemain ronde lalu masih hidup dan BUKAN korban gugur sanksi Deckloss
         if (lastPlayerA && (lastPlayerA.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerA];
         }
       }
 
-      // Jika Game 1, atau pemain sebelumnya sudah gugur total
+      // Jika Game 1, atau Tim A kalah / pemain gugur: buka pilihan seluruh pemain yang masih punya nyawa / hak repeat
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupA.filter((p) => {
           const hasWonPhysically = hasPlayerPhysicalWin(games, p.ign);
@@ -170,18 +169,17 @@ export async function handleGameAutocomplete(interaction: any) {
       const lineupB: any[] = reportData.teamB?.lineup || [];
       let eligiblePlayers: any[] = [];
 
-      if (lastGame) {
+      // Hanya kunci pemain jika Tim B adalah PEMENANG game terakhir (Stay table)
+      if (lastGame && lastGame.winner === 'teamB') {
         const lastPlayerB = lineupB.find(
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerB?.ign || '').toLowerCase()
         );
-
-        // Kunci jika pemain ronde lalu masih hidup dan BUKAN korban gugur sanksi Deckloss
         if (lastPlayerB && (lastPlayerB.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerB];
         }
       }
 
-      // Jika Game 1, atau pemain sebelumnya sudah gugur total
+      // Jika Game 1, atau Tim B kalah / pemain gugur: buka pilihan seluruh pemain yang masih punya nyawa / hak repeat
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupB.filter((p) => {
           const hasWonPhysically = hasPlayerPhysicalWin(games, p.ign);
@@ -248,4 +246,4 @@ export async function handleGameAutocomplete(interaction: any) {
     console.error('Error handleGameAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-}
+      }
