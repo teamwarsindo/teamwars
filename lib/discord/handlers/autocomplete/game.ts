@@ -1,6 +1,7 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
-import { filterChoices, hasPlayerPhysicalWin } from './types';
+import { filterChoices } from './types';
+import { hasPlayerPhysicalWin } from '@/lib/discord/commands/game/types';
 
 async function resolveMatchFromMatchChannel(channelId: string) {
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
