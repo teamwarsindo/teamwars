@@ -2,6 +2,37 @@ import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
 import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
 
+export interface GameSnapshot {
+  teamA: any;
+  teamB: any;
+}
+
+export interface GameRecord {
+  gameNumber: number;
+  winner: 'teamA' | 'teamB';
+  playerA: {
+    ign: string;
+    idDuelLinks?: string;
+    archetype: string;
+    skill?: string;
+    isRepeat?: boolean;
+  };
+  playerB: {
+    ign: string;
+    idDuelLinks?: string;
+    archetype: string;
+    skill?: string;
+    isRepeat?: boolean;
+  };
+  ssHandA: boolean;
+  ssHandB: boolean;
+  isDeckloss?: boolean;
+  decklossTeam?: string;
+  notes?: string;
+  timestamp: string;
+  snapshot?: GameSnapshot;
+}
+
 export interface GameContext {
   interaction: any;
   channelId: string;
@@ -231,6 +262,7 @@ export async function renderCampTrackerEmbed(
 
   const thisTeamPenalty = warningsUsed >= 2;
   const opponentPenalty = (opponent?.warningsUsed || 0) >= 2;
+  const isTimerPenalty = Boolean(lastGame?.isDeckloss && String(lastGame?.notes || '').toLowerCase().includes('timer'));
 
   let sectionTitle = '📢 **Instruksi Pertandingan:**';
   let instructionLines: string[] = [];
@@ -270,17 +302,20 @@ export async function renderCampTrackerEmbed(
     instructionLines.push(`• **${lastPlayer?.ign}** (Stay table)`);
     instructionLines.push(`• Menunggu lawan dari **${opponent.name}**.`);
   } else {
+    // Kondisi kalah duel atau terkena sanksi timer
     const isPlayerDead = (lastPlayerObj?.remainingLife ?? 0) <= 0;
+    const timerTag = isTimerPenalty ? ' — **Extra Timer 3 Menit**' : '';
+
     if (isPlayerDead) {
       instructionLines.push(`• **${lastPlayer?.ign}** telah gugur.`);
-      instructionLines.push(`• **${team.name}** tentukan pemain berikutnya.`);
+      instructionLines.push(`• **${team.name}** tentukan pemain berikutnya${timerTag}.`);
     } else {
       const hasWonPhysically = lastPlayerObj ? hasPlayerPhysicalWin(games, lastPlayerObj.ign) : false;
       const canRepeat = repeatsUsed < 2 && !hasWonPhysically;
       if (canRepeat) {
-        instructionLines.push(`• **${lastPlayer?.ign}** gunakan repeat untuk deck ${lastPlayer?.archetype} atau gunakan deck kedua.`);
+        instructionLines.push(`• **${lastPlayer?.ign}** gunakan repeat untuk deck ${lastPlayer?.archetype} atau gunakan deck kedua${timerTag}.`);
       } else {
-        instructionLines.push(`• **${lastPlayer?.ign}** silakan gunakan deck berikutnya.`);
+        instructionLines.push(`• **${lastPlayer?.ign}** silakan gunakan deck berikutnya${timerTag}.`);
       }
     }
   }
@@ -360,4 +395,5 @@ export async function syncCampTrackers(
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
   }
-}
+                                     }
+      
