@@ -51,20 +51,37 @@ export async function handleGameCommand(interaction: any) {
   const token = interaction.token;
   const appId = interaction.application_id || process.env.DISCORD_CLIENT_ID;
 
-  // 2. Background Task Eksekusi Penuh dengan waitUntil
+  // 2. Cek Match Terkait Channel
+  const match = await resolveMatchFromChannel(channelId);
+  if (!match) {
+    return {
+      type: 4,
+      data: {
+        content: '❌ Command ini hanya dapat dijalankan di dalam **Channel Match** yang aktif!',
+        flags: 64,
+      },
+    };
+  }
+
+  // 3. ATOMIC LOCK (Cegah Tabrakan Input Admin & Wasit)
+  // Kunci per match ID selama 5 detik
+  const lockKey = `lock:match:${match.id}`;
+  const acquiredLock = await kv.set(lockKey, 'LOCKED', { nx: true, ex: 5 });
+
+  if (!acquiredLock) {
+    return {
+      type: 4,
+      data: {
+        content: '⚠️ **Pertandingan sedang diproses oleh Wasit/Admin lain!** Mohon tunggu beberapa detik sebelum menginput command berikutnya.',
+        flags: 64,
+      },
+    };
+  }
+
+  // 4. Background Task Eksekusi Penuh dengan waitUntil
   waitUntil(
     (async () => {
       try {
-        const match = await resolveMatchFromChannel(channelId);
-        if (!match) {
-          if (appId && token) {
-            await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-              content: '❌ Command ini hanya dapat dijalankan di dalam **Channel Match** yang aktif!',
-            });
-          }
-          return;
-        }
-
         const kickoffTime = match.matchDate ? new Date(match.matchDate).getTime() : 0;
         const isBeforeKickoff = kickoffTime > 0 && Date.now() < kickoffTime;
         const userIsAdmin = isAdminOrChief(interaction);
@@ -135,11 +152,14 @@ export async function handleGameCommand(interaction: any) {
             content: `❌ Terjadi kesalahan: ${error.message || 'Internal Error'}`,
           }).catch(() => null);
         }
+      } finally {
+        // Lepas lock setelah operasi KV dan rendering selesai
+        await kv.del(lockKey).catch(() => {});
       }
     })()
   );
 
-  // 3. Response Instan Type 5
+  // 5. Response Instan Type 5
   return {
     type: 5,
     data: { flags: 64 },
