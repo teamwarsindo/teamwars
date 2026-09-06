@@ -20,10 +20,17 @@ export async function handleGameEdit(ctx: GameContext) {
   const lastIndex = reportData.games.length - 1;
   const lastGame = reportData.games[lastIndex];
 
+  // Jangan ubah status jika opsi tidak disertakan wasit (gunakan nilai sebelumnya)
   const oldSsHandA = lastGame.ssHandA ?? true;
   const oldSsHandB = lastGame.ssHandB ?? true;
-  const newSsHandA = Boolean(optMap.ss_hand_a);
-  const newSsHandB = Boolean(optMap.ss_hand_b);
+  const newSsHandA = optMap.ss_hand_a !== undefined ? Boolean(optMap.ss_hand_a) : oldSsHandA;
+  const newSsHandB = optMap.ss_hand_b !== undefined ? Boolean(optMap.ss_hand_b) : oldSsHandB;
+
+  if (optMap.ss_hand_a === undefined && optMap.ss_hand_b === undefined) {
+    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
+      content: '⚠️ Harap tentukan parameter yang ingin diubah (`ss_hand_a` atau `ss_hand_b`).',
+    });
+  }
 
   // 1. Rekalkulasi Warning SS Hand
   if (oldSsHandA !== newSsHandA) {
@@ -39,12 +46,12 @@ export async function handleGameEdit(ctx: GameContext) {
 
   // 2. Evaluasi Ulang Instruksi
   const winnerOpt = lastGame.winner === 'teamA' ? 'A' : 'B';
-  const pA = (reportData.teamA?.lineup || []).find((p: any) => p.ign === lastGame.playerA.ign);
-  const pB = (reportData.teamB?.lineup || []).find((p: any) => p.ign === lastGame.playerB.ign);
+  const pA = (reportData.teamA?.lineup || []).find((p: any) => p.ign?.toLowerCase() === lastGame.playerA?.ign?.toLowerCase());
+  const pB = (reportData.teamB?.lineup || []).find((p: any) => p.ign?.toLowerCase() === lastGame.playerB?.ign?.toLowerCase());
 
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
 
-  // 3. Simpan & Render
+  // 3. Simpan & Render Embed
   if (!isBeforeKickoff) {
     await saveAndSyncMatchState(match, reportData);
   }
@@ -57,7 +64,7 @@ export async function handleGameEdit(ctx: GameContext) {
 
   await publishMatchReport(channelId, match.id, matchEmbed);
 
-  // 4. Trigger Select Menu Deckloss jika sanksi aktif akibat edit
+  // 4. Munculkan Select Menu jika koreksi memicu Sanksi 2x Warning
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
     const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
     const innocentTeam = isTeamAPenalty ? reportData.teamB : reportData.teamA;
@@ -77,6 +84,10 @@ export async function handleGameEdit(ctx: GameContext) {
   }
 
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-    content: `✅ **Status SS Hand Game ${lastGame.gameNumber} berhasil diperbarui.**\n• SS Hand Tim A: **${newSsHandA ? 'Terkirim' : 'Tidak Terkirim'}**\n• SS Hand Tim B: **${newSsHandB ? 'Terkirim' : 'Tidak Terkirim'}**`,
+    content:
+      `✅ **Status SS Hand Game ${lastGame.gameNumber} berhasil diperbarui.**\n` +
+      `• SS Hand Tim A: **${newSsHandA ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
+      `• SS Hand Tim B: **${newSsHandB ? 'Terkirim' : 'Tidak Terkirim'}**`,
   });
 }
+  
