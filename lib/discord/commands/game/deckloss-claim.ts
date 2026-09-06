@@ -12,7 +12,9 @@ export async function handleDecklossClaimSelect(body: any) {
     const customId: string = body.data?.custom_id || '';
     const matchId = customId.replace('deckloss_claim_', '');
     const selectedVal: string = body.data?.values?.[0] || '';
-    const [innocentTeamKey, targetPlayerIgn, targetArchetype] = selectedVal.split('::');
+    
+    // Format custom value: innocentTeamKey::targetPlayerIgn::targetArchetype[::reason]
+    const [innocentTeamKey, targetPlayerIgn, targetArchetype, reasonType] = selectedVal.split('::');
 
     if (!innocentTeamKey || !targetPlayerIgn || !targetArchetype) {
       return NextResponse.json({
@@ -36,7 +38,7 @@ export async function handleDecklossClaimSelect(body: any) {
     const penaltyTeam = reportData[penaltyTeamKey];
     const innocentTeam = reportData[innocentTeamKey];
 
-    // 1. Validasi Pemain Penerima (Innocent Team)
+    // 1. Validasi Pemain Penerima TW (Innocent Team)
     const targetPlayer = (innocentTeam.lineup || []).find(
       (p: any) => String(p.ign || '').toLowerCase() === targetPlayerIgn.toLowerCase()
     );
@@ -65,7 +67,13 @@ export async function handleDecklossClaimSelect(body: any) {
       penaltyDeck = penaltyPlayer.deck2 || penaltyPlayer.deck1;
     }
 
-    // 3. Eksekusi Poin & Mutasi Status
+    // 📸 SIMPAN SNAPSHOT SEBELUM SANKSI DIAPLIKASIKAN
+    const snapshotBeforeSanction = {
+      teamA: JSON.parse(JSON.stringify(reportData.teamA)),
+      teamB: JSON.parse(JSON.stringify(reportData.teamB)),
+    };
+
+    // 3. Eksekusi Poin & Status Hidup
     innocentTeam.score = (innocentTeam.score || 0) + 1;
     targetPlayer.totalWins = (targetPlayer.totalWins || 0) + 1;
     targetDeck.wins = (targetDeck.wins || 0) + 1;
@@ -79,8 +87,12 @@ export async function handleDecklossClaimSelect(body: any) {
       penaltyDeck.losses = (penaltyDeck.losses || 0) + 1;
     }
 
-    // Reset counter akumulasi warning tim pelanggar
-    penaltyTeam.warningsUsed = 0;
+    const isTimerPenalty = reasonType === 'timer';
+
+    // Hanya reset counter jika sanksi berasal dari 2x warning SS Hand
+    if (!isTimerPenalty) {
+      penaltyTeam.warningsUsed = 0;
+    }
 
     // 4. Catat Game Rekor Sanksi Resmi
     const sanctionGameNumber = games.length + 1;
@@ -93,12 +105,14 @@ export async function handleDecklossClaimSelect(body: any) {
               ign: penaltyPlayer?.ign || 'Pemain',
               idDuelLinks: penaltyPlayer?.idDuelLinks,
               archetype: penaltyDeck?.archetype || 'Deckloss',
+              skill: penaltyDeck?.skill,
               isRepeat: Boolean(penaltyDeck?.isRepeatUsed),
             }
           : {
               ign: targetPlayer.ign,
               idDuelLinks: targetPlayer.idDuelLinks,
               archetype: targetDeck.archetype,
+              skill: targetDeck.skill,
               isRepeat: Boolean(targetDeck.isRepeatUsed),
             },
       playerB:
@@ -107,20 +121,25 @@ export async function handleDecklossClaimSelect(body: any) {
               ign: penaltyPlayer?.ign || 'Pemain',
               idDuelLinks: penaltyPlayer?.idDuelLinks,
               archetype: penaltyDeck?.archetype || 'Deckloss',
+              skill: penaltyDeck?.skill,
               isRepeat: Boolean(penaltyDeck?.isRepeatUsed),
             }
           : {
               ign: targetPlayer.ign,
               idDuelLinks: targetPlayer.idDuelLinks,
               archetype: targetDeck.archetype,
+              skill: targetDeck.skill,
               isRepeat: Boolean(targetDeck.isRepeatUsed),
             },
       ssHandA: true,
       ssHandB: true,
       isDeckloss: true,
       decklossTeam: penaltyTeamKey,
-      notes: `Sanksi 2x Warning SS Hand (${penaltyTeam.name})`,
+      notes: isTimerPenalty
+        ? `Sanksi Deckloss Timer (${penaltyTeam.name})`
+        : `Sanksi 2x Warning SS Hand (${penaltyTeam.name})`,
       timestamp: new Date().toISOString(),
+      snapshot: snapshotBeforeSanction, // 👈 Terkunci aman untuk rollback del
     };
 
     games.push(sanctionGameRecord);
@@ -135,7 +154,7 @@ export async function handleDecklossClaimSelect(body: any) {
     // 5. Evaluasi Instruksi Pasca-Deckloss
     const nextGameNumber = games.length + 1;
     let sectionHeader = `📢 **Instruksi Game #${nextGameNumber}:**`;
-    let instructionLines: string[] = [];
+    const instructionLines: string[] = [];
 
     if (isMatchEnded) {
       sectionHeader = `📢 **Status Pertandingan:**`;
@@ -145,19 +164,22 @@ export async function handleDecklossClaimSelect(body: any) {
       instructionLines.push(`• Terima kasih kepada **${finalLoser.name}** atas partisipasinya!`);
     } else {
       const isPenaltyPlayerOut = (penaltyPlayer?.remainingLife ?? 0) <= 0;
+      const timerSuffix = isTimerPenalty ? ' — Extra Timer 3 Menit' : '';
+
       if (isPenaltyPlayerOut) {
-        instructionLines.push(`• **${penaltyTeam.name}** (Next player)`);
+        instructionLines.push(`• **${penaltyTeam.name}** (Next player)${timerSuffix}`);
       } else {
         const hasWonPhysically = penaltyPlayer ? hasPlayerPhysicalWin(games, penaltyPlayer.ign) : false;
         const canRepeat = (penaltyTeam.repeatsUsed || 0) < 2 && !hasWonPhysically;
-        instructionLines.push(`• **${penaltyPlayer?.ign}** (${canRepeat ? 'Next deck or repeat' : 'Next deck'})`);
+        const choiceDesc = canRepeat ? 'Next deck or repeat' : 'Next deck';
+        instructionLines.push(`• **${penaltyPlayer?.ign}** (${choiceDesc})${timerSuffix}`);
       }
       instructionLines.push(`• **${targetPlayer.ign}** (Stay table)`);
     }
 
     reportData.currentInstructions = { header: sectionHeader, lines: instructionLines };
 
-    // 6. Simpan KV & Update Live Embeds via Renderer
+    // 6. Simpan KV & Update Live Embeds
     await saveAndSyncMatchState(match, reportData);
 
     const winnerOpt = innocentTeamKey === 'teamA' ? 'A' : 'B';
@@ -170,7 +192,7 @@ export async function handleDecklossClaimSelect(body: any) {
       await publishMatchReport(channelId, matchId, matchEmbed);
     }
 
-    // 7. Respon Update Interaction (Type 7) untuk menghapus Select Menu dari wasit
+    // 7. Respon Update Interaction (Type 7) untuk mencabut Select Menu
     return NextResponse.json({
       type: 7,
       data: {
@@ -185,4 +207,4 @@ export async function handleDecklossClaimSelect(body: any) {
       data: { content: `❌ Terjadi kesalahan saat memproses sanksi: ${err.message}`, flags: 64 },
     });
   }
-      }
+}
