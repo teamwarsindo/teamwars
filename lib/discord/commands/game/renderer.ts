@@ -9,35 +9,39 @@ import {
 } from './types';
 import { syncOfficialMatchReport } from './official-report';
 
-export function computeNextInstructions(reportData: any, winnerOpt: 'A' | 'B', pA: any, pB: any) {
-  const nextGameNumber = (reportData.games?.length || 0) + 1;
+export function computeNextInstructions(reportData: any, winnerOpt?: 'A' | 'B', pA?: any, pB?: any) {
+  const games: any[] = reportData.games || [];
+  const nextGameNumber = games.length + 1;
   const isMatchEnded = Boolean(reportData.isFinished);
 
-  const winnerPlayerIgn = winnerOpt === 'A' ? pA?.ign : pB?.ign;
-  const winnerPlayerObj = winnerOpt === 'A' ? pA : pB;
-  const winnerTeamObj = winnerOpt === 'A' ? reportData.teamA : reportData.teamB;
+  const lastGame = games[games.length - 1];
+  const effectiveWinnerOpt = winnerOpt || (lastGame?.winner === 'teamA' ? 'A' : 'B');
+
+  const winnerPlayerIgn = effectiveWinnerOpt === 'A' ? pA?.ign : pB?.ign;
+  const winnerPlayerObj = effectiveWinnerOpt === 'A' ? pA : pB;
+  const winnerTeamObj = effectiveWinnerOpt === 'A' ? reportData.teamA : reportData.teamB;
   const winnerTeamRepeatsUsed = winnerTeamObj?.repeatsUsed || 0;
 
-  const loserPlayerObj = winnerOpt === 'A' ? pB : pA;
-  const loserTeamObj = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
+  const loserPlayerObj = effectiveWinnerOpt === 'A' ? pB : pA;
+  const loserTeamObj = effectiveWinnerOpt === 'A' ? reportData.teamB : reportData.teamA;
   const loserTeamRepeatsUsed = loserTeamObj?.repeatsUsed || 0;
 
   const isTeamAPenalty = (reportData.teamA?.warningsUsed || 0) >= 2;
   const isTeamBPenalty = (reportData.teamB?.warningsUsed || 0) >= 2;
-  const penaltyIsWinner = (isTeamAPenalty && winnerOpt === 'A') || (isTeamBPenalty && winnerOpt === 'B');
-  const penaltyIsLoser = (isTeamAPenalty && winnerOpt === 'B') || (isTeamBPenalty && winnerOpt === 'A');
+  const penaltyIsWinner = (isTeamAPenalty && effectiveWinnerOpt === 'A') || (isTeamBPenalty && effectiveWinnerOpt === 'B');
+  const penaltyIsLoser = (isTeamAPenalty && effectiveWinnerOpt === 'B') || (isTeamBPenalty && effectiveWinnerOpt === 'A');
 
   let sectionHeader = `📢 **Instruksi Game #${nextGameNumber}:**`;
-  let instructionLines: string[] = [];
+  const instructionLines: string[] = [];
 
   if (isMatchEnded) {
     sectionHeader = `📢 **Status Pertandingan:**`;
-    const finalWinner = reportData.teamA.score >= 10 ? reportData.teamA : reportData.teamB;
-    const finalLoser = reportData.teamA.score >= 10 ? reportData.teamB : reportData.teamA;
-    instructionLines.push(`• Selamat kepada **${finalWinner.name}** atas kemenangannya!`);
-    instructionLines.push(`• Terima kasih kepada **${finalLoser.name}** atas partisipasinya!`);
+    const finalWinner = (reportData.teamA?.score || 0) >= 10 ? reportData.teamA : reportData.teamB;
+    const finalLoser = (reportData.teamA?.score || 0) >= 10 ? reportData.teamB : reportData.teamA;
+    instructionLines.push(`• Selamat kepada **${finalWinner?.name}** atas kemenangannya!`);
+    instructionLines.push(`• Terima kasih kepada **${finalLoser?.name}** atas partisipasinya!`);
   } else if (penaltyIsWinner) {
-    instructionLines.push(`• **${winnerTeamObj.name}** (2x Warning SS Hand)`);
+    instructionLines.push(`• **${winnerTeamObj?.name}** (2x Warning SS Hand)`);
     instructionLines.push(`  └ **${winnerPlayerIgn}** (Deckloss)`);
 
     const isWinnerOut =
@@ -45,15 +49,15 @@ export function computeNextInstructions(reportData: any, winnerOpt: 'A' | 'B', p
       Boolean(winnerPlayerObj?.deck1?.isRepeatUsed || winnerPlayerObj?.deck2?.isRepeatUsed);
 
     if (isWinnerOut) {
-      instructionLines.push(`• **${winnerTeamObj.name}** (Next player)`);
+      instructionLines.push(`• **${winnerTeamObj?.name}** (Next player)`);
     } else {
-      const hasWinnerPhysicalWin = hasPlayerPhysicalWin(reportData.games, winnerPlayerObj?.ign);
+      const hasWinnerPhysicalWin = hasPlayerPhysicalWin(games, winnerPlayerObj?.ign);
       const canRepeat = winnerTeamRepeatsUsed < 2 && !hasWinnerPhysicalWin;
       instructionLines.push(`• **${winnerPlayerIgn}** (${canRepeat ? 'Next deck or repeat' : 'Next deck'})`);
     }
 
     if ((loserPlayerObj?.remainingLife ?? 0) <= 0) {
-      instructionLines.push(`• **${loserTeamObj.name}** (Next player)`);
+      instructionLines.push(`• **${loserTeamObj?.name}** (Next player)`);
     } else {
       instructionLines.push(`• **${loserPlayerObj?.ign}** (Next deck)`);
     }
@@ -61,19 +65,19 @@ export function computeNextInstructions(reportData: any, winnerOpt: 'A' | 'B', p
     instructionLines.push(`• **${winnerPlayerIgn || 'Pemenang'}** (Stay table)`);
 
     if (penaltyIsLoser) {
-      instructionLines.push(`• **${loserTeamObj.name}** (2x Warning SS Hand)`);
+      instructionLines.push(`• **${loserTeamObj?.name}** (2x Warning SS Hand)`);
       if ((loserPlayerObj?.remainingLife ?? 0) <= 0) {
-        instructionLines.push(`  └ **${loserTeamObj.name}** (Next player) (Deckloss)`);
+        instructionLines.push(`  └ **${loserTeamObj?.name}** (Next player) (Deckloss)`);
       } else {
-        const hasLoserPhysicalWin = hasPlayerPhysicalWin(reportData.games, loserPlayerObj?.ign);
+        const hasLoserPhysicalWin = hasPlayerPhysicalWin(games, loserPlayerObj?.ign);
         const canRepeat = loserTeamRepeatsUsed < 2 && !hasLoserPhysicalWin;
         instructionLines.push(`  └ **${loserPlayerObj?.ign}** (${canRepeat ? 'Next deck or repeat' : 'Next deck'}) (Deckloss)`);
       }
     } else {
       if ((loserPlayerObj?.remainingLife ?? 0) <= 0) {
-        instructionLines.push(`• **${loserTeamObj.name}** (Next player)`);
+        instructionLines.push(`• **${loserTeamObj?.name}** (Next player)`);
       } else {
-        const hasLoserPhysicalWin = hasPlayerPhysicalWin(reportData.games, loserPlayerObj?.ign);
+        const hasLoserPhysicalWin = hasPlayerPhysicalWin(games, loserPlayerObj?.ign);
         const canRepeat = loserTeamRepeatsUsed < 2 && !hasLoserPhysicalWin;
         instructionLines.push(`• **${loserPlayerObj?.ign}** (${canRepeat ? 'Next deck or repeat' : 'Next deck'})`);
       }
@@ -105,21 +109,27 @@ export async function buildMatchReportEmbed(match: any, reportData: any, winnerO
 
     if (g.playerA?.isRepeat) scoreTagA = isAWin ? 'WR' : 'LR';
     if (g.playerB?.isRepeat) scoreTagB = isAWin ? 'LR' : 'WR';
-    if (isDecklossA) scoreTagA = 'TL';
-    if (isDecklossB) scoreTagB = 'TL';
-    if (g.isDeckloss && !isDecklossA && isAWin) scoreTagA = 'TW';
-    if (g.isDeckloss && !isDecklossB && !isAWin) scoreTagB = 'TW';
+
+    if (g.isDeckloss) {
+      if (isDecklossA) {
+        scoreTagA = 'TL';
+        scoreTagB = 'TW';
+      } else if (isDecklossB) {
+        scoreTagA = 'TW';
+        scoreTagB = 'TL';
+      }
+    }
 
     return `• G${g.gameNumber}: ${g.playerA.ign} **${scoreTagA} — ${scoreTagB}** ${g.playerB.ign}`;
   });
 
   let glossaryText = '';
   if (hasRepeatInLogs && hasDecklossInLogs) {
-    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat) • TL/TW = Technical Loss/Win (Deckloss)*`;
+    glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat) • TW/TL = Technical Win/Loss (Deckloss)*`;
   } else if (hasRepeatInLogs) {
     glossaryText = `\n\n*Keterangan: WR/LR = Win/Loss (Repeat)*`;
   } else if (hasDecklossInLogs) {
-    glossaryText = `\n\n*Keterangan: TL/TW = Technical Loss/Win (Deckloss)*`;
+    glossaryText = `\n\n*Keterangan: TW/TL = Technical Win/Loss (Deckloss)*`;
   }
 
   const m = match as any;
@@ -214,7 +224,12 @@ export async function saveAndSyncMatchState(match: any, reportData: any) {
   }
 }
 
-export function buildDecklossClaimMenu(matchId: string, innocentTeamKey: 'teamA' | 'teamB', innocentTeam: any) {
+export function buildDecklossClaimMenu(
+  matchId: string,
+  innocentTeamKey: 'teamA' | 'teamB',
+  innocentTeam: any,
+  reasonType: 'warning' | 'timer' = 'warning'
+) {
   const eligiblePlayers = (innocentTeam.lineup || []).filter((p: any) => (p.remainingLife ?? 2) > 0);
   const selectOptions: any[] = [];
 
@@ -222,14 +237,14 @@ export function buildDecklossClaimMenu(matchId: string, innocentTeamKey: 'teamA'
     if (p.deck1 && !p.deck1.isDead) {
       selectOptions.push({
         label: `${p.ign} — ${p.deck1.archetype}`,
-        value: `${innocentTeamKey}::${p.ign}::${p.deck1.archetype}`,
+        value: `${innocentTeamKey}::${p.ign}::${p.deck1.archetype}::${reasonType}`,
         description: `Deck 1 • Sisa Life: ${p.remainingLife}`,
       });
     }
     if (p.deck2 && !p.deck2.isDead) {
       selectOptions.push({
         label: `${p.ign} — ${p.deck2.archetype}`,
-        value: `${innocentTeamKey}::${p.ign}::${p.deck2.archetype}`,
+        value: `${innocentTeamKey}::${p.ign}::${p.deck2.archetype}::${reasonType}`,
         description: `Deck 2 • Sisa Life: ${p.remainingLife}`,
       });
     }
@@ -252,4 +267,5 @@ export function buildDecklossClaimMenu(matchId: string, innocentTeamKey: 'teamA'
       ],
     },
   ];
-  }
+}
+  
