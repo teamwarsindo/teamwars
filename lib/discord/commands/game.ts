@@ -4,6 +4,7 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI } from '@/lib/discord/utils';
 import { resolveMatchFromChannel, getOptionMap, GameContext } from './game/types';
 import { handleGameAdd } from './game/add';
+import { handleGameEdit } from './game/edit';
 import { handleGameDel } from './game/del';
 
 function isAdminOrChief(interaction: any): boolean {
@@ -118,11 +119,13 @@ export async function handleGameCommand(interaction: any) {
         // Routing Subcommand
         if (subCommandName === 'add') {
           await handleGameAdd(ctx);
+        } else if (subCommandName === 'edit') {
+          await handleGameEdit(ctx);
         } else if (subCommandName === 'del') {
           await handleGameDel(ctx);
         } else if (appId && token) {
           await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-            content: 'Subcommand tidak dikenali.',
+            content: `❌ Subcommand '${subCommandName}' tidak dikenali.`,
           });
         }
       } catch (error: any) {
