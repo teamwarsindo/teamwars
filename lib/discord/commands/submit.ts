@@ -1,8 +1,7 @@
 import { waitUntil } from '@vercel/functions';
 import { kv } from '@vercel/kv';
-import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
+import { discordAPI, parsePlayers, PlayerItem } from '@/lib/discord/utils';
 import { sendOrUpdateLiveTracker, TrackerPlayer } from '@/lib/discord/messages/match-briefing';
-import { discordAPI } from '@/lib/discord/utils';
 import {
   isStaff,
   isAdminOrChief,
