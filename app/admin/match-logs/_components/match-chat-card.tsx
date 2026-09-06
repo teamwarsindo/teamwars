@@ -4,23 +4,21 @@ import { useState, useMemo, Fragment } from "react";
 import { MatchScheduleItem } from "@/app/tournament/_library/types";
 import { ChatMessageItem, ChatLogMessage } from "./chat-message-item";
 import { formatDiscordDateHeader } from "../_utils/discord-parser";
-import { Search, RefreshCw, Trash2, ShieldAlert, Shield, Tv, Hash } from "lucide-react";
+import { Search, RefreshCw, Trash2, ShieldAlert, Shield, Tv, Bot } from "lucide-react";
 import Swal from "sweetalert2";
 
 interface MatchChatCardProps {
   match: MatchScheduleItem;
-  channelName?: string;
   logs: ChatLogMessage[] | null;
   loadingChat: boolean;
   isBackingUp: boolean;
   playerTeamMap?: Record<string, string>;
-  onBackup: () => void;
+  onBackup: (includeBots: boolean) => void;
   onDeleteChannel: () => void;
 }
 
 export function MatchChatCard({
   match,
-  channelName,
   logs,
   loadingChat,
   isBackingUp,
@@ -29,6 +27,7 @@ export function MatchChatCard({
   onDeleteChannel,
 }: MatchChatCardProps) {
   const [chatSearch, setChatSearch] = useState("");
+  const [includeBots, setIncludeBots] = useState(false);
 
   const isChannelDeleted = !match.discordChannelId;
 
@@ -49,7 +48,7 @@ export function MatchChatCard({
 
     Swal.fire({
       title: "Hapus Channel Discord?",
-      text: `Channel ${channelName || match.id} akan dihapus permanen dari server Discord dan role akses wasit akan dicabut. Pastikan sudah dicadangkan!`,
+      text: `Channel ${match.id} akan dihapus permanen dari server Discord dan role akses wasit akan dicabut. Pastikan sudah dicadangkan!`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#e11d48",
@@ -68,14 +67,13 @@ export function MatchChatCard({
   const scoreA = (match as any)?.scoreA ?? (match as any)?.teamAScore ?? "-";
   const scoreB = (match as any)?.scoreB ?? (match as any)?.teamBScore ?? "-";
   const scoreDisplay = `${scoreA} - ${scoreB}`;
-  const displayChannelName = channelName || `⚔️-${match.id}`;
 
   return (
     <div className="h-full flex-1 min-h-0 rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
       {/* HEADER CARD */}
       <div className="shrink-0 border-b border-border bg-card p-2.5 sm:p-3 space-y-2 shadow-xs">
         
-        {/* BARIS 1: NAMA TIM & LOGO MEPET TENGAH KE SKOR */}
+        {/* BARIS 1: NAMA TIM & SKOR */}
         <div className="flex items-center justify-center gap-2 sm:gap-3">
           {/* Tim A */}
           <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
@@ -90,7 +88,7 @@ export function MatchChatCard({
             />
           </div>
 
-          {/* Skor di Titik Tengah */}
+          {/* Skor */}
           <div className="shrink-0">
             <span className="px-2.5 py-0.5 rounded-md font-mono text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
               {scoreDisplay}
@@ -111,34 +109,27 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* BARIS 2: 1 BARIS RAPAT (WASIT + STREAMER DI KIRI, CHANNEL DI KANAN) */}
-        <div className="flex items-center text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-3">
-          {/* Wasit */}
-          <div className="flex items-center gap-1 shrink-0">
+        {/* BARIS 2: WASIT & STREAMER (LEGA) */}
+        <div className="flex items-center text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-4">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
             <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
             <span className="truncate">
               Wasit: <strong className="text-emerald-600 dark:text-emerald-400 font-medium">{match.referee || "-"}</strong>
             </span>
           </div>
 
-          {/* Streamer */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
             <Tv className="h-3 w-3 text-purple-500 shrink-0" />
             <span className="truncate">
               Streamer: <strong className="text-purple-600 dark:text-purple-400 font-medium">{match.streamer || "-"}</strong>
             </span>
           </div>
-
-          {/* Channel Discord di Pojok Kanan */}
-          <span className="ml-auto px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium font-mono text-[10px] inline-flex items-center gap-1 border border-border shrink-0 max-w-[150px] sm:max-w-[220px]">
-            <Hash className="h-2.5 w-2.5 shrink-0" />
-            <span className="truncate">{displayChannelName}</span>
-          </span>
         </div>
 
-        {/* BARIS 3: SEARCH INPUT + ACTION BUTTONS */}
-        <div className="flex items-center gap-1.5 pt-0.5">
-          <div className="relative flex-1">
+        {/* BARIS 3: CARI KATA + TOGGLE BOT + BUTTONS */}
+        <div className="flex items-center gap-1.5 pt-0.5 flex-wrap sm:flex-nowrap">
+          {/* Kolom Cari Kata di Obrolan */}
+          <div className="relative flex-1 min-w-[140px]">
             <input
               type="text"
               value={chatSearch}
@@ -151,8 +142,25 @@ export function MatchChatCard({
 
           {!isChannelDeleted && (
             <>
+              {/* Tombol Toggle Pesan Bot TWI */}
               <button
-                onClick={onBackup}
+                type="button"
+                onClick={() => setIncludeBots((prev) => !prev)}
+                className={`h-8 px-2.5 flex items-center gap-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 border ${
+                  includeBots
+                    ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                    : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                }`}
+                title={includeBots ? "Pesan Bot TWI diikutkan saat backup" : "Pesan Bot TWI diabaikan saat backup"}
+              >
+                <Bot className={`h-3.5 w-3.5 ${includeBots ? "text-primary-foreground" : "text-muted-foreground"}`} />
+                <span className="hidden sm:inline">Pesan Bot TWI</span>
+                <span className="sm:hidden">Bot TWI</span>
+              </button>
+
+              {/* Tombol Backup */}
+              <button
+                onClick={() => onBackup(includeBots)}
                 disabled={isBackingUp}
                 className="h-8 px-3 flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition cursor-pointer shrink-0 disabled:opacity-50"
                 title="Backup pesan ke database"
@@ -161,6 +169,7 @@ export function MatchChatCard({
                 <span>{isBackingUp ? "Proses..." : "Backup"}</span>
               </button>
 
+              {/* Tombol Hapus Channel */}
               <button
                 onClick={handleDeletePrompt}
                 className="h-8 w-8 flex items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer shrink-0"
@@ -229,5 +238,4 @@ export function MatchChatCard({
       </div>
     </div>
   );
-                               }
-      
+}
