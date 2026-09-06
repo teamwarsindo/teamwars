@@ -71,7 +71,7 @@ export function MatchChatCard({
   return (
     <div className="h-full flex-1 min-h-0 rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
       {/* HEADER CARD */}
-      <div className="shrink-0 border-b border-border bg-card p-2.5 sm:p-3 space-y-2 shadow-xs">
+      <div className="shrink-0 border-b border-border bg-card p-2.5 sm:p-3 space-y-2.5 shadow-xs">
         
         {/* BARIS 1: NAMA TIM & SKOR */}
         <div className="flex items-center justify-center gap-2 sm:gap-3">
@@ -109,16 +109,18 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* BARIS 2: WASIT & STREAMER (LEGA) */}
-        <div className="flex items-center text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-4">
-          <div className="flex items-center gap-1 min-w-0 flex-1">
+        {/* BARIS 2: WASIT RATA KIRI, STREAMER RATA KANAN */}
+        <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-2">
+          {/* Wasit: Rata Kiri */}
+          <div className="flex items-center gap-1 min-w-0 flex-1 justify-start">
             <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
             <span className="truncate">
               Wasit: <strong className="text-emerald-600 dark:text-emerald-400 font-medium">{match.referee || "-"}</strong>
             </span>
           </div>
 
-          <div className="flex items-center gap-1 min-w-0 flex-1">
+          {/* Streamer: Rata Kanan */}
+          <div className="flex items-center gap-1 min-w-0 flex-1 justify-end text-right">
             <Tv className="h-3 w-3 text-purple-500 shrink-0" />
             <span className="truncate">
               Streamer: <strong className="text-purple-600 dark:text-purple-400 font-medium">{match.streamer || "-"}</strong>
@@ -126,60 +128,57 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* BARIS 3: CARI KATA + TOGGLE BOT + BUTTONS */}
-        <div className="flex items-center gap-1.5 pt-0.5 flex-wrap sm:flex-nowrap">
-          {/* Kolom Cari Kata di Obrolan */}
-          <div className="relative flex-1 min-w-[140px]">
-            <input
-              type="text"
-              value={chatSearch}
-              onChange={(e) => setChatSearch(e.target.value)}
-              placeholder="Cari kata di obrolan..."
-              className="w-full bg-muted/40 border border-border rounded-lg h-8 px-2.5 pl-7 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-          </div>
-
-          {!isChannelDeleted && (
-            <>
-              {/* Tombol Toggle Pesan Bot TWI */}
-              <button
-                type="button"
-                onClick={() => setIncludeBots((prev) => !prev)}
-                className={`h-8 px-2.5 flex items-center gap-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 border ${
-                  includeBots
-                    ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                    : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
-                }`}
-                title={includeBots ? "Pesan Bot TWI diikutkan saat backup" : "Pesan Bot TWI diabaikan saat backup"}
-              >
-                <Bot className={`h-3.5 w-3.5 ${includeBots ? "text-primary-foreground" : "text-muted-foreground"}`} />
-                <span className="hidden sm:inline">Pesan Bot TWI</span>
-                <span className="sm:hidden">Bot TWI</span>
-              </button>
-
-              {/* Tombol Backup */}
-              <button
-                onClick={() => onBackup(includeBots)}
-                disabled={isBackingUp}
-                className="h-8 px-3 flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition cursor-pointer shrink-0 disabled:opacity-50"
-                title="Backup pesan ke database"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${isBackingUp ? "animate-spin" : ""}`} />
-                <span>{isBackingUp ? "Proses..." : "Backup"}</span>
-              </button>
-
-              {/* Tombol Hapus Channel */}
-              <button
-                onClick={handleDeletePrompt}
-                className="h-8 w-8 flex items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer shrink-0"
-                title="Hapus Channel Discord"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </>
-          )}
+        {/* BARIS 3: SEARCH BAR PENUH */}
+        <div className="relative w-full">
+          <input
+            type="text"
+            value={chatSearch}
+            onChange={(e) => setChatSearch(e.target.value)}
+            placeholder="Cari kata di obrolan..."
+            className="w-full bg-muted/40 border border-border rounded-lg h-8 px-2.5 pl-7 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
         </div>
+
+        {/* BARIS 4: 3 TOMBOL DI BAWAH SEARCH BAR */}
+        {!isChannelDeleted && (
+          <div className="flex items-center gap-2">
+            {/* Toggle Pesan Bot TWI */}
+            <button
+              type="button"
+              onClick={() => setIncludeBots((prev) => !prev)}
+              className={`flex-1 h-8 px-2.5 flex items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                includeBots
+                  ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+              }`}
+              title={includeBots ? "Pesan Bot TWI diikutkan saat backup" : "Pesan Bot TWI diabaikan saat backup"}
+            >
+              <Bot className={`h-3.5 w-3.5 ${includeBots ? "text-primary-foreground" : "text-muted-foreground"}`} />
+              <span>Pesan Bot TWI</span>
+            </button>
+
+            {/* Tombol Backup */}
+            <button
+              onClick={() => onBackup(includeBots)}
+              disabled={isBackingUp}
+              className="flex-1 h-8 px-3 flex items-center justify-center gap-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition cursor-pointer disabled:opacity-50"
+              title="Backup pesan ke database"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isBackingUp ? "animate-spin" : ""}`} />
+              <span>{isBackingUp ? "Memproses..." : "Backup"}</span>
+            </button>
+
+            {/* Tombol Hapus Channel */}
+            <button
+              onClick={handleDeletePrompt}
+              className="h-8 w-9 flex items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer shrink-0"
+              title="Hapus Channel Discord"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* BODY CHAT SCROLLABLE */}
