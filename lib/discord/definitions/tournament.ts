@@ -294,6 +294,16 @@ export const tournamentCommands = [
             autocomplete: true,
           },
           {
+            type: 3, // STRING CHOICE
+            name: 'tipe_game',
+            description: 'Tipe penyelesaian ronde (Default: Normal)',
+            required: false,
+            choices: [
+              { name: 'Normal (Duel Selesai Fisik)', value: 'NORMAL' },
+              { name: 'Sanksi Deckloss Timer (15m / Extra 3m)', value: 'DECKLOSS_TIMER' },
+            ],
+          },
+          {
             type: 5, // BOOLEAN
             name: 'ss_hand_a',
             description: 'Apakah Tim A mengirimkan SS starting hand? (Default: True)',
@@ -308,7 +318,7 @@ export const tournamentCommands = [
           {
             type: 3,
             name: 'catatan',
-            description: 'Catatan tambahan wasit (misal: DC, salah bawa skill, dll.)',
+            description: 'Catatan tambahan wasit (misal: Timer prep habis, DC, dll.)',
             required: false,
           },
         ],
@@ -321,14 +331,14 @@ export const tournamentCommands = [
           {
             type: 5, // BOOLEAN
             name: 'ss_hand_a',
-            description: 'Apakah Tim A mengirimkan SS starting hand?',
-            required: true,
+            description: 'Apakah Tim A mengirimkan SS starting hand? (Kosongkan jika tidak diubah)',
+            required: false,
           },
           {
             type: 5, // BOOLEAN
             name: 'ss_hand_b',
-            description: 'Apakah Tim B mengirimkan SS starting hand?',
-            required: true,
+            description: 'Apakah Tim B mengirimkan SS starting hand? (Kosongkan jika tidak diubah)',
+            required: false,
           },
         ],
       },
@@ -340,4 +350,3 @@ export const tournamentCommands = [
     ],
   },
 ];
-            
