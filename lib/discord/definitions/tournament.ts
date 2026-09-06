@@ -314,6 +314,25 @@ export const tournamentCommands = [
         ],
       },
       {
+        type: 1, // SUB_COMMAND: edit
+        name: 'edit',
+        description: 'Perbarui status SS Hand untuk game terakhir yang baru saja diinput',
+        options: [
+          {
+            type: 5, // BOOLEAN
+            name: 'ss_hand_a',
+            description: 'Apakah Tim A mengirimkan SS starting hand?',
+            required: true,
+          },
+          {
+            type: 5, // BOOLEAN
+            name: 'ss_hand_b',
+            description: 'Apakah Tim B mengirimkan SS starting hand?',
+            required: true,
+          },
+        ],
+      },
+      {
         type: 1, // SUB_COMMAND: del
         name: 'del',
         description: 'Hapus dan rollback game terakhir yang baru saja diinput',
@@ -321,4 +340,4 @@ export const tournamentCommands = [
     ],
   },
 ];
-        
+            
