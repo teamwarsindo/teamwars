@@ -1,6 +1,6 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
-import { filterChoices } from './types';
+import { filterChoices, hasPlayerPhysicalWin } from './types';
 
 async function resolveMatchFromMatchChannel(channelId: string) {
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
@@ -20,6 +20,7 @@ async function resolveMatchFromMatchChannel(channelId: string) {
 function getDeckChoices(
   playerObj: any,
   teamData: any,
+  games: any[],
   lastWinningDeckArchetype?: string | null
 ): Array<{ name: string; value: string }> {
   if (!playerObj) return [];
@@ -42,17 +43,20 @@ function getDeckChoices(
     }
   }
 
-  // Kuota repeat resmi TWI: maksimal 2 per tim (< 2)
-  const canTakeNewRepeat = repeatsUsed < 2 && (playerObj.totalWins || 0) === 0 && (playerObj.totalLosses || 0) === 1;
+  // Cek apakah pemain pernah menang duel fisik di meja
+  const playerWonPhysically = hasPlayerPhysicalWin(games, playerObj.ign);
+  const canTakeNewRepeat = repeatsUsed < 2 && !playerWonPhysically && (playerObj.totalLosses || 0) === 1;
 
   // 1. Pilihan Deck 1
   if (d1?.archetype) {
     const skill1 = d1.skill ? ` • ${d1.skill}` : '';
+    const d1WonPhysically = hasPlayerPhysicalWin(games, playerObj.ign, d1.archetype);
+
     if (!d1.isDead) {
       const val = d1.isRepeatUsed ? `REPEAT:${d1.archetype}` : d1.archetype;
       const prefix = d1.isRepeatUsed ? 'Repeat: ' : '';
       choices.push({ name: `${prefix}${d1.archetype}${skill1}`, value: val });
-    } else if (canTakeNewRepeat && (d1.wins || 0) === 0 && !d1.isRepeatUsed) {
+    } else if (canTakeNewRepeat && !d1WonPhysically && !d1.isRepeatUsed) {
       choices.push({ name: `Repeat (${d1.archetype}${skill1})`, value: `REPEAT:${d1.archetype}` });
     }
   }
@@ -60,11 +64,13 @@ function getDeckChoices(
   // 2. Pilihan Deck 2
   if (d2?.archetype) {
     const skill2 = d2.skill ? ` • ${d2.skill}` : '';
+    const d2WonPhysically = hasPlayerPhysicalWin(games, playerObj.ign, d2.archetype);
+
     if (!d2.isDead) {
       const val = d2.isRepeatUsed ? `REPEAT:${d2.archetype}` : d2.archetype;
       const prefix = d2.isRepeatUsed ? 'Repeat: ' : '';
       choices.push({ name: `${prefix}${d2.archetype}${skill2}`, value: val });
-    } else if (canTakeNewRepeat && (d2.wins || 0) === 0 && !d2.isRepeatUsed) {
+    } else if (canTakeNewRepeat && !d2WonPhysically && !d2.isRepeatUsed) {
       choices.push({ name: `Repeat (${d2.archetype}${skill2})`, value: `REPEAT:${d2.archetype}` });
     }
   }
@@ -104,18 +110,19 @@ export async function handleGameAutocomplete(interaction: any) {
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerA?.ign || '').toLowerCase()
         );
 
-        // Kunci jika pemain ronde lalu masih hidup (baik menang stay table, maupun kalah lanjut deck ke-2/repeat)
+        // Kunci jika pemain ronde lalu masih hidup dan BUKAN korban gugur sanksi Deckloss
         if (lastPlayerA && (lastPlayerA.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerA];
         }
       }
 
-      // Jika Game 1, atau pemain sebelumnya sudah gugur total (remainingLife === 0)
+      // Jika Game 1, atau pemain sebelumnya sudah gugur total
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupA.filter((p) => {
+          const hasWonPhysically = hasPlayerPhysicalWin(games, p.ign);
           const canRepeat =
             (reportData.teamA?.repeatsUsed || 0) < 2 &&
-            (p.totalWins || 0) === 0 &&
+            !hasWonPhysically &&
             (p.totalLosses || 0) === 1;
           return (p.remainingLife ?? 2) > 0 || canRepeat;
         });
@@ -146,13 +153,14 @@ export async function handleGameAutocomplete(interaction: any) {
       );
 
       let lastWinningDeckA: string | null = null;
-      if (lastGame && lastGame.winner === 'teamA') {
+      // Kunci deck hanya berlaku untuk kemenangan duel kartu fisik murni
+      if (lastGame && lastGame.winner === 'teamA' && !lastGame.isDeckloss) {
         if (String(lastGame.playerA?.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()) {
           lastWinningDeckA = lastGame.playerA?.archetype || null;
         }
       }
 
-      const choices = getDeckChoices(playerObj, reportData.teamA, lastWinningDeckA);
+      const choices = getDeckChoices(playerObj, reportData.teamA, games, lastWinningDeckA);
       return { type: 8, data: { choices: filterChoices(choices, query, (d) => d.name, (d) => d.value) } };
     }
 
@@ -166,7 +174,7 @@ export async function handleGameAutocomplete(interaction: any) {
           (p) => String(p.ign || '').toLowerCase() === String(lastGame.playerB?.ign || '').toLowerCase()
         );
 
-        // Kunci jika pemain ronde lalu masih hidup (baik menang stay table, maupun kalah lanjut deck ke-2/repeat)
+        // Kunci jika pemain ronde lalu masih hidup dan BUKAN korban gugur sanksi Deckloss
         if (lastPlayerB && (lastPlayerB.remainingLife ?? 2) > 0) {
           eligiblePlayers = [lastPlayerB];
         }
@@ -175,9 +183,10 @@ export async function handleGameAutocomplete(interaction: any) {
       // Jika Game 1, atau pemain sebelumnya sudah gugur total
       if (eligiblePlayers.length === 0) {
         eligiblePlayers = lineupB.filter((p) => {
+          const hasWonPhysically = hasPlayerPhysicalWin(games, p.ign);
           const canRepeat =
             (reportData.teamB?.repeatsUsed || 0) < 2 &&
-            (p.totalWins || 0) === 0 &&
+            !hasWonPhysically &&
             (p.totalLosses || 0) === 1;
           return (p.remainingLife ?? 2) > 0 || canRepeat;
         });
@@ -208,13 +217,14 @@ export async function handleGameAutocomplete(interaction: any) {
       );
 
       let lastWinningDeckB: string | null = null;
-      if (lastGame && lastGame.winner === 'teamB') {
+      // Kunci deck hanya berlaku untuk kemenangan duel kartu fisik murni
+      if (lastGame && lastGame.winner === 'teamB' && !lastGame.isDeckloss) {
         if (String(lastGame.playerB?.ign || '').toLowerCase() === selectedPlayerIgn.toLowerCase()) {
           lastWinningDeckB = lastGame.playerB?.archetype || null;
         }
       }
 
-      const choices = getDeckChoices(playerObj, reportData.teamB, lastWinningDeckB);
+      const choices = getDeckChoices(playerObj, reportData.teamB, games, lastWinningDeckB);
       return { type: 8, data: { choices: filterChoices(choices, query, (d) => d.name, (d) => d.value) } };
     }
 
@@ -237,4 +247,4 @@ export async function handleGameAutocomplete(interaction: any) {
     console.error('Error handleGameAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-            }
+}
