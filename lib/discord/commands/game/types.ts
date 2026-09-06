@@ -97,7 +97,21 @@ export function resolveStreamDisplay(match: any, reportData?: any): { streamerDi
   return { streamerDisplay, streamUrlDisplay };
 }
 
-// 🏷️ Format riwayat game per deck ([G1, G2R, G3R, G4R])
+// 🔍 Helper cek apakah pemain pernah menang duel fisik kartu murni (mengecualikan kemenangan TW sanksi)
+export function hasPlayerPhysicalWin(games: any[], playerIgn: string, archetype?: string): boolean {
+  return games.some((g) => {
+    if (g.isDeckloss) return false; // Abaikan Technical Win administratif
+
+    const isA = g.playerA?.ign?.toLowerCase() === playerIgn.toLowerCase() &&
+      (!archetype || g.playerA?.archetype?.toLowerCase() === archetype.toLowerCase());
+    const isB = g.playerB?.ign?.toLowerCase() === playerIgn.toLowerCase() &&
+      (!archetype || g.playerB?.archetype?.toLowerCase() === archetype.toLowerCase());
+
+    return (isA && g.winner === 'teamA') || (isB && g.winner === 'teamB');
+  });
+}
+
+// 🏷️ Format riwayat game per deck ([G1, G2R, G3 (TW)])
 function formatDeckHistoryTag(games: any[], playerIgn: string, archetype: string): string {
   const matchingGames = games.filter((g) => {
     const isA =
@@ -114,6 +128,12 @@ function formatDeckHistoryTag(games: any[], playerIgn: string, archetype: string
   const tags = matchingGames.map((g) => {
     const isA = g.playerA?.ign?.toLowerCase() === playerIgn.toLowerCase();
     const isRepeat = isA ? g.playerA?.isRepeat : g.playerB?.isRepeat;
+    const isDeckloss = g.isDeckloss;
+    const isLoss = isDeckloss && g.decklossTeam === (isA ? 'teamA' : 'teamB');
+
+    if (isDeckloss) {
+      return isLoss ? `G${g.gameNumber}TL` : `G${g.gameNumber}TW`;
+    }
     return isRepeat ? `G${g.gameNumber}R` : `G${g.gameNumber}`;
   });
 
@@ -234,7 +254,8 @@ export async function renderCampTrackerEmbed(
     if (isLastPlayerOut) {
       instructionLines.push(`• **${team.name}** (Next player)`);
     } else {
-      const canRepeat = repeatsUsed < 2 && (lastPlayerObj?.totalWins || 0) <= 1;
+      const hasWonPhysically = lastPlayerObj ? hasPlayerPhysicalWin(games, lastPlayerObj.ign) : false;
+      const canRepeat = repeatsUsed < 2 && !hasWonPhysically;
       if (canRepeat) {
         instructionLines.push(`• **${lastPlayer?.ign}** (Next deck or repeat)`);
       } else {
@@ -261,7 +282,8 @@ export async function renderCampTrackerEmbed(
       instructionLines.push(`• **${lastPlayer?.ign}** telah gugur.`);
       instructionLines.push(`• **${team.name}** tentukan pemain berikutnya.`);
     } else {
-      const canRepeat = repeatsUsed < 2 && (lastPlayerObj?.totalWins || 0) === 0;
+      const hasWonPhysically = lastPlayerObj ? hasPlayerPhysicalWin(games, lastPlayerObj.ign) : false;
+      const canRepeat = repeatsUsed < 2 && !hasWonPhysically;
       if (canRepeat) {
         instructionLines.push(`• **${lastPlayer?.ign}** gunakan repeat untuk deck ${lastPlayer?.archetype} atau gunakan deck kedua.`);
       } else {
@@ -369,4 +391,4 @@ export async function syncCampTrackers(
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
   }
-}
+                                                 }
