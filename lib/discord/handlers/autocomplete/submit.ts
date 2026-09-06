@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { parsePlayers, PlayerItem } from '@/lib/discord/services/transfer-service';
+import { parsePlayers, PlayerItem } from '@/lib/discord/utils';
 import { filterChoices } from './types';
 
 const getTeamPlayers = async (slug: string): Promise<PlayerItem[]> => {
