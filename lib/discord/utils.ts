@@ -123,9 +123,9 @@ export function getFooterText(createdAt?: string, updatedAt?: string) {
     : `Registered: ${waktuBuat}`;
 }
 
-export function getEmbedFooterText(dateInput?: string | Date) {
-  const isoStr = dateInput instanceof Date ? dateInput.toISOString() : dateInput;
-  return getFooterText(isoStr).replace('Registered:', 'Team Wars Indonesia |');
+export function getEmbedFooterText(dateInput?: string | Date): string {
+  const targetDate = dateInput ? new Date(dateInput) : new Date();
+  return `Team Wars Indonesia | ${formatWIBDate(targetDate)}`;
 }
 
 export function hexToDecimal(hexString: string, fallbackColor = 11146056): number {
