@@ -1,5 +1,4 @@
-import { discordAPI } from '../utils';
-import { DISCORD_CONFIG } from '../config';
+import { discordAPI, getEmbedFooterText } from '../utils';
 import { DIVISION_MAP } from '@/app/tournament/_library';
 
 export interface ScheduleMatch {
@@ -82,7 +81,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
         title: `📊 Schedule ${DIVISION_MAP.GROUP_A}`,
         color: 0x3498db,
         description: buildGroupDescription(params.groupASchedules),
-        footer: { text: 'Team Wars Indonesia Season 7' },
+        footer: { text: getEmbedFooterText() },
       },
     ],
   };
@@ -94,7 +93,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
         title: `📊 Schedule ${DIVISION_MAP.GROUP_B}`,
         color: 0xe74c3c,
         description: buildGroupDescription(params.groupBSchedules),
-        footer: { text: 'Team Wars Indonesia Season 7' },
+        footer: { text: getEmbedFooterText() },
       },
     ],
   };
@@ -127,10 +126,9 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // 3. RECAP: Hapus pesan rekap lama jika masih ada, dan JANGAN kirim pesan baru jika data kosong
+  // 3. RECAP: Hapus pesan rekap lama jika tersisa & cegah pengiriman baru
   if (recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
-    recapMsgId = null;
   }
   if (params.oldRecapMsgId && params.oldRecapMsgId !== recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.oldRecapMsgId}`, 'DELETE').catch(() => null);
@@ -141,4 +139,4 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId,
     recapMsgId: null,
   };
-}
+                                           }
