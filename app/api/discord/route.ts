@@ -19,27 +19,25 @@ import { handleSubmitCommand } from '@/lib/discord/commands/submit';
 import { handleGameCommand } from '@/lib/discord/commands/game';
 import { handleStreamCommand } from '@/lib/discord/commands/stream';
 import { handleMatchReportCommand, handleMatchReportSelect } from '@/lib/discord/commands/match-report';
-import { handleDecklossClaimSelect } from '@/lib/discord/commands/game/deckloss-claim'; // 👈 Handler Deckloss Claim
+import { handleDecklossClaimSelect } from '@/lib/discord/commands/game/deckloss-claim';
+import { handleRescheduleCommand } from '@/lib/discord/commands/reschedule';
 
-// Autocomplete
+// Autocomplete Handlers
 import {
   handleAssignAutocomplete,
   handleSubmitAutocomplete,
   handleTransferAutocomplete,
   handleMatchReportAutocomplete,
   handleGameAutocomplete,
-} from '@/lib/discord/handlers/autocomplete-handler';
-
-import {
-  handleRescheduleCommand,
   handleRescheduleAutocomplete,
-} from '@/lib/discord/handlers/reschedule-handler';
+} from '@/lib/discord/handlers/autocomplete-handler';
 
 // Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
 import { handleBtRole } from '@/lib/discord/buttons/btRole';
 import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
 import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
+import { handleBtCheckMatches } from '@/lib/discord/buttons/check-matches';
 
 // Bidding Module
 import { getBidModal } from '@/lib/discord/buttons/bidding';
@@ -98,6 +96,11 @@ export async function POST(req: NextRequest) {
       const userId: string = body.member?.user?.id || '';
       const userRoles: string[] = body.member?.roles || [];
       const isAdmin = userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
+
+      // 📊 Tombol Cek Sisa Match Harian
+      if (customId.startsWith('check_matches_')) {
+        return await handleBtCheckMatches(body);
+      }
 
       // ⚖️ String Select Menu Sanksi Deckloss
       if (customId.startsWith('deckloss_claim_')) {

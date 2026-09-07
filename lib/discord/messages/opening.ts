@@ -1,6 +1,7 @@
+import { kv } from '@vercel/kv';
 import { discordAPI, formatWIBDate, getEmbedFooterText } from '../utils';
-import { DISCORD_CONFIG } from '../config';
 import { DIVISION_MAP } from '@/app/tournament/_library';
+import { getCheckMatchesComponent } from '@/lib/discord/buttons/check-matches';
 
 export interface OpeningEmbedParams {
   channelId: string;
@@ -27,12 +28,33 @@ export interface OpeningEmbedParams {
   isFinished?: boolean;
   scoreA?: number;
   scoreB?: number;
+  isRescheduled?: boolean;
 }
 
 export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Promise<string | null> {
   if (!params.channelId) return null;
 
-  const isFirstOpening = !params.existingMsgId;
+  // 🛡️ Proteksi Mandiri: Cek data match dari KV jika existingMsgId atau isRescheduled tidak dikirim
+  let targetExistingMsgId = params.existingMsgId;
+  let targetIsRescheduled = params.isRescheduled;
+
+  if (targetExistingMsgId === undefined || targetIsRescheduled === undefined) {
+    try {
+      const schedules = (await kv.get<any[]>('twi:schedules')) || [];
+      const currentMatch = schedules.find(
+        (m) => m.id === params.matchId || m.discordChannelId === params.channelId
+      );
+      if (currentMatch) {
+        if (targetExistingMsgId === undefined) targetExistingMsgId = currentMatch.openingMsgId || null;
+        if (targetIsRescheduled === undefined) targetIsRescheduled = Boolean(currentMatch.isRescheduled);
+      }
+    } catch {
+      // Fallback diam
+    }
+  }
+
+  const isFirstOpening = !targetExistingMsgId;
+  const isRescheduled = Boolean(targetIsRescheduled);
 
   const emojiA =
     params.teamAEmoji ||
@@ -60,10 +82,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const liveStreamText = params.streamLink || 'Belum tersedia';
   const isFinished = params.isFinished || false;
 
-  const scheduleChannelMention = DISCORD_CONFIG.CH_SCHEDULE 
-    ? `<#${DISCORD_CONFIG.CH_SCHEDULE}>` 
-    : '#schedule-results';
-
   const fields: any[] = [
     { name: '📅 Jadwal Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
     { name: '⚖️ Referee', value: refText, inline: true },
@@ -79,16 +97,24 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     });
   }
 
-  fields.push({
-    name: '📢 Ketentuan Reschedule',
-    value:
-      '• **Persetujuan:** Kedua tim wajib setuju.\n' +
-      '• **Hari Tanding:** Rabu s.d. Minggu.\n' +
-      '• **Batas Harian:** Maksimal 3 match per hari.\n' +
-      `• **Cek Kuota:** ${scheduleChannelMention}\n` +
-      '• **Konfirmasi:** Wajib lapor ke **Admin Discord**.',
-    inline: false,
-  });
+  if (isRescheduled) {
+    fields.push({
+      name: '📌 Status Jadwal',
+      value: '• Jadwal telah disepakati kedua tim & disahkan Admin.',
+      inline: false,
+    });
+  } else {
+    fields.push({
+      name: '📢 Ketentuan Reschedule',
+      value:
+        '• **Persetujuan:** Kedua tim wajib setuju.\n' +
+        '• **Hari Tanding:** Rabu s.d. Minggu.\n' +
+        '• **Batas Harian:** Maksimal 3 match per hari.\n' +
+        '• **Cek Kuota:** Tekan tombol **📊 Cek Sisa Match Harian** di bawah.\n' +
+        '• **Konfirmasi:** Wajib lapor ke **Admin Discord**.',
+      inline: false,
+    });
+  }
 
   const teamADisplay = `${emojiA ? emojiA + ' ' : ''}**${params.teamAName}**`;
   const teamBDisplay = `${emojiB ? emojiB + ' ' : ''}**${params.teamBName}**`;
@@ -107,9 +133,9 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     footer: { text: getEmbedFooterText() },
   };
 
-  if (params.existingMsgId) {
+  if (targetExistingMsgId) {
     await discordAPI(
-      `/channels/${params.channelId}/messages/${params.existingMsgId}`,
+      `/channels/${params.channelId}/messages/${targetExistingMsgId}`,
       'DELETE'
     ).catch(() => null);
   }
@@ -119,6 +145,7 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   const postPayload: any = {
     embeds: [embedData],
+    components: isRescheduled ? [] : getCheckMatchesComponent(params.matchId),
   };
 
   if (isFirstOpening) {

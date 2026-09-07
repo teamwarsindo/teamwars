@@ -5,3 +5,4 @@ export {
   handleMatchReportAutocomplete,
 } from './autocomplete/admin';
 export { handleTransferAutocomplete } from './autocomplete/transfer';
+export { handleRescheduleAutocomplete } from './autocomplete/reschedule';
