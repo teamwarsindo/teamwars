@@ -21,25 +21,26 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
   const navLinks = [
     { label: "Home", href: "/" },
     { label: "Tournament", href: "/tournament" },
+    { label: "Analytics", href: "/analytics" },
     { label: "Roulette", href: "/roulette" },
     { label: "Rules", href: "/rules" },
   ];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/85 backdrop-blur-md transition-all">
-      <div className="flex flex-col md:flex-row md:items-center justify-between px-4 py-2.5 md:py-0 md:h-[72px] sm:px-6 lg:px-12 gap-2.5 md:gap-0">
+      <div className="flex flex-col md:flex-row md:items-center justify-between px-4 py-2.5 md:py-0 md:h-[72px] sm:px-6 lg:px-12 gap-2.5 md:gap-4">
         
-        {/* KIRI: LOGO & JUDUL (Flex-1 agar kolom tengah presisi simetris) */}
-        <div className="flex w-full md:w-auto items-center justify-between md:justify-start md:flex-1">
+        {/* KIRI: LOGO & JUDUL (Flex-1 dengan batas minimum agar seimbang) */}
+        <div className="flex w-full md:w-auto items-center justify-between md:justify-start md:flex-1 shrink-0">
           <Link
             href="/"
             className="flex items-center gap-2 md:gap-2.5 text-xs md:text-sm font-bold uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
           >
-            <ShieldIcon className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+            <ShieldIcon className="h-4 w-4 md:h-5 md:w-5 text-primary shrink-0" />
             <span className="truncate">{title}</span>
           </Link>
 
-          {/* TOGGLE MOBILE (Sembunyi di Desktop) */}
+          {/* TOGGLE MOBILE */}
           <div className="flex md:hidden items-center gap-2">
             {showTrash && onClearStorage && (
               <button
@@ -54,8 +55,8 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
           </div>
         </div>
 
-        {/* TENGAH: NAV PILLS (Ukuran Besar & Gagah di Desktop) */}
-        <nav className="flex items-center justify-center gap-1.5 md:gap-2.5 overflow-x-auto no-scrollbar md:flex-1">
+        {/* TENGAH: NAV PILLS (shrink-0 agar 5 tab tidak tertekan/mengecil) */}
+        <nav className="flex items-center justify-center gap-1 sm:gap-1.5 md:gap-2 overflow-x-auto no-scrollbar shrink-0 py-0.5">
           {navLinks.map((link) => {
             const isActive =
               pathname === link.href ||
@@ -64,7 +65,7 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-full px-3 py-1 md:px-5 md:py-2 text-[11px] md:text-sm font-bold transition-all whitespace-nowrap ${
+                className={`rounded-full px-2.5 py-1 sm:px-3 md:px-4 lg:px-5 md:py-2 text-[11px] md:text-xs lg:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-md scale-105"
                     : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40"
@@ -76,8 +77,8 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
           })}
         </nav>
 
-        {/* KANAN: TOGGLES DESKTOP (Flex-1 menyeimbangkan kolom kiri) */}
-        <div className="hidden md:flex items-center justify-end gap-3 md:flex-1">
+        {/* KANAN: TOGGLES DESKTOP (Flex-1 penyeimbang simetri) */}
+        <div className="hidden md:flex items-center justify-end gap-3 md:flex-1 shrink-0">
           {showTrash && onClearStorage && (
             <button
               type="button"
@@ -98,7 +99,7 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
 }
 
 // ==========================================
-// 2. HERO HEADER (Diperbesar untuk Desktop)
+// 2. HERO HEADER
 // ==========================================
 interface HeroHeaderProps {
   showDetails?: boolean;
