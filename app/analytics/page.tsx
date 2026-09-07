@@ -23,7 +23,7 @@ export default async function AnalyticsLandingPage() {
 
       {/* 2. HERO HEADER */}
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-12 sm:px-6">
-        <HeroHeader showDetails={false} />
+        <HeroHeader showDetails={true} />
 
         {/* 3. MAIN CONTENT (TABS & ANALYTICS VIEWS) */}
         <section className="w-full max-w-5xl">
