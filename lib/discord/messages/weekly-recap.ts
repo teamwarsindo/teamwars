@@ -12,25 +12,6 @@ export interface ScheduleMatch {
   team2Name: string;
 }
 
-function formatDiscordStyleTimeWIB(dateObj = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Asia/Jakarta',
-  }).formatToParts(dateObj);
-
-  const p: Record<string, string> = {};
-  parts.forEach((part) => {
-    p[part.type] = part.value;
-  });
-
-  return `${p.day} ${p.month} ${p.year} at ${p.hour}:${p.minute} WIB`;
-}
-
 export async function deleteWeeklyScheduleAndRecap(params: {
   channelId: string;
   existingMsgIds?: {
@@ -55,7 +36,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   channelId: string;
   weekName: string;
   weekDateRangeStr?: string;
-  dailyMatchCounts: Array<{
+  dailyMatchCounts?: Array<{
     dateKey: string;
     dateFormatted: string;
     count: number;
@@ -72,13 +53,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   if (!params.channelId) {
     return { recapMsgId: null, groupAMsgId: null, groupBMsgId: null };
   }
-
-  const nowWIB = new Date();
-  const options = { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
-  const [year, month, day] = new Intl.DateTimeFormat('sv-SE', options).format(nowWIB).split('-');
-  const todayKey = `${year}-${month}-${day}`;
-
-  const validDailyCounts = (params.dailyMatchCounts || []).filter((d) => d.dateKey >= todayKey);
 
   const buildGroupDescription = (schedules: Array<ScheduleMatch>): string => {
     let desc = 'Penyesuaian jadwal setelah permintaan reschedule\n\n';
@@ -99,35 +73,8 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     return desc + matchLines.join('\n\n');
   };
 
-  const recapFields = validDailyCounts.map((dayItem, idx) => {
-    let statusText = '';
-    if (dayItem.count >= 3) {
-      statusText = `🔴 ${dayItem.count}/3 Match (Penuh)`;
-    } else if (dayItem.count === 2) {
-      statusText = `🟡 ${dayItem.count}/3 Match (Sisa 1)`;
-    } else {
-      const remaining = 3 - dayItem.count;
-      statusText = `🟢 ${dayItem.count}/3 Match (Sisa ${remaining})`;
-    }
-
-    const rawDateStr = dayItem.dateFormatted?.trim() || `Hari ${idx + 1}`;
-    return {
-      name: `📅 ${rawDateStr}`.slice(0, 24),
-      value: statusText.slice(0, 25),
-      inline: false,
-    };
-  });
-
-  // 🟢 CONTENT TEXT: H1 Title dan @everyone
+  // Content Text & Payload Group A
   const groupAContent = `# ⚔️ Group Stage - ${params.weekName}\n@everyone`;
-  
-  // 🟢 CONTENT TEXT: H1 Title dan Duelist Referee Streamer
-  const duelistMention = DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : '@Duelist';
-  const refereeMention = DISCORD_CONFIG.ROLE_REFEREE ? `<@&${DISCORD_CONFIG.ROLE_REFEREE}>` : '@Referee';
-  const streamerMention = DISCORD_CONFIG.ROLE_STREAMER ? `<@&${DISCORD_CONFIG.ROLE_STREAMER}>` : '@Streamer';
-  const recapContent = `${duelistMention} ${refereeMention} ${streamerMention}`;
-  
-  // 🟢 JUDUL EMBED: Hanya nama divisi tanpa "Week X"
   const groupAPayload = {
     content: groupAContent,
     embeds: [
@@ -140,6 +87,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     ],
   };
 
+  // Payload Group B
   const groupBPayload = {
     embeds: [
       {
@@ -147,19 +95,6 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
         color: 0xe74c3c,
         description: buildGroupDescription(params.groupBSchedules),
         footer: { text: 'Team Wars Indonesia Season 7' },
-      },
-    ],
-  };
-
-  const recapPayload = {
-    content: recapContent,
-    embeds: [
-      {
-        title: `📊 Schedule Recap - ${params.weekName}`,
-        color: 0x9b59b6,
-        description: 'Ketersediaan match per hari sebagai acuan reschedule.',
-        fields: recapFields,
-        footer: { text: `Last Updated: ${formatDiscordStyleTimeWIB()}` },
       },
     ],
   };
@@ -192,20 +127,18 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // 3. RECAP: HAPUS RECAP LAMA & POST BARU AT BOTTOM
+  // 3. RECAP: Hapus pesan rekap lama jika masih ada, dan JANGAN kirim pesan baru jika data kosong
   if (recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
+    recapMsgId = null;
   }
   if (params.oldRecapMsgId && params.oldRecapMsgId !== recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${params.oldRecapMsgId}`, 'DELETE').catch(() => null);
   }
 
-  const postRecapRes = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', recapPayload).catch(() => null);
-  recapMsgId = postRecapRes?.id || null;
-
   return {
     groupAMsgId,
     groupBMsgId,
-    recapMsgId,
+    recapMsgId: null,
   };
-      }
+}
