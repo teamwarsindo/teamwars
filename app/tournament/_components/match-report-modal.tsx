@@ -27,7 +27,7 @@ export function MatchReportModal({
     };
   }, [match, open]);
 
-  // Fetch report lengkap dari Redis saat modal terbuka
+  // Fetch report data dari Redis
   useEffect(() => {
     if (!open && !match) {
       setReport(null);
@@ -58,228 +58,285 @@ export function MatchReportModal({
 
   if (!match || (open !== undefined && !open)) return null;
 
-  // Prioritaskan data dari reportData KV, fallback ke props match
+  // Metadata & Detail Tim
+  const meta = report?.metadata || {};
   const teamAName = report?.teamA?.name || match.teamAName;
   const teamBName = report?.teamB?.name || match.teamBName;
-  const teamALogo = report?.teamA?.logo || match.teamALogo || "/logo.webp";
-  const teamBLogo = report?.teamB?.logo || match.teamBLogo || "/logo.webp";
-  const scoreA = report?.scoreA ?? match.scoreA ?? 0;
-  const scoreB = report?.scoreB ?? match.scoreB ?? 0;
-  const referee = report?.referee || match.referee || "Kireina";
-  const streamer = report?.streamer || match.streamer || "-";
-  const caster = report?.caster || "-";
-  const dateStr = match.matchDate
-    ? new Date(match.matchDate).toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "numeric",
-        year: "numeric",
-      })
-    : "-";
+  const teamALogo = match.teamALogo || "/logo.webp";
+  const teamBLogo = match.teamBLogo || "/logo.webp";
 
-  // Roster Lineup
-  const rosterA: string[] =
-    report?.teamA?.players ||
-    match.rosterA?.mainPlayers?.map((p) => p.playerName) ||
-    [];
-  const rosterB: string[] =
-    report?.teamB?.players ||
-    match.rosterB?.mainPlayers?.map((p) => p.playerName) ||
-    [];
+  const scoreA = report?.teamA?.score ?? report?.finalScore?.teamA ?? match.scoreA ?? 0;
+  const scoreB = report?.teamB?.score ?? report?.finalScore?.teamB ?? match.scoreB ?? 0;
+  const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10 || match.isFinished);
 
-  // Game Logs
-  const games: any[] = report?.games || match.gameLogs || [];
+  const referee = meta.referee || match.referee || "Belum Ditugaskan";
+  const streamer = meta.streamer || match.streamer || "-";
+  const streamUrl = meta.streamUrl || match.streamLink;
+  const targetWeek = report?.week || weekNumber || 6;
+
+  const lineupA: any[] = report?.teamA?.lineup || [];
+  const lineupB: any[] = report?.teamB?.lineup || [];
+  const games: any[] = report?.games || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-2 sm:p-4 backdrop-blur-sm animate-in fade-in">
-      <div className="flex max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 text-white shadow-2xl animate-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4 backdrop-blur-md animate-in fade-in">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/95 text-neutral-100 shadow-2xl backdrop-blur-xl">
         
-        {/* MODAL CLOSE BAR */}
-        <div className="flex items-center justify-between bg-neutral-950 px-4 py-2 border-b border-neutral-800">
-          <span className="text-[11px] font-bold tracking-wider text-neutral-400 uppercase">
-            Official Sheet View • {match.groupName}
-          </span>
+        {/* HEADER MODAL */}
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5 bg-white/5">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary block">
+              OFFICIAL MATCH REPORT • {match.groupName} (WEEK {targetWeek})
+            </span>
+            <h3 className="text-sm font-extrabold text-foreground">
+              {teamAName} <span className="text-muted-foreground font-normal">vs</span> {teamBName}
+            </h3>
+          </div>
           <button
             onClick={onClose}
-            className="rounded px-2 py-0.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white cursor-pointer"
+            className="rounded-full p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white transition cursor-pointer"
           >
-            ✕ Tutup
+            ✕
           </button>
         </div>
 
-        {/* CONTAINER TABEL SPREADSHEET (SUPPORT HORIZONTAL SCROLL ON MOBILE) */}
-        <div className="flex-1 overflow-y-auto overflow-x-auto p-2 sm:p-4">
-          <div className="min-w-[820px] border-4 border-black bg-white text-black font-sans shadow-md">
-            
-            {/* HEADER 1: TITLE TURNAMEN */}
-            <div className="bg-[#ff0000] py-1.5 text-center text-sm sm:text-base font-black tracking-wider text-white uppercase border-b-2 border-black">
-              TEAM WARS INDONESIA SEASON 7
+        {/* BODY CONTAINER (SCROLLABLE) */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 text-xs">
+          
+          {/* INFO PETUGAS & STREAMER */}
+          <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5 text-[11px]">
+            <div>
+              <span className="text-[9px] text-muted-foreground uppercase font-bold block">Referee / Wasit</span>
+              <span className="font-semibold text-foreground">{referee}</span>
+            </div>
+            <div>
+              <span className="text-[9px] text-muted-foreground uppercase font-bold block">Streamer / Live</span>
+              {streamUrl ? (
+                <a
+                  href={streamUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-primary hover:underline truncate block"
+                >
+                  {streamer || "Tonton Live"} ↗
+                </a>
+              ) : (
+                <span className="font-semibold text-foreground">{streamer}</span>
+              )}
+            </div>
+          </div>
+
+          {/* SCOREBOARD UTAMA */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-blue-500/10 via-white/[0.02] to-rose-500/10 border border-white/10">
+            {/* SISI TIM A */}
+            <div className="flex items-center gap-2.5 max-w-[38%]">
+              <div className="h-10 w-10 shrink-0 rounded-lg bg-black/40 border border-white/10 p-1 flex items-center justify-center">
+                <img src={teamALogo} alt="" className="max-h-full max-w-full object-contain" />
+              </div>
+              <span className="font-extrabold text-sm sm:text-base truncate text-foreground">{teamAName}</span>
             </div>
 
-            {/* HEADER 2: MATCH REPORT & WEEK */}
-            <div className="grid grid-cols-2 border-b-2 border-black bg-[#ff0000] text-center text-xs sm:text-sm font-black text-white uppercase">
-              <div className="py-1 border-r-2 border-black tracking-wide">MATCH REPORT</div>
-              <div className="py-1 tracking-wide">WEEK {weekNumber || 6}</div>
+            {/* SKOR */}
+            <div className="text-center px-2 shrink-0">
+              <div className="text-2xl sm:text-3xl font-black tracking-tight flex items-center justify-center gap-2">
+                <span className={scoreA > scoreB ? "text-blue-400" : "text-neutral-400"}>{scoreA}</span>
+                <span className="text-muted-foreground/60 text-lg">-</span>
+                <span className={scoreB > scoreA ? "text-rose-400" : "text-neutral-400"}>{scoreB}</span>
+              </div>
+              <span className={`inline-block px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider mt-0.5 border ${
+                isFinished 
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                  : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+              }`}>
+                {isFinished ? "MATCH FINISHED" : "IN PROGRESS"}
+              </span>
             </div>
 
-            {/* HEADER 3: PETUGAS & TANGGAL */}
-            <div className="grid grid-cols-5 border-b-2 border-black bg-[#ff0000] text-center text-[10px] font-bold text-white uppercase">
-              <div className="border-r-2 border-black py-1">
-                <span className="block text-[8px] opacity-80">Stream Platform</span>
-                <span>-</span>
-              </div>
-              <div className="border-r-2 border-black py-1 truncate px-1">
-                <span className="block text-[8px] opacity-80">Streamer</span>
-                <span>{streamer}</span>
-              </div>
-              <div className="border-r-2 border-black py-1 truncate px-1">
-                <span className="block text-[8px] opacity-80">Judge</span>
-                <span>{referee}</span>
-              </div>
-              <div className="border-r-2 border-black py-1 truncate px-1">
-                <span className="block text-[8px] opacity-80">Caster</span>
-                <span>{caster}</span>
-              </div>
-              <div className="py-1">
-                <span className="block text-[8px] opacity-80">Date</span>
-                <span>{dateStr}</span>
+            {/* SISI TIM B */}
+            <div className="flex items-center justify-end gap-2.5 max-w-[38%] text-right">
+              <span className="font-extrabold text-sm sm:text-base truncate text-foreground">{teamBName}</span>
+              <div className="h-10 w-10 shrink-0 rounded-lg bg-black/40 border border-white/10 p-1 flex items-center justify-center">
+                <img src={teamBLogo} alt="" className="max-h-full max-w-full object-contain" />
               </div>
             </div>
+          </div>
 
-            {/* BARIS NAMA TIM & ROSTER HEADER */}
-            <div className="grid grid-cols-[1fr_80px_1fr] border-b-2 border-black">
-              {/* TIM A */}
-              <div className="flex items-center bg-[#ff0000] text-white border-r-2 border-black p-1.5">
-                <div className="h-10 w-10 shrink-0 bg-white p-1 rounded flex items-center justify-center mr-2 border border-black">
-                  <img src={teamALogo} alt="" className="max-h-full max-w-full object-contain" />
-                </div>
-                <div className="flex-1 truncate">
-                  <span className="block text-sm sm:text-base font-black truncate">{teamAName}</span>
-                  <div className="text-[9px] text-white/90 truncate">
-                    {rosterA.slice(0, 6).join(" • ") || "Lineup belum ada"}
-                  </div>
-                </div>
-              </div>
+          {/* ACTIVE LINEUP & DECK LIST */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+              Lineup Pemain & Deck Pilihan
+            </span>
 
-              {/* VS */}
-              <div className="flex items-center justify-center font-black text-base italic bg-neutral-100 text-neutral-800 border-r-2 border-black">
-                VS
-              </div>
-
-              {/* TIM B */}
-              <div className="flex items-center justify-end bg-[#ff0000] text-white p-1.5 text-right">
-                <div className="flex-1 truncate">
-                  <span className="block text-sm sm:text-base font-black truncate">{teamBName}</span>
-                  <div className="text-[9px] text-white/90 truncate">
-                    {rosterB.slice(0, 6).join(" • ") || "Lineup belum ada"}
-                  </div>
-                </div>
-                <div className="h-10 w-10 shrink-0 bg-white p-1 rounded flex items-center justify-center ml-2 border border-black">
-                  <img src={teamBLogo} alt="" className="max-h-full max-w-full object-contain" />
-                </div>
-              </div>
-            </div>
-
-            {/* HEADER KOLOM TABEL GAME */}
-            <div className="grid grid-cols-[24px_110px_110px_140px_50px_140px_110px_110px_24px] border-b-2 border-black bg-neutral-200 text-center text-[9px] font-black uppercase text-neutral-800">
-              <div className="py-1 border-r border-black">R</div>
-              <div className="py-1 border-r border-black">PLAYER</div>
-              <div className="py-1 border-r border-black">DECK</div>
-              <div className="py-1 border-r-2 border-black">SKILL</div>
-              <div className="py-1 border-r-2 border-black bg-neutral-300">RESULT</div>
-              <div className="py-1 border-r border-black">SKILL</div>
-              <div className="py-1 border-r border-black">DECK</div>
-              <div className="py-1 border-r border-black">PLAYER</div>
-              <div className="py-1">R</div>
-            </div>
-
-            {/* DAFTAR BARIS GAME (1 S/D 18 ATAU SESUAI LOG) */}
-            {loading ? (
-              <div className="p-8 text-center text-xs font-bold text-neutral-500 bg-neutral-50">
-                Memuat rincian duel dari server...
-              </div>
-            ) : games.length === 0 ? (
-              <div className="p-8 text-center text-xs italic text-neutral-500 bg-neutral-50">
-                Belum ada rincian game yang dipublikasikan.
+            {lineupA.length === 0 && lineupB.length === 0 ? (
+              <div className="p-4 text-center text-xs italic text-muted-foreground bg-white/[0.02] border border-white/5 rounded-xl">
+                Lineup pemain belum disubmit oleh kapten kedua tim.
               </div>
             ) : (
-              <div className="divide-y divide-black/40 text-[10px]">
-                {games.map((g, idx) => {
-                  const isAWin = g.winner === "A" || g.winnerTeamId === match.teamAId;
-                  const isRepeatA = !!g.isRepeatA;
-                  const isRepeatB = !!g.isRepeatB;
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+                {/* LINEUP A */}
+                <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-2">
+                  <div className="flex items-center justify-between border-b border-blue-500/20 pb-1.5">
+                    <span className="font-bold text-blue-400 truncate">{teamAName}</span>
+                    <span className="text-[9px] text-white/50">{lineupA.length} Players</span>
+                  </div>
+                  <div className="space-y-2">
+                    {lineupA.map((p: any, i: number) => (
+                      <div key={i} className="text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <strong className="text-foreground">{i + 1}. {p.ign}</strong>
+                          <span className="text-[9px] font-mono text-white/40">{p.idDuelLinks}</span>
+                        </div>
+                        <div className="text-[10px] pl-3 border-l border-white/10 mt-0.5 space-y-0.5">
+                          <div className={p.deck1?.isDead ? "line-through opacity-50" : "text-white/80"}>
+                            • {p.deck1?.archetype || "-"} <span className="italic text-white/40">({p.deck1?.skill || "-"})</span>
+                          </div>
+                          {p.deck2 && (
+                            <div className={p.deck2?.isDead ? "line-through opacity-50" : "text-white/80"}>
+                              • {p.deck2?.archetype || "-"} <span className="italic text-white/40">({p.deck2?.skill || "-"})</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* LINEUP B */}
+                <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/10 space-y-2">
+                  <div className="flex items-center justify-between border-b border-rose-500/20 pb-1.5">
+                    <span className="font-bold text-rose-400 truncate">{teamBName}</span>
+                    <span className="text-[9px] text-white/50">{lineupB.length} Players</span>
+                  </div>
+                  <div className="space-y-2">
+                    {lineupB.map((p: any, i: number) => (
+                      <div key={i} className="text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <strong className="text-foreground">{i + 1}. {p.ign}</strong>
+                          <span className="text-[9px] font-mono text-white/40">{p.idDuelLinks}</span>
+                        </div>
+                        <div className="text-[10px] pl-3 border-l border-white/10 mt-0.5 space-y-0.5">
+                          <div className={p.deck1?.isDead ? "line-through opacity-50" : "text-white/80"}>
+                            • {p.deck1?.archetype || "-"} <span className="italic text-white/40">({p.deck1?.skill || "-"})</span>
+                          </div>
+                          {p.deck2 && (
+                            <div className={p.deck2?.isDead ? "line-through opacity-50" : "text-white/80"}>
+                              • {p.deck2?.archetype || "-"} <span className="italic text-white/40">({p.deck2?.skill || "-"})</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RINCIAN LOG GAME */}
+          <div className="space-y-2.5">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+              Rincian Log Game ({games.length} Game Dimainkan)
+            </span>
+
+            {loading ? (
+              <div className="p-8 text-center text-xs text-muted-foreground bg-white/[0.02] border border-white/5 rounded-xl">
+                Memuat riwayat duel dari database...
+              </div>
+            ) : games.length === 0 ? (
+              <div className="p-8 text-center text-xs italic text-muted-foreground bg-white/[0.02] border border-white/5 rounded-xl">
+                Belum ada rincian game yang dipublikasikan untuk pertandingan ini.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {games.map((g: any, idx: number) => {
+                  const isAWin = g.winner === "teamA";
+                  const pA = g.playerA || {};
+                  const pB = g.playerB || {};
 
                   return (
                     <div
                       key={idx}
-                      className="grid grid-cols-[24px_110px_110px_140px_50px_140px_110px_110px_24px] text-center hover:bg-red-50/50 transition-colors bg-[#f8d7da]/20"
+                      className="p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 transition flex flex-col gap-2"
                     >
-                      {/* Repeat A */}
-                      <div className="py-1 font-bold border-r border-black/50 bg-neutral-100 flex items-center justify-center">
-                        {isRepeatA ? "R" : ""}
-                      </div>
-                      {/* Player A */}
-                      <div className="py-1 px-1 font-bold truncate border-r border-black/50 text-left">
-                        {g.playerAName || "-"}
-                      </div>
-                      {/* Deck A */}
-                      <div className="py-1 px-1 truncate border-r border-black/50 text-neutral-700 text-left">
-                        {g.deckA || "-"}
-                      </div>
-                      {/* Skill A */}
-                      <div className="py-1 px-1 truncate border-r-2 border-black text-neutral-700 text-left">
-                        {g.skillA || "-"}
-                      </div>
-
-                      {/* RESULT W / L DI TENGAH */}
-                      <div className="flex border-r-2 border-black bg-black font-black text-[10px] text-white">
-                        <div className={`w-1/2 flex items-center justify-center ${isAWin ? "text-emerald-400" : "text-neutral-500"}`}>
-                          {isAWin ? "W" : "L"}
-                        </div>
-                        <div className={`w-1/2 flex items-center justify-center border-l border-neutral-700 ${!isAWin ? "text-emerald-400" : "text-neutral-500"}`}>
-                          {!isAWin ? "W" : "L"}
+                      {/* BARIS ATAS: NO GAME, BADGE DECKLOSS / REPEAT, DAN PEMENANG */}
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-white/60 font-mono">
+                          GAME #{g.gameNumber || idx + 1}
+                        </span>
+                        
+                        <div className="flex items-center gap-1.5">
+                          {g.isDeckloss && (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                              DECKLOSS
+                            </span>
+                          )}
+                          <span
+                            className={`px-2 py-0.5 rounded-md font-black text-[9px] border ${
+                              isAWin
+                                ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                                : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                            }`}
+                          >
+                            WIN: {isAWin ? teamAName : teamBName}
+                          </span>
                         </div>
                       </div>
 
-                      {/* Skill B */}
-                      <div className="py-1 px-1 truncate border-r border-black/50 text-neutral-700 text-right">
-                        {g.skillB || "-"}
+                      {/* DUEL GRID RESPONSIF (PEMAIN A VS PEMAIN B) */}
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[11px] pt-1 border-t border-white/5">
+                        {/* PEMAIN A */}
+                        <div className={`space-y-0.5 ${isAWin ? "opacity-100" : "opacity-60"}`}>
+                          <div className="flex items-center gap-1">
+                            <strong className="text-foreground truncate">{pA.ign || "-"}</strong>
+                            {pA.isRepeat && (
+                              <span className="text-[8px] font-black bg-amber-500 text-black px-1 rounded">R</span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {pA.archetype || "-"}
+                          </div>
+                          <div className="text-[9px] text-neutral-400 truncate italic">
+                            {pA.skill || "-"}
+                          </div>
+                        </div>
+
+                        {/* VS BADGE */}
+                        <div className="text-[9px] font-black text-white/30 px-1.5 py-0.5 rounded bg-white/5">
+                          VS
+                        </div>
+
+                        {/* PEMAIN B */}
+                        <div className={`space-y-0.5 text-right ${!isAWin ? "opacity-100" : "opacity-60"}`}>
+                          <div className="flex items-center justify-end gap-1">
+                            {pB.isRepeat && (
+                              <span className="text-[8px] font-black bg-amber-500 text-black px-1 rounded">R</span>
+                            )}
+                            <strong className="text-foreground truncate">{pB.ign || "-"}</strong>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {pB.archetype || "-"}
+                          </div>
+                          <div className="text-[9px] text-neutral-400 truncate italic">
+                            {pB.skill || "-"}
+                          </div>
+                        </div>
                       </div>
-                      {/* Deck B */}
-                      <div className="py-1 px-1 truncate border-r border-black/50 text-neutral-700 text-right">
-                        {g.deckB || "-"}
-                      </div>
-                      {/* Player B */}
-                      <div className="py-1 px-1 font-bold truncate border-r border-black/50 text-right">
-                        {g.playerBName || "-"}
-                      </div>
-                      {/* Repeat B */}
-                      <div className="py-1 font-bold bg-neutral-100 flex items-center justify-center">
-                        {isRepeatB ? "R" : ""}
-                      </div>
+
+                      {/* CATATAN TAMBAHAN DARI WASIT / PENALTI */}
+                      {g.notes && (
+                        <div className="text-[9px] text-amber-400/90 italic bg-amber-500/5 px-2 py-1 rounded border border-amber-500/10">
+                          Catatan: {g.notes}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
-
-            {/* FOOTER SKOR AKHIR */}
-            <div className="grid grid-cols-[30px_1fr_90px_1fr_30px] border-t-2 border-black bg-[#ff0000] text-white font-black text-xs sm:text-sm text-center">
-              <div className="py-1.5 flex items-center justify-center border-r-2 border-black bg-black text-white">
-                {scoreA > scoreB ? "W" : "L"}
-              </div>
-              <div className="py-1.5 truncate px-2 text-left">{teamAName}</div>
-              <div className="py-1.5 flex items-center justify-center bg-white text-black border-x-2 border-black font-black text-sm sm:text-base">
-                {scoreA} - {scoreB}
-              </div>
-              <div className="py-1.5 truncate px-2 text-right">{teamBName}</div>
-              <div className="py-1.5 flex items-center justify-center border-l-2 border-black bg-black text-white">
-                {scoreB > scoreA ? "W" : "L"}
-              </div>
-            </div>
-
           </div>
+
         </div>
       </div>
     </div>
   );
-              }
+}
