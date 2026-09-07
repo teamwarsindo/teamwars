@@ -31,7 +31,6 @@ export async function handleRescheduleCommand(body: any) {
     const options = body.data?.options || [];
     const optTanggal = options.find((o: any) => o.name === 'tanggal')?.value;
     const optJam = options.find((o: any) => o.name === 'jam')?.value;
-    const optUpdateRecap = options.find((o: any) => o.name === 'update_recap')?.value ?? true;
 
     if (!optTanggal && !optJam) {
       return NextResponse.json({
@@ -76,12 +75,13 @@ export async function handleRescheduleCommand(body: any) {
           const oldScheduleFormatted = formatConfirmationWIB(match.matchDate);
           const newScheduleFormatted = formatConfirmationWIB(newMatchDateIso);
 
+          // 💾 Simpan tanggal baru & tandai isRescheduled: true
           match.matchDate = newMatchDateIso;
           (match as any).isRescheduled = true;
           schedules[matchIndex] = match;
           await kv.set('twi:schedules', schedules);
 
-          // Hapus embed rekap publik buatan admin jika ada
+          // 🧹 Hapus embed rekap publik buatan admin jika ada
           const recapKvKey = `twi:match_recap_msg:${match.id}`;
           const existingRecapMsgId = await kv.get<string>(recapKvKey);
           if (existingRecapMsgId) {
@@ -91,6 +91,7 @@ export async function handleRescheduleCommand(body: any) {
 
           const syncTasks: Promise<any>[] = [];
 
+          // Task A: Update Opening Embed di channel match
           const slugA = getTeamSlug(match.teamAName);
           const slugB = getTeamSlug(match.teamBName);
 
@@ -150,16 +151,14 @@ export async function handleRescheduleCommand(body: any) {
           })();
           syncTasks.push(openingTask);
 
-          if (optUpdateRecap) {
-            const targetWeekStr = `Week ${match.weekNumber || 1}`;
-            const recapTask = fetch(`${APP_URL}/api/tournament/weekly-recap`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ targetWeek: targetWeekStr }),
-            }).catch((err) => console.error('[RESCHEDULE RECAP ERROR]:', err));
-
-            syncTasks.push(recapTask);
-          }
+          // Task B: Otomatis sinkronisasi jadwal pusat (#schedule-results)
+          const targetWeekStr = `Week ${match.weekNumber || 1}`;
+          const recapTask = fetch(`${APP_URL}/api/tournament/weekly-recap`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetWeek: targetWeekStr }),
+          }).catch((err) => console.error('[RESCHEDULE RECAP ERROR]:', err));
+          syncTasks.push(recapTask);
 
           await Promise.all(syncTasks);
 
@@ -170,7 +169,7 @@ export async function handleRescheduleCommand(body: any) {
                 `⚔️ **Match:** \`${match.id.toUpperCase()}\` (${match.teamAName} vs ${match.teamBName})\n` +
                 `⏱️ **Jadwal Semula:** ${oldScheduleFormatted}\n` +
                 `📅 **Jadwal Baru:** **${newScheduleFormatted}**\n\n` +
-                `📌 *Opening message channel telah diperbarui & tombol ketersediaan match dicabut.*`,
+                `📌 *Opening message telah disahkan, tombol kuota dicabut, dan channel pengumuman jadwal otomatis diperbarui.*`,
             });
           }
         } catch (err: any) {

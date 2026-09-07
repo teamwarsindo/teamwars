@@ -1,29 +1,23 @@
 export const tournamentCommands = [
   {
-    name: 'reschedule',
-    description: 'Perbarui jadwal (hari dan/ jam) pertandingan di channel match',
-    options: [
-      {
-        type: 3,
-        name: 'tanggal',
-        description: 'Pilih tanggal bertanding (Rabu s/d Minggu)',
-        required: false,
-        autocomplete: true,
-      },
-      {
-        type: 3,
-        name: 'jam',
-        description: 'Waktu pertandingan dalam format 24 Jam (Contoh: 20.00, 20:30, 21.00)',
-        required: false,
-      },
-      {
-        type: 5,
-        name: 'update_recap',
-        description: 'Perbarui rekap jadwal pertandingan',
-        required: false,
-      },
-    ],
-  },
+  "name": "reschedule",
+  "description": "Ubah jadwal pertandingan (Khusus Admin)",
+  "options": [
+    {
+      "name": "tanggal",
+      "description": "Pilih tanggal baru yang tersedia",
+      "type": 3,
+      "required": false,
+      "autocomplete": true
+    },
+    {
+      "name": "jam",
+      "description": "Waktu tanding format WIB (Contoh: 20.00 atau 20:30)",
+      "type": 3,
+      "required": false
+    }
+  ]
+},
   {
     name: 'stream',
     description: '[STREAMER] Masukkan link siaran langsung pertandingan ini dan kirim broadcast',
