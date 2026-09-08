@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { PlayerItem, parsePlayers, resolveDiscordId, getSubcommandData } from '@/lib/discord/commands/transfer/types';
+import { PlayerItem, parsePlayers, getSubcommandData } from '@/lib/discord/commands/transfer/types';
 
 export async function handleTransferAutocomplete(interaction: any) {
   try {
@@ -7,9 +7,9 @@ export async function handleTransferAutocomplete(interaction: any) {
     const teamSlug = await kv.hget<string>('global:channel_teams', channelId);
     if (!teamSlug) return { type: 8, data: { choices: [] } };
 
-    const { opts } = getSubcommandData(interaction);
+    const { subcommand, opts } = getSubcommandData(interaction);
     const focusedOption = opts.find((o: any) => o.focused);
-    if (!focusedOption || focusedOption.name !== 'user') {
+    if (!focusedOption || (focusedOption.name !== 'user' && focusedOption.name !== 'target')) {
       return { type: 8, data: { choices: [] } };
     }
 
@@ -19,25 +19,23 @@ export async function handleTransferAutocomplete(interaction: any) {
     const players: PlayerItem[] = parsePlayers(teamData.players);
     const searchValue = (focusedOption.value || '').toLowerCase();
 
-    const filtered = players
+    // Jika subcommand 'out', sembunyikan Ketua/Wakil. Jika 'edit', semua pemain boleh diedit.
+    const eligiblePlayers =
+      subcommand === 'out'
+        ? players.filter((p) => p.role !== 'Ketua' && p.role !== 'Wakil Ketua')
+        : players;
+
+    const choices = eligiblePlayers
       .filter(
         (p) =>
           (p.ign || '').toLowerCase().includes(searchValue) ||
           (p.discord || '').toLowerCase().includes(searchValue)
       )
-      .slice(0, 25);
-
-    // Resolusi ID Snowflake untuk setiap choice agar tidak mengirim teks username mentah
-    const choices = await Promise.all(
-      filtered.map(async (p) => {
-        const resolvedId = await resolveDiscordId(p.discord, p.discordId);
-        const choiceValue = resolvedId || p.discordId || p.discord || p.ign;
-        return {
-          name: `${p.ign} (@${p.discord || '-'}) - ${p.role}`,
-          value: choiceValue,
-        };
-      })
-    );
+      .slice(0, 25)
+      .map((p) => ({
+        name: `${p.ign} (@${p.discord || '-'}) - ${p.role || 'Anggota'}`,
+        value: p.ign, // Langsung IGN murni tanpa mutasi
+      }));
 
     return { type: 8, data: { choices } };
   } catch (err) {
