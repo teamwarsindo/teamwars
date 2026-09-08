@@ -1,7 +1,6 @@
 import { kv } from '@vercel/kv';
 import { isValidSnowflake, parsePlayers, PlayerItem } from '@/lib/discord/utils';
 
-// Re-export agar sub-command di folder transfer tetap kompatibel
 export { parsePlayers, type PlayerItem };
 
 export interface TeamKVData {
@@ -61,28 +60,10 @@ export function cleanDuelId(input: string): string {
   return (input || '').replace(/\D/g, '');
 }
 
+// Pencocokan langsung berbasis IGN murni dari Autocomplete
 export function findPlayerIndex(players: PlayerItem[], targetInput: string): number {
   if (!targetInput) return -1;
-
-  // Bersihkan format mention Discord: <@12345> atau <@!12345>
-  const cleanInput = targetInput.replace(/[<@!>]/g, '').trim().toLowerCase();
-  const cleanInputDl = cleanDuelId(targetInput);
-
-  return players.findIndex((p) => {
-    const pDiscId = String(p.discordId || '').trim().toLowerCase();
-    const pDisc = String(p.discord || '').trim().replace(/^@/, '').toLowerCase();
-    const pIgn = String(p.ign || '').trim().toLowerCase();
-    const pDl = cleanDuelId(String(p.idDuelLinks || ''));
-
-    return (
-      (pDiscId && (pDiscId === cleanInput || pDiscId === targetInput.toLowerCase())) ||
-      (pDisc && (pDisc === cleanInput || `@${pDisc}` === cleanInput)) ||
-      (pIgn && pIgn === cleanInput) ||
-      (pDl && cleanInputDl && pDl === cleanInputDl) ||
-      targetInput.toLowerCase().includes(pIgn) ||
-      (pDisc && targetInput.toLowerCase().includes(pDisc))
-    );
-  });
+  return players.findIndex((p) => p.ign === targetInput);
 }
 
 export async function getTeamBySlug(slug: string): Promise<{ key: string; data: TeamKVData } | null> {
@@ -92,7 +73,6 @@ export async function getTeamBySlug(slug: string): Promise<{ key: string; data: 
   return { key, data };
 }
 
-// 🔍 Resolusi Tunggal Discord ID (Fallback global:verified_users)
 export async function resolveDiscordId(discordUsername?: string, existingId?: string): Promise<string | null> {
   if (existingId && isValidSnowflake(existingId)) return existingId;
   if (!discordUsername) return null;
