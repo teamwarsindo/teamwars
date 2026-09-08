@@ -15,7 +15,7 @@ import { refreshTeamEmbeds, sendTransferNewsLog, sendAdminAuditLog } from './log
 export async function handleSubcommandOut(ctx: TransferContext) {
   const { actorId, actorRoleText, teamSlug, teamName, teamData, opts } = ctx;
 
-  const rawUser = opts.find((o: any) => o.name === 'user')?.value;
+  const rawUser = String(opts.find((o: any) => o.name === 'user')?.value || '').trim();
   if (!rawUser) throw new Error('Option `user` wajib diisi!');
 
   const players = parsePlayers(teamData.players);
@@ -23,8 +23,11 @@ export async function handleSubcommandOut(ctx: TransferContext) {
     throw new Error('Roster tim minimal menyisakan 5 pemain. Tidak dapat mengeluarkan pemain lagi.');
   }
 
+  // 1. CARI TARGET BERDASARKAN DATA KV
   const targetIdx = findPlayerIndex(players, rawUser);
-  if (targetIdx === -1) throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
+  if (targetIdx === -1) {
+    throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
+  }
 
   const removed = players[targetIdx];
   if (removed.role === 'Ketua' || removed.role === 'Wakil Ketua') {
@@ -32,11 +35,15 @@ export async function handleSubcommandOut(ctx: TransferContext) {
   }
 
   // Resolusi ID Snowflake target
-  const targetDiscordId = await resolveDiscordId(removed.discord, removed.discordId);
+  let targetDiscordId = await resolveDiscordId(removed.discord, removed.discordId);
+  if (!targetDiscordId) {
+    const rawClean = rawUser.replace(/[<@!>]/g, '').trim();
+    if (isValidSnowflake(rawClean)) targetDiscordId = rawClean;
+  }
 
+  // 2. MUTASI DATA KV DIDAHULUKAN
   players.splice(targetIdx, 1);
 
-  // Bersihkan index global
   const cleanDl = cleanDuelId(removed.idDuelLinks);
   await Promise.all([
     kv.hdel('global:duellinks', cleanDl),
@@ -46,7 +53,7 @@ export async function handleSubcommandOut(ctx: TransferContext) {
     targetDiscordId ? kv.hdel('global:discord_ids', targetDiscordId) : Promise.resolve(),
   ]);
 
-  // Simpan record ke free duelists
+  // Simpan record ke pool Free Agent
   const freeRecord: FreeDuelistRecord = {
     discord: removed.discord || '',
     discordId: targetDiscordId || '',
@@ -62,7 +69,7 @@ export async function handleSubcommandOut(ctx: TransferContext) {
   if (removed.ign) await kv.hset('global:free_duelists_ign', { [removed.ign]: idKey });
   if (removed.idDuelLinks) await kv.hset('global:free_duelists_dl', { [removed.idDuelLinks]: idKey });
 
-  // Update Roster di KV (Kuota tetap sama / gratis)
+  // Update Roster Tim di KV
   const currentQuota = Number(teamData.transferQuotaUsed || 0);
   const nowIso = new Date().toISOString();
   await kv.hset(`teams:${teamSlug}`, {
@@ -72,24 +79,34 @@ export async function handleSubcommandOut(ctx: TransferContext) {
   teamData.players = players;
   teamData.updatedAt = nowIso;
 
-  // Eksekusi Cabut Role & Reset Nickname di Discord API
+  // 3. CABUT ROLE & RESET NICKNAME (ISOLASI TRY-CATCH)
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const rolesRemoved: string[] = [];
 
   if (guildId && targetDiscordId && isValidSnowflake(targetDiscordId)) {
     if (teamData.discordRoleId) {
-      await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`, 'DELETE').catch((err) =>
-        console.error('[REMOVE TEAM ROLE ERROR]:', err)
-      );
-      rolesRemoved.push(`Role Tim Dicabut: <@&${teamData.discordRoleId}>`);
+      try {
+        await discordAPI(
+          `/guilds/${guildId}/members/${targetDiscordId}/roles/${teamData.discordRoleId}`,
+          'DELETE'
+        );
+        rolesRemoved.push(`Role Tim Dicabut: <@&${teamData.discordRoleId}>`);
+      } catch {
+        rolesRemoved.push('Pemain sudah keluar server (Cabut role dilewati)');
+      }
     }
-    await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: null }).catch((err) =>
-      console.error('[RESET NICKNAME ERROR]:', err)
-    );
-    rolesRemoved.push('Reset Nickname Server ke Nama Asli');
+
+    try {
+      await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: null });
+      rolesRemoved.push('Reset Nickname Server');
+    } catch {
+      // Abaikan jika member sudah left
+    }
+  } else {
+    rolesRemoved.push('Akun Discord tidak ditemukan di server (Dilewati)');
   }
 
-  // Refresh Embed & News Log
+  // 4. LOGGING & EMBED SYNC
   refreshTeamEmbeds(teamSlug, teamData, players, currentQuota).catch(console.error);
 
   sendTransferNewsLog({
@@ -103,7 +120,7 @@ export async function handleSubcommandOut(ctx: TransferContext) {
   }).catch(console.error);
 
   const userMention = targetDiscordId ? `<@${targetDiscordId}>` : `@${removed.discord || removed.ign}`;
-  const details = `**Akun:** ${userMention}\n**IGN:** ${removed.ign}\n**ID Duel Links:** ${removed.idDuelLinks}\n**Status:** Dipindahkan ke Free Agent Pool (Gratis Kuota)`;
+  const details = `**Akun:** ${userMention}\n**IGN:** ${removed.ign}\n**ID Duel Links:** ${removed.idDuelLinks}\n**Status:** Berhasil dikeluarkan ke Free Agent Pool (Pemain sudah tidak di server)`;
 
   await sendAdminAuditLog({
     actorId,
