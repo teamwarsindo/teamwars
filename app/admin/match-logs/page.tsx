@@ -174,8 +174,8 @@ function MatchLogViewerContent() {
   const displayChannelName = channelName || (activeMatch ? `⚔️-${activeMatch.id}` : "");
 
   return (
-    <main className="flex-1 min-h-0 w-full max-w-4xl mx-auto px-2 sm:px-3 pt-1 pb-1 flex flex-col gap-1.5 overflow-hidden">
-      {/* BARIS PENCARIAN & BADGE CHANNEL (TINGGI SEIMBANG DAN PRESISI) */}
+    <main className="flex-1 min-h-0 w-full max-w-4xl mx-auto px-2 sm:px-3 pt-1 pb-0.5 flex flex-col gap-1 overflow-hidden">
+      {/* SEARCH BAR & BADGE CHANNEL SEJAJAR */}
       <div className="shrink-0 flex items-stretch gap-2">
         <div className="flex-1 min-w-0">
           <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
@@ -189,7 +189,7 @@ function MatchLogViewerContent() {
         )}
       </div>
 
-      {/* KONTEN CHAT MEMANJANG MAKSIMAL */}
+      {/* KONTEN CHAT CARD MEMENUHI SISA RUANG HINGGA MEPET FOOTER */}
       {selectedMatchId && activeMatch ? (
         <div className="flex-1 min-h-0 flex flex-col">
           <MatchChatCard
@@ -215,10 +215,13 @@ function MatchLogViewerContent() {
 
 export default function MatchLogPage() {
   return (
-    <div className="h-dvh max-h-dvh overflow-hidden bg-background text-foreground flex flex-col">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-background text-foreground flex flex-col justify-between">
+      {/* HEADER ATAS KAKU */}
       <div className="shrink-0">
         <TopBar title="Match Logs Archive" />
       </div>
+
+      {/* BODY CHAT DINAMIS */}
       <Suspense
         fallback={
           <div className="flex-1 flex items-center justify-center text-xs font-bold text-muted-foreground animate-pulse">
@@ -228,9 +231,11 @@ export default function MatchLogPage() {
       >
         <MatchLogViewerContent />
       </Suspense>
-      <div className="shrink-0">
+
+      {/* FOOTER TETAP TAMPIL DI MOBILE MAUPUN DESKTOP (MEPET TANPA SCROLLBAR) */}
+      <div className="shrink-0 pt-0.5 pb-1">
         <Footer />
       </div>
     </div>
   );
-          }
+      }
