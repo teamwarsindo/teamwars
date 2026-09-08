@@ -69,8 +69,8 @@ export function MatchChatCard({
   const scoreDisplay = `${scoreA} - ${scoreB}`;
 
   return (
-    <div className="h-full flex-1 min-h-0 rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
-      {/* HEADER CARD KOMPAK */}
+    <div className="flex-1 min-h-0 w-full rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
+      {/* HEADER CARD */}
       <div className="shrink-0 border-b border-border bg-card p-2 sm:p-2.5 space-y-2 shadow-xs">
         {/* BARIS 1: NAMA TIM & SKOR */}
         <div className="flex items-center justify-center gap-2 sm:gap-3">
@@ -89,7 +89,7 @@ export function MatchChatCard({
           </div>
 
           <div className="shrink-0">
-            <span className="px-2 py-0.5 rounded-md font-mono text-[11px] sm:text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
+            <span className="px-2.5 py-0.5 rounded-md font-mono text-[11px] sm:text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
               {scoreDisplay}
             </span>
           </div>
@@ -109,7 +109,7 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* BARIS 2: WASIT RATA KIRI, STREAMER RATA KANAN */}
+        {/* BARIS 2: WASIT & STREAMER */}
         <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1 text-muted-foreground gap-2">
           <div className="flex items-center gap-1 min-w-0 flex-1 justify-start">
             <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
@@ -126,7 +126,7 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* BARIS 3: SEARCH OBROLAN PENUH */}
+        {/* BARIS 3: SEARCH INPUT OBROLAN */}
         <div className="relative w-full">
           <input
             type="text"
@@ -138,7 +138,7 @@ export function MatchChatCard({
           <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
         </div>
 
-        {/* BARIS 4: 3 TOMBOL TINDAKAN */}
+        {/* BARIS 4: ACTION BUTTONS */}
         {!isChannelDeleted && (
           <div className="flex items-center gap-1.5 pt-0.5">
             <button
@@ -176,8 +176,8 @@ export function MatchChatCard({
         )}
       </div>
 
-      {/* BODY CHAT MEMANJANG (MAX SPACE) */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 space-y-2.5 bg-background/50 overscroll-contain">
+      {/* BODY CHAT SCROLLABLE: MEREGANG PENUH & MEMILIKI PADDING BAWAH LEGA */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 pb-8 space-y-2.5 bg-background/50 overscroll-contain">
         {loadingChat ? (
           <div className="flex h-full items-center justify-center text-xs font-semibold text-muted-foreground animate-pulse">
             ⏳ Memuat riwayat pesan...
@@ -197,39 +197,43 @@ export function MatchChatCard({
             Tidak ada obrolan yang cocok dengan kata &quot;{chatSearch}&quot;.
           </div>
         ) : (
-          filteredLogs.map((msg, idx) => {
-            const currentDateHeader = formatDiscordDateHeader(msg.timestamp);
-            const prevMsg = idx > 0 ? filteredLogs[idx - 1] : null;
-            const prevDateHeader = prevMsg ? formatDiscordDateHeader(prevMsg.timestamp) : null;
-            const isNewDay = currentDateHeader !== prevDateHeader;
+          <>
+            {filteredLogs.map((msg, idx) => {
+              const currentDateHeader = formatDiscordDateHeader(msg.timestamp);
+              const prevMsg = idx > 0 ? filteredLogs[idx - 1] : null;
+              const prevDateHeader = prevMsg ? formatDiscordDateHeader(prevMsg.timestamp) : null;
+              const isNewDay = currentDateHeader !== prevDateHeader;
 
-            const isMatchSearch =
-              chatSearch.trim() !== "" &&
-              msg.content?.toLowerCase().includes(chatSearch.toLowerCase());
+              const isMatchSearch =
+                chatSearch.trim() !== "" &&
+                msg.content?.toLowerCase().includes(chatSearch.toLowerCase());
 
-            return (
-              <Fragment key={msg.id}>
-                {isNewDay && (
-                  <div className="relative flex items-center justify-center my-2">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-border/60" />
+              return (
+                <Fragment key={msg.id}>
+                  {isNewDay && (
+                    <div className="relative flex items-center justify-center my-2">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-border/60" />
+                      </div>
+                      <span className="relative bg-card border border-border px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-muted-foreground shadow-2xs">
+                        {currentDateHeader}
+                      </span>
                     </div>
-                    <span className="relative bg-card border border-border px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-muted-foreground shadow-2xs">
-                      {currentDateHeader}
-                    </span>
-                  </div>
-                )}
-                <ChatMessageItem
-                  msg={msg}
-                  match={match}
-                  playerTeamMap={playerTeamMap}
-                  isHighlighted={isMatchSearch}
-                />
-              </Fragment>
-            );
-          })
+                  )}
+                  <ChatMessageItem
+                    msg={msg}
+                    match={match}
+                    playerTeamMap={playerTeamMap}
+                    isHighlighted={isMatchSearch}
+                  />
+                </Fragment>
+              );
+            })}
+            {/* Spacer transparan penahan agar balon obrolan terakhir tidak mepet border bawah */}
+            <div className="h-4 shrink-0" aria-hidden="true" />
+          </>
         )}
       </div>
     </div>
   );
-}
+              }
