@@ -4,7 +4,6 @@ import { discordAPI, isValidSnowflake } from '@/lib/discord/utils';
 import { createCampSuccessEmbed } from '@/lib/discord/messages/transfer-log';
 import {
   TransferContext,
-  PlayerItem,
   formatDuelId,
   cleanDuelId,
   parsePlayers,
@@ -27,6 +26,7 @@ export async function handleSubcommandEdit(ctx: TransferContext) {
   }
 
   const players = parsePlayers(teamData.players);
+  // Pencocokan langsung menggunakan IGN murni hasil autocomplete
   const targetIdx = findPlayerIndex(players, rawUser);
   if (targetIdx === -1) throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
 
@@ -151,7 +151,7 @@ export async function handleSubcommandEdit(ctx: TransferContext) {
     teamData.players = orderedPlayers;
     teamData.updatedAt = nowIso;
 
-    // Mutasi Role Discord REST API
+    // Mutasi Role Discord REST API dengan pengaman
     const guildId = DISCORD_CONFIG.GUILD_ID;
     const targetRoleId = position === 'Ketua' ? DISCORD_CONFIG.ROLE_KETUA : DISCORD_CONFIG.ROLE_WAKIL;
     const roleChanges: { added: string[]; removed: string[] } = { added: [], removed: [] };
@@ -159,18 +159,22 @@ export async function handleSubcommandEdit(ctx: TransferContext) {
     if (guildId && targetRoleId) {
       // Cabut role dari pejabat lama
       if (oldLeaderDiscordId && oldLeaderDiscordId !== targetDiscordId && isValidSnowflake(oldLeaderDiscordId)) {
-        await discordAPI(`/guilds/${guildId}/members/${oldLeaderDiscordId}/roles/${targetRoleId}`, 'DELETE').catch((err) =>
-          console.error(`[REMOVE OLD ${position} ROLE ERROR]:`, err)
-        );
-        roleChanges.removed.push(`Role ${position} dicabut dari <@${oldLeaderDiscordId}>`);
+        try {
+          await discordAPI(`/guilds/${guildId}/members/${oldLeaderDiscordId}/roles/${targetRoleId}`, 'DELETE');
+          roleChanges.removed.push(`Role ${position} dicabut dari <@${oldLeaderDiscordId}>`);
+        } catch {
+          roleChanges.removed.push(`Pejabat lama sudah keluar server (Cabut role dilewati)`);
+        }
       }
 
       // Pasang role ke pejabat baru
       if (targetDiscordId && isValidSnowflake(targetDiscordId)) {
-        await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${targetRoleId}`, 'PUT').catch((err) =>
-          console.error(`[ADD NEW ${position} ROLE ERROR]:`, err)
-        );
-        roleChanges.added.push(`Role ${position} diberikan ke <@${targetDiscordId}>`);
+        try {
+          await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}/roles/${targetRoleId}`, 'PUT');
+          roleChanges.added.push(`Role ${position} diberikan ke <@${targetDiscordId}>`);
+        } catch {
+          roleChanges.added.push(`Target tidak ditemukan di server (Beri role dilewati)`);
+        }
       }
     }
 
@@ -203,4 +207,4 @@ export async function handleSubcommandEdit(ctx: TransferContext) {
 
     return createCampSuccessEmbed(actorId, actorRoleText, `EDIT (Angkat ${position})`, details, currentQuota);
   }
-}
+      }
