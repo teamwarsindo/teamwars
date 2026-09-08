@@ -63,13 +63,26 @@ export function cleanDuelId(input: string): string {
 
 export function findPlayerIndex(players: PlayerItem[], targetInput: string): number {
   if (!targetInput) return -1;
-  const targetClean = targetInput.trim().toLowerCase();
-  return players.findIndex(
-    (p) =>
-      (p.ign && p.ign.toLowerCase() === targetClean) ||
-      (p.discordId && p.discordId.toLowerCase() === targetClean) ||
-      (p.discord && p.discord.toLowerCase() === targetClean)
-  );
+
+  // Bersihkan format mention Discord: <@12345> atau <@!12345>
+  const cleanInput = targetInput.replace(/[<@!>]/g, '').trim().toLowerCase();
+  const cleanInputDl = cleanDuelId(targetInput);
+
+  return players.findIndex((p) => {
+    const pDiscId = String(p.discordId || '').trim().toLowerCase();
+    const pDisc = String(p.discord || '').trim().replace(/^@/, '').toLowerCase();
+    const pIgn = String(p.ign || '').trim().toLowerCase();
+    const pDl = cleanDuelId(String(p.idDuelLinks || ''));
+
+    return (
+      (pDiscId && (pDiscId === cleanInput || pDiscId === targetInput.toLowerCase())) ||
+      (pDisc && (pDisc === cleanInput || `@${pDisc}` === cleanInput)) ||
+      (pIgn && pIgn === cleanInput) ||
+      (pDl && cleanInputDl && pDl === cleanInputDl) ||
+      targetInput.toLowerCase().includes(pIgn) ||
+      (pDisc && targetInput.toLowerCase().includes(pDisc))
+    );
+  });
 }
 
 export async function getTeamBySlug(slug: string): Promise<{ key: string; data: TeamKVData } | null> {
