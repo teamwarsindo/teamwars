@@ -174,36 +174,34 @@ function MatchLogViewerContent() {
   const displayChannelName = channelName || (activeMatch ? `⚔️-${activeMatch.id}` : "");
 
   return (
-    <main className="flex-1 min-h-0 w-full max-w-4xl mx-auto px-2 sm:px-3 pt-1 pb-0.5 flex flex-col gap-1 overflow-hidden">
-      {/* SEARCH BAR & BADGE CHANNEL SEJAJAR */}
+    <main className="flex-1 min-h-0 w-full max-w-4xl mx-auto px-2 sm:px-3 pt-1 pb-1 flex flex-col gap-1.5 overflow-hidden">
+      {/* SEARCH BAR & BADGE CHANNEL SEJAJAR PRESISI */}
       <div className="shrink-0 flex items-stretch gap-2">
         <div className="flex-1 min-w-0">
           <MatchSearchInput schedules={schedules} onSelectMatch={setSelectedMatchId} />
         </div>
 
         {selectedMatchId && activeMatch && (
-          <div className="h-full min-h-[42px] px-3 rounded-xl bg-card border border-border text-muted-foreground font-medium font-mono text-[11px] inline-flex items-center justify-center gap-1.5 shrink-0 max-w-[170px] sm:max-w-[220px] shadow-2xs">
+          <div className="h-full min-h-[40px] px-3 rounded-xl bg-card border border-border text-muted-foreground font-medium font-mono text-[11px] inline-flex items-center justify-center gap-1.5 shrink-0 max-w-[170px] sm:max-w-[220px] shadow-2xs">
             <Hash className="h-3 w-3 text-muted-foreground/70 shrink-0" />
             <span className="truncate">{displayChannelName}</span>
           </div>
         )}
       </div>
 
-      {/* KONTEN CHAT CARD MEMENUHI SISA RUANG HINGGA MEPET FOOTER */}
+      {/* KONTEN CHAT MEREGANG PENUH TANPA WRAPPER PENAHAN */}
       {selectedMatchId && activeMatch ? (
-        <div className="flex-1 min-h-0 flex flex-col">
-          <MatchChatCard
-            match={activeMatch}
-            logs={activeLogs}
-            loadingChat={loadingChat}
-            isBackingUp={isBackingUp}
-            playerTeamMap={playerTeamMap}
-            onBackup={handleBackupNow}
-            onDeleteChannel={handleDeleteChannel}
-          />
-        </div>
+        <MatchChatCard
+          match={activeMatch}
+          logs={activeLogs}
+          loadingChat={loadingChat}
+          isBackingUp={isBackingUp}
+          playerTeamMap={playerTeamMap}
+          onBackup={handleBackupNow}
+          onDeleteChannel={handleDeleteChannel}
+        />
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-border/80 rounded-2xl p-4 text-muted-foreground space-y-1.5 bg-card/30">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center border border-dashed border-border/80 rounded-2xl p-4 text-muted-foreground space-y-1.5 bg-card/30">
           <AlertCircle className="h-6 w-6 text-amber-500/80" />
           <p className="text-xs font-semibold text-foreground">Belum Ada Pertandingan Dipilih</p>
           <p className="text-[11px]">Silakan pilih pertandingan pada kolom pencarian di atas.</p>
@@ -215,16 +213,16 @@ function MatchLogViewerContent() {
 
 export default function MatchLogPage() {
   return (
-    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-background text-foreground flex flex-col justify-between">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-background text-foreground flex flex-col">
       {/* HEADER ATAS KAKU */}
       <div className="shrink-0">
         <TopBar title="Match Logs Archive" />
       </div>
 
-      {/* BODY CHAT DINAMIS */}
+      {/* BODY VIEWPORT */}
       <Suspense
         fallback={
-          <div className="flex-1 flex items-center justify-center text-xs font-bold text-muted-foreground animate-pulse">
+          <div className="flex-1 min-h-0 flex items-center justify-center text-xs font-bold text-muted-foreground animate-pulse">
             ⏳ Memuat Log Archive...
           </div>
         }
@@ -232,8 +230,8 @@ export default function MatchLogPage() {
         <MatchLogViewerContent />
       </Suspense>
 
-      {/* FOOTER TETAP TAMPIL DI MOBILE MAUPUN DESKTOP (MEPET TANPA SCROLLBAR) */}
-      <div className="shrink-0 pt-0.5 pb-1">
+      {/* FOOTER DI DASAR SCREEN: TETAP TAMPIL MEPET TANPA MEMICU SCROLL WINDOW */}
+      <div className="shrink-0 pb-1 pt-0.5">
         <Footer />
       </div>
     </div>
