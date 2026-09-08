@@ -4,7 +4,7 @@ import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import AnalyticsClientContent from "./analytics-client";
 
 export const metadata = {
-  title: "Analytics & Match Reports — TWI Season 7",
+  title: "Official Analytics — TWI Season 7",
   description: "Official Analytics, Live Match Reports, Deck Stats, and Leaderboards for Team Wars Indonesia Season 7",
 };
 
@@ -21,7 +21,7 @@ export default async function AnalyticsLandingPage() {
       {/* 1. TOP BAR STICKY */}
       <TopBar title="Official Analytics" />
 
-      {/* 2. HERO HEADER */}
+      {/* 2. HERO HEADER (showDetails={true} agar teks Season 7 & deskripsi tampil utuh) */}
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-12 sm:px-6">
         <HeroHeader showDetails={true} />
 
