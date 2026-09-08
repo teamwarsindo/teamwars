@@ -91,22 +91,20 @@ export async function backupDiscordChannelMessages(params: {
 
   await ensureMatchLogsFolderExists();
 
-  let actualChannelName = `⚔️-${matchId}`;
-  try {
-    const channelData = await discordAPI(`/channels/${channelId}`, 'GET');
-    if (channelData?.name) actualChannelName = channelData.name;
-  } catch (e) {}
+  const channelData = await discordAPI(`/channels/${channelId}`, 'GET');
+  if (!channelData || !channelData.name) {
+    throw new Error(`[Backup Error] Gagal memuat channel data Discord untuk ID: ${channelId}`);
+  }
+  const actualChannelName = channelData.name;
 
   const guildRolesMap: Record<string, { name: string; color?: string; position: number }> = {};
-  try {
-    const rolesData = await discordAPI(`/guilds/${guildId}/roles`, 'GET');
-    if (Array.isArray(rolesData)) {
-      rolesData.forEach((r: any) => {
-        const hex = r.color && r.color !== 0 ? `#${r.color.toString(16).padStart(6, '0')}` : undefined;
-        guildRolesMap[r.id] = { name: r.name, color: hex, position: r.position || 0 };
-      });
-    }
-  } catch (err) {}
+  const rolesData = await discordAPI(`/guilds/${guildId}/roles`, 'GET');
+  if (Array.isArray(rolesData)) {
+    rolesData.forEach((r: any) => {
+      const hex = r.color && r.color !== 0 ? `#${r.color.toString(16).padStart(6, '0')}` : undefined;
+      guildRolesMap[r.id] = { name: r.name, color: hex, position: r.position || 0 };
+    });
+  }
 
   let allMessages: any[] = [];
   let lastId: string | undefined = undefined;
@@ -128,26 +126,39 @@ export async function backupDiscordChannelMessages(params: {
     if (batch.length < 100) hasMore = false;
   }
 
-  // Filter pesan sistem pin (type === 6). Bot hanya difilter jika includeBots === false
+  // Filter pesan pin sistem (type === 6)
   const userMessages = allMessages.filter((msg: any) => {
     if (msg.type === 6) return false;
     if (!includeBots && msg.author?.bot) return false;
     return true;
   });
 
-  const uniqueAuthorIds = Array.from(new Set(userMessages.map((m: any) => m.author.id)));
-  const memberDetailsMap: Record<string, { nick?: string; roles: string[] }> = {};
+  // Kumpulkan semua authorId dan mention terselubung di dalam pesan/embed
+  const scannedUserIds = new Set<string>();
+  userMessages.forEach((msg: any) => {
+    if (msg.author?.id) scannedUserIds.add(msg.author.id);
+    if (Array.isArray(msg.mentions)) {
+      msg.mentions.forEach((u: any) => scannedUserIds.add(u.id));
+    }
+    const textRaw = `${msg.content || ''} ${JSON.stringify(msg.embeds || [])}`;
+    const userTagMatches = textRaw.match(/<@!?(\d{17,20})>/g);
+    if (userTagMatches) {
+      userTagMatches.forEach((m: string) => {
+        const cleanId = m.replace(/[<@!>]/g, '');
+        scannedUserIds.add(cleanId);
+      });
+    }
+  });
 
-  for (const uId of uniqueAuthorIds) {
-    try {
-      const member = await discordAPI(`/guilds/${guildId}/members/${uId}`, 'GET');
-      if (member) {
-        memberDetailsMap[uId] = {
-          nick: member.nick || member.user?.global_name || member.user?.username,
-          roles: Array.isArray(member.roles) ? member.roles : [],
-        };
-      }
-    } catch {}
+  const memberDetailsMap: Record<string, { nick?: string; roles: string[] }> = {};
+  for (const uId of Array.from(scannedUserIds)) {
+    const member = await discordAPI(`/guilds/${guildId}/members/${uId}`, 'GET');
+    if (member) {
+      memberDetailsMap[uId] = {
+        nick: member.nick || member.user?.global_name || member.user?.username,
+        roles: Array.isArray(member.roles) ? member.roles : [],
+      };
+    }
   }
 
   const formattedLogs: SavedChatLogItem[] = [];
@@ -160,28 +171,30 @@ export async function backupDiscordChannelMessages(params: {
     const authorDisplayName = memberInfo?.nick || msg.author.global_name || msg.author.username;
     const authorRoles = memberInfo?.roles || [];
 
-    // 1. Ekstraksi Konten Embed (Title, Description, & Fields)
-    let extractedContent = msg.content || '';
+    // Gabungkan konten teks dan seluruh isi embed bot
+    const contentParts: string[] = [];
+    if (msg.content && msg.content.trim() !== '') {
+      contentParts.push(msg.content.trim());
+    }
+
     if (Array.isArray(msg.embeds) && msg.embeds.length > 0) {
       for (let eIdx = 0; eIdx < msg.embeds.length; eIdx++) {
         const embed = msg.embeds[eIdx];
+        const embedTextBlocks: string[] = [];
 
-        if (!extractedContent) {
-          const parts: string[] = [];
-          if (embed.title) parts.push(`**${embed.title}**`);
-          if (embed.description) parts.push(embed.description);
+        if (embed.title) embedTextBlocks.push(`### ${embed.title}`);
+        if (embed.description) embedTextBlocks.push(embed.description);
 
-          if (Array.isArray(embed.fields) && embed.fields.length > 0) {
-            embed.fields.forEach((f: any) => {
-              if (f.name || f.value) {
-                parts.push(`**${f.name}**\n${f.value}`);
-              }
-            });
-          }
+        if (Array.isArray(embed.fields) && embed.fields.length > 0) {
+          embed.fields.forEach((f: any) => {
+            if (f.name || f.value) {
+              embedTextBlocks.push(`**${f.name}**\n${f.value}`);
+            }
+          });
+        }
 
-          if (parts.length > 0) {
-            extractedContent = parts.join('\n\n').trim();
-          }
+        if (embedTextBlocks.length > 0) {
+          contentParts.push(embedTextBlocks.join('\n\n'));
         }
 
         const mediaUrl = embed.image?.url || embed.thumbnail?.url;
@@ -197,7 +210,21 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
+    const fullFinalContent = contentParts.join('\n\n').trim();
+
+    // Resolusi user mention
     const userMentions: Record<string, { name: string; color?: string }> = {};
+    const mentionMatches = fullFinalContent.match(/<@!?(\d{17,20})>/g);
+    if (mentionMatches) {
+      mentionMatches.forEach((m: string) => {
+        const targetId = m.replace(/[<@!>]/g, '');
+        const targetMember = memberDetailsMap[targetId];
+        if (targetMember?.nick) {
+          userMentions[targetId] = { name: targetMember.nick };
+        }
+      });
+    }
+
     if (Array.isArray(msg.mentions)) {
       msg.mentions.forEach((u: any) => {
         const targetMember = memberDetailsMap[u.id];
@@ -207,17 +234,7 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    if (msg.referenced_message && Array.isArray(msg.referenced_message.mentions)) {
-      msg.referenced_message.mentions.forEach((u: any) => {
-        const targetMember = memberDetailsMap[u.id];
-        if (!userMentions[u.id]) {
-          userMentions[u.id] = {
-            name: targetMember?.nick || u.global_name || u.username,
-          };
-        }
-      });
-    }
-
+    // Resolusi role mention
     const roleMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mention_roles)) {
       msg.mention_roles.forEach((rId: string) => {
@@ -225,44 +242,39 @@ export async function backupDiscordChannelMessages(params: {
         if (r) roleMentions[rId] = { name: r.name, color: r.color };
       });
     }
+    const roleMatches = fullFinalContent.match(/<@&(\d{17,20})>/g);
+    if (roleMatches) {
+      roleMatches.forEach((m: string) => {
+        const rId = m.replace(/[<@&>]/g, '');
+        const r = guildRolesMap[rId];
+        if (r) roleMentions[rId] = { name: r.name, color: r.color };
+      });
+    }
 
-    // Rekam channel mention (<#channelId>) dan fallback nama resmi dari config
+    // Resolusi channel mention: Gagal resolve langsung lempar Error eksplisit
     const channelMentions: Record<string, { name: string }> = {};
-    const textToScan = `${msg.content || ''} ${extractedContent}`;
+    const textToScan = `${msg.content || ''} ${fullFinalContent}`;
     const channelMatches = textToScan.match(/<#(\d+)>/g);
 
     if (channelMatches) {
       for (const m of channelMatches) {
         const cId = m.replace(/[<#>]/g, '');
         if (!channelMentions[cId]) {
-          try {
-            const ch = await discordAPI(`/channels/${cId}`, 'GET');
-            const chName =
-              ch?.name && ch.name !== 'channel'
-                ? ch.name
-                : cId === DISCORD_CONFIG.CH_SCHEDULE
-                ? 'schedule-results'
-                : 'channel';
-            channelMentions[cId] = { name: chName };
-          } catch {
-            const fallbackName = cId === DISCORD_CONFIG.CH_SCHEDULE ? 'schedule-results' : 'channel';
-            channelMentions[cId] = { name: fallbackName };
+          const ch = await discordAPI(`/channels/${cId}`, 'GET');
+          if (!ch || !ch.name) {
+            throw new Error(`[Backup Error] Gagal memuat metadata Discord Channel untuk ID mention: ${cId}`);
           }
+          channelMentions[cId] = { name: ch.name };
         }
       }
     }
 
-    if (DISCORD_CONFIG.CH_SCHEDULE && !channelMentions[DISCORD_CONFIG.CH_SCHEDULE]) {
-      channelMentions[DISCORD_CONFIG.CH_SCHEDULE] = { name: 'schedule-results' };
-    }
-
-    // 2. Forwarded Message
+    // Forwarded message handling
     let forwarded: SavedChatLogItem['forwarded'] = undefined;
     if (Array.isArray(msg.message_snapshots) && msg.message_snapshots.length > 0) {
       const snap = msg.message_snapshots[0]?.message;
       if (snap) {
         const snapAttachments: SavedChatLogItem['attachments'] = [];
-
         if (Array.isArray(snap.attachments) && snap.attachments.length > 0) {
           for (let f = 0; f < snap.attachments.length; f++) {
             const fAtt = snap.attachments[f];
@@ -278,23 +290,6 @@ export async function backupDiscordChannelMessages(params: {
             }
           }
         }
-
-        if (Array.isArray(snap.embeds) && snap.embeds.length > 0) {
-          for (let eIdx = 0; eIdx < snap.embeds.length; eIdx++) {
-            const embed = snap.embeds[eIdx];
-            const mediaUrl = embed.image?.url || embed.thumbnail?.url || embed.video?.url;
-            if (mediaUrl) {
-              const public_id = `w${week}_${matchId}_fwd_emb_${msg.id}_${eIdx}`;
-              await uploadDiscordImageToCloudinary(mediaUrl, public_id);
-              snapAttachments.push({
-                fileName: `embed_${eIdx}.gif`,
-                maskedUrl: `/match-logs/${public_id}.png`,
-                contentType: 'image/gif',
-              });
-            }
-          }
-        }
-
         forwarded = {
           content: snap.content || '',
           attachments: snapAttachments,
@@ -302,7 +297,7 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
-    // 3. Reply Resolution
+    // Reply resolution
     let replyTo: SavedChatLogItem['replyTo'] = undefined;
     if (!forwarded && msg.message_reference) {
       if (msg.referenced_message) {
@@ -333,7 +328,6 @@ export async function backupDiscordChannelMessages(params: {
       for (let i = 0; i < msg.attachments.length; i++) {
         const att = msg.attachments[i];
         const isImage = att.content_type?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(att.filename);
-
         if (isImage) {
           const public_id = `w${week}_${matchId}_${msg.id}_${i}`;
           await uploadDiscordImageToCloudinary(att.url, public_id);
@@ -356,7 +350,7 @@ export async function backupDiscordChannelMessages(params: {
       authorAvatar: msg.author.avatar
         ? `https://cdn.discordapp.com/avatars/${msg.author.id}/${msg.author.avatar}.webp?size=64`
         : 'https://cdn.discordapp.com/embed/avatars/0.png',
-      content: extractedContent,
+      content: fullFinalContent,
       timestamp: msg.timestamp,
       userMentions,
       roleMentions,
@@ -371,4 +365,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-  }
+}
