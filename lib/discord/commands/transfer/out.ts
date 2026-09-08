@@ -8,7 +8,6 @@ import {
   cleanDuelId,
   parsePlayers,
   findPlayerIndex,
-  resolveDiscordId,
 } from './types';
 import { refreshTeamEmbeds, sendTransferNewsLog, sendAdminAuditLog } from './logger';
 
@@ -23,7 +22,7 @@ export async function handleSubcommandOut(ctx: TransferContext) {
     throw new Error('Roster tim minimal menyisakan 5 pemain. Tidak dapat mengeluarkan pemain lagi.');
   }
 
-  // 1. CARI TARGET BERDASARKAN IGN MURNI DARI AUTOCOMPLETE
+  // 1. CARI TARGET BERDASARKAN IGN
   const targetIdx = findPlayerIndex(players, rawUser);
   if (targetIdx === -1) {
     throw new Error('Pemain target tidak ditemukan di dalam roster tim Anda.');
@@ -34,13 +33,21 @@ export async function handleSubcommandOut(ctx: TransferContext) {
     throw new Error(`Target masih menjabat sebagai ${removed.role}. Turunkan jabatan ke Anggota terlebih dahulu.`);
   }
 
-  // Resolusi ID Snowflake jika akun masih terhubung
-  let targetDiscordId = removed.discordId;
-  if (!targetDiscordId || !isValidSnowflake(targetDiscordId)) {
-    targetDiscordId = await resolveDiscordId(removed.discord, removed.discordId);
+  // 2. AMBIL DISCORD ID: DARI ROSTER ATAU CARI DI global:verified_users
+  let targetDiscordId: string | null =
+    removed.discordId && isValidSnowflake(removed.discordId)
+      ? removed.discordId
+      : null;
+
+  if (!targetDiscordId && removed.discord) {
+    const cleanUsername = removed.discord.trim().toLowerCase().replace(/^@/, '');
+    const foundId = await kv.hget<string>('global:verified_users', cleanUsername);
+    if (foundId && isValidSnowflake(foundId)) {
+      targetDiscordId = foundId;
+    }
   }
 
-  // 2. MUTASI DATA KV DIDAHULUKAN (PRIORITAS UTAMA)
+  // 3. MUTASI DATA KV DIDAHULUKAN
   players.splice(targetIdx, 1);
 
   const cleanDl = cleanDuelId(removed.idDuelLinks);
@@ -52,7 +59,7 @@ export async function handleSubcommandOut(ctx: TransferContext) {
     targetDiscordId ? kv.hdel('global:discord_ids', targetDiscordId) : Promise.resolve(),
   ]);
 
-  // Pindahkan data pemain ke Free Agent Pool
+  // Pindahkan ke Free Agent Pool
   const freeRecord: FreeDuelistRecord = {
     discord: removed.discord || '',
     discordId: targetDiscordId || '',
@@ -68,7 +75,7 @@ export async function handleSubcommandOut(ctx: TransferContext) {
   if (removed.ign) await kv.hset('global:free_duelists_ign', { [removed.ign]: idKey });
   if (removed.idDuelLinks) await kv.hset('global:free_duelists_dl', { [removed.idDuelLinks]: idKey });
 
-  // Update Roster Tim di KV (Kuota tetap sama / gratis)
+  // Update Roster Tim di KV
   const currentQuota = Number(teamData.transferQuotaUsed || 0);
   const nowIso = new Date().toISOString();
   await kv.hset(`teams:${teamSlug}`, {
@@ -78,11 +85,11 @@ export async function handleSubcommandOut(ctx: TransferContext) {
   teamData.players = players;
   teamData.updatedAt = nowIso;
 
-  // 3. CABUT ROLE & RESET NICKNAME (ISOLASI TRY-CATCH)
+  // 4. CABUT ROLE & RESET NICKNAME (ISOLASI TRY-CATCH)
   const guildId = DISCORD_CONFIG.GUILD_ID;
   const rolesRemoved: string[] = [];
 
-  if (guildId && targetDiscordId && isValidSnowflake(targetDiscordId)) {
+  if (guildId && targetDiscordId) {
     if (teamData.discordRoleId) {
       try {
         await discordAPI(
@@ -99,13 +106,13 @@ export async function handleSubcommandOut(ctx: TransferContext) {
       await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', { nick: null });
       rolesRemoved.push('Reset Nickname Server');
     } catch {
-      // Abaikan jika user sudah tidak berada di server Discord
+      // Abaikan jika user sudah tidak ada di server
     }
   } else {
     rolesRemoved.push('Akun Discord tidak terhubung (Dilewati)');
   }
 
-  // 4. EMBED & NEWS LOG
+  // 5. EMBED & NEWS LOG
   refreshTeamEmbeds(teamSlug, teamData, players, currentQuota).catch(console.error);
 
   sendTransferNewsLog({
@@ -136,4 +143,4 @@ export async function handleSubcommandOut(ctx: TransferContext) {
   });
 
   return createCampSuccessEmbed(actorId, actorRoleText, 'OUT (Keluarkan Pemain)', details, currentQuota);
-                                                              }
+}
