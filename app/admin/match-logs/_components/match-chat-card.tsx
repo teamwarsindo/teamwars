@@ -70,12 +70,10 @@ export function MatchChatCard({
 
   return (
     <div className="h-full flex-1 min-h-0 rounded-2xl border border-border bg-card text-card-foreground shadow-lg overflow-hidden flex flex-col">
-      {/* HEADER CARD */}
-      <div className="shrink-0 border-b border-border bg-card p-2.5 sm:p-3 space-y-2.5 shadow-xs">
-        
+      {/* HEADER CARD KOMPAK */}
+      <div className="shrink-0 border-b border-border bg-card p-2 sm:p-2.5 space-y-2 shadow-xs">
         {/* BARIS 1: NAMA TIM & SKOR */}
         <div className="flex items-center justify-center gap-2 sm:gap-3">
-          {/* Tim A */}
           <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
             <span className="text-[11px] sm:text-xs font-semibold text-sky-600 dark:text-sky-400 truncate leading-tight">
               {match.teamAName}
@@ -83,25 +81,27 @@ export function MatchChatCard({
             <img
               src={match.teamALogo || "/placeholder-team.png"}
               alt=""
-              className="h-5 w-5 rounded-full border border-sky-500/40 object-cover shrink-0"
-              onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
+              className="h-4.5 w-4.5 sm:h-5 sm:w-5 rounded-full border border-sky-500/40 object-cover shrink-0"
+              onError={(e: any) => {
+                e.target.src = "/placeholder-team.png";
+              }}
             />
           </div>
 
-          {/* Skor */}
           <div className="shrink-0">
-            <span className="px-2.5 py-0.5 rounded-md font-mono text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
+            <span className="px-2 py-0.5 rounded-md font-mono text-[11px] sm:text-xs font-bold bg-muted text-foreground border border-border shadow-2xs">
               {scoreDisplay}
             </span>
           </div>
 
-          {/* Tim B */}
           <div className="flex items-center justify-start gap-1.5 min-w-0 flex-1 text-left">
             <img
               src={match.teamBLogo || "/placeholder-team.png"}
               alt=""
-              className="h-5 w-5 rounded-full border border-amber-500/40 object-cover shrink-0"
-              onError={(e: any) => { e.target.src = "/placeholder-team.png"; }}
+              className="h-4.5 w-4.5 sm:h-5 sm:w-5 rounded-full border border-amber-500/40 object-cover shrink-0"
+              onError={(e: any) => {
+                e.target.src = "/placeholder-team.png";
+              }}
             />
             <span className="text-[11px] sm:text-xs font-semibold text-amber-600 dark:text-amber-400 truncate leading-tight">
               {match.teamBName}
@@ -110,8 +110,7 @@ export function MatchChatCard({
         </div>
 
         {/* BARIS 2: WASIT RATA KIRI, STREAMER RATA KANAN */}
-        <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1.5 text-muted-foreground gap-2">
-          {/* Wasit: Rata Kiri */}
+        <div className="flex items-center justify-between text-[11px] border-t border-border/40 pt-1 text-muted-foreground gap-2">
           <div className="flex items-center gap-1 min-w-0 flex-1 justify-start">
             <Shield className="h-3 w-3 text-emerald-500 shrink-0" />
             <span className="truncate">
@@ -119,7 +118,6 @@ export function MatchChatCard({
             </span>
           </div>
 
-          {/* Streamer: Rata Kanan */}
           <div className="flex items-center gap-1 min-w-0 flex-1 justify-end text-right">
             <Tv className="h-3 w-3 text-purple-500 shrink-0" />
             <span className="truncate">
@@ -128,26 +126,25 @@ export function MatchChatCard({
           </div>
         </div>
 
-        {/* BARIS 3: SEARCH BAR PENUH */}
+        {/* BARIS 3: SEARCH OBROLAN PENUH */}
         <div className="relative w-full">
           <input
             type="text"
             value={chatSearch}
             onChange={(e) => setChatSearch(e.target.value)}
             placeholder="Cari kata di obrolan..."
-            className="w-full bg-muted/40 border border-border rounded-lg h-8 px-2.5 pl-7 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full bg-muted/40 border border-border rounded-lg h-7.5 px-2.5 pl-7 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
           />
-          <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
         </div>
 
-        {/* BARIS 4: 3 TOMBOL DI BAWAH SEARCH BAR */}
+        {/* BARIS 4: 3 TOMBOL TINDAKAN */}
         {!isChannelDeleted && (
-          <div className="flex items-center gap-2">
-            {/* Toggle Pesan Bot TWI */}
+          <div className="flex items-center gap-1.5 pt-0.5">
             <button
               type="button"
               onClick={() => setIncludeBots((prev) => !prev)}
-              className={`flex-1 h-8 px-2.5 flex items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+              className={`flex-1 h-7.5 px-2 flex items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition cursor-pointer border ${
                 includeBots
                   ? "bg-primary text-primary-foreground border-primary shadow-xs"
                   : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
@@ -158,21 +155,19 @@ export function MatchChatCard({
               <span>Pesan Bot TWI</span>
             </button>
 
-            {/* Tombol Backup */}
             <button
               onClick={() => onBackup(includeBots)}
               disabled={isBackingUp}
-              className="flex-1 h-8 px-3 flex items-center justify-center gap-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition cursor-pointer disabled:opacity-50"
+              className="flex-1 h-7.5 px-2.5 flex items-center justify-center gap-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition cursor-pointer disabled:opacity-50"
               title="Backup pesan ke database"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isBackingUp ? "animate-spin" : ""}`} />
               <span>{isBackingUp ? "Memproses..." : "Backup"}</span>
             </button>
 
-            {/* Tombol Hapus Channel */}
             <button
               onClick={handleDeletePrompt}
-              className="h-8 w-9 flex items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer shrink-0"
+              className="h-7.5 w-8 flex items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer shrink-0"
               title="Hapus Channel Discord"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -181,8 +176,8 @@ export function MatchChatCard({
         )}
       </div>
 
-      {/* BODY CHAT SCROLLABLE */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-background/50 overscroll-contain">
+      {/* BODY CHAT MEMANJANG (MAX SPACE) */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 space-y-2.5 bg-background/50 overscroll-contain">
         {loadingChat ? (
           <div className="flex h-full items-center justify-center text-xs font-semibold text-muted-foreground animate-pulse">
             ⏳ Memuat riwayat pesan...
@@ -215,7 +210,7 @@ export function MatchChatCard({
             return (
               <Fragment key={msg.id}>
                 {isNewDay && (
-                  <div className="relative flex items-center justify-center my-2.5">
+                  <div className="relative flex items-center justify-center my-2">
                     <div className="absolute inset-0 flex items-center">
                       <div className="w-full border-t border-border/60" />
                     </div>
