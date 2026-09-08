@@ -25,6 +25,7 @@ export async function GET() {
         const parsedFree = typeof freeData === 'string' ? JSON.parse(freeData) : freeData;
 
         players.push({
+          namaLengkap: parsedFree?.namaLengkap || targetIgn,
           ign: targetIgn,
           idDuelLinks: targetDl,
           discord: parsedFree?.discord || 'sanmao',
@@ -127,4 +128,4 @@ export async function GET() {
     console.error('[FIX ERROR]:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-    }
+}
