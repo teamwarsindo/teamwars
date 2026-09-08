@@ -133,7 +133,7 @@ export async function backupDiscordChannelMessages(params: {
     return true;
   });
 
-  // Kumpulkan semua authorId dan mention terselubung di dalam pesan/embed
+  // Kumpulkan semua authorId dan mention terselubung di dalam content maupun embeds
   const scannedUserIds = new Set<string>();
   userMessages.forEach((msg: any) => {
     if (msg.author?.id) scannedUserIds.add(msg.author.id);
@@ -150,14 +150,35 @@ export async function backupDiscordChannelMessages(params: {
     }
   });
 
+  // Resolusi member: jika bukan member guild, ambil dari endpoint user global
   const memberDetailsMap: Record<string, { nick?: string; roles: string[] }> = {};
   for (const uId of Array.from(scannedUserIds)) {
-    const member = await discordAPI(`/guilds/${guildId}/members/${uId}`, 'GET');
-    if (member) {
-      memberDetailsMap[uId] = {
-        nick: member.nick || member.user?.global_name || member.user?.username,
-        roles: Array.isArray(member.roles) ? member.roles : [],
-      };
+    try {
+      const member = await discordAPI(`/guilds/${guildId}/members/${uId}`, 'GET');
+      if (member) {
+        memberDetailsMap[uId] = {
+          nick: member.nick || member.user?.global_name || member.user?.username,
+          roles: Array.isArray(member.roles) ? member.roles : [],
+        };
+      } else {
+        const globalUser = await discordAPI(`/users/${uId}`, 'GET');
+        if (globalUser) {
+          memberDetailsMap[uId] = {
+            nick: globalUser.global_name || globalUser.username,
+            roles: [],
+          };
+        }
+      }
+    } catch {
+      try {
+        const globalUser = await discordAPI(`/users/${uId}`, 'GET');
+        if (globalUser) {
+          memberDetailsMap[uId] = {
+            nick: globalUser.global_name || globalUser.username,
+            roles: [],
+          };
+        }
+      } catch {}
     }
   }
 
@@ -171,7 +192,7 @@ export async function backupDiscordChannelMessages(params: {
     const authorDisplayName = memberInfo?.nick || msg.author.global_name || msg.author.username;
     const authorRoles = memberInfo?.roles || [];
 
-    // Gabungkan konten teks dan seluruh isi embed bot
+    // Rangkai teks content dan seluruh isi embed bot (Title bold biasa, bukan ###)
     const contentParts: string[] = [];
     if (msg.content && msg.content.trim() !== '') {
       contentParts.push(msg.content.trim());
@@ -182,7 +203,7 @@ export async function backupDiscordChannelMessages(params: {
         const embed = msg.embeds[eIdx];
         const embedTextBlocks: string[] = [];
 
-        if (embed.title) embedTextBlocks.push(`### ${embed.title}`);
+        if (embed.title) embedTextBlocks.push(`**${embed.title}**`);
         if (embed.description) embedTextBlocks.push(embed.description);
 
         if (Array.isArray(embed.fields) && embed.fields.length > 0) {
@@ -251,7 +272,7 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Resolusi channel mention: Gagal resolve langsung lempar Error eksplisit
+    // Resolusi channel mention
     const channelMentions: Record<string, { name: string }> = {};
     const textToScan = `${msg.content || ''} ${fullFinalContent}`;
     const channelMatches = textToScan.match(/<#(\d+)>/g);
@@ -365,4 +386,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-}
+    }
