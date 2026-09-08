@@ -160,6 +160,43 @@ export async function backupDiscordChannelMessages(params: {
     const authorDisplayName = memberInfo?.nick || msg.author.global_name || msg.author.username;
     const authorRoles = memberInfo?.roles || [];
 
+    // 1. Ekstraksi Konten Embed (Title, Description, & Fields)
+    let extractedContent = msg.content || '';
+    if (Array.isArray(msg.embeds) && msg.embeds.length > 0) {
+      for (let eIdx = 0; eIdx < msg.embeds.length; eIdx++) {
+        const embed = msg.embeds[eIdx];
+
+        if (!extractedContent) {
+          const parts: string[] = [];
+          if (embed.title) parts.push(`**${embed.title}**`);
+          if (embed.description) parts.push(embed.description);
+
+          if (Array.isArray(embed.fields) && embed.fields.length > 0) {
+            embed.fields.forEach((f: any) => {
+              if (f.name || f.value) {
+                parts.push(`**${f.name}**\n${f.value}`);
+              }
+            });
+          }
+
+          if (parts.length > 0) {
+            extractedContent = parts.join('\n\n').trim();
+          }
+        }
+
+        const mediaUrl = embed.image?.url || embed.thumbnail?.url;
+        if (mediaUrl && (embed.type === 'gifv' || embed.type === 'image')) {
+          const public_id = `w${week}_${matchId}_emb_${msg.id}_${eIdx}`;
+          await uploadDiscordImageToCloudinary(mediaUrl, public_id);
+          attachments.push({
+            fileName: `gif_${eIdx}.gif`,
+            maskedUrl: `/match-logs/${public_id}.png`,
+            contentType: 'image/gif',
+          });
+        }
+      }
+    }
+
     const userMentions: Record<string, { name: string; color?: string }> = {};
     if (Array.isArray(msg.mentions)) {
       msg.mentions.forEach((u: any) => {
@@ -170,7 +207,6 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
-    // Rekam mention dari pesan reply
     if (msg.referenced_message && Array.isArray(msg.referenced_message.mentions)) {
       msg.referenced_message.mentions.forEach((u: any) => {
         const targetMember = memberDetailsMap[u.id];
@@ -190,23 +226,37 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
+    // Rekam channel mention (<#channelId>) dan fallback nama resmi dari config
     const channelMentions: Record<string, { name: string }> = {};
-    const channelMatches = (msg.content || '').match(/<#(\d+)>/g);
+    const textToScan = `${msg.content || ''} ${extractedContent}`;
+    const channelMatches = textToScan.match(/<#(\d+)>/g);
+
     if (channelMatches) {
       for (const m of channelMatches) {
         const cId = m.replace(/[<#>]/g, '');
         if (!channelMentions[cId]) {
           try {
             const ch = await discordAPI(`/channels/${cId}`, 'GET');
-            channelMentions[cId] = { name: ch?.name || 'channel' };
+            const chName =
+              ch?.name && ch.name !== 'channel'
+                ? ch.name
+                : cId === DISCORD_CONFIG.CH_SCHEDULE
+                ? 'schedule-results'
+                : 'channel';
+            channelMentions[cId] = { name: chName };
           } catch {
-            channelMentions[cId] = { name: 'channel' };
+            const fallbackName = cId === DISCORD_CONFIG.CH_SCHEDULE ? 'schedule-results' : 'channel';
+            channelMentions[cId] = { name: fallbackName };
           }
         }
       }
     }
 
-    // 1. Forwarded Message
+    if (DISCORD_CONFIG.CH_SCHEDULE && !channelMentions[DISCORD_CONFIG.CH_SCHEDULE]) {
+      channelMentions[DISCORD_CONFIG.CH_SCHEDULE] = { name: 'schedule-results' };
+    }
+
+    // 2. Forwarded Message
     let forwarded: SavedChatLogItem['forwarded'] = undefined;
     if (Array.isArray(msg.message_snapshots) && msg.message_snapshots.length > 0) {
       const snap = msg.message_snapshots[0]?.message;
@@ -252,7 +302,7 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
-    // 2. Reply Resolution
+    // 3. Reply Resolution
     let replyTo: SavedChatLogItem['replyTo'] = undefined;
     if (!forwarded && msg.message_reference) {
       if (msg.referenced_message) {
@@ -275,44 +325,6 @@ export async function backupDiscordChannelMessages(params: {
           content: '',
           isDeleted: true,
         };
-      }
-    }
-
-    // 3. Ekstraksi Konten Embed Lengkap (Title, Description, & Fields)
-    let extractedContent = msg.content || '';
-    if (Array.isArray(msg.embeds) && msg.embeds.length > 0) {
-      for (let eIdx = 0; eIdx < msg.embeds.length; eIdx++) {
-        const embed = msg.embeds[eIdx];
-
-        if (!extractedContent) {
-          const parts: string[] = [];
-          if (embed.title) parts.push(`**${embed.title}**`);
-          if (embed.description) parts.push(embed.description);
-
-          // Ambil array fields milik bot (Jadwal, Referee, Ketentuan, dll.)
-          if (Array.isArray(embed.fields) && embed.fields.length > 0) {
-            embed.fields.forEach((f: any) => {
-              if (f.name || f.value) {
-                parts.push(`**${f.name}**\n${f.value}`);
-              }
-            });
-          }
-
-          if (parts.length > 0) {
-            extractedContent = parts.join('\n\n').trim();
-          }
-        }
-
-        const mediaUrl = embed.image?.url || embed.thumbnail?.url;
-        if (mediaUrl && (embed.type === 'gifv' || embed.type === 'image')) {
-          const public_id = `w${week}_${matchId}_emb_${msg.id}_${eIdx}`;
-          await uploadDiscordImageToCloudinary(mediaUrl, public_id);
-          attachments.push({
-            fileName: `gif_${eIdx}.gif`,
-            maskedUrl: `/match-logs/${public_id}.png`,
-            contentType: 'image/gif',
-          });
-        }
       }
     }
 
@@ -359,5 +371,4 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-        }
-                                                
+  }
