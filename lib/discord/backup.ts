@@ -128,7 +128,7 @@ export async function backupDiscordChannelMessages(params: {
     if (batch.length < 100) hasMore = false;
   }
 
-  // Filter pesan sistem pin (type === 6). Bot hanya di-filter jika includeBots === false
+  // Filter pesan sistem pin (type === 6). Bot hanya difilter jika includeBots === false
   const userMessages = allMessages.filter((msg: any) => {
     if (msg.type === 6) return false;
     if (!includeBots && msg.author?.bot) return false;
@@ -170,6 +170,7 @@ export async function backupDiscordChannelMessages(params: {
       });
     }
 
+    // Rekam mention dari pesan reply
     if (msg.referenced_message && Array.isArray(msg.referenced_message.mentions)) {
       msg.referenced_message.mentions.forEach((u: any) => {
         const targetMember = memberDetailsMap[u.id];
@@ -277,17 +278,29 @@ export async function backupDiscordChannelMessages(params: {
       }
     }
 
-    // Ekstraksi konten embed (karena bot Discord sering mengirim teks di embed)
+    // 3. Ekstraksi Konten Embed Lengkap (Title, Description, & Fields)
     let extractedContent = msg.content || '';
     if (Array.isArray(msg.embeds) && msg.embeds.length > 0) {
       for (let eIdx = 0; eIdx < msg.embeds.length; eIdx++) {
         const embed = msg.embeds[eIdx];
 
-        // Jika pesan bot tidak punya content, ambil dari embed title & description
-        if (!extractedContent && (embed.title || embed.description)) {
-          const title = embed.title ? `**${embed.title}**\n` : '';
-          const desc = embed.description || '';
-          extractedContent = `${title}${desc}`.trim();
+        if (!extractedContent) {
+          const parts: string[] = [];
+          if (embed.title) parts.push(`**${embed.title}**`);
+          if (embed.description) parts.push(embed.description);
+
+          // Ambil array fields milik bot (Jadwal, Referee, Ketentuan, dll.)
+          if (Array.isArray(embed.fields) && embed.fields.length > 0) {
+            embed.fields.forEach((f: any) => {
+              if (f.name || f.value) {
+                parts.push(`**${f.name}**\n${f.value}`);
+              }
+            });
+          }
+
+          if (parts.length > 0) {
+            extractedContent = parts.join('\n\n').trim();
+          }
         }
 
         const mediaUrl = embed.image?.url || embed.thumbnail?.url;
@@ -346,4 +359,5 @@ export async function backupDiscordChannelMessages(params: {
     channelName: actualChannelName,
     messages: formattedLogs.reverse(),
   };
-    }
+        }
+                                                
