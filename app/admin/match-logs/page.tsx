@@ -174,7 +174,7 @@ function MatchLogViewerContent() {
   const displayChannelName = channelName || (activeMatch ? `⚔️-${activeMatch.id}` : "");
 
   return (
-    <main className="flex-1 min-h-0 w-full max-w-4xl mx-auto px-3 py-2 flex flex-col gap-2 overflow-hidden">
+    <main className="flex-1 min-h-0 w-full max-w-4xl mx-auto px-2 sm:px-3 py-1 flex flex-col gap-1.5 overflow-hidden">
       {/* SEARCH BAR MATCH + BADGE NAMA CHANNEL */}
       <div className="shrink-0 flex items-center gap-2">
         <div className="flex-1 min-w-0">
@@ -182,14 +182,14 @@ function MatchLogViewerContent() {
         </div>
 
         {selectedMatchId && activeMatch && (
-          <span className="px-2.5 h-10 rounded-xl bg-card border border-border text-muted-foreground font-medium font-mono text-[11px] inline-flex items-center gap-1.5 shrink-0 max-w-[170px] sm:max-w-[220px] shadow-2xs">
+          <span className="px-2.5 h-9 sm:h-10 rounded-xl bg-card border border-border text-muted-foreground font-medium font-mono text-[11px] inline-flex items-center gap-1.5 shrink-0 max-w-[170px] sm:max-w-[220px] shadow-2xs">
             <Hash className="h-3 w-3 text-muted-foreground/70 shrink-0" />
             <span className="truncate">{displayChannelName}</span>
           </span>
         )}
       </div>
 
-      {/* KONTEN CHAT */}
+      {/* KONTEN CHAT (MEMANJANG MAKSIMAL) */}
       {selectedMatchId && activeMatch ? (
         <div className="flex-1 min-h-0 flex flex-col">
           <MatchChatCard
