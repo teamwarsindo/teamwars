@@ -69,7 +69,8 @@ export function parseDiscordMarkdown(
     if (!key) return null;
     const cleanKey = key.trim().toLowerCase();
 
-    const direct = playerTeamMap[cleanKey] || 
+    const direct =
+      playerTeamMap[cleanKey] ||
       Object.entries(playerTeamMap).find(([k]) => k.toLowerCase() === cleanKey)?.[1];
 
     if (!direct) return null;
@@ -83,8 +84,38 @@ export function parseDiscordMarkdown(
     };
   };
 
-  // 1. URL clickable
-  let formatted = content.replace(
+  // 1. Tangani Baris Per Baris untuk Heading Discord (# , ## , ### ) dan Blockquote (> )
+  const lines = content.split("\n");
+  const parsedLines = lines.map((line) => {
+    let currentLine = line;
+
+    // Bersihkan Heading Discord (# H1, ## H2, ### H3) agar tanda pagar tidak bocor
+    const headingMatch = currentLine.match(/^(#{1,3})\s+(.*)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const text = headingMatch[2];
+      const headingClass =
+        level === 1
+          ? "font-bold text-sm text-foreground my-0.5"
+          : level === 2
+          ? "font-bold text-xs text-foreground my-0.5"
+          : "font-semibold text-xs text-foreground my-0.5";
+      currentLine = `<span class="block ${headingClass}">${text}</span>`;
+    }
+
+    // Blockquote Discord (> quote)
+    if (currentLine.startsWith("&gt; ") || currentLine.startsWith("> ")) {
+      const quoteText = currentLine.replace(/^(&gt;|>)\s?/, "");
+      currentLine = `<span class="border-l-2 border-primary/50 pl-2 text-muted-foreground italic inline-block">${quoteText}</span>`;
+    }
+
+    return currentLine;
+  });
+
+  let formatted = parsedLines.join("\n");
+
+  // 2. URL Clickable
+  formatted = formatted.replace(
     /\[(.*?)\]\((https?:\/\/[^\s)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-sky-500 hover:text-sky-400 font-medium underline underline-offset-2 break-all">$1</a>'
   );
@@ -94,28 +125,31 @@ export function parseDiscordMarkdown(
     '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-sky-500 hover:text-sky-400 font-medium underline underline-offset-2 break-all">$1</a>'
   );
 
-  // 2. Bold, Italic, Strike, Code Markdown
+  // 3. Bold, Italic, Strike, Inline Code
   formatted = formatted
     .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>')
     .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
     .replace(/~~(.*?)~~/g, '<del class="line-through text-muted-foreground">$1</del>')
-    .replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded font-mono text-[11px] text-foreground border border-border">$1</code>');
+    .replace(
+      /`([^`]+)`/g,
+      '<code class="bg-muted px-1 py-0.5 rounded font-mono text-[11px] text-foreground border border-border">$1</code>'
+    );
 
-  // 3. Custom Discord Emoji CDN
+  // 4. Custom Discord Emoji CDN (Format <:name:id> dan animasi <a:name:id>)
   formatted = formatted.replace(
     /<(a)?:([a-zA-Z0-9_~]+):([0-9]+)>/g,
     (_, isAnimated, name, id) => {
       const ext = isAnimated ? "gif" : "webp";
-      return `<img src="https://cdn.discordapp.com/emojis/${id}.${ext}?size=44&quality=lossless" alt=":${name}:" title=":${name}:" class="inline-block h-4 w-4 align-text-bottom mx-0.5 object-contain" />`;
+      return `<img src="https://cdn.discordapp.com/emojis/${id}.${ext}?size=44&quality=lossless" alt=":${name}:" title=":${name}:" class="inline-block h-4.5 w-4.5 align-text-bottom mx-0.5 object-contain" />`;
     }
   );
 
-  // 4. Shortcode Emojis
+  // 5. Shortcode Emojis
   for (const [code, emoji] of Object.entries(COMMON_DISCORD_EMOJIS)) {
     formatted = formatted.replaceAll(code, emoji);
   }
 
-  // 5. Everyone & Here Mentions
+  // 6. Everyone & Here Mentions
   formatted = formatted.replace(
     /(@everyone|@here)/g,
     isReplyPreview
@@ -123,17 +157,29 @@ export function parseDiscordMarkdown(
       : '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-semibold text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">$1</span>'
   );
 
-  // 6. User Mentions
+  // 7. User Mentions (Lengkap dengan Fallback Wasit & Streamer agar Anti-@User)
   formatted = formatted.replace(/<@!?([0-9]+)>/g, (_, userId) => {
     const u = userMentions?.[userId];
-    const rawUsername = typeof u === "object" ? u?.name : (u || "User");
+    let rawUsername = typeof u === "object" ? u?.name : (u || "");
+
+    // Fallback cerdas: Jika u kosong atau berisi generic User, periksa ID wasit/streamer match
+    if (!rawUsername || rawUsername.toLowerCase() === "user") {
+      if (match?.refereeDiscordId && userId === match.refereeDiscordId && match.referee) {
+        rawUsername = match.referee;
+      } else if (match?.streamerDiscordId && userId === match.streamerDiscordId && match.streamer) {
+        rawUsername = match.streamer;
+      } else {
+        rawUsername = "User";
+      }
+    }
+
     const uLower = rawUsername.toLowerCase();
 
     // Cari data via username discord
     const playerData = resolvePlayerData(uLower) || resolvePlayerData(userId);
     const displayName = playerData?.ign || rawUsername;
 
-    // Jika di dalam kutipan reply, cukup teks polos tanpa kotak badge warna
+    // Jika di dalam kutipan reply, cukup teks polos tanpa badge warna
     if (isReplyPreview) {
       return `<span class="font-medium text-foreground/85">@${displayName}</span>`;
     }
@@ -160,7 +206,7 @@ export function parseDiscordMarkdown(
     return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${tagStyle}">@${displayName}</span>`;
   });
 
-  // 7. Role Mentions
+  // 8. Role Mentions
   formatted = formatted.replace(/<@&([0-9]+)>/g, (_, roleId) => {
     const r = roleMentions?.[roleId];
     const roleName = typeof r === "object" ? r?.name : (r || "Role");
@@ -170,10 +216,16 @@ export function parseDiscordMarkdown(
       return `<span class="font-medium text-foreground/85">@${roleName}</span>`;
     }
 
-    const isTeam1Role = (match as any)?.roleAId === roleId || (match?.teamAName && rLower.includes(match.teamAName.toLowerCase()));
-    const isTeam2Role = (match as any)?.roleBId === roleId || (match?.teamBName && rLower.includes(match.teamBName.toLowerCase()));
-    const isRefereeRole = rLower.includes("wasit") || rLower.includes("referee") || rLower.includes("ref");
-    const isStreamerRole = rLower.includes("streamer") || rLower.includes("caster") || rLower.includes("stream");
+    const isTeam1Role =
+      (match as any)?.roleAId === roleId ||
+      (match?.teamAName && rLower.includes(match.teamAName.toLowerCase()));
+    const isTeam2Role =
+      (match as any)?.roleBId === roleId ||
+      (match?.teamBName && rLower.includes(match.teamBName.toLowerCase()));
+    const isRefereeRole =
+      rLower.includes("wasit") || rLower.includes("referee") || rLower.includes("ref");
+    const isStreamerRole =
+      rLower.includes("streamer") || rLower.includes("caster") || rLower.includes("stream");
 
     let roleTagStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
     if (isTeam1Role) roleTagStyle = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30";
@@ -184,7 +236,7 @@ export function parseDiscordMarkdown(
     return `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-xs font-semibold border ${roleTagStyle}">@${roleName}</span>`;
   });
 
-  // 8. Channel Mentions
+  // 9. Channel Mentions
   formatted = formatted.replace(/<#([0-9]+)>/g, (_, channelId) => {
     const ch = channelMentions?.[channelId];
     const channelName = typeof ch === "object" ? ch?.name : (ch || "channel");
