@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
     // ⚡ Slash Commands Execution (Type 2)
     if (body.type === 2) {
       const commandName = body.data.name;
+
       if (commandName === 'submit') return NextResponse.json(await handleSubmitCommand(body));
       if (commandName === 'game') return NextResponse.json(await handleGameCommand(body));
       if (commandName === 'assign') return await handleAssignCommand(body);
@@ -252,4 +253,4 @@ export async function POST(req: NextRequest) {
     console.error('Error Webhook DC:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
-}
+        }
