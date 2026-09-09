@@ -17,14 +17,15 @@ export async function handleGameEdit(ctx: GameContext) {
     });
   }
 
-  const lastIndex = reportData.games.length - 1;
-  const lastGame = reportData.games[lastIndex];
+  const latestIndex = reportData.games.length - 1;
+  const targetGameNumber = optMap.game !== undefined ? Number(optMap.game) : reportData.games.length;
+  const targetIndex = reportData.games.findIndex((g: any) => g.gameNumber === targetGameNumber);
 
-  // Jangan ubah status jika opsi tidak disertakan wasit (gunakan nilai sebelumnya)
-  const oldSsHandA = lastGame.ssHandA ?? true;
-  const oldSsHandB = lastGame.ssHandB ?? true;
-  const newSsHandA = optMap.ss_hand_a !== undefined ? Boolean(optMap.ss_hand_a) : oldSsHandA;
-  const newSsHandB = optMap.ss_hand_b !== undefined ? Boolean(optMap.ss_hand_b) : oldSsHandB;
+  if (targetIndex === -1) {
+    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
+      content: `❌ Game ${targetGameNumber} tidak ditemukan. Total game saat ini: ${reportData.games.length}.`,
+    });
+  }
 
   if (optMap.ss_hand_a === undefined && optMap.ss_hand_b === undefined) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
@@ -32,26 +33,50 @@ export async function handleGameEdit(ctx: GameContext) {
     });
   }
 
-  // 1. Rekalkulasi Warning SS Hand
-  if (oldSsHandA !== newSsHandA) {
-    reportData.teamA.warningsUsed = Math.max(0, (reportData.teamA.warningsUsed || 0) + (newSsHandA ? -1 : 1));
-  }
-  if (oldSsHandB !== newSsHandB) {
-    reportData.teamB.warningsUsed = Math.max(0, (reportData.teamB.warningsUsed || 0) + (newSsHandB ? -1 : 1));
+  const isMiddleGame = targetIndex < latestIndex;
+  const targetGame = reportData.games[targetIndex];
+
+  const simSsHandA = optMap.ss_hand_a !== undefined ? Boolean(optMap.ss_hand_a) : (targetGame.ssHandA ?? true);
+  const simSsHandB = optMap.ss_hand_b !== undefined ? Boolean(optMap.ss_hand_b) : (targetGame.ssHandB ?? true);
+
+  // Simulasi hitung total warning jika perubahan diterapkan
+  let simWarningsA = 0;
+  let simWarningsB = 0;
+
+  reportData.games.forEach((g: any, idx: number) => {
+    const valA = idx === targetIndex ? simSsHandA : (g.ssHandA ?? true);
+    const valB = idx === targetIndex ? simSsHandB : (g.ssHandB ?? true);
+    if (!valA) simWarningsA++;
+    if (!valB) simWarningsB++;
+  });
+
+  // Tolak langsung jika mengedit game lampau dan memicu warning >= 2
+  if (isMiddleGame && (simWarningsA >= 2 || simWarningsB >= 2)) {
+    const violatedTeam = simWarningsA >= 2 ? reportData.teamA.name : reportData.teamB.name;
+    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
+      content:
+        `❌ **Permintaan Ditolak!**\n` +
+        `Pengeditan SS Hand pada Game ${targetGameNumber} dibatalkan karena menyebabkan **${violatedTeam}** mencapai **2x Warning (Deckloss)** di tengah match yang sudah berjalan.\n` +
+        `Silakan lakukan penyesuaian manual bersama head referee jika ada sanksi susulan.`,
+    });
   }
 
-  lastGame.ssHandA = newSsHandA;
-  lastGame.ssHandB = newSsHandB;
-  reportData.games[lastIndex] = lastGame;
+  // Terapkan perubahan jika aman atau jika targetnya adalah game terakhir
+  targetGame.ssHandA = simSsHandA;
+  targetGame.ssHandB = simSsHandB;
+  reportData.games[targetIndex] = targetGame;
+  reportData.teamA.warningsUsed = simWarningsA;
+  reportData.teamB.warningsUsed = simWarningsB;
 
-  // 2. Evaluasi Ulang Instruksi
-  const winnerOpt = lastGame.winner === 'teamA' ? 'A' : 'B';
-  const pA = (reportData.teamA?.lineup || []).find((p: any) => p.ign?.toLowerCase() === lastGame.playerA?.ign?.toLowerCase());
-  const pB = (reportData.teamB?.lineup || []).find((p: any) => p.ign?.toLowerCase() === lastGame.playerB?.ign?.toLowerCase());
+  // Evaluasi instruksi berdasarkan game terakhir
+  const latestGame = reportData.games[latestIndex];
+  const winnerOpt = latestGame.winner === 'teamA' ? 'A' : 'B';
+  const pA = (reportData.teamA?.lineup || []).find((p: any) => p.ign?.toLowerCase() === latestGame.playerA?.ign?.toLowerCase());
+  const pB = (reportData.teamB?.lineup || []).find((p: any) => p.ign?.toLowerCase() === latestGame.playerB?.ign?.toLowerCase());
 
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
 
-  // 3. Simpan & Render Embed
+  // Simpan state & sync match
   if (!isBeforeKickoff) {
     await saveAndSyncMatchState(match, reportData);
   }
@@ -64,7 +89,7 @@ export async function handleGameEdit(ctx: GameContext) {
 
   await publishMatchReport(channelId, match.id, matchEmbed);
 
-  // 4. Munculkan Select Menu jika koreksi memicu Sanksi 2x Warning
+  // Sanksi 2x Warning hanya diproses jika terjadi pada game terakhir
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
     const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
     const innocentTeam = isTeamAPenalty ? reportData.teamB : reportData.teamA;
@@ -74,7 +99,7 @@ export async function handleGameEdit(ctx: GameContext) {
     if (components) {
       return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
         content:
-          `✅ **Status SS Hand Game ${lastGame.gameNumber} berhasil diperbarui.**\n\n` +
+          `✅ **Status SS Hand Game ${targetGame.gameNumber} berhasil diperbarui.**\n\n` +
           `⚠️ **PERINGATAN SANKSI DECKLOSS TERDETEKSI!**\n` +
           `• **${penaltyTeam.name}** telah mencapai **2x Warning SS Hand**.\n` +
           `• Silakan pilih pemain dan deck dari **${innocentTeam.name}** untuk klaim **Technical Win (TW)**:`,
@@ -85,9 +110,9 @@ export async function handleGameEdit(ctx: GameContext) {
 
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content:
-      `✅ **Status SS Hand Game ${lastGame.gameNumber} berhasil diperbarui.**\n` +
-      `• SS Hand Tim A: **${newSsHandA ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
-      `• SS Hand Tim B: **${newSsHandB ? 'Terkirim' : 'Tidak Terkirim'}**`,
+      `✅ **Status SS Hand Game ${targetGame.gameNumber} berhasil diperbarui.**\n` +
+      `• SS Hand Tim A: **${targetGame.ssHandA ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
+      `• SS Hand Tim B: **${targetGame.ssHandB ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
+      `• Akumulasi Warning: ${reportData.teamA.name} (${simWarningsA}/2) | ${reportData.teamB.name} (${simWarningsB}/2)`,
   });
 }
-  
