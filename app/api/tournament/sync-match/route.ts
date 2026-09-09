@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
 import { createMatchDiscordChannel } from '@/lib/discord/channels';
-import { executeAssignStaff, executeUnassignStaff } from '@/lib/discord/services/staff-assignment';
+import { executeAssignStaff } from '@/lib/discord/commands/assign/execute';
+import { executeUnassignStaff } from '@/lib/discord/commands/assign/unassign-runner';
 
 // Helper slug nama tim
 function getTeamSlug(teamName: string) {
@@ -265,4 +266,4 @@ export async function POST(req: Request) {
     console.error('Error Syncing Match:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-          }
+}
