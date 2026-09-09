@@ -3,14 +3,11 @@ import { Resend } from 'resend';
 import { kv } from '@vercel/kv';
 import { EMAIL_CONFIG } from '@/lib/config';
 import { getPesertaTemplate } from '@/lib/email-templates'; 
-import { 
-  createDiscordRole, 
-  createDiscordChannel, 
-  createDiscordVoiceChannel, 
-  autoSortTeamRoles,
-  sendTeamTracker 
-} from '@/lib/discord';
 
+// Import Discord langsung dari modul sumber yang ada di direktori
+import { createDiscordRole, autoSortTeamRoles } from '@/lib/discord/roles';
+import { createDiscordChannel, createDiscordVoiceChannel } from '@/lib/discord/channels';
+import { sendTeamTracker } from '@/lib/discord/messages/tracker';
 import { sendFinanceMessage } from '@/lib/discord/messages/finance';
 import { sendCreativeMessage } from '@/lib/discord/messages/creative';
 import { sendRosterMessage } from '@/lib/discord/messages/roster';

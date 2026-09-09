@@ -35,8 +35,6 @@ import {
 // Button Handlers
 import { handleBtVerified } from '@/lib/discord/buttons/btVerified';
 import { handleBtRole } from '@/lib/discord/buttons/btRole';
-import { handleBtEditTeam } from '@/lib/discord/buttons/btEditTeam';
-import { handleBtTimer } from '@/lib/discord/buttons/handleBtTimer';
 import { handleBtCheckMatches } from '@/lib/discord/buttons/check-matches';
 
 // Bidding Module
@@ -109,8 +107,6 @@ export async function POST(req: NextRequest) {
 
       if (customId === 'bt_verified') return await handleBtVerified(body);
       if (customId === 'bt_role') return await handleBtRole(body);
-      if (customId === 'btn_edit_team') return await handleBtEditTeam(body);
-      if (customId === 'toggle_timer_teamA' || customId === 'toggle_timer_teamB') return await handleBtTimer(body);
       if (customId === 'select_forward_match_report') return await handleMatchReportSelect(body);
       if (customId === 'btn_view_full_log') return await handleViewFullLog();
 
