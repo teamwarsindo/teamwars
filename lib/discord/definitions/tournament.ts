@@ -1,23 +1,23 @@
 export const tournamentCommands = [
   {
-  "name": "reschedule",
-  "description": "Ubah jadwal pertandingan (Khusus Admin)",
-  "options": [
-    {
-      "name": "tanggal",
-      "description": "Pilih tanggal baru yang tersedia",
-      "type": 3,
-      "required": false,
-      "autocomplete": true
-    },
-    {
-      "name": "jam",
-      "description": "Waktu tanding format WIB (Contoh: 20.00 atau 20:30)",
-      "type": 3,
-      "required": false
-    }
-  ]
-},
+    name: 'reschedule',
+    description: 'Ubah jadwal pertandingan (Khusus Admin)',
+    options: [
+      {
+        name: 'tanggal',
+        description: 'Pilih tanggal baru yang tersedia',
+        type: 3,
+        required: false,
+        autocomplete: true,
+      },
+      {
+        name: 'jam',
+        description: 'Waktu tanding format WIB (Contoh: 20.00 atau 20:30)',
+        type: 3,
+        required: false,
+      },
+    ],
+  },
   {
     name: 'stream',
     description: '[STREAMER] Masukkan link siaran langsung pertandingan ini dan kirim broadcast',
@@ -320,8 +320,14 @@ export const tournamentCommands = [
       {
         type: 1, // SUB_COMMAND: edit
         name: 'edit',
-        description: 'Perbarui status SS Hand untuk game terakhir yang baru saja diinput',
+        description: 'Perbarui status SS Hand untuk game tertentu atau game terakhir',
         options: [
+          {
+            type: 4, // INTEGER
+            name: 'game',
+            description: 'Nomor game yang ingin diedit (Contoh: 1, 2, dsb. Default: Game terakhir)',
+            required: false,
+          },
           {
             type: 5, // BOOLEAN
             name: 'ss_hand_a',
