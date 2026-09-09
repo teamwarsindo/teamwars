@@ -1,70 +1,101 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { discordAPI } from '@/lib/discord/utils';
 import { sendTeamTracker } from '@/lib/discord/messages/tracker';
 import { parsePlayers, cleanDuelId, PlayerItem } from '@/lib/discord/commands/transfer/types';
 
 export async function GET() {
   try {
     const logs: string[] = [];
+    const guildId = DISCORD_CONFIG.GUILD_ID;
 
-    // ==========================================
-    // 1. ROLLBACK [T] sanmao KE TIM TRUE GOD
-    // ==========================================
+    // =========================================================================
+    // 1. ROLLBACK [T] sanmao KE TIM TRUE GOD (KV + DISCORD ROLE + NICKNAME)
+    // =========================================================================
     const targetSlug = 'true-god';
     const targetIgn = '[T] sanmao';
     const targetDl = '502-433-116';
     const targetDiscordId = '1529447749244682281';
 
     const trueGodData = await kv.hgetall<any>(`teams:${targetSlug}`);
-    if (trueGodData) {
-      const players: PlayerItem[] = parsePlayers(trueGodData.players);
-      const exists = players.some((p) => p.ign.toLowerCase() === targetIgn.toLowerCase());
-
-      if (!exists) {
-        const freeData = await kv.hget<any>('global:free_duelists', targetDiscordId);
-        const parsedFree = typeof freeData === 'string' ? JSON.parse(freeData) : freeData;
-
-        players.push({
-          namaLengkap: parsedFree?.namaLengkap || targetIgn,
-          ign: targetIgn,
-          idDuelLinks: targetDl,
-          discord: parsedFree?.discord || 'sanmao',
-          discordId: targetDiscordId,
-          role: 'Anggota',
-          teamsJoinedCount: parsedFree?.teamsJoinedCount || 1,
-        });
-
-        // Pulihkan indeks global KV
-        const cleanDl = cleanDuelId(targetDl);
-        await Promise.all([
-          kv.hset('global:duellinks', { [cleanDl]: targetSlug, [targetDl]: targetSlug }),
-          kv.hset('global:ign', { [targetIgn]: targetSlug }),
-          kv.hset('global:discord_ids', { [targetDiscordId]: targetSlug }),
-          parsedFree?.discord
-            ? kv.hset('global:discord', { [parsedFree.discord.toLowerCase()]: targetSlug })
-            : Promise.resolve(),
-        ]);
-
-        // Hapus dari pool Free Agent
-        await Promise.all([
-          kv.hdel('global:free_duelists', targetDiscordId),
-          kv.hdel('global:free_duelists_ign', targetIgn),
-          kv.hdel('global:free_duelists_dl', targetDl),
-        ]);
-
-        logs.push(`[T] sanmao berhasil dikembalikan ke ${targetSlug}`);
-      }
-
-      await kv.hset(`teams:${targetSlug}`, {
-        players: JSON.stringify(players),
-        updatedAt: new Date().toISOString(),
-      });
-      trueGodData.players = players;
+    if (!trueGodData) {
+      return NextResponse.json({ error: `Tim ${targetSlug} tidak ditemukan di KV` }, { status: 404 });
     }
 
-    // ==========================================
-    // 2. NORMALISASI KUOTA & UPDATE TRACKER SEMUA TIM
-    // ==========================================
+    const trueGodPlayers: PlayerItem[] = parsePlayers(trueGodData.players);
+    const existingIndex = trueGodPlayers.findIndex(
+      (p) => p.ign.toLowerCase() === targetIgn.toLowerCase()
+    );
+
+    // Ambil data Free Agent lama jika ada
+    const rawFree = await kv.hget<any>('global:free_duelists', targetDiscordId);
+    const freeData = typeof rawFree === 'string' ? JSON.parse(rawFree) : rawFree;
+    const discordTag = freeData?.discord || 'sanmao';
+
+    const sanmaoItem: PlayerItem = {
+      namaLengkap: freeData?.namaLengkap || targetIgn,
+      ign: targetIgn,
+      idDuelLinks: targetDl,
+      discord: discordTag,
+      discordId: targetDiscordId,
+      role: 'Anggota',
+      teamsJoinedCount: freeData?.teamsJoinedCount || 1,
+      isVerified: true,
+    };
+
+    if (existingIndex === -1) {
+      trueGodPlayers.push(sanmaoItem);
+    } else {
+      trueGodPlayers[existingIndex] = { ...trueGodPlayers[existingIndex], ...sanmaoItem };
+    }
+
+    // Update roster tim TRUE GOD di KV
+    await kv.hset(`teams:${targetSlug}`, {
+      players: JSON.stringify(trueGodPlayers),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Pulihkan index global KV
+    const cleanDl = cleanDuelId(targetDl);
+    await Promise.all([
+      kv.hset('global:duellinks', { [cleanDl]: targetSlug, [targetDl]: targetSlug }),
+      kv.hset('global:ign', { [targetIgn]: targetSlug }),
+      kv.hset('global:discord_ids', { [targetDiscordId]: targetSlug }),
+      discordTag ? kv.hset('global:discord', { [discordTag.toLowerCase()]: targetSlug }) : Promise.resolve(),
+      kv.hdel('global:free_duelists', targetDiscordId),
+      kv.hdel('global:free_duelists_ign', targetIgn),
+      kv.hdel('global:free_duelists_dl', targetDl),
+    ]);
+    logs.push(`[KV] ${targetIgn} berhasil dimasukkan kembali ke tim ${targetSlug}.`);
+
+    // Kembalikan Role Discord & Nickname server
+    if (guildId && targetDiscordId) {
+      if (trueGodData.discordRoleId) {
+        await discordAPI(
+          `/guilds/${guildId}/members/${targetDiscordId}/roles/${trueGodData.discordRoleId}`,
+          'PUT',
+          {}
+        ).catch((err) => console.error('[RESTORE ROLE ERROR]:', err));
+        logs.push(`[Discord] Role tim TRUE GOD diberikan kembali ke <@${targetDiscordId}>.`);
+      }
+
+      await discordAPI(`/guilds/${guildId}/members/${targetDiscordId}`, 'PATCH', {
+        nick: targetIgn,
+      }).catch((err) => console.error('[RESTORE NICK ERROR]:', err));
+      logs.push(`[Discord] Nickname server diset kembali ke "${targetIgn}".`);
+    }
+
+    // =========================================================================
+    // 2. AMBIL GLOBAL VERIFIED USERS & UPDATE TRACKER SEMUA TIM
+    // =========================================================================
+    // Ambil data verifikasi global dari KV
+    const [verifiedMap, verifiedDlMap] = await Promise.all([
+      kv.hgetall<Record<string, any>>('global:verified_users').catch(() => null),
+      kv.hgetall<Record<string, any>>('global:duellinks').catch(() => null),
+    ]);
+
+    // Ambil semua tim dari channel map
     const channelTeamsMap = await kv.hgetall<Record<string, string>>('global:channel_teams');
     const teamSlugs = Array.from(new Set(Object.values(channelTeamsMap || {})));
 
@@ -73,29 +104,36 @@ export async function GET() {
         const team = await kv.hgetall<any>(`teams:${slug}`);
         if (!team || !team.players) continue;
 
+        // 1. List pemain murni dari KV team
         const players: PlayerItem[] = parsePlayers(team.players);
 
-        // Perbaiki bug string konkatenasi (misal '011' dinormalkan ke integer valid)
-        let quota = team.transferQuotaUsed;
-        let numericQuota = parseInt(String(quota ?? '0'), 10);
+        // 2. Kuota transfer murni dari KV team (cast ke number agar tidak error kalkulasi)
+        const currentQuota = Number(team.transferQuotaUsed ?? 0);
 
-        if (isNaN(numericQuota) || numericQuota > 2) {
-          numericQuota = 1;
-        }
+        // 3. Verifikasi dicek langsung ke global verified atau flag bawaan
+        const trackerPlayers = players.map((p) => {
+          const rawDl = cleanDuelId(p.idDuelLinks || '');
+          const cleanPDiscord = (p.discord || '').trim().toLowerCase().replace(/^@/, '');
+          const pDiscordId = (p.discordId || '').trim();
 
-        if (String(team.transferQuotaUsed) !== String(numericQuota)) {
-          await kv.hset(`teams:${slug}`, { transferQuotaUsed: numericQuota });
-        }
+          const isVerifiedInGlobal = Boolean(
+            p.isVerified ||
+            (pDiscordId && verifiedMap && verifiedMap[pDiscordId]) ||
+            (cleanPDiscord && verifiedMap && verifiedMap[cleanPDiscord]) ||
+            (rawDl && verifiedDlMap && verifiedDlMap[rawDl]) ||
+            (p.idDuelLinks && verifiedDlMap && verifiedDlMap[p.idDuelLinks])
+          );
 
-        // Mapping ke struktur tracker dengan helper icon resmi
-        const trackerPlayers = players.map((p) => ({
-          ign: p.ign,
-          discord: p.discord,
-          discordId: p.discordId,
-          role: p.role,
-          isVerified: Boolean(p.discordId && p.discordId.trim().length > 10),
-        }));
+          return {
+            ign: p.ign,
+            discord: p.discord,
+            discordId: p.discordId,
+            role: p.role,
+            isVerified: isVerifiedInGlobal,
+          };
+        });
 
+        // Update Tracker Discord
         if (team.discordChannelId) {
           const updatedMsgId = await sendTeamTracker({
             channelId: team.discordChannelId,
@@ -105,7 +143,7 @@ export async function GET() {
             players: trackerPlayers,
             createdAt: team.createdAt || '07 Jul 2026',
             updatedAt: new Date().toISOString(),
-            transferQuotaUsed: numericQuota,
+            transferQuotaUsed: currentQuota,
             trackerMsgId: team.trackerMsgId,
           });
 
@@ -113,10 +151,10 @@ export async function GET() {
             await kv.hset(`teams:${slug}`, { trackerMsgId: updatedMsgId });
           }
 
-          logs.push(`Tracker berhasil diupdate: ${slug} (Kuota: ${numericQuota})`);
+          logs.push(`Tracker ${slug} diperbarui (Pemain: ${trackerPlayers.length}, Kuota: ${currentQuota}).`);
         }
       } catch (teamErr: any) {
-        logs.push(`Error tim ${slug}: ${teamErr.message}`);
+        logs.push(`Gagal update tim ${slug}: ${teamErr.message}`);
       }
     }
 
@@ -125,7 +163,7 @@ export async function GET() {
       logs,
     });
   } catch (err: any) {
-    console.error('[FIX ERROR]:', err);
+    console.error('[EXECUTE FIX ERROR]:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+            }
