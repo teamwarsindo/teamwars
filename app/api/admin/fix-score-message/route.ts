@@ -41,7 +41,6 @@ export async function GET() {
       discordId: targetDiscordId,
       role: 'Anggota',
       teamsJoinedCount: freeData?.teamsJoinedCount || 1,
-      isVerified: true,
     };
 
     if (existingIndex === -1) {
@@ -89,13 +88,11 @@ export async function GET() {
     // =========================================================================
     // 2. AMBIL GLOBAL VERIFIED USERS & UPDATE TRACKER SEMUA TIM
     // =========================================================================
-    // Ambil data verifikasi global dari KV
     const [verifiedMap, verifiedDlMap] = await Promise.all([
       kv.hgetall<Record<string, any>>('global:verified_users').catch(() => null),
       kv.hgetall<Record<string, any>>('global:duellinks').catch(() => null),
     ]);
 
-    // Ambil semua tim dari channel map
     const channelTeamsMap = await kv.hgetall<Record<string, string>>('global:channel_teams');
     const teamSlugs = Array.from(new Set(Object.values(channelTeamsMap || {})));
 
@@ -104,20 +101,16 @@ export async function GET() {
         const team = await kv.hgetall<any>(`teams:${slug}`);
         if (!team || !team.players) continue;
 
-        // 1. List pemain murni dari KV team
         const players: PlayerItem[] = parsePlayers(team.players);
-
-        // 2. Kuota transfer murni dari KV team (cast ke number agar tidak error kalkulasi)
         const currentQuota = Number(team.transferQuotaUsed ?? 0);
 
-        // 3. Verifikasi dicek langsung ke global verified atau flag bawaan
         const trackerPlayers = players.map((p) => {
           const rawDl = cleanDuelId(p.idDuelLinks || '');
           const cleanPDiscord = (p.discord || '').trim().toLowerCase().replace(/^@/, '');
           const pDiscordId = (p.discordId || '').trim();
 
           const isVerifiedInGlobal = Boolean(
-            p.isVerified ||
+            (p as any).isVerified ||
             (pDiscordId && verifiedMap && verifiedMap[pDiscordId]) ||
             (cleanPDiscord && verifiedMap && verifiedMap[cleanPDiscord]) ||
             (rawDl && verifiedDlMap && verifiedDlMap[rawDl]) ||
@@ -133,7 +126,6 @@ export async function GET() {
           };
         });
 
-        // Update Tracker Discord
         if (team.discordChannelId) {
           const updatedMsgId = await sendTeamTracker({
             channelId: team.discordChannelId,
