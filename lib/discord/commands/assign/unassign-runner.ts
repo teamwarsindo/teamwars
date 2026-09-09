@@ -8,15 +8,10 @@ import {
   sendCancelledAssignmentLog,
   sendOfficialScoreLog,
 } from '@/lib/discord/messages/assignment-log';
-import { getMatchContext, updateStaffHistory } from './staff-helpers';
-import { revokeStaffPermissions } from './staff-permissions';
+import { ExecuteUnassignParams, ExecuteUnassignResult } from './types';
+import { getMatchContext, buildBaseLogPayload, revokeStaffPermissions, updateStaffHistory } from './helpers';
 
-export async function executeUnassignStaff(params: {
-  matchId: string;
-  assignType: 'REFEREE' | 'STREAMER';
-  scoreA?: number;
-  scoreB?: number;
-}) {
+export async function executeUnassignStaff(params: ExecuteUnassignParams): Promise<ExecuteUnassignResult> {
   const { matchId, assignType, scoreA = 0, scoreB = 0 } = params;
 
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
@@ -26,20 +21,9 @@ export async function executeUnassignStaff(params: {
   const match = schedules[idx];
   const ctx = await getMatchContext(match);
   const matchChannelId = (match as any).discordChannelId;
+  const baseLog = buildBaseLogPayload(match, ctx, matchChannelId);
 
-  const baseLog = {
-    channelId: DISCORD_CONFIG.CH_ASSIGN || '',
-    matchId: match.id,
-    weekName: ctx.calculatedWeek,
-    groupName: match.groupName,
-    teamAName: match.teamAName,
-    teamBName: match.teamBName,
-    teamAEmoji: ctx.teamAEmoji,
-    teamBEmoji: ctx.teamBEmoji,
-    matchDateIso: match.matchDate,
-  };
-
-  // 1. UNASSIGN STREAMER (BATAL)
+  // 1. UNASSIGN STREAMER (PEMBATALAN SIARAN)
   if (assignType === 'STREAMER') {
     const streamerId = match.streamerDiscordId;
     if (!streamerId || !isValidSnowflake(streamerId)) throw new Error('Tidak ada Streamer aktif di match ini.');
@@ -100,7 +84,7 @@ export async function executeUnassignStaff(params: {
     return { match, targetStaffName };
   }
 
-  // 2. UNASSIGN REFEREE (MATCH SELESAI)
+  // 2. UNASSIGN REFEREE (MATCH BERAKHIR)
   const refId = match.refereeDiscordId;
   if (!refId || !isValidSnowflake(refId)) throw new Error('Tidak ada Referee aktif di match ini.');
 

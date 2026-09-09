@@ -1,5 +1,5 @@
 import { SubmitContext, parseIgnAndId, createEmptyDeck } from './types';
-import { syncCustomDeckAndSkillToMaster } from '@/lib/discord/services/master-sync';
+import { syncCustomDeckAndSkillToMaster } from './master-sync';
 
 export async function handleSubEdit(ctx: SubmitContext): Promise<{ error?: string; message?: string }> {
   const { teamKey, reportData, optMap } = ctx;

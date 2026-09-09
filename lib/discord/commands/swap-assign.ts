@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { kv } from '@vercel/kv';
-import { isDiscordAuthorized } from '@/lib/discord/services/staff-assignment';
-import { executeSwapAssignStaff } from '@/lib/discord/services/staff-swap-service';
 import { discordAPI } from '@/lib/discord/utils';
+import { isDiscordAuthorized } from './assign/helpers';
+import { executeSwapAssignStaff } from './assign/swap-runner';
 
 export async function handleSwapAssignCommand(body: any) {
   try {
@@ -39,7 +39,7 @@ export async function handleSwapAssignCommand(body: any) {
             assignType,
           });
 
-          // 🔴 TUKAR METADATA DI twi:match_reports (staffA -> matchB, staffB -> matchA)
+          // Tukar metadata report
           const targetField = assignType === 'REFEREE' ? 'referee' : 'streamer';
           const [reportA, reportB] = await Promise.all([
             kv.hget<any>('twi:match_reports', matchAId),

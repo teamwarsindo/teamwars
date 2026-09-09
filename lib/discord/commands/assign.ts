@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { kv } from '@vercel/kv';
-import { isDiscordAuthorized, executeAssignStaff } from '@/lib/discord/services/staff-assignment';
 import { discordAPI } from '@/lib/discord/utils';
+import { isDiscordAuthorized } from './assign/helpers';
+import { executeAssignStaff } from './assign/execute';
 
 export async function handleAssignCommand(body: any) {
   try {
@@ -28,7 +29,6 @@ export async function handleAssignCommand(body: any) {
     const token = body.token;
     const appId = body.application_id || process.env.DISCORD_CLIENT_ID;
 
-    // Menjaga instance Vercel tetap hidup sampai proses selesai dan pesan ter-edit
     waitUntil(
       (async () => {
         try {
@@ -39,7 +39,7 @@ export async function handleAssignCommand(body: any) {
             targetStaffId: targetId,
           });
 
-          // 🔴 SINKRONKAN LANGSUNG KE twi:match_reports
+          // Sinkronkan langsung ke twi:match_reports
           const reportData = await kv.hget<any>('twi:match_reports', matchId);
           if (reportData) {
             reportData.metadata = {
@@ -53,7 +53,7 @@ export async function handleAssignCommand(body: any) {
             ? `\n🔄 *(Menggantikan ${replacedStaffName} yang berhalangan)*`
             : '';
 
-          const finalContent = `✅ **${staffName}** berhasil ditugaskan sebagai **${roleTitle}** untuk match **${match.id}**!${replaceMsg}\nRoles/Permissions, Match Report Metadata, dan Log channel telah diperbarui.`;
+          const finalContent = `✅ **${staffName}** berhasil ditugaskan sebagai **${roleTitle}** untuk match **${match.id}**!${replaceMsg}\nRoles/Permissions, Match Report Metadata, Camp Channels, dan Log channel telah diperbarui.`;
 
           if (appId && token) {
             await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
@@ -71,7 +71,6 @@ export async function handleAssignCommand(body: any) {
       })()
     );
 
-    // Respon instan ke Discord (< 200ms) agar tidak timeout
     return NextResponse.json({
       type: 5,
       data: { flags: 64 },

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { kv } from '@vercel/kv';
-import { isDiscordAuthorized, executeUnassignStaff } from '@/lib/discord/services/staff-assignment';
 import { discordAPI } from '@/lib/discord/utils';
 import { MatchScheduleItem } from '@/app/tournament/_library';
+import { isDiscordAuthorized } from './assign/helpers';
+import { executeUnassignStaff } from './assign/unassign-runner';
 
 export async function handleUnassignCommand(body: any) {
   try {
@@ -40,7 +41,6 @@ export async function handleUnassignCommand(body: any) {
     const scoreB = scoreBOpt !== undefined ? parseInt(scoreBOpt, 10) : 0;
     const roleTitle = assignType === 'REFEREE' ? 'Referee' : 'Streamer';
 
-    // Menjaga instance Vercel tetap hidup sampai unassign selesai dan pesan ter-edit
     waitUntil(
       (async () => {
         try {
@@ -51,10 +51,8 @@ export async function handleUnassignCommand(body: any) {
             scoreB,
           });
 
-          // 🔴 KHUSUS STREAMER: Hapus streamer & link streaming di twi:match_reports dan twi:schedules
-          // JIKA REFEREE: Data tetap dibiarkan aman sebagai arsip wasit bertugas
+          // Khusus streamer bersihkan slot & link siaran
           if (assignType === 'STREAMER') {
-            // 1. Bersihkan di Hash twi:match_reports
             const reportData = await kv.hget<any>('twi:match_reports', matchId);
             if (reportData && reportData.metadata) {
               reportData.metadata.streamer = '';
@@ -63,7 +61,6 @@ export async function handleUnassignCommand(body: any) {
               await kv.hset('twi:match_reports', { [matchId]: reportData });
             }
 
-            // 2. Bersihkan streamLink di twi:schedules
             const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
             const targetIdx = schedules.findIndex((m) => m.id === matchId);
             if (targetIdx !== -1) {

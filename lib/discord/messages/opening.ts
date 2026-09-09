@@ -29,6 +29,18 @@ export interface OpeningEmbedParams {
   scoreA?: number;
   scoreB?: number;
   isRescheduled?: boolean;
+  // Flag saat ada penugasan staf baru via /assign atau swap
+  assignedRole?: 'REFEREE' | 'STREAMER';
+  newStaffDiscordId?: string;
+}
+
+function cleanStaffName(name?: string): string {
+  if (!name) return 'Belum ditentukan';
+  const clean = name.replace(/^@/, '').trim();
+  if (!clean || clean === 'Belum tersedia' || clean === '-' || clean === 'Belum ditentukan') {
+    return 'Belum ditentukan';
+  }
+  return clean;
 }
 
 export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Promise<string | null> {
@@ -64,21 +76,9 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     params.teamBEmoji ||
     (params.emojiBId ? `<:${(params.kodeTimB || 'team').replace(/\s+/g, '')}:${params.emojiBId}>` : '');
 
-  let refText = 'Belum ditentukan';
-  let strmText = 'Belum ditentukan';
-
-  if (params.refereeDiscordId) {
-    refText = `<@${params.refereeDiscordId}>`;
-  } else if (params.refereeName && params.refereeName.trim() !== '' && params.refereeName !== 'Belum tersedia') {
-    refText = params.refereeName;
-  }
-
-  if (params.streamerDiscordId) {
-    strmText = `<@${params.streamerDiscordId}>`;
-  } else if (params.streamerName && params.streamerName.trim() !== '' && params.streamerName !== 'Belum tersedia') {
-    strmText = params.streamerName;
-  }
-
+  // 1. TEKS EMBED: Pakai string nama bersih biasa (Bebas dari bug fallback nama akun global Discord)
+  const refText = cleanStaffName(params.refereeName);
+  const strmText = cleanStaffName(params.streamerName);
   const liveStreamText = params.streamLink || 'Belum tersedia';
   const isFinished = params.isFinished || false;
 
@@ -146,10 +146,20 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const postPayload: any = {
     embeds: [embedData],
     components: isRescheduled ? [] : getCheckMatchesComponent(params.matchId),
+    allowed_mentions: {
+      parse: ['users', 'roles'],
+    },
   };
 
+  // 2. KONTEN CHAT (LUAR EMBED): Tag kondisional untuk force update cache member server
   if (isFirstOpening) {
     postPayload.content = `Silakan konfirmasi jadwal dan siapkan performa kalian untuk pertandingan ini ${roleAMention} ${roleBMention}`;
+  } else if (params.assignedRole && params.newStaffDiscordId) {
+    if (params.assignedRole === 'REFEREE') {
+      postPayload.content = `⚖️ <@${params.newStaffDiscordId}> telah ditugaskan sebagai **Referee** untuk memimpin pertandingan ini!`;
+    } else {
+      postPayload.content = `🎥 <@${params.newStaffDiscordId}> telah ditugaskan sebagai **Streamer** untuk menyiarkan pertandingan ini!`;
+    }
   }
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', postPayload).catch(() => null);
