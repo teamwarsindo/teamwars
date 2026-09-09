@@ -38,8 +38,6 @@ export async function executeSwapAssignStaff(params: ExecuteSwapParams): Promise
   const isRef = assignType === 'REFEREE';
   const staffAId = isRef ? matchA.refereeDiscordId : matchA.streamerDiscordId;
   const staffBId = isRef ? matchB.refereeDiscordId : matchB.streamerDiscordId;
-  const staffAName = (isRef ? matchA.referee : matchA.streamer) || staffAId;
-  const staffBName = (isRef ? matchB.referee : matchB.streamer) || staffBId;
 
   if (!staffAId || !isValidSnowflake(staffAId)) {
     throw new Error(`Match **${matchA.id}** belum memiliki staf aktif untuk di-swap.`);
@@ -50,6 +48,10 @@ export async function executeSwapAssignStaff(params: ExecuteSwapParams): Promise
   if (staffAId === staffBId) {
     throw new Error('Kedua match sudah memiliki staf yang sama.');
   }
+
+  // Jaminan tipe string non-nullable setelah validasi ID
+  const staffAName: string = (isRef ? matchA.referee : matchA.streamer) || staffAId;
+  const staffBName: string = (isRef ? matchB.referee : matchB.streamer) || staffBId;
 
   const [ctxA, ctxB] = await Promise.all([getMatchContext(matchA), getMatchContext(matchB)]);
   const chAId = (matchA as any).discordChannelId;
