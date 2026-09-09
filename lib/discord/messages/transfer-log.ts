@@ -12,7 +12,7 @@ export interface TransferLogParams {
   newIdDl?: string;
 }
 
-// 1. BROADCAST TRANSFER NEWS LOG (FORMAT: <:kodeTim:emojiId>)
+// 1. BROADCAST TRANSFER NEWS LOG KE CHANNEL PUBLIK (CH_LOG_TRANSFER)
 export async function sendTransferNewsLog(params: TransferLogParams): Promise<string | null> {
   const { teamName, teamKode, teamEmojiId, teamHex, action, targetIgn, oldIdDl, newIdDl } = params;
   const channelId = DISCORD_CONFIG.CH_LOG_TRANSFER;
@@ -63,8 +63,8 @@ export async function sendTransferNewsLog(params: TransferLogParams): Promise<st
   }
 }
 
-// 2. EMBED BALASAN INTERAKSI DI CAMP TIM (RINGKAS)
-export function createCampSuccessReply(message: string, currentQuota: number) {
+// 2. EMBED BALASAN SUKSES DI CAMP TIM
+export function createCampSuccessEmbed(message: string, currentQuota?: number) {
   const quotaNum = Number(currentQuota) || 0;
   const remainingQuota = Math.max(0, 2 - quotaNum);
 
@@ -77,14 +77,24 @@ export function createCampSuccessReply(message: string, currentQuota: number) {
     ],
   };
 }
+export const createCampSuccessReply = createCampSuccessEmbed;
 
-export function createCampFailureReply(reason: string) {
+// 3. EMBED BALASAN GAGAL DI CAMP TIM (Mendukung signature 1 argumen maupun 4 argumen lama)
+export function createCampFailureEmbed(
+  arg1: string,
+  _action?: string | null,
+  _target?: string | null,
+  errorMessage?: string
+) {
+  const failureReason = errorMessage || arg1;
+
   return {
     embeds: [
       {
-        description: `❌ **Gagal:** ${reason}`,
+        description: `❌ **Gagal:** ${failureReason}`,
         color: hexToDecimal('#e74c3c'),
       },
     ],
   };
 }
+export const createCampFailureReply = createCampFailureEmbed;
