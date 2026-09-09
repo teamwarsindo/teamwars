@@ -1,6 +1,7 @@
 import { kv } from '@vercel/kv';
 import { discordAPI, getEmbedFooterText } from '../utils';
 import { getMatchWeekNumber } from '@/app/tournament/_library';
+import { evaluateTeamArchetypes, ArchetypeSummary } from '@/lib/discord/commands/submit/archetype';
 
 export interface DeckSlotInfo {
   archetype?: string | null;
@@ -154,6 +155,7 @@ export function getLiveDeckTrackerEmbed(params: {
   submittedPlayers: TrackerPlayer[];
   skillsMap?: Record<string, string>;
   lastUpdated?: string | Date;
+  archetypeSummary?: ArchetypeSummary;
 }) {
   const calculatedWeek = params.week || getMatchWeekNumber(params.matchDateIso);
   const weekLabel = `Week ${calculatedWeek}`;
@@ -193,25 +195,48 @@ export function getLiveDeckTrackerEmbed(params: {
   }
 
   const isComplete = totalDecksSubmitted >= 10;
+  const isExceeded = params.archetypeSummary?.isExceeded ?? false;
+
+  // Saring warna embed: Jika melanggar kuota archetype -> Merah (0xe74c3c)
+  let embedColor = isComplete ? 0x2ecc71 : 0x3498db;
+  if (isExceeded) {
+    embedColor = 0xe74c3c;
+  }
+
+  // Siapkan daftar fields
+  const fields: Array<{ name: string; value: string; inline: boolean }> = [...playerFields];
+
+  // Sisipkan field Duplikasi Archetype jika ada
+  if (params.archetypeSummary?.embedText) {
+    const lines = params.archetypeSummary.embedText.split('\n');
+    const fieldTitle = lines[0];
+    const fieldValue = lines.slice(1).join('\n');
+
+    fields.push({
+      name: fieldTitle,
+      value: fieldValue,
+      inline: false,
+    });
+  }
+
+  // Field Perintah Staff di bagian akhir
+  fields.push({
+    name: '📌 Perintah Staff',
+    value:
+      '• `/submit add` : Daftarkan 1-5 pemain\n' +
+      '• `/submit edit` : Update deck & skill\n' +
+      '• `/submit change` : Ganti pemain',
+    inline: false,
+  });
 
   return {
     title: `📊 Deck Submission (${weekLabel})`,
-    color: isComplete ? 0x2ecc71 : 0x3498db,
+    color: embedColor,
     description:
       `⏳ **Batas Waktu:** ${params.deadlineWib} (**${params.timeRemainingStr}**)\n` +
       `📦 **Terkumpul:** **\`${totalDecksSubmitted} / 10 Deck\`** ${isComplete ? '*(LENGKAP ✅)*' : ''}\n\n` +
       '🔗 **Regulasi:** [teamwars.web.id/rules](https://teamwars.web.id/rules)',
-    fields: [
-      ...playerFields,
-      {
-        name: '📌 Perintah Staff',
-        value:
-          '• `/submit add` : Daftarkan 1-5 pemain\n' +
-          '• `/submit edit` : Update deck & skill\n' +
-          '• `/submit change` : Ganti pemain',
-        inline: false,
-      },
-    ],
+    fields,
     footer: { text: getEmbedFooterText(params.lastUpdated) },
   };
 }
@@ -264,6 +289,9 @@ export async function sendOrUpdateLiveTracker(params: {
   const skillsMap = (await kv.get<Record<string, string>>('twi:master_skills')) || {};
   const deadlineIso = new Date(new Date(params.matchDateIso).getTime() - 60 * 60 * 1000).toISOString();
 
+  // Evaluasi duplikasi archetype dari pemain yang terdaftar saat ini
+  const archetypeSummary = await evaluateTeamArchetypes(params.submittedPlayers);
+
   const embed = getLiveDeckTrackerEmbed({
     week: params.week,
     matchDateIso: params.matchDateIso,
@@ -272,6 +300,7 @@ export async function sendOrUpdateLiveTracker(params: {
     submittedPlayers: params.submittedPlayers,
     skillsMap,
     lastUpdated: now,
+    archetypeSummary,
   });
 
   // 1. Edit di tempat jika BUKAN mode repost dan ID pesan tracker lama tersedia
