@@ -64,8 +64,28 @@ export async function sendTransferNewsLog(params: TransferLogParams): Promise<st
 }
 
 // 2. EMBED BALASAN SUKSES DI CAMP TIM
-export function createCampSuccessEmbed(message: string, currentQuota?: number) {
-  const quotaNum = Number(currentQuota) || 0;
+// Mendukung format lama (5 argumen): (actorId, actorRoleText, action, details, currentQuota)
+// Mendukung format baru (1-2 argumen): (message, currentQuota)
+export function createCampSuccessEmbed(
+  arg1: string,
+  arg2?: any,
+  arg3?: any,
+  arg4?: any,
+  arg5?: any
+) {
+  let message = '';
+  let quotaNum = 0;
+
+  if (arg5 !== undefined || Array.isArray(arg4)) {
+    const actionText = typeof arg3 === 'string' ? arg3 : 'TRANSFER';
+    const detailList = Array.isArray(arg4) ? arg4.join('\n') : (arg4 || '');
+    message = `**${actionText} Berhasil**\n${detailList}`;
+    quotaNum = Number(arg5) || 0;
+  } else {
+    message = arg1;
+    quotaNum = Number(arg2) || 0;
+  }
+
   const remainingQuota = Math.max(0, 2 - quotaNum);
 
   return {
@@ -79,7 +99,9 @@ export function createCampSuccessEmbed(message: string, currentQuota?: number) {
 }
 export const createCampSuccessReply = createCampSuccessEmbed;
 
-// 3. EMBED BALASAN GAGAL DI CAMP TIM (Mendukung signature 1 argumen maupun 4 argumen lama)
+// 3. EMBED BALASAN GAGAL DI CAMP TIM
+// Mendukung format lama (4 argumen): (actorId, action, target, errorMessage)
+// Mendukung format baru (1 argumen): (reason)
 export function createCampFailureEmbed(
   arg1: string,
   _action?: string | null,
