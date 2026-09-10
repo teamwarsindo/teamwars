@@ -68,6 +68,22 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const isFirstOpening = !targetExistingMsgId;
   const isRescheduled = Boolean(targetIsRescheduled);
 
+  // 🔒 DETEKSI STATUS JADWAL TERKUNCI (FIX):
+  // Jadwal terkunci jika: Sudah di-reschedule ATAU wasit sudah ditugaskan ATAU sudah memasuki hari-H tanding (WIB)
+  const hasReferee = Boolean(
+    (params.refereeName && cleanStaffName(params.refereeName) !== 'Belum ditentukan') ||
+    params.refereeDiscordId
+  );
+
+  let isTodayMatch = false;
+  if (params.matchDateIso) {
+    const todayWib = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }); // YYYY-MM-DD
+    const matchWib = new Date(params.matchDateIso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+    isTodayMatch = todayWib === matchWib;
+  }
+
+  const isScheduleLocked = isRescheduled || hasReferee || isTodayMatch;
+
   const emojiA =
     params.teamAEmoji ||
     (params.emojiAId ? `<:${(params.kodeTimA || 'team').replace(/\s+/g, '')}:${params.emojiAId}>` : '');
@@ -76,7 +92,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     params.teamBEmoji ||
     (params.emojiBId ? `<:${(params.kodeTimB || 'team').replace(/\s+/g, '')}:${params.emojiBId}>` : '');
 
-  // 1. TEKS EMBED: Pakai string nama bersih biasa (Bebas dari bug fallback nama akun global Discord)
   const refText = cleanStaffName(params.refereeName);
   const strmText = cleanStaffName(params.streamerName);
   const liveStreamText = params.streamLink || 'Belum tersedia';
@@ -97,10 +112,21 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     });
   }
 
-  if (isRescheduled) {
+  // 🔄 FIELD STATUS / PETUNJUK RESCHEDULE
+  if (isScheduleLocked) {
+    let statusText = '• Jadwal telah dikunci dan disahkan Admin.';
+
+    if (isRescheduled) {
+      statusText = '• Jadwal telah disepakati kedua tim & disahkan Admin.';
+    } else if (hasReferee) {
+      statusText = '• Jadwal telah dikunci dan Referee telah ditugaskan.';
+    } else if (isTodayMatch) {
+      statusText = '• Jadwal telah dikunci karena hari pertandingan telah tiba.';
+    }
+
     fields.push({
       name: '📌 Status Jadwal',
-      value: '• Jadwal telah disepakati kedua tim & disahkan Admin.',
+      value: statusText,
       inline: false,
     });
   } else {
@@ -145,13 +171,13 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   const postPayload: any = {
     embeds: [embedData],
-    components: isRescheduled ? [] : getCheckMatchesComponent(params.matchId),
+    // 🔘 Tombol otomatis dicabut jika jadwal terkunci (reschedule / referee assign / hari-H)
+    components: isScheduleLocked ? [] : getCheckMatchesComponent(params.matchId),
     allowed_mentions: {
       parse: ['users', 'roles'],
     },
   };
 
-  // 2. KONTEN CHAT (LUAR EMBED): Tag kondisional untuk force update cache member server
   if (isFirstOpening) {
     postPayload.content = `Silakan konfirmasi jadwal dan siapkan performa kalian untuk pertandingan ini ${roleAMention} ${roleBMention}`;
   } else if (params.assignedRole && params.newStaffDiscordId) {
@@ -164,4 +190,4 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', postPayload).catch(() => null);
   return res?.id || null;
-}
+                                          }
