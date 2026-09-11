@@ -39,7 +39,6 @@ export function ReportScoreboard({
   const aIsLeading = scoreA > scoreB;
   const bIsLeading = scoreB > scoreA;
 
-  // Konversi Waktu Presisi Asia/Jakarta
   const formatSchedule = (raw?: string) => {
     if (!raw) return { day: "-", fullDate: "-", time: "-" };
     try {
@@ -74,13 +73,12 @@ export function ReportScoreboard({
   const hasLiveUrl = Boolean(metadata.streamUrl && metadata.streamUrl.trim() !== "" && metadata.streamUrl !== "-");
 
   return (
-    /* z-20 (di bawah filter z-50) & top-[58px] rapat persis di bawah bar menu atas */
-    <div className="sticky top-[58px] z-20 -mx-1 px-1 py-1">
+    /* Offset dinaikkan sedikit ke top-[68px] sm:top-[74px] agar tidak menabrak bar atas */
+    <div className="sticky top-[68px] sm:top-[74px] z-20 -mx-1 px-1 py-1">
       <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-border/80 p-2.5 shadow-md space-y-2">
         
-        {/* Header Metadata: 3 Kolom Simetris */}
+        {/* Header Metadata 3 Kolom */}
         <div className="grid grid-cols-3 gap-1 pb-1.5 border-b border-border/60 text-center items-center">
-          {/* Kolom 1 */}
           <div className="flex flex-col items-center justify-center min-w-0">
             <span className="text-[10px] font-bold text-muted-foreground truncate w-full">
               Match {metadata.matchNumber || 1}
@@ -95,7 +93,6 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 2 */}
           <div className="flex flex-col items-center justify-center min-w-0">
             <span className="text-[10px] font-bold text-foreground truncate w-full">
               {metadata.division || "Divisi Official"}
@@ -121,7 +118,6 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 3 */}
           <div className="flex flex-col items-center justify-center min-w-0">
             <span className="text-[10px] font-bold text-muted-foreground truncate w-full">
               Week {metadata.week || 1}
@@ -143,9 +139,8 @@ export function ReportScoreboard({
           </div>
         </div>
 
-        {/* Scoreboard */}
+        {/* Scoreboard Inti */}
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 pt-0.5">
-          {/* Kubu Kiri */}
           <div className="flex flex-col items-center text-center min-w-0">
             <div className="relative h-10 w-10 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
               {logoA && !logoErrA ? (
@@ -169,7 +164,6 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Skor */}
           <div className="flex flex-col items-center justify-center px-1 shrink-0">
             <div className="flex items-center gap-2 font-mono text-2xl font-black leading-none">
               <span className={aIsLeading ? 'text-primary' : 'text-foreground/90'}>{scoreA}</span>
@@ -191,7 +185,6 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kubu Kanan */}
           <div className="flex flex-col items-center text-center min-w-0">
             <div className="relative h-10 w-10 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
               {logoB && !logoErrB ? (
@@ -219,4 +212,4 @@ export function ReportScoreboard({
       </div>
     </div>
   );
-          }
+    }
