@@ -179,11 +179,10 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
             teamALogo={activeSchedule?.teamALogo}
             teamBLogo={activeSchedule?.teamBLogo}
             metadata={{
+              matchNumber: activeSchedule?.matchNumber || 1,
               division: activeSchedule?.groupName || meta.division,
               week: selectedWeek || report.week,
-              day: parsedDate.day,
-              date: parsedDate.date,
-              time: parsedDate.time,
+              rawDate: meta.date || activeSchedule?.matchDate,
               referee: meta.referee,
               streamer: meta.streamer,
               streamUrl: meta.streamUrl,
