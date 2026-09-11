@@ -18,18 +18,15 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   const matchParam = searchParams.get("match") || "";
 
-  // 1. Ekstraksi daftar week aktif yang tersedia
   const availableWeeks = useMemo(() => {
     if (!schedules.length) return [];
     return Array.from(new Set(schedules.map((s) => Number(s.weekNumber || 1)))).sort((a, b) => a - b);
   }, [schedules]);
 
-  // 2. Evaluasi match awal jika dipanggil via parameter query
   const initialMatch = useMemo(() => {
     return matchParam && schedules.length ? schedules.find((s) => s.id === matchParam) || null : null;
   }, [schedules, matchParam]);
 
-  // Proteksi pekan depan / match ilegal: sembunyikan jika match tidak ada di jadwal aktif
   const isRequestedMatchForbidden = Boolean(matchParam) && !initialMatch;
 
   const [selectedWeek, setSelectedWeek] = useState<number | "">(initialMatch ? initialMatch.weekNumber : "");
@@ -70,7 +67,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     router.replace(`/analytics?${params.toString()}`, { scroll: false });
   };
 
-  // 3. Fetch Laporan Duel dari Endpoint API Analytics Baru
   useEffect(() => {
     if (!selectedMatchId) {
       setReport(null);
@@ -98,7 +94,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
     fetchReport();
 
-    // Polling auto-update tiap 5 detik jika duel masih berlangsung
     const interval = setInterval(() => {
       if (report && !report.isFinished) {
         fetchReport(true);
@@ -111,7 +106,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     };
   }, [selectedMatchId, report?.isFinished]);
 
-  // Render Fallback jika mencoba membuka match pekan depan yang belum resmi
   if (isRequestedMatchForbidden) {
     return (
       <div className="w-full space-y-4">
@@ -143,7 +137,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
   const scoreB = teamB.score ?? report?.finalScore?.teamB ?? 0;
   const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10);
 
-  // Lineup Reveal: buka hanya yang sudah bertanding saat live, buka penuh saat match selesai
   const lineupA = (teamA.lineup || []).map((p: any) => {
     if (isFinished) return p;
     const played = new Set(games.map((g) => g.playerA?.ign));
@@ -156,7 +149,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     return played.has(p?.ign) ? p : null;
   });
 
-  // Perhitungan MVP Match setelah selesai
   const mvpData = useMemo(() => {
     if (!isFinished || !games.length) return null;
     const winsMap: Record<string, { ign: string; wins: number; team: string }> = {};
@@ -172,7 +164,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     return Object.values(winsMap).sort((a, b) => b.wins - a.wins)[0] || null;
   }, [isFinished, games, teamA.name, teamB.name]);
 
-  // Petunjuk Giliran Berikutnya saat status Live
   const liveInstruction = useMemo(() => {
     if (isFinished || !games.length) return null;
     const last = games[games.length - 1];
@@ -201,7 +192,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   return (
     <div className="w-full space-y-4">
-      {/* Kontrol Filter Dropdown */}
       <ReportFilter
         selectedWeek={selectedWeek}
         onWeekChange={handleWeekChange}
@@ -230,32 +220,29 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Header Metadata Laporan */}
-          <div className="bg-card border border-border p-3.5 rounded-2xl shadow-xs space-y-1 text-xs">
+          {/* Header Metadata Luwes & Ringkas */}
+          <div className="bg-card border border-border p-3 sm:p-3.5 rounded-2xl shadow-xs space-y-1.5">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="font-black tracking-wide uppercase text-foreground">
-                {isFinished ? "OFFICIAL MATCH REPORT" : "LIVE MATCH REPORT"} — WEEK {selectedWeek || report.week}
+              <span className="font-black text-xs tracking-wide uppercase text-foreground">
+                {isFinished ? "🏆 OFFICIAL MATCH REPORT" : "🔴 LIVE MATCH REPORT"} — WEEK {selectedWeek || report.week}
               </span>
-              <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+              <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md">
                 {activeSchedule?.groupName || "Stage Group"}
               </span>
             </div>
-            <div className="text-[11px] text-muted-foreground space-y-0.5 pt-1">
-              <div>• <strong>Match:</strong> {teamA.name} vs {teamB.name}</div>
-              <div>• <strong>Jadwal:</strong> {matchDisplayDate}</div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span>• <strong>Referee:</strong> {meta.referee || "-"}</span>
-                <span>• <strong>Streamer:</strong> {meta.streamer || "-"}</span>
-                {meta.streamUrl && (
-                  <a href={meta.streamUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">
-                    Tonton Siaran ↗
-                  </a>
-                )}
-              </div>
+            <div className="flex items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground flex-wrap pt-0.5">
+              <span>📅 {matchDisplayDate}</span>
+              <span>⚖️ Ref: <strong className="text-foreground/80">{meta.referee || "-"}</strong></span>
+              <span>🎥 Stream: <strong className="text-foreground/80">{meta.streamer || "-"}</strong></span>
+              {meta.streamUrl && (
+                <a href={meta.streamUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">
+                  Tonton Siaran ↗
+                </a>
+              )}
             </div>
           </div>
 
-          {/* Sticky Scoreboard (Papan Skor Melayang) */}
+          {/* Sticky Scoreboard */}
           <ReportScoreboard
             teamA={teamA}
             teamB={teamB}
@@ -265,10 +252,10 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
             teamBLogo={activeSchedule?.teamBLogo}
           />
 
-          {/* Lineup 50:50 Kiri - Kanan Tanpa Judul */}
+          {/* Lineup Duelist */}
           <ReportLineup lineupA={lineupA} lineupB={lineupB} />
 
-          {/* Logs Rapat ke Tengah & Summary Dinamis */}
+          {/* Log Ronde Duel & Summary */}
           <ReportLogs
             games={games}
             isFinished={isFinished}
@@ -283,4 +270,4 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
       )}
     </div>
   );
-                                 }
+        }
