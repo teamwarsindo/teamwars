@@ -11,6 +11,7 @@ import { ReportSummary } from "./report-summary";
 export interface ScheduleItem extends ReportFilterMatchItem {
   matchDate?: string;
   isFinished?: boolean;
+  matchNumber?: number | string;
 }
 
 export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[] }) {
