@@ -6,7 +6,6 @@ interface ReportLineupProps {
 }
 
 export function ReportLineup({ lineupA, lineupB, games, isFinished }: ReportLineupProps) {
-  // Hitung Skor Individu Player
   const statsMap: Record<string, { wins: number; losses: number }> = {};
   const activePlayers = new Set<string>();
 
@@ -30,7 +29,7 @@ export function ReportLineup({ lineupA, lineupB, games, isFinished }: ReportLine
   });
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-3 sm:p-4 shadow-xs space-y-2.5">
+    <div className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2">
       <div className="text-center font-black text-xs uppercase tracking-wider text-muted-foreground">
         Lineup Duelist
       </div>
@@ -46,27 +45,30 @@ export function ReportLineup({ lineupA, lineupB, games, isFinished }: ReportLine
             return (
               <div
                 key={idx}
-                className="px-2.5 py-1.5 rounded-lg border border-border/50 bg-muted/30 text-center transition min-w-0 flex items-center justify-center gap-1.5"
+                className="h-8 px-2.5 rounded-xl border border-border/60 bg-muted/20 text-center flex items-center justify-between min-w-0"
               >
                 {isRevealed && p ? (
                   <>
                     <span
-                      className={`text-[11px] sm:text-xs truncate ${
-                        hasPlayed ? "font-bold text-foreground" : "font-normal text-muted-foreground/45"
+                      className={`text-xs truncate ${
+                        hasPlayed ? "font-bold text-foreground" : "font-normal text-muted-foreground/50"
                       }`}
                     >
                       {p.ign}
                     </span>
                     {hasPlayed && stats && (
-                      <span className="font-mono text-[9px] font-bold px-1 py-0.2 rounded bg-background/80 border border-border/60 text-muted-foreground shrink-0">
-                        <span className="text-emerald-700 dark:text-emerald-400">{stats.wins}</span>
-                        <span className="opacity-40">-</span>
-                        <span className="text-rose-600 dark:text-rose-400">{stats.losses}</span>
-                      </span>
+                      <div className="flex items-center gap-1 shrink-0 font-mono text-[10px] font-black">
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                          {stats.wins}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30">
+                          {stats.losses}
+                        </span>
+                      </div>
                     )}
                   </>
                 ) : (
-                  <span className="font-medium text-muted-foreground/40 italic text-[10px]">
+                  <span className="w-full text-center font-medium text-muted-foreground/40 italic text-[11px]">
                     🔒 Menunggu giliran
                   </span>
                 )}
@@ -85,27 +87,30 @@ export function ReportLineup({ lineupA, lineupB, games, isFinished }: ReportLine
             return (
               <div
                 key={idx}
-                className="px-2.5 py-1.5 rounded-lg border border-border/50 bg-muted/30 text-center transition min-w-0 flex items-center justify-center gap-1.5"
+                className="h-8 px-2.5 rounded-xl border border-border/60 bg-muted/20 text-center flex items-center justify-between min-w-0"
               >
                 {isRevealed && p ? (
                   <>
                     <span
-                      className={`text-[11px] sm:text-xs truncate ${
-                        hasPlayed ? "font-bold text-foreground" : "font-normal text-muted-foreground/45"
+                      className={`text-xs truncate ${
+                        hasPlayed ? "font-bold text-foreground" : "font-normal text-muted-foreground/50"
                       }`}
                     >
                       {p.ign}
                     </span>
                     {hasPlayed && stats && (
-                      <span className="font-mono text-[9px] font-bold px-1 py-0.2 rounded bg-background/80 border border-border/60 text-muted-foreground shrink-0">
-                        <span className="text-emerald-700 dark:text-emerald-400">{stats.wins}</span>
-                        <span className="opacity-40">-</span>
-                        <span className="text-rose-600 dark:text-rose-400">{stats.losses}</span>
-                      </span>
+                      <div className="flex items-center gap-1 shrink-0 font-mono text-[10px] font-black">
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                          {stats.wins}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30">
+                          {stats.losses}
+                        </span>
+                      </div>
                     )}
                   </>
                 ) : (
-                  <span className="font-medium text-muted-foreground/40 italic text-[10px]">
+                  <span className="w-full text-center font-medium text-muted-foreground/40 italic text-[11px]">
                     🔒 Menunggu giliran
                   </span>
                 )}
@@ -116,4 +121,4 @@ export function ReportLineup({ lineupA, lineupB, games, isFinished }: ReportLine
       </div>
     </div>
   );
-                       }
+}
