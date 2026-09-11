@@ -137,6 +137,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
   const scoreB = teamB.score ?? report?.finalScore?.teamB ?? 0;
   const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10);
 
+  // Lineup Reveal (Hanya Nama, Tanpa ID)
   const lineupA = (teamA.lineup || []).map((p: any) => {
     if (isFinished) return p;
     const played = new Set(games.map((g) => g.playerA?.ign));
@@ -175,23 +176,36 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     };
   }, [isFinished, games, teamA.name, teamB.name]);
 
-  const matchDisplayDate = useMemo(() => {
+  // Format Tanggal & Jam
+  const matchDateTimeDisplay = useMemo(() => {
     const raw = meta.date || activeSchedule?.matchDate;
     if (!raw) return "-";
     try {
-      return new Date(raw).toLocaleDateString("id-ID", {
+      const d = new Date(raw);
+      const dateStr = d.toLocaleDateString("id-ID", {
         weekday: "long",
         day: "numeric",
         month: "long",
         year: "numeric",
       });
+      const timeStr = d.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      return timeStr && timeStr !== "00:00" ? `${dateStr} • ${timeStr} WIB` : dateStr;
     } catch {
       return raw;
     }
   }, [meta.date, activeSchedule?.matchDate]);
 
+  const refereeName = meta.referee && meta.referee.trim() ? meta.referee : "-";
+  const streamerName = meta.streamer && meta.streamer.trim() ? meta.streamer : "-";
+  const liveUrl = meta.streamUrl && meta.streamUrl.trim() ? meta.streamUrl : "-";
+
   return (
     <div className="w-full space-y-4">
+      {/* 1. Filter Dropdown */}
       <ReportFilter
         selectedWeek={selectedWeek}
         onWeekChange={handleWeekChange}
@@ -220,25 +234,34 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Header Metadata Luwes & Ringkas */}
-          <div className="bg-card border border-border p-3 sm:p-3.5 rounded-2xl shadow-xs space-y-1.5">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="font-black text-xs tracking-wide uppercase text-foreground">
-                {isFinished ? "🏆 OFFICIAL MATCH REPORT" : "🔴 LIVE MATCH REPORT"} — WEEK {selectedWeek || report.week}
-              </span>
-              <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md">
-                {activeSchedule?.groupName || "Stage Group"}
-              </span>
+          {/* Header Metadata Simpel Sesuai Permintaan */}
+          <div className="bg-card border border-border p-3 sm:p-3.5 rounded-2xl shadow-xs space-y-1">
+            {/* Judul: Match Report - Week X - Divisi */}
+            <div className="font-black text-xs sm:text-sm tracking-wide text-foreground">
+              Match Report - Week {selectedWeek || report.week} - {activeSchedule?.groupName || "Official Stage"}
             </div>
-            <div className="flex items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground flex-wrap pt-0.5">
-              <span>📅 {matchDisplayDate}</span>
-              <span>⚖️ Ref: <strong className="text-foreground/80">{meta.referee || "-"}</strong></span>
-              <span>🎥 Stream: <strong className="text-foreground/80">{meta.streamer || "-"}</strong></span>
-              {meta.streamUrl && (
-                <a href={meta.streamUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">
-                  Tonton Siaran ↗
-                </a>
-              )}
+
+            {/* Baris 1: Tanggal & Jam Tanding */}
+            <div className="text-[11px] text-muted-foreground">
+              {matchDateTimeDisplay}
+            </div>
+
+            {/* Baris 2: Referee - Streamer - Live */}
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 flex-wrap pt-0.5">
+              <span>Referee: <strong className="text-foreground">{refereeName}</strong></span>
+              <span>•</span>
+              <span>Streamer: <strong className="text-foreground">{streamerName}</strong></span>
+              <span>•</span>
+              <span>
+                Live:{" "}
+                {liveUrl !== "-" ? (
+                  <a href={liveUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">
+                    Tonton Siaran ↗
+                  </a>
+                ) : (
+                  <strong className="text-foreground">-</strong>
+                )}
+              </span>
             </div>
           </div>
 
@@ -252,10 +275,10 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
             teamBLogo={activeSchedule?.teamBLogo}
           />
 
-          {/* Lineup Duelist */}
+          {/* Lineup Terbungkus Selang-Seling & Judul di Tengah */}
           <ReportLineup lineupA={lineupA} lineupB={lineupB} />
 
-          {/* Log Ronde Duel & Summary */}
+          {/* Game Logs 3 Baris Rata Tengah & Summary Analisa Lengkap */}
           <ReportLogs
             games={games}
             isFinished={isFinished}
