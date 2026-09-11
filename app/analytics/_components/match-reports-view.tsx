@@ -276,7 +276,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
           />
 
           {/* Lineup Terbungkus Selang-Seling & Judul di Tengah */}
-          <ReportLineup lineupA={lineupA} lineupB={lineupB} />
+          <ReportLineup lineupA={lineupA} lineupB={lineupB} games={games} />
 
           {/* Game Logs 3 Baris Rata Tengah & Summary Analisa Lengkap */}
           <ReportLogs
