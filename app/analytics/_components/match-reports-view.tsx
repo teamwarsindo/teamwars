@@ -1,87 +1,108 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import Image from "next/image";
+import { DIVISION_MAP } from "@/app/tournament/_library";
+import { ReportFilter, ReportFilterMatchItem } from "./report-filter";
 
-interface ScheduleOption {
-  id: string;
-  weekNumber: number;
-  teamAName: string;
-  teamBName: string;
-  date?: string;
+export interface ScheduleItem extends ReportFilterMatchItem {
+  matchDate?: string;
+  isFinished?: boolean;
 }
 
-export function MatchReportsView() {
+export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[] }) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const matchParam = searchParams.get("match") || "";
 
-  const [schedules, setSchedules] = useState<ScheduleOption[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState<number>(1);
+  // 1. Ekstraksi daftar minggu yang tersedia (unik & terurut naik)
+  const availableWeeks = useMemo(() => {
+    if (!schedules || schedules.length === 0) return [1];
+    const setW = new Set(schedules.map((s) => Number(s.weekNumber || 1)));
+    const sorted = Array.from(setW).sort((a, b) => a - b);
+    return sorted.length > 0 ? sorted : [1];
+  }, [schedules]);
+
+  const defaultWeek = availableWeeks[availableWeeks.length - 1] || 1;
+
+  // 2. State Filter
+  const [selectedGroup, setSelectedGroup] = useState<"ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B>("ALL");
+  const [selectedWeek, setSelectedWeek] = useState<number>(defaultWeek);
   const [selectedMatchId, setSelectedMatchId] = useState<string>(matchParam);
+
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  // 1. Fetch daftar seluruh schedule untuk membangun dropdown dinamis Week 1 s/d selesai
+  // Inisialisasi awal saat schedules pertama kali masuk dari server
   useEffect(() => {
-    async function loadSchedules() {
-      try {
-        const res = await fetch("/api/tournament/schedules");
-        const json = await res.json();
-        const list: ScheduleOption[] = json.data || json.schedules || [];
-        setSchedules(list);
-
-        if (list.length > 0) {
-          // Cari match default: dari URL param, atau match terakhir yang berjalan
-          const matched = list.find((m) => m.id === matchParam);
-          if (matched) {
-            setSelectedWeek(matched.weekNumber || 1);
-            setSelectedMatchId(matched.id);
-          } else {
-            const latest = list[list.length - 1];
-            setSelectedWeek(latest.weekNumber || 1);
-            setSelectedMatchId(latest.id);
-          }
-        }
-      } catch (err) {
-        console.error("Gagal load schedules:", err);
+    if (schedules.length > 0 && !selectedMatchId) {
+      const matchInParam = schedules.find((s) => s.id === matchParam);
+      if (matchInParam) {
+        setSelectedWeek(Number(matchInParam.weekNumber || 1));
+        setSelectedMatchId(matchInParam.id);
+      } else {
+        const latestMatch = schedules[schedules.length - 1];
+        setSelectedWeek(Number(latestMatch.weekNumber || 1));
+        setSelectedMatchId(latestMatch.id);
       }
     }
-    loadSchedules();
-  }, [matchParam]);
+  }, [schedules, matchParam, selectedMatchId]);
 
-  // List minggu yang tersedia (unik & terurut)
-  const availableWeeks = useMemo(() => {
-    const weeks = Array.from(new Set(schedules.map((s) => s.weekNumber || 1)));
-    return weeks.sort((a, b) => a - b);
-  }, [schedules]);
+  // 3. Saring match sesuai Divisi & Week yang dipilih
+  const matchesInView = useMemo(() => {
+    if (!schedules || schedules.length === 0) return [];
+    return schedules.filter((s) => {
+      const isWeekMatch = Number(s.weekNumber || 1) === Number(selectedWeek);
 
-  // List match di minggu yang sedang dipilih
-  const matchesInSelectedWeek = useMemo(() => {
-    return schedules.filter((s) => (s.weekNumber || 1) === selectedWeek);
-  }, [schedules, selectedWeek]);
+      let isGroupMatch = true;
+      if (selectedGroup !== "ALL") {
+        const rawGroup = (s.groupName || "").toLowerCase();
+        const targetGroup = selectedGroup.toLowerCase();
 
-  // Handler pergantian Week
-  const handleWeekChange = (week: number) => {
-    setSelectedWeek(week);
-    const firstMatch = schedules.find((s) => (s.weekNumber || 1) === week);
-    if (firstMatch) {
-      handleSelectMatch(firstMatch.id);
-    }
-  };
+        const isGroupA = targetGroup.includes("yakin") || targetGroup.includes("group a");
+        const isGroupB = targetGroup.includes("sakurasawa") || targetGroup.includes("group b");
 
-  // Handler pergantian Match
-  const handleSelectMatch = (newMatchId: string) => {
+        if (isGroupA) {
+          isGroupMatch = rawGroup.includes("yakin") || rawGroup.includes("group a") || rawGroup === "a";
+        } else if (isGroupB) {
+          isGroupMatch = rawGroup.includes("sakurasawa") || rawGroup.includes("group b") || rawGroup === "b";
+        } else {
+          isGroupMatch = s.groupName === selectedGroup;
+        }
+      }
+
+      return isWeekMatch && isGroupMatch;
+    });
+  }, [schedules, selectedWeek, selectedGroup]);
+
+  // Handler pergantian match
+  const handleMatchChange = useCallback((newMatchId: string) => {
     setSelectedMatchId(newMatchId);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", "reports");
     params.set("match", newMatchId);
     router.replace(`/analytics?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
+
+  // Auto-select match pertama di daftar jika filter divisi/week berubah
+  useEffect(() => {
+    if (matchesInView.length > 0) {
+      const matchStillExists = matchesInView.some((m) => m.id === selectedMatchId);
+      if (!matchStillExists) {
+        handleMatchChange(matchesInView[0].id);
+      }
+    }
+  }, [matchesInView, selectedMatchId, handleMatchChange]);
+
+  const handleReset = () => {
+    setSelectedGroup("ALL");
+    setSelectedWeek(defaultWeek);
   };
 
-  // 2. Fetch Data Report & Polling Real-Time
+  const isFilterActive = selectedGroup !== "ALL" || selectedWeek !== defaultWeek;
+
+  // 4. Fetch data dari KV hash twi:match_reports via API
   useEffect(() => {
     if (!selectedMatchId) return;
 
@@ -94,6 +115,8 @@ export function MatchReportsView() {
         const json = await res.json();
         if (json.success && json.data && isSubscribed) {
           setReport(json.data);
+        } else if (!json.success && isSubscribed) {
+          setReport(null);
         }
       } catch (err) {
         console.error("Gagal load match report:", err);
@@ -104,6 +127,7 @@ export function MatchReportsView() {
 
     fetchReport();
 
+    // Auto-polling jika match masih berjalan
     const interval = setInterval(() => {
       if (report && !report.isFinished) {
         fetchReport(true);
@@ -126,70 +150,33 @@ export function MatchReportsView() {
   const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10);
 
   return (
-    <div className="w-full space-y-4 max-w-4xl mx-auto">
-      {/* 1. FILTER BAR BERTINGKAT (CUSTOM THEMED DROPDOWN) */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl bg-card/70 border border-border backdrop-blur-md shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* FILTER WEEK BUTTONS / DROPDOWN */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-wider pl-1">
-              Week:
-            </span>
-            <div className="inline-flex rounded-xl bg-muted/60 p-1 border border-border/50">
-              {availableWeeks.map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => handleWeekChange(w)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
-                    selectedWeek === w
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  W{w}
-                </button>
-              ))}
-            </div>
-          </div>
+    <div className="w-full space-y-4">
+      {/* 1. FILTER TEMA RESMI TWI */}
+      <ReportFilter
+        selectedGroup={selectedGroup}
+        onGroupChange={setSelectedGroup}
+        selectedWeek={selectedWeek}
+        onWeekChange={setSelectedWeek}
+        availableWeeks={availableWeeks}
+        selectedMatchId={selectedMatchId}
+        onMatchChange={handleMatchChange}
+        matchesInView={matchesInView}
+        isFilterActive={isFilterActive}
+        onReset={handleReset}
+      />
 
-          {/* FILTER MATCH DROPDOWN DENGAN STYLE SINKRON TEMA */}
-          <div className="relative flex-1 sm:w-64">
-            <select
-              value={selectedMatchId}
-              onChange={(e) => handleSelectMatch(e.target.value)}
-              className="w-full h-8.5 rounded-xl bg-muted/50 hover:bg-muted/80 px-3 pr-8 text-xs font-bold text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer transition"
-            >
-              {matchesInSelectedWeek.map((m) => (
-                <option key={m.id} value={m.id} className="bg-popover text-popover-foreground">
-                  {m.teamAName} vs {m.teamBName}
-                </option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-              ▼
-            </div>
-          </div>
-        </div>
-
-        {/* LIVE SYNC STATUS */}
-        <div className="flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground font-semibold px-2">
-          <span className={`inline-block h-2 w-2 rounded-full ${isFinished ? "bg-emerald-500" : "bg-amber-500 animate-ping"}`} />
-          <span>{isFinished ? "Final Verified" : "Live Sync Active"}</span>
-        </div>
-      </div>
-
+      {/* 2. KONTEN REPORT */}
       {loading && !report ? (
         <div className="p-12 text-center text-xs font-bold text-primary animate-pulse bg-card rounded-2xl border border-border">
           ⏳ Memuat data laporan resmi pertandingan...
         </div>
       ) : !report ? (
         <div className="p-12 text-center text-xs italic text-muted-foreground bg-card rounded-2xl border border-border">
-          Data laporan untuk pertandingan ini belum tersedia.
+          Data laporan untuk pertandingan ini belum tersedia di sistem.
         </div>
       ) : (
         <div className="space-y-3">
-          {/* 2. MATCH METADATA STRIP (STREAM, JUDGE, TANGGAL) */}
+          {/* METADATA STRIP */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 rounded-xl bg-card border border-border text-[11px]">
             <div>
               <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider block">Platform</span>
@@ -199,7 +186,7 @@ export function MatchReportsView() {
               <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider block">Streamer</span>
               {meta.streamUrl ? (
                 <a href={meta.streamUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-primary hover:underline truncate block">
-                  {meta.streamer || "Tonton Tayangan"} ↗
+                  {meta.streamer || "Tonton Siaran"} ↗
                 </a>
               ) : (
                 <span className="font-semibold text-foreground truncate block">{meta.streamer || "-"}</span>
@@ -210,30 +197,19 @@ export function MatchReportsView() {
               <span className="font-semibold text-foreground truncate block">{meta.referee || "-"}</span>
             </div>
             <div>
-              <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider block">Tanggal Tanding</span>
-              <span className="font-semibold text-foreground truncate block">{meta.matchDate || "Hari Ini"}</span>
+              <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider block">Tanggal</span>
+              <span className="font-semibold text-foreground truncate block">{meta.matchDate || "-"}</span>
             </div>
           </div>
 
-          {/* 3. HERO SCOREBOARD DENGAN LOGO & COMPACT ROSTER */}
-          <div className="rounded-2xl bg-card border border-border overflow-hidden shadow-sm">
+          {/* SCOREBOARD HERO */}
+          <div className="rounded-2xl bg-card border border-border overflow-hidden shadow-xs">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 p-3 sm:p-4 bg-muted/20 border-b border-border">
-              {/* TIM A HEADER */}
-              <div className="flex items-center gap-2.5 truncate">
-                <div className="relative h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-muted/80 border border-border shrink-0 flex items-center justify-center overflow-hidden">
-                  {teamA.logoUrl ? (
-                    <Image src={teamA.logoUrl} alt={teamA.name} fill sizes="48px" className="object-contain p-1" />
-                  ) : (
-                    <span className="font-black text-xs text-primary">{teamA.name?.slice(0, 3).toUpperCase()}</span>
-                  )}
-                </div>
-                <div className="truncate">
-                  <div className="font-black text-xs sm:text-sm text-foreground truncate">{teamA.name}</div>
-                  <div className="text-[9px] font-bold text-muted-foreground uppercase">Kubu Kiri</div>
-                </div>
+              <div className="truncate">
+                <div className="font-black text-xs sm:text-base text-foreground truncate">{teamA.name || "Tim A"}</div>
+                <div className="text-[9px] font-bold text-muted-foreground uppercase">Kubu Kiri</div>
               </div>
 
-              {/* SKOR BESAR */}
               <div className="text-center px-2 shrink-0">
                 <div className="text-2xl sm:text-3xl font-black tracking-tight leading-none flex items-center justify-center gap-1.5">
                   <span className={scoreA > scoreB ? "text-primary" : "text-muted-foreground"}>{scoreA}</span>
@@ -249,23 +225,13 @@ export function MatchReportsView() {
                 </span>
               </div>
 
-              {/* TIM B HEADER */}
-              <div className="flex items-center justify-end gap-2.5 truncate text-right">
-                <div className="truncate">
-                  <div className="font-black text-xs sm:text-sm text-foreground truncate">{teamB.name}</div>
-                  <div className="text-[9px] font-bold text-muted-foreground uppercase">Kubu Kanan</div>
-                </div>
-                <div className="relative h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-muted/80 border border-border shrink-0 flex items-center justify-center overflow-hidden">
-                  {teamB.logoUrl ? (
-                    <Image src={teamB.logoUrl} alt={teamB.name} fill sizes="48px" className="object-contain p-1" />
-                  ) : (
-                    <span className="font-black text-xs text-rose-500">{teamB.name?.slice(0, 3).toUpperCase()}</span>
-                  )}
-                </div>
+              <div className="truncate text-right">
+                <div className="font-black text-xs sm:text-base text-foreground truncate">{teamB.name || "Tim B"}</div>
+                <div className="text-[9px] font-bold text-muted-foreground uppercase">Kubu Kanan</div>
               </div>
             </div>
 
-            {/* COMPACT ROSTER HORISONTAL (SEPERTI LEMBAR RESMI TWI) */}
+            {/* ROSTER RINGKAS */}
             <div className="grid grid-cols-2 divide-x divide-border bg-muted/5 text-[10px] p-2 border-b border-border">
               <div className="px-2 truncate">
                 <span className="font-black text-[9px] text-muted-foreground uppercase block mb-0.5">Roster {teamA.name}:</span>
@@ -282,8 +248,8 @@ export function MatchReportsView() {
             </div>
           </div>
 
-          {/* 4. TABEL DETAIL DUEL (SKILL, ARCHETYPE, RESULT & REPEAT SINKRON KE LEMBAR TWI) */}
-          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+          {/* TABEL DUEL GAME */}
+          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
             <div className="p-2.5 bg-muted/40 border-b border-border flex items-center justify-between">
               <span className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">
                 Rincian Game Duel ({games.length} Ronde)
@@ -293,7 +259,7 @@ export function MatchReportsView() {
 
             {games.length === 0 ? (
               <div className="p-8 text-center text-xs italic text-muted-foreground">
-                Pertandingan belum dimulai atau belum ada ronde yang dicatat wasit.
+                Pertandingan belum dimulai atau belum ada ronde duel yang diinput.
               </div>
             ) : (
               <div className="divide-y divide-border text-[11px]">
@@ -303,36 +269,26 @@ export function MatchReportsView() {
                   const pB = g.playerB || {};
 
                   return (
-                    <div
-                      key={idx}
-                      className="p-2.5 hover:bg-muted/30 transition flex flex-col gap-1.5"
-                    >
-                      {/* BARIS ATAS: NOMOR GAME, RESULT W-L, DAN CATATAN SANKSI */}
+                    <div key={idx} className="p-2.5 hover:bg-muted/30 transition flex flex-col gap-1.5">
                       <div className="flex items-center justify-between text-[10px]">
                         <span className="font-black font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
                           G{g.gameNumber || idx + 1}
                         </span>
 
-                        {/* STATUS W - L TENGAH */}
                         <div className="flex items-center gap-1 font-black">
                           <span className={`px-1.5 py-0.5 rounded text-[9px] ${
-                            isAWin 
-                              ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30" 
-                              : "bg-muted text-muted-foreground"
+                            isAWin ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30" : "bg-muted text-muted-foreground"
                           }`}>
-                            {isAWin ? "W" : g.isLossTeamA ? (g.lossReasonA || "L") : "L"}
+                            {isAWin ? "W" : "L"}
                           </span>
                           <span className="text-muted-foreground/40 text-[9px]">-</span>
                           <span className={`px-1.5 py-0.5 rounded text-[9px] ${
-                            !isAWin 
-                              ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30" 
-                              : "bg-muted text-muted-foreground"
+                            !isAWin ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30" : "bg-muted text-muted-foreground"
                           }`}>
-                            {!isAWin ? "W" : g.isLossTeamB ? (g.lossReasonB || "L") : "L"}
+                            {!isAWin ? "W" : "L"}
                           </span>
                         </div>
 
-                        {/* BADGE DECKLOSS / WARNING */}
                         <div>
                           {g.isDeckloss ? (
                             <span className="text-[8px] font-black bg-rose-500/15 text-rose-500 border border-rose-500/30 px-1.5 py-0.5 rounded">
@@ -346,9 +302,7 @@ export function MatchReportsView() {
                         </div>
                       </div>
 
-                      {/* BARIS UTAMA: DETAIL DUEL LENGKAP (IGN, SKILL, ARCHETYPE, REPEAT) */}
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 pt-1">
-                        {/* KUBU A */}
                         <div className={`space-y-0.5 truncate ${isAWin ? "font-bold text-foreground" : "text-muted-foreground"}`}>
                           <div className="flex items-center gap-1.5 truncate">
                             <span className="truncate text-xs font-black">{pA.ign || "-"}</span>
@@ -358,21 +312,14 @@ export function MatchReportsView() {
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-foreground/90 font-medium truncate">
-                            {pA.archetype || "-"}
-                          </div>
+                          <div className="text-[10px] text-foreground/90 font-medium truncate">{pA.archetype || "-"}</div>
                           {pA.skill && pA.skill !== "-" && (
-                            <div className="text-[9px] text-muted-foreground truncate font-normal">
-                              🎯 {pA.skill}
-                            </div>
+                            <div className="text-[9px] text-muted-foreground truncate font-normal">🎯 {pA.skill}</div>
                           )}
                         </div>
 
-                        <div className="text-[9px] font-bold text-muted-foreground/40 px-1 select-none">
-                          VS
-                        </div>
+                        <div className="text-[9px] font-bold text-muted-foreground/40 px-1 select-none">VS</div>
 
-                        {/* KUBU B */}
                         <div className={`space-y-0.5 truncate text-right ${!isAWin ? "font-bold text-foreground" : "text-muted-foreground"}`}>
                           <div className="flex items-center justify-end gap-1.5 truncate">
                             {pB.isRepeat && (
@@ -382,18 +329,13 @@ export function MatchReportsView() {
                             )}
                             <span className="truncate text-xs font-black">{pB.ign || "-"}</span>
                           </div>
-                          <div className="text-[10px] text-foreground/90 font-medium truncate">
-                            {pB.archetype || "-"}
-                          </div>
+                          <div className="text-[10px] text-foreground/90 font-medium truncate">{pB.archetype || "-"}</div>
                           {pB.skill && pB.skill !== "-" && (
-                            <div className="text-[9px] text-muted-foreground truncate font-normal">
-                              {pB.skill} 🎯
-                            </div>
+                            <div className="text-[9px] text-muted-foreground truncate font-normal">{pB.skill} 🎯</div>
                           )}
                         </div>
                       </div>
 
-                      {/* CATATAN WASIT (JIKA ADA KELUHAN / PENALTI) */}
                       {g.notes && (
                         <div className="text-[9px] text-amber-500/90 italic bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10 mt-0.5">
                           Note: {g.notes}
@@ -409,4 +351,4 @@ export function MatchReportsView() {
       )}
     </div>
   );
-}
+                                 }
