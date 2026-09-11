@@ -6,7 +6,12 @@ import { MatchReportsView } from "./_components/match-reports-view";
 
 export type AnalyticsTab = "reports" | "decks" | "leaderboard";
 
-export default function AnalyticsClientContent({ isAdmin }: { isAdmin: boolean }) {
+interface AnalyticsClientProps {
+  isAdmin: boolean;
+  schedules?: any[];
+}
+
+export default function AnalyticsClientContent({ isAdmin, schedules = [] }: AnalyticsClientProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -29,7 +34,7 @@ export default function AnalyticsClientContent({ isAdmin }: { isAdmin: boolean }
 
   return (
     <div className="w-full space-y-6">
-      {/* 1. NAVIGASI 3 SUB-TAB (PRESISI SESUAI TEMA TOURNAMENT) */}
+      {/* 1. NAVIGASI 3 SUB-TAB */}
       <div className="flex items-center justify-center">
         <div className="inline-flex rounded-full bg-muted/40 p-1 border border-border/40 backdrop-blur-sm">
           <button
@@ -68,8 +73,8 @@ export default function AnalyticsClientContent({ isAdmin }: { isAdmin: boolean }
         </div>
       </div>
 
-      {/* 2. KONTEN MASING-MASING TAB */}
-      {activeTab === "reports" && <MatchReportsView />}
+      {/* 2. KONTEN MASING-MASING TAB DENGAN DATA PROPS */}
+      {activeTab === "reports" && <MatchReportsView schedules={schedules} />}
 
       {activeTab === "decks" && (
         <div className="rounded-2xl border border-border bg-card/60 p-8 backdrop-blur-sm shadow-sm text-center py-16 space-y-2">
