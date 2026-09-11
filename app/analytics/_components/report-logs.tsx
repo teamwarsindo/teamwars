@@ -29,26 +29,24 @@ export function ReportLogs({ games }: ReportLogsProps) {
             const skillB = pB.skillAbbr || pB.skill || "-";
 
             return (
-              /* py-1.5 menghemat ruang vertikal tanpa mengecilkan ukuran teks */
               <div key={idx} className="py-1.5 px-3 hover:bg-muted/15 transition">
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
                   
-                  {/* Sisi Tim A (Font Normal Utuh) */}
+                  {/* Sisi Tim A: Deck text-[9.5px] anti-truncate */}
                   <div className="flex flex-col items-center text-center min-w-0">
                     <div className="font-bold text-xs text-foreground truncate w-full">
                       {pA.ign || "-"}
                     </div>
-                    <div className="text-[11px] font-medium text-muted-foreground truncate w-full mt-0.5">
+                    <div className="text-[9.5px] font-medium text-muted-foreground truncate w-full mt-0.5 leading-tight">
                       {pA.archetype || "-"}
                     </div>
-                    <div className="text-[9px] font-mono text-muted-foreground/75 truncate w-full">
+                    <div className="text-[8.5px] font-mono text-muted-foreground/75 truncate w-full">
                       {skillA}
                     </div>
                   </div>
 
-                  {/* Sisi Tengah (Pill Normal w-6 h-6, tidak mengkerut) */}
+                  {/* Sisi Tengah (Pill w-6 h-6) */}
                   <div className="flex flex-col items-center justify-center shrink-0 px-1">
-                    {/* Baris Atas: R & Ronde */}
                     <div className="flex items-center justify-between w-full min-h-[14px] px-0.5">
                       <div className="w-4 flex justify-center">
                         {pA.isRepeat && (
@@ -69,7 +67,6 @@ export function ReportLogs({ games }: ReportLogsProps) {
                       </div>
                     </div>
 
-                    {/* Baris Tengah: [ W ] vs [ L ] */}
                     <div className="flex items-center gap-1.5 my-0.5">
                       <span
                         className={`w-6 h-6 flex items-center justify-center rounded-md font-mono text-[10px] font-black shadow-2xs ${
@@ -96,7 +93,6 @@ export function ReportLogs({ games }: ReportLogsProps) {
                       </span>
                     </div>
 
-                    {/* Baris Bawah: TL */}
                     <div className="flex items-center justify-between w-full min-h-[14px] px-0.5">
                       <div className="w-4 flex justify-center">
                         {isTeamADeckloss && (
@@ -116,12 +112,12 @@ export function ReportLogs({ games }: ReportLogsProps) {
                     </div>
                   </div>
 
-                  {/* Sisi Tim B (Font Normal Utuh) */}
+                  {/* Sisi Tim B: Deck text-[9.5px] anti-truncate */}
                   <div className="flex flex-col items-center text-center min-w-0">
                     <div className="font-bold text-xs text-foreground truncate w-full">
                       {pB.ign || "-"}
                     </div>
-                    <div className="text-[11px] font-medium text-muted-foreground truncate w-full mt-0.5">
+                    <div className="text-[9.5px] font-medium text-muted-foreground truncate w-full mt-0.5 leading-tight">
                       {pB.archetype || "-"}
                     </div>
                     <div className="text-[9px] font-mono text-muted-foreground/75 truncate w-full">
@@ -136,7 +132,7 @@ export function ReportLogs({ games }: ReportLogsProps) {
         </div>
       )}
 
-      {/* Footer Simbol: Menggunakan Badge Pill Asli Rata Tengah */}
+      {/* Footer Simbol */}
       <div className="p-2.5 bg-muted/20 border-t border-border/60 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
         <span>Keterangan:</span>
         <span className="inline-flex items-center gap-1 font-semibold">
