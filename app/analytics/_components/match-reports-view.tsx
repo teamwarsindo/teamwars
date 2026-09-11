@@ -18,15 +18,18 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   const matchParam = searchParams.get("match") || "";
 
+  // 1. Ekstraksi daftar week aktif yang tersedia
   const availableWeeks = useMemo(() => {
     if (!schedules.length) return [];
     return Array.from(new Set(schedules.map((s) => Number(s.weekNumber || 1)))).sort((a, b) => a - b);
   }, [schedules]);
 
+  // 2. Evaluasi match awal jika dipanggil via parameter query
   const initialMatch = useMemo(() => {
     return matchParam && schedules.length ? schedules.find((s) => s.id === matchParam) || null : null;
   }, [schedules, matchParam]);
 
+  // Proteksi pekan depan / match ilegal: sembunyikan jika match tidak ada di jadwal aktif
   const isRequestedMatchForbidden = Boolean(matchParam) && !initialMatch;
 
   const [selectedWeek, setSelectedWeek] = useState<number | "">(initialMatch ? initialMatch.weekNumber : "");
@@ -67,35 +70,48 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     router.replace(`/analytics?${params.toString()}`, { scroll: false });
   };
 
+  // 3. Fetch Laporan Duel dari Endpoint API Analytics Baru
   useEffect(() => {
     if (!selectedMatchId) {
       setReport(null);
       return;
     }
+
     let isSubscribed = true;
+
     const fetchReport = async (isSilent = false) => {
       if (!isSilent) setLoading(true);
       try {
-        const res = await fetch(`/api/tournament/match-report?matchId=${selectedMatchId}`);
+        const res = await fetch(`/api/analytics/match-report?matchId=${selectedMatchId}`);
         const json = await res.json();
-        if (json.success && json.data && isSubscribed) setReport(json.data);
-        else if (!json.success && isSubscribed) setReport(null);
+        if (json.success && json.data && isSubscribed) {
+          setReport(json.data);
+        } else if (!json.success && isSubscribed) {
+          setReport(null);
+        }
       } catch (err) {
         console.error("Gagal load match report:", err);
       } finally {
         if (!isSilent && isSubscribed) setLoading(false);
       }
     };
+
     fetchReport();
+
+    // Polling auto-update tiap 5 detik jika duel masih berlangsung
     const interval = setInterval(() => {
-      if (report && !report.isFinished) fetchReport(true);
+      if (report && !report.isFinished) {
+        fetchReport(true);
+      }
     }, 5000);
+
     return () => {
       isSubscribed = false;
       clearInterval(interval);
     };
   }, [selectedMatchId, report?.isFinished]);
 
+  // Render Fallback jika mencoba membuka match pekan depan yang belum resmi
   if (isRequestedMatchForbidden) {
     return (
       <div className="w-full space-y-4">
@@ -127,20 +143,20 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
   const scoreB = teamB.score ?? report?.finalScore?.teamB ?? 0;
   const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10);
 
-  // Lineup Reveal
-  const lineupA = (teamA.lineup || []).map((p: any, i: number) => {
+  // Lineup Reveal: buka hanya yang sudah bertanding saat live, buka penuh saat match selesai
+  const lineupA = (teamA.lineup || []).map((p: any) => {
     if (isFinished) return p;
     const played = new Set(games.map((g) => g.playerA?.ign));
     return played.has(p?.ign) ? p : null;
   });
 
-  const lineupB = (teamB.lineup || []).map((p: any, i: number) => {
+  const lineupB = (teamB.lineup || []).map((p: any) => {
     if (isFinished) return p;
     const played = new Set(games.map((g) => g.playerB?.ign));
     return played.has(p?.ign) ? p : null;
   });
 
-  // MVP
+  // Perhitungan MVP Match setelah selesai
   const mvpData = useMemo(() => {
     if (!isFinished || !games.length) return null;
     const winsMap: Record<string, { ign: string; wins: number; team: string }> = {};
@@ -156,7 +172,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     return Object.values(winsMap).sort((a, b) => b.wins - a.wins)[0] || null;
   }, [isFinished, games, teamA.name, teamB.name]);
 
-  // Petunjuk Live
+  // Petunjuk Giliran Berikutnya saat status Live
   const liveInstruction = useMemo(() => {
     if (isFinished || !games.length) return null;
     const last = games[games.length - 1];
@@ -185,6 +201,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   return (
     <div className="w-full space-y-4">
+      {/* Kontrol Filter Dropdown */}
       <ReportFilter
         selectedWeek={selectedWeek}
         onWeekChange={handleWeekChange}
@@ -213,7 +230,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Metadata */}
+          {/* Header Metadata Laporan */}
           <div className="bg-card border border-border p-3.5 rounded-2xl shadow-xs space-y-1 text-xs">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="font-black tracking-wide uppercase text-foreground">
@@ -238,7 +255,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
             </div>
           </div>
 
-          {/* Sticky Scoreboard */}
+          {/* Sticky Scoreboard (Papan Skor Melayang) */}
           <ReportScoreboard
             teamA={teamA}
             teamB={teamB}
@@ -248,10 +265,10 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
             teamBLogo={activeSchedule?.teamBLogo}
           />
 
-          {/* Lineup Kiri Kanan 50:50 */}
+          {/* Lineup 50:50 Kiri - Kanan Tanpa Judul */}
           <ReportLineup lineupA={lineupA} lineupB={lineupB} />
 
-          {/* Logs & Summary */}
+          {/* Logs Rapat ke Tengah & Summary Dinamis */}
           <ReportLogs
             games={games}
             isFinished={isFinished}
@@ -266,4 +283,4 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
       )}
     </div>
   );
-      }
+                                 }
