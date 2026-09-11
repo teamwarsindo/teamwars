@@ -6,8 +6,11 @@ import { ChevronDown, Check, RotateCcw } from "lucide-react";
 export interface ReportFilterMatchItem {
   id: string;
   weekNumber: number;
+  groupName?: string;
   teamAName: string;
   teamBName: string;
+  teamALogo?: string;
+  teamBLogo?: string;
 }
 
 export interface ReportFilterProps {
@@ -49,8 +52,8 @@ export function ReportFilter({
   const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
 
   return (
-    <div className="bg-card border border-border p-3 rounded-2xl shadow-xs space-y-2.5">
-      {/* BARIS 1: WEEK DROPDOWN & RESET (DIVISI DIHAPUS) */}
+    <div className="bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-2.5">
+      {/* Baris 1: Filter Pekan & Tombol Reset */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1" ref={weekRef}>
           <button
@@ -59,7 +62,7 @@ export function ReportFilter({
               setIsWeekOpen(!isWeekOpen);
               setIsMatchOpen(false);
             }}
-            className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs md:text-sm font-bold text-primary flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
+            className="w-full bg-background border border-input rounded-xl px-3 py-2.5 text-xs md:text-sm font-bold text-primary flex items-center justify-between transition hover:border-primary cursor-pointer shadow-2xs"
           >
             <span>{selectedWeek ? `Week ${selectedWeek}` : "Pilih Week"}</span>
             <ChevronDown className={`h-4 w-4 text-primary transition-transform shrink-0 ${isWeekOpen ? "rotate-180" : ""}`} />
@@ -92,7 +95,7 @@ export function ReportFilter({
           onClick={onReset}
           disabled={!isFilterActive}
           title="Reset Filter"
-          className={`h-9 w-9 md:h-10 md:w-10 shrink-0 rounded-xl transition flex items-center justify-center ${
+          className={`h-10 w-10 shrink-0 rounded-xl transition flex items-center justify-center ${
             isFilterActive
               ? "bg-rose-500 text-white shadow-xs hover:bg-rose-600 cursor-pointer"
               : "bg-muted/20 text-muted-foreground/30 border border-border/30 cursor-not-allowed"
@@ -102,7 +105,7 @@ export function ReportFilter({
         </button>
       </div>
 
-      {/* BARIS 2: MATCH DROPDOWN FULL-WIDTH */}
+      {/* Baris 2: Pemilih Pertandingan Full-Width */}
       <div className="relative w-full" ref={matchRef}>
         <button
           type="button"
@@ -119,21 +122,27 @@ export function ReportFilter({
               : "cursor-pointer hover:border-primary text-foreground"
           }`}
         >
-          <span className="truncate">
-            {activeMatch
-              ? `${activeMatch.teamAName} vs ${activeMatch.teamBName}`
-              : selectedWeek
-              ? "Pilih Pertandingan..."
-              : "Pilih Week Terlebih Dahulu"}
-          </span>
-          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${isMatchOpen ? "rotate-180" : ""}`} />
+          <div className="flex items-center gap-2 truncate">
+            {activeMatch ? (
+              <>
+                <span className="font-bold">{activeMatch.teamAName}</span>
+                <span className="text-muted-foreground/50 text-xs">vs</span>
+                <span className="font-bold">{activeMatch.teamBName}</span>
+              </>
+            ) : selectedWeek ? (
+              <span className="text-muted-foreground font-normal">Pilih Pertandingan...</span>
+            ) : (
+              <span className="text-muted-foreground font-normal">Pilih Week Terlebih Dahulu</span>
+            )}
+          </div>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ml-2 ${isMatchOpen ? "rotate-180" : ""}`} />
         </button>
 
         {isMatchOpen && (
           <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-72 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md">
             {matchesInView.length === 0 ? (
               <div className="p-3 text-center text-xs text-muted-foreground">
-                Tidak ada match untuk Week ini
+                Tidak ada pertandingan untuk Week ini
               </div>
             ) : (
               matchesInView.map((m) => (
@@ -150,7 +159,11 @@ export function ReportFilter({
                       : "text-popover-foreground hover:bg-accent"
                   }`}
                 >
-                  <span className="truncate">{m.teamAName} vs {m.teamBName}</span>
+                  <div className="flex items-center gap-2 truncate">
+                    <span>{m.teamAName}</span>
+                    <span className="text-muted-foreground/50 text-xs">vs</span>
+                    <span>{m.teamBName}</span>
+                  </div>
                   {selectedMatchId === m.id && <Check className="h-4 w-4 text-primary shrink-0 ml-2" />}
                 </button>
               ))
@@ -160,5 +173,4 @@ export function ReportFilter({
       </div>
     </div>
   );
-      }
-        
+}
