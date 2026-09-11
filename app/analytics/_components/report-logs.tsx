@@ -21,7 +21,6 @@ export function ReportLogs({
 }: ReportLogsProps) {
   return (
     <div className="space-y-4">
-      {/* Riwayat Duel */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
         <div className="p-3 bg-muted/30 border-b border-border flex items-center justify-between">
           <span className="text-[11px] font-black uppercase tracking-wider text-foreground">
@@ -35,72 +34,92 @@ export function ReportLogs({
             Belum ada ronde duel yang diselesaikan.
           </div>
         ) : (
-          <div className="divide-y divide-border/60 text-xs">
+          <div className="divide-y divide-border/60">
             {games.map((g: any, idx: number) => {
-              const isAWin = g.winner === "teamA";
+              const isAWin = g.winner === 'teamA';
               const pA = g.playerA || {};
               const pB = g.playerB || {};
 
-              const isTeamADeckloss = g.isDeckloss && (g.decklossTeam === "teamA" || !isAWin);
-              const isTeamBDeckloss = g.isDeckloss && (g.decklossTeam === "teamB" || isAWin);
+              const isTeamADeckloss = g.isDeckloss && (g.decklossTeam === 'teamA' || !isAWin);
+              const isTeamBDeckloss = g.isDeckloss && (g.decklossTeam === 'teamB' || isAWin);
+
+              // Gunakan singkatan dari KV
+              const skillA = pA.skillAbbr || pA.skill;
+              const skillB = pB.skillAbbr || pB.skill;
 
               return (
-                <div key={idx} className="p-3 hover:bg-muted/20 transition space-y-1">
-                  {/* Baris Nama Skor Nama */}
+                <div key={idx} className="p-2.5 sm:p-3 hover:bg-muted/20 transition">
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className={`font-bold truncate text-[11px] sm:text-xs ${isAWin ? "text-foreground font-black" : "text-muted-foreground"}`}>
-                        {pA.ign || "-"}
-                      </span>
-                      {pA.isRepeat && (
-                        <span className="text-[9px] font-black text-amber-500 bg-amber-500/15 border border-amber-500/30 px-1 rounded shrink-0">
-                          R
+                    {/* Kubu Kiri (Rata Kanan Dekat Skor) */}
+                    <div className="flex flex-col items-end text-right min-w-0">
+                      <div className="flex items-center gap-1 min-w-0">
+                        {pA.isRepeat && (
+                          <span className="text-[9px] font-black text-amber-500 bg-amber-500/15 border border-amber-500/30 px-1 py-0.2 rounded shrink-0">
+                            R
+                          </span>
+                        )}
+                        {isTeamADeckloss && (
+                          <span className="text-[9px] font-black text-rose-500 bg-rose-500/15 border border-rose-500/30 px-1 py-0.2 rounded shrink-0">
+                            TL
+                          </span>
+                        )}
+                        <span className={`text-[11px] sm:text-xs truncate ${isAWin ? 'font-black text-foreground' : 'font-medium text-muted-foreground'}`}>
+                          {pA.ign || '-'}
                         </span>
-                      )}
-                      {isTeamADeckloss && (
-                        <span className="text-[9px] font-black text-rose-500 bg-rose-500/15 border border-rose-500/30 px-1 rounded shrink-0">
-                          TL
-                        </span>
-                      )}
+                      </div>
+                      <div className="text-[9px] sm:text-[10px] text-muted-foreground/80 truncate w-full">
+                        {pA.archetype || '-'}
+                        {skillA && skillA !== '-' && (
+                          <span className="font-semibold text-muted-foreground"> • {skillA}</span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-1 font-mono font-black text-xs shrink-0 px-1">
-                      <span className={`w-5 text-center ${isAWin ? "text-emerald-500" : "text-muted-foreground"}`}>
-                        {isAWin ? "W" : "L"}
+                    {/* Skor Badge di Tengah Baris */}
+                    <div className="flex items-center justify-center gap-1 shrink-0 px-1">
+                      <span
+                        className={`w-6 h-6 flex items-center justify-center rounded-md font-mono text-[10px] font-black shadow-2xs ${
+                          isAWin
+                            ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40'
+                            : 'bg-muted/40 text-muted-foreground/60 border border-border/40'
+                        }`}
+                      >
+                        {isAWin ? 'W' : 'L'}
                       </span>
-                      <span className="text-muted-foreground/30 font-sans">—</span>
-                      <span className={`w-5 text-center ${!isAWin ? "text-emerald-500" : "text-muted-foreground"}`}>
-                        {!isAWin ? "W" : "L"}
+                      <span
+                        className={`w-6 h-6 flex items-center justify-center rounded-md font-mono text-[10px] font-black shadow-2xs ${
+                          !isAWin
+                            ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40'
+                            : 'bg-muted/40 text-muted-foreground/60 border border-border/40'
+                        }`}
+                      >
+                        {!isAWin ? 'W' : 'L'}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-end gap-1.5 truncate text-right">
-                      {isTeamBDeckloss && (
-                        <span className="text-[9px] font-black text-rose-500 bg-rose-500/15 border border-rose-500/30 px-1 rounded shrink-0">
-                          TL
+                    {/* Kubu Kanan (Rata Kiri Dekat Skor) */}
+                    <div className="flex flex-col items-start text-left min-w-0">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className={`text-[11px] sm:text-xs truncate ${!isAWin ? 'font-black text-foreground' : 'font-medium text-muted-foreground'}`}>
+                          {pB.ign || '-'}
                         </span>
-                      )}
-                      {pB.isRepeat && (
-                        <span className="text-[9px] font-black text-amber-500 bg-amber-500/15 border border-amber-500/30 px-1 rounded shrink-0">
-                          R
-                        </span>
-                      )}
-                      <span className={`font-bold truncate text-[11px] sm:text-xs ${!isAWin ? "text-foreground font-black" : "text-muted-foreground"}`}>
-                        {pB.ign || "-"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Baris Deck & Skill */}
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[10px] text-muted-foreground">
-                    <div className="truncate">
-                      <span>{pA.archetype || "-"}</span>
-                      {pA.skill && pA.skill !== "-" && <span className="text-muted-foreground/70"> • {pA.skill}</span>}
-                    </div>
-                    <div className="text-[8px] font-bold text-muted-foreground/20 px-1">vs</div>
-                    <div className="truncate text-right">
-                      <span>{pB.archetype || "-"}</span>
-                      {pB.skill && pB.skill !== "-" && <span className="text-muted-foreground/70"> • {pB.skill}</span>}
+                        {isTeamBDeckloss && (
+                          <span className="text-[9px] font-black text-rose-500 bg-rose-500/15 border border-rose-500/30 px-1 py-0.2 rounded shrink-0">
+                            TL
+                          </span>
+                        )}
+                        {pB.isRepeat && (
+                          <span className="text-[9px] font-black text-amber-500 bg-amber-500/15 border border-amber-500/30 px-1 py-0.2 rounded shrink-0">
+                            R
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[9px] sm:text-[10px] text-muted-foreground/80 truncate w-full">
+                        {pB.archetype || '-'}
+                        {skillB && skillB !== '-' && (
+                          <span className="font-semibold text-muted-foreground"> • {skillB}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -115,7 +134,7 @@ export function ReportLogs({
         </div>
       </div>
 
-      {/* Summary / Petunjuk Berikutnya */}
+      {/* Summary / Instruksi Pertandingan */}
       <div className="rounded-2xl border border-border bg-card p-3.5 shadow-xs space-y-1.5 text-xs">
         {isFinished ? (
           <>
@@ -145,5 +164,4 @@ export function ReportLogs({
       </div>
     </div>
   );
-      }
-                                                                                    
+                        }
