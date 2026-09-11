@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { computeTeamSummary, GameRecord } from '@/lib/match-analytics';
+import { computeTeamSummary, GameRecord } from './summary-helper';
 
 interface ReportSummaryProps {
   games: GameRecord[];
