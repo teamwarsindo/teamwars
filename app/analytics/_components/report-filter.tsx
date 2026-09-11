@@ -52,7 +52,7 @@ export function ReportFilter({
   const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
 
   return (
-    <div className="bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-2.5">
+    <div className="relative z-30 bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-2.5">
       {/* Baris 1: Filter Pekan & Tombol Reset */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1" ref={weekRef}>
@@ -69,7 +69,7 @@ export function ReportFilter({
           </button>
 
           {isWeekOpen && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md">
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-[60] max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
               {availableWeeks.map((w) => (
                 <button
                   key={w}
@@ -105,7 +105,7 @@ export function ReportFilter({
         </button>
       </div>
 
-      {/* Baris 2: Pemilih Pertandingan Full-Width */}
+      {/* Baris 2: Pemilih Pertandingan (Z-[60] Bebas Nabrak ke Bawah) */}
       <div className="relative w-full" ref={matchRef}>
         <button
           type="button"
@@ -139,7 +139,7 @@ export function ReportFilter({
         </button>
 
         {isMatchOpen && (
-          <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-72 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md">
+          <div className="absolute left-0 right-0 top-full mt-1.5 z-[60] max-h-72 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
             {matchesInView.length === 0 ? (
               <div className="p-3 text-center text-xs text-muted-foreground">
                 Tidak ada pertandingan untuk Week ini
@@ -173,4 +173,5 @@ export function ReportFilter({
       </div>
     </div>
   );
-}
+                                                         }
+  
