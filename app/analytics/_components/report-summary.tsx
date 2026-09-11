@@ -3,10 +3,6 @@ interface ReportSummaryProps {
   isFinished: boolean;
   scoreA: number;
   scoreB: number;
-  teamAName: string;
-  teamBName: string;
-  lineupA: any[];
-  lineupB: any[];
   liveInstruction: { nextGameNumber: number; stayTable: string; nextActionTeam: string } | null;
 }
 
@@ -15,30 +11,26 @@ export function ReportSummary({
   isFinished,
   scoreA,
   scoreB,
-  teamAName,
-  teamBName,
-  lineupA,
-  lineupB,
   liveInstruction,
 }: ReportSummaryProps) {
   if (!isFinished) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-3.5 shadow-xs space-y-2 text-xs">
+      <div className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-1.5 text-xs">
         {liveInstruction ? (
           <>
-            <div className="font-black text-amber-500 uppercase tracking-wide flex items-center justify-between">
+            <div className="font-black text-amber-500 uppercase tracking-wide flex items-center justify-between text-[11px]">
               <span className="animate-pulse">Instruksi Game #{liveInstruction.nextGameNumber}</span>
-              <span className="text-[10px] font-mono text-muted-foreground font-normal">
+              <span className="text-[9px] font-mono text-muted-foreground font-normal">
                 {games.length} Game Dimainkan
               </span>
             </div>
-            <div className="space-y-1 text-[11px]">
+            <div className="space-y-0.5 text-[10.5px]">
               <div className="text-foreground">• <strong>{liveInstruction.stayTable}</strong> (Stay table)</div>
               <div className="text-muted-foreground">• <strong>{liveInstruction.nextActionTeam}:</strong> (Next deck or repeat)</div>
             </div>
           </>
         ) : (
-          <div className="text-[11px] text-muted-foreground text-center">
+          <div className="text-[10px] text-muted-foreground text-center">
             Pertandingan siap dimulai. Menunggu ronde pertama dari wasit.
           </div>
         )}
@@ -46,7 +38,6 @@ export function ReportSummary({
     );
   }
 
-  // Helper Menghitung Statistik Tim
   const computeTeamStats = (isTeamA: boolean) => {
     const winsMap: Record<string, { wins: number; losses: number }> = {};
     const deckMap: Record<string, { wins: number; losses: number; users: Set<string> }> = {};
@@ -107,7 +98,6 @@ export function ReportSummary({
       }
     });
 
-    // Top Player
     const playerEntries = Object.entries(winsMap).map(([ign, s]) => ({
       ign,
       wins: s.wins,
@@ -124,13 +114,11 @@ export function ReportSummary({
       wr: "0.0",
     };
 
-    // Agregat Tim
     const totalTeamWins = isTeamA ? scoreA : scoreB;
     const playerAktifCount = activePlayers.size;
     const teamWR = games.length > 0 ? ((totalTeamWins / games.length) * 100).toFixed(1) : "0.0";
     const playerPoin = playerAktifCount > 0 ? (totalTeamWins / playerAktifCount).toFixed(1) : "0.0";
 
-    // Most Played Deck
     const deckEntries = Object.entries(deckMap).map(([name, d]) => ({
       name,
       total: d.wins + d.losses,
@@ -168,122 +156,138 @@ export function ReportSummary({
 
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-      <div className="p-2.5 bg-muted/30 border-b border-border text-center">
+      <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
         <span className="text-xs font-black uppercase tracking-wider text-foreground">
           Match Summary
         </span>
       </div>
 
-      <div className="grid grid-cols-2 divide-x divide-border/60 p-3 sm:p-4 text-xs gap-x-2">
-        {/* Kolom Tim A */}
-        <div className="space-y-3 pr-1 sm:pr-2">
+      <div className="grid grid-cols-2 divide-x divide-border/60 p-3 text-xs gap-x-2">
+        {/* Kolom Kubu A */}
+        <div className="space-y-2.5 pr-1">
           {/* Top Player */}
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Top Player</div>
-            <div className="font-bold text-foreground truncate">
+            <div className="text-[9.5px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <span>⭐</span> Top Player
+            </div>
+            <div className="font-bold text-foreground truncate mt-0.5">
               {statA.topPlayer.ign} ({statA.topPlayer.wins}-{statA.topPlayer.losses})
             </div>
-            <div className="text-[10px] text-muted-foreground/80 mt-0.5">
+            <div className="text-[9.5px] text-foreground/80 mt-0.5">
               Agregat: {statA.topPlayer.agregat > 0 ? `+${statA.topPlayer.agregat}` : statA.topPlayer.agregat}
             </div>
-            <div className="text-[10px] text-muted-foreground/80">
+            <div className="text-[9.5px] text-foreground/80">
               Winrate: {statA.topPlayer.wr}%
             </div>
           </div>
 
           {/* Top Streak */}
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Top Streak</div>
-            <div className="font-bold text-foreground truncate">{statA.maxStreak.player}</div>
-            <div className="text-[10px] text-muted-foreground/80 mt-0.5">
+            <div className="text-[9.5px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <span>🔥</span> Top Streak
+            </div>
+            <div className="font-bold text-foreground truncate mt-0.5">{statA.maxStreak.player}</div>
+            <div className="text-[9.5px] text-foreground/80 mt-0.5">
               {statA.maxStreak.count > 0 ? `${statA.maxStreak.count} Streak (${statA.maxStreak.range})` : "-"}
             </div>
-            <div className="text-[10px] text-muted-foreground/80 truncate">
+            <div className="text-[9.5px] text-foreground/80 truncate">
               Deck: {statA.maxStreak.deck}
             </div>
           </div>
 
           {/* Agregat Tim */}
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Agregat Tim</div>
-            <div className="text-[11px] text-foreground font-medium mt-0.5">
+            <div className="text-[9.5px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <span>📊</span> Agregat Tim
+            </div>
+            <div className="text-[10.5px] text-foreground font-semibold mt-0.5">
               Player Aktif: {statA.playerAktifCount}/5
             </div>
-            <div className="text-[11px] text-foreground font-medium">
+            <div className="text-[10.5px] text-foreground font-semibold">
               Winrate Tim: {statA.teamWR}%
             </div>
-            <div className="text-[11px] text-foreground font-medium">
+            <div className="text-[10.5px] text-foreground font-semibold">
               Player Poin: {statA.playerPoin}
             </div>
           </div>
 
           {/* Most Played Deck */}
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Most Played Deck</div>
+            <div className="text-[9.5px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <span>🃏</span> Most Played Deck
+            </div>
             <div className="font-bold text-foreground truncate mt-0.5">
               {statA.mostDeck.name} ({statA.mostDeck.wins}-{statA.mostDeck.losses})
             </div>
-            <div className="text-[10px] text-muted-foreground/80">
+            <div className="text-[9.5px] text-foreground/80">
               Winrate: {statA.mostDeck.wr}%
             </div>
-            <div className="text-[10px] text-muted-foreground/80 truncate">
+            <div className="text-[9.5px] text-foreground/80 truncate">
               Player: {statA.mostDeck.users}
             </div>
           </div>
         </div>
 
-        {/* Kolom Tim B */}
-        <div className="space-y-3 pl-2 sm:pl-3">
+        {/* Kolom Kubu B */}
+        <div className="space-y-2.5 pl-2">
           {/* Top Player */}
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Top Player</div>
-            <div className="font-bold text-foreground truncate">
+            <div className="text-[9.5px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <span>⭐</span> Top Player
+            </div>
+            <div className="font-bold text-foreground truncate mt-0.5">
               {statB.topPlayer.ign} ({statB.topPlayer.wins}-{statB.topPlayer.losses})
             </div>
-            <div className="text-[10px] text-muted-foreground/80 mt-0.5">
+            <div className="text-[9.5px] text-foreground/80 mt-0.5">
               Agregat: {statB.topPlayer.agregat > 0 ? `+${statB.topPlayer.agregat}` : statB.topPlayer.agregat}
             </div>
-            <div className="text-[10px] text-muted-foreground/80">
+            <div className="text-[9.5px] text-foreground/80">
               Winrate: {statB.topPlayer.wr}%
             </div>
           </div>
 
           {/* Top Streak */}
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Top Streak</div>
-            <div className="font-bold text-foreground truncate">{statB.maxStreak.player}</div>
-            <div className="text-[10px] text-muted-foreground/80 mt-0.5">
+            <div className="text-[9.5px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <span>🔥</span> Top Streak
+            </div>
+            <div className="font-bold text-foreground truncate mt-0.5">{statB.maxStreak.player}</div>
+            <div className="text-[9.5px] text-foreground/80 mt-0.5">
               {statB.maxStreak.count > 0 ? `${statB.maxStreak.count} Streak (${statB.maxStreak.range})` : "-"}
             </div>
-            <div className="text-[10px] text-muted-foreground/80 truncate">
+            <div className="text-[9.5px] text-foreground/80 truncate">
               Deck: {statB.maxStreak.deck}
             </div>
           </div>
 
           {/* Agregat Tim */}
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Agregat Tim</div>
-            <div className="text-[11px] text-foreground font-medium mt-0.5">
+            <div className="text-[9.5px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <span>📊</span> Agregat Tim
+            </div>
+            <div className="text-[10.5px] text-foreground font-semibold mt-0.5">
               Player Aktif: {statB.playerAktifCount}/5
             </div>
-            <div className="text-[11px] text-foreground font-medium">
+            <div className="text-[10.5px] text-foreground font-semibold">
               Winrate Tim: {statB.teamWR}%
             </div>
-            <div className="text-[11px] text-foreground font-medium">
+            <div className="text-[10.5px] text-foreground font-semibold">
               Player Poin: {statB.playerPoin}
             </div>
           </div>
 
           {/* Most Played Deck */}
           <div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Most Played Deck</div>
+            <div className="text-[9.5px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+              <span>🃏</span> Most Played Deck
+            </div>
             <div className="font-bold text-foreground truncate mt-0.5">
               {statB.mostDeck.name} ({statB.mostDeck.wins}-{statB.mostDeck.losses})
             </div>
-            <div className="text-[10px] text-muted-foreground/80">
+            <div className="text-[9.5px] text-foreground/80">
               Winrate: {statB.mostDeck.wr}%
             </div>
-            <div className="text-[10px] text-muted-foreground/80 truncate">
+            <div className="text-[9.5px] text-foreground/80 truncate">
               Player: {statB.mostDeck.users}
             </div>
           </div>
