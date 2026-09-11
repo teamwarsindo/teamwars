@@ -39,7 +39,7 @@ export function ReportScoreboard({
   const aIsLeading = scoreA > scoreB;
   const bIsLeading = scoreB > scoreA;
 
-  // Format Waktu WIB (Asia/Jakarta)
+  // Konversi Waktu Presisi Asia/Jakarta
   const formatSchedule = (raw?: string) => {
     if (!raw) return { day: "-", fullDate: "-", time: "-" };
     try {
@@ -74,14 +74,14 @@ export function ReportScoreboard({
   const hasLiveUrl = Boolean(metadata.streamUrl && metadata.streamUrl.trim() !== "" && metadata.streamUrl !== "-");
 
   return (
-    <div className="sticky top-0 z-30 -mx-1 px-1 pt-0 pb-1.5">
-      <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-border/80 p-3 shadow-md space-y-2.5">
+    /* z-20 (di bawah filter z-50) & top-[58px] rapat persis di bawah bar menu atas */
+    <div className="sticky top-[58px] z-20 -mx-1 px-1 py-1">
+      <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-border/80 p-2.5 shadow-md space-y-2">
         
-        {/* Header Metadata: 3 Kolom Sejajar */}
-        <div className="grid grid-cols-3 gap-1 pb-2 border-b border-border/60 text-center items-center">
-          
-          {/* Kolom 1: Match • Hari • Referee */}
-          <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
+        {/* Header Metadata: 3 Kolom Simetris */}
+        <div className="grid grid-cols-3 gap-1 pb-1.5 border-b border-border/60 text-center items-center">
+          {/* Kolom 1 */}
+          <div className="flex flex-col items-center justify-center min-w-0">
             <span className="text-[10px] font-bold text-muted-foreground truncate w-full">
               Match {metadata.matchNumber || 1}
             </span>
@@ -95,8 +95,8 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 2: Divisi • Tanggal Lengkap • Live Streaming / Share Screen */}
-          <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
+          {/* Kolom 2 */}
+          <div className="flex flex-col items-center justify-center min-w-0">
             <span className="text-[10px] font-bold text-foreground truncate w-full">
               {metadata.division || "Divisi Official"}
             </span>
@@ -121,8 +121,8 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 3: Week • Waktu • Streamer / Private */}
-          <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
+          {/* Kolom 3 */}
+          <div className="flex flex-col items-center justify-center min-w-0">
             <span className="text-[10px] font-bold text-muted-foreground truncate w-full">
               Week {metadata.week || 1}
             </span>
@@ -141,20 +141,19 @@ export function ReportScoreboard({
               )}
             </div>
           </div>
-
         </div>
 
-        {/* Scoreboard Inti */}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 pt-0.5">
+        {/* Scoreboard */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 pt-0.5">
           {/* Kubu Kiri */}
           <div className="flex flex-col items-center text-center min-w-0">
-            <div className="relative h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
+            <div className="relative h-10 w-10 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
               {logoA && !logoErrA ? (
                 <Image
                   src={logoA}
                   alt={teamA.name || 'Team A'}
                   fill
-                  sizes="48px"
+                  sizes="40px"
                   className="object-contain p-1"
                   onError={() => setLogoErrA(true)}
                   unoptimized
@@ -165,28 +164,28 @@ export function ReportScoreboard({
                 </span>
               )}
             </div>
-            <div className="font-black text-[11px] sm:text-xs text-foreground whitespace-nowrap truncate w-full px-1" title={teamA.name}>
+            <div className="font-black text-[11px] text-foreground whitespace-nowrap truncate w-full px-1" title={teamA.name}>
               {teamA.name || 'Tim A'}
             </div>
           </div>
 
-          {/* Skor Tengah */}
-          <div className="flex flex-col items-center justify-center px-2 shrink-0">
-            <div className="flex items-center gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
+          {/* Skor */}
+          <div className="flex flex-col items-center justify-center px-1 shrink-0">
+            <div className="flex items-center gap-2 font-mono text-2xl font-black leading-none">
               <span className={aIsLeading ? 'text-primary' : 'text-foreground/90'}>{scoreA}</span>
-              <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl">—</span>
+              <span className="text-muted-foreground/30 font-sans text-lg">—</span>
               <span className={bIsLeading ? 'text-primary' : 'text-foreground/90'}>{scoreB}</span>
             </div>
 
-            <div className="mt-1.5 space-y-0.5 text-[9px] text-muted-foreground w-full max-w-[120px]">
+            <div className="mt-1 space-y-0.5 text-[8.5px] text-muted-foreground w-full max-w-[115px]">
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 text-center font-mono">
                 <span className="font-bold text-foreground/80">{teamA.repeatsUsed ?? 0}/2</span>
-                <span className="text-muted-foreground/50 uppercase text-[8px] font-sans">Repeat</span>
+                <span className="text-muted-foreground/50 uppercase text-[7.5px] font-sans">Repeat</span>
                 <span className="font-bold text-foreground/80">{teamB.repeatsUsed ?? 0}/2</span>
               </div>
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 text-center font-mono">
                 <span className="font-bold text-foreground/80">{teamA.warningsUsed ?? 0}/2</span>
-                <span className="text-muted-foreground/50 uppercase text-[8px] font-sans">Warn</span>
+                <span className="text-muted-foreground/50 uppercase text-[7.5px] font-sans">Warn</span>
                 <span className="font-bold text-foreground/80">{teamB.warningsUsed ?? 0}/2</span>
               </div>
             </div>
@@ -194,13 +193,13 @@ export function ReportScoreboard({
 
           {/* Kubu Kanan */}
           <div className="flex flex-col items-center text-center min-w-0">
-            <div className="relative h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
+            <div className="relative h-10 w-10 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
               {logoB && !logoErrB ? (
                 <Image
                   src={logoB}
                   alt={teamB.name || 'Team B'}
                   fill
-                  sizes="48px"
+                  sizes="40px"
                   className="object-contain p-1"
                   onError={() => setLogoErrB(true)}
                   unoptimized
@@ -211,7 +210,7 @@ export function ReportScoreboard({
                 </span>
               )}
             </div>
-            <div className="font-black text-[11px] sm:text-xs text-foreground whitespace-nowrap truncate w-full px-1" title={teamB.name}>
+            <div className="font-black text-[11px] text-foreground whitespace-nowrap truncate w-full px-1" title={teamB.name}>
               {teamB.name || 'Tim B'}
             </div>
           </div>
@@ -220,5 +219,4 @@ export function ReportScoreboard({
       </div>
     </div>
   );
-                             }
-            
+          }
