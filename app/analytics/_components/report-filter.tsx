@@ -53,6 +53,7 @@ export function ReportFilter({
 
   return (
     <div className="relative z-30 bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-2.5">
+      {/* Baris 1: Filter Week & Reset */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1" ref={weekRef}>
           <button
@@ -104,7 +105,7 @@ export function ReportFilter({
         </button>
       </div>
 
-      {/* Dropdown Match: Dibatasi 4 item (max-h-[196px]) */}
+      {/* Baris 2: Pemilih Match - Dibatasi Tepat 4 Item (max-h-[168px]) */}
       <div className="relative w-full" ref={matchRef}>
         <button
           type="button"
@@ -138,7 +139,7 @@ export function ReportFilter({
         </button>
 
         {isMatchOpen && (
-          <div className="absolute left-0 right-0 top-full mt-1.5 z-[60] max-h-[196px] overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
+          <div className="absolute left-0 right-0 top-full mt-1.5 z-[60] max-h-[168px] overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
             {matchesInView.length === 0 ? (
               <div className="p-3 text-center text-xs text-muted-foreground">
                 Tidak ada pertandingan untuk Week ini
@@ -172,4 +173,4 @@ export function ReportFilter({
       </div>
     </div>
   );
-            }
+          }
