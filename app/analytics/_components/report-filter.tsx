@@ -53,7 +53,6 @@ export function ReportFilter({
 
   return (
     <div className="relative z-30 bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-2.5">
-      {/* Baris 1: Filter Pekan & Tombol Reset */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1" ref={weekRef}>
           <button
@@ -69,7 +68,7 @@ export function ReportFilter({
           </button>
 
           {isWeekOpen && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-[60] max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-[60] max-h-52 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
               {availableWeeks.map((w) => (
                 <button
                   key={w}
@@ -105,7 +104,7 @@ export function ReportFilter({
         </button>
       </div>
 
-      {/* Baris 2: Pemilih Pertandingan (Z-[60] Bebas Nabrak ke Bawah) */}
+      {/* Dropdown Match: Dibatasi 4 item (max-h-[196px]) */}
       <div className="relative w-full" ref={matchRef}>
         <button
           type="button"
@@ -125,9 +124,9 @@ export function ReportFilter({
           <div className="flex items-center gap-2 truncate">
             {activeMatch ? (
               <>
-                <span className="font-bold">{activeMatch.teamAName}</span>
-                <span className="text-muted-foreground/50 text-xs">vs</span>
-                <span className="font-bold">{activeMatch.teamBName}</span>
+                <span className="font-bold truncate">{activeMatch.teamAName}</span>
+                <span className="text-muted-foreground/50 text-xs shrink-0">vs</span>
+                <span className="font-bold truncate">{activeMatch.teamBName}</span>
               </>
             ) : selectedWeek ? (
               <span className="text-muted-foreground font-normal">Pilih Pertandingan...</span>
@@ -139,7 +138,7 @@ export function ReportFilter({
         </button>
 
         {isMatchOpen && (
-          <div className="absolute left-0 right-0 top-full mt-1.5 z-[60] max-h-72 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
+          <div className="absolute left-0 right-0 top-full mt-1.5 z-[60] max-h-[196px] overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-2xl backdrop-blur-md">
             {matchesInView.length === 0 ? (
               <div className="p-3 text-center text-xs text-muted-foreground">
                 Tidak ada pertandingan untuk Week ini
@@ -160,9 +159,9 @@ export function ReportFilter({
                   }`}
                 >
                   <div className="flex items-center gap-2 truncate">
-                    <span>{m.teamAName}</span>
-                    <span className="text-muted-foreground/50 text-xs">vs</span>
-                    <span>{m.teamBName}</span>
+                    <span className="truncate">{m.teamAName}</span>
+                    <span className="text-muted-foreground/50 text-xs shrink-0">vs</span>
+                    <span className="truncate">{m.teamBName}</span>
                   </div>
                   {selectedMatchId === m.id && <Check className="h-4 w-4 text-primary shrink-0 ml-2" />}
                 </button>
@@ -173,5 +172,4 @@ export function ReportFilter({
       </div>
     </div>
   );
-                                                         }
-  
+            }
