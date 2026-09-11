@@ -207,10 +207,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
             isFinished={isFinished}
             scoreA={scoreA}
             scoreB={scoreB}
-            teamAName={teamA.name}
-            teamBName={teamB.name}
-            lineupA={teamA.lineup || []}
-            lineupB={teamB.lineup || []}
             liveInstruction={liveInstruction}
           />
         </div>
