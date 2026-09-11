@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { computeTeamSummary, GameRecord } from './summary-helper';
+import { useMemo } from "react";
+import { computeTeamSummary, GameRecord } from "./summary-helper";
 
 interface ReportSummaryProps {
   games: GameRecord[];
@@ -55,6 +55,7 @@ export function ReportSummary({
       <div className="grid grid-cols-2 divide-x divide-border/60 p-3 text-xs gap-x-2">
         {/* Kolom Tim A */}
         <div className="space-y-3 pr-1">
+          {/* Top Player */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>⭐</span> Top Player
@@ -70,13 +71,14 @@ export function ReportSummary({
             </div>
           </div>
 
+          {/* Top Streak */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>🔥</span> Top Streak
             </div>
             <div className="font-bold text-foreground truncate mt-0.5">{statA.maxStreak.player}</div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              {statA.maxStreak.count > 0 ? `${statA.maxStreak.count} Streak (${statA.maxStreak.range})` : '-'}
+              {statA.maxStreak.count > 0 ? `${statA.maxStreak.count} Streak (${statA.maxStreak.range})` : "-"}
             </div>
             <div className="text-[10px] text-muted-foreground truncate">
               Deck: <span className="font-semibold text-foreground/90">{statA.maxStreak.deck}</span>
@@ -86,6 +88,7 @@ export function ReportSummary({
             </div>
           </div>
 
+          {/* Agregat Tim */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>📊</span> Agregat Tim
@@ -101,15 +104,16 @@ export function ReportSummary({
             </div>
           </div>
 
+          {/* Most Played Deck: Nama utuh, Record dipisah ke baris berikutnya */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>🃏</span> Most Played Deck
             </div>
-            <div className="font-bold text-foreground truncate mt-0.5">
-              {statA.mostDeck.name} ({statA.mostDeck.wins}-{statA.mostDeck.losses})
+            <div className="font-bold text-foreground truncate mt-0.5" title={statA.mostDeck.name}>
+              {statA.mostDeck.name}
             </div>
-            <div className="text-[10px] text-muted-foreground">
-              Winrate: <span className="font-semibold text-foreground/90">{statA.mostDeck.wr}%</span>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              Record: <span className="font-semibold text-foreground/90">{statA.mostDeck.wins}W - {statA.mostDeck.losses}L</span> ({statA.mostDeck.wr}%)
             </div>
             <div className="text-[10px] text-muted-foreground truncate">
               Player: <span className="font-semibold text-foreground/90">{statA.mostDeck.users}</span>
@@ -119,6 +123,7 @@ export function ReportSummary({
 
         {/* Kolom Tim B */}
         <div className="space-y-3 pl-2">
+          {/* Top Player */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>⭐</span> Top Player
@@ -134,13 +139,14 @@ export function ReportSummary({
             </div>
           </div>
 
+          {/* Top Streak */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>🔥</span> Top Streak
             </div>
             <div className="font-bold text-foreground truncate mt-0.5">{statB.maxStreak.player}</div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              {statB.maxStreak.count > 0 ? `${statB.maxStreak.count} Streak (${statB.maxStreak.range})` : '-'}
+              {statB.maxStreak.count > 0 ? `${statB.maxStreak.count} Streak (${statB.maxStreak.range})` : "-"}
             </div>
             <div className="text-[10px] text-muted-foreground truncate">
               Deck: <span className="font-semibold text-foreground/90">{statB.maxStreak.deck}</span>
@@ -150,6 +156,7 @@ export function ReportSummary({
             </div>
           </div>
 
+          {/* Agregat Tim */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>📊</span> Agregat Tim
@@ -165,15 +172,16 @@ export function ReportSummary({
             </div>
           </div>
 
+          {/* Most Played Deck: Nama utuh, Record dipisah */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>🃏</span> Most Played Deck
             </div>
-            <div className="font-bold text-foreground truncate mt-0.5">
-              {statB.mostDeck.name} ({statB.mostDeck.wins}-{statB.mostDeck.losses})
+            <div className="font-bold text-foreground truncate mt-0.5" title={statB.mostDeck.name}>
+              {statB.mostDeck.name}
             </div>
-            <div className="text-[10px] text-muted-foreground">
-              Winrate: <span className="font-semibold text-foreground/90">{statB.mostDeck.wr}%</span>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              Record: <span className="font-semibold text-foreground/90">{statB.mostDeck.wins}W - {statB.mostDeck.losses}L</span> ({statB.mostDeck.wr}%)
             </div>
             <div className="text-[10px] text-muted-foreground truncate">
               Player: <span className="font-semibold text-foreground/90">{statB.mostDeck.users}</span>
@@ -183,5 +191,4 @@ export function ReportSummary({
       </div>
     </div>
   );
-        }
-            
+                                                                                                                            }
