@@ -1,7 +1,11 @@
 import { cookies } from "next/headers";
 import { Suspense } from "react";
+import { kv } from "@vercel/kv";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
+import { getMatchWeekNumber, MatchScheduleItem } from "@/app/tournament/_library";
 import AnalyticsClientContent from "./analytics-client";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Official Analytics — TWI Season 7",
@@ -13,6 +17,20 @@ export default async function AnalyticsLandingPage() {
   const adminCookie = cookieStore.get("admin_session")?.value;
   const isAdmin = Boolean(adminCookie);
 
+  // 1. Ambil seluruh data schedule langsung dari KV
+  const rawSchedules = (await kv.get<MatchScheduleItem[]>("twi:schedules")) || [];
+
+  // 2. Petakan agar memiliki groupName dan weekNumber yang valid
+  const scheduleList = rawSchedules.map((m: any) => ({
+    id: m.id,
+    weekNumber: Number(m.weekNumber || getMatchWeekNumber(m.matchDate) || 1),
+    groupName: m.groupName || "",
+    teamAName: m.teamAName || "",
+    teamBName: m.teamBName || "",
+    matchDate: m.matchDate,
+    isFinished: Boolean(m.isFinished),
+  }));
+
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       {/* Ambient glow sinkron */}
@@ -21,7 +39,7 @@ export default async function AnalyticsLandingPage() {
       {/* 1. TOP BAR STICKY */}
       <TopBar title="Official Analytics" />
 
-      {/* 2. HERO HEADER (showDetails={true} agar teks Season 7 & deskripsi tampil utuh) */}
+      {/* 2. HERO HEADER */}
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-12 sm:px-6">
         <HeroHeader showDetails={true} />
 
@@ -34,7 +52,7 @@ export default async function AnalyticsLandingPage() {
               </div>
             }
           >
-            <AnalyticsClientContent isAdmin={isAdmin} />
+            <AnalyticsClientContent isAdmin={isAdmin} schedules={scheduleList} />
           </Suspense>
         </section>
 
