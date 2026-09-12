@@ -15,28 +15,36 @@ export interface GameRecord {
   decklossTeam?: "teamA" | "teamB";
 }
 
-export interface DeckStatResult {
-  name: string;
-  recordStr: string;
+export interface PlayerSummaryStat {
+  ign: string;
+  wins: number;
+  losses: number;
   agregat: number;
-  wpm: string;
+  wpmVal: number;
+}
+
+export interface StreakSummaryStat {
+  player: string;
+  count: number;
+  rangeStr: string;
+  deck: string;
+  hasStreak: boolean;
+}
+
+export interface ArchetypeSummaryStat {
+  name: string;
+  wins: number;
+  losses: number;
+  agregat: number;
+  wpmVal: number;
   users: string;
 }
 
 export interface TeamSummaryStat {
-  topPlayer: {
-    ign: string;
-    recordStr: string;
-    agregat: number;
-    wpm: string;
-  };
-  maxStreak: {
-    player: string;
-    streakStr: string;
-    deck: string;
-  };
-  mostDeck: DeckStatResult;
-  bestDeck: DeckStatResult;
+  topPlayer: PlayerSummaryStat;
+  maxStreak: StreakSummaryStat;
+  bestDeck: ArchetypeSummaryStat;
+  mostDeck: ArchetypeSummaryStat;
 }
 
 export function computeTeamSummary(
@@ -129,40 +137,53 @@ export function computeTeamSummary(
   const playerEntries = Object.entries(winsMap).map(([ign, s]) => {
     const total = s.wins + s.losses;
     const agregat = s.wins - s.losses;
-    const wpm = total > 0 ? Math.round((s.wins / total) * 100) : 0;
+    const wpmVal = total > 0 ? Math.round((s.wins / total) * 100) : 0;
     return {
       ign,
       wins: s.wins,
       losses: s.losses,
-      recordStr: `${s.wins} Win - ${s.losses} Lose`,
       agregat,
       maxStreak: s.maxStreak,
-      wpm: `WPM ${wpm}%`,
+      wpmVal,
       firstSeen: s.firstSeen,
     };
   });
 
-  const topPlayer = playerEntries.sort(
+  const topPlayerRaw = playerEntries.sort(
     (a, b) =>
       b.wins - a.wins ||
       b.agregat - a.agregat ||
       b.maxStreak - a.maxStreak ||
       a.firstSeen - b.firstSeen
-  )[0] || {
-    ign: "-",
-    recordStr: "0 Win - 0 Lose",
-    agregat: 0,
-    wpm: "WPM 0%",
+  )[0];
+
+  const topPlayer: PlayerSummaryStat = topPlayerRaw
+    ? {
+        ign: topPlayerRaw.ign,
+        wins: topPlayerRaw.wins,
+        losses: topPlayerRaw.losses,
+        agregat: topPlayerRaw.agregat,
+        wpmVal: topPlayerRaw.wpmVal,
+      }
+    : {
+        ign: "-",
+        wins: 0,
+        losses: 0,
+        agregat: 0,
+        wpmVal: 0,
+      };
+
+  // 2. Top Streak (Hanya jika streak >= 2)
+  const hasStreak = topStreakCount >= 2;
+  const maxStreak: StreakSummaryStat = {
+    player: hasStreak ? topStreakPlayer : "-",
+    count: hasStreak ? topStreakCount : 0,
+    rangeStr: hasStreak ? `G${topStreakStart} — G${topStreakEnd}` : "-",
+    deck: hasStreak ? topStreakDeck : "-",
+    hasStreak,
   };
 
-  // 2. Top Streak
-  const streakStr = topStreakCount >= 2
-    ? `${topStreakCount} Streak (G${topStreakStart} — G${topStreakEnd})`
-    : topStreakCount === 1
-    ? "1 Win"
-    : "-";
-
-  // Data Base Deck
+  // Mapping Deck Base
   const deckEntries = Object.entries(deckMap).map(([name, d]) => {
     const total = d.wins + d.losses;
     const agregat = d.wins - d.losses;
@@ -175,39 +196,12 @@ export function computeTeamSummary(
       losses: d.losses,
       agregat,
       wpmVal,
-      recordStr: `${d.wins} Win - ${d.losses} Lose`,
-      wpm: `WPM ${wpmVal}%`,
       users: Array.from(d.users).join(", "),
       firstSeen: d.firstSeen,
     };
   });
 
-  // 3. Most Played Deck: Total Pick > Total Win > Agregat > First Seen
-  const mostDeckRaw = [...deckEntries].sort(
-    (a, b) =>
-      b.total - a.total ||
-      b.wins - a.wins ||
-      b.agregat - a.agregat ||
-      a.firstSeen - b.firstSeen
-  )[0];
-
-  const mostDeck: DeckStatResult = mostDeckRaw
-    ? {
-        name: mostDeckRaw.name,
-        recordStr: mostDeckRaw.recordStr,
-        agregat: mostDeckRaw.agregat,
-        wpm: mostDeckRaw.wpm,
-        users: mostDeckRaw.users,
-      }
-    : {
-        name: "-",
-        recordStr: "0 Win - 0 Lose",
-        agregat: 0,
-        wpm: "WPM 0%",
-        users: "-",
-      };
-
-  // 4. Best Deck: Filter minimal main 2x (fallback 1x jika tak ada) -> Agregat > Total Win > WPM > First Seen
+  // 3. Best Archetype: Filter main >= 2x (fallback 1x jika tidak ada)
   const decksWithMin2 = deckEntries.filter((d) => d.total >= 2);
   const eligibleDecks = decksWithMin2.length > 0 ? decksWithMin2 : deckEntries;
 
@@ -219,30 +213,55 @@ export function computeTeamSummary(
       a.firstSeen - b.firstSeen
   )[0];
 
-  const bestDeck: DeckStatResult = bestDeckRaw
+  const bestDeck: ArchetypeSummaryStat = bestDeckRaw
     ? {
         name: bestDeckRaw.name,
-        recordStr: bestDeckRaw.recordStr,
+        wins: bestDeckRaw.wins,
+        losses: bestDeckRaw.losses,
         agregat: bestDeckRaw.agregat,
-        wpm: bestDeckRaw.wpm,
+        wpmVal: bestDeckRaw.wpmVal,
         users: bestDeckRaw.users,
       }
     : {
         name: "-",
-        recordStr: "0 Win - 0 Lose",
+        wins: 0,
+        losses: 0,
         agregat: 0,
-        wpm: "WPM 0%",
+        wpmVal: 0,
+        users: "-",
+      };
+
+  // 4. Most Played Archetype: Total Pick > Total Win > Agregat > First Seen
+  const mostDeckRaw = [...deckEntries].sort(
+    (a, b) =>
+      b.total - a.total ||
+      b.wins - a.wins ||
+      b.agregat - a.agregat ||
+      a.firstSeen - b.firstSeen
+  )[0];
+
+  const mostDeck: ArchetypeSummaryStat = mostDeckRaw
+    ? {
+        name: mostDeckRaw.name,
+        wins: mostDeckRaw.wins,
+        losses: mostDeckRaw.losses,
+        agregat: mostDeckRaw.agregat,
+        wpmVal: mostDeckRaw.wpmVal,
+        users: mostDeckRaw.users,
+      }
+    : {
+        name: "-",
+        wins: 0,
+        losses: 0,
+        agregat: 0,
+        wpmVal: 0,
         users: "-",
       };
 
   return {
     topPlayer,
-    maxStreak: {
-      player: topStreakPlayer || "-",
-      streakStr,
-      deck: topStreakDeck || "-",
-    },
-    mostDeck,
+    maxStreak,
     bestDeck,
+    mostDeck,
   };
 }
