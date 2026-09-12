@@ -11,8 +11,10 @@ interface ReportScoreboardProps {
   teamALogo?: string;
   teamBLogo?: string;
   metadata: {
+    matchNumber?: number | string;
     division?: string;
     week?: number | string;
+    rawDate?: string;
     day?: string;
     date?: string;
     time?: string;
@@ -40,6 +42,46 @@ export function ReportScoreboard({
   const aIsLeading = scoreA > scoreB;
   const bIsLeading = scoreB > scoreA;
 
+  const formatSchedule = (raw?: string) => {
+    if (!raw) {
+      return {
+        day: metadata.day || "-",
+        fullDate: metadata.date || "-",
+        time: metadata.time ? `${metadata.time} WIB` : "-",
+      };
+    }
+    try {
+      const d = new Date(raw);
+      const day = new Intl.DateTimeFormat("id-ID", {
+        weekday: "long",
+        timeZone: "Asia/Jakarta",
+      }).format(d);
+
+      const fullDate = new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "Asia/Jakarta",
+      }).format(d);
+
+      const time = new Intl.DateTimeFormat("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Jakarta",
+      }).format(d);
+
+      return { day, fullDate, time: `${time} WIB` };
+    } catch {
+      return {
+        day: metadata.day || "-",
+        fullDate: metadata.date || raw,
+        time: metadata.time ? `${metadata.time} WIB` : "-",
+      };
+    }
+  };
+
+  const schedule = formatSchedule(metadata.rawDate);
   const hasStreamer = Boolean(metadata.streamer && metadata.streamer.trim() !== "" && metadata.streamer !== "-");
   const hasLiveUrl = Boolean(metadata.streamUrl && metadata.streamUrl.trim() !== "" && metadata.streamUrl !== "-");
 
@@ -47,15 +89,15 @@ export function ReportScoreboard({
     <div className="sticky top-[92px] sm:top-[98px] z-20 -mx-1 px-1 py-1">
       <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-border/80 p-3 shadow-lg space-y-2.5">
         
-        {/* BAGIAN ATAS: Info Match 3 Kolom Rata Tengah */}
-        <div className="grid grid-cols-3 gap-1.5 pb-2.5 border-b border-border/60 text-center items-center">
-          {/* Kolom 1: Divisi, Tanggal, Referee (Ijo) */}
-          <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
-            <span className="text-[10px] font-bold text-muted-foreground truncate w-full">
-              {metadata.division || "Divisi Official"}
+        {/* BAGIAN ATAS: Metadata 3 Baris Rata Tengah */}
+        <div className="grid grid-cols-3 gap-1.5 pb-2.5 border-b border-border/60 text-center items-center text-[10px]">
+          {/* Kolom 1 (Kiri): Week -> Hari -> Referee */}
+          <div className="flex flex-col items-center justify-center space-y-1 min-w-0">
+            <span className="font-bold text-muted-foreground truncate w-full">
+              Week {metadata.week || 1}
             </span>
-            <span className="text-[10px] text-foreground/80 font-medium truncate w-full">
-              {metadata.date || "-"}
+            <span className="text-foreground/80 font-medium truncate w-full">
+              {schedule.day}
             </span>
             <div className="pt-0.5 w-full flex justify-center">
               <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 truncate max-w-full">
@@ -64,13 +106,13 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 2: Match Report, Hari, Live Streaming / Share Screen */}
-          <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
-            <span className="text-[11px] font-black uppercase tracking-wider text-primary truncate w-full">
-              Match Report
+          {/* Kolom 2 (Tengah): Divisi -> Tanggal -> Live Streaming / Share Screen */}
+          <div className="flex flex-col items-center justify-center space-y-1 min-w-0">
+            <span className="font-black uppercase tracking-wider text-primary truncate w-full">
+              {metadata.division || "Divisi Official"}
             </span>
-            <span className="text-[10px] text-foreground/80 font-medium truncate w-full">
-              {metadata.day || "-"}
+            <span className="text-foreground/80 font-medium truncate w-full">
+              {schedule.fullDate}
             </span>
             <div className="pt-0.5 w-full flex justify-center">
               {hasLiveUrl ? (
@@ -90,13 +132,13 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 3: Week, Waktu WIB, Streamer (Biru / Private) */}
-          <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
-            <span className="text-[10px] font-bold text-muted-foreground truncate w-full">
-              Week {metadata.week || 1}
+          {/* Kolom 3 (Kanan): Match -> Waktu -> Streamer */}
+          <div className="flex flex-col items-center justify-center space-y-1 min-w-0">
+            <span className="font-bold text-muted-foreground truncate w-full">
+              Match {metadata.matchNumber || 1}
             </span>
-            <span className="text-[10px] text-foreground/80 font-medium truncate w-full">
-              {metadata.time ? `${metadata.time} WIB` : "-"}
+            <span className="text-foreground/80 font-medium truncate w-full">
+              {schedule.time}
             </span>
             <div className="pt-0.5 w-full flex justify-center">
               {hasStreamer ? (
@@ -187,4 +229,5 @@ export function ReportScoreboard({
       </div>
     </div>
   );
-}
+        }
+      
