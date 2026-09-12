@@ -3,7 +3,10 @@ import { MatchScheduleItem } from '@/app/tournament/_library';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { isValidSnowflake } from '@/lib/discord/utils';
 import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
-import { sendCancelledAssignmentLog } from '@/lib/discord/messages/assignment-log';
+import {
+  sendCompletedAssignmentLog,
+  sendCancelledAssignmentLog,
+} from '@/lib/discord/messages/assignment-log';
 import { ExecuteUnassignParams, ExecuteUnassignResult } from './types';
 import { getMatchContext, buildBaseLogPayload, revokeStaffPermissions, updateStaffHistory } from './helpers';
 
@@ -19,7 +22,7 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
   const matchChannelId = (match as any).discordChannelId;
   const baseLog = buildBaseLogPayload(match, ctx, matchChannelId);
 
-  // 1. UNASSIGN STREAMER
+  // 1. UNASSIGN STREAMER (PEMBATALAN STREAMER - LOG MERAH)
   if (assignType === 'STREAMER') {
     const streamerId = match.streamerDiscordId;
     if (!streamerId || !isValidSnowflake(streamerId)) {
@@ -37,7 +40,6 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
           ...baseLog,
           existingMsgId: (match as any).streamerLogMsgId,
           staffDiscordId: streamerId,
-          roleType: 'STREAMER',
         })
       );
     }
@@ -83,7 +85,7 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
     return { match, targetStaffName };
   }
 
-  // 2. UNASSIGN REFEREE (WASIT SELESAI / MATCH RESMI SELESAI)
+  // 2. UNASSIGN REFEREE (WASIT SELESAI BERTUGAS - LOG HIJAU COMPLETED)
   const refId = match.refereeDiscordId;
   if (!refId || !isValidSnowflake(refId)) {
     throw new Error('Tidak ada Referee aktif di match ini.');
@@ -100,13 +102,16 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
     updateStaffHistory('REFEREE', refId, match.id, 'REMOVE'),
   ];
 
+  // Mengirim log COMPLETED hijau dengan skor pertandingan dari database
   if (DISCORD_CONFIG.CH_ASSIGN && (match as any).refereeLogMsgId) {
     tasks.push(
-      sendCancelledAssignmentLog({
+      sendCompletedAssignmentLog({
         ...baseLog,
         existingMsgId: (match as any).refereeLogMsgId,
-        staffDiscordId: refId,
         roleType: 'REFEREE',
+        staffDiscordId: refId,
+        scoreA: match.scoreA ?? 0,
+        scoreB: match.scoreB ?? 0,
       })
     );
   }
@@ -146,7 +151,7 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
   match.referee = undefined;
   match.refereeDiscordId = undefined;
   (match as any).refereeLogMsgId = undefined;
-  match.isFinished = true; // Ditandai resmi selesai setelah wasit dilepas
+  match.isFinished = true;
 
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
