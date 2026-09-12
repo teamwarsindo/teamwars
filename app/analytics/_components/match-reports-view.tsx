@@ -14,6 +14,8 @@ export interface ScheduleItem extends ReportFilterMatchItem {
   matchNumber?: number | string;
   teamALogo?: string;
   teamBLogo?: string;
+  scoreA?: number;
+  scoreB?: number;
 }
 
 export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[] }) {
@@ -22,7 +24,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   const matchParam = searchParams.get("match") || "";
 
-  // Pekan aktif tertinggi (berdasarkan match yang sudah selesai)
+  // Pekan aktif tertinggi (berdasarkan match selesai)
   const maxActiveWeek = useMemo(() => {
     return schedules.reduce((max, s) => {
       const w = Number(s.weekNumber || 1);
@@ -30,7 +32,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     }, 1);
   }, [schedules]);
 
-  // Pembatasan jadwal: Maksimal sampai pekan aktif saat ini (tidak melebar ke pekan depan)
+  // Dibatasi maksimal pekan aktif tertinggi
   const validSchedules = useMemo(() => {
     return schedules.filter((s) => Number(s.weekNumber || 1) <= maxActiveWeek);
   }, [schedules, maxActiveWeek]);
@@ -44,15 +46,15 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     return matchParam && validSchedules.length ? validSchedules.find((s) => s.id === matchParam) || null : null;
   }, [validSchedules, matchParam]);
 
+  // Default week: netral "" (-- Semua Week --) seperti Tim
   const [selectedWeek, setSelectedWeek] = useState<number | "">(
-    initialMatch ? Number(initialMatch.weekNumber) : maxActiveWeek
+    initialMatch ? Number(initialMatch.weekNumber) : ""
   );
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [selectedMatchId, setSelectedMatchId] = useState<string>(initialMatch ? initialMatch.id : "");
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  // Daftar seluruh nama tim unik yang bertanding sampai pekan ini
   const availableTeams = useMemo(() => {
     const teams = new Set<string>();
     validSchedules.forEach((s) => {
@@ -62,7 +64,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     return Array.from(teams).sort();
   }, [validSchedules]);
 
-  // Filter daftar pertandingan berdasarkan Pekan dan Tim
   const matchesInView = useMemo(() => {
     return validSchedules.filter((s) => {
       const matchWeek = selectedWeek === "" || Number(s.weekNumber || 1) === Number(selectedWeek);
@@ -74,7 +75,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     });
   }, [validSchedules, selectedWeek, selectedTeam]);
 
-  // Auto-select jika hasil filter menyisakan tepat 1 match
+  // Auto-select jika hasil filter tinggal 1 match
   useEffect(() => {
     if (matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
       handleMatchChange(matchesInView[0].id);
@@ -120,7 +121,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
   );
 
   const handleReset = () => {
-    setSelectedWeek(maxActiveWeek);
+    setSelectedWeek("");
     setSelectedTeam("");
     setSelectedMatchId("");
     setReport(null);
@@ -172,8 +173,8 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
   const teamA = report?.teamA || {};
   const teamB = report?.teamB || {};
   const games: any[] = report?.games || [];
-  const scoreA = teamA.score ?? report?.finalScore?.teamA ?? 0;
-  const scoreB = teamB.score ?? report?.finalScore?.teamB ?? 0;
+  const scoreA = teamA.score ?? report?.finalScore?.teamA ?? activeSchedule?.scoreA ?? 0;
+  const scoreB = teamB.score ?? report?.finalScore?.teamB ?? activeSchedule?.scoreB ?? 0;
   const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10);
 
   const scheduleDateInfo = useMemo(() => {
@@ -210,7 +211,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     };
   }, [isFinished, games, teamA.name, teamB.name]);
 
-  const isFilterActive = Boolean(selectedWeek !== maxActiveWeek || selectedTeam || selectedMatchId);
+  const isFilterActive = Boolean(selectedWeek !== "" || selectedTeam || selectedMatchId);
 
   return (
     <div className="w-full space-y-4">
@@ -285,4 +286,4 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
       )}
     </div>
   );
-    }
+}
