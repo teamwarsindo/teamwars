@@ -127,41 +127,37 @@ export async function sendTransferNewsLog(params: {
   newIdDl?: string;
 }) {
   const { teamName, teamKode, teamEmojiId, teamHex, action, targetIgn, oldIdDl, newIdDl } = params;
-  if (!DISCORD_CONFIG.CH_NEWS) return;
+  
+  // Arahkan log publik ke channel #transfer-news
+  const targetChannelId = DISCORD_CONFIG.CH_LOG_TRANSFER;
+  if (!targetChannelId) return;
 
-  const emojiPrefix = teamEmojiId ? `<:${teamKode || 'team'}:${teamEmojiId}> ` : '🛡️ ';
-  let title = '';
-  let description = '';
+  const emojiPrefix = teamEmojiId ? `<:${teamKode || 'team'}:${teamEmojiId}> ` : '';
+  let textContent = '';
 
   if (action === 'ADD') {
-    title = '📥 RESMI: Pemain Baru Bergabung!';
-    description = `${emojiPrefix}**${teamName}** resmi mendatangkan **${targetIgn}** (${newIdDl}).`;
+    textContent = `**${targetIgn}** (${newIdDl}) telah ditambahkan ke roster tim ${emojiPrefix}**${teamName}**`;
   } else if (action === 'OUT') {
-    title = '📤 RESMI: Pelepasan Pemain!';
-    description = `${emojiPrefix}**${teamName}** resmi melepas **${targetIgn}** (${oldIdDl}) ke Free Agent pool.`;
+    textContent = `**${targetIgn}** (${oldIdDl}) telah dikeluarkan dari roster tim ${emojiPrefix}**${teamName}**`;
   } else if (action === 'EDIT_DL') {
-    title = '🔄 UPDATE: Perubahan ID Duel Links!';
-    description = `${emojiPrefix}Pemain **${targetIgn}** dari **${teamName}** memperbarui ID: \`${oldIdDl}\` ➔ \`${newIdDl}\`.`;
+    textContent = `ID Duel Links **${targetIgn}** dari tim ${emojiPrefix}**${teamName}** diubah menjadi \`${newIdDl}\``;
   } else if (action === 'SET_LEADER') {
-    title = '👑 RESMI: Pergantian Ketua Tim!';
-    description = `${emojiPrefix}**${targetIgn}** resmi diangkat menjadi **Ketua Tim** untuk **${teamName}**.`;
+    textContent = `**${targetIgn}** telah diangkat menjadi **Ketua** ${emojiPrefix}**${teamName}**`;
   } else if (action === 'SET_WAKIL') {
-    title = '🎖️ RESMI: Pergantian Wakil Ketua Tim!';
-    description = `${emojiPrefix}**${targetIgn}** resmi diangkat menjadi **Wakil Ketua Tim** untuk **${teamName}**.`;
+    textContent = `**${targetIgn}** telah diangkat menjadi **Wakil Ketua** ${emojiPrefix}**${teamName}**`;
   }
 
+  // Tepi warna embed mengikuti warna tim masing-masing
   const payload = {
     embeds: [
       {
-        title,
-        description,
-        color: hexToDecimal(teamHex || '#f1c40f'),
-        footer: { text: `Team Wars Indonesia • ${getWibTimestamp()}` },
+        description: textContent,
+        color: hexToDecimal(teamHex || '#3498db'),
       },
     ],
   };
 
-  await discordAPI(`/channels/${DISCORD_CONFIG.CH_NEWS}/messages`, 'POST', payload).catch((err) =>
+  await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', payload).catch((err) =>
     console.error('[TRANSFER NEWS LOG ERROR]:', err)
   );
 }
@@ -282,4 +278,4 @@ export async function sendAdminAuditLog(params: {
   await discordAPI(`/channels/${DISCORD_CONFIG.CH_LOG}/messages`, 'POST', payload).catch((err) =>
     console.error('[ADMIN AUDIT LOG ERROR]:', err)
   );
-      }
+          }
