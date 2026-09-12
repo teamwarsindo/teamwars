@@ -1,4 +1,6 @@
+import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
+import { MatchScheduleItem } from '@/app/tournament/_library';
 import { GameContext } from './types';
 import {
   computeNextInstructions,
@@ -72,8 +74,11 @@ export async function handleGameDel(ctx: GameContext) {
   }
 
   // 3. Reset Skor Akhir & Status Kemenangan Pertandingan
-  reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
-  const isStillEnded = (reportData.teamA?.score || 0) >= 10 || (reportData.teamB?.score || 0) >= 10;
+  const currentScoreA = reportData.teamA?.score || 0;
+  const currentScoreB = reportData.teamB?.score || 0;
+  reportData.finalScore = { teamA: currentScoreA, teamB: currentScoreB };
+
+  const isStillEnded = currentScoreA >= 10 || currentScoreB >= 10;
   if (!isStillEnded) {
     reportData.isFinished = false;
     reportData.winnerTeam = null;
@@ -89,10 +94,26 @@ export async function handleGameDel(ctx: GameContext) {
 
   // 5. Simpan KV & Update Seluruh Embed (Match Room + Camp Tracker)
   await saveAndSyncMatchState(match, reportData);
+
+  // 🔄 6. SINKRONISASI KE twi:schedules (ROLLBACK SKOR & STATUS SELESAI)
+  try {
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const idx = schedules.findIndex((m) => m.id === match.id);
+
+    if (idx !== -1) {
+      schedules[idx].scoreA = currentScoreA;
+      schedules[idx].scoreB = currentScoreB;
+      schedules[idx].isFinished = isStillEnded;
+      await kv.set('twi:schedules', schedules);
+    }
+  } catch (err) {
+    console.error('[GAME DEL SCHEDULE SYNC ERROR]:', err);
+  }
+
   const matchEmbed = await buildMatchReportEmbed(match, reportData, currentLastGame ? lastWinnerOpt : undefined);
   await publishMatchReport(channelId, match.id, matchEmbed);
 
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `🗑️ **Game ${deletedGameNumber} berhasil dihapus dan kondisi match telah di-rollback secara sempurna.**`,
   });
-}
+    }
