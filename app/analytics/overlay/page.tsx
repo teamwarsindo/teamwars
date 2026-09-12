@@ -1,14 +1,24 @@
 import { Suspense } from "react";
+import type { Metadata, Viewport } from "next";
 import { kv } from "@vercel/kv";
 import { OtherMatchesTicker } from "../_components/other-matches-ticker";
 import { MatchReportsView } from "../_components/match-reports-view";
 
 export const dynamic = "force-dynamic";
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
+export const metadata: Metadata = {
+  title: "TWI S7 Stream Overlay",
+};
+
 interface OverlayPageProps {
   searchParams: Promise<{
     match?: string;
-    view?: string; // "other-matches" (kiri) atau kosong/report (kanan)
+    view?: string;
   }>;
 }
 
@@ -28,25 +38,27 @@ export default async function OverlayPage(props: OverlayPageProps) {
   const currentMatch = searchParams.match || "";
   const viewMode = searchParams.view || "";
 
-  // ── SISI KIRI OBS: SKOR MATCH LAIN (EXCLUDE MATCH UTAMA) ──
   if (viewMode === "other-matches") {
     return (
-      <main className="min-h-screen bg-transparent p-2 flex justify-start items-start font-sans">
+      <main className="w-full min-h-screen bg-transparent p-2 sm:p-4 flex flex-col justify-start items-start font-sans">
         <Suspense fallback={null}>
-          <OtherMatchesTicker
-            currentMatchId={currentMatch}
-            schedules={schedules}
-          />
+          <div className="w-full max-w-[420px]">
+            <OtherMatchesTicker
+              currentMatchId={currentMatch}
+              schedules={schedules}
+            />
+          </div>
         </Suspense>
       </main>
     );
   }
 
-  // ── SISI KANAN OBS: REPORT MATCH UTAMA ──
   return (
-    <main className="min-h-screen bg-transparent p-2 font-sans">
+    <main className="w-full min-h-screen bg-transparent p-2 sm:p-4 font-sans">
       <Suspense fallback={<div className="text-white/60 text-xs p-3">Memuat data...</div>}>
-        <MatchReportsView schedules={schedules} isOverlayMode={true} />
+        <div className="w-full max-w-[440px]">
+          <MatchReportsView schedules={schedules} isOverlayMode={true} />
+        </div>
       </Suspense>
     </main>
   );
