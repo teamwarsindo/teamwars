@@ -49,7 +49,7 @@ export function ReportScoreboard({
       {/* ── KOTAK 1: INFO MATCH (Ikut ter-scroll, tidak di-pin) ── */}
       <div className="rounded-2xl bg-card border border-border/80 p-3 shadow-xs">
         <div className="grid grid-cols-3 gap-1.5 text-center items-center text-[10px]">
-          {/* Kolom 1: Week -> Hari -> Referee */}
+          {/* Kolom 1 (Kiri): Week -> Hari -> Referee */}
           <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
             <span className="font-bold text-muted-foreground truncate w-full">
               Week {metadata.week || 1}
@@ -64,7 +64,7 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 2: Divisi -> Tanggal -> Live / Share Screen */}
+          {/* Kolom 2 (Tengah): Divisi -> Tanggal -> Live / Share Screen */}
           <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
             <span className="text-[10px] font-bold text-primary truncate w-full px-1" title={metadata.division}>
               {metadata.division || "Divisi Official"}
@@ -90,7 +90,7 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 3: Match -> Waktu -> Streamer */}
+          {/* Kolom 3 (Kanan): Match -> Waktu -> Streamer */}
           <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
             <span className="font-bold text-muted-foreground truncate w-full">
               Match {metadata.matchNumber || 1}
@@ -113,7 +113,7 @@ export function ReportScoreboard({
         </div>
       </div>
 
-      {/* ── KOTAK 2: SCOREBOARD TIM (STICKY / DI-PIN KE ATAS) ── */}
+      {/* ── KOTAK 2: SCOREBOARD TIM (STICKY / DI-PIN DI ATAS) ── */}
       <div className="sticky top-[92px] sm:top-[98px] z-20 -mx-1 px-1 py-1">
         <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-border/80 p-3 shadow-md">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -191,4 +191,4 @@ export function ReportScoreboard({
       </div>
     </div>
   );
-}
+            }
