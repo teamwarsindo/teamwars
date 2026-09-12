@@ -125,14 +125,12 @@ export async function sendReassignmentLog(
   return res?.id || null;
 }
 
-// 4. Log Selesai (POST Reply ke Log Awal)
+// 4. Log Selesai Tugas Staf (POST Reply ke Log Awal)
 export async function sendCompletedAssignmentLog(
   params: BaseLogParams & {
     existingMsgId?: string;
     roleType: 'REFEREE' | 'STREAMER';
     staffDiscordId: string;
-    scoreA?: number;
-    scoreB?: number;
     streamLink?: string;
   }
 ): Promise<string | null> {
@@ -143,20 +141,7 @@ export async function sendCompletedAssignmentLog(
     { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
   ];
 
-  if (params.roleType === 'REFEREE') {
-    const scoreA = params.scoreA ?? 0;
-    const scoreB = params.scoreB ?? 0;
-    const isWinA = scoreA > scoreB;
-    const winnerName = isWinA ? params.teamAName : params.teamBName;
-    const winScore = Math.max(scoreA, scoreB);
-    const loseScore = Math.min(scoreA, scoreB);
-
-    fields.push({
-      name: '🏆 Hasil Pertandingan',
-      value: `**${winScore}-${loseScore} (${winnerName} win)**`,
-      inline: false,
-    });
-  } else if (params.streamLink) {
+  if (params.roleType === 'STREAMER' && params.streamLink) {
     fields.push({
       name: '📺 Live Stream',
       value: params.streamLink,
@@ -185,28 +170,30 @@ export async function sendCompletedAssignmentLog(
   return res?.id || null;
 }
 
-// 5. Log Streamer Batal (POST Reply ke Log Awal)
+// 5. Log Pembatalan Tugas Staf (POST Reply ke Log Awal)
 export async function sendCancelledAssignmentLog(
   params: BaseLogParams & {
     existingMsgId?: string;
     staffDiscordId: string;
+    roleType?: 'REFEREE' | 'STREAMER';
   }
 ): Promise<string | null> {
   const { teamADisplay, teamBDisplay } = createTeamDisplays(params);
+  const roleTitle = params.roleType === 'REFEREE' ? 'Referee' : 'Streamer';
 
   const embedData = {
-    title: '❌ Streamer Assignment - CANCELLED',
+    title: `❌ ${roleTitle} Assignment - CANCELLED`,
     description: `${params.groupName || 'Group Stage'} • ${params.weekName || 'Week 1'}\n${teamADisplay} **vs** ${teamBDisplay}`,
     color: 0xed4245,
     fields: [
       { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
-      { name: '📝 Status', value: 'Batal bertugas / siaran langsung dibatalkan.', inline: false },
+      { name: '📝 Status', value: 'Batal bertugas / penugasan dibatalkan.', inline: false },
     ],
     footer: { text: getEmbedFooterText() },
   };
 
   const payload: any = {
-    content: `<@${params.staffDiscordId}> batal bertugas karena berhalangan!`,
+    content: `<@${params.staffDiscordId}> batal bertugas sebagai **${roleTitle}**!`,
     embeds: [embedData],
   };
 
@@ -217,37 +204,3 @@ export async function sendCancelledAssignmentLog(
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', payload).catch(() => null);
   return res?.id || null;
 }
-
-// 6. Official Score Log ke #CH_SCORE (POST Baru)
-export async function sendOfficialScoreLog(params: {
-  channelId: string;
-  teamAName: string;
-  teamBName: string;
-  teamAEmoji?: string;
-  teamBEmoji?: string;
-  scoreA: number;
-  scoreB: number;
-}): Promise<string | null> {
-  const isTeamAWin = params.scoreA > params.scoreB;
-  const winnerName = isTeamAWin ? params.teamAName : params.teamBName;
-  const loserName = isTeamAWin ? params.teamBName : params.teamAName;
-  const winnerEmoji = isTeamAWin ? params.teamAEmoji : params.teamBEmoji;
-  const loserEmoji = isTeamAWin ? params.teamBEmoji : params.teamAEmoji;
-
-  const winScore = Math.max(params.scoreA, params.scoreB);
-  const loseScore = Math.min(params.scoreA, params.scoreB);
-
-  const winnerDisplay = `${winnerEmoji ? winnerEmoji + ' ' : ''}**${winnerName}**`;
-  const loserDisplay = `${loserEmoji ? loserEmoji + ' ' : ''}**${loserName}**`;
-
-  const embedData = {
-    description: `${winnerDisplay} defeated ${loserDisplay} with a score of **${winScore}-${loseScore}**`,
-    color: 0x22c55e,
-  };
-
-  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', {
-    embeds: [embedData],
-  }).catch(() => null);
-
-  return res?.id || null;
-    }
