@@ -16,6 +16,16 @@ interface ScheduleSummary {
   scoreB?: number;
 }
 
+interface LiveMatchData {
+  scoreA: number;
+  scoreB: number;
+  repeatA: number;
+  repeatB: number;
+  warnA: number;
+  warnB: number;
+  isFinished: boolean;
+}
+
 interface OtherMatchesTickerProps {
   currentMatchId: string;
   schedules: ScheduleSummary[];
@@ -61,9 +71,7 @@ export function OtherMatchesTicker({
     });
   }, [schedules, currentMatchId, now]);
 
-  const [liveScores, setLiveScores] = useState<
-    Record<string, { scoreA: number; scoreB: number; isFinished: boolean }>
-  >({});
+  const [liveScores, setLiveScores] = useState<Record<string, LiveMatchData>>({});
 
   useEffect(() => {
     if (!siblingMatches.length) return;
@@ -84,6 +92,10 @@ export function OtherMatchesTicker({
                 id: m.id,
                 scoreA: sA,
                 scoreB: sB,
+                repeatA: d.teamA?.repeatCount ?? d.teamA?.repeat ?? 0,
+                repeatB: d.teamB?.repeatCount ?? d.teamB?.repeat ?? 0,
+                warnA: d.teamA?.warnCount ?? d.teamA?.warn ?? 0,
+                warnB: d.teamB?.warnCount ?? d.teamB?.warn ?? 0,
                 isFinished: d.isFinished ?? (sA >= 10 || sB >= 10),
               };
             }
@@ -93,20 +105,32 @@ export function OtherMatchesTicker({
               id: m.id,
               scoreA: sA,
               scoreB: sB,
+              repeatA: 0,
+              repeatB: 0,
+              warnA: 0,
+              warnB: 0,
               isFinished: m.isFinished ?? (sA >= 10 || sB >= 10),
             };
           })
         );
 
         if (isSubscribed) {
-          const map: Record<string, { scoreA: number; scoreB: number; isFinished: boolean }> = {};
+          const map: Record<string, LiveMatchData> = {};
           results.forEach((r) => {
-            map[r.id] = { scoreA: r.scoreA, scoreB: r.scoreB, isFinished: r.isFinished };
+            map[r.id] = {
+              scoreA: r.scoreA,
+              scoreB: r.scoreB,
+              repeatA: r.repeatA,
+              repeatB: r.repeatB,
+              warnA: r.warnA,
+              warnB: r.warnB,
+              isFinished: r.isFinished,
+            };
           });
           setLiveScores(map);
         }
       } catch (err) {
-        console.error("Gagal sinkron skor:", err);
+        console.error("Gagal sinkron skor match lain:", err);
       }
     };
 
@@ -126,120 +150,123 @@ export function OtherMatchesTicker({
   if (siblingMatches.length === 0) return null;
 
   return (
-    <div className="w-[360px] select-none rounded-2xl border border-slate-200/80 bg-white/95 text-slate-900 p-3.5 shadow-xl backdrop-blur-md space-y-3 font-sans">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-2 px-1">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-          <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-            OTHER MATCHES
-          </span>
-        </div>
-        <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
-          CONCURRENT LIVE
-        </span>
-      </div>
+    <div className="w-[360px] select-none space-y-3 font-sans">
+      {siblingMatches.map((m) => {
+        const live = liveScores[m.id] || {
+          scoreA: m.scoreA ?? 0,
+          scoreB: m.scoreB ?? 0,
+          repeatA: 0,
+          repeatB: 0,
+          warnA: 0,
+          warnB: 0,
+          isFinished: m.isFinished ?? false,
+        };
 
-      {/* List Card Tiap Match */}
-      <div className="space-y-2.5">
-        {siblingMatches.map((m) => {
-          const live = liveScores[m.id] || {
-            scoreA: m.scoreA ?? 0,
-            scoreB: m.scoreB ?? 0,
-            isFinished: m.isFinished ?? false,
-          };
+        const aWin = live.scoreA >= 10;
+        const bWin = live.scoreB >= 10;
+        const isDone = live.isFinished || aWin || bWin;
 
-          const aWin = live.scoreA >= 10;
-          const bWin = live.scoreB >= 10;
-          const isDone = live.isFinished || aWin || bWin;
+        return (
+          <div
+            key={m.id}
+            className="rounded-3xl border border-slate-200/80 bg-white/95 p-3.5 shadow-md backdrop-blur-md space-y-2.5"
+          >
+            {/* Header Mini: Match No + Divisi + Status Pill */}
+            <div className="flex items-center justify-between text-[11px] font-bold px-1 text-slate-500 border-b border-slate-100 pb-1.5">
+              <span className="text-slate-800 font-black">
+                {m.id.replace("match-", "MATCH ")}
+              </span>
+              <span className="text-sky-600 truncate max-w-[140px]">
+                {m.groupName || "Group Stage"}
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[9px] font-black font-mono tracking-wider ${
+                  isDone
+                    ? "bg-slate-100 text-slate-600 border border-slate-200"
+                    : "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                }`}
+              >
+                {isDone ? "FT" : "LIVE"}
+              </span>
+            </div>
 
-          return (
-            <div
-              key={m.id}
-              className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 shadow-xs hover:border-slate-300 transition flex flex-col gap-2"
-            >
-              {/* Header Match (MATCH 41 • Group Name • Status) */}
-              <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-200/50 pb-1">
-                <span className="text-slate-700 font-black">{m.id.replace("match-", "MATCH ")}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-500 truncate max-w-[130px]">
-                    {m.groupName || "Group Stage"}
-                  </span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded text-[9px] font-black font-mono ${
-                      isDone
-                        ? "bg-slate-200 text-slate-600"
-                        : "bg-emerald-100 text-emerald-700 border border-emerald-300"
-                    }`}
-                  >
-                    {isDone ? "FT" : "LIVE"}
-                  </span>
+            {/* Scoreboard Box: Logo A | Skor & Repeat/Warn | Logo B */}
+            <div className="flex items-center justify-between px-2">
+              {/* Kolom Tim A */}
+              <div className="flex flex-col items-center w-24 gap-1.5">
+                <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-200 p-1 flex items-center justify-center overflow-hidden shadow-xs">
+                  {m.teamALogo ? (
+                    <img
+                      src={m.teamALogo}
+                      alt={m.teamAName || "Team A"}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs font-black text-white/50">A</span>
+                  )}
                 </div>
-              </div>
-
-              {/* Baris Tim A */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
-                    {m.teamALogo ? (
-                      <img
-                        src={m.teamALogo}
-                        alt={m.teamAName || "Team A"}
-                        className="w-full h-full object-contain p-0.5"
-                      />
-                    ) : (
-                      <span className="text-[10px] font-black text-slate-400">A</span>
-                    )}
-                  </div>
-                  <span className="text-xs font-bold text-slate-800 tracking-wide truncate">
-                    {m.teamAName}
-                  </span>
-                </div>
-
-                <span
-                  className={`font-mono text-base font-black px-2.5 py-0.5 rounded-md min-w-[32px] text-center ${
-                    aWin
-                      ? "text-emerald-700 bg-emerald-100 border border-emerald-300"
-                      : "text-slate-900 bg-white border border-slate-200 shadow-2xs"
-                  }`}
-                >
-                  {live.scoreA}
+                <span className="text-[11px] font-black text-slate-900 text-center line-clamp-1 w-full uppercase tracking-tight">
+                  {m.teamAName}
                 </span>
               </div>
 
-              {/* Baris Tim B */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
-                    {m.teamBLogo ? (
-                      <img
-                        src={m.teamBLogo}
-                        alt={m.teamBName || "Team B"}
-                        className="w-full h-full object-contain p-0.5"
-                      />
-                    ) : (
-                      <span className="text-[10px] font-black text-slate-400">B</span>
-                    )}
-                  </div>
-                  <span className="text-xs font-bold text-slate-800 tracking-wide truncate">
-                    {m.teamBName}
+              {/* Box Tengah: Skor & Repeat/Warn persis seperti di Report Scoreboard */}
+              <div className="flex flex-col items-center justify-center">
+                <div className="flex items-center gap-3 font-mono">
+                  <span
+                    className={`text-2xl font-black ${
+                      aWin ? "text-emerald-600" : "text-slate-900"
+                    }`}
+                  >
+                    {live.scoreA}
+                  </span>
+                  <span className="text-base font-bold text-slate-300">-</span>
+                  <span
+                    className={`text-2xl font-black ${
+                      bWin ? "text-emerald-600" : "text-slate-900"
+                    }`}
+                  >
+                    {live.scoreB}
                   </span>
                 </div>
 
-                <span
-                  className={`font-mono text-base font-black px-2.5 py-0.5 rounded-md min-w-[32px] text-center ${
-                    bWin
-                      ? "text-emerald-700 bg-emerald-100 border border-emerald-300"
-                      : "text-slate-900 bg-white border border-slate-200 shadow-2xs"
-                  }`}
-                >
-                  {live.scoreB}
+                {/* Sub-indikator Repeat & Warn */}
+                <div className="flex flex-col items-center gap-0.5 mt-1">
+                  <div className="flex items-center gap-1.5 font-mono text-[9px] font-bold">
+                    <span className="text-slate-600">{live.repeatA}/2</span>
+                    <span className="text-amber-500 font-extrabold uppercase tracking-widest text-[8px]">REPEAT</span>
+                    <span className="text-slate-600">{live.repeatB}/2</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-mono text-[9px] font-bold">
+                    <span className="text-slate-600">{live.warnA}/2</span>
+                    <span className="text-rose-500 font-extrabold uppercase tracking-widest text-[8px]">WARN</span>
+                    <span className="text-slate-600">{live.warnB}/2</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Kolom Tim B */}
+              <div className="flex flex-col items-center w-24 gap-1.5">
+                <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-200 p-1 flex items-center justify-center overflow-hidden shadow-xs">
+                  {m.teamBLogo ? (
+                    <img
+                      src={m.teamBLogo}
+                      alt={m.teamBName || "Team B"}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs font-black text-white/50">B</span>
+                  )}
+                </div>
+                <span className="text-[11px] font-black text-slate-900 text-center line-clamp-1 w-full uppercase tracking-tight">
+                  {m.teamBName}
                 </span>
               </div>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
-            }
+                            }
+          
