@@ -5,7 +5,7 @@ interface ReportLogsProps {
 export function ReportLogs({ games }: ReportLogsProps) {
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-      <div className="p-2.5 bg-muted/30 border-b border-border text-center">
+      <div className="py-2.5 px-3 bg-muted/30 border-b border-border text-center">
         <span className="text-xs font-black uppercase tracking-wider text-foreground">
           Match History
         </span>
@@ -29,15 +29,15 @@ export function ReportLogs({ games }: ReportLogsProps) {
             const skillB = pB.skillAbbr || pB.skill || "-";
 
             return (
-              <div key={idx} className="py-1.5 px-3 hover:bg-muted/15 transition">
+              <div key={idx} className="py-2 px-3 hover:bg-muted/15 transition">
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
                   
-                  {/* Sisi Tim A: Deck text-[9.5px] anti-truncate */}
+                  {/* Sisi Tim A */}
                   <div className="flex flex-col items-center text-center min-w-0">
                     <div className="font-bold text-xs text-foreground truncate w-full">
                       {pA.ign || "-"}
                     </div>
-                    <div className="text-[9.5px] font-medium text-muted-foreground truncate w-full mt-0.5 leading-tight">
+                    <div className="text-[10px] font-medium text-muted-foreground truncate w-full mt-0.5 leading-tight">
                       {pA.archetype || "-"}
                     </div>
                     <div className="text-[8.5px] font-mono text-muted-foreground/75 truncate w-full">
@@ -45,9 +45,10 @@ export function ReportLogs({ games }: ReportLogsProps) {
                     </div>
                   </div>
 
-                  {/* Sisi Tengah (Pill w-6 h-6) */}
+                  {/* Sisi Tengah: Kotak Simetris untuk R di Atas, W/L di Tengah, TL di Bawah */}
                   <div className="flex flex-col items-center justify-center shrink-0 px-1">
-                    <div className="flex items-center justify-between w-full min-h-[14px] px-0.5">
+                    {/* Baris Atas: R & Ronde */}
+                    <div className="flex items-center justify-between w-full h-[14px] px-0.5">
                       <div className="w-4 flex justify-center">
                         {pA.isRepeat && (
                           <span className="text-[8px] leading-none font-black text-amber-600 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30 px-1 py-0.5 rounded">
@@ -67,9 +68,10 @@ export function ReportLogs({ games }: ReportLogsProps) {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 my-0.5">
+                    {/* Baris Tengah: [ W ] vs [ L ] Bentuk Kotak Rounded */}
+                    <div className="flex items-center gap-1.5 my-1">
                       <span
-                        className={`w-6 h-6 flex items-center justify-center rounded-md font-mono text-[10px] font-black shadow-2xs ${
+                        className={`w-6 h-6 flex items-center justify-center rounded font-mono text-[10px] font-black shadow-2xs ${
                           isAWin
                             ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40"
                             : "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30"
@@ -83,7 +85,7 @@ export function ReportLogs({ games }: ReportLogsProps) {
                       </span>
 
                       <span
-                        className={`w-6 h-6 flex items-center justify-center rounded-md font-mono text-[10px] font-black shadow-2xs ${
+                        className={`w-6 h-6 flex items-center justify-center rounded font-mono text-[10px] font-black shadow-2xs ${
                           !isAWin
                             ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40"
                             : "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30"
@@ -93,7 +95,8 @@ export function ReportLogs({ games }: ReportLogsProps) {
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between w-full min-h-[14px] px-0.5">
+                    {/* Baris Bawah: TL */}
+                    <div className="flex items-center justify-between w-full h-[14px] px-0.5">
                       <div className="w-4 flex justify-center">
                         {isTeamADeckloss && (
                           <span className="text-[8px] leading-none font-black text-rose-600 dark:text-rose-400 bg-rose-500/15 border border-rose-500/30 px-1 py-0.5 rounded">
@@ -112,15 +115,15 @@ export function ReportLogs({ games }: ReportLogsProps) {
                     </div>
                   </div>
 
-                  {/* Sisi Tim B: Deck text-[9.5px] anti-truncate */}
+                  {/* Sisi Tim B */}
                   <div className="flex flex-col items-center text-center min-w-0">
                     <div className="font-bold text-xs text-foreground truncate w-full">
                       {pB.ign || "-"}
                     </div>
-                    <div className="text-[9.5px] font-medium text-muted-foreground truncate w-full mt-0.5 leading-tight">
+                    <div className="text-[10px] font-medium text-muted-foreground truncate w-full mt-0.5 leading-tight">
                       {pB.archetype || "-"}
                     </div>
-                    <div className="text-[9px] font-mono text-muted-foreground/75 truncate w-full">
+                    <div className="text-[8.5px] font-mono text-muted-foreground/75 truncate w-full">
                       {skillB}
                     </div>
                   </div>
@@ -132,23 +135,23 @@ export function ReportLogs({ games }: ReportLogsProps) {
         </div>
       )}
 
-      {/* Footer Simbol */}
-      <div className="p-2.5 bg-muted/20 border-t border-border/60 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-        <span>Keterangan:</span>
-        <span className="inline-flex items-center gap-1 font-semibold">
+      {/* Footer Simbol: Rata Kiri & Kanan di Tengah Tanpa Kata Keterangan */}
+      <div className="py-2 px-4 bg-muted/20 border-t border-border/60 grid grid-cols-2 text-xs">
+        <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
           <span className="text-[9px] font-black text-amber-600 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded leading-none">
             R
           </span>
-          Repeat
-        </span>
-        <span>•</span>
-        <span className="inline-flex items-center gap-1 font-semibold">
+          <span className="font-medium">Repeat</span>
+        </div>
+
+        <div className="flex items-center justify-center gap-1.5 text-muted-foreground border-l border-border/50">
           <span className="text-[9px] font-black text-rose-600 dark:text-rose-400 bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.5 rounded leading-none">
             TL
           </span>
-          Technical Lose
-        </span>
+          <span className="font-medium">Technical Lose</span>
+        </div>
       </div>
     </div>
   );
-}
+              }
+              
