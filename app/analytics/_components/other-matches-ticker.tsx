@@ -56,7 +56,6 @@ export function OtherMatchesTicker({
     const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
 
     return schedules.filter((s) => {
-      // 1. Exclude match yang sedang disiarkan
       if (s.id.toLowerCase() === currentMatchId.toLowerCase()) return false;
       if (!s.matchDate) return false;
 
@@ -65,10 +64,8 @@ export function OtherMatchesTicker({
         timeZone: "Asia/Jakarta",
       });
 
-      // 2. Filter hari/tanggal pertandingan yang sama
       if (scheduleDateStr !== activeDateStr) return false;
 
-      // 3. Batas tampil maksimal 5 jam dari jam mulai tanding
       const diff = now - scheduleTime.getTime();
       return diff <= FIVE_HOURS_MS;
     });
@@ -139,7 +136,6 @@ export function OtherMatchesTicker({
 
     fetchOtherScores();
 
-    // Polling setiap 8 detik (terjaga oleh Edge Caching Vercel)
     const interval = setInterval(() => {
       if (document.hidden) return;
       fetchOtherScores();
@@ -154,7 +150,7 @@ export function OtherMatchesTicker({
   if (siblingMatches.length === 0) return null;
 
   return (
-    <div className="w-full select-none space-y-3 font-sans">
+    <div className="w-full select-none space-y-2.5 font-sans">
       {siblingMatches.map((m) => {
         const live = liveScores[m.id] || {
           scoreA: m.scoreA ?? 0,
@@ -173,32 +169,32 @@ export function OtherMatchesTicker({
         return (
           <div
             key={m.id}
-            className="w-full rounded-3xl border border-slate-200/90 bg-white/95 p-4 shadow-lg backdrop-blur-md space-y-3"
+            className="w-full rounded-2xl border border-slate-700/60 bg-[#0f172a]/90 px-3.5 py-2.5 shadow-xl backdrop-blur-md space-y-1.5"
           >
-            {/* Header Mini: Match No + Divisi + Status Pill */}
-            <div className="flex items-center justify-between text-xs font-bold px-1 text-slate-500 border-b border-slate-100 pb-2">
-              <span className="text-slate-900 font-black tracking-wide">
+            {/* Header Mini: Match No • Grup • Status */}
+            <div className="flex items-center justify-between text-[11px] font-bold px-0.5 border-b border-white/10 pb-1">
+              <span className="text-white font-black tracking-wide">
                 {m.id.replace("match-", "MATCH ")}
               </span>
-              <span className="text-sky-600 truncate max-w-[150px]">
+              <span className="text-sky-400 truncate max-w-[130px]">
                 {m.groupName || "Group Stage"}
               </span>
               <span
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black font-mono tracking-wider ${
+                className={`px-2 py-0.2 rounded-full text-[9px] font-black font-mono tracking-wider ${
                   isDone
-                    ? "bg-slate-100 text-slate-600 border border-slate-200"
-                    : "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                    ? "bg-white/10 text-white/60 border border-white/10"
+                    : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse"
                 }`}
               >
                 {isDone ? "FT" : "LIVE"}
               </span>
             </div>
 
-            {/* Scoreboard Box: Logo A | Skor & Repeat/Warn | Logo B */}
-            <div className="flex items-center justify-between px-1">
-              {/* Kolom Tim A */}
-              <div className="flex flex-col items-center w-28 gap-1.5">
-                <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-200 p-1 flex items-center justify-center overflow-hidden shadow-xs">
+            {/* Row Utama: [Logo + Nama Tim A] | [Skor & Repeat/Warn] | [Nama Tim B + Logo] */}
+            <div className="flex items-center justify-between gap-1.5 pt-0.5">
+              {/* Sisi Kiri: Logo + Nama Tim A */}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-black/70 border border-white/15 p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
                   {m.teamALogo ? (
                     <img
                       src={m.teamALogo}
@@ -206,52 +202,54 @@ export function OtherMatchesTicker({
                       className="w-full h-full object-contain"
                     />
                   ) : (
-                    <span className="text-sm font-black text-white/50">A</span>
+                    <span className="text-xs font-black text-white/50">A</span>
                   )}
                 </div>
-                <span className="text-xs font-black text-slate-900 text-center line-clamp-1 w-full uppercase tracking-tight">
+                <span className="text-xs font-black text-white truncate uppercase leading-tight">
                   {m.teamAName}
                 </span>
               </div>
 
-              {/* Box Tengah: Skor & Repeat/Warn */}
-              <div className="flex flex-col items-center justify-center px-2">
-                <div className="flex items-center gap-3 font-mono">
+              {/* Sisi Tengah: Skor Besar + Repeat/Warn */}
+              <div className="flex flex-col items-center justify-center shrink-0 px-1">
+                <div className="flex items-center gap-2 font-mono">
                   <span
-                    className={`text-3xl font-black ${
-                      aWin ? "text-emerald-600" : "text-slate-900"
+                    className={`text-2xl font-black ${
+                      aWin ? "text-emerald-400" : "text-white"
                     }`}
                   >
                     {live.scoreA}
                   </span>
-                  <span className="text-xl font-bold text-slate-300">-</span>
+                  <span className="text-sm font-bold text-white/40">-</span>
                   <span
-                    className={`text-3xl font-black ${
-                      bWin ? "text-emerald-600" : "text-slate-900"
+                    className={`text-2xl font-black ${
+                      bWin ? "text-emerald-400" : "text-white"
                     }`}
                   >
                     {live.scoreB}
                   </span>
                 </div>
 
-                {/* Sub-indikator Repeat & Warn */}
-                <div className="flex flex-col items-center gap-0.5 mt-1.5">
-                  <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold">
-                    <span className="text-slate-600">{live.repeatA}/2</span>
-                    <span className="text-amber-500 font-extrabold uppercase tracking-widest text-[9px]">REPEAT</span>
-                    <span className="text-slate-600">{live.repeatB}/2</span>
+                <div className="flex flex-col items-center leading-none mt-0.5">
+                  <div className="flex items-center gap-1 font-mono text-[9px] font-bold">
+                    <span className="text-slate-300">{live.repeatA}/2</span>
+                    <span className="text-amber-400 font-black text-[7.5px] tracking-wider">REPEAT</span>
+                    <span className="text-slate-300">{live.repeatB}/2</span>
                   </div>
-                  <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold">
-                    <span className="text-slate-600">{live.warnA}/2</span>
-                    <span className="text-rose-500 font-extrabold uppercase tracking-widest text-[9px]">WARN</span>
-                    <span className="text-slate-600">{live.warnB}/2</span>
+                  <div className="flex items-center gap-1 font-mono text-[9px] font-bold">
+                    <span className="text-slate-300">{live.warnA}/2</span>
+                    <span className="text-rose-400 font-black text-[7.5px] tracking-wider">WARN</span>
+                    <span className="text-slate-300">{live.warnB}/2</span>
                   </div>
                 </div>
               </div>
 
-              {/* Kolom Tim B */}
-              <div className="flex flex-col items-center w-28 gap-1.5">
-                <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-200 p-1 flex items-center justify-center overflow-hidden shadow-xs">
+              {/* Sisi Kanan: Nama Tim B + Logo */}
+              <div className="flex items-center justify-end gap-2 flex-1 min-w-0 text-right">
+                <span className="text-xs font-black text-white truncate uppercase leading-tight">
+                  {m.teamBName}
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-black/70 border border-white/15 p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
                   {m.teamBLogo ? (
                     <img
                       src={m.teamBLogo}
@@ -259,12 +257,9 @@ export function OtherMatchesTicker({
                       className="w-full h-full object-contain"
                     />
                   ) : (
-                    <span className="text-sm font-black text-white/50">B</span>
+                    <span className="text-xs font-black text-white/50">B</span>
                   )}
                 </div>
-                <span className="text-xs font-black text-slate-900 text-center line-clamp-1 w-full uppercase tracking-tight">
-                  {m.teamBName}
-                </span>
               </div>
             </div>
           </div>
@@ -272,5 +267,4 @@ export function OtherMatchesTicker({
       })}
     </div>
   );
-                                           }
-                      
+}
