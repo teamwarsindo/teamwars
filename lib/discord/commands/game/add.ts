@@ -1,4 +1,9 @@
+import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { MatchScheduleItem } from '@/app/tournament/_library';
+import { sendOfficialScoreLog } from '@/lib/discord/messages/assignment-log';
+import { getMatchContext } from '@/lib/discord/commands/assign/helpers';
 import { GameContext } from './types';
 import {
   computeNextInstructions,
@@ -146,8 +151,10 @@ export async function handleGameAdd(ctx: GameContext) {
   reportData.games.push(gameRecord);
   reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
 
-  const isTeamAWon = reportData.teamA.score >= 10;
-  const isTeamBWon = reportData.teamB.score >= 10;
+  const finalScoreA = reportData.teamA.score;
+  const finalScoreB = reportData.teamB.score;
+  const isTeamAWon = finalScoreA >= 10;
+  const isTeamBWon = finalScoreB >= 10;
   reportData.isFinished = isTeamAWon || isTeamBWon;
   reportData.winnerTeam = isTeamAWon ? 'teamA' : isTeamBWon ? 'teamB' : null;
 
@@ -180,6 +187,39 @@ export async function handleGameAdd(ctx: GameContext) {
     await saveAndSyncMatchState(match, reportData);
   }
 
+  // 🏆 6. KETIKA SALAH SATU TIM MENCAPAI SKOR 10 (MATCH FINISHED FT10)
+  if (reportData.isFinished) {
+    try {
+      const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+      const idx = schedules.findIndex((m) => m.id === match.id);
+
+      if (idx !== -1) {
+        // A. Update skor akhir & status selesai di twi:schedules
+        schedules[idx].scoreA = finalScoreA;
+        schedules[idx].scoreB = finalScoreB;
+        schedules[idx].isFinished = true;
+        await kv.set('twi:schedules', schedules);
+
+        // B. Kirim pengumuman hasil skor resmi ke CH_SCORE
+        const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
+        if (chScore) {
+          const matchCtx = await getMatchContext(schedules[idx]);
+          await sendOfficialScoreLog({
+            channelId: chScore,
+            teamAName: schedules[idx].teamAName,
+            teamBName: schedules[idx].teamBName,
+            teamAEmoji: matchCtx.teamAEmoji,
+            teamBEmoji: matchCtx.teamBEmoji,
+            scoreA: finalScoreA,
+            scoreB: finalScoreB,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[GAME FINISH TRIGGER ERROR]:', err);
+    }
+  }
+
   const matchEmbed = await buildMatchReportEmbed(match, reportData, winnerOpt);
 
   if (isBeforeKickoff && userIsAdmin) {
@@ -188,7 +228,7 @@ export async function handleGameAdd(ctx: GameContext) {
 
   await publishMatchReport(channelId, match.id, matchEmbed);
 
-  // 6. Select Menu Sanksi Deckloss jika tembus 2x Warning SS Hand
+  // 7. Select Menu Sanksi Deckloss jika tembus 2x Warning SS Hand
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
     const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
     const innocentTeam = isTeamAPenalty ? reportData.teamB : reportData.teamA;
@@ -214,4 +254,4 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: successMsg,
   });
-}
+      }
