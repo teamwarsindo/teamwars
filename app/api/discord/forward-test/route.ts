@@ -1,51 +1,64 @@
-import { NextResponse, NextRequest } from "next/server";
-import { DISCORD_CONFIG } from "@/lib/discord/config";
-import { discordAPI } from "@/lib/discord/utils";
+import { NextResponse } from 'next/server';
+import { kv } from '@vercel/kv';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const sourceChannelId = DISCORD_CONFIG.CH_REPORT;
-    const targetChannelId = DISCORD_CONFIG.CH_LOG || "1525775643168735344";
-    const messageId = "1539260135631757423";
+    // Data target kasus pelepasan Nanika
+    const teamSlug = 'licht-united';
+    const targetIgn = 'Nanika';
+    const idDuelLinks = '894-782-054';
 
-    if (!sourceChannelId || !targetChannelId) {
+    // 1. Ambil identitas tim dari KV (Warna & Emoji)
+    const teamData = await kv.hgetall<any>(`teams:${teamSlug}`);
+    if (!teamData) {
       return NextResponse.json(
-        { error: "CH_REPORT atau CH_LOG belum terdefinisi di DISCORD_CONFIG" },
+        { error: `Data tim dengan slug "${teamSlug}" tidak ditemukan di database!` },
+        { status: 404 }
+      );
+    }
+
+    const teamName = teamData.namaTim || 'LICHT UNITED';
+    const teamKode = teamData.kodeTim;
+    const teamEmojiId = teamData.emojiId || teamData.discordEmojiId;
+    const teamHex = teamData.warna || '#ff0000';
+
+    // 2. Format Emoji & Teks
+    const emojiPrefix = teamEmojiId ? `<:${teamKode || 'team'}:${teamEmojiId}> ` : '';
+    const textContent = `**${targetIgn}** (${idDuelLinks}) telah dikeluarkan dari roster tim ${emojiPrefix}**${teamName}**`;
+
+    // 3. Kirim ke Channel #transfer-news
+    const targetChannelId = DISCORD_CONFIG.CH_LOG_TRANSFER;
+    if (!targetChannelId) {
+      return NextResponse.json(
+        { error: 'CH_LOG_TRANSFER belum dikonfigurasi!' },
         { status: 500 }
       );
     }
 
-    // Payload native Discord Forward (type: 1 = FORWARD)
     const payload = {
-      message_reference: {
-        type: 1, // 🟢 Tipe 1 menandakan aksi FORWARD, bukan REPLY
-        channel_id: sourceChannelId,
-        message_id: messageId,
-        fail_if_not_exists: false,
-      },
+      embeds: [
+        {
+          description: textContent,
+          color: hexToDecimal(teamHex),
+        },
+      ],
     };
 
-    const forwardRes = await discordAPI(
-      `/channels/${targetChannelId}/messages`,
-      "POST",
-      payload
-    );
+    const res = await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', payload);
 
-    if (forwardRes && forwardRes.id) {
-      return NextResponse.json({
-        success: true,
-        message: `Pesan ${messageId} berhasil di-forward ke channel log`,
-        forwardedMessageId: forwardRes.id,
-      });
-    }
-
-    return NextResponse.json(
-      { success: false, error: "Gagal memproses forward ke Discord API" },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      message: '✅ Berhasil dikirim ke channel #transfer-news!',
+      discordMessageId: res?.id,
+      sentContent: textContent,
+      teamColorHex: teamHex,
+    });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Error Resend Transfer:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
