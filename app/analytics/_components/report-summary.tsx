@@ -24,7 +24,7 @@ export function ReportSummary({
           <>
             <div className="font-black text-amber-500 uppercase tracking-wide flex items-center justify-between text-[11px]">
               <span className="animate-pulse">Instruksi Game #{liveInstruction.nextGameNumber}</span>
-              <span className="text-[9px] font-mono text-muted-foreground font-normal">
+              <span className="text-[9px] text-muted-foreground font-normal">
                 {games.length} Game Dimainkan
               </span>
             </div>
@@ -42,41 +42,59 @@ export function ReportSummary({
     );
   }
 
+  // 1. Record: Bebas font-mono, lega dan konsisten sans
   const renderRecord = (wins: number, losses: number) => (
-    <div className="text-[10px] font-medium text-muted-foreground">
+    <div className="text-[10px] text-muted-foreground font-medium">
       <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{wins} Win</span>
       <span className="mx-1 text-muted-foreground/60">-</span>
       <span className="text-rose-600 dark:text-rose-400 font-semibold">{losses} Lose</span>
     </div>
   );
 
+  // 2. Aggregat: Menggunakan font-sans natural
   const renderAgg = (agg: number) => {
     const isPositive = agg > 0;
     const isNegative = agg < 0;
     const colorClass = isPositive
-      ? "text-emerald-600 dark:text-emerald-400"
+      ? "text-emerald-600 dark:text-emerald-400 font-bold"
       : isNegative
-      ? "text-rose-600 dark:text-rose-400"
-      : "text-muted-foreground";
+      ? "text-rose-600 dark:text-rose-400 font-bold"
+      : "text-muted-foreground font-medium";
 
     return (
-      <div className="text-[10px] text-muted-foreground font-mono">
-        Agg <span className={`font-bold ${colorClass}`}>{isPositive ? `+${agg}` : agg}</span>
+      <div className="text-[10px] text-muted-foreground">
+        Agg <span className={colorClass}>{isPositive ? `+${agg}` : agg}</span>
       </div>
     );
   };
 
+  // 3. WPM: Menggunakan font-sans natural tanpa himpitan mono
   const renderWpm = (wpmVal: number) => {
     const colorClass =
       wpmVal > 50
-        ? "text-emerald-600 dark:text-emerald-400"
+        ? "text-emerald-600 dark:text-emerald-400 font-bold"
         : wpmVal < 50
-        ? "text-rose-600 dark:text-rose-400"
-        : "text-muted-foreground";
+        ? "text-rose-600 dark:text-rose-400 font-bold"
+        : "text-muted-foreground font-medium";
 
     return (
-      <div className="text-[10px] text-muted-foreground font-mono">
-        WPM <span className={`font-bold ${colorClass}`}>{wpmVal}%</span>
+      <div className="text-[10px] text-muted-foreground">
+        WPM <span className={colorClass}>{wpmVal}%</span>
+      </div>
+    );
+  };
+
+  // 4. Helper Render Daftar Pemain: Memastikan pemotongan baris hanya antar-nama pemain
+  const renderUserList = (usersStr: string) => {
+    if (!usersStr || usersStr === "-") return "-";
+    const list = usersStr.split(",").map((u) => u.trim()).filter(Boolean);
+    return (
+      <div className="text-[9.5px] text-muted-foreground leading-snug w-full px-1 pt-0.5 text-center flex flex-wrap justify-center gap-x-1">
+        {list.map((name, i) => (
+          <span key={i} className="whitespace-nowrap">
+            {name}{i < list.length - 1 ? "," : ""}
+          </span>
+        ))}
       </div>
     );
   };
@@ -98,7 +116,7 @@ export function ReportSummary({
               <span>⭐</span> Top Player
             </div>
             <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
-              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
                 <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statA.topPlayer.ign}
                 </div>
@@ -106,7 +124,7 @@ export function ReportSummary({
                 {renderAgg(statA.topPlayer.agregat)}
                 {renderWpm(statA.topPlayer.wpmVal)}
               </div>
-              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
                 <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statB.topPlayer.ign}
                 </div>
@@ -123,28 +141,28 @@ export function ReportSummary({
               <span>🔥</span> Top Streak
             </div>
             <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
-              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
                 <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statA.maxStreak.player}
                 </div>
                 <div className="text-[10px] text-muted-foreground font-medium">
                   {statA.maxStreak.hasStreak ? `${statA.maxStreak.count} Win Streak` : "-"}
                 </div>
-                <div className="text-[10px] text-muted-foreground font-mono">
+                <div className="text-[10px] text-muted-foreground">
                   {statA.maxStreak.rangeStr}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statA.maxStreak.deck}>
                   {statA.maxStreak.deck}
                 </div>
               </div>
-              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
                 <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statB.maxStreak.player}
                 </div>
                 <div className="text-[10px] text-muted-foreground font-medium">
                   {statB.maxStreak.hasStreak ? `${statB.maxStreak.count} Win Streak` : "-"}
                 </div>
-                <div className="text-[10px] text-muted-foreground font-mono">
+                <div className="text-[10px] text-muted-foreground">
                   {statB.maxStreak.rangeStr}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statB.maxStreak.deck}>
@@ -171,7 +189,7 @@ export function ReportSummary({
               <span>🏆</span> Best Archetype
             </div>
             <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
-              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
                 <div
                   className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
                   title={statA.bestDeck.name}
@@ -182,7 +200,7 @@ export function ReportSummary({
                 {renderAgg(statA.bestDeck.agregat)}
                 {renderWpm(statA.bestDeck.wpmVal)}
               </div>
-              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
                 <div
                   className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
                   title={statB.bestDeck.name}
@@ -196,52 +214,36 @@ export function ReportSummary({
             </div>
           </div>
 
-          {/* Most Played Archetype (Rata Air Sempurna dengan grid teratur) */}
+          {/* Most Played Archetype (Rata Atas Natural) */}
           <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
             <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
               <span>🃏</span> Most Played Archetype
             </div>
             <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
               {/* Sisi Kiri */}
-              <div className="flex flex-col justify-between px-1 h-full">
-                <div className="space-y-0.5">
-                  <div
-                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center justify-center"
-                    title={statA.mostDeck.name}
-                  >
-                    {statA.mostDeck.name}
-                  </div>
-                  {renderRecord(statA.mostDeck.wins, statA.mostDeck.losses)}
-                  {renderWpm(statA.mostDeck.wpmVal)}
-                </div>
-                {/* Min-height dikunci sama agar sejajar meskipun beda jumlah baris */}
+              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
                 <div
-                  className="text-[9.5px] text-muted-foreground leading-tight w-full px-0.5 pt-1 text-center min-h-[32px] flex items-center justify-center"
-                  title={statA.mostDeck.users}
+                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                  title={statA.mostDeck.name}
                 >
-                  <span className="line-clamp-2">{statA.mostDeck.users}</span>
+                  {statA.mostDeck.name}
                 </div>
+                {renderRecord(statA.mostDeck.wins, statA.mostDeck.losses)}
+                {renderWpm(statA.mostDeck.wpmVal)}
+                {renderUserList(statA.mostDeck.users)}
               </div>
 
               {/* Sisi Kanan */}
-              <div className="flex flex-col justify-between px-1 h-full">
-                <div className="space-y-0.5">
-                  <div
-                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center justify-center"
-                    title={statB.mostDeck.name}
-                  >
-                    {statB.mostDeck.name}
-                  </div>
-                  {renderRecord(statB.mostDeck.wins, statB.mostDeck.losses)}
-                  {renderWpm(statB.mostDeck.wpmVal)}
-                </div>
-                {/* Min-height dikunci sama agar sejajar meskipun beda jumlah baris */}
+              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
                 <div
-                  className="text-[9.5px] text-muted-foreground leading-tight w-full px-0.5 pt-1 text-center min-h-[32px] flex items-center justify-center"
-                  title={statB.mostDeck.users}
+                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                  title={statB.mostDeck.name}
                 >
-                  <span className="line-clamp-2">{statB.mostDeck.users}</span>
+                  {statB.mostDeck.name}
                 </div>
+                {renderRecord(statB.mostDeck.wins, statB.mostDeck.losses)}
+                {renderWpm(statB.mostDeck.wpmVal)}
+                {renderUserList(statB.mostDeck.users)}
               </div>
             </div>
           </div>
