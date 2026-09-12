@@ -84,7 +84,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { matchId, action, targetWeek, unassignType, assignType, targetStaffId, scoreA, scoreB } = body;
+    const { matchId, action, targetWeek, unassignType, assignType, targetStaffId } = body;
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
@@ -184,8 +184,6 @@ export async function POST(req: Request) {
       const result = await executeUnassignStaff({
         matchId,
         assignType: type,
-        scoreA: scoreA !== undefined ? Number(scoreA) : 0,
-        scoreB: scoreB !== undefined ? Number(scoreB) : 0,
       });
       return NextResponse.json({ success: true, message: `Unassign match ${matchId} berhasil!`, result });
     }
@@ -266,4 +264,4 @@ export async function POST(req: Request) {
     console.error('Error Syncing Match:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-}
+        }
