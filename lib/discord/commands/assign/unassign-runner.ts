@@ -37,6 +37,7 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
           ...baseLog,
           existingMsgId: (match as any).streamerLogMsgId,
           staffDiscordId: streamerId,
+          roleType: 'STREAMER',
         })
       );
     }
@@ -82,7 +83,7 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
     return { match, targetStaffName };
   }
 
-  // 2. UNASSIGN REFEREE
+  // 2. UNASSIGN REFEREE (WASIT SELESAI / MATCH RESMI SELESAI)
   const refId = match.refereeDiscordId;
   if (!refId || !isValidSnowflake(refId)) {
     throw new Error('Tidak ada Referee aktif di match ini.');
@@ -105,6 +106,7 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
         ...baseLog,
         existingMsgId: (match as any).refereeLogMsgId,
         staffDiscordId: refId,
+        roleType: 'REFEREE',
       })
     );
   }
@@ -131,7 +133,7 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
         streamerDiscordId: match.streamerDiscordId,
         streamLink: match.streamLink,
         existingMsgId: (match as any).openingMsgId,
-        isFinished: match.isFinished,
+        isFinished: true,
       }).then((id) => {
         if (id) (match as any).openingMsgId = id;
       })
@@ -144,9 +146,10 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
   match.referee = undefined;
   match.refereeDiscordId = undefined;
   (match as any).refereeLogMsgId = undefined;
+  match.isFinished = true; // Ditandai resmi selesai setelah wasit dilepas
 
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
   return { match, targetStaffName };
-        }
+}
