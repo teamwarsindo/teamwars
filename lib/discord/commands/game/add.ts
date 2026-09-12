@@ -33,7 +33,6 @@ export async function handleGameAdd(ctx: GameContext) {
   const ssHandA = optMap.ss_hand_a !== undefined ? Boolean(optMap.ss_hand_a) : true;
   const ssHandB = optMap.ss_hand_b !== undefined ? Boolean(optMap.ss_hand_b) : true;
 
-  // 🎯 SINKRONISASI DENGAN tournamentCommands (tipe_game)
   const tipeGame = String(optMap.tipe_game || 'NORMAL').toUpperCase();
   const isDecklossOpt = tipeGame === 'DECKLOSS_TIMER';
   const notes = optMap.catatan || '';
@@ -58,7 +57,6 @@ export async function handleGameAdd(ctx: GameContext) {
   if (!dA) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckAName}** milik ${pA.ign} tidak valid!` });
   if (!dB) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckBName}** milik ${pB.ign} tidak valid!` });
 
-  // 📸 1. SIMPAN SNAPSHOT KONDISI TIM SEBELUM MUTASI DATA
   const snapshotBeforeGame = {
     teamA: JSON.parse(JSON.stringify(reportData.teamA)),
     teamB: JSON.parse(JSON.stringify(reportData.teamB)),
@@ -66,7 +64,6 @@ export async function handleGameAdd(ctx: GameContext) {
 
   const gameNumber = (reportData.games?.length || 0) + 1;
 
-  // 2. Aktivasi Repeat (Hanya jika duel fisik normal)
   if (!isDecklossOpt) {
     if (isRepeatA && !dA.isRepeatUsed) {
       dA.isRepeatUsed = true;
@@ -88,7 +85,6 @@ export async function handleGameAdd(ctx: GameContext) {
     reportData.teamB.repeatsUsed = lineupB.reduce((count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0), 0);
   }
 
-  // 3. Kalkulasi Skor & Status Hidup
   if (winnerOpt === 'A') {
     reportData.teamA.score = scoreA + 1;
     dA.wins = (dA.wins || 0) + 1;
@@ -113,7 +109,6 @@ export async function handleGameAdd(ctx: GameContext) {
     pA.totalLosses = (pA.totalLosses || 0) + 1;
   }
 
-  // 4. Warning SS Hand (hanya dihitung jika duel normal, sanksi timer tidak menambah counter)
   if (!isDecklossOpt) {
     if (!ssHandA) reportData.teamA.warningsUsed = (reportData.teamA.warningsUsed || 0) + 1;
     if (!ssHandB) reportData.teamB.warningsUsed = (reportData.teamB.warningsUsed || 0) + 1;
@@ -158,10 +153,8 @@ export async function handleGameAdd(ctx: GameContext) {
   reportData.isFinished = isTeamAWon || isTeamBWon;
   reportData.winnerTeam = isTeamAWon ? 'teamA' : isTeamBWon ? 'teamB' : null;
 
-  // 5. Evaluasi Instruksi Ronde Berikutnya
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
 
-  // Jika ini game deckloss timer dan pertandingan belum selesai, susun instruksi dengan format standar
   if (isDecklossOpt && !reportData.isFinished) {
     const penaltyTeam = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
     const penaltyPlayer = winnerOpt === 'A' ? pB : pA;
@@ -187,23 +180,25 @@ export async function handleGameAdd(ctx: GameContext) {
     await saveAndSyncMatchState(match, reportData);
   }
 
-  // 🏆 6. KETIKA SALAH SATU TIM MENCAPAI SKOR 10 (MATCH FINISHED FT10)
+  // 🏆 KETIKA SALAH SATU TIM MENCAPAI SKOR 10
   if (reportData.isFinished) {
     try {
       const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
       const idx = schedules.findIndex((m) => m.id === match.id);
 
       if (idx !== -1) {
-        // A. Update skor akhir & status selesai di twi:schedules
         schedules[idx].scoreA = finalScoreA;
         schedules[idx].scoreB = finalScoreB;
-        schedules[idx].isFinished = true;
+        // JANGAN ubah isFinished di twi:schedules di sini (menunggu referee di-unassign)
         await kv.set('twi:schedules', schedules);
 
-        // B. Kirim pengumuman hasil skor resmi ke CH_SCORE
         const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
         if (chScore) {
           const matchCtx = await getMatchContext(schedules[idx]);
+          const isWinnerA = finalScoreA >= 10;
+          const winnerData = isWinnerA ? matchCtx.teamA : matchCtx.teamB;
+          const winnerHex = winnerData?.warna || (isWinnerA ? '#3498db' : '#e74c3c');
+
           await sendOfficialScoreLog({
             channelId: chScore,
             teamAName: schedules[idx].teamAName,
@@ -212,6 +207,7 @@ export async function handleGameAdd(ctx: GameContext) {
             teamBEmoji: matchCtx.teamBEmoji,
             scoreA: finalScoreA,
             scoreB: finalScoreB,
+            winnerHex,
           });
         }
       }
@@ -228,7 +224,6 @@ export async function handleGameAdd(ctx: GameContext) {
 
   await publishMatchReport(channelId, match.id, matchEmbed);
 
-  // 7. Select Menu Sanksi Deckloss jika tembus 2x Warning SS Hand
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
     const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
     const innocentTeam = isTeamAPenalty ? reportData.teamB : reportData.teamA;
@@ -254,4 +249,5 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: successMsg,
   });
-      }
+}
+  
