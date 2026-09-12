@@ -71,20 +71,20 @@ export function ReportSummary({
             </div>
           </div>
 
-          {/* Top Streak */}
+          {/* Top Streak: Skill singkatan di bawah deck */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>🔥</span> Top Streak
             </div>
             <div className="font-bold text-foreground truncate mt-0.5">{statA.maxStreak.player}</div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              {statA.maxStreak.count > 0 ? `${statA.maxStreak.count} Streak (${statA.maxStreak.range})` : "-"}
-            </div>
-            <div className="text-[10px] text-muted-foreground truncate">
+            <div className="text-[10px] text-muted-foreground truncate mt-0.5">
               Deck: <span className="font-semibold text-foreground/90">{statA.maxStreak.deck}</span>
             </div>
-            <div className="text-[9.5px] font-mono text-muted-foreground/80 truncate">
-              Skill: {statA.maxStreak.skill}
+            <div className="text-[10px] text-muted-foreground truncate">
+              Skill: <span className="font-semibold text-foreground/90">{statA.maxStreak.skillAbbr}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {statA.maxStreak.count > 0 ? `${statA.maxStreak.count} Streak (${statA.maxStreak.range})` : "-"}
             </div>
           </div>
 
@@ -104,7 +104,7 @@ export function ReportSummary({
             </div>
           </div>
 
-          {/* Most Played Deck: Nama utuh, Record dipisah ke baris berikutnya */}
+          {/* Most Played Deck: List singkatan skill di bawah deck */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>🃏</span> Most Played Deck
@@ -112,8 +112,14 @@ export function ReportSummary({
             <div className="font-bold text-foreground truncate mt-0.5" title={statA.mostDeck.name}>
               {statA.mostDeck.name}
             </div>
+            <div className="text-[10px] text-muted-foreground truncate mt-0.5" title={statA.mostDeck.skillsList}>
+              Skill: <span className="font-semibold text-foreground/90">{statA.mostDeck.skillsList}</span>
+            </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              Record: <span className="font-semibold text-foreground/90">{statA.mostDeck.wins}W - {statA.mostDeck.losses}L</span> ({statA.mostDeck.wr}%)
+              Record: <span className="font-semibold text-foreground/90">{statA.mostDeck.recordStr}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              Winrate: <span className="font-semibold text-foreground/90">{statA.mostDeck.wrStr}</span>
             </div>
             <div className="text-[10px] text-muted-foreground truncate">
               Player: <span className="font-semibold text-foreground/90">{statA.mostDeck.users}</span>
@@ -139,20 +145,20 @@ export function ReportSummary({
             </div>
           </div>
 
-          {/* Top Streak */}
+          {/* Top Streak: Skill singkatan di bawah deck */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>🔥</span> Top Streak
             </div>
             <div className="font-bold text-foreground truncate mt-0.5">{statB.maxStreak.player}</div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              {statB.maxStreak.count > 0 ? `${statB.maxStreak.count} Streak (${statB.maxStreak.range})` : "-"}
-            </div>
-            <div className="text-[10px] text-muted-foreground truncate">
+            <div className="text-[10px] text-muted-foreground truncate mt-0.5">
               Deck: <span className="font-semibold text-foreground/90">{statB.maxStreak.deck}</span>
             </div>
-            <div className="text-[9.5px] font-mono text-muted-foreground/80 truncate">
-              Skill: {statB.maxStreak.skill}
+            <div className="text-[10px] text-muted-foreground truncate">
+              Skill: <span className="font-semibold text-foreground/90">{statB.maxStreak.skillAbbr}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {statB.maxStreak.count > 0 ? `${statB.maxStreak.count} Streak (${statB.maxStreak.range})` : "-"}
             </div>
           </div>
 
@@ -172,7 +178,7 @@ export function ReportSummary({
             </div>
           </div>
 
-          {/* Most Played Deck: Nama utuh, Record dipisah */}
+          {/* Most Played Deck: List singkatan skill di bawah deck */}
           <div>
             <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
               <span>🃏</span> Most Played Deck
@@ -180,8 +186,14 @@ export function ReportSummary({
             <div className="font-bold text-foreground truncate mt-0.5" title={statB.mostDeck.name}>
               {statB.mostDeck.name}
             </div>
+            <div className="text-[10px] text-muted-foreground truncate mt-0.5" title={statB.mostDeck.skillsList}>
+              Skill: <span className="font-semibold text-foreground/90">{statB.mostDeck.skillsList}</span>
+            </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              Record: <span className="font-semibold text-foreground/90">{statB.mostDeck.wins}W - {statB.mostDeck.losses}L</span> ({statB.mostDeck.wr}%)
+              Record: <span className="font-semibold text-foreground/90">{statB.mostDeck.recordStr}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              Winrate: <span className="font-semibold text-foreground/90">{statB.mostDeck.wrStr}</span>
             </div>
             <div className="text-[10px] text-muted-foreground truncate">
               Player: <span className="font-semibold text-foreground/90">{statB.mostDeck.users}</span>
@@ -191,4 +203,4 @@ export function ReportSummary({
       </div>
     </div>
   );
-                                                                                                                            }
+}
