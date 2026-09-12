@@ -66,7 +66,6 @@ export function ReportSummary({
     );
   };
 
-  // WPM diseragamkan menjadi Wpm
   const renderWpm = (wpmVal: number) => {
     const colorClass =
       wpmVal > 50
@@ -132,7 +131,7 @@ export function ReportSummary({
             </div>
           </div>
 
-          {/* Top Streak: Urutan (1) Player, (2) Deck, (3) Jumlah Streak, (4) Game keberapa */}
+          {/* Top Streak: Urutan (1) Player, (2) Deck, (3) Jumlah Streak [Warna Hijau], (4) Game keberapa */}
           <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
             <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
               <span>🔥</span> Top Streak
@@ -140,19 +139,21 @@ export function ReportSummary({
             <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
               {/* Sisi Tim A */}
               <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
-                {/* 1. Player */}
                 <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statA.maxStreak.player}
                 </div>
-                {/* 2. Deck */}
                 <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statA.maxStreak.deck}>
                   {statA.maxStreak.deck}
                 </div>
-                {/* 3. Jumlah Streak */}
-                <div className="text-[10.5px] text-muted-foreground font-medium">
-                  {statA.maxStreak.hasStreak ? `${statA.maxStreak.count} Win Streak` : "-"}
+                <div className="text-[10.5px]">
+                  {statA.maxStreak.hasStreak ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                      {statA.maxStreak.count} Win Streak
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
                 </div>
-                {/* 4. Game Keberapa */}
                 <div className="text-[10px] text-muted-foreground">
                   {statA.maxStreak.rangeStr}
                 </div>
@@ -160,19 +161,21 @@ export function ReportSummary({
 
               {/* Sisi Tim B */}
               <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
-                {/* 1. Player */}
                 <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statB.maxStreak.player}
                 </div>
-                {/* 2. Deck */}
                 <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statB.maxStreak.deck}>
                   {statB.maxStreak.deck}
                 </div>
-                {/* 3. Jumlah Streak */}
-                <div className="text-[10.5px] text-muted-foreground font-medium">
-                  {statB.maxStreak.hasStreak ? `${statB.maxStreak.count} Win Streak` : "-"}
+                <div className="text-[10.5px]">
+                  {statB.maxStreak.hasStreak ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                      {statB.maxStreak.count} Win Streak
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
                 </div>
-                {/* 4. Game Keberapa */}
                 <div className="text-[10px] text-muted-foreground">
                   {statB.maxStreak.rangeStr}
                 </div>
@@ -261,4 +264,4 @@ export function ReportSummary({
       </div>
     </div>
   );
-                }
+}
