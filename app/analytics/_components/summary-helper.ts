@@ -28,16 +28,16 @@ export interface TeamSummaryStat {
     count: number;
     range: string;
     deck: string;
-    skill: string;
+    skillAbbr: string;
   };
   playerAktifCount: number;
   teamWR: string;
   playerPoin: string;
   mostDeck: {
     name: string;
-    wins: number;
-    losses: number;
-    wr: string;
+    skillsList: string;
+    recordStr: string;
+    wrStr: string;
     users: string;
   };
 }
@@ -47,22 +47,36 @@ export function computeTeamSummary(
   isTeamA: boolean,
   teamScore: number
 ): TeamSummaryStat {
-  const winsMap: Record<string, { wins: number; losses: number; firstSeen: number }> = {};
-  const deckMap: Record<string, { wins: number; losses: number; users: Set<string>; firstSeen: number }> = {};
+  const winsMap: Record<
+    string,
+    { wins: number; losses: number; maxStreak: number; currentStreak: number; firstSeen: number }
+  > = {};
+
+  const deckMap: Record<
+    string,
+    {
+      wins: number;
+      losses: number;
+      users: Set<string>;
+      skillsSet: Set<string>;
+      firstSeen: number;
+    }
+  > = {};
+
   const activePlayers = new Set<string>();
 
-  let currentStreakPlayer = "";
-  let currentStreakCount = 0;
-  let currentStreakStart = 1;
-  let currentStreakDeck = "";
-  let currentStreakSkill = "";
+  let overallStreakPlayer = "";
+  let overallStreakCount = 0;
+  let overallStreakStart = 1;
+  let overallStreakDeck = "";
+  let overallStreakSkillAbbr = "";
 
-  let maxStreakPlayer = "";
-  let maxStreakCount = 0;
-  let maxStreakStart = 1;
-  let maxStreakEnd = 1;
-  let maxStreakDeck = "";
-  let maxStreakSkill = "";
+  let topOverallStreakPlayer = "";
+  let topOverallStreakCount = 0;
+  let topOverallStreakStart = 1;
+  let topOverallStreakEnd = 1;
+  let topOverallStreakDeck = "";
+  let topOverallStreakSkillAbbr = "";
 
   games.forEach((g, idx) => {
     const gNum = idx + 1;
@@ -70,57 +84,73 @@ export function computeTeamSummary(
     const p = isTeamA ? g.playerA : g.playerB;
     const ign = p?.ign || "";
     const deck = p?.archetype || "Unknown Deck";
-    const skill = p?.skillAbbr || p?.skill || "-";
+    const skillAbbr = p?.skillAbbr || p?.skill || "-";
 
     if (ign) {
       activePlayers.add(ign);
-      if (!winsMap[ign]) winsMap[ign] = { wins: 0, losses: 0, firstSeen: gNum };
-      if (!deckMap[deck]) deckMap[deck] = { wins: 0, losses: 0, users: new Set(), firstSeen: gNum };
+
+      if (!winsMap[ign]) {
+        winsMap[ign] = { wins: 0, losses: 0, maxStreak: 0, currentStreak: 0, firstSeen: gNum };
+      }
+
+      if (!deckMap[deck]) {
+        deckMap[deck] = { wins: 0, losses: 0, users: new Set(), skillsSet: new Set(), firstSeen: gNum };
+      }
+
       deckMap[deck].users.add(ign);
+      if (skillAbbr && skillAbbr !== "-") {
+        deckMap[deck].skillsSet.add(skillAbbr);
+      }
 
       if (isWinner) {
         winsMap[ign].wins += 1;
-        deckMap[deck].wins += 1;
-
-        if (currentStreakPlayer === ign) {
-          currentStreakCount += 1;
-        } else {
-          currentStreakPlayer = ign;
-          currentStreakCount = 1;
-          currentStreakStart = gNum;
-          currentStreakDeck = deck;
-          currentStreakSkill = skill;
+        winsMap[ign].currentStreak += 1;
+        if (winsMap[ign].currentStreak > winsMap[ign].maxStreak) {
+          winsMap[ign].maxStreak = winsMap[ign].currentStreak;
         }
 
-        if (currentStreakCount > maxStreakCount) {
-          maxStreakCount = currentStreakCount;
-          maxStreakPlayer = currentStreakPlayer;
-          maxStreakStart = currentStreakStart;
-          maxStreakEnd = gNum;
-          maxStreakDeck = currentStreakDeck;
-          maxStreakSkill = currentStreakSkill;
+        deckMap[deck].wins += 1;
+
+        if (overallStreakPlayer === ign) {
+          overallStreakCount += 1;
+        } else {
+          overallStreakPlayer = ign;
+          overallStreakCount = 1;
+          overallStreakStart = gNum;
+          overallStreakDeck = deck;
+          overallStreakSkillAbbr = skillAbbr;
+        }
+
+        if (overallStreakCount > topOverallStreakCount) {
+          topOverallStreakCount = overallStreakCount;
+          topOverallStreakPlayer = overallStreakPlayer;
+          topOverallStreakStart = overallStreakStart;
+          topOverallStreakEnd = gNum;
+          topOverallStreakDeck = overallStreakDeck;
+          topOverallStreakSkillAbbr = overallStreakSkillAbbr;
         }
       } else {
         winsMap[ign].losses += 1;
+        winsMap[ign].currentStreak = 0;
         deckMap[deck].losses += 1;
-        if (currentStreakPlayer === ign) {
-          currentStreakPlayer = "";
-          currentStreakCount = 0;
+
+        if (overallStreakPlayer === ign) {
+          overallStreakPlayer = "";
+          overallStreakCount = 0;
         }
       }
     }
   });
 
-  // Tiebreaker Top Player
+  // 1. Top Player: Cek Win -> Cek Agregat -> Cek Win Streak -> First Seen
   const playerEntries = Object.entries(winsMap).map(([ign, s]) => {
     const total = s.wins + s.losses;
     return {
       ign,
       wins: s.wins,
       losses: s.losses,
-      total,
       agregat: s.wins - s.losses,
-      wrNum: total > 0 ? (s.wins / total) * 100 : 0,
+      maxStreak: s.maxStreak,
       wr: total > 0 ? ((s.wins / total) * 100).toFixed(1) : "0.0",
       firstSeen: s.firstSeen,
     };
@@ -130,8 +160,7 @@ export function computeTeamSummary(
     (a, b) =>
       b.wins - a.wins ||
       b.agregat - a.agregat ||
-      b.wrNum - a.wrNum ||
-      a.total - b.total ||
+      b.maxStreak - a.maxStreak ||
       a.firstSeen - b.firstSeen
   )[0] || {
     ign: "-",
@@ -141,21 +170,27 @@ export function computeTeamSummary(
     wr: "0.0",
   };
 
-  // Agregat Tim
+  // 2. Agregat Tim
   const playerAktifCount = activePlayers.size;
   const teamWR = games.length > 0 ? ((teamScore / games.length) * 100).toFixed(1) : "0.0";
   const playerPoin = playerAktifCount > 0 ? (teamScore / playerAktifCount).toFixed(1) : "0.0";
 
-  // Tiebreaker Most Played Deck
+  // 3. Most Played Deck: Cek Total Pick -> Cek Win -> Cek Agregat
   const deckEntries = Object.entries(deckMap).map(([name, d]) => {
     const total = d.wins + d.losses;
+    const agregat = d.wins - d.losses;
+    const wr = total > 0 ? Math.round((d.wins / total) * 100) : 0;
+    const skillsList = d.skillsSet.size > 0 ? Array.from(d.skillsSet).join(", ") : "-";
+
     return {
       name,
       total,
       wins: d.wins,
       losses: d.losses,
-      wrNum: total > 0 ? (d.wins / total) * 100 : 0,
-      wr: total > 0 ? ((d.wins / total) * 100).toFixed(0) : "0",
+      agregat,
+      skillsList,
+      wrStr: `${wr}%`,
+      recordStr: `${d.wins} Win - ${d.losses} Lose`,
       users: Array.from(d.users).join(", "),
       firstSeen: d.firstSeen,
     };
@@ -165,28 +200,28 @@ export function computeTeamSummary(
     (a, b) =>
       b.total - a.total ||
       b.wins - a.wins ||
-      b.wrNum - a.wrNum ||
+      b.agregat - a.agregat ||
       a.firstSeen - b.firstSeen
   )[0] || {
     name: "-",
-    wins: 0,
-    losses: 0,
-    wr: "0",
+    skillsList: "-",
+    recordStr: "0 Win - 0 Lose",
+    wrStr: "0%",
     users: "-",
   };
 
   return {
     topPlayer,
     maxStreak: {
-      player: maxStreakPlayer || "-",
-      count: maxStreakCount,
-      range: maxStreakCount > 0 ? `G${maxStreakStart} — G${maxStreakEnd}` : "-",
-      deck: maxStreakDeck || "-",
-      skill: maxStreakSkill || "-",
+      player: topOverallStreakPlayer || "-",
+      count: topOverallStreakCount,
+      range: topOverallStreakCount > 0 ? `G${topOverallStreakStart} — G${topOverallStreakEnd}` : "-",
+      deck: topOverallStreakDeck || "-",
+      skillAbbr: topOverallStreakSkillAbbr || "-",
     },
     playerAktifCount,
     teamWR,
     playerPoin,
     mostDeck,
   };
-          }
+}
