@@ -3,6 +3,7 @@ interface ReportLineupProps {
   lineupB: any[];
   games: any[];
   isFinished: boolean;
+  isMatchStarted?: boolean;
 }
 
 export function ReportLineup({ lineupA, lineupB, games, isFinished }: ReportLineupProps) {
