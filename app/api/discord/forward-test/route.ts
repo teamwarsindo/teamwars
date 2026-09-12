@@ -1,64 +1,65 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI, hexToDecimal } from '@/lib/discord/utils';
-
-export const dynamic = 'force-dynamic';
+import { MatchScheduleItem } from '@/app/tournament/_library';
 
 export async function GET() {
   try {
-    // Data target kasus pelepasan Nanika
-    const teamSlug = 'licht-united';
-    const targetIgn = 'Nanika';
-    const idDuelLinks = '894-782-054';
+    const matchId = 'match-48';
+    const ventId = '622438955429789726';
+    const msgId = '1548172080334503979';
+    const scoreA = 9;  // FPF Fabulous
+    const scoreB = 10; // DS Octagram
 
-    // 1. Ambil identitas tim dari KV (Warna & Emoji)
-    const teamData = await kv.hgetall<any>(`teams:${teamSlug}`);
-    if (!teamData) {
-      return NextResponse.json(
-        { error: `Data tim dengan slug "${teamSlug}" tidak ditemukan di database!` },
-        { status: 404 }
-      );
+    // 1. UPDATE twi:schedules
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const idx = schedules.findIndex((m) => m.id === matchId);
+
+    if (idx === -1) {
+      return NextResponse.json({ error: `Match ${matchId} tidak ditemukan di schedules` }, { status: 404 });
     }
 
-    const teamName = teamData.namaTim || 'LICHT UNITED';
-    const teamKode = teamData.kodeTim;
-    const teamEmojiId = teamData.emojiId || teamData.discordEmojiId;
-    const teamHex = teamData.warna || '#ff0000';
+    schedules[idx].referee = 'Vent';
+    schedules[idx].refereeDiscordId = ventId;
+    (schedules[idx] as any).refereeLogMsgId = msgId;
+    schedules[idx].scoreA = scoreA;
+    schedules[idx].scoreB = scoreB;
+    schedules[idx].isFinished = false; // Buka kembali agar bisa di-unassign secara legal
 
-    // 2. Format Emoji & Teks
-    const emojiPrefix = teamEmojiId ? `<:${teamKode || 'team'}:${teamEmojiId}> ` : '';
-    const textContent = `**${targetIgn}** (${idDuelLinks}) telah dikeluarkan dari roster tim ${emojiPrefix}**${teamName}**`;
+    await kv.set('twi:schedules', schedules);
 
-    // 3. Kirim ke Channel #transfer-news
-    const targetChannelId = DISCORD_CONFIG.CH_LOG_TRANSFER;
-    if (!targetChannelId) {
-      return NextResponse.json(
-        { error: 'CH_LOG_TRANSFER belum dikonfigurasi!' },
-        { status: 500 }
-      );
+    // 2. UPDATE twi:staff_history (kembalikan match ke riwayat aktif Vent)
+    // Key biasanya berupa hash atau JSON list per role/staff
+    const historyKey = `twi:staff_history:REFEREE:${ventId}`;
+    let history = (await kv.get<string[]>(historyKey)) || [];
+    if (!history.includes(matchId)) {
+      history.push(matchId);
+      await kv.set(historyKey, history);
     }
 
-    const payload = {
-      embeds: [
-        {
-          description: textContent,
-          color: hexToDecimal(teamHex),
-        },
-      ],
-    };
-
-    const res = await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', payload);
+    // Jika sistemmu menyimpan di hash global twi:staff_history:
+    try {
+      const globalHistory = (await kv.hget<string[]>('twi:staff_history', ventId)) || [];
+      if (!globalHistory.includes(matchId)) {
+        globalHistory.push(matchId);
+        await kv.hset('twi:staff_history', { [ventId]: globalHistory });
+      }
+    } catch {
+      // Abaikan jika struktur hash berbeda
+    }
 
     return NextResponse.json({
       success: true,
-      message: '✅ Berhasil dikirim ke channel #transfer-news!',
-      discordMessageId: res?.id,
-      sentContent: textContent,
-      teamColorHex: teamHex,
+      message: `Match ${matchId} berhasil di-restore untuk Vent!`,
+      data: {
+        matchId,
+        referee: 'Vent',
+        refereeDiscordId: ventId,
+        refereeLogMsgId: msgId,
+        score: `${scoreA}-${scoreB}`,
+        isFinished: false,
+      },
     });
-  } catch (error: any) {
-    console.error('Error Resend Transfer:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
