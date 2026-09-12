@@ -18,7 +18,15 @@ export interface ScheduleItem extends ReportFilterMatchItem {
   scoreB?: number;
 }
 
-export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[] }) {
+interface MatchReportsViewProps {
+  schedules?: ScheduleItem[];
+  isOverlayMode?: boolean;
+}
+
+export function MatchReportsView({
+  schedules = [],
+  isOverlayMode = false,
+}: MatchReportsViewProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -43,14 +51,18 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
   }, [validSchedules]);
 
   const initialMatch = useMemo(() => {
-    return matchParam && validSchedules.length ? validSchedules.find((s) => s.id === matchParam) || null : null;
+    return matchParam && validSchedules.length
+      ? validSchedules.find((s) => s.id === matchParam) || null
+      : null;
   }, [validSchedules, matchParam]);
 
   const [selectedWeek, setSelectedWeek] = useState<number | "">(
     initialMatch ? Number(initialMatch.weekNumber) : ""
   );
   const [selectedTeam, setSelectedTeam] = useState<string>("");
-  const [selectedMatchId, setSelectedMatchId] = useState<string>(initialMatch ? initialMatch.id : "");
+  const [selectedMatchId, setSelectedMatchId] = useState<string>(
+    initialMatch ? initialMatch.id : ""
+  );
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
@@ -65,7 +77,8 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   const matchesInView = useMemo(() => {
     return validSchedules.filter((s) => {
-      const matchWeek = selectedWeek === "" || Number(s.weekNumber || 1) === Number(selectedWeek);
+      const matchWeek =
+        selectedWeek === "" || Number(s.weekNumber || 1) === Number(selectedWeek);
       const matchTeam =
         selectedTeam === "" ||
         s.teamAName?.toLowerCase() === selectedTeam.toLowerCase() ||
@@ -160,13 +173,10 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
       }
     };
 
-    // 1. Fetch pertama kali
     fetchReport();
 
-    // 2. Polling setiap 8 detik selama duel BELUM selesai
-    // Tetap jalan saat report masih kosong menunggu ronde 1 dari wasit
     const interval = setInterval(() => {
-      if (document.hidden) return; // Hemat resource saat browser di minimize / ganti tab
+      if (document.hidden) return;
       if (!isFinished) {
         fetchReport(true);
       }
@@ -214,6 +224,118 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   const isFilterActive = Boolean(selectedWeek !== "" || selectedTeam || selectedMatchId);
 
+  // ── MODE OVERLAY STREAM (OBS) ──
+  if (isOverlayMode) {
+    const recentGames = [...games].slice(-3).reverse();
+
+    return (
+      <div className="w-full max-w-[420px] rounded-2xl border border-white/15 bg-slate-950/90 text-white p-3.5 shadow-2xl backdrop-blur-md space-y-3 font-sans">
+        {/* Scoreboard Ringkas */}
+        <div className="rounded-xl bg-white/5 p-2.5 border border-white/10">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 text-center min-w-0">
+              <div className="text-xs font-black uppercase tracking-wider truncate text-sky-400">
+                {teamA.name || activeSchedule?.teamAName || "Team A"}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 px-3 py-1 bg-black/60 rounded-lg border border-white/10 font-mono">
+              <span
+                className={`text-xl font-black ${
+                  scoreA >= 10 ? "text-emerald-400" : scoreA > scoreB ? "text-white" : "text-white/70"
+                }`}
+              >
+                {scoreA}
+              </span>
+              <span className="text-xs text-white/40 font-bold">-</span>
+              <span
+                className={`text-xl font-black ${
+                  scoreB >= 10 ? "text-emerald-400" : scoreB > scoreA ? "text-white" : "text-white/70"
+                }`}
+              >
+                {scoreB}
+              </span>
+            </div>
+
+            <div className="flex-1 text-center min-w-0">
+              <div className="text-xs font-black uppercase tracking-wider truncate text-rose-400">
+                {teamB.name || activeSchedule?.teamBName || "Team B"}
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center mt-1.5">
+            <span className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-white/10 text-white/80">
+              {isFinished
+                ? "MATCH SELESAI"
+                : games.length === 0
+                ? "MENUNGGU RONDE PERTAMA"
+                : `GAME ${games.length + 1} LIVE`}
+            </span>
+          </div>
+        </div>
+
+        {/* Riwayat 3 Duel Terakhir */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-black uppercase tracking-wider text-white/50 px-1">
+            Recent Duels
+          </div>
+
+          {recentGames.length === 0 ? (
+            <div className="text-center py-4 text-[11px] text-white/40 italic bg-white/5 rounded-xl border border-white/5">
+              Menunggu wasit menginput ronde...
+            </div>
+          ) : (
+            recentGames.map((g, idx) => {
+              const isAWin = g.winner === "teamA";
+              const actualGameNum = games.length - idx;
+
+              return (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs"
+                >
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="font-bold truncate text-white">{g.playerA?.ign || "-"}</div>
+                    <div className="text-[9px] text-white/60 truncate">{g.playerA?.archetype || "-"}</div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 px-2 shrink-0">
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-black font-mono ${
+                        isAWin
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                      }`}
+                    >
+                      {isAWin ? "W" : "L"}
+                    </span>
+                    <span className="text-[9px] font-mono text-white/40">G{actualGameNum}</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-black font-mono ${
+                        !isAWin
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                      }`}
+                    >
+                      {!isAWin ? "W" : "L"}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 min-w-0 text-right">
+                    <div className="font-bold truncate text-white">{g.playerB?.ign || "-"}</div>
+                    <div className="text-[9px] text-white/60 truncate">{g.playerB?.archetype || "-"}</div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── MODE NORMAL WEB ──
   return (
     <div className="w-full space-y-4">
       <ReportFilter
@@ -285,4 +407,4 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
       )}
     </div>
   );
-}
+                  }
