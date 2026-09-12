@@ -55,35 +55,19 @@ export function ReportFilter({
 
   const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
 
-  const renderDropdownScore = (scoreA?: number, scoreB?: number) => {
-    if (scoreA === undefined || scoreB === undefined) return null;
-    const aWin = scoreA >= 10;
-    const bWin = scoreB >= 10;
+  const renderScore = (sA?: number, sB?: number) => {
+    if (sA === undefined || sB === undefined) return null;
+    const aWin = sA >= 10;
+    const bWin = sB >= 10;
 
     return (
-      <span className="font-mono text-[10px] bg-muted/60 px-1.5 py-0.5 rounded border border-border/50">
-        <span
-          className={
-            aWin
-              ? "text-emerald-600 dark:text-emerald-400 font-bold"
-              : bWin
-              ? "text-rose-600 dark:text-rose-400 font-bold"
-              : "text-foreground/80 font-medium"
-          }
-        >
-          {scoreA}
+      <span className="font-mono text-[10px] bg-muted/70 px-1.5 py-0.5 rounded-md border border-border/60">
+        <span className={aWin ? "text-emerald-600 dark:text-emerald-400 font-bold" : bWin ? "text-rose-600 dark:text-rose-400 font-bold" : "text-foreground/80 font-medium"}>
+          {sA}
         </span>
         <span className="mx-0.5 text-muted-foreground/40">-</span>
-        <span
-          className={
-            bWin
-              ? "text-emerald-600 dark:text-emerald-400 font-bold"
-              : aWin
-              ? "text-rose-600 dark:text-rose-400 font-bold"
-              : "text-foreground/80 font-medium"
-          }
-        >
-          {scoreB}
+        <span className={bWin ? "text-emerald-600 dark:text-emerald-400 font-bold" : aWin ? "text-rose-600 dark:text-rose-400 font-bold" : "text-foreground/80 font-medium"}>
+          {sB}
         </span>
       </span>
     );
@@ -91,7 +75,7 @@ export function ReportFilter({
 
   return (
     <div ref={containerRef} className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2.5">
-      {/* ── BARIS 1: PILIH WEEK & PILIH TIM ── */}
+      {/* ── BARIS 1: WEEK & TIM ── */}
       <div className="grid grid-cols-2 gap-2">
         {/* Dropdown Week */}
         <div className="relative">
@@ -150,9 +134,7 @@ export function ReportFilter({
             onClick={() => setOpenDropdown(openDropdown === "team" ? null : "team")}
             className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
           >
-            <span className="truncate">
-              {selectedTeam || "-- Semua Tim --"}
-            </span>
+            <span className="truncate">{selectedTeam || "-- Semua Tim --"}</span>
             <span className={`text-[10px] text-primary transition-transform ${openDropdown === "team" ? "rotate-180" : ""}`}>
               ▼
             </span>
@@ -194,9 +176,8 @@ export function ReportFilter({
         </div>
       </div>
 
-      {/* ── BARIS 2: PILIH MATCH & TOMBOL RESET ── */}
+      {/* ── BARIS 2: MATCH & TOMBOL RESET ── */}
       <div className="flex items-center gap-2">
-        {/* Dropdown Match */}
         <div className="relative flex-1 min-w-0">
           <button
             type="button"
@@ -209,11 +190,13 @@ export function ReportFilter({
             <span className="truncate flex items-center gap-1.5">
               {activeMatch ? (
                 <>
-                  <span>
-                    {selectedWeek === "" ? `[W${activeMatch.weekNumber}] ` : ""}
-                    {activeMatch.teamAName} vs {activeMatch.teamBName}
-                  </span>
-                  {activeMatch.isFinished && renderDropdownScore(activeMatch.scoreA, activeMatch.scoreB)}
+                  {selectedWeek === "" && (
+                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-primary/10 text-primary border border-primary/20">
+                      W{activeMatch.weekNumber}
+                    </span>
+                  )}
+                  <span>{activeMatch.teamAName} vs {activeMatch.teamBName}</span>
+                  {activeMatch.isFinished && renderScore(activeMatch.scoreA, activeMatch.scoreB)}
                 </>
               ) : matchesInView.length === 0 ? (
                 "Tidak ada jadwal"
@@ -242,19 +225,22 @@ export function ReportFilter({
                       isSelected ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
                     }`}
                   >
-                    <div className="truncate pr-2">
+                    <div className="flex items-center gap-1.5 truncate pr-2">
+                      {/* Pill Badge Pekan */}
                       {selectedWeek === "" && (
-                        <span className="font-bold text-primary mr-1.5">[W{m.weekNumber}]</span>
+                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-primary/10 text-primary border border-primary/20 shrink-0">
+                          W{m.weekNumber}
+                        </span>
                       )}
-                      <span>{m.teamAName}</span>
-                      <span className="text-muted-foreground text-[10px] mx-1">vs</span>
-                      <span>{m.teamBName}</span>
+                      <span className="truncate">
+                        <span className="font-medium text-foreground">{m.teamAName}</span>
+                        <span className="text-muted-foreground text-[10px] mx-1">vs</span>
+                        <span className="font-medium text-foreground">{m.teamBName}</span>
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* Skor (Hijau untuk pemenang 10, Merah untuk yang kalah) */}
-                      {m.isFinished && renderDropdownScore(m.scoreA, m.scoreB)}
-                      {/* Satu tanda centang untuk penanda match aktif */}
+                      {m.isFinished && renderScore(m.scoreA, m.scoreB)}
                       {isSelected && <span className="text-primary font-bold">✓</span>}
                     </div>
                   </button>
@@ -281,4 +267,5 @@ export function ReportFilter({
       </div>
     </div>
   );
-}
+    }
+                    
