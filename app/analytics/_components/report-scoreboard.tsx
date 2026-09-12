@@ -46,7 +46,7 @@ export function ReportScoreboard({
 
   return (
     <>
-      {/* ── KOTAK 1: INFO MATCH (Scroll biasa) ── */}
+      {/* ── KOTAK 1: INFO MATCH ── */}
       <div className="rounded-2xl bg-card border border-border/80 p-3 shadow-xs mb-3">
         <div className="grid grid-cols-[1fr_1.4fr_1fr] gap-1.5 text-center items-center text-[10px]">
           <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
@@ -110,10 +110,11 @@ export function ReportScoreboard({
         </div>
       </div>
 
-      {/* ── KOTAK 2: SCOREBOARD TIM (Disesuaikan agar tidak terpotong) ── */}
+      {/* ── KOTAK 2: SCOREBOARD TIM (STICKY) ── */}
       <div className="sticky top-[100px] sm:top-[106px] z-30 mb-4">
         <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-border/80 p-3 shadow-md">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            {/* Tim Kiri */}
             <div className="flex flex-col items-center text-center min-w-0">
               <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
                 {logoA && !logoErrA ? (
@@ -137,6 +138,7 @@ export function ReportScoreboard({
               </div>
             </div>
 
+            {/* Skor & Label Repeat / Warn Berwarna */}
             <div className="flex flex-col items-center justify-center px-2 shrink-0">
               <div className="flex items-center gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
                 <span className={aIsLeading ? 'text-primary' : 'text-foreground/90'}>{scoreA}</span>
@@ -144,20 +146,25 @@ export function ReportScoreboard({
                 <span className={bIsLeading ? 'text-primary' : 'text-foreground/90'}>{scoreB}</span>
               </div>
 
-              <div className="mt-1.5 space-y-0.5 text-[9px] text-muted-foreground w-full max-w-[120px]">
+              <div className="mt-1.5 space-y-0.5 text-[9px] w-full max-w-[124px]">
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 text-center font-mono">
                   <span className="font-bold text-foreground/80">{teamA.repeatsUsed ?? 0}/2</span>
-                  <span className="text-muted-foreground/50 uppercase text-[8px] font-sans">Repeat</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-bold uppercase text-[8px] font-sans">
+                    Repeat
+                  </span>
                   <span className="font-bold text-foreground/80">{teamB.repeatsUsed ?? 0}/2</span>
                 </div>
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 text-center font-mono">
                   <span className="font-bold text-foreground/80">{teamA.warningsUsed ?? 0}/2</span>
-                  <span className="text-muted-foreground/50 uppercase text-[8px] font-sans">Warn</span>
+                  <span className="text-rose-600 dark:text-rose-400 font-bold uppercase text-[8px] font-sans">
+                    Warn
+                  </span>
                   <span className="font-bold text-foreground/80">{teamB.warningsUsed ?? 0}/2</span>
                 </div>
               </div>
             </div>
 
+            {/* Tim Kanan */}
             <div className="flex flex-col items-center text-center min-w-0">
               <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
                 {logoB && !logoErrB ? (
