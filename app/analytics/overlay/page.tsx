@@ -6,11 +6,9 @@ import { MatchReportsView } from "../_components/match-reports-view";
 
 export const dynamic = "force-dynamic";
 
-// Memastikan tampilan 1:1 tajam dan proporsional (tidak mengecil di HP atau window sempit OBS)
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export const metadata: Metadata = {
@@ -40,12 +38,12 @@ export default async function OverlayPage(props: OverlayPageProps) {
   const currentMatch = searchParams.match || "";
   const viewMode = searchParams.view || "";
 
-  // SISI KIRI OBS: Widget Skor Match Lain (Exclude Match yang Sedang Tayang)
+  // SISI KIRI OBS (Match Lain): Full width mengikuti ukuran window OBS
   if (viewMode === "other-matches") {
     return (
-      <main className="w-full min-h-screen bg-transparent p-2 sm:p-4 flex flex-col justify-start items-start font-sans">
+      <main className="w-full min-h-screen bg-transparent p-2 font-sans">
         <Suspense fallback={null}>
-          <div className="w-full max-w-[420px]">
+          <div className="w-full">
             <OtherMatchesTicker
               currentMatchId={currentMatch}
               schedules={schedules}
@@ -56,11 +54,11 @@ export default async function OverlayPage(props: OverlayPageProps) {
     );
   }
 
-  // SISI KANAN OBS: Report Match Utama
+  // SISI KANAN OBS (Report Utama): Full width mengikuti window OBS
   return (
-    <main className="w-full min-h-screen bg-transparent p-2 sm:p-4 font-sans">
-      <Suspense fallback={<div className="text-white/60 text-xs p-3">Memuat data overlay...</div>}>
-        <div className="w-full max-w-[440px]">
+    <main className="w-full min-h-screen bg-transparent p-2 font-sans">
+      <Suspense fallback={<div className="text-white/60 text-xs p-3">Memuat data...</div>}>
+        <div className="w-full">
           <MatchReportsView schedules={schedules} isOverlayMode={true} />
         </div>
       </Suspense>
