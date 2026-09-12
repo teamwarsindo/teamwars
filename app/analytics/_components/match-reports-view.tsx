@@ -42,7 +42,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     return matchParam && validSchedules.length ? validSchedules.find((s) => s.id === matchParam) || null : null;
   }, [validSchedules, matchParam]);
 
-  const [selectedWeek, setSelectedWeek] = useState<number | "">(initialMatch ? initialMatch.weekNumber : "");
+  const [selectedWeek, setSelectedWeek] = useState<number | "">(initialMatch ? Number(initialMatch.weekNumber) : "");
   const [selectedMatchId, setSelectedMatchId] = useState<string>(initialMatch ? initialMatch.id : "");
   const [searchTeam, setSearchTeam] = useState("");
   const [report, setReport] = useState<any>(null);
