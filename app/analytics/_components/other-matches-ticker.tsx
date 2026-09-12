@@ -38,9 +38,7 @@ export function OtherMatchesTicker({
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(Date.now());
-    }, 60000);
+    const timer = setInterval(() => setNow(Date.now()), 60000);
     return () => clearInterval(timer);
   }, []);
 
@@ -130,7 +128,7 @@ export function OtherMatchesTicker({
           setLiveScores(map);
         }
       } catch (err) {
-        console.error("Gagal sinkron skor match lain:", err);
+        console.error("Gagal sinkron skor:", err);
       }
     };
 
@@ -150,7 +148,7 @@ export function OtherMatchesTicker({
   if (siblingMatches.length === 0) return null;
 
   return (
-    <div className="w-full select-none space-y-2.5 font-sans">
+    <div className="w-full flex flex-col gap-3 font-sans select-none p-1">
       {siblingMatches.map((m) => {
         const live = liveScores[m.id] || {
           scoreA: m.scoreA ?? 0,
@@ -169,97 +167,92 @@ export function OtherMatchesTicker({
         return (
           <div
             key={m.id}
-            className="w-full rounded-2xl border border-slate-700/60 bg-[#0f172a]/90 px-3.5 py-2.5 shadow-xl backdrop-blur-md space-y-1.5"
+            className="w-full rounded-xl bg-slate-950/95 border border-red-500/30 shadow-2xl p-3 flex flex-col gap-2 backdrop-blur-md"
           >
-            {/* Header Mini: Match No • Grup • Status */}
-            <div className="flex items-center justify-between text-[11px] font-bold px-0.5 border-b border-white/10 pb-1">
-              <span className="text-white font-black tracking-wide">
-                {m.id.replace("match-", "MATCH ")}
-              </span>
-              <span className="text-sky-400 truncate max-w-[130px]">
-                {m.groupName || "Group Stage"}
-              </span>
+            {/* Header: MATCH ID & STATUS */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-1.5 px-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black tracking-wider text-white">
+                  {m.id.replace("match-", "MATCH ")}
+                </span>
+                <span className="text-[10px] text-cyan-400 font-bold truncate max-w-[140px]">
+                  {m.groupName || "GROUP STAGE"}
+                </span>
+              </div>
               <span
-                className={`px-2 py-0.2 rounded-full text-[9px] font-black font-mono tracking-wider ${
+                className={`px-2 py-0.5 rounded text-[9px] font-black font-mono tracking-wider ${
                   isDone
-                    ? "bg-white/10 text-white/60 border border-white/10"
-                    : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse"
+                    ? "bg-white/10 text-white/60"
+                    : "bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse"
                 }`}
               >
                 {isDone ? "FT" : "LIVE"}
               </span>
             </div>
 
-            {/* Row Utama: [Logo + Nama Tim A] | [Skor & Repeat/Warn] | [Nama Tim B + Logo] */}
-            <div className="flex items-center justify-between gap-1.5 pt-0.5">
-              {/* Sisi Kiri: Logo + Nama Tim A */}
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-black/70 border border-white/15 p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+            {/* Tim A (Row Atas) */}
+            <div className="flex items-center justify-between gap-2 bg-white/[0.03] p-1.5 rounded-lg border border-white/5">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-lg bg-black/80 border border-white/15 p-0.5 flex items-center justify-center shrink-0">
                   {m.teamALogo ? (
-                    <img
-                      src={m.teamALogo}
-                      alt={m.teamAName || "Team A"}
-                      className="w-full h-full object-contain"
-                    />
+                    <img src={m.teamALogo} alt={m.teamAName || "A"} className="w-full h-full object-contain" />
                   ) : (
-                    <span className="text-xs font-black text-white/50">A</span>
+                    <span className="text-xs font-black text-white/40">A</span>
                   )}
                 </div>
-                <span className="text-xs font-black text-white truncate uppercase leading-tight">
-                  {m.teamAName}
-                </span>
-              </div>
-
-              {/* Sisi Tengah: Skor Besar + Repeat/Warn */}
-              <div className="flex flex-col items-center justify-center shrink-0 px-1">
-                <div className="flex items-center gap-2 font-mono">
-                  <span
-                    className={`text-2xl font-black ${
-                      aWin ? "text-emerald-400" : "text-white"
-                    }`}
-                  >
-                    {live.scoreA}
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-black text-white truncate uppercase tracking-tight">
+                    {m.teamAName}
                   </span>
-                  <span className="text-sm font-bold text-white/40">-</span>
-                  <span
-                    className={`text-2xl font-black ${
-                      bWin ? "text-emerald-400" : "text-white"
-                    }`}
-                  >
-                    {live.scoreB}
-                  </span>
-                </div>
-
-                <div className="flex flex-col items-center leading-none mt-0.5">
-                  <div className="flex items-center gap-1 font-mono text-[9px] font-bold">
-                    <span className="text-slate-300">{live.repeatA}/2</span>
-                    <span className="text-amber-400 font-black text-[7.5px] tracking-wider">REPEAT</span>
-                    <span className="text-slate-300">{live.repeatB}/2</span>
-                  </div>
-                  <div className="flex items-center gap-1 font-mono text-[9px] font-bold">
-                    <span className="text-slate-300">{live.warnA}/2</span>
-                    <span className="text-rose-400 font-black text-[7.5px] tracking-wider">WARN</span>
-                    <span className="text-slate-300">{live.warnB}/2</span>
+                  <div className="flex items-center gap-2 text-[9px] font-mono font-bold text-white/50">
+                    <span>R: {live.repeatA}/2</span>
+                    <span>W: {live.warnA}/2</span>
                   </div>
                 </div>
               </div>
 
-              {/* Sisi Kanan: Nama Tim B + Logo */}
-              <div className="flex items-center justify-end gap-2 flex-1 min-w-0 text-right">
-                <span className="text-xs font-black text-white truncate uppercase leading-tight">
-                  {m.teamBName}
-                </span>
-                <div className="w-9 h-9 rounded-xl bg-black/70 border border-white/15 p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+              {/* Skor Tim A */}
+              <div
+                className={`w-9 h-8 rounded-md flex items-center justify-center font-mono text-lg font-black shrink-0 ${
+                  aWin
+                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                    : "bg-black/60 text-white border border-white/15"
+                }`}
+              >
+                {live.scoreA}
+              </div>
+            </div>
+
+            {/* Tim B (Row Bawah) */}
+            <div className="flex items-center justify-between gap-2 bg-white/[0.03] p-1.5 rounded-lg border border-white/5">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-lg bg-black/80 border border-white/15 p-0.5 flex items-center justify-center shrink-0">
                   {m.teamBLogo ? (
-                    <img
-                      src={m.teamBLogo}
-                      alt={m.teamBName || "Team B"}
-                      className="w-full h-full object-contain"
-                    />
+                    <img src={m.teamBLogo} alt={m.teamBName || "B"} className="w-full h-full object-contain" />
                   ) : (
-                    <span className="text-xs font-black text-white/50">B</span>
+                    <span className="text-xs font-black text-white/40">B</span>
                   )}
                 </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-black text-white truncate uppercase tracking-tight">
+                    {m.teamBName}
+                  </span>
+                  <div className="flex items-center gap-2 text-[9px] font-mono font-bold text-white/50">
+                    <span>R: {live.repeatB}/2</span>
+                    <span>W: {live.warnB}/2</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Skor Tim B */}
+              <div
+                className={`w-9 h-8 rounded-md flex items-center justify-center font-mono text-lg font-black shrink-0 ${
+                  bWin
+                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                    : "bg-black/60 text-white border border-white/15"
+                }`}
+              >
+                {live.scoreB}
               </div>
             </div>
           </div>
