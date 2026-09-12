@@ -40,12 +40,13 @@ export function ReportLogs({ games }: ReportLogsProps) {
                     <div className="text-[10px] font-medium text-muted-foreground truncate w-full mt-0.5 leading-tight">
                       {pA.archetype || "-"}
                     </div>
-                    <div className="text-[8.5px] font-mono text-muted-foreground/75 truncate w-full">
+                    {/* Ukuran dan warna skill disamakan dengan deck */}
+                    <div className="text-[10px] font-medium text-muted-foreground truncate w-full leading-tight">
                       {skillA}
                     </div>
                   </div>
 
-                  {/* Sisi Tengah: Kotak Simetris untuk R di Atas, W/L di Tengah, TL di Bawah */}
+                  {/* Sisi Tengah: Simetris R di Atas, W/L di Tengah, TL di Bawah */}
                   <div className="flex flex-col items-center justify-center shrink-0 px-1">
                     {/* Baris Atas: R & Ronde */}
                     <div className="flex items-center justify-between w-full h-[14px] px-0.5">
@@ -68,7 +69,7 @@ export function ReportLogs({ games }: ReportLogsProps) {
                       </div>
                     </div>
 
-                    {/* Baris Tengah: [ W ] vs [ L ] (Font Sans Normal Lega) */}
+                    {/* Baris Tengah: [ W ] vs [ L ] */}
                     <div className="flex items-center gap-1.5 my-1">
                       <span
                         className={`w-6 h-6 flex items-center justify-center rounded font-sans text-[11px] font-bold tracking-normal shadow-2xs ${
@@ -123,7 +124,8 @@ export function ReportLogs({ games }: ReportLogsProps) {
                     <div className="text-[10px] font-medium text-muted-foreground truncate w-full mt-0.5 leading-tight">
                       {pB.archetype || "-"}
                     </div>
-                    <div className="text-[8.5px] font-mono text-muted-foreground/75 truncate w-full">
+                    {/* Ukuran dan warna skill disamakan dengan deck */}
+                    <div className="text-[10px] font-medium text-muted-foreground truncate w-full leading-tight">
                       {skillB}
                     </div>
                   </div>
@@ -153,4 +155,4 @@ export function ReportLogs({ games }: ReportLogsProps) {
       </div>
     </div>
   );
-}
+                    }
