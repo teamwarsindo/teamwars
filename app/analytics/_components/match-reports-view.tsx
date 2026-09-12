@@ -22,7 +22,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   const matchParam = searchParams.get("match") || "";
 
-  // Cari pekan aktif tertinggi
+  // Pekan aktif tertinggi (berdasarkan match yang sudah selesai)
   const maxActiveWeek = useMemo(() => {
     return schedules.reduce((max, s) => {
       const w = Number(s.weekNumber || 1);
@@ -30,7 +30,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     }, 1);
   }, [schedules]);
 
-  // Hanya jadwal sampai pekan aktif
+  // Pembatasan jadwal: Maksimal sampai pekan aktif saat ini (tidak melebar ke pekan depan)
   const validSchedules = useMemo(() => {
     return schedules.filter((s) => Number(s.weekNumber || 1) <= maxActiveWeek);
   }, [schedules, maxActiveWeek]);
@@ -44,20 +44,49 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     return matchParam && validSchedules.length ? validSchedules.find((s) => s.id === matchParam) || null : null;
   }, [validSchedules, matchParam]);
 
-  const [selectedWeek, setSelectedWeek] = useState<number | "">(initialMatch ? Number(initialMatch.weekNumber) : "");
+  const [selectedWeek, setSelectedWeek] = useState<number | "">(
+    initialMatch ? Number(initialMatch.weekNumber) : maxActiveWeek
+  );
+  const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [selectedMatchId, setSelectedMatchId] = useState<string>(initialMatch ? initialMatch.id : "");
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  // Matches in view murni mengikuti dropdown week
+  // Daftar seluruh nama tim unik yang bertanding sampai pekan ini
+  const availableTeams = useMemo(() => {
+    const teams = new Set<string>();
+    validSchedules.forEach((s) => {
+      if (s.teamAName) teams.add(s.teamAName);
+      if (s.teamBName) teams.add(s.teamBName);
+    });
+    return Array.from(teams).sort();
+  }, [validSchedules]);
+
+  // Filter daftar pertandingan berdasarkan Pekan dan Tim
   const matchesInView = useMemo(() => {
-    if (!selectedWeek) return [];
-    return validSchedules.filter((s) => Number(s.weekNumber || 1) === Number(selectedWeek));
-  }, [validSchedules, selectedWeek]);
+    return validSchedules.filter((s) => {
+      const matchWeek = selectedWeek === "" || Number(s.weekNumber || 1) === Number(selectedWeek);
+      const matchTeam =
+        selectedTeam === "" ||
+        s.teamAName?.toLowerCase() === selectedTeam.toLowerCase() ||
+        s.teamBName?.toLowerCase() === selectedTeam.toLowerCase();
+      return matchWeek && matchTeam;
+    });
+  }, [validSchedules, selectedWeek, selectedTeam]);
 
-  const activeSchedule = useMemo(() => validSchedules.find((s) => s.id === selectedMatchId), [validSchedules, selectedMatchId]);
+  // Auto-select jika hasil filter menyisakan tepat 1 match
+  useEffect(() => {
+    if (matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
+      handleMatchChange(matchesInView[0].id);
+    }
+  }, [matchesInView, selectedMatchId]);
 
-  const handleWeekChange = (week: number) => {
+  const activeSchedule = useMemo(
+    () => validSchedules.find((s) => s.id === selectedMatchId),
+    [validSchedules, selectedMatchId]
+  );
+
+  const handleWeekChange = (week: number | "") => {
     setSelectedWeek(week);
     setSelectedMatchId("");
     setReport(null);
@@ -66,28 +95,33 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     router.replace(`/analytics?${params.toString()}`, { scroll: false });
   };
 
-  const handleMatchChange = useCallback((newMatchId: string) => {
-    setSelectedMatchId(newMatchId);
-    const matched = validSchedules.find((s) => s.id === newMatchId);
-    if (matched) setSelectedWeek(Number(matched.weekNumber));
+  const handleTeamChange = (team: string) => {
+    setSelectedTeam(team);
+    setSelectedMatchId("");
+    setReport(null);
     const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "reports");
-    params.set("match", newMatchId);
+    params.delete("match");
     router.replace(`/analytics?${params.toString()}`, { scroll: false });
-  }, [searchParams, router, validSchedules]);
+  };
 
-  // Pemilihan langsung dari search bar: mengisi otomatis week & match
-  const handleSelectFromSearch = useCallback((m: ReportFilterMatchItem) => {
-    setSelectedWeek(Number(m.weekNumber));
-    setSelectedMatchId(m.id);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "reports");
-    params.set("match", m.id);
-    router.replace(`/analytics?${params.toString()}`, { scroll: false });
-  }, [searchParams, router]);
+  const handleMatchChange = useCallback(
+    (newMatchId: string) => {
+      setSelectedMatchId(newMatchId);
+      const matched = validSchedules.find((s) => s.id === newMatchId);
+      if (matched && selectedWeek === "") {
+        setSelectedWeek(Number(matched.weekNumber));
+      }
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "reports");
+      params.set("match", newMatchId);
+      router.replace(`/analytics?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, router, validSchedules, selectedWeek]
+  );
 
   const handleReset = () => {
-    setSelectedWeek("");
+    setSelectedWeek(maxActiveWeek);
+    setSelectedTeam("");
     setSelectedMatchId("");
     setReport(null);
     const params = new URLSearchParams(searchParams.toString());
@@ -147,30 +181,10 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     if (!raw) return { day: "-", date: "-", time: "-" };
     try {
       const d = new Date(raw);
-      const day = new Intl.DateTimeFormat("id-ID", {
-        weekday: "long",
-        timeZone: "Asia/Jakarta",
-      }).format(d);
-
-      const date = new Intl.DateTimeFormat("id-ID", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-        timeZone: "Asia/Jakarta",
-      }).format(d);
-
-      const timeStr = new Intl.DateTimeFormat("id-ID", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-        timeZone: "Asia/Jakarta",
-      }).format(d);
-
-      return {
-        day,
-        date,
-        time: `${timeStr.replace(":", ".")} WIB`,
-      };
+      const day = new Intl.DateTimeFormat("id-ID", { weekday: "long", timeZone: "Asia/Jakarta" }).format(d);
+      const date = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(d);
+      const timeStr = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" }).format(d);
+      return { day, date, time: `${timeStr.replace(":", ".")} WIB` };
     } catch {
       return { day: "-", date: raw, time: "-" };
     }
@@ -196,25 +210,27 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     };
   }, [isFinished, games, teamA.name, teamB.name]);
 
+  const isFilterActive = Boolean(selectedWeek !== maxActiveWeek || selectedTeam || selectedMatchId);
+
   return (
     <div className="w-full space-y-4">
-      {/* Filter Terpadu: Search Autocomplete + Dual Dropdown */}
       <ReportFilter
         selectedWeek={selectedWeek}
         onWeekChange={handleWeekChange}
         availableWeeks={availableWeeks}
+        selectedTeam={selectedTeam}
+        onTeamChange={handleTeamChange}
+        availableTeams={availableTeams}
         selectedMatchId={selectedMatchId}
         onMatchChange={handleMatchChange}
         matchesInView={matchesInView}
-        allAvailableMatches={validSchedules}
-        onSelectFromSearch={handleSelectFromSearch}
-        isFilterActive={Boolean(selectedWeek || selectedMatchId)}
+        isFilterActive={isFilterActive}
         onReset={handleReset}
       />
 
       {!selectedMatchId ? (
         <div className="p-12 text-center text-xs text-muted-foreground bg-card rounded-2xl border border-border shadow-xs">
-          Silakan pilih atau cari pertandingan di atas untuk memuat laporan duel.
+          Silakan pilih pertandingan di atas untuk memuat laporan duel.
         </div>
       ) : loading && !report ? (
         <div className="p-12 text-center text-xs font-bold text-primary animate-pulse bg-card rounded-2xl border border-border">
@@ -269,4 +285,4 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
       )}
     </div>
   );
-      }
+    }
