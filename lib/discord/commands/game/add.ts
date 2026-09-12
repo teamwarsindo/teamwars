@@ -2,7 +2,7 @@ import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { MatchScheduleItem } from '@/app/tournament/_library';
-import { sendOfficialScoreLog } from '@/lib/discord/messages/assignment-log';
+import { sendOfficialScoreLog } from '@/lib/discord/messages/score-log';
 import { getMatchContext } from '@/lib/discord/commands/assign/helpers';
 import { GameContext } from './types';
 import {
