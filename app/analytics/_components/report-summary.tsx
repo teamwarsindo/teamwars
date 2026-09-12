@@ -135,16 +135,7 @@ export function ReportSummary({
                   {statA.maxStreak.player}
                 </div>
                 <div className="text-[10px] text-muted-foreground font-medium">
-                  {statA.maxStreak.hasStreak ? (
-                    <>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">
-                        {statA.maxStreak.count}
-                      </span>{" "}
-                      Win Streak
-                    </>
-                  ) : (
-                    "-"
-                  )}
+                  {statA.maxStreak.hasStreak ? `${statA.maxStreak.count} Win Streak` : "-"}
                 </div>
                 <div className="text-[10px] text-muted-foreground font-mono">
                   {statA.maxStreak.rangeStr}
@@ -160,16 +151,7 @@ export function ReportSummary({
                   {statB.maxStreak.player}
                 </div>
                 <div className="text-[10px] text-muted-foreground font-medium">
-                  {statB.maxStreak.hasStreak ? (
-                    <>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">
-                        {statB.maxStreak.count}
-                      </span>{" "}
-                      Win Streak
-                    </>
-                  ) : (
-                    "-"
-                  )}
+                  {statB.maxStreak.hasStreak ? `${statB.maxStreak.count} Win Streak` : "-"}
                 </div>
                 <div className="text-[10px] text-muted-foreground font-mono">
                   {statB.maxStreak.rangeStr}
