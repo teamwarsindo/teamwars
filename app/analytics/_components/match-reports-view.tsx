@@ -22,7 +22,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   const matchParam = searchParams.get("match") || "";
 
-  // Cari pekan aktif tertinggi yang sudah/sedang berlangsung
+  // Cari pekan aktif tertinggi
   const maxActiveWeek = useMemo(() => {
     return schedules.reduce((max, s) => {
       const w = Number(s.weekNumber || 1);
@@ -30,7 +30,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     }, 1);
   }, [schedules]);
 
-  // Hanya jadwal sampai pekan aktif yang diperbolehkan
+  // Hanya jadwal sampai pekan aktif
   const validSchedules = useMemo(() => {
     return schedules.filter((s) => Number(s.weekNumber || 1) <= maxActiveWeek);
   }, [schedules, maxActiveWeek]);
@@ -46,39 +46,24 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   const [selectedWeek, setSelectedWeek] = useState<number | "">(initialMatch ? Number(initialMatch.weekNumber) : "");
   const [selectedMatchId, setSelectedMatchId] = useState<string>(initialMatch ? initialMatch.id : "");
-  const [searchTeam, setSearchTeam] = useState("");
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  // Filter pertandingan: Jika mencari tim -> lintas week (<= maxActiveWeek), jika tidak -> filter per week
+  // Matches in view murni mengikuti dropdown week
   const matchesInView = useMemo(() => {
-    if (searchTeam.trim() !== "") {
-      const q = searchTeam.toLowerCase().trim();
-      return validSchedules.filter(
-        (s) => s.teamAName?.toLowerCase().includes(q) || s.teamBName?.toLowerCase().includes(q)
-      );
-    }
     if (!selectedWeek) return [];
     return validSchedules.filter((s) => Number(s.weekNumber || 1) === Number(selectedWeek));
-  }, [validSchedules, selectedWeek, searchTeam]);
+  }, [validSchedules, selectedWeek]);
 
   const activeSchedule = useMemo(() => validSchedules.find((s) => s.id === selectedMatchId), [validSchedules, selectedMatchId]);
 
   const handleWeekChange = (week: number) => {
     setSelectedWeek(week);
-    setSearchTeam("");
     setSelectedMatchId("");
     setReport(null);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("match");
     router.replace(`/analytics?${params.toString()}`, { scroll: false });
-  };
-
-  const handleSearchTeamChange = (val: string) => {
-    setSearchTeam(val);
-    if (val.trim() !== "") {
-      setSelectedWeek("");
-    }
   };
 
   const handleMatchChange = useCallback((newMatchId: string) => {
@@ -91,10 +76,19 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     router.replace(`/analytics?${params.toString()}`, { scroll: false });
   }, [searchParams, router, validSchedules]);
 
+  // Pemilihan langsung dari search bar: mengisi otomatis week & match
+  const handleSelectFromSearch = useCallback((m: ReportFilterMatchItem) => {
+    setSelectedWeek(Number(m.weekNumber));
+    setSelectedMatchId(m.id);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "reports");
+    params.set("match", m.id);
+    router.replace(`/analytics?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
+
   const handleReset = () => {
     setSelectedWeek("");
     setSelectedMatchId("");
-    setSearchTeam("");
     setReport(null);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("match");
@@ -204,7 +198,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   return (
     <div className="w-full space-y-4">
-      {/* 1. Filter Dropdown Terpadu dengan Pencarian Tim */}
+      {/* Filter Terpadu: Search Autocomplete + Dual Dropdown */}
       <ReportFilter
         selectedWeek={selectedWeek}
         onWeekChange={handleWeekChange}
@@ -212,10 +206,10 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
         selectedMatchId={selectedMatchId}
         onMatchChange={handleMatchChange}
         matchesInView={matchesInView}
-        isFilterActive={Boolean(selectedWeek || selectedMatchId || searchTeam)}
+        allAvailableMatches={validSchedules}
+        onSelectFromSearch={handleSelectFromSearch}
+        isFilterActive={Boolean(selectedWeek || selectedMatchId)}
         onReset={handleReset}
-        searchTeam={searchTeam}
-        onSearchTeamChange={handleSearchTeamChange}
       />
 
       {!selectedMatchId ? (
@@ -275,4 +269,4 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
       )}
     </div>
   );
-}
+      }
