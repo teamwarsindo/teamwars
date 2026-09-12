@@ -196,17 +196,17 @@ export function ReportSummary({
             </div>
           </div>
 
-          {/* Most Played Archetype */}
+          {/* Most Played Archetype (Rata Air Sempurna dengan grid teratur) */}
           <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
             <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
               <span>🃏</span> Most Played Archetype
             </div>
             <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
               {/* Sisi Kiri */}
-              <div className="flex flex-col items-center justify-between px-1 space-y-0.5">
-                <div className="w-full flex flex-col items-center">
+              <div className="flex flex-col justify-between px-1 h-full">
+                <div className="space-y-0.5">
                   <div
-                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center justify-center"
                     title={statA.mostDeck.name}
                   >
                     {statA.mostDeck.name}
@@ -214,20 +214,20 @@ export function ReportSummary({
                   {renderRecord(statA.mostDeck.wins, statA.mostDeck.losses)}
                   {renderWpm(statA.mostDeck.wpmVal)}
                 </div>
-                {/* Multi-line wrapping untuk daftar duelist */}
+                {/* Min-height dikunci sama agar sejajar meskipun beda jumlah baris */}
                 <div
-                  className="text-[9.5px] text-muted-foreground break-words leading-tight w-full px-0.5 pt-0.5 text-center min-h-[26px] flex items-center justify-center"
+                  className="text-[9.5px] text-muted-foreground leading-tight w-full px-0.5 pt-1 text-center min-h-[32px] flex items-center justify-center"
                   title={statA.mostDeck.users}
                 >
-                  {statA.mostDeck.users}
+                  <span className="line-clamp-2">{statA.mostDeck.users}</span>
                 </div>
               </div>
 
               {/* Sisi Kanan */}
-              <div className="flex flex-col items-center justify-between px-1 space-y-0.5">
-                <div className="w-full flex flex-col items-center">
+              <div className="flex flex-col justify-between px-1 h-full">
+                <div className="space-y-0.5">
                   <div
-                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center justify-center"
                     title={statB.mostDeck.name}
                   >
                     {statB.mostDeck.name}
@@ -235,12 +235,12 @@ export function ReportSummary({
                   {renderRecord(statB.mostDeck.wins, statB.mostDeck.losses)}
                   {renderWpm(statB.mostDeck.wpmVal)}
                 </div>
-                {/* Multi-line wrapping untuk daftar duelist */}
+                {/* Min-height dikunci sama agar sejajar meskipun beda jumlah baris */}
                 <div
-                  className="text-[9.5px] text-muted-foreground break-words leading-tight w-full px-0.5 pt-0.5 text-center min-h-[26px] flex items-center justify-center"
+                  className="text-[9.5px] text-muted-foreground leading-tight w-full px-0.5 pt-1 text-center min-h-[32px] flex items-center justify-center"
                   title={statB.mostDeck.users}
                 >
-                  {statB.mostDeck.users}
+                  <span className="line-clamp-2">{statB.mostDeck.users}</span>
                 </div>
               </div>
             </div>
@@ -249,4 +249,4 @@ export function ReportSummary({
       </div>
     </div>
   );
-                  }
+}
