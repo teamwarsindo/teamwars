@@ -31,7 +31,7 @@ export const staffCommands = [
   },
   {
     name: 'unassign',
-    description: 'Konfirmasi penyelesaian tugas Referee (rekap skor) atau pembatalan Streamer',
+    description: 'Cabut penugasan Referee atau Streamer dari pertandingan',
     options: [
       {
         type: 3,
@@ -43,24 +43,12 @@ export const staffCommands = [
       {
         type: 3,
         name: 'type',
-        description: 'Pilih peran staf yang akan di-unassign',
+        description: 'Pilih peran staf yang akan dicabut penugasannya',
         required: true,
         choices: [
-          { name: '⚖️ Referee (Selesaikan Match & Wajib Input Skor)', value: 'REFEREE' },
-          { name: '🎥 Streamer (Batal Siaran Langsung)', value: 'STREAMER' },
+          { name: '⚖️ Referee (Wasit Pertandingan)', value: 'REFEREE' },
+          { name: '🎥 Streamer (Kreator / Siaran)', value: 'STREAMER' },
         ],
-      },
-      {
-        type: 4,
-        name: 'score_a',
-        description: 'Skor akhir Tim Kiri (Wajib diisi jika peran Referee)',
-        required: false,
-      },
-      {
-        type: 4,
-        name: 'score_b',
-        description: 'Skor akhir Tim Kanan (Wajib diisi jika peran Referee)',
-        required: false,
       },
     ],
   },
