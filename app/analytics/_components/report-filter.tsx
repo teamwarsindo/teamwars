@@ -9,6 +9,8 @@ export interface ReportFilterMatchItem {
   teamAName?: string;
   teamBName?: string;
   isFinished?: boolean;
+  scoreA?: number;
+  scoreB?: number;
 }
 
 interface ReportFilterProps {
@@ -53,6 +55,40 @@ export function ReportFilter({
 
   const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
 
+  const renderDropdownScore = (scoreA?: number, scoreB?: number) => {
+    if (scoreA === undefined || scoreB === undefined) return null;
+    const aWin = scoreA >= 10;
+    const bWin = scoreB >= 10;
+
+    return (
+      <span className="font-mono text-[10px] bg-muted/60 px-1.5 py-0.5 rounded border border-border/50">
+        <span
+          className={
+            aWin
+              ? "text-emerald-600 dark:text-emerald-400 font-bold"
+              : bWin
+              ? "text-rose-600 dark:text-rose-400 font-bold"
+              : "text-foreground/80 font-medium"
+          }
+        >
+          {scoreA}
+        </span>
+        <span className="mx-0.5 text-muted-foreground/40">-</span>
+        <span
+          className={
+            bWin
+              ? "text-emerald-600 dark:text-emerald-400 font-bold"
+              : aWin
+              ? "text-rose-600 dark:text-rose-400 font-bold"
+              : "text-foreground/80 font-medium"
+          }
+        >
+          {scoreB}
+        </span>
+      </span>
+    );
+  };
+
   return (
     <div ref={containerRef} className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2.5">
       {/* ── BARIS 1: PILIH WEEK & PILIH TIM ── */}
@@ -65,7 +101,7 @@ export function ReportFilter({
             className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
           >
             <span className="truncate">
-              {selectedWeek ? `Week ${selectedWeek}` : "-- Semua Week --"}
+              {selectedWeek !== "" ? `Week ${selectedWeek}` : "-- Semua Week --"}
             </span>
             <span className={`text-[10px] text-primary transition-transform ${openDropdown === "week" ? "rotate-180" : ""}`}>
               ▼
@@ -170,12 +206,20 @@ export function ReportFilter({
               matchesInView.length === 0 ? "opacity-50 cursor-not-allowed text-muted-foreground" : "text-foreground"
             }`}
           >
-            <span className="truncate">
-              {activeMatch
-                ? `${selectedWeek ? "" : `[W${activeMatch.weekNumber}] `}${activeMatch.teamAName} vs ${activeMatch.teamBName}`
-                : matchesInView.length === 0
-                ? "Tidak ada jadwal"
-                : "-- Pilih Pertandingan --"}
+            <span className="truncate flex items-center gap-1.5">
+              {activeMatch ? (
+                <>
+                  <span>
+                    {selectedWeek === "" ? `[W${activeMatch.weekNumber}] ` : ""}
+                    {activeMatch.teamAName} vs {activeMatch.teamBName}
+                  </span>
+                  {activeMatch.isFinished && renderDropdownScore(activeMatch.scoreA, activeMatch.scoreB)}
+                </>
+              ) : matchesInView.length === 0 ? (
+                "Tidak ada jadwal"
+              ) : (
+                "-- Pilih Pertandingan --"
+              )}
             </span>
             <span className={`text-[10px] text-muted-foreground transition-transform ml-1 ${openDropdown === "match" ? "rotate-180" : ""}`}>
               ▼
@@ -199,19 +243,18 @@ export function ReportFilter({
                     }`}
                   >
                     <div className="truncate pr-2">
-                      {!selectedWeek && (
+                      {selectedWeek === "" && (
                         <span className="font-bold text-primary mr-1.5">[W{m.weekNumber}]</span>
                       )}
                       <span>{m.teamAName}</span>
                       <span className="text-muted-foreground text-[10px] mx-1">vs</span>
                       <span>{m.teamBName}</span>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {m.isFinished && (
-                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                          ✓
-                        </span>
-                      )}
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Skor (Hijau untuk pemenang 10, Merah untuk yang kalah) */}
+                      {m.isFinished && renderDropdownScore(m.scoreA, m.scoreB)}
+                      {/* Satu tanda centang untuk penanda match aktif */}
                       {isSelected && <span className="text-primary font-bold">✓</span>}
                     </div>
                   </button>
