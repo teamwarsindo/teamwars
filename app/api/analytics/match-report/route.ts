@@ -20,7 +20,16 @@ export async function GET(req: NextRequest) {
     ]);
 
     if (!reportData) {
-      return NextResponse.json({ error: 'Report data tidak ditemukan' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Report data tidak ditemukan' },
+        {
+          status: 404,
+          headers: {
+            // Cache 2 detik untuk 404 agar tidak spam KV saat menunggu wasit buat data
+            'Cache-Control': 'public, s-maxage=2, stale-while-revalidate=2',
+          },
+        }
+      );
     }
 
     // Parse Map Skill Resmi dari KV
@@ -80,7 +89,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, data: reportData });
+    return NextResponse.json(
+      { success: true, data: reportData },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, s-maxage=4, stale-while-revalidate=4',
+        },
+      }
+    );
   } catch (err: any) {
     console.error('Error fetching analytics match report:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
