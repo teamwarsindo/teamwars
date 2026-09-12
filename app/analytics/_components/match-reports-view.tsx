@@ -114,20 +114,37 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
   const scoreB = teamB.score ?? report?.finalScore?.teamB ?? 0;
   const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10);
 
-  // Parsing Metadata 3-Kolom
+  // Parsing Tanggal & Waktu yang Aman dari Pergeseran Jam UTC
   const parsedDate = useMemo(() => {
     const raw = meta.date || activeSchedule?.matchDate;
     if (!raw) return { day: "-", date: "-", time: "-" };
     try {
       const d = new Date(raw);
-      const day = d.toLocaleDateString("id-ID", { weekday: "long" });
-      const date = d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
-      const time = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
-      return { day, date, time: time !== "00:00" ? time : "-" };
+      const day = d.toLocaleDateString("id-ID", { weekday: "long", timeZone: "Asia/Jakarta" });
+      const date = d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" });
+      
+      // Jika format tanggal hanya YYYY-MM-DD (tanpa T..Z), jangan hitung jam UTC agar tidak menjadi 07.00 WIB
+      const isDateOnly = typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim());
+      if (isDateOnly) {
+        return { day, date, time: "-" };
+      }
+
+      const timeStr = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" });
+      return { day, date, time: timeStr !== "00:00" && timeStr !== "07.00" ? `${timeStr} WIB` : "-" };
     } catch {
       return { day: "-", date: raw, time: "-" };
     }
   }, [meta.date, activeSchedule?.matchDate]);
+
+  // Nomor match diambil dari properti matchNumber atau diekstrak langsung dari id (contoh: "match-40" -> 40)
+  const resolvedMatchNumber = useMemo(() => {
+    if (activeSchedule?.matchNumber) return activeSchedule.matchNumber;
+    if (selectedMatchId) {
+      const extracted = selectedMatchId.replace(/\D/g, "");
+      if (extracted) return extracted;
+    }
+    return 1;
+  }, [activeSchedule?.matchNumber, selectedMatchId]);
 
   const liveInstruction = useMemo(() => {
     if (isFinished || !games.length) return null;
@@ -142,7 +159,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   return (
     <div className="w-full space-y-4">
-      {/* 1. Filter Dropdown (Maks 4 Item) */}
+      {/* 1. Filter Dropdown */}
       <ReportFilter
         selectedWeek={selectedWeek}
         onWeekChange={handleWeekChange}
@@ -171,7 +188,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
         </div>
       ) : (
         <div className="space-y-4">
-          {/* 2. Info Match 3 Kolom + Scoreboard Terpadu */}
+          {/* 2. Metadata Match (Scroll Biasa) + Scoreboard (Sticky Pinned) */}
           <ReportScoreboard
             teamA={teamA}
             teamB={teamB}
@@ -180,17 +197,19 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
             teamALogo={activeSchedule?.teamALogo}
             teamBLogo={activeSchedule?.teamBLogo}
             metadata={{
-              matchNumber: activeSchedule?.matchNumber || 1,
+              matchNumber: resolvedMatchNumber,
               division: activeSchedule?.groupName || meta.division,
               week: selectedWeek || report.week,
-              rawDate: meta.date || activeSchedule?.matchDate,
+              day: parsedDate.day,
+              date: parsedDate.date,
+              time: parsedDate.time,
               referee: meta.referee,
               streamer: meta.streamer,
               streamUrl: meta.streamUrl,
             }}
           />
 
-          {/* 3. Lineup Duelist Bersih Tanpa ID */}
+          {/* 3. Lineup Duelist */}
           <ReportLineup
             lineupA={teamA.lineup || []}
             lineupB={teamB.lineup || []}
@@ -198,10 +217,10 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
             isFinished={isFinished}
           />
 
-          {/* 4. Game Logs (Skor W vs L, R di Atas, TL di Bawah, Keterangan Nempel di Bawah) */}
+          {/* 4. Game Logs */}
           <ReportLogs games={games} />
 
-          {/* 5. Match Summary (50:50 Simetris, Format Bersih Konsisten Kata Player) */}
+          {/* 5. Match Summary */}
           <ReportSummary
             games={games}
             isFinished={isFinished}
@@ -213,5 +232,4 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
       )}
     </div>
   );
-  }
-        
+        }
