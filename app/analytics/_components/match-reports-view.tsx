@@ -12,6 +12,8 @@ export interface ScheduleItem extends ReportFilterMatchItem {
   matchDate?: string;
   isFinished?: boolean;
   matchNumber?: number | string;
+  teamALogo?: string;
+  teamBLogo?: string;
 }
 
 export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[] }) {
