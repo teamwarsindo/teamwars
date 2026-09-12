@@ -45,10 +45,10 @@ export function ReportScoreboard({
   const hasLiveUrl = Boolean(metadata.streamUrl && metadata.streamUrl.trim() !== "" && metadata.streamUrl !== "-");
 
   return (
-    <div className="space-y-2">
-      {/* ── KOTAK 1: INFO MATCH (Ikut ter-scroll, tidak di-pin) ── */}
-      <div className="rounded-2xl bg-card border border-border/80 p-3 shadow-xs">
-        <div className="grid grid-cols-3 gap-1.5 text-center items-center text-[10px]">
+    <>
+      {/* ── KOTAK 1: INFO MATCH (Scroll biasa, tidak di-pin) ── */}
+      <div className="rounded-2xl bg-card border border-border/80 p-3 shadow-xs mb-3">
+        <div className="grid grid-cols-[1fr_1.4fr_1fr] gap-1.5 text-center items-center text-[10px]">
           {/* Kolom 1 (Kiri): Week -> Hari -> Referee */}
           <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
             <span className="font-bold text-muted-foreground truncate w-full">
@@ -64,12 +64,12 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 2 (Tengah): Divisi -> Tanggal -> Live / Share Screen */}
-          <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
-            <span className="text-[10px] font-bold text-primary truncate w-full px-1" title={metadata.division}>
+          {/* Kolom 2 (Tengah Lebih Luas): Divisi -> Tanggal Lengkap -> Live / Share */}
+          <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0 px-1">
+            <span className="text-[10px] font-bold text-primary truncate w-full" title={metadata.division}>
               {metadata.division || "Divisi Official"}
             </span>
-            <span className="text-foreground/80 font-medium truncate w-full">
+            <span className="text-foreground/80 font-medium whitespace-nowrap">
               {metadata.date || "-"}
             </span>
             <div className="pt-0.5 w-full flex justify-center">
@@ -90,7 +90,7 @@ export function ReportScoreboard({
             </div>
           </div>
 
-          {/* Kolom 3 (Kanan): Match -> Waktu -> Streamer */}
+          {/* Kolom 3 (Kanan): Match -> Waktu WIB -> Streamer */}
           <div className="flex flex-col items-center justify-center space-y-0.5 min-w-0">
             <span className="font-bold text-muted-foreground truncate w-full">
               Match {metadata.matchNumber || 1}
@@ -113,8 +113,8 @@ export function ReportScoreboard({
         </div>
       </div>
 
-      {/* ── KOTAK 2: SCOREBOARD TIM (STICKY / DI-PIN DI ATAS) ── */}
-      <div className="sticky top-[92px] sm:top-[98px] z-20 -mx-1 px-1 py-1">
+      {/* ── KOTAK 2: SCOREBOARD TIM (STICKY TER-PIN SEPANJANG CONTAINER UTAMA) ── */}
+      <div className="sticky top-[92px] sm:top-[98px] z-30 mb-4">
         <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-border/80 p-3 shadow-md">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             {/* Tim Kiri */}
@@ -189,6 +189,6 @@ export function ReportScoreboard({
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
-            }
+}
