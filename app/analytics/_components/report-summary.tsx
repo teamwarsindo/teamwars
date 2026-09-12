@@ -42,19 +42,45 @@ export function ReportSummary({
     );
   }
 
-  const renderAggBadge = (agg: number) => {
+  // Helper pewarnaan record Win - Lose
+  const renderRecord = (wins: number, losses: number) => (
+    <div className="text-[10px] font-medium text-muted-foreground">
+      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{wins} Win</span>
+      <span className="mx-1 text-muted-foreground/60">-</span>
+      <span className="text-rose-600 dark:text-rose-400 font-semibold">{losses} Lose</span>
+    </div>
+  );
+
+  // Helper pewarnaan Aggregat (+ hijau, - merah, 0 netral)
+  const renderAgg = (agg: number) => {
     const isPositive = agg > 0;
-    const isZero = agg === 0;
+    const isNegative = agg < 0;
     const colorClass = isPositive
-      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-      : isZero
-      ? "bg-muted/40 text-muted-foreground border-border/50"
-      : "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30";
+      ? "text-emerald-600 dark:text-emerald-400"
+      : isNegative
+      ? "text-rose-600 dark:text-rose-400"
+      : "text-muted-foreground";
 
     return (
-      <span className={`px-2 py-0.5 rounded text-[9.5px] font-black font-mono border ${colorClass}`}>
-        Agg {isPositive ? `+${agg}` : agg}
-      </span>
+      <div className="text-[10px] text-muted-foreground font-mono">
+        Agg <span className={`font-bold ${colorClass}`}>{isPositive ? `+${agg}` : agg}</span>
+      </div>
+    );
+  };
+
+  // Helper pewarnaan WPM (> 50% hijau, < 50% merah, 50% netral)
+  const renderWpm = (wpmVal: number) => {
+    const colorClass =
+      wpmVal > 50
+        ? "text-emerald-600 dark:text-emerald-400"
+        : wpmVal < 50
+        ? "text-rose-600 dark:text-rose-400"
+        : "text-muted-foreground";
+
+    return (
+      <div className="text-[10px] text-muted-foreground font-mono">
+        WPM <span className={`font-bold ${colorClass}`}>{wpmVal}%</span>
+      </div>
     );
   };
 
@@ -62,77 +88,93 @@ export function ReportSummary({
     <div className="space-y-3">
       {/* ── KOTAK 1: DUELIST HIGHLIGHT ── */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-        <div className="py-2.5 px-3 bg-muted/30 border-b border-border text-center">
+        <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
           <span className="text-xs font-black uppercase tracking-wider text-foreground">
             Duelist Highlight
           </span>
         </div>
 
-        <div className="p-3 space-y-3 text-xs">
-          {/* Top Player (Header Digabung) */}
-          <div className="rounded-xl border border-border/70 overflow-hidden bg-card/60">
-            <div className="py-1 px-2 bg-muted/40 border-b border-border/60 text-center text-[10px] font-bold text-muted-foreground flex items-center justify-center gap-1">
+        <div className="p-2.5 space-y-2.5">
+          {/* Modul Top Player */}
+          <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+            <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
               <span>⭐</span> Top Player
             </div>
-            <div className="grid grid-cols-2 divide-x divide-border/60 p-2.5">
+            <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
               {/* Sisi Kiri */}
-              <div className="flex flex-col items-center text-center pr-1 min-w-0">
-                <div className="font-bold text-xs text-foreground truncate max-w-full">
+              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+                <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statA.topPlayer.ign}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {statA.topPlayer.recordStr}
-                </div>
-                <div className="my-1">{renderAggBadge(statA.topPlayer.agregat)}</div>
-                <div className="text-[10px] font-semibold text-foreground/85">
-                  {statA.topPlayer.wpm}
-                </div>
+                {renderRecord(statA.topPlayer.wins, statA.topPlayer.losses)}
+                {renderAgg(statA.topPlayer.agregat)}
+                {renderWpm(statA.topPlayer.wpmVal)}
               </div>
 
               {/* Sisi Kanan */}
-              <div className="flex flex-col items-center text-center pl-1 min-w-0">
-                <div className="font-bold text-xs text-foreground truncate max-w-full">
+              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+                <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statB.topPlayer.ign}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {statB.topPlayer.recordStr}
-                </div>
-                <div className="my-1">{renderAggBadge(statB.topPlayer.agregat)}</div>
-                <div className="text-[10px] font-semibold text-foreground/85">
-                  {statB.topPlayer.wpm}
-                </div>
+                {renderRecord(statB.topPlayer.wins, statB.topPlayer.losses)}
+                {renderAgg(statB.topPlayer.agregat)}
+                {renderWpm(statB.topPlayer.wpmVal)}
               </div>
             </div>
           </div>
 
-          {/* Top Streak (Header Digabung) */}
-          <div className="rounded-xl border border-border/70 overflow-hidden bg-card/60">
-            <div className="py-1 px-2 bg-muted/40 border-b border-border/60 text-center text-[10px] font-bold text-muted-foreground flex items-center justify-center gap-1">
+          {/* Modul Top Streak */}
+          <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+            <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
               <span>🔥</span> Top Streak
             </div>
-            <div className="grid grid-cols-2 divide-x divide-border/60 p-2.5">
+            <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
               {/* Sisi Kiri */}
-              <div className="flex flex-col items-center text-center pr-1 min-w-0">
-                <div className="font-bold text-xs text-foreground truncate max-w-full">
+              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+                <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statA.maxStreak.player}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {statA.maxStreak.streakStr}
+                <div className="text-[10px] text-muted-foreground font-medium">
+                  {statA.maxStreak.hasStreak ? (
+                    <>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">
+                        {statA.maxStreak.count}
+                      </span>{" "}
+                      Win Streak
+                    </>
+                  ) : (
+                    "-"
+                  )}
                 </div>
-                <div className="text-[10px] font-medium text-foreground/85 truncate max-w-full mt-0.5">
+                <div className="text-[10px] text-muted-foreground font-mono">
+                  {statA.maxStreak.rangeStr}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statA.maxStreak.deck}>
                   {statA.maxStreak.deck}
                 </div>
               </div>
 
               {/* Sisi Kanan */}
-              <div className="flex flex-col items-center text-center pl-1 min-w-0">
-                <div className="font-bold text-xs text-foreground truncate max-w-full">
+              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+                <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
                   {statB.maxStreak.player}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {statB.maxStreak.streakStr}
+                <div className="text-[10px] text-muted-foreground font-medium">
+                  {statB.maxStreak.hasStreak ? (
+                    <>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">
+                        {statB.maxStreak.count}
+                      </span>{" "}
+                      Win Streak
+                    </>
+                  ) : (
+                    "-"
+                  )}
                 </div>
-                <div className="text-[10px] font-medium text-foreground/85 truncate max-w-full mt-0.5">
+                <div className="text-[10px] text-muted-foreground font-mono">
+                  {statB.maxStreak.rangeStr}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statB.maxStreak.deck}>
                   {statB.maxStreak.deck}
                 </div>
               </div>
@@ -143,84 +185,86 @@ export function ReportSummary({
 
       {/* ── KOTAK 2: ARCHETYPE HIGHLIGHT ── */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-        <div className="py-2.5 px-3 bg-muted/30 border-b border-border text-center">
+        <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
           <span className="text-xs font-black uppercase tracking-wider text-foreground">
             Archetype Highlight
           </span>
         </div>
 
-        <div className="p-3 space-y-3 text-xs">
-          {/* Most Played Archetype (Header Digabung) */}
-          <div className="rounded-xl border border-border/70 overflow-hidden bg-card/60">
-            <div className="py-1 px-2 bg-muted/40 border-b border-border/60 text-center text-[10px] font-bold text-muted-foreground flex items-center justify-center gap-1">
+        <div className="p-2.5 space-y-2.5">
+          {/* Modul Best Archetype (Posisinya di Atas) */}
+          <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+            <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
+              <span>🏆</span> Best Archetype
+            </div>
+            <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
+              {/* Sisi Kiri */}
+              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+                <div
+                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                  title={statA.bestDeck.name}
+                >
+                  {statA.bestDeck.name}
+                </div>
+                {renderRecord(statA.bestDeck.wins, statA.bestDeck.losses)}
+                {renderAgg(statA.bestDeck.agregat)}
+                {renderWpm(statA.bestDeck.wpmVal)}
+              </div>
+
+              {/* Sisi Kanan */}
+              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+                <div
+                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                  title={statB.bestDeck.name}
+                >
+                  {statB.bestDeck.name}
+                </div>
+                {renderRecord(statB.bestDeck.wins, statB.bestDeck.losses)}
+                {renderAgg(statB.bestDeck.agregat)}
+                {renderWpm(statB.bestDeck.wpmVal)}
+              </div>
+            </div>
+          </div>
+
+          {/* Modul Most Played Archetype (Posisinya di Bawah) */}
+          <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+            <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
               <span>🃏</span> Most Played Archetype
             </div>
-            <div className="grid grid-cols-2 divide-x divide-border/60 p-2.5">
+            <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
               {/* Sisi Kiri */}
-              <div className="flex flex-col items-center text-center pr-1 min-w-0">
-                <div className="font-bold text-xs text-foreground truncate max-w-full" title={statA.mostDeck.name}>
+              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+                <div
+                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                  title={statA.mostDeck.name}
+                >
                   {statA.mostDeck.name}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {statA.mostDeck.recordStr}
-                </div>
-                <div className="text-[10px] font-semibold text-foreground/85 mt-0.5">
-                  {statA.mostDeck.wpm}
-                </div>
-                <div className="text-[9.5px] text-muted-foreground/80 truncate max-w-full mt-0.5" title={statA.mostDeck.users}>
+                {renderRecord(statA.mostDeck.wins, statA.mostDeck.losses)}
+                {renderWpm(statA.mostDeck.wpmVal)}
+                <div
+                  className="text-[10px] text-muted-foreground truncate max-w-full"
+                  title={statA.mostDeck.users}
+                >
                   {statA.mostDeck.users}
                 </div>
               </div>
 
               {/* Sisi Kanan */}
-              <div className="flex flex-col items-center text-center pl-1 min-w-0">
-                <div className="font-bold text-xs text-foreground truncate max-w-full" title={statB.mostDeck.name}>
+              <div className="flex flex-col items-center justify-center px-1 space-y-0.5">
+                <div
+                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                  title={statB.mostDeck.name}
+                >
                   {statB.mostDeck.name}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {statB.mostDeck.recordStr}
-                </div>
-                <div className="text-[10px] font-semibold text-foreground/85 mt-0.5">
-                  {statB.mostDeck.wpm}
-                </div>
-                <div className="text-[9.5px] text-muted-foreground/80 truncate max-w-full mt-0.5" title={statB.mostDeck.users}>
+                {renderRecord(statB.mostDeck.wins, statB.mostDeck.losses)}
+                {renderWpm(statB.mostDeck.wpmVal)}
+                <div
+                  className="text-[10px] text-muted-foreground truncate max-w-full"
+                  title={statB.mostDeck.users}
+                >
                   {statB.mostDeck.users}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Best Archetype (Header Digabung) */}
-          <div className="rounded-xl border border-border/70 overflow-hidden bg-card/60">
-            <div className="py-1 px-2 bg-muted/40 border-b border-border/60 text-center text-[10px] font-bold text-muted-foreground flex items-center justify-center gap-1">
-              <span>🏆</span> Best Archetype
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-border/60 p-2.5">
-              {/* Sisi Kiri */}
-              <div className="flex flex-col items-center text-center pr-1 min-w-0">
-                <div className="font-bold text-xs text-foreground truncate max-w-full" title={statA.bestDeck.name}>
-                  {statA.bestDeck.name}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {statA.bestDeck.recordStr}
-                </div>
-                <div className="my-1">{renderAggBadge(statA.bestDeck.agregat)}</div>
-                <div className="text-[10px] font-semibold text-foreground/85">
-                  {statA.bestDeck.wpm}
-                </div>
-              </div>
-
-              {/* Sisi Kanan */}
-              <div className="flex flex-col items-center text-center pl-1 min-w-0">
-                <div className="font-bold text-xs text-foreground truncate max-w-full" title={statB.bestDeck.name}>
-                  {statB.bestDeck.name}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {statB.bestDeck.recordStr}
-                </div>
-                <div className="my-1">{renderAggBadge(statB.bestDeck.agregat)}</div>
-                <div className="text-[10px] font-semibold text-foreground/85">
-                  {statB.bestDeck.wpm}
                 </div>
               </div>
             </div>
@@ -229,5 +273,4 @@ export function ReportSummary({
       </div>
     </div>
   );
-                  }
-                  
+}
