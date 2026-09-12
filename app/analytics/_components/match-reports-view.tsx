@@ -24,7 +24,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
 
   const matchParam = searchParams.get("match") || "";
 
-  // Pekan aktif tertinggi
+  // Pekan aktif tertinggi (berdasarkan match yang sudah selesai)
   const maxActiveWeek = useMemo(() => {
     return schedules.reduce((max, s) => {
       const w = Number(s.weekNumber || 1);
@@ -32,7 +32,7 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     }, 1);
   }, [schedules]);
 
-  // Maksimal s/d pekan aktif saat ini
+  // Pembatasan jadwal: Maksimal sampai pekan aktif saat ini
   const validSchedules = useMemo(() => {
     return schedules.filter((s) => Number(s.weekNumber || 1) <= maxActiveWeek);
   }, [schedules, maxActiveWeek]);
@@ -46,7 +46,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     return matchParam && validSchedules.length ? validSchedules.find((s) => s.id === matchParam) || null : null;
   }, [validSchedules, matchParam]);
 
-  // Default bebas: "-- Semua Week --"
   const [selectedWeek, setSelectedWeek] = useState<number | "">(
     initialMatch ? Number(initialMatch.weekNumber) : ""
   );
@@ -75,6 +74,13 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     });
   }, [validSchedules, selectedWeek, selectedTeam]);
 
+  // Auto-select jika hasil filter tinggal 1 match
+  useEffect(() => {
+    if (matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
+      handleMatchChange(matchesInView[0].id);
+    }
+  }, [matchesInView, selectedMatchId]);
+
   const activeSchedule = useMemo(
     () => validSchedules.find((s) => s.id === selectedMatchId),
     [validSchedules, selectedMatchId]
@@ -98,7 +104,6 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     router.replace(`/analytics?${params.toString()}`, { scroll: false });
   };
 
-  // Jangan ubah selectedWeek saat match dipilih agar pilihan -- Semua Week -- tetap bertahan
   const handleMatchChange = useCallback(
     (newMatchId: string) => {
       setSelectedMatchId(newMatchId);
@@ -120,6 +125,16 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
     router.replace(`/analytics?${params.toString()}`, { scroll: false });
   };
 
+  const meta = report?.metadata || {};
+  const teamA = report?.teamA || {};
+  const teamB = report?.teamB || {};
+  const games: any[] = report?.games || [];
+  const scoreA = teamA.score ?? report?.finalScore?.teamA ?? activeSchedule?.scoreA ?? 0;
+  const scoreB = teamB.score ?? report?.finalScore?.teamB ?? activeSchedule?.scoreB ?? 0;
+  const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10);
+  const isMatchStarted = games.length > 0 || scoreA > 0 || scoreB > 0;
+
+  // Auto Polling hemat resource Vercel
   useEffect(() => {
     if (!selectedMatchId) {
       setReport(null);
@@ -145,30 +160,23 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
       }
     };
 
+    // 1. Fetch pertama kali
     fetchReport();
 
+    // 2. Polling setiap 8 detik selama duel BELUM selesai
+    // Tetap jalan saat report masih kosong menunggu ronde 1 dari wasit
     const interval = setInterval(() => {
-      if (report && !report.isFinished) {
+      if (document.hidden) return; // Hemat resource saat browser di minimize / ganti tab
+      if (!isFinished) {
         fetchReport(true);
       }
-    }, 5000);
+    }, 8000);
 
     return () => {
       isSubscribed = false;
       clearInterval(interval);
     };
-  }, [selectedMatchId, report?.isFinished]);
-
-  const meta = report?.metadata || {};
-  const teamA = report?.teamA || {};
-  const teamB = report?.teamB || {};
-  const games: any[] = report?.games || [];
-  const scoreA = teamA.score ?? report?.finalScore?.teamA ?? activeSchedule?.scoreA ?? 0;
-  const scoreB = teamB.score ?? report?.finalScore?.teamB ?? activeSchedule?.scoreB ?? 0;
-  const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10);
-
-  // Status kesiapan duel
-  const isMatchStarted = games.length > 0 || scoreA > 0 || scoreB > 0;
+  }, [selectedMatchId, isFinished]);
 
   const scheduleDateInfo = useMemo(() => {
     const raw = activeSchedule?.matchDate;
