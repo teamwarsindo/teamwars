@@ -114,29 +114,42 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
   const scoreB = teamB.score ?? report?.finalScore?.teamB ?? 0;
   const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10);
 
-  // Parsing Tanggal & Waktu yang Aman dari Pergeseran Jam UTC
-  const parsedDate = useMemo(() => {
-    const raw = meta.date || activeSchedule?.matchDate;
+  // Mengambil dan memformat Hari, Tanggal Lengkap (September), dan Jam WIB murni dari activeSchedule.matchDate
+  const scheduleDateInfo = useMemo(() => {
+    const raw = activeSchedule?.matchDate;
     if (!raw) return { day: "-", date: "-", time: "-" };
     try {
       const d = new Date(raw);
-      const day = d.toLocaleDateString("id-ID", { weekday: "long", timeZone: "Asia/Jakarta" });
-      const date = d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" });
-      
-      // Jika format tanggal hanya YYYY-MM-DD (tanpa T..Z), jangan hitung jam UTC agar tidak menjadi 07.00 WIB
-      const isDateOnly = typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim());
-      if (isDateOnly) {
-        return { day, date, time: "-" };
-      }
+      const day = new Intl.DateTimeFormat("id-ID", {
+        weekday: "long",
+        timeZone: "Asia/Jakarta",
+      }).format(d);
 
-      const timeStr = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" });
-      return { day, date, time: timeStr !== "00:00" && timeStr !== "07.00" ? `${timeStr} WIB` : "-" };
+      const date = new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "Asia/Jakarta",
+      }).format(d);
+
+      const timeStr = new Intl.DateTimeFormat("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Jakarta",
+      }).format(d);
+
+      return {
+        day,
+        date,
+        time: `${timeStr.replace(":", ".")} WIB`,
+      };
     } catch {
       return { day: "-", date: raw, time: "-" };
     }
-  }, [meta.date, activeSchedule?.matchDate]);
+  }, [activeSchedule?.matchDate]);
 
-  // Nomor match diambil dari properti matchNumber atau diekstrak langsung dari id (contoh: "match-40" -> 40)
+  // Resolusi nomor pertandingan (fallback otomatis ekstrak angka dari "match-34")
   const resolvedMatchNumber = useMemo(() => {
     if (activeSchedule?.matchNumber) return activeSchedule.matchNumber;
     if (selectedMatchId) {
@@ -187,8 +200,8 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* 2. Metadata Match (Scroll Biasa) + Scoreboard (Sticky Pinned) */}
+        <>
+          {/* 2. Scoreboard & Info Metadata Match */}
           <ReportScoreboard
             teamA={teamA}
             teamB={teamB}
@@ -200,9 +213,9 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
               matchNumber: resolvedMatchNumber,
               division: activeSchedule?.groupName || meta.division,
               week: selectedWeek || report.week,
-              day: parsedDate.day,
-              date: parsedDate.date,
-              time: parsedDate.time,
+              day: scheduleDateInfo.day,
+              date: scheduleDateInfo.date,
+              time: scheduleDateInfo.time,
               referee: meta.referee,
               streamer: meta.streamer,
               streamUrl: meta.streamUrl,
@@ -228,8 +241,8 @@ export function MatchReportsView({ schedules = [] }: { schedules: ScheduleItem[]
             scoreB={scoreB}
             liveInstruction={liveInstruction}
           />
-        </div>
+        </>
       )}
     </div>
   );
-        }
+}
