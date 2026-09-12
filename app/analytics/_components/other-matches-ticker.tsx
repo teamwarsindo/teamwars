@@ -27,7 +27,6 @@ export function OtherMatchesTicker({
 }: OtherMatchesTickerProps) {
   const [now, setNow] = useState<number>(() => Date.now());
 
-  // Evaluasi waktu tiap menit untuk jendela 5 jam
   useEffect(() => {
     const timer = setInterval(() => {
       setNow(Date.now());
@@ -35,7 +34,6 @@ export function OtherMatchesTicker({
     return () => clearInterval(timer);
   }, []);
 
-  // Filter Match Lain di Hari yang Sama (Eksklusif match yang sedang di-stream)
   const siblingMatches = useMemo(() => {
     const currentSchedule = schedules.find((s) => s.id === currentMatchId);
     if (!currentSchedule?.matchDate) return [];
@@ -48,7 +46,6 @@ export function OtherMatchesTicker({
     const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
 
     return schedules.filter((s) => {
-      // 1. EXCLUDE MATCH UTAMA (Supaya tidak redundan di overlay streamer)
       if (s.id.toLowerCase() === currentMatchId.toLowerCase()) return false;
       if (!s.matchDate) return false;
 
@@ -57,10 +54,8 @@ export function OtherMatchesTicker({
         timeZone: "Asia/Jakarta",
       });
 
-      // 2. Wajib bermain di sesi hari/tanggal yang sama
       if (scheduleDateStr !== activeDateStr) return false;
 
-      // 3. Batas waktu tampilan: maksimal 5 jam dari jam tanding
       const diff = now - scheduleTime.getTime();
       return diff <= FIVE_HOURS_MS;
     });
@@ -70,7 +65,6 @@ export function OtherMatchesTicker({
     Record<string, { scoreA: number; scoreB: number; isFinished: boolean }>
   >({});
 
-  // Polling update skor tiap 8 detik
   useEffect(() => {
     if (!siblingMatches.length) return;
 
@@ -132,22 +126,22 @@ export function OtherMatchesTicker({
   if (siblingMatches.length === 0) return null;
 
   return (
-    <div className="w-full max-w-[320px] rounded-2xl border border-white/20 bg-slate-950/95 text-white p-3 shadow-2xl backdrop-blur-md space-y-2">
+    <div className="w-[360px] select-none rounded-2xl border border-slate-200/80 bg-white/95 text-slate-900 p-3.5 shadow-xl backdrop-blur-md space-y-3 font-sans">
       {/* Header Bar */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-1.5 px-1">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-          <span className="text-[11px] font-black uppercase tracking-wider text-white">
-            Other Matches
+      <div className="flex items-center justify-between border-b border-slate-100 pb-2 px-1">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+          <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+            OTHER MATCHES
           </span>
         </div>
-        <span className="text-[9px] font-bold text-white/60 bg-white/10 px-1.5 py-0.5 rounded">
-          Live Score
+        <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+          CONCURRENT LIVE
         </span>
       </div>
 
-      {/* Grid Match Lain */}
-      <div className="space-y-2">
+      {/* List Card Tiap Match */}
+      <div className="space-y-2.5">
         {siblingMatches.map((m) => {
           const live = liveScores[m.id] || {
             scoreA: m.scoreA ?? 0,
@@ -162,20 +156,20 @@ export function OtherMatchesTicker({
           return (
             <div
               key={m.id}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 flex flex-col gap-1.5"
+              className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 shadow-xs hover:border-slate-300 transition flex flex-col gap-2"
             >
-              {/* Header Info Match */}
-              <div className="flex justify-between items-center text-[9px] font-bold uppercase px-0.5">
-                <span className="text-white/50">{m.id.replace("match-", "M")}</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-white/40 truncate max-w-[130px]">
+              {/* Header Match (MATCH 41 • Group Name • Status) */}
+              <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-200/50 pb-1">
+                <span className="text-slate-700 font-black">{m.id.replace("match-", "MATCH ")}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 truncate max-w-[130px]">
                     {m.groupName || "Group Stage"}
                   </span>
                   <span
-                    className={`px-1 py-0.2 rounded text-[8px] font-black ${
+                    className={`px-1.5 py-0.2 rounded text-[9px] font-black font-mono ${
                       isDone
-                        ? "bg-white/10 text-white/60"
-                        : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                        ? "bg-slate-200 text-slate-600"
+                        : "bg-emerald-100 text-emerald-700 border border-emerald-300"
                     }`}
                   >
                     {isDone ? "FT" : "LIVE"}
@@ -183,11 +177,10 @@ export function OtherMatchesTicker({
                 </div>
               </div>
 
-              {/* Logo vs Logo + Skor Besar */}
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                {/* Tim A */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/15 overflow-hidden flex items-center justify-center shrink-0">
+              {/* Baris Tim A */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
                     {m.teamALogo ? (
                       <img
                         src={m.teamALogo}
@@ -195,47 +188,29 @@ export function OtherMatchesTicker({
                         className="w-full h-full object-contain p-0.5"
                       />
                     ) : (
-                      <span className="text-[10px] font-black text-white/40">A</span>
+                      <span className="text-[10px] font-black text-slate-400">A</span>
                     )}
                   </div>
-                  <span className="text-xs font-bold truncate text-white/90">
+                  <span className="text-xs font-bold text-slate-800 tracking-wide truncate">
                     {m.teamAName}
                   </span>
                 </div>
 
-                {/* Skor Box */}
-                <div className="flex items-center gap-1.5 bg-black/80 px-2.5 py-1 rounded-lg border border-white/15 font-mono shrink-0">
-                  <span
-                    className={`text-base font-black ${
-                      aWin
-                        ? "text-emerald-400"
-                        : bWin
-                        ? "text-rose-400"
-                        : "text-white"
-                    }`}
-                  >
-                    {live.scoreA}
-                  </span>
-                  <span className="text-xs text-white/30 font-bold">:</span>
-                  <span
-                    className={`text-base font-black ${
-                      bWin
-                        ? "text-emerald-400"
-                        : aWin
-                        ? "text-rose-400"
-                        : "text-white"
-                    }`}
-                  >
-                    {live.scoreB}
-                  </span>
-                </div>
+                <span
+                  className={`font-mono text-base font-black px-2.5 py-0.5 rounded-md min-w-[32px] text-center ${
+                    aWin
+                      ? "text-emerald-700 bg-emerald-100 border border-emerald-300"
+                      : "text-slate-900 bg-white border border-slate-200 shadow-2xs"
+                  }`}
+                >
+                  {live.scoreA}
+                </span>
+              </div>
 
-                {/* Tim B */}
-                <div className="flex items-center justify-end gap-2 min-w-0">
-                  <span className="text-xs font-bold truncate text-white/90 text-right">
-                    {m.teamBName}
-                  </span>
-                  <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/15 overflow-hidden flex items-center justify-center shrink-0">
+              {/* Baris Tim B */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
                     {m.teamBLogo ? (
                       <img
                         src={m.teamBLogo}
@@ -243,10 +218,23 @@ export function OtherMatchesTicker({
                         className="w-full h-full object-contain p-0.5"
                       />
                     ) : (
-                      <span className="text-[10px] font-black text-white/40">B</span>
+                      <span className="text-[10px] font-black text-slate-400">B</span>
                     )}
                   </div>
+                  <span className="text-xs font-bold text-slate-800 tracking-wide truncate">
+                    {m.teamBName}
+                  </span>
                 </div>
+
+                <span
+                  className={`font-mono text-base font-black px-2.5 py-0.5 rounded-md min-w-[32px] text-center ${
+                    bWin
+                      ? "text-emerald-700 bg-emerald-100 border border-emerald-300"
+                      : "text-slate-900 bg-white border border-slate-200 shadow-2xs"
+                  }`}
+                >
+                  {live.scoreB}
+                </span>
               </div>
             </div>
           );
@@ -254,4 +242,4 @@ export function OtherMatchesTicker({
       </div>
     </div>
   );
-}
+            }
