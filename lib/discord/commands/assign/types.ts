@@ -48,8 +48,6 @@ export interface ExecuteAssignResult {
 export interface ExecuteUnassignParams {
   matchId: string;
   assignType: 'REFEREE' | 'STREAMER';
-  scoreA?: number;
-  scoreB?: number;
 }
 
 export interface ExecuteUnassignResult {
