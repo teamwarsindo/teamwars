@@ -125,12 +125,14 @@ export async function sendReassignmentLog(
   return res?.id || null;
 }
 
-// 4. Log Selesai Tugas Staf (POST Reply ke Log Awal)
+// 4. Log Selesai Tugas Staf (POST Reply ke Log Awal - COMPLETED / HIJAU)
 export async function sendCompletedAssignmentLog(
   params: BaseLogParams & {
     existingMsgId?: string;
     roleType: 'REFEREE' | 'STREAMER';
     staffDiscordId: string;
+    scoreA?: number;
+    scoreB?: number;
     streamLink?: string;
   }
 ): Promise<string | null> {
@@ -141,7 +143,20 @@ export async function sendCompletedAssignmentLog(
     { name: '📅 Waktu Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
   ];
 
-  if (params.roleType === 'STREAMER' && params.streamLink) {
+  if (params.roleType === 'REFEREE') {
+    const scoreA = params.scoreA ?? 0;
+    const scoreB = params.scoreB ?? 0;
+    const isWinA = scoreA > scoreB;
+    const winnerName = isWinA ? params.teamAName : params.teamBName;
+    const winScore = Math.max(scoreA, scoreB);
+    const loseScore = Math.min(scoreA, scoreB);
+
+    fields.push({
+      name: '🏆 Hasil Pertandingan',
+      value: `**${winScore}-${loseScore} (${winnerName} win)**`,
+      inline: false,
+    });
+  } else if (params.streamLink) {
     fields.push({
       name: '📺 Live Stream',
       value: params.streamLink,
@@ -170,7 +185,7 @@ export async function sendCompletedAssignmentLog(
   return res?.id || null;
 }
 
-// 5. Log Pembatalan Tugas Staf (POST Reply ke Log Awal)
+// 5. Log Pembatalan Tugas Staf (POST Reply ke Log Awal - CANCELLED / MERAH)
 export async function sendCancelledAssignmentLog(
   params: BaseLogParams & {
     existingMsgId?: string;
