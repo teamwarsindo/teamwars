@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { DIVISION_MAP } from "@/app/tournament/_library";
 
 export interface AnalyticsFilterMatchItem {
@@ -14,23 +14,16 @@ export interface AnalyticsFilterMatchItem {
   scoreB?: number;
 }
 
-export interface TeamItem {
-  slug: string;
-  name: string;
-  groupName?: string;
-}
-
 interface AnalyticsFilterProps {
   mode: "reports" | "power-ranking";
   selectedGroup: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B;
   onGroupChange: (group: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => void;
-  selectedTeam: string; // slug atau nama tim ("" / "ALL" untuk reset)
+  selectedTeam: string;
   onTeamChange: (team: string) => void;
-  teams: TeamItem[];
+  teams: any[]; // Toleran terhadap string[] maupun TeamRosterData[]
   selectedWeek: number | "";
   onWeekChange: (week: number | "") => void;
   availableWeeks: number[];
-  // Khusus tab Match Reports
   selectedMatchId?: string;
   onMatchChange?: (matchId: string) => void;
   matchesInView?: AnalyticsFilterMatchItem[];
@@ -57,7 +50,6 @@ export function AnalyticsFilter({
   const [openDropdown, setOpenDropdown] = useState<"team" | "week" | "match" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Klik luar untuk menutup dropdown
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -68,19 +60,31 @@ export function AnalyticsFilter({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter daftar tim di dropdown berdasarkan divisi yang sedang aktif
-  const filteredTeams = teams.filter((t) => {
-    if (selectedGroup === "ALL") return true;
-    return t.groupName === selectedGroup;
-  });
+  // Normalisasi list tim
+  const normalizedTeams = useMemo(() => {
+    return teams.map((t) => {
+      if (typeof t === "string") {
+        return { name: t, slug: t.toLowerCase().replace(/\s+/g, "-"), groupName: "" };
+      }
+      return {
+        name: t.name || "",
+        slug: t.slug || t.name?.toLowerCase().replace(/\s+/g, "-") || "",
+        groupName: t.groupName || "",
+      };
+    });
+  }, [teams]);
 
-  // Handler memilih tim: Otomatis aktifkan tombol divisi tim tersebut
-  const handleSelectTeam = (teamSlug: string) => {
-    if (!teamSlug || teamSlug === "ALL") {
+  const filteredTeams = useMemo(() => {
+    if (selectedGroup === "ALL") return normalizedTeams;
+    return normalizedTeams.filter((t) => !t.groupName || t.groupName === selectedGroup);
+  }, [normalizedTeams, selectedGroup]);
+
+  const handleSelectTeam = (teamVal: string) => {
+    if (!teamVal || teamVal === "ALL") {
       onTeamChange("");
     } else {
-      onTeamChange(teamSlug);
-      const target = teams.find((t) => t.slug === teamSlug || t.name === teamSlug);
+      onTeamChange(teamVal);
+      const target = normalizedTeams.find((t) => t.slug === teamVal || t.name === teamVal);
       if (target?.groupName) {
         if (target.groupName === DIVISION_MAP.GROUP_A || target.groupName === DIVISION_MAP.GROUP_B) {
           onGroupChange(target.groupName);
@@ -90,16 +94,16 @@ export function AnalyticsFilter({
     setOpenDropdown(null);
   };
 
-  // Handler toggle divisi
   const handleToggleGroup = (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
     if (selectedGroup === group) {
       onGroupChange("ALL");
     } else {
       onGroupChange(group);
-      // Jika tim yang sedang dipilih berada di luar divisi yang baru diklik, reset pilihan tim
       if (selectedTeam && selectedTeam !== "ALL") {
-        const currentSelected = teams.find((t) => t.slug === selectedTeam || t.name === selectedTeam);
-        if (currentSelected && currentSelected.groupName !== group) {
+        const currentSelected = normalizedTeams.find(
+          (t) => t.slug === selectedTeam || t.name === selectedTeam
+        );
+        if (currentSelected && currentSelected.groupName && currentSelected.groupName !== group) {
           onTeamChange("");
         }
       }
@@ -108,8 +112,13 @@ export function AnalyticsFilter({
 
   const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
   const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
-
   const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
+
+  const selectedTeamDisplay = useMemo(() => {
+    if (!selectedTeam || selectedTeam === "ALL") return "Semua Tim";
+    const found = normalizedTeams.find((t) => t.slug === selectedTeam || t.name === selectedTeam);
+    return found ? found.name : selectedTeam;
+  }, [selectedTeam, normalizedTeams]);
 
   const renderScore = (sA?: number, sB?: number) => {
     if (sA === undefined || sB === undefined) return null;
@@ -118,27 +127,11 @@ export function AnalyticsFilter({
 
     return (
       <span className="font-mono text-[10px] bg-muted/70 px-1.5 py-0.5 rounded-md border border-border/60 shrink-0">
-        <span
-          className={
-            aWin
-              ? "text-emerald-600 dark:text-emerald-400 font-bold"
-              : bWin
-              ? "text-rose-600 dark:text-rose-400 font-bold"
-              : "text-foreground/80 font-medium"
-          }
-        >
+        <span className={aWin ? "text-emerald-500 font-bold" : bWin ? "text-rose-500 font-bold" : "text-foreground/80 font-medium"}>
           {sA}
         </span>
         <span className="mx-0.5 text-muted-foreground/40">-</span>
-        <span
-          className={
-            bWin
-              ? "text-emerald-600 dark:text-emerald-400 font-bold"
-              : aWin
-              ? "text-rose-600 dark:text-rose-400 font-bold"
-              : "text-foreground/80 font-medium"
-          }
-        >
+        <span className={bWin ? "text-emerald-500 font-bold" : aWin ? "text-rose-500 font-bold" : "text-foreground/80 font-medium"}>
           {sB}
         </span>
       </span>
@@ -147,7 +140,7 @@ export function AnalyticsFilter({
 
   return (
     <div ref={containerRef} className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2.5">
-      {/* ── BARIS 1: TOGGLE DUA DIVISI (50:50) ── */}
+      {/* ── BARIS 1: TOGGLE DUA DIVISI ── */}
       <div className="grid grid-cols-2 gap-2 w-full">
         <button
           type="button"
@@ -183,16 +176,8 @@ export function AnalyticsFilter({
             onClick={() => setOpenDropdown(openDropdown === "team" ? null : "team")}
             className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
           >
-            <span className="truncate">
-              {selectedTeam && selectedTeam !== "ALL"
-                ? teams.find((t) => t.slug === selectedTeam || t.name === selectedTeam)?.name || selectedTeam
-                : "Semua Tim"}
-            </span>
-            <span
-              className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${
-                openDropdown === "team" ? "rotate-180" : ""
-              }`}
-            >
+            <span className="truncate">{selectedTeamDisplay}</span>
+            <span className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${openDropdown === "team" ? "rotate-180" : ""}`}>
               ▼
             </span>
           </button>
@@ -218,7 +203,7 @@ export function AnalyticsFilter({
                   <button
                     key={t.slug}
                     type="button"
-                    onClick={() => handleSelectTeam(t.slug)}
+                    onClick={() => handleSelectTeam(t.name)}
                     className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
                       isSelected ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
                     }`}
@@ -232,7 +217,7 @@ export function AnalyticsFilter({
           )}
         </div>
 
-        {/* Dropdown Week & Tombol Reset */}
+        {/* Dropdown Week + Reset */}
         <div className="flex items-center gap-1.5 w-full">
           <div className="relative flex-1 min-w-0">
             <button
@@ -243,32 +228,26 @@ export function AnalyticsFilter({
               <span className="truncate">
                 {selectedWeek !== "" ? `Week ${selectedWeek}` : "-- Semua Week --"}
               </span>
-              <span
-                className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${
-                  openDropdown === "week" ? "rotate-180" : ""
-                }`}
-              >
+              <span className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${openDropdown === "week" ? "rotate-180" : ""}`}>
                 ▼
               </span>
             </button>
 
             {openDropdown === "week" && (
               <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl space-y-0.5">
-                {mode === "reports" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onWeekChange("");
-                      setOpenDropdown(null);
-                    }}
-                    className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
-                      selectedWeek === "" ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
-                    }`}
-                  >
-                    <span>-- Semua Week --</span>
-                    {selectedWeek === "" && <span>✓</span>}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onWeekChange("");
+                    setOpenDropdown(null);
+                  }}
+                  className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
+                    selectedWeek === "" ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
+                  }`}
+                >
+                  <span>-- Semua Week --</span>
+                  {selectedWeek === "" && <span>✓</span>}
+                </button>
 
                 {availableWeeks.map((w) => (
                   <button
@@ -290,7 +269,6 @@ export function AnalyticsFilter({
             )}
           </div>
 
-          {/* Tombol Reset */}
           <button
             type="button"
             onClick={onReset}
@@ -301,17 +279,13 @@ export function AnalyticsFilter({
             }`}
           >
             <svg className="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </button>
         </div>
       </div>
 
-      {/* ── BARIS 3: MATCH SPESIFIK (HANYA TAB MATCH REPORTS) ── */}
+      {/* ── BARIS 3: MATCH SPESIFIK ── */}
       {mode === "reports" && onMatchChange && (
         <div className="relative w-full">
           <button
@@ -341,11 +315,7 @@ export function AnalyticsFilter({
                 "-- Pilih Pertandingan --"
               )}
             </span>
-            <span
-              className={`text-[10px] text-muted-foreground transition-transform ml-1 shrink-0 ${
-                openDropdown === "match" ? "rotate-180" : ""
-              }`}
-            >
+            <span className={`text-[10px] text-muted-foreground transition-transform ml-1 shrink-0 ${openDropdown === "match" ? "rotate-180" : ""}`}>
               ▼
             </span>
           </button>
@@ -392,5 +362,4 @@ export function AnalyticsFilter({
       )}
     </div>
   );
-  }
-        
+}
