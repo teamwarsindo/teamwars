@@ -13,9 +13,11 @@ export const metadata = {
 };
 
 export default async function AnalyticsLandingPage() {
-  const [rawSchedules, rawTeams] = await Promise.all([
+  // Ambil Schedules, Teams, dan Match Reports Hash secara paralel (1 round-trip)
+  const [rawSchedules, rawTeams, rawReportsHash] = await Promise.all([
     kv.get<any[]>("twi:schedules").then((res) => res || []),
     kv.get<any[]>("twi:teams").then((res) => res || []),
+    kv.hgetall<Record<string, any>>("twi:match_reports").then((res) => res || {}),
   ]);
 
   const maxActiveWeek: number = rawSchedules.reduce((max: number, m: any) => {
@@ -41,17 +43,9 @@ export default async function AnalyticsLandingPage() {
     (m: any) => Boolean(m.isFinished) && Number(m.weekNumber || 1) <= maxActiveWeek
   );
 
-  // Ambil data laporan pertandingan dari Redis
-  const primaryKeys = finishedMatches.map((m: any) => `twi:report:${m.id}`);
-  const fallbackKeys = finishedMatches.map((m: any) => `twi:match_report:${m.id}`);
-
-  const [resPrimary, resFallback] = await Promise.all([
-    primaryKeys.length > 0 ? kv.mget<any[]>(...primaryKeys) : [],
-    fallbackKeys.length > 0 ? kv.mget<any[]>(...fallbackKeys) : [],
-  ]);
-
-  const reports: RawMatchReport[] = finishedMatches.map((m: any, idx: number) => {
-    const rep = resPrimary[idx] || resFallback[idx] || {};
+  // Parse reports langsung dari Hash Map twi:match_reports
+  const reports: RawMatchReport[] = finishedMatches.map((m: any) => {
+    const rep = rawReportsHash[m.id] || {};
 
     return {
       id: m.id,
