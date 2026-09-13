@@ -1,28 +1,44 @@
-export interface DuelLogEntry {
-  playerA: string;
-  playerB: string;
-  winner: string; // nama pemain yang menang atau indikator pemenang
-  deckA?: string;
-  deckB?: string;
+export interface GameEntry {
+  gameNumber: number;
+  winner: "teamA" | "teamB" | string;
+  playerA?: {
+    ign: string;
+    archetype?: string;
+  };
+  playerB?: {
+    ign: string;
+    archetype?: string;
+  };
 }
 
-export interface MatchReportData {
-  id: string;
-  week: number;
+export interface LineupPlayer {
+  ign: string;
+  totalWins?: number;
+  totalLosses?: number;
+}
+
+export interface RawMatchReport {
+  matchId?: string;
+  id?: string;
+  week?: number;
   teamA: {
-    slug: string;
     name: string;
-    logo?: string;
+    slug?: string;
+    score?: number;
+    lineup?: LineupPlayer[];
     groupName?: string;
+    logo?: string;
   };
   teamB: {
-    slug: string;
     name: string;
-    logo?: string;
+    slug?: string;
+    score?: number;
+    lineup?: LineupPlayer[];
     groupName?: string;
+    logo?: string;
   };
-  logs: DuelLogEntry[];
-  isFinished: boolean;
+  games?: GameEntry[];
+  isFinished?: boolean;
 }
 
 export interface TeamRosterData {
@@ -30,7 +46,7 @@ export interface TeamRosterData {
   name: string;
   logo?: string;
   groupName?: string;
-  members: string[]; // nama-nama pemain aktif saat ini
+  members: string[];
 }
 
 export interface PowerRankingPlayer {
@@ -40,11 +56,11 @@ export interface PowerRankingPlayer {
   teamName: string;
   teamLogo?: string;
   groupName?: string;
-  played: number; // P
-  won: number; // W
-  lost: number; // L
-  wpm: number; // W / P
-  agg: number; // W - L
+  played: number;
+  won: number;
+  lost: number;
+  wpm: number;
+  agg: number;
   isExPlayer?: boolean;
 }
 
@@ -56,9 +72,6 @@ export interface PowerRankingGrandTotal {
   agg: number;
 }
 
-/**
- * Mengkalkulasi Power Ranking secara kumulatif berdasarkan log match report.
- */
 export function calculatePowerRanking({
   reports,
   targetWeek,
@@ -66,7 +79,7 @@ export function calculatePowerRanking({
   filterScope = "GLOBAL",
   selectedTeamSlug,
 }: {
-  reports: MatchReportData[];
+  reports: RawMatchReport[];
   targetWeek: number;
   teams?: TeamRosterData[];
   filterScope: "GLOBAL" | "Anda Yakin?" | "Sakurasawa Fighters" | "TEAM";
@@ -75,12 +88,13 @@ export function calculatePowerRanking({
   players: PowerRankingPlayer[];
   grandTotal?: PowerRankingGrandTotal;
 } {
-  // 1. Filter match report kumulatif (Week 1 s/d targetWeek) yang sudah selesai
-  const validReports = reports.filter(
-    (r) => r.isFinished && r.week <= targetWeek
-  );
+  // 1. Filter match hingga targetWeek
+  const validReports = reports.filter((r) => {
+    const w = Number(r.week || 1);
+    return w <= targetWeek;
+  });
 
-  // Map untuk agregasi statistik: key = `${teamSlug}:${playerName}`
+  // Map agregasi: key = `${teamSlug}:${playerName.toLowerCase()}`
   const playerStatsMap = new Map<
     string,
     {
@@ -91,74 +105,102 @@ export function calculatePowerRanking({
       groupName?: string;
       won: number;
       lost: number;
-      matchAppearanceSet: Set<string>; // ID match report untuk menghitung P (Played)
+      matchesAppeared: Set<string>;
     }
   >();
 
-  // 2. Iterasi setiap match report dan ekstrak duel murni dari logs
-  for (const report of validReports) {
-    for (const log of report.logs || []) {
-      if (!log.winner) continue;
+  for (const rep of validReports) {
+    const reportId = rep.matchId || rep.id || `${rep.week}-${rep.teamA.name}-vs-${rep.teamB.name}`;
+    const slugA = rep.teamA.slug || rep.teamA.name.toLowerCase().replace(/\s+/g, "-");
+    const slugB = rep.teamB.slug || rep.teamB.name.toLowerCase().replace(/\s+/g, "-");
 
-      const pA = log.playerA?.trim();
-      const pB = log.playerB?.trim();
-      const win = log.winner?.trim();
+    // Ekstraksi dari games duel
+    if (Array.isArray(rep.games) && rep.games.length > 0) {
+      for (const g of rep.games) {
+        const pAName = g.playerA?.ign?.trim();
+        const pBName = g.playerB?.ign?.trim();
+        if (!pAName || !pBName) continue;
 
-      if (!pA || !pB) continue;
+        const keyA = `${slugA}:${pAName.toLowerCase()}`;
+        const keyB = `${slugB}:${pBName.toLowerCase()}`;
 
-      // Inisialisasi Player A
-      const keyA = `${report.teamA.slug}:${pA}`;
-      if (!playerStatsMap.has(keyA)) {
-        playerStatsMap.set(keyA, {
-          name: pA,
-          teamSlug: report.teamA.slug,
-          teamName: report.teamA.name,
-          teamLogo: report.teamA.logo,
-          groupName: report.teamA.groupName,
-          won: 0,
-          lost: 0,
-          matchAppearanceSet: new Set(),
-        });
+        if (!playerStatsMap.has(keyA)) {
+          playerStatsMap.set(keyA, {
+            name: pAName,
+            teamSlug: slugA,
+            teamName: rep.teamA.name,
+            teamLogo: rep.teamA.logo,
+            groupName: rep.teamA.groupName,
+            won: 0,
+            lost: 0,
+            matchesAppeared: new Set(),
+          });
+        }
+
+        if (!playerStatsMap.has(keyB)) {
+          playerStatsMap.set(keyB, {
+            name: pBName,
+            teamSlug: slugB,
+            teamName: rep.teamB.name,
+            teamLogo: rep.teamB.logo,
+            groupName: rep.teamB.groupName,
+            won: 0,
+            lost: 0,
+            matchesAppeared: new Set(),
+          });
+        }
+
+        const statA = playerStatsMap.get(keyA)!;
+        const statB = playerStatsMap.get(keyB)!;
+
+        statA.matchesAppeared.add(reportId);
+        statB.matchesAppeared.add(reportId);
+
+        if (g.winner === "teamA" || g.winner === pAName) {
+          statA.won += 1;
+          statB.lost += 1;
+        } else if (g.winner === "teamB" || g.winner === pBName) {
+          statB.won += 1;
+          statA.lost += 1;
+        }
       }
+    } else {
+      // Fallback: Jika array games kosong, baca dari totalWins/totalLosses di lineup
+      const processLineup = (lineup: LineupPlayer[] = [], slug: string, tName: string, logo?: string, group?: string) => {
+        for (const p of lineup) {
+          if (!p.ign) continue;
+          const wins = Number(p.totalWins || 0);
+          const losses = Number(p.totalLosses || 0);
+          if (wins === 0 && losses === 0) continue; // belum tanding
 
-      // Inisialisasi Player B
-      const keyB = `${report.teamB.slug}:${pB}`;
-      if (!playerStatsMap.has(keyB)) {
-        playerStatsMap.set(keyB, {
-          name: pB,
-          teamSlug: report.teamB.slug,
-          teamName: report.teamB.name,
-          teamLogo: report.teamB.logo,
-          groupName: report.teamB.groupName,
-          won: 0,
-          lost: 0,
-          matchAppearanceSet: new Set(),
-        });
-      }
+          const key = `${slug}:${p.ign.toLowerCase()}`;
+          if (!playerStatsMap.has(key)) {
+            playerStatsMap.set(key, {
+              name: p.ign,
+              teamSlug: slug,
+              teamName: tName,
+              teamLogo: logo,
+              groupName: group,
+              won: 0,
+              lost: 0,
+              matchesAppeared: new Set(),
+            });
+          }
+          const stat = playerStatsMap.get(key)!;
+          stat.won += wins;
+          stat.lost += losses;
+          stat.matchesAppeared.add(reportId);
+        }
+      };
 
-      const statA = playerStatsMap.get(keyA)!;
-      const statB = playerStatsMap.get(keyB)!;
-
-      // Catat keikutsertaan match (1 match = 1 P)
-      statA.matchAppearanceSet.add(report.id);
-      statB.matchAppearanceSet.add(report.id);
-
-      // Hitung skor ronde (termasuk hasil penalti/deckloss yang tercatat pada log duel)
-      if (win === pA) {
-        statA.won += 1;
-        statB.lost += 1;
-      } else if (win === pB) {
-        statB.won += 1;
-        statA.lost += 1;
-      }
+      processLineup(rep.teamA.lineup, slugA, rep.teamA.name, rep.teamA.logo, rep.teamA.groupName);
+      processLineup(rep.teamB.lineup, slugB, rep.teamB.name, rep.teamB.logo, rep.teamB.groupName);
     }
   }
 
-  // 3. Konversi map ke array dan hitung WPM serta AGG
-  let playerList: PowerRankingPlayer[] = Array.from(
-    playerStatsMap.values()
-  ).map((p) => {
-    const played = p.matchAppearanceSet.size;
+  // 2. Format ke PowerRankingPlayer
+  let playerList: PowerRankingPlayer[] = Array.from(playerStatsMap.values()).map((p) => {
+    const played = p.matchesAppeared.size;
     const won = p.won;
     const lost = p.lost;
     const wpm = played > 0 ? Number((won / played).toFixed(2)) : 0;
@@ -179,37 +221,25 @@ export function calculatePowerRanking({
     };
   });
 
-  // 4. Penanganan Mode Filter Tim
+  // 3. Filter Scope & Mode Tim
   let grandTotal: PowerRankingGrandTotal | undefined;
 
   if (filterScope === "TEAM" && selectedTeamSlug) {
     const selectedTeam = teams.find((t) => t.slug === selectedTeamSlug);
-    const activeMembers = new Set(selectedTeam?.members || []);
+    const activeMembers = new Set((selectedTeam?.members || []).map((m) => m.toLowerCase()));
 
-    // Filter pemain yang membela tim ini di log match report
-    const teamReportPlayers = playerList.filter(
-      (p) => p.teamSlug === selectedTeamSlug
-    );
+    const teamReportPlayers = playerList.filter((p) => p.teamSlug === selectedTeamSlug);
+    const recordedNames = new Set<string>();
 
-    const activeMemberNamesInReport = new Set<string>();
+    const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map((p) => {
+      const isEx = activeMembers.size > 0 && !activeMembers.has(p.name.toLowerCase());
+      if (!isEx) recordedNames.add(p.name.toLowerCase());
+      return { ...p, isExPlayer: isEx };
+    });
 
-    // Beri penanda EX jika namanya tidak terdaftar di daftar roster tim saat ini
-    const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map(
-      (p) => {
-        const isEx = activeMembers.size > 0 && !activeMembers.has(p.name);
-        if (!isEx) {
-          activeMemberNamesInReport.add(p.name);
-        }
-        return {
-          ...p,
-          isExPlayer: isEx,
-        };
-      }
-    );
-
-    // Tambahkan pemain roster aktif yang belum pernah turun bertanding (0/0/0)
-    for (const memberName of activeMembers) {
-      if (!activeMemberNamesInReport.has(memberName)) {
+    // Masukkan anggota tim yang belum pernah main (0/0/0)
+    for (const memberName of selectedTeam?.members || []) {
+      if (!recordedNames.has(memberName.toLowerCase())) {
         processedTeamPlayers.push({
           rank: 0,
           name: memberName,
@@ -229,12 +259,10 @@ export function calculatePowerRanking({
 
     playerList = processedTeamPlayers;
 
-    // Hitung Grand Total khusus mode tim
     const totalWon = playerList.reduce((acc, cur) => acc + cur.won, 0);
     const totalLost = playerList.reduce((acc, cur) => acc + cur.lost, 0);
     const totalPlayed = playerList.reduce((acc, cur) => acc + cur.played, 0);
-    const totalWpm =
-      totalPlayed > 0 ? Number((totalWon / totalPlayed).toFixed(2)) : 0;
+    const totalWpm = totalPlayed > 0 ? Number((totalWon / totalPlayed).toFixed(2)) : 0;
 
     grandTotal = {
       played: totalPlayed,
@@ -244,7 +272,7 @@ export function calculatePowerRanking({
       agg: totalWon - totalLost,
     };
   } else {
-    // Mode Global atau Divisi: hanya sertakan yang sudah pernah tanding (P >= 1)
+    // Hanya yang pernah main (played >= 1)
     playerList = playerList.filter((p) => p.played >= 1);
 
     if (filterScope === "Anda Yakin?" || filterScope === "Sakurasawa Fighters") {
@@ -252,15 +280,14 @@ export function calculatePowerRanking({
     }
   }
 
-  // 5. Urutan Paten: (1) Total Win, (2) WPM, (3) AGG
+  // 4. Urutan Ranking Paten: (1) Total Win, (2) WPM, (3) AGG
   playerList.sort((a, b) => {
     if (b.won !== a.won) return b.won - a.won;
     if (b.wpm !== a.wpm) return b.wpm - a.wpm;
     if (b.agg !== a.agg) return b.agg - a.agg;
-    return a.played - b.played; // tie-breaker efisiensi: played lebih sedikit didahulukan
+    return a.played - b.played;
   });
 
-  // 6. Tetapkan rank angka
   playerList = playerList.map((p, idx) => ({
     ...p,
     rank: idx + 1,
@@ -270,4 +297,5 @@ export function calculatePowerRanking({
     players: playerList,
     grandTotal,
   };
-          }
+            }
+                                                
