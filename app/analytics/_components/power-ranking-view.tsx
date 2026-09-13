@@ -99,15 +99,18 @@ export function PowerRankingView({
 
   const isTeamView = filterScope === "TEAM";
   const isSearching = searchQuery.trim().length > 0;
-  const hasPodium = !isTeamView && !isSearching && playersWithDiff.length >= 1;
 
-  const top1 = hasPodium ? playersWithDiff[0] : null;
-  const top2 = hasPodium && playersWithDiff.length >= 2 ? playersWithDiff[1] : null;
-  const top3 = hasPodium && playersWithDiff.length >= 3 ? playersWithDiff[2] : null;
+  // MVP Card HANYA muncul jika:
+  // 1. Filter adalah GLOBAL (bukan filter divisi dan bukan filter tim)
+  // 2. Tidak sedang melakukan pencarian (search bar kosong)
+  // 3. Ada data pemain minimal 1
+  const showMvpCard = filterScope === "GLOBAL" && !isSearching && playersWithDiff.length >= 1;
+  const top1 = showMvpCard ? playersWithDiff[0] : null;
 
-  // Pemain untuk tabel
+  // Jika kartu MVP muncul, tabel mulai dari rank 2 (slice 1).
+  // Jika filter divisi/tim aktif, tabel mulai dari rank 1 (semua tampil di tabel).
   const tablePlayers = useMemo(() => {
-    let list = hasPodium ? playersWithDiff.slice(3) : playersWithDiff;
+    let list = showMvpCard ? playersWithDiff.slice(1) : playersWithDiff;
     if (isSearching) {
       const q = searchQuery.toLowerCase();
       list = playersWithDiff.filter(
@@ -115,16 +118,14 @@ export function PowerRankingView({
       );
     }
     return list;
-  }, [playersWithDiff, hasPodium, isSearching, searchQuery]);
+  }, [playersWithDiff, showMvpCard, isSearching, searchQuery]);
 
   return (
     <div className="w-full space-y-3">
-      {/* ── TOP 3 PODIUM RAMPING ── */}
-      {hasPodium && (
+      {/* ── MVP #1 CARD (HANYA MODE GLOBAL) ── */}
+      {showMvpCard && (
         <PowerRankingPodium
           top1={top1}
-          top2={top2}
-          top3={top3}
           teamLogoMap={teamLogoMap}
         />
       )}
@@ -150,13 +151,13 @@ export function PowerRankingView({
         )}
       </div>
 
-      {/* ── TABEL RANKING TANPA BUG STICKY ── */}
+      {/* ── TABEL RANKING DENGAN INTERNAL SCROLL ── */}
       <PowerRankingTable
         players={tablePlayers}
         isTeamView={isTeamView}
         grandTotal={grandTotal}
         teamLogoMap={teamLogoMap}
-        hasPodium={hasPodium}
+        hasPodium={showMvpCard}
       />
     </div>
   );
