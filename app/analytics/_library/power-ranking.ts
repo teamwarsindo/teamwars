@@ -41,7 +41,6 @@ export interface RawMatchReport {
   isFinished?: boolean;
 }
 
-// Alias agar kompatibel dengan file view dan client component
 export type MatchReportData = RawMatchReport;
 
 export interface TeamRosterData {
@@ -75,7 +74,6 @@ export interface PowerRankingGrandTotal {
   agg: number;
 }
 
-// Helper normalisasi string untuk pencocokan aman
 const normalizeKey = (str?: string) =>
   (str || "")
     .toLowerCase()
@@ -98,13 +96,11 @@ export function calculatePowerRanking({
   players: PowerRankingPlayer[];
   grandTotal?: PowerRankingGrandTotal;
 } {
-  // 1. Filter match hingga targetWeek (termasuk match live/ongoing yang sudah ada games)
   const validReports = reports.filter((r) => {
     const w = Number(r.week || 1);
     return w <= targetWeek;
   });
 
-  // Map agregasi: key = `${normSlug}:${playerName.toLowerCase()}`
   const playerStatsMap = new Map<
     string,
     {
@@ -130,7 +126,6 @@ export function calculatePowerRanking({
     const normSlugA = normalizeKey(slugA);
     const normSlugB = normalizeKey(slugB);
 
-    // Ekstraksi dari games duel (support match sedang jalan / real-time)
     if (Array.isArray(rep.games) && rep.games.length > 0) {
       for (const g of rep.games) {
         const pAName = g.playerA?.ign?.trim();
@@ -191,7 +186,6 @@ export function calculatePowerRanking({
         }
       }
     } else {
-      // Fallback Lineup
       const processLineup = (
         lineup: LineupPlayer[] = [],
         slug: string,
@@ -245,7 +239,6 @@ export function calculatePowerRanking({
     }
   }
 
-  // 2. Format ke PowerRankingPlayer
   let playerList: PowerRankingPlayer[] = Array.from(
     playerStatsMap.values()
   ).map((p) => {
@@ -270,13 +263,12 @@ export function calculatePowerRanking({
     };
   });
 
-  // 3. Filter Scope & Mode Tim (Perbaikan Pencocokan Aman)
   let grandTotal: PowerRankingGrandTotal | undefined;
 
   if (filterScope === "TEAM" && selectedTeamSlug) {
     const targetNorm = normalizeKey(selectedTeamSlug);
 
-    // Cari tim di roster dengan pencocokan nama maupun slug
+    // Cari referensi tim di roster
     const selectedTeam = teams.find(
       (t) =>
         normalizeKey(t.slug) === targetNorm ||
@@ -284,31 +276,31 @@ export function calculatePowerRanking({
     );
 
     const activeMembers = new Set(
-      (selectedTeam?.members || []).map((m) => m.toLowerCase().trim())
+      (selectedTeam?.members || []).map((m) => normalizeKey(m))
     );
 
-    // Filter pemain match report yang timnya cocok
+    // Filter pemain tim yang ada catatan bertanding
     const teamReportPlayers = playerList.filter(
       (p) =>
         normalizeKey(p.teamSlug) === targetNorm ||
         normalizeKey(p.teamName) === targetNorm
     );
 
-    const recordedNames = new Set<string>();
+    const recordedMemberKeys = new Set<string>();
 
     const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map(
       (p) => {
-        const isEx =
-          activeMembers.size > 0 &&
-          !activeMembers.has(p.name.toLowerCase().trim());
-        if (!isEx) recordedNames.add(p.name.toLowerCase().trim());
+        const normPName = normalizeKey(p.name);
+        const isEx = activeMembers.size > 0 && !activeMembers.has(normPName);
+        recordedMemberKeys.add(normPName);
         return { ...p, isExPlayer: isEx };
       }
     );
 
-    // Masukkan anggota roster yang belum pernah main (0/0/0)
+    // Sisipkan semua anggota roster yang BELUM pernah main (0/0/0)
     for (const memberName of selectedTeam?.members || []) {
-      if (!recordedNames.has(memberName.toLowerCase().trim())) {
+      const normM = normalizeKey(memberName);
+      if (!recordedMemberKeys.has(normM)) {
         processedTeamPlayers.push({
           rank: 0,
           name: memberName.trim(),
@@ -342,7 +334,6 @@ export function calculatePowerRanking({
       agg: totalWon - totalLost,
     };
   } else {
-    // Mode Global / Divisi: Hanya yang sudah pernah main
     playerList = playerList.filter((p) => p.played >= 1);
 
     if (
@@ -353,7 +344,7 @@ export function calculatePowerRanking({
     }
   }
 
-  // 4. Urutan Ranking: (1) Total Win, (2) WPM, (3) AGG
+  // Urutan Ranking: (1) Total Win, (2) WPM, (3) AGG, (4) Played
   playerList.sort((a, b) => {
     if (b.won !== a.won) return b.won - a.won;
     if (b.wpm !== a.wpm) return b.wpm - a.wpm;
