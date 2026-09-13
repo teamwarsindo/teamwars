@@ -46,10 +46,11 @@ export async function handleBtCheckMatches(body: any) {
     const matchTimestamps = weekMatches.map((m) => new Date(m.matchDate).getTime()).sort((a, b) => a - b);
     const earliestDate = new Date(matchTimestamps[0] || match.matchDate);
 
+    // Disesuaikan agar patokan awal jatuh pada hari SELASA (dayOfWeek === 2)
     const dayOfWeek = earliestDate.getDay();
-    const diffToWed = dayOfWeek >= 3 ? dayOfWeek - 3 : dayOfWeek + 4;
-    const wednesdayDate = new Date(earliestDate);
-    wednesdayDate.setDate(earliestDate.getDate() - diffToWed);
+    const diffToTue = dayOfWeek >= 2 ? dayOfWeek - 2 : dayOfWeek + 5;
+    const tuesdayDate = new Date(earliestDate);
+    tuesdayDate.setDate(earliestDate.getDate() - diffToTue);
 
     const matchCountByDate = new Map<string, number>();
     weekMatches.forEach((m) => {
@@ -58,9 +59,10 @@ export async function handleBtCheckMatches(body: any) {
     });
 
     const lines: string[] = [];
-    for (let i = 0; i < 5; i++) {
-      const d = new Date(wednesdayDate);
-      d.setDate(wednesdayDate.getDate() + i);
+    // Loop 6 hari: Selasa, Rabu, Kamis, Jumat, Sabtu, Minggu
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(tuesdayDate);
+      d.setDate(tuesdayDate.getDate() + i);
       const dateKey = getWibDateKey(d);
       const count = matchCountByDate.get(dateKey) || 0;
       const sisa = Math.max(0, 3 - count);
