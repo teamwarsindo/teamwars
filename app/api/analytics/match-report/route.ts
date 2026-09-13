@@ -41,22 +41,28 @@ export async function GET(req: NextRequest) {
     };
 
     const attachLogosAndFormatGames = (report: any, id: string) => {
-      if (!report) return null;
+      if (!report || typeof report !== 'object') return null;
+
+      // Pastikan objek teamA & teamB selalu ada
+      if (!report.teamA) report.teamA = {};
+      if (!report.teamB) report.teamB = {};
+
       const matchedSchedule = schedules?.find((s) => s.id === id);
       if (matchedSchedule) {
         if (!report.teamA.logo) report.teamA.logo = matchedSchedule.teamALogo || '';
         if (!report.teamB.logo) report.teamB.logo = matchedSchedule.teamBLogo || '';
       }
+
       if (Array.isArray(report.games)) {
         report.games = report.games.map((g: any) => ({
           ...g,
           playerA: {
-            ...g.playerA,
-            skillAbbr: formatSkillAbbr(g.playerA?.skill || ''),
+            ...g?.playerA,
+            skillAbbr: formatSkillAbbr(g?.playerA?.skill || ''),
           },
           playerB: {
-            ...g.playerB,
-            skillAbbr: formatSkillAbbr(g.playerB?.skill || ''),
+            ...g?.playerB,
+            skillAbbr: formatSkillAbbr(g?.playerB?.skill || ''),
           },
         }));
       }
@@ -94,9 +100,9 @@ export async function GET(req: NextRequest) {
 
     // MODE 2: Ambil SEMUA match reports jika matchId tidak ada (untuk Power Ranking)
     const allReportsRecord = (await kv.hgetall<Record<string, any>>('twi:match_reports')) || {};
-    const reportsList = Object.entries(allReportsRecord).map(([id, report]) =>
-      attachLogosAndFormatGames(report, id)
-    ).filter(Boolean);
+    const reportsList = Object.entries(allReportsRecord)
+      .map(([id, report]) => attachLogosAndFormatGames(report, id))
+      .filter(Boolean);
 
     return NextResponse.json(
       { success: true, data: reportsList },
