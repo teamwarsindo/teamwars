@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Image from "next/image";
-import { Trophy, Flame, ShieldAlert, Sparkles, TrendingUp, Zap } from "lucide-react";
+import { Trophy } from "lucide-react";
 import {
   calculatePowerRanking,
   MatchReportData,
@@ -59,7 +59,6 @@ export function PowerRankingView({
       {topOnePlayer && (
         <div className="sticky top-[100px] sm:top-[106px] z-30 mb-3">
           <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-amber-500/30 p-3 shadow-md relative overflow-hidden">
-            {/* Background Glow Emas */}
             <div className="absolute -right-8 -top-8 w-28 h-28 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
 
             <div className="flex items-center justify-between gap-3">
@@ -88,7 +87,7 @@ export function PowerRankingView({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="font-black text-xs sm:text-sm text-foreground truncate">
-                      {topOnePlayer.ign}
+                      {topOnePlayer.name}
                     </span>
                     <span className="px-1.5 py-0.2 rounded-md text-[8px] font-extrabold uppercase bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
                       MVP #1
@@ -122,7 +121,7 @@ export function PowerRankingView({
                     AGG
                   </div>
                   <div className="text-sm sm:text-base font-black text-amber-500">
-                    {topOnePlayer.aggregateScore}
+                    {topOnePlayer.agg > 0 ? `+${topOnePlayer.agg}` : topOnePlayer.agg}
                   </div>
                 </div>
               </div>
@@ -160,7 +159,6 @@ export function PowerRankingView({
                 </tr>
               ) : (
                 tablePlayers.map((p) => {
-                  const isTopThree = !isTeamView && p.rank <= 3;
                   const rankBadgeColor =
                     p.rank === 1
                       ? "bg-amber-500 text-slate-950 font-black"
@@ -172,7 +170,7 @@ export function PowerRankingView({
 
                   return (
                     <tr
-                      key={`${p.ign}-${p.teamSlug}`}
+                      key={`${p.name}-${p.teamSlug}`}
                       className="hover:bg-muted/30 transition-colors"
                     >
                       {/* Rank Number */}
@@ -184,10 +182,17 @@ export function PowerRankingView({
                         </span>
                       </td>
 
-                      {/* Player IGN & Mobile Sub-Team */}
+                      {/* Player Name & Mobile Sub-Team */}
                       <td className="py-2 px-2 min-w-0">
-                        <div className="font-bold text-foreground truncate max-w-[130px] sm:max-w-[200px]">
-                          {p.ign}
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-foreground truncate max-w-[130px] sm:max-w-[200px]">
+                            {p.name}
+                          </span>
+                          {p.isExPlayer && (
+                            <span className="px-1 py-0.2 rounded text-[8px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0">
+                              EX
+                            </span>
+                          )}
                         </div>
                         {!isTeamView && (
                           <div className="text-[10px] text-muted-foreground truncate sm:hidden">
@@ -216,23 +221,46 @@ export function PowerRankingView({
                         </span>
                       </td>
 
-                      {/* WPM (Win Per Match %) */}
+                      {/* WPM (Win Per Match) */}
                       <td className="py-2 px-2 text-center font-mono text-[11px] text-foreground/80">
-                        {p.winRate}%
+                        {p.wpm}
                       </td>
 
                       {/* Aggregate Points */}
                       <td className="py-2 pr-3 pl-2 text-right font-mono text-xs font-bold text-primary">
-                        {p.aggregateScore}
+                        {p.agg > 0 ? `+${p.agg}` : p.agg}
                       </td>
                     </tr>
                   );
                 })
               )}
             </tbody>
+
+            {/* Footer Grand Total Khusus View Tim */}
+            {isTeamView && grandTotal && (
+              <tfoot>
+                <tr className="border-t-2 border-border bg-muted/50 font-bold text-[11px]">
+                  <td className="py-2.5 pl-3 pr-1 text-center font-mono text-muted-foreground">Σ</td>
+                  <td className="py-2.5 px-2 text-foreground">TOTAL ROSTER</td>
+                  <td className="py-2.5 px-2 text-center font-mono">
+                    <span>{grandTotal.played}</span>
+                    <span className="text-muted-foreground/30 mx-0.5">/</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">{grandTotal.won}</span>
+                    <span className="text-muted-foreground/30 mx-0.5">/</span>
+                    <span className="text-rose-600 dark:text-rose-400">{grandTotal.lost}</span>
+                  </td>
+                  <td className="py-2.5 px-2 text-center font-mono text-foreground/80">
+                    {grandTotal.wpm}
+                  </td>
+                  <td className="py-2.5 pr-3 pl-2 text-right font-mono font-black text-primary">
+                    {grandTotal.agg > 0 ? `+${grandTotal.agg}` : grandTotal.agg}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
     </div>
   );
-}
+                      }
