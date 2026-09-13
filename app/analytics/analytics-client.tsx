@@ -41,6 +41,29 @@ export default function AnalyticsClientContent({
     return Array.from({ length: maxActiveWeek }, (_, i) => i + 1);
   }, [maxActiveWeek]);
 
+  // Helper hapus param match dari URL saat kriteria filter berubah
+  const clearMatchParam = () => {
+    if (!searchParams.get("match")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("match");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleGroupChange = (g: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
+    setSelectedGroup(g);
+    clearMatchParam();
+  };
+
+  const handleTeamChange = (t: string) => {
+    setSelectedTeam(t);
+    clearMatchParam();
+  };
+
+  const handleWeekChange = (w: number | "") => {
+    setSelectedWeek(w);
+    clearMatchParam();
+  };
+
   const handleTabChange = (tabKey: "reports" | "power-ranking") => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", tabKey);
@@ -87,7 +110,7 @@ export default function AnalyticsClientContent({
     });
   }, [schedules, selectedGroup, selectedWeek, selectedTeam, teams]);
 
-  // Otomatis pilih laga jika hasil filter menyisakan 1 opsi
+  // Auto-select jika filter menghasilkan tepat 1 laga
   useEffect(() => {
     if (currentTab === "reports" && matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
       handleMatchChange(matchesInView[0].id);
@@ -96,7 +119,7 @@ export default function AnalyticsClientContent({
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      {/* Tab Switcher */}
+      {/* 1. Tab Switcher */}
       <div className="flex items-center justify-center gap-2 border-b border-border/60 pb-3">
         <button
           type="button"
@@ -123,16 +146,16 @@ export default function AnalyticsClientContent({
         </button>
       </div>
 
-      {/* Filter Terpadu */}
+      {/* 2. Filter Bar Terpadu */}
       <AnalyticsFilter
         mode={currentTab}
         selectedGroup={selectedGroup}
-        onGroupChange={setSelectedGroup}
+        onGroupChange={handleGroupChange}
         selectedTeam={selectedTeam}
-        onTeamChange={setSelectedTeam}
+        onTeamChange={handleTeamChange}
         teams={teams}
         selectedWeek={selectedWeek}
-        onWeekChange={setSelectedWeek}
+        onWeekChange={handleWeekChange}
         availableWeeks={availableWeeks}
         selectedMatchId={selectedMatchId}
         onMatchChange={handleMatchChange}
@@ -141,7 +164,7 @@ export default function AnalyticsClientContent({
         onReset={handleReset}
       />
 
-      {/* Konten View */}
+      {/* 3. Konten View */}
       {currentTab === "reports" ? (
         <MatchReportsView
           schedules={schedules}
@@ -159,4 +182,4 @@ export default function AnalyticsClientContent({
       )}
     </div>
   );
-      }
+    }
