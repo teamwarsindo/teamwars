@@ -6,7 +6,6 @@ import { Trophy, Flame, ShieldAlert, Sparkles, TrendingUp, Zap } from "lucide-re
 import {
   calculatePowerRanking,
   MatchReportData,
-  PlayerStanding,
   TeamRosterData,
 } from "../_library/power-ranking";
 
