@@ -5,6 +5,7 @@ import AnalyticsClientContent from "./analytics-client";
 import { RawMatchReport, TeamRosterData } from "./_library/power-ranking";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata = {
   title: "Official Analytics — TWI Season 7",
@@ -20,9 +21,14 @@ export default async function AnalyticsLandingPage() {
     kv.hgetall<Record<string, any>>("twi:match_reports").then((res) => res || {}),
   ]);
 
+  // Cari pekan aktif tertinggi: hitung jika sudah selesai ATAU sudah memiliki laporan/games berjalan
   const maxActiveWeek: number = rawSchedules.reduce((max: number, m: any) => {
     const w = Number(m.weekNumber || 1);
-    return m.isFinished && w > max ? w : max;
+    const rep = rawReportsHash[m.id];
+    const hasLiveGames = Boolean(rep && Array.isArray(rep.games) && rep.games.length > 0);
+    const isOngoingOrFinished = Boolean(m.isFinished) || hasLiveGames;
+
+    return isOngoingOrFinished && w > max ? w : max;
   }, 1);
 
   const scheduleList = rawSchedules
@@ -39,12 +45,26 @@ export default async function AnalyticsLandingPage() {
       isFinished: Boolean(m.isFinished),
     }));
 
-  const finishedMatches = rawSchedules.filter(
-    (m: any) => Boolean(m.isFinished) && Number(m.weekNumber || 1) <= maxActiveWeek
-  );
+  // AMBIL SEMUA MATCH (Selesai maupun yang sedang berjalan yang sudah memiliki log report/games)
+  const activeMatches = rawSchedules.filter((m: any) => {
+    const w = Number(m.weekNumber || 1);
+    if (w > maxActiveWeek) return false;
 
-  // Parse reports langsung dari Hash Map twi:match_reports
-  const reports: RawMatchReport[] = finishedMatches.map((m: any) => {
+    const rep = rawReportsHash[m.id];
+    const hasReportData = Boolean(
+      rep && (
+        (Array.isArray(rep.games) && rep.games.length > 0) ||
+        rep.teamA?.score > 0 ||
+        rep.teamB?.score > 0
+      )
+    );
+
+    // Ikut sertakan jika match sudah finished ATAU sedang berlangsung dan sudah ada duel/game
+    return Boolean(m.isFinished) || hasReportData;
+  });
+
+  // Parse reports dari match yang aktif (finished + ongoing)
+  const reports: RawMatchReport[] = activeMatches.map((m: any) => {
     const rep = rawReportsHash[m.id] || {};
 
     return {
@@ -54,7 +74,7 @@ export default async function AnalyticsLandingPage() {
       teamA: {
         name: rep.teamA?.name || m.teamAName || "",
         slug: rep.teamA?.slug || m.teamASlug || m.teamAName?.toLowerCase().replace(/\s+/g, "-"),
-        score: rep.teamA?.score ?? 0,
+        score: rep.teamA?.score ?? m.teamAScore ?? 0,
         logo: m.teamALogo || rep.teamA?.logo || "",
         groupName: m.groupName || "",
         lineup: rep.teamA?.lineup || [],
@@ -62,13 +82,13 @@ export default async function AnalyticsLandingPage() {
       teamB: {
         name: rep.teamB?.name || m.teamBName || "",
         slug: rep.teamB?.slug || m.teamBSlug || m.teamBName?.toLowerCase().replace(/\s+/g, "-"),
-        score: rep.teamB?.score ?? 0,
+        score: rep.teamB?.score ?? m.teamBScore ?? 0,
         logo: m.teamBLogo || rep.teamB?.logo || "",
         groupName: m.groupName || "",
         lineup: rep.teamB?.lineup || [],
       },
       games: rep.games || [],
-      isFinished: true,
+      isFinished: Boolean(m.isFinished),
     };
   });
 
