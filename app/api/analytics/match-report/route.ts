@@ -8,31 +8,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const matchId = searchParams.get('matchId');
 
-    if (!matchId) {
-      return NextResponse.json({ error: 'matchId diperlukan' }, { status: 400 });
-    }
-
-    // Ambil data Report, Schedules, dan Master Skills langsung dari KV
-    const [reportData, schedules, rawSkills] = await Promise.all([
-      kv.hget<any>('twi:match_reports', matchId),
+    // 1. Ambil Schedules dan Master Skills dari KV
+    const [schedules, rawSkills] = await Promise.all([
       kv.get<any[]>('twi:schedules'),
       kv.get<any>('twi:master_skills'),
     ]);
 
-    if (!reportData) {
-      return NextResponse.json(
-        { error: 'Report data tidak ditemukan' },
-        {
-          status: 404,
-          headers: {
-            // Cache 2 detik untuk 404 agar tidak spam KV saat menunggu wasit buat data
-            'Cache-Control': 'public, s-maxage=2, stale-while-revalidate=2',
-          },
-        }
-      );
-    }
-
-    // Parse Map Skill Resmi dari KV
+    // Parse Map Skill Resmi
     let skillsMap: Record<string, string> = {};
     if (rawSkills) {
       if (typeof rawSkills === 'object' && !Array.isArray(rawSkills)) {
@@ -47,54 +29,81 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Suntikkan logo tim dari schedules jika ada
-    const matchedSchedule = schedules?.find((s) => s.id === matchId);
-    if (matchedSchedule) {
-      if (!reportData.teamA.logo) reportData.teamA.logo = matchedSchedule.teamALogo || '';
-      if (!reportData.teamB.logo) reportData.teamB.logo = matchedSchedule.teamBLogo || '';
-    }
+    const formatSkillAbbr = (fullName: string) => {
+      if (!fullName || fullName === '-') return '';
+      if (skillsMap[fullName]) return skillsMap[fullName];
+      const matchedKey = Object.keys(skillsMap).find(
+        (k) => k.toLowerCase() === fullName.trim().toLowerCase()
+      );
+      if (matchedKey) return skillsMap[matchedKey];
+      const words = fullName.replace(/[^a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+      return words.length >= 2 ? words.map((w) => w[0].toUpperCase()).join('') : fullName;
+    };
 
-    // Format singkatan skill resmi pada setiap Game Log
-    if (Array.isArray(reportData.games)) {
-      reportData.games = reportData.games.map((g: any) => {
-        const skillFullNameA = g.playerA?.skill || '';
-        const skillFullNameB = g.playerB?.skill || '';
-
-        // Ambil singkatan dari KV, jika tidak ada baru buat akronim cerdas
-        const getAbbr = (fullName: string) => {
-          if (!fullName || fullName === '-') return '';
-          // Cek exact match atau case-insensitive match di KV
-          if (skillsMap[fullName]) return skillsMap[fullName];
-          const matchedKey = Object.keys(skillsMap).find(
-            (k) => k.toLowerCase() === fullName.trim().toLowerCase()
-          );
-          if (matchedKey) return skillsMap[matchedKey];
-
-          // Fallback inisial jika skill baru belum didaftarkan singkatannya
-          const words = fullName.replace(/[^a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
-          return words.length >= 2 ? words.map((w) => w[0].toUpperCase()).join('') : fullName;
-        };
-
-        return {
+    const attachLogosAndFormatGames = (report: any, id: string) => {
+      if (!report) return null;
+      const matchedSchedule = schedules?.find((s) => s.id === id);
+      if (matchedSchedule) {
+        if (!report.teamA.logo) report.teamA.logo = matchedSchedule.teamALogo || '';
+        if (!report.teamB.logo) report.teamB.logo = matchedSchedule.teamBLogo || '';
+      }
+      if (Array.isArray(report.games)) {
+        report.games = report.games.map((g: any) => ({
           ...g,
           playerA: {
             ...g.playerA,
-            skillAbbr: getAbbr(skillFullNameA),
+            skillAbbr: formatSkillAbbr(g.playerA?.skill || ''),
           },
           playerB: {
             ...g.playerB,
-            skillAbbr: getAbbr(skillFullNameB),
+            skillAbbr: formatSkillAbbr(g.playerB?.skill || ''),
           },
-        };
-      });
+        }));
+      }
+      return report;
+    };
+
+    // MODE 1: Ambil SATU match report spesifik jika matchId disediakan
+    if (matchId) {
+      const singleReport = await kv.hget<any>('twi:match_reports', matchId);
+
+      if (!singleReport) {
+        return NextResponse.json(
+          { error: 'Report data tidak ditemukan' },
+          {
+            status: 404,
+            headers: {
+              'Cache-Control': 'public, s-maxage=2, stale-while-revalidate=2',
+            },
+          }
+        );
+      }
+
+      const formatted = attachLogosAndFormatGames(singleReport, matchId);
+
+      return NextResponse.json(
+        { success: true, data: formatted },
+        {
+          status: 200,
+          headers: {
+            'Cache-Control': 'public, s-maxage=4, stale-while-revalidate=4',
+          },
+        }
+      );
     }
 
+    // MODE 2: Ambil SEMUA match reports jika matchId tidak ada (untuk Power Ranking)
+    const allReportsRecord = (await kv.hgetall<Record<string, any>>('twi:match_reports')) || {};
+    const reportsList = Object.entries(allReportsRecord).map(([id, report]) =>
+      attachLogosAndFormatGames(report, id)
+    ).filter(Boolean);
+
     return NextResponse.json(
-      { success: true, data: reportData },
+      { success: true, data: reportsList },
       {
         status: 200,
         headers: {
-          'Cache-Control': 'public, s-maxage=4, stale-while-revalidate=4',
+          'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=10',
         },
       }
     );
