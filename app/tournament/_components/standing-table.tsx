@@ -17,9 +17,9 @@ interface StandingTableRowProps {
 }
 
 function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
-  const slots = Array.from({ length: 8 }, (_, i) => form[i] || null);
+  const slots = Array.from({ length: 7 }, (_, i) => form[i] || null);
   return (
-    <div className="grid grid-cols-4 gap-1 w-fit mx-auto justify-items-center">
+    <div className="flex items-center justify-center gap-0.5 sm:gap-1 w-fit mx-auto">
       {slots.map((res, idx) => (
         <span
           key={idx}
@@ -115,4 +115,4 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       </td>
     </tr>
   );
-}
+      }
