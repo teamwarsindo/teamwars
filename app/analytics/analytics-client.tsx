@@ -6,7 +6,6 @@ import { PowerRankingView } from "./_components/power-ranking-view";
 import { MatchReportData, TeamRosterData } from "./_library/power-ranking";
 
 interface AnalyticsClientContentProps {
-  isAdmin: boolean;
   schedules: ScheduleItem[];
   reports?: MatchReportData[];
   teams?: TeamRosterData[];
@@ -14,7 +13,6 @@ interface AnalyticsClientContentProps {
 }
 
 export default function AnalyticsClientContent({
-  isAdmin,
   schedules = [],
   reports = [],
   teams = [],
