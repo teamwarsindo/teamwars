@@ -22,8 +22,6 @@ function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
   return (
     <div className="grid grid-cols-4 gap-1 w-fit mx-auto justify-items-center">
       {slots.map((res, idx) => {
-        // Kotak ke-5 (indeks 4) adalah item pertama di baris kedua.
-        // Diberi offset setengah kolom agar 3 kotak di baris kedua simetris tepat di tengah.
         const isFirstOfSecondRow = idx === 4;
 
         return (
@@ -82,11 +80,13 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       {/* TEAM (36%) */}
       <td className="py-2.5 pl-1.5 pr-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <img
-            src={item.teamLogo || "/logo.webp"}
-            alt=""
-            className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0 object-contain"
-          />
+          <div className="h-4 w-4 sm:h-5 sm:w-5 rounded-full overflow-hidden shrink-0 border border-border/60 bg-muted/20">
+            <img
+              src={item.teamLogo || "/logo.webp"}
+              alt=""
+              className="h-full w-full object-cover rounded-full"
+            />
+          </div>
           <span className="font-semibold text-[10.5px] sm:text-xs md:text-sm truncate text-foreground">
             {item.teamName}
           </span>
@@ -124,4 +124,4 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       </td>
     </tr>
   );
-        }
+}
