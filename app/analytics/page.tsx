@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { kv } from "@vercel/kv";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
@@ -14,33 +13,39 @@ export const metadata = {
 };
 
 export default async function AnalyticsLandingPage() {
-  const cookieStore = await cookies();
-  const adminCookie = cookieStore.get("admin_session")?.value;
-  const isAdmin = Boolean(adminCookie);
-
-  // 1. Ambil jadwal dan tim
   const [rawSchedules, rawTeams] = await Promise.all([
     kv.get<any[]>("twi:schedules").then((res) => res || []),
     kv.get<any[]>("twi:teams").then((res) => res || []),
   ]);
 
-  // 2. Hitung pekan aktif tertinggi
-  const maxActiveWeek = rawSchedules.reduce((max, m) => {
+  const maxActiveWeek: number = rawSchedules.reduce((max: number, m: any) => {
     const w = Number(m.weekNumber || 1);
     return m.isFinished && w > max ? w : max;
   }, 1);
 
-  // Ambil match yang sudah selesai hingga maxActiveWeek
+  const scheduleList = rawSchedules
+    .filter((m: any) => Number(m.weekNumber || 1) <= maxActiveWeek)
+    .map((m: any) => ({
+      id: m.id,
+      weekNumber: Number(m.weekNumber || 1),
+      groupName: m.groupName || "",
+      teamAName: m.teamAName || "",
+      teamBName: m.teamBName || "",
+      teamALogo: m.teamALogo || "",
+      teamBLogo: m.teamBLogo || "",
+      matchDate: m.matchDate || "",
+      isFinished: Boolean(m.isFinished),
+    }));
+
   const finishedMatches = rawSchedules.filter(
-    (m) => Boolean(m.isFinished) && Number(m.weekNumber || 1) <= maxActiveWeek
+    (m: any) => Boolean(m.isFinished) && Number(m.weekNumber || 1) <= maxActiveWeek
   );
 
-  // 3. Batch get seluruh report detail berdasarkan schedule id
-  const reportKeys = finishedMatches.map((m) => `twi:match_report:${m.id}`);
-  const rawReports = reportKeys.length > 0 ? await kv.mget<any[]>(...reportKeys) : [];
+  const reportKeys = finishedMatches.map((m: any) => `twi:match_report:${m.id}`);
+  const rawReports =
+    reportKeys.length > 0 ? await kv.mget<any[]>(...reportKeys) : [];
 
-  // Format menjadi MatchReportData untuk parser power-ranking
-  const reports: MatchReportData[] = finishedMatches.map((m, idx) => {
+  const reports: MatchReportData[] = finishedMatches.map((m: any, idx: number) => {
     const rep = rawReports[idx] || {};
     return {
       id: m.id,
@@ -62,7 +67,7 @@ export default async function AnalyticsLandingPage() {
     };
   });
 
-  const teams: TeamRosterData[] = rawTeams.map((t) => ({
+  const teams: TeamRosterData[] = rawTeams.map((t: any) => ({
     slug: t.slug || t.name?.toLowerCase().replace(/\s+/g, "-"),
     name: t.name || "",
     logo: t.logo || "",
@@ -72,7 +77,10 @@ export default async function AnalyticsLandingPage() {
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
-      <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
+      <div
+        className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]"
+        aria-hidden="true"
+      />
       <TopBar title="Official Analytics" />
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-3 sm:px-6 pb-12">
@@ -87,6 +95,7 @@ export default async function AnalyticsLandingPage() {
             }
           >
             <AnalyticsClientContent
+              schedules={scheduleList}
               reports={reports}
               teams={teams}
               maxActiveWeek={maxActiveWeek}
@@ -98,4 +107,4 @@ export default async function AnalyticsLandingPage() {
       </div>
     </main>
   );
-}
+          }
