@@ -75,6 +75,13 @@ export interface PowerRankingGrandTotal {
   agg: number;
 }
 
+// Helper normalisasi string untuk pencocokan aman
+const normalizeKey = (str?: string) =>
+  (str || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, "");
+
 export function calculatePowerRanking({
   reports,
   targetWeek,
@@ -91,13 +98,13 @@ export function calculatePowerRanking({
   players: PowerRankingPlayer[];
   grandTotal?: PowerRankingGrandTotal;
 } {
-  // 1. Filter match hingga targetWeek
+  // 1. Filter match hingga targetWeek (termasuk match live/ongoing yang sudah ada games)
   const validReports = reports.filter((r) => {
     const w = Number(r.week || 1);
     return w <= targetWeek;
   });
 
-  // Map agregasi: key = `${teamSlug}:${playerName.toLowerCase()}`
+  // Map agregasi: key = `${normSlug}:${playerName.toLowerCase()}`
   const playerStatsMap = new Map<
     string,
     {
@@ -117,20 +124,21 @@ export function calculatePowerRanking({
       rep.matchId ||
       rep.id ||
       `${rep.week}-${rep.teamA.name}-vs-${rep.teamB.name}`;
-    const slugA =
-      rep.teamA.slug || rep.teamA.name.toLowerCase().replace(/\s+/g, "-");
-    const slugB =
-      rep.teamB.slug || rep.teamB.name.toLowerCase().replace(/\s+/g, "-");
 
-    // Ekstraksi dari games duel
+    const slugA = rep.teamA.slug || rep.teamA.name;
+    const slugB = rep.teamB.slug || rep.teamB.name;
+    const normSlugA = normalizeKey(slugA);
+    const normSlugB = normalizeKey(slugB);
+
+    // Ekstraksi dari games duel (support match sedang jalan / real-time)
     if (Array.isArray(rep.games) && rep.games.length > 0) {
       for (const g of rep.games) {
         const pAName = g.playerA?.ign?.trim();
         const pBName = g.playerB?.ign?.trim();
         if (!pAName || !pBName) continue;
 
-        const keyA = `${slugA}:${pAName.toLowerCase()}`;
-        const keyB = `${slugB}:${pBName.toLowerCase()}`;
+        const keyA = `${normSlugA}:${pAName.toLowerCase()}`;
+        const keyB = `${normSlugB}:${pBName.toLowerCase()}`;
 
         if (!playerStatsMap.has(keyA)) {
           playerStatsMap.set(keyA, {
@@ -164,19 +172,30 @@ export function calculatePowerRanking({
         statA.matchesAppeared.add(reportId);
         statB.matchesAppeared.add(reportId);
 
-        if (g.winner === "teamA" || g.winner === pAName) {
+        const w = (g.winner || "").toLowerCase().trim();
+        const winA =
+          w === "teama" ||
+          w === pAName.toLowerCase() ||
+          w === normalizeKey(rep.teamA.name);
+        const winB =
+          w === "teamb" ||
+          w === pBName.toLowerCase() ||
+          w === normalizeKey(rep.teamB.name);
+
+        if (winA) {
           statA.won += 1;
           statB.lost += 1;
-        } else if (g.winner === "teamB" || g.winner === pBName) {
+        } else if (winB) {
           statB.won += 1;
           statA.lost += 1;
         }
       }
     } else {
-      // Fallback: Jika array games kosong, baca dari totalWins/totalLosses di lineup
+      // Fallback Lineup
       const processLineup = (
         lineup: LineupPlayer[] = [],
         slug: string,
+        normSlug: string,
         tName: string,
         logo?: string,
         group?: string
@@ -187,10 +206,10 @@ export function calculatePowerRanking({
           const losses = Number(p.totalLosses || 0);
           if (wins === 0 && losses === 0) continue;
 
-          const key = `${slug}:${p.ign.toLowerCase()}`;
+          const key = `${normSlug}:${p.ign.toLowerCase().trim()}`;
           if (!playerStatsMap.has(key)) {
             playerStatsMap.set(key, {
-              name: p.ign,
+              name: p.ign.trim(),
               teamSlug: slug,
               teamName: tName,
               teamLogo: logo,
@@ -210,6 +229,7 @@ export function calculatePowerRanking({
       processLineup(
         rep.teamA.lineup,
         slugA,
+        normSlugA,
         rep.teamA.name,
         rep.teamA.logo,
         rep.teamA.groupName
@@ -217,6 +237,7 @@ export function calculatePowerRanking({
       processLineup(
         rep.teamB.lineup,
         slugB,
+        normSlugB,
         rep.teamB.name,
         rep.teamB.logo,
         rep.teamB.groupName
@@ -249,37 +270,50 @@ export function calculatePowerRanking({
     };
   });
 
-  // 3. Filter Scope & Mode Tim
+  // 3. Filter Scope & Mode Tim (Perbaikan Pencocokan Aman)
   let grandTotal: PowerRankingGrandTotal | undefined;
 
   if (filterScope === "TEAM" && selectedTeamSlug) {
-    const selectedTeam = teams.find((t) => t.slug === selectedTeamSlug);
-    const activeMembers = new Set(
-      (selectedTeam?.members || []).map((m) => m.toLowerCase())
+    const targetNorm = normalizeKey(selectedTeamSlug);
+
+    // Cari tim di roster dengan pencocokan nama maupun slug
+    const selectedTeam = teams.find(
+      (t) =>
+        normalizeKey(t.slug) === targetNorm ||
+        normalizeKey(t.name) === targetNorm
     );
 
-    const teamReportPlayers = playerList.filter(
-      (p) => p.teamSlug === selectedTeamSlug
+    const activeMembers = new Set(
+      (selectedTeam?.members || []).map((m) => m.toLowerCase().trim())
     );
+
+    // Filter pemain match report yang timnya cocok
+    const teamReportPlayers = playerList.filter(
+      (p) =>
+        normalizeKey(p.teamSlug) === targetNorm ||
+        normalizeKey(p.teamName) === targetNorm
+    );
+
     const recordedNames = new Set<string>();
 
     const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map(
       (p) => {
         const isEx =
-          activeMembers.size > 0 && !activeMembers.has(p.name.toLowerCase());
-        if (!isEx) recordedNames.add(p.name.toLowerCase());
+          activeMembers.size > 0 &&
+          !activeMembers.has(p.name.toLowerCase().trim());
+        if (!isEx) recordedNames.add(p.name.toLowerCase().trim());
         return { ...p, isExPlayer: isEx };
       }
     );
 
-    // Masukkan anggota tim yang belum pernah main (0/0/0)
+    // Masukkan anggota roster yang belum pernah main (0/0/0)
     for (const memberName of selectedTeam?.members || []) {
-      if (!recordedNames.has(memberName.toLowerCase())) {
+      if (!recordedNames.has(memberName.toLowerCase().trim())) {
         processedTeamPlayers.push({
           rank: 0,
-          name: memberName,
-          teamSlug: selectedTeamSlug,
-          teamName: selectedTeam?.name || "",
+          name: memberName.trim(),
+          teamSlug: selectedTeam?.slug || selectedTeamSlug,
+          teamName: selectedTeam?.name || selectedTeamSlug,
           teamLogo: selectedTeam?.logo,
           groupName: selectedTeam?.groupName,
           played: 0,
@@ -308,7 +342,7 @@ export function calculatePowerRanking({
       agg: totalWon - totalLost,
     };
   } else {
-    // Hanya pemain yang pernah main (played >= 1)
+    // Mode Global / Divisi: Hanya yang sudah pernah main
     playerList = playerList.filter((p) => p.played >= 1);
 
     if (
@@ -319,7 +353,7 @@ export function calculatePowerRanking({
     }
   }
 
-  // 4. Urutan Ranking Paten: (1) Total Win, (2) WPM, (3) AGG
+  // 4. Urutan Ranking: (1) Total Win, (2) WPM, (3) AGG
   playerList.sort((a, b) => {
     if (b.won !== a.won) return b.won - a.won;
     if (b.wpm !== a.wpm) return b.wpm - a.wpm;
