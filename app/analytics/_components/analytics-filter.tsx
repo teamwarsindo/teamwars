@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { DIVISION_MAP } from "@/app/tournament/_library";
 
 export interface AnalyticsFilterMatchItem {
@@ -18,6 +19,7 @@ export interface FilterTeamItem {
   name: string;
   slug: string;
   groupName?: string;
+  logo?: string;
 }
 
 interface AnalyticsFilterProps {
@@ -30,6 +32,7 @@ interface AnalyticsFilterProps {
   selectedWeek: number | "";
   onWeekChange: (week: number | "") => void;
   availableWeeks: number[];
+  maxActiveWeek?: number;
   selectedMatchId?: string;
   onMatchChange?: (matchId: string) => void;
   matchesInView?: AnalyticsFilterMatchItem[];
@@ -72,18 +75,12 @@ export function AnalyticsFilter({
     return teams.filter((t) => !t.groupName || t.groupName === selectedGroup);
   }, [teams, selectedGroup]);
 
-  // Handler memilih tim: Otomatis aktifkan tombol divisi
+  // Handler memilih tim: HANYA ubah tim terpilih, JANGAN auto-select divisi
   const handleSelectTeam = (teamName: string) => {
     if (!teamName || teamName === "ALL") {
       onTeamChange("");
     } else {
       onTeamChange(teamName);
-      const target = teams.find((t) => t.name === teamName);
-      if (target?.groupName) {
-        if (target.groupName === DIVISION_MAP.GROUP_A || target.groupName === DIVISION_MAP.GROUP_B) {
-          onGroupChange(target.groupName);
-        }
-      }
     }
     setOpenDropdown(null);
   };
@@ -106,6 +103,7 @@ export function AnalyticsFilter({
   const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
   const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
   const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
+  const selectedTeamObj = teams.find((t) => t.name === selectedTeam);
 
   const renderScore = (sA?: number, sB?: number) => {
     if (sA === undefined || sB === undefined) return null;
@@ -163,7 +161,21 @@ export function AnalyticsFilter({
             onClick={() => setOpenDropdown(openDropdown === "team" ? null : "team")}
             className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
           >
-            <span className="truncate">{selectedTeam || "Semua Tim"}</span>
+            <div className="flex items-center gap-1.5 truncate">
+              {selectedTeamObj?.logo && (
+                <div className="h-3.5 w-3.5 rounded-full overflow-hidden shrink-0 border border-border/60">
+                  <Image
+                    src={selectedTeamObj.logo}
+                    alt={selectedTeamObj.name}
+                    width={14}
+                    height={14}
+                    className="h-full w-full object-cover rounded-full"
+                    unoptimized
+                  />
+                </div>
+              )}
+              <span className="truncate">{selectedTeam || "Semua Tim"}</span>
+            </div>
             <span className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${openDropdown === "team" ? "rotate-180" : ""}`}>
               ▼
             </span>
@@ -193,8 +205,22 @@ export function AnalyticsFilter({
                       isSelected ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
                     }`}
                   >
-                    <span className="truncate">{t.name}</span>
-                    {isSelected && <span>✓</span>}
+                    <div className="flex items-center gap-2 truncate">
+                      {t.logo && (
+                        <div className="h-4 w-4 rounded-full overflow-hidden shrink-0 border border-border/60">
+                          <Image
+                            src={t.logo}
+                            alt={t.name}
+                            width={16}
+                            height={16}
+                            className="h-full w-full object-cover rounded-full"
+                            unoptimized
+                          />
+                        </div>
+                      )}
+                      <span className="truncate">{t.name}</span>
+                    </div>
+                    {isSelected && <span className="ml-1 shrink-0">✓</span>}
                   </button>
                 );
               })}
