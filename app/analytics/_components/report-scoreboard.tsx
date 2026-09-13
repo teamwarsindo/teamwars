@@ -116,14 +116,14 @@ export function ReportScoreboard({
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             {/* Tim Kiri */}
             <div className="flex flex-col items-center text-center min-w-0">
-              <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
+              <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-xs">
                 {logoA && !logoErrA ? (
                   <Image
                     src={logoA}
                     alt={teamA.name || 'Team A'}
                     fill
                     sizes="48px"
-                    className="object-contain p-1"
+                    className="object-cover rounded-full"
                     onError={() => setLogoErrA(true)}
                     unoptimized
                   />
@@ -166,14 +166,14 @@ export function ReportScoreboard({
 
             {/* Tim Kanan */}
             <div className="flex flex-col items-center text-center min-w-0">
-              <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1">
+              <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-xs">
                 {logoB && !logoErrB ? (
                   <Image
                     src={logoB}
                     alt={teamB.name || 'Team B'}
                     fill
                     sizes="48px"
-                    className="object-contain p-1"
+                    className="object-cover rounded-full"
                     onError={() => setLogoErrB(true)}
                     unoptimized
                   />
