@@ -79,10 +79,10 @@ async function executeWeeklyBroadcast(targetWeekStr: string) {
   const weekGroupCacheKey = `twi:schedule_msg_ids:${weekNumber}`;
   const existingGroupMsgIds = (await kv.get<{ groupAMsgId?: string; groupBMsgId?: string }>(weekGroupCacheKey)) || {};
 
+  // Pemanggilan bersih tanpa dailyMatchCounts yang tidak terpakai
   const result = await sendOrUpdateWeeklyScheduleAndRecap({
     channelId: DISCORD_CONFIG.CH_SCHEDULE,
     weekName: targetWeekStr,
-    dailyMatchCounts: [],
     groupASchedules,
     groupBSchedules,
     existingMsgIds: {
@@ -183,4 +183,5 @@ export async function DELETE(req: Request) {
     console.error('Error DELETE Weekly Recap:', error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+    }
+  
