@@ -10,12 +10,14 @@ import { MatchReportData, TeamRosterData } from "./_library/power-ranking";
 
 interface AnalyticsClientContentProps {
   schedules: ScheduleItem[];
+  reports?: MatchReportData[];
   teams?: TeamRosterData[];
   maxActiveWeek?: number;
 }
 
 export default function AnalyticsClientContent({
   schedules = [],
+  reports = [],
   teams = [],
   maxActiveWeek = 1,
 }: AnalyticsClientContentProps) {
@@ -26,10 +28,6 @@ export default function AnalyticsClientContent({
   const currentTab = searchParams.get("tab") === "power-ranking" ? "power-ranking" : "reports";
   const selectedMatchId = searchParams.get("match") || "";
 
-  // State sinkronisasi data laporan duel tunggal untuk seluruh analitik
-  const [reports, setReports] = useState<MatchReportData[]>([]);
-  const [loadingReports, setLoadingReports] = useState(true);
-
   // Shared Filters State
   const [selectedGroup, setSelectedGroup] = useState<
     "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B
@@ -38,29 +36,6 @@ export default function AnalyticsClientContent({
   const [selectedWeek, setSelectedWeek] = useState<number | "">(
     currentTab === "power-ranking" ? maxActiveWeek : ""
   );
-
-  // Ambil semua match reports sekali via API endpoint
-  useEffect(() => {
-    let isMounted = true;
-    async function fetchAllReports() {
-      try {
-        setLoadingReports(true);
-        const res = await fetch("/api/analytics/match-report");
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data) && isMounted) {
-          setReports(json.data);
-        }
-      } catch (err) {
-        console.error("Gagal mengambil master reports:", err);
-      } finally {
-        if (isMounted) setLoadingReports(false);
-      }
-    }
-    fetchAllReports();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const availableWeeks = useMemo(() => {
     return Array.from({ length: maxActiveWeek }, (_, i) => i + 1);
@@ -112,7 +87,7 @@ export default function AnalyticsClientContent({
     });
   }, [schedules, selectedGroup, selectedWeek, selectedTeam, teams]);
 
-  // Otomatis pilih laga jika filter hanya menghasilkan 1 opsi
+  // Otomatis pilih laga jika hasil filter menyisakan 1 opsi
   useEffect(() => {
     if (currentTab === "reports" && matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
       handleMatchChange(matchesInView[0].id);
@@ -121,7 +96,7 @@ export default function AnalyticsClientContent({
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      {/* 1. Tab Switcher (Hanya Match Reports & Power Ranking) */}
+      {/* Tab Switcher */}
       <div className="flex items-center justify-center gap-2 border-b border-border/60 pb-3">
         <button
           type="button"
@@ -148,7 +123,7 @@ export default function AnalyticsClientContent({
         </button>
       </div>
 
-      {/* 2. Filter Bar Terpadu */}
+      {/* Filter Terpadu */}
       <AnalyticsFilter
         mode={currentTab}
         selectedGroup={selectedGroup}
@@ -166,16 +141,12 @@ export default function AnalyticsClientContent({
         onReset={handleReset}
       />
 
-      {/* 3. Konten View */}
+      {/* Konten View */}
       {currentTab === "reports" ? (
         <MatchReportsView
           schedules={schedules}
           selectedMatchId={selectedMatchId}
         />
-      ) : loadingReports ? (
-        <div className="p-12 text-center text-xs font-bold text-primary animate-pulse bg-card rounded-2xl border border-border">
-          Mengkalkulasi Power Ranking...
-        </div>
       ) : (
         <PowerRankingView
           reports={reports}
