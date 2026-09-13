@@ -9,15 +9,17 @@ interface MovedMatchLog {
 }
 
 function formatDayTime(date: Date): string {
-  return new Intl.DateTimeFormat('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Jakarta',
-  }).format(date) + ' WIB';
+  return (
+    new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta',
+    }).format(date) + ' WIB'
+  );
 }
 
 async function handleForwardWeek7() {
@@ -26,10 +28,10 @@ async function handleForwardWeek7() {
     const movedMatches: MovedMatchLog[] = [];
 
     const updatedSchedules = schedules.map((match) => {
+      // Filter eksplisit menggunakan weekNumber === 7
       const isWeek7 =
-        match.groupName?.includes('Week 7') ||
-        (match as any).week === 7 ||
-        (match as any).weekName?.includes('Week 7');
+        (match as any).weekNumber === 7 ||
+        (match as any).weekNumber === '7';
 
       if (isWeek7 && !match.isFinished) {
         const oldDate = new Date(match.matchDate);
@@ -56,7 +58,7 @@ async function handleForwardWeek7() {
     if (movedMatches.length === 0) {
       return NextResponse.json({
         success: false,
-        message: 'Tidak ada pertandingan Week 7 aktif yang ditemukan untuk dimajukan.',
+        message: 'Tidak ada pertandingan Week 7 aktif (weekNumber: 7) yang ditemukan untuk dimajukan.',
       });
     }
 
@@ -83,3 +85,4 @@ export async function GET() {
 export async function POST() {
   return handleForwardWeek7();
 }
+  
