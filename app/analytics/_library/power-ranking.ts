@@ -41,6 +41,9 @@ export interface RawMatchReport {
   isFinished?: boolean;
 }
 
+// Alias agar kompatibel dengan file view dan client component
+export type MatchReportData = RawMatchReport;
+
 export interface TeamRosterData {
   slug: string;
   name: string;
@@ -110,9 +113,14 @@ export function calculatePowerRanking({
   >();
 
   for (const rep of validReports) {
-    const reportId = rep.matchId || rep.id || `${rep.week}-${rep.teamA.name}-vs-${rep.teamB.name}`;
-    const slugA = rep.teamA.slug || rep.teamA.name.toLowerCase().replace(/\s+/g, "-");
-    const slugB = rep.teamB.slug || rep.teamB.name.toLowerCase().replace(/\s+/g, "-");
+    const reportId =
+      rep.matchId ||
+      rep.id ||
+      `${rep.week}-${rep.teamA.name}-vs-${rep.teamB.name}`;
+    const slugA =
+      rep.teamA.slug || rep.teamA.name.toLowerCase().replace(/\s+/g, "-");
+    const slugB =
+      rep.teamB.slug || rep.teamB.name.toLowerCase().replace(/\s+/g, "-");
 
     // Ekstraksi dari games duel
     if (Array.isArray(rep.games) && rep.games.length > 0) {
@@ -166,12 +174,18 @@ export function calculatePowerRanking({
       }
     } else {
       // Fallback: Jika array games kosong, baca dari totalWins/totalLosses di lineup
-      const processLineup = (lineup: LineupPlayer[] = [], slug: string, tName: string, logo?: string, group?: string) => {
+      const processLineup = (
+        lineup: LineupPlayer[] = [],
+        slug: string,
+        tName: string,
+        logo?: string,
+        group?: string
+      ) => {
         for (const p of lineup) {
           if (!p.ign) continue;
           const wins = Number(p.totalWins || 0);
           const losses = Number(p.totalLosses || 0);
-          if (wins === 0 && losses === 0) continue; // belum tanding
+          if (wins === 0 && losses === 0) continue;
 
           const key = `${slug}:${p.ign.toLowerCase()}`;
           if (!playerStatsMap.has(key)) {
@@ -193,13 +207,27 @@ export function calculatePowerRanking({
         }
       };
 
-      processLineup(rep.teamA.lineup, slugA, rep.teamA.name, rep.teamA.logo, rep.teamA.groupName);
-      processLineup(rep.teamB.lineup, slugB, rep.teamB.name, rep.teamB.logo, rep.teamB.groupName);
+      processLineup(
+        rep.teamA.lineup,
+        slugA,
+        rep.teamA.name,
+        rep.teamA.logo,
+        rep.teamA.groupName
+      );
+      processLineup(
+        rep.teamB.lineup,
+        slugB,
+        rep.teamB.name,
+        rep.teamB.logo,
+        rep.teamB.groupName
+      );
     }
   }
 
   // 2. Format ke PowerRankingPlayer
-  let playerList: PowerRankingPlayer[] = Array.from(playerStatsMap.values()).map((p) => {
+  let playerList: PowerRankingPlayer[] = Array.from(
+    playerStatsMap.values()
+  ).map((p) => {
     const played = p.matchesAppeared.size;
     const won = p.won;
     const lost = p.lost;
@@ -226,16 +254,23 @@ export function calculatePowerRanking({
 
   if (filterScope === "TEAM" && selectedTeamSlug) {
     const selectedTeam = teams.find((t) => t.slug === selectedTeamSlug);
-    const activeMembers = new Set((selectedTeam?.members || []).map((m) => m.toLowerCase()));
+    const activeMembers = new Set(
+      (selectedTeam?.members || []).map((m) => m.toLowerCase())
+    );
 
-    const teamReportPlayers = playerList.filter((p) => p.teamSlug === selectedTeamSlug);
+    const teamReportPlayers = playerList.filter(
+      (p) => p.teamSlug === selectedTeamSlug
+    );
     const recordedNames = new Set<string>();
 
-    const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map((p) => {
-      const isEx = activeMembers.size > 0 && !activeMembers.has(p.name.toLowerCase());
-      if (!isEx) recordedNames.add(p.name.toLowerCase());
-      return { ...p, isExPlayer: isEx };
-    });
+    const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map(
+      (p) => {
+        const isEx =
+          activeMembers.size > 0 && !activeMembers.has(p.name.toLowerCase());
+        if (!isEx) recordedNames.add(p.name.toLowerCase());
+        return { ...p, isExPlayer: isEx };
+      }
+    );
 
     // Masukkan anggota tim yang belum pernah main (0/0/0)
     for (const memberName of selectedTeam?.members || []) {
@@ -262,7 +297,8 @@ export function calculatePowerRanking({
     const totalWon = playerList.reduce((acc, cur) => acc + cur.won, 0);
     const totalLost = playerList.reduce((acc, cur) => acc + cur.lost, 0);
     const totalPlayed = playerList.reduce((acc, cur) => acc + cur.played, 0);
-    const totalWpm = totalPlayed > 0 ? Number((totalWon / totalPlayed).toFixed(2)) : 0;
+    const totalWpm =
+      totalPlayed > 0 ? Number((totalWon / totalPlayed).toFixed(2)) : 0;
 
     grandTotal = {
       played: totalPlayed,
@@ -272,10 +308,13 @@ export function calculatePowerRanking({
       agg: totalWon - totalLost,
     };
   } else {
-    // Hanya yang pernah main (played >= 1)
+    // Hanya pemain yang pernah main (played >= 1)
     playerList = playerList.filter((p) => p.played >= 1);
 
-    if (filterScope === "Anda Yakin?" || filterScope === "Sakurasawa Fighters") {
+    if (
+      filterScope === "Anda Yakin?" ||
+      filterScope === "Sakurasawa Fighters"
+    ) {
       playerList = playerList.filter((p) => p.groupName === filterScope);
     }
   }
@@ -297,5 +336,4 @@ export function calculatePowerRanking({
     players: playerList,
     grandTotal,
   };
-            }
-                                                
+}
