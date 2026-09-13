@@ -34,12 +34,6 @@ export async function deleteWeeklyScheduleAndRecap(params: {
 export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   channelId: string;
   weekName: string;
-  weekDateRangeStr?: string;
-  dailyMatchCounts?: Array<{
-    dateKey: string;
-    dateFormatted: string;
-    count: number;
-  }>;
   groupASchedules: Array<ScheduleMatch>;
   groupBSchedules: Array<ScheduleMatch>;
   existingMsgIds?: {
@@ -126,7 +120,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId = postRes?.id || null;
   }
 
-  // 3. RECAP: Hapus pesan rekap lama jika tersisa & cegah pengiriman baru
+  // 3. Bersihkan pesan recap lama jika masih tertinggal
   if (recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
   }
@@ -139,4 +133,4 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId,
     recapMsgId: null,
   };
-                                           }
+      }
