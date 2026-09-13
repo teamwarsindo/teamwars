@@ -2,64 +2,37 @@ import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
 
-export async function GET() {
+export async function POST(req: Request) {
   try {
-    const matchId = 'match-48';
-    const ventId = '622438955429789726';
-    const msgId = '1548172080334503979';
-    const scoreA = 9;  // FPF Fabulous
-    const scoreB = 10; // DS Octagram
-
-    // 1. UPDATE twi:schedules
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const idx = schedules.findIndex((m) => m.id === matchId);
+    let updatedCount = 0;
 
-    if (idx === -1) {
-      return NextResponse.json({ error: `Match ${matchId} tidak ditemukan di schedules` }, { status: 404 });
-    }
+    // Filter jadwal khusus Week 7 yang belum selesai
+    const updatedSchedules = schedules.map((m) => {
+      const isWeek7 = m.groupName?.includes('Week 7') || (m as any).week === 7 || (m as any).weekName?.includes('Week 7');
 
-    schedules[idx].referee = 'Vent';
-    schedules[idx].refereeDiscordId = ventId;
-    (schedules[idx] as any).refereeLogMsgId = msgId;
-    schedules[idx].scoreA = scoreA;
-    schedules[idx].scoreB = scoreB;
-    schedules[idx].isFinished = false; // Buka kembali agar bisa di-unassign secara legal
+      if (isWeek7 && !m.isFinished) {
+        const currentDate = new Date(m.matchDate);
 
-    await kv.set('twi:schedules', schedules);
+        // Majukan 1 hari (-24 jam)
+        currentDate.setDate(currentDate.getDate() - 1);
 
-    // 2. UPDATE twi:staff_history (kembalikan match ke riwayat aktif Vent)
-    // Key biasanya berupa hash atau JSON list per role/staff
-    const historyKey = `twi:staff_history:REFEREE:${ventId}`;
-    let history = (await kv.get<string[]>(historyKey)) || [];
-    if (!history.includes(matchId)) {
-      history.push(matchId);
-      await kv.set(historyKey, history);
-    }
-
-    // Jika sistemmu menyimpan di hash global twi:staff_history:
-    try {
-      const globalHistory = (await kv.hget<string[]>('twi:staff_history', ventId)) || [];
-      if (!globalHistory.includes(matchId)) {
-        globalHistory.push(matchId);
-        await kv.hset('twi:staff_history', { [ventId]: globalHistory });
+        updatedCount++;
+        return {
+          ...m,
+          matchDate: currentDate.toISOString(),
+        };
       }
-    } catch {
-      // Abaikan jika struktur hash berbeda
-    }
+      return m;
+    });
+
+    await kv.set('twi:schedules', updatedSchedules);
 
     return NextResponse.json({
       success: true,
-      message: `Match ${matchId} berhasil di-restore untuk Vent!`,
-      data: {
-        matchId,
-        referee: 'Vent',
-        refereeDiscordId: ventId,
-        refereeLogMsgId: msgId,
-        score: `${scoreA}-${scoreB}`,
-        isFinished: false,
-      },
+      message: `Berhasil memajukan ${updatedCount} pertandingan Week 7 ke 1 hari lebih awal.`,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
