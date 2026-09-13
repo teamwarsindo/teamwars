@@ -29,6 +29,17 @@ export function PowerRankingView({
 }: PowerRankingViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Temukan slug tim yang cocok dari nama tim yang dipilih
+  const matchedTeamSlug = useMemo(() => {
+    if (!selectedTeam || selectedTeam === "ALL") return undefined;
+    const found = teams.find(
+      (t) =>
+        t.name.toLowerCase() === selectedTeam.toLowerCase() ||
+        t.slug?.toLowerCase() === selectedTeam.toLowerCase()
+    );
+    return found ? found.slug || found.name : selectedTeam;
+  }, [teams, selectedTeam]);
+
   const filterScope =
     selectedTeam && selectedTeam !== "ALL"
       ? "TEAM"
@@ -47,9 +58,9 @@ export function PowerRankingView({
       targetWeek,
       teams,
       filterScope,
-      selectedTeamSlug: selectedTeam && selectedTeam !== "ALL" ? selectedTeam : undefined,
+      selectedTeamSlug: matchedTeamSlug,
     });
-  }, [reports, targetWeek, teams, filterScope, selectedTeam]);
+  }, [reports, targetWeek, teams, filterScope, matchedTeamSlug]);
 
   // 2. Ranking Pekan Sebelumnya (untuk Delta +/-)
   const prevPlayers = useMemo(() => {
@@ -59,9 +70,9 @@ export function PowerRankingView({
       targetWeek: targetWeek - 1,
       teams,
       filterScope,
-      selectedTeamSlug: selectedTeam && selectedTeam !== "ALL" ? selectedTeam : undefined,
+      selectedTeamSlug: matchedTeamSlug,
     }).players;
-  }, [reports, targetWeek, teams, filterScope, selectedTeam]);
+  }, [reports, targetWeek, teams, filterScope, matchedTeamSlug]);
 
   // Map logo tim
   const teamLogoMap = useMemo(() => {
@@ -69,7 +80,7 @@ export function PowerRankingView({
     teams.forEach((t) => {
       if (t.logo) {
         map.set(t.name.toLowerCase(), t.logo);
-        map.set(t.slug.toLowerCase(), t.logo);
+        if (t.slug) map.set(t.slug.toLowerCase(), t.logo);
       }
     });
     return map;
@@ -100,15 +111,13 @@ export function PowerRankingView({
   const isTeamView = filterScope === "TEAM";
   const isSearching = searchQuery.trim().length > 0;
 
-  // MVP Card HANYA muncul jika:
-  // 1. Filter adalah GLOBAL (bukan filter divisi dan bukan filter tim)
-  // 2. Tidak sedang melakukan pencarian (search bar kosong)
-  // 3. Ada data pemain minimal 1
-  const showMvpCard = filterScope === "GLOBAL" && !isSearching && playersWithDiff.length >= 1;
+  // MVP HANYA muncul di mode GLOBAL penuh (tanpa filter divisi dan tanpa filter tim)
+  const isGlobalMode =
+    (selectedGroup === "ALL" || !selectedGroup) && (!selectedTeam || selectedTeam === "ALL");
+  const showMvpCard = isGlobalMode && !isSearching && playersWithDiff.length >= 1;
   const top1 = showMvpCard ? playersWithDiff[0] : null;
 
-  // Jika kartu MVP muncul, tabel mulai dari rank 2 (slice 1).
-  // Jika filter divisi/tim aktif, tabel mulai dari rank 1 (semua tampil di tabel).
+  // Tabel: jika MVP card tampil, mulai dari index 1. Jika divisi/tim dipilih, tampilkan semua mulai dari rank 1.
   const tablePlayers = useMemo(() => {
     let list = showMvpCard ? playersWithDiff.slice(1) : playersWithDiff;
     if (isSearching) {
@@ -122,7 +131,7 @@ export function PowerRankingView({
 
   return (
     <div className="w-full space-y-3">
-      {/* ── MVP #1 CARD (HANYA MODE GLOBAL) ── */}
+      {/* ── MVP #1 CARD (HANYA MUNCUL DI MODE GLOBAL) ── */}
       {showMvpCard && (
         <PowerRankingPodium
           top1={top1}
@@ -151,13 +160,12 @@ export function PowerRankingView({
         )}
       </div>
 
-      {/* ── TABEL RANKING DENGAN INTERNAL SCROLL ── */}
+      {/* ── TABEL RANKING LEGA & PROPORSIONAL ── */}
       <PowerRankingTable
         players={tablePlayers}
         isTeamView={isTeamView}
         grandTotal={grandTotal}
         teamLogoMap={teamLogoMap}
-        hasPodium={showMvpCard}
       />
     </div>
   );
