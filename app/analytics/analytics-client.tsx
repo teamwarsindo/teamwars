@@ -28,20 +28,54 @@ export default function AnalyticsClientContent({
   const currentTab = searchParams.get("tab") === "power-ranking" ? "power-ranking" : "reports";
   const selectedMatchId = searchParams.get("match") || "";
 
-  // Shared Filters State
+  // Filter State - Keduanya default ke maxActiveWeek agar konsisten
   const [selectedGroup, setSelectedGroup] = useState<
     "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B
   >("ALL");
   const [selectedTeam, setSelectedTeam] = useState<string>("");
-  const [selectedWeek, setSelectedWeek] = useState<number | "">(
-    currentTab === "power-ranking" ? maxActiveWeek : ""
-  );
+  const [selectedWeek, setSelectedWeek] = useState<number | "">(maxActiveWeek);
 
   const availableWeeks = useMemo(() => {
     return Array.from({ length: maxActiveWeek }, (_, i) => i + 1);
   }, [maxActiveWeek]);
 
-  // Helper hapus param match dari URL saat kriteria filter berubah
+  // Ekstraksi Tim Terpadu: Gabungan dari teams props dan schedules (jaminan tidak kosong)
+  const allTeamsList = useMemo(() => {
+    const map = new Map<string, { name: string; slug: string; groupName: string }>();
+
+    // 1. Masukkan data teams roster jika ada
+    teams.forEach((t) => {
+      if (t.name) {
+        map.set(t.name.toLowerCase(), {
+          name: t.name,
+          slug: t.slug || t.name.toLowerCase().replace(/\s+/g, "-"),
+          groupName: t.groupName || "",
+        });
+      }
+    });
+
+    // 2. Ekstrak dari jadwal pertandingan (schedules)
+    schedules.forEach((s) => {
+      if (s.teamAName && !map.has(s.teamAName.toLowerCase())) {
+        map.set(s.teamAName.toLowerCase(), {
+          name: s.teamAName,
+          slug: s.teamAName.toLowerCase().replace(/\s+/g, "-"),
+          groupName: s.groupName || "",
+        });
+      }
+      if (s.teamBName && !map.has(s.teamBName.toLowerCase())) {
+        map.set(s.teamBName.toLowerCase(), {
+          name: s.teamBName,
+          slug: s.teamBName.toLowerCase().replace(/\s+/g, "-"),
+          groupName: s.groupName || "",
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [schedules, teams]);
+
+  // Hapus parameter match lama dari URL saat kriteria filter berubah
   const clearMatchParam = () => {
     if (!searchParams.get("match")) return;
     const params = new URLSearchParams(searchParams.toString());
@@ -68,9 +102,6 @@ export default function AnalyticsClientContent({
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", tabKey);
     if (tabKey !== "reports") params.delete("match");
-    if (tabKey === "power-ranking" && selectedWeek === "") {
-      setSelectedWeek(maxActiveWeek);
-    }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
@@ -84,33 +115,31 @@ export default function AnalyticsClientContent({
   const isFilterActive =
     selectedGroup !== "ALL" ||
     selectedTeam !== "" ||
-    (currentTab === "power-ranking" ? selectedWeek !== maxActiveWeek : selectedWeek !== "") ||
+    selectedWeek !== maxActiveWeek ||
     Boolean(selectedMatchId);
 
   const handleReset = () => {
     setSelectedGroup("ALL");
     setSelectedTeam("");
-    setSelectedWeek(currentTab === "power-ranking" ? maxActiveWeek : "");
+    setSelectedWeek(maxActiveWeek);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("match");
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  // Filter daftar laga untuk Baris 3 Dropdown (Match Reports)
+  // Filter daftar jadwal untuk baris match di Match Reports
   const matchesInView: AnalyticsFilterMatchItem[] = useMemo(() => {
     return schedules.filter((s) => {
       if (selectedGroup !== "ALL" && s.groupName !== selectedGroup) return false;
       if (selectedWeek !== "" && Number(s.weekNumber) !== Number(selectedWeek)) return false;
       if (selectedTeam !== "") {
-        const teamObj = teams.find((t) => t.slug === selectedTeam || t.name === selectedTeam);
-        const tName = teamObj?.name || selectedTeam;
-        if (s.teamAName !== tName && s.teamBName !== tName) return false;
+        if (s.teamAName !== selectedTeam && s.teamBName !== selectedTeam) return false;
       }
       return true;
     });
-  }, [schedules, selectedGroup, selectedWeek, selectedTeam, teams]);
+  }, [schedules, selectedGroup, selectedWeek, selectedTeam]);
 
-  // Auto-select jika filter menghasilkan tepat 1 laga
+  // Otomatis pilih laga jika hasil filter menyisakan 1 opsi
   useEffect(() => {
     if (currentTab === "reports" && matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
       handleMatchChange(matchesInView[0].id);
@@ -153,7 +182,7 @@ export default function AnalyticsClientContent({
         onGroupChange={handleGroupChange}
         selectedTeam={selectedTeam}
         onTeamChange={handleTeamChange}
-        teams={teams}
+        teams={allTeamsList}
         selectedWeek={selectedWeek}
         onWeekChange={handleWeekChange}
         availableWeeks={availableWeeks}
@@ -182,4 +211,4 @@ export default function AnalyticsClientContent({
       )}
     </div>
   );
-    }
+}
