@@ -98,8 +98,6 @@ export function PowerRankingView({
   }, [currentPlayers, prevPlayers, targetWeek]);
 
   const isTeamView = filterScope === "TEAM";
-
-  // Top 3 Podium (Hanya tampil saat tidak dalam filter pencarian dan bukan team view)
   const isSearching = searchQuery.trim().length > 0;
   const hasPodium = !isTeamView && !isSearching && playersWithDiff.length >= 1;
 
@@ -107,7 +105,7 @@ export function PowerRankingView({
   const top2 = hasPodium && playersWithDiff.length >= 2 ? playersWithDiff[1] : null;
   const top3 = hasPodium && playersWithDiff.length >= 3 ? playersWithDiff[2] : null;
 
-  // Saring pemain untuk tabel
+  // Pemain untuk tabel
   const tablePlayers = useMemo(() => {
     let list = hasPodium ? playersWithDiff.slice(3) : playersWithDiff;
     if (isSearching) {
@@ -121,7 +119,7 @@ export function PowerRankingView({
 
   return (
     <div className="w-full space-y-3">
-      {/* ── TOP 3 PODIUM (STICKY BOARD) ── */}
+      {/* ── TOP 3 PODIUM RAMPING ── */}
       {hasPodium && (
         <PowerRankingPodium
           top1={top1}
@@ -131,14 +129,14 @@ export function PowerRankingView({
         />
       )}
 
-      {/* ── SEARCH BAR PEMAIN (NON-STICKY) ── */}
+      {/* ── SEARCH BAR PEMAIN ── */}
       <div className="relative w-full">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Cari pemain atau nama tim..."
+          placeholder="Cari pemain atau tim..."
           className="w-full rounded-xl border border-border bg-card pl-8 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
         />
         {searchQuery && (
@@ -152,7 +150,7 @@ export function PowerRankingView({
         )}
       </div>
 
-      {/* ── TABEL RANKING DENGAN STICKY HEADER ── */}
+      {/* ── TABEL RANKING TANPA BUG STICKY ── */}
       <PowerRankingTable
         players={tablePlayers}
         isTeamView={isTeamView}
