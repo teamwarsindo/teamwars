@@ -17,34 +17,32 @@ interface StandingTableRowProps {
 }
 
 function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
-  const row1 = Array.from({ length: 4 }, (_, i) => form[i] || null);
-  const row2 = Array.from({ length: 3 }, (_, i) => form[i + 4] || null);
-
-  const renderBadge = (res: "W" | "L" | null, idx: number) => (
-    <span
-      key={idx}
-      className={`flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black ${
-        !res
-          ? "bg-muted/30 text-muted-foreground/30 border border-dashed border-border/40"
-          : res === "W"
-          ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
-          : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
-      }`}
-    >
-      {res || "-"}
-    </span>
-  );
+  const slots = Array.from({ length: 7 }, (_, i) => form[i] || null);
 
   return (
-    <div className="flex flex-col items-center gap-1 w-fit mx-auto">
-      {/* Baris 1: 4 kotak (Week 1 - 4) */}
-      <div className="flex items-center justify-center gap-1">
-        {row1.map(renderBadge)}
-      </div>
-      {/* Baris 2: 3 kotak (Week 5 - 7) - Center presisi */}
-      <div className="flex items-center justify-center gap-1">
-        {row2.map(renderBadge)}
-      </div>
+    <div className="grid grid-cols-4 gap-1 w-fit mx-auto justify-items-center">
+      {slots.map((res, idx) => {
+        // Kotak ke-5 (indeks 4) adalah item pertama di baris kedua.
+        // Diberi offset setengah kolom agar 3 kotak di baris kedua simetris tepat di tengah.
+        const isFirstOfSecondRow = idx === 4;
+
+        return (
+          <span
+            key={idx}
+            className={`flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black ${
+              isFirstOfSecondRow ? "translate-x-[calc(50%+0.125rem)]" : idx > 4 ? "translate-x-[calc(50%+0.125rem)]" : ""
+            } ${
+              !res
+                ? "bg-muted/30 text-muted-foreground/30 border border-dashed border-border/40"
+                : res === "W"
+                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
+                : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
+            }`}
+          >
+            {res || "-"}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -126,4 +124,4 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       </td>
     </tr>
   );
-      }
+        }
