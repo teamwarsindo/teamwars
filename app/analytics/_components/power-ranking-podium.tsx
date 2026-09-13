@@ -27,9 +27,9 @@ export function PowerRankingPodium({
   };
 
   const renderAgg = (val: number) => {
-    if (val > 0) return <span className="text-emerald-500 font-black">+{val}</span>;
-    if (val < 0) return <span className="text-rose-500 font-black">{val}</span>;
-    return <span className="text-muted-foreground font-bold">0</span>;
+    if (val > 0) return <span className="text-emerald-500 font-bold">+{val}</span>;
+    if (val < 0) return <span className="text-rose-500 font-bold">{val}</span>;
+    return <span className="text-muted-foreground font-semibold">0</span>;
   };
 
   const formatWpm = (val: number) => Number(val || 0).toFixed(1);
@@ -64,26 +64,33 @@ export function PowerRankingPodium({
               {top2.teamName}
             </div>
 
-            <div className="w-full border-t border-border/50 pt-1 space-y-0.5 font-mono text-[9px]">
-              <div className="flex items-center justify-between text-[8px] text-muted-foreground px-0.5 font-sans">
-                <span>P/W/L</span>
-                <span className="font-mono text-foreground font-bold">
-                  {top2.played} / <span className="text-emerald-500">{top2.won}</span> / <span className="text-rose-500">{top2.lost}</span>
-                </span>
+            {/* Statistik 1 per 1 (Play, Win, Lose, WPM, Agg) */}
+            <div className="w-full border-t border-border/60 pt-1 space-y-0.5 text-[9px]">
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">Play</span>
+                <span className="font-mono text-foreground font-semibold">{top2.played}</span>
               </div>
-              <div className="flex items-center justify-between text-[8px] text-muted-foreground px-0.5 font-sans">
-                <span>WPM</span>
-                <span className="font-mono text-foreground font-bold">{formatWpm(top2.wpm)}</span>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">Win</span>
+                <span className="font-mono text-emerald-500 font-bold">{top2.won}</span>
               </div>
-              <div className="flex items-center justify-between text-[8px] text-muted-foreground px-0.5 font-sans">
-                <span>Agg</span>
-                <span className="font-mono font-bold">{renderAgg(top2.agg)}</span>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">Lose</span>
+                <span className="font-mono text-rose-500 font-bold">{top2.lost}</span>
+              </div>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">WPM</span>
+                <span className="font-mono text-foreground font-semibold">{formatWpm(top2.wpm)}</span>
+              </div>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">Agg</span>
+                <span className="font-mono">{renderAgg(top2.agg)}</span>
               </div>
             </div>
           </div>
         ) : <div />}
 
-        {/* ── 1ST PLACE (GOLD) ── */}
+        {/* ── 1ST MVP (GOLD) ── */}
         {top1 && (
           <div className="flex flex-col items-center bg-amber-500/15 border-2 border-amber-500/60 rounded-xl p-1.5 sm:p-2 text-center -translate-y-1 shadow-xs">
             <span className="text-[9px] font-black uppercase text-amber-500 tracking-widest">
@@ -110,20 +117,27 @@ export function PowerRankingPodium({
               {top1.teamName}
             </div>
 
-            <div className="w-full border-t border-amber-500/30 pt-1 space-y-0.5 font-mono text-[9px] sm:text-[10px]">
-              <div className="flex items-center justify-between text-[8px] sm:text-[9px] text-muted-foreground px-0.5 font-sans">
-                <span>P/W/L</span>
-                <span className="font-mono text-foreground font-bold">
-                  {top1.played} / <span className="text-emerald-500">{top1.won}</span> / <span className="text-rose-500">{top1.lost}</span>
-                </span>
+            {/* Statistik 1 per 1 (Play, Win, Lose, WPM, Agg) */}
+            <div className="w-full border-t border-amber-500/30 pt-1 space-y-0.5 text-[9px] sm:text-[10px]">
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] sm:text-[9px] font-medium">Play</span>
+                <span className="font-mono text-foreground font-bold">{top1.played}</span>
               </div>
-              <div className="flex items-center justify-between text-[8px] sm:text-[9px] text-muted-foreground px-0.5 font-sans">
-                <span>WPM</span>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] sm:text-[9px] font-medium">Win</span>
+                <span className="font-mono text-emerald-500 font-bold">{top1.won}</span>
+              </div>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] sm:text-[9px] font-medium">Lose</span>
+                <span className="font-mono text-rose-500 font-bold">{top1.lost}</span>
+              </div>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] sm:text-[9px] font-medium">WPM</span>
                 <span className="font-mono text-foreground font-bold">{formatWpm(top1.wpm)}</span>
               </div>
-              <div className="flex items-center justify-between text-[8px] sm:text-[9px] text-amber-600 dark:text-amber-400 px-0.5 font-sans">
-                <span>Agg</span>
-                <span className="font-mono font-bold">{renderAgg(top1.agg)}</span>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-amber-600 dark:text-amber-400 text-[8px] sm:text-[9px] font-medium">Agg</span>
+                <span className="font-mono">{renderAgg(top1.agg)}</span>
               </div>
             </div>
           </div>
@@ -156,20 +170,27 @@ export function PowerRankingPodium({
               {top3.teamName}
             </div>
 
-            <div className="w-full border-t border-border/50 pt-1 space-y-0.5 font-mono text-[9px]">
-              <div className="flex items-center justify-between text-[8px] text-muted-foreground px-0.5 font-sans">
-                <span>P/W/L</span>
-                <span className="font-mono text-foreground font-bold">
-                  {top3.played} / <span className="text-emerald-500">{top3.won}</span> / <span className="text-rose-500">{top3.lost}</span>
-                </span>
+            {/* Statistik 1 per 1 (Play, Win, Lose, WPM, Agg) */}
+            <div className="w-full border-t border-border/60 pt-1 space-y-0.5 text-[9px]">
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">Play</span>
+                <span className="font-mono text-foreground font-semibold">{top3.played}</span>
               </div>
-              <div className="flex items-center justify-between text-[8px] text-muted-foreground px-0.5 font-sans">
-                <span>WPM</span>
-                <span className="font-mono text-foreground font-bold">{formatWpm(top3.wpm)}</span>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">Win</span>
+                <span className="font-mono text-emerald-500 font-bold">{top3.won}</span>
               </div>
-              <div className="flex items-center justify-between text-[8px] text-muted-foreground px-0.5 font-sans">
-                <span>Agg</span>
-                <span className="font-mono font-bold">{renderAgg(top3.agg)}</span>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">Lose</span>
+                <span className="font-mono text-rose-500 font-bold">{top3.lost}</span>
+              </div>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">WPM</span>
+                <span className="font-mono text-foreground font-semibold">{formatWpm(top3.wpm)}</span>
+              </div>
+              <div className="flex justify-between items-center px-0.5">
+                <span className="text-muted-foreground text-[8px] font-medium">Agg</span>
+                <span className="font-mono">{renderAgg(top3.agg)}</span>
               </div>
             </div>
           </div>
