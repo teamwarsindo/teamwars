@@ -52,14 +52,16 @@ export function PowerRankingTable({
   const formatWpm = (val: number) => Number(val || 0).toFixed(1);
 
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden flex flex-col">
+      {/* ── INTERNAL SCROLL CONTAINER ── */}
+      <div className="max-h-[56vh] sm:max-h-[62vh] overflow-y-auto overflow-x-auto">
         <table className="w-full border-collapse text-left text-xs min-w-[320px]">
-          <thead className="bg-muted/30 border-b border-border/80 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          {/* Sticky Header di bagian atas scroll container */}
+          <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/80 text-[10px] font-bold uppercase tracking-wider text-muted-foreground shadow-xs">
             <tr>
               <th className="py-2.5 pl-2.5 pr-1 text-center w-14">RANK</th>
               <th className="py-2.5 px-2">PLAYER</th>
-              <th className="py-2.5 px-1.5 text-center font-mono w-9 sm:w-11">PLAYED</th>
+              <th className="py-2.5 px-1.5 text-center font-mono w-9 sm:w-11">PLAY</th>
               <th className="py-2.5 px-1.5 text-center font-mono w-9 sm:w-11 text-emerald-600 dark:text-emerald-400">WIN</th>
               <th className="py-2.5 px-1.5 text-center font-mono w-9 sm:w-11 text-rose-600 dark:text-rose-400">LOSE</th>
               <th className="py-2.5 px-2 text-center font-mono w-11 sm:w-14">WPM</th>
@@ -83,6 +85,7 @@ export function PowerRankingTable({
 
                 return (
                   <tr key={`${p.name}-${p.teamSlug}`} className="hover:bg-muted/30 transition-colors">
+                    {/* Rank + Simbol Delta */}
                     <td className="py-2.5 pl-2.5 pr-1 text-center">
                       <div className="flex items-center justify-center gap-1.5 font-mono">
                         {renderRankChange(p.rankDiff, p.isNew)}
@@ -90,6 +93,7 @@ export function PowerRankingTable({
                       </div>
                     </td>
 
+                    {/* Info Pemain + Logo Tim */}
                     <td className="py-2.5 px-2 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-foreground text-xs truncate max-w-[110px] sm:max-w-[180px]">
@@ -118,6 +122,7 @@ export function PowerRankingTable({
                       </div>
                     </td>
 
+                    {/* Stats Monospaced */}
                     <td className="py-2.5 px-1.5 text-center font-mono text-[11px] text-foreground/80">
                       {p.played}
                     </td>
@@ -139,9 +144,10 @@ export function PowerRankingTable({
             )}
           </tbody>
 
+          {/* Footer Grand Total Khusus View Tim */}
           {isTeamView && grandTotal && (
-            <tfoot>
-              <tr className="border-t-2 border-border bg-muted/50 font-bold text-[11px]">
+            <tfoot className="sticky bottom-0 bg-card border-t-2 border-border shadow-xs">
+              <tr className="font-bold text-[11px]">
                 <td colSpan={2} className="py-2.5 pl-3 px-2 text-foreground">TOTAL ROSTER</td>
                 <td className="py-2.5 px-1.5 text-center font-mono">{grandTotal.played}</td>
                 <td className="py-2.5 px-1.5 text-center font-mono text-emerald-600 dark:text-emerald-400">
