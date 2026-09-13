@@ -14,13 +14,19 @@ export interface AnalyticsFilterMatchItem {
   scoreB?: number;
 }
 
+export interface FilterTeamItem {
+  name: string;
+  slug: string;
+  groupName?: string;
+}
+
 interface AnalyticsFilterProps {
   mode: "reports" | "power-ranking";
   selectedGroup: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B;
   onGroupChange: (group: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => void;
   selectedTeam: string;
   onTeamChange: (team: string) => void;
-  teams: any[]; // Toleran terhadap string[] maupun TeamRosterData[]
+  teams: FilterTeamItem[];
   selectedWeek: number | "";
   onWeekChange: (week: number | "") => void;
   availableWeeks: number[];
@@ -60,31 +66,19 @@ export function AnalyticsFilter({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Normalisasi list tim
-  const normalizedTeams = useMemo(() => {
-    return teams.map((t) => {
-      if (typeof t === "string") {
-        return { name: t, slug: t.toLowerCase().replace(/\s+/g, "-"), groupName: "" };
-      }
-      return {
-        name: t.name || "",
-        slug: t.slug || t.name?.toLowerCase().replace(/\s+/g, "-") || "",
-        groupName: t.groupName || "",
-      };
-    });
-  }, [teams]);
-
+  // Filter tim di dropdown berdasarkan divisi aktif
   const filteredTeams = useMemo(() => {
-    if (selectedGroup === "ALL") return normalizedTeams;
-    return normalizedTeams.filter((t) => !t.groupName || t.groupName === selectedGroup);
-  }, [normalizedTeams, selectedGroup]);
+    if (selectedGroup === "ALL") return teams;
+    return teams.filter((t) => !t.groupName || t.groupName === selectedGroup);
+  }, [teams, selectedGroup]);
 
-  const handleSelectTeam = (teamVal: string) => {
-    if (!teamVal || teamVal === "ALL") {
+  // Handler memilih tim: Otomatis aktifkan tombol divisi
+  const handleSelectTeam = (teamName: string) => {
+    if (!teamName || teamName === "ALL") {
       onTeamChange("");
     } else {
-      onTeamChange(teamVal);
-      const target = normalizedTeams.find((t) => t.slug === teamVal || t.name === teamVal);
+      onTeamChange(teamName);
+      const target = teams.find((t) => t.name === teamName);
       if (target?.groupName) {
         if (target.groupName === DIVISION_MAP.GROUP_A || target.groupName === DIVISION_MAP.GROUP_B) {
           onGroupChange(target.groupName);
@@ -94,16 +88,15 @@ export function AnalyticsFilter({
     setOpenDropdown(null);
   };
 
+  // Handler toggle divisi
   const handleToggleGroup = (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
     if (selectedGroup === group) {
       onGroupChange("ALL");
     } else {
       onGroupChange(group);
-      if (selectedTeam && selectedTeam !== "ALL") {
-        const currentSelected = normalizedTeams.find(
-          (t) => t.slug === selectedTeam || t.name === selectedTeam
-        );
-        if (currentSelected && currentSelected.groupName && currentSelected.groupName !== group) {
+      if (selectedTeam) {
+        const currentSelected = teams.find((t) => t.name === selectedTeam);
+        if (currentSelected?.groupName && currentSelected.groupName !== group) {
           onTeamChange("");
         }
       }
@@ -113,12 +106,6 @@ export function AnalyticsFilter({
   const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
   const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
   const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
-
-  const selectedTeamDisplay = useMemo(() => {
-    if (!selectedTeam || selectedTeam === "ALL") return "Semua Tim";
-    const found = normalizedTeams.find((t) => t.slug === selectedTeam || t.name === selectedTeam);
-    return found ? found.name : selectedTeam;
-  }, [selectedTeam, normalizedTeams]);
 
   const renderScore = (sA?: number, sB?: number) => {
     if (sA === undefined || sB === undefined) return null;
@@ -176,7 +163,7 @@ export function AnalyticsFilter({
             onClick={() => setOpenDropdown(openDropdown === "team" ? null : "team")}
             className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
           >
-            <span className="truncate">{selectedTeamDisplay}</span>
+            <span className="truncate">{selectedTeam || "Semua Tim"}</span>
             <span className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${openDropdown === "team" ? "rotate-180" : ""}`}>
               ▼
             </span>
@@ -188,20 +175,18 @@ export function AnalyticsFilter({
                 type="button"
                 onClick={() => handleSelectTeam("ALL")}
                 className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
-                  !selectedTeam || selectedTeam === "ALL"
-                    ? "bg-primary/10 font-bold text-primary"
-                    : "hover:bg-muted/60 text-foreground"
+                  !selectedTeam ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
                 }`}
               >
                 <span>Semua Tim</span>
-                {(!selectedTeam || selectedTeam === "ALL") && <span>✓</span>}
+                {!selectedTeam && <span>✓</span>}
               </button>
 
               {filteredTeams.map((t) => {
-                const isSelected = selectedTeam === t.slug || selectedTeam === t.name;
+                const isSelected = selectedTeam === t.name;
                 return (
                   <button
-                    key={t.slug}
+                    key={t.name}
                     type="button"
                     onClick={() => handleSelectTeam(t.name)}
                     className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
@@ -285,7 +270,7 @@ export function AnalyticsFilter({
         </div>
       </div>
 
-      {/* ── BARIS 3: MATCH SPESIFIK ── */}
+      {/* ── BARIS 3: MATCH SPESIFIK (HANYA TAB MATCH REPORTS) ── */}
       {mode === "reports" && onMatchChange && (
         <div className="relative w-full">
           <button
