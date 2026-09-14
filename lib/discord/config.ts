@@ -34,6 +34,7 @@ export const DISCORD_CONFIG = {
 
   // Channel khusus panitia
   CH_REFEREE: '610153245955850240',
+  CH_STREAMER: '1533672191927783595',
   CH_ASSIGN: '1260183016358154300',
 
   // Pusat CCTV (Tim Daftar & Klaim Role)
