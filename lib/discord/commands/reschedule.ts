@@ -8,6 +8,7 @@ import {
 } from '@/lib/discord/commands/reschedule/types';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
+import { sendOrUpdateDutyRescheduleSchedule, RescheduleDutyMatch } from '@/lib/discord/messages/duty-reschedule';
 import { discordAPI } from '@/lib/discord/utils';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://teamwars.web.id';
@@ -78,6 +79,7 @@ export async function handleRescheduleCommand(body: any) {
           // 💾 Simpan tanggal baru & tandai isRescheduled: true
           match.matchDate = newMatchDateIso;
           (match as any).isRescheduled = true;
+          (match as any).rescheduledAt = new Date().toISOString();
           schedules[matchIndex] = match;
           await kv.set('twi:schedules', schedules);
 
@@ -160,6 +162,78 @@ export async function handleRescheduleCommand(body: any) {
           }).catch((err) => console.error('[RESCHEDULE RECAP ERROR]:', err));
           syncTasks.push(recapTask);
 
+          // Task C: Sinkronisasi daftar match reschedule butuh wasit & streamer
+          const dutyTrackerTask = (async () => {
+            try {
+              const currentWeekNumber = Number(match.weekNumber || 1);
+              const weekMatches = schedules.filter(
+                (m) => Number(m.weekNumber || 1) === currentWeekNumber
+              );
+
+              // Ambil data tim untuk emoji
+              const dutyMatches: RescheduleDutyMatch[] = await Promise.all(
+                weekMatches.map(async (m) => {
+                  const sA = getTeamSlug(m.teamAName);
+                  const sB = getTeamSlug(m.teamBName);
+
+                  const [tA, tB] = await Promise.all([
+                    kv.hgetall<any>(`teams:${sA}`),
+                    kv.hgetall<any>(`teams:${sB}`),
+                  ]);
+
+                  const eA =
+                    tA?.discordEmoji ||
+                    tA?.emoji ||
+                    (tA?.emojiId ? `<:${tA?.kodeTim || 'team'}:${tA?.emojiId}>` : undefined);
+
+                  const eB =
+                    tB?.discordEmoji ||
+                    tB?.emoji ||
+                    (tB?.emojiId ? `<:${tB?.kodeTim || 'team'}:${tB?.emojiId}>` : undefined);
+
+                  const d = new Date(m.matchDate);
+                  const dateStr = d.toLocaleDateString('id-ID', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    timeZone: 'Asia/Jakarta',
+                  });
+                  const timeStr =
+                    d
+                      .toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false,
+                        timeZone: 'Asia/Jakarta',
+                      })
+                      .replace(':', '.') + ' WIB';
+
+                  return {
+                    matchDateIso: m.matchDate,
+                    dateStr,
+                    timeStr,
+                    team1Emoji: eA,
+                    team1Name: m.teamAName,
+                    team2Emoji: eB,
+                    team2Name: m.teamBName,
+                    referee: (m as any).referee,
+                    streamer: (m as any).streamer,
+                    isRescheduled: (m as any).isRescheduled,
+                  };
+                })
+              );
+
+              await sendOrUpdateDutyRescheduleSchedule({
+                weekName: targetWeekStr,
+                matches: dutyMatches,
+              });
+            } catch (dutyErr) {
+              console.error('[DUTY RESCHEDULE ERROR]:', dutyErr);
+            }
+          })();
+          syncTasks.push(dutyTrackerTask);
+
           await Promise.all(syncTasks);
 
           if (appId && token) {
@@ -169,7 +243,7 @@ export async function handleRescheduleCommand(body: any) {
                 `⚔️ **Match:** \`${match.id.toUpperCase()}\` (${match.teamAName} vs ${match.teamBName})\n` +
                 `⏱️ **Jadwal Semula:** ${oldScheduleFormatted}\n` +
                 `📅 **Jadwal Baru:** **${newScheduleFormatted}**\n\n` +
-                `📌 *Opening message telah disahkan, tombol kuota dicabut, dan channel pengumuman jadwal otomatis diperbarui.*`,
+                `📌 *Opening message telah disahkan, tombol kuota dicabut, channel publik (#schedule-results), serta channel Referee & Streamer otomatis disinkronkan.*`,
             });
           }
         } catch (err: any) {
