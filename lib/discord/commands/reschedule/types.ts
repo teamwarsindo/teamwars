@@ -5,60 +5,37 @@ export interface RescheduleSlotChoice {
   value: string; // YYYY-MM-DD
 }
 
-// ── SETTING HARI TANDING (GANTI ANGKA INI SAJA) ──
-// 5 = Selasa, 4 = Rabu, 3 = Kamis
-const START_DAY_OFFSET = 5; // Mulai hari Selasa (Minggu minus 5 hari)
-const TOTAL_DAYS = 6;       // Total 6 hari (Selasa s.d. Minggu)
+// ── PENGATURAN HARI RESCHEDULE PEKAN INI ──
+// 1 = Besok (Selasa jika hari ini Senin), 2 = Lusa (Rabu), dst.
+const START_OFFSET_FROM_TODAY = 1; // 1 = Mulai besok (Selasa, 15 Sep)
+const TOTAL_DAYS = 6;              // 6 hari (Sel, Rab, Kam, Jum, Sab, Min)
 
 export function getAvailableRescheduleSlots(
   schedules: MatchScheduleItem[],
   targetMatch: MatchScheduleItem
 ): RescheduleSlotChoice[] {
   const now = new Date();
-  const todayWibKey = getWibDateKey(now);
+  const todayWibKey = getWibDateKey(now); // "2026-09-14"
 
   // 1. Tentukan Pekan Berjalan (Current Active Week)
-  const futureMatches = schedules.filter((m) => {
-    if (!m.matchDate) return false;
-    const mKey = getWibDateKey(new Date(m.matchDate));
-    return mKey >= todayWibKey;
-  });
+  const upcomingMatches = schedules.filter(
+    (m) => m.matchDate && getWibDateKey(new Date(m.matchDate)) >= todayWibKey
+  );
 
   let currentWeek = 1;
-  if (futureMatches.length > 0) {
-    currentWeek = Number(
-      futureMatches[0].weekNumber || getMatchWeekNumber(futureMatches[0].matchDate) || 1
-    );
+  if (upcomingMatches.length > 0) {
+    currentWeek = Number(upcomingMatches[0].weekNumber || getMatchWeekNumber(upcomingMatches[0].matchDate) || 1);
   } else {
-    currentWeek = Number(
-      targetMatch.weekNumber || getMatchWeekNumber(targetMatch.matchDate) || 1
-    );
+    currentWeek = Number(targetMatch.weekNumber || getMatchWeekNumber(targetMatch.matchDate) || 1);
   }
 
-  // 2. Ambil seluruh match pada pekan tersebut
+  // 2. Kumpulkan match pada pekan aktif untuk dihitung kuotanya
   const weekMatches = schedules.filter((m) => {
     const w = Number(m.weekNumber || getMatchWeekNumber(m.matchDate));
     return w === currentWeek;
   });
 
-  // 3. Cari hari Minggu di pekan ini sebagai patokan
-  const validTimestamps = weekMatches
-    .map((m) => new Date(m.matchDate).getTime())
-    .filter((t) => !isNaN(t))
-    .sort((a, b) => a - b);
-
-  const refDate = validTimestamps.length > 0 ? new Date(validTimestamps[0]) : new Date();
-
-  const day = refDate.getDay();
-  const diffToSunday = day === 0 ? 0 : 7 - day;
-  const sundayDate = new Date(refDate);
-  sundayDate.setDate(refDate.getDate() + diffToSunday);
-
-  // Titik awal hari tanding dihitung mundur dari hari Minggu
-  const startDate = new Date(sundayDate);
-  startDate.setDate(sundayDate.getDate() - START_DAY_OFFSET);
-
-  // 4. Hitung kuota terpakai per tanggal (Maksimal 3 match/hari)
+  // Hitung jumlah match per tanggal (maksimal 3)
   const matchCountByDate = new Map<string, number>();
   weekMatches.forEach((m) => {
     if (m.id && targetMatch.id && m.id === targetMatch.id) return;
@@ -66,30 +43,25 @@ export function getAvailableRescheduleSlots(
     matchCountByDate.set(key, (matchCountByDate.get(key) || 0) + 1);
   });
 
-  const slots: RescheduleSlotChoice[] = [];
   const currentMatchDateKey = getWibDateKey(new Date(targetMatch.matchDate));
+  const slots: RescheduleSlotChoice[] = [];
 
-  // 5. Generate pilihan hari sesuai TOTAL_DAYS
+  // 3. Langsung buat slot hari sesuai setting (Selasa s.d. Minggu)
   for (let i = 0; i < TOTAL_DAYS; i++) {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + i);
-
+    const dayOffset = START_OFFSET_FROM_TODAY + i;
+    const d = new Date(now.getTime() + dayOffset * 24 * 60 * 60 * 1000);
     const dateKey = getWibDateKey(d);
 
-    // Lewati tanggal yang sudah lewat dari hari ini
-    if (dateKey < todayWibKey) {
-      continue;
-    }
-
-    // Lewati tanggal jadwal awal match tersebut
+    // Jangan tawarkan tanggal yang sama dengan jadwal match saat ini
     if (dateKey === currentMatchDateKey) {
       continue;
     }
 
+    // Cek sisa kuota terhadap jadwal
     const count = matchCountByDate.get(dateKey) || 0;
     const remainingSlots = Math.max(0, 3 - count);
 
-    // Lewati jika kuota hari tersebut penuh (3/3)
+    // Jika hari tersebut penuh (3/3), jangan tampilkan
     if (remainingSlots <= 0) {
       continue;
     }
@@ -166,5 +138,4 @@ export function formatConfirmationWIB(isoString: string): string {
       timeZone: 'Asia/Jakarta',
     }) + ' WIB'
   );
-}
-  
+    }
