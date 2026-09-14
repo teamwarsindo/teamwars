@@ -12,7 +12,7 @@ export function getAvailableRescheduleSlots(
   const now = new Date();
   const todayWibKey = getWibDateKey(now);
 
-  // 1. Tentukan Pekan Berjalan (Current Week)
+  // 1. Tentukan Pekan Berjalan (Current Active Week)
   const futureMatches = schedules.filter((m) => {
     if (!m.matchDate) return false;
     const mKey = getWibDateKey(new Date(m.matchDate));
@@ -36,7 +36,24 @@ export function getAvailableRescheduleSlots(
     return w === currentWeek;
   });
 
-  // 3. Hitung pemakaian slot kuota per tanggal (Maksimal 3 match/hari)
+  // 3. Cari jadwal match paling awal (start date) di pekan ini
+  const validTimestamps = weekMatches
+    .map((m) => new Date(m.matchDate).getTime())
+    .filter((t) => !isNaN(t))
+    .sort((a, b) => a - b);
+
+  // Gunakan tanggal match pertama pekan ini (misal Selasa 15 Sep), atau fallback ke hari ini
+  const startDate = validTimestamps.length > 0 ? new Date(validTimestamps[0]) : new Date();
+
+  // 4. Hitung hari Minggu (akhir pekan) dari startDate
+  // Di JavaScript: Minggu = 0, Senin = 1, Selasa = 2, ..., Sabtu = 6
+  const startDay = startDate.getDay();
+  const daysUntilSunday = startDay === 0 ? 0 : 7 - startDay;
+
+  const endDate = new Date(startDate);
+  endDate.setDate(startDate.getDate() + daysUntilSunday);
+
+  // 5. Hitung pemakaian slot kuota per tanggal (Maksimal 3 match/hari)
   const matchCountByDate = new Map<string, number>();
   weekMatches.forEach((m) => {
     if (m.id && targetMatch.id && m.id === targetMatch.id) return;
@@ -44,32 +61,24 @@ export function getAvailableRescheduleSlots(
     matchCountByDate.set(key, (matchCountByDate.get(key) || 0) + 1);
   });
 
-  // 4. Kumpulkan semua tanggal unik dari pekan ini
-  const dateSet = new Set<string>();
-  weekMatches.forEach((m) => {
-    const key = getWibDateKey(new Date(m.matchDate));
-    if (key) dateSet.add(key);
-  });
-
-  let sortedDates = Array.from(dateSet).sort();
-
-  // Fallback jika belum ada tanggal terisi di pekan ini
-  if (sortedDates.length === 0) {
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      sortedDates.push(getWibDateKey(d));
-    }
-  }
-
-  const currentMatchDateKey = getWibDateKey(new Date(targetMatch.matchDate));
+  // 6. Loop setiap hari dari startDate sampai Minggu
   const slots: RescheduleSlotChoice[] = [];
+  const currentMatchDateKey = getWibDateKey(new Date(targetMatch.matchDate));
 
-  for (const dateKey of sortedDates) {
+  const iterDate = new Date(startDate);
+  while (getWibDateKey(iterDate) <= getWibDateKey(endDate)) {
+    const dateKey = getWibDateKey(iterDate);
+
+    // Salin iterDate untuk iterasi berikutnya sebelum dicek
+    const checkDate = new Date(iterDate);
+    iterDate.setDate(iterDate.getDate() + 1);
+
+    // Jangan tampilkan tanggal yang sudah lewat dari hari ini
     if (dateKey < todayWibKey) {
       continue;
     }
 
+    // Jangan tawarkan tanggal yang sama dengan jadwal match saat ini
     if (dateKey === currentMatchDateKey) {
       continue;
     }
@@ -77,13 +86,12 @@ export function getAvailableRescheduleSlots(
     const count = matchCountByDate.get(dateKey) || 0;
     const remainingSlots = Math.max(0, 3 - count);
 
+    // Jika kuota sudah habis (3/3), lewati
     if (remainingSlots <= 0) {
       continue;
     }
 
-    const [y, m, d] = dateKey.split('-').map(Number);
-    const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-    const formattedDay = dateObj.toLocaleDateString('id-ID', {
+    const formattedDay = checkDate.toLocaleDateString('id-ID', {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
@@ -155,4 +163,4 @@ export function formatConfirmationWIB(isoString: string): string {
       timeZone: 'Asia/Jakarta',
     }) + ' WIB'
   );
-}
+  }
