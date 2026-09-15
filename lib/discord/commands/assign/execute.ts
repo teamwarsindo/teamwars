@@ -73,7 +73,7 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
     match.streamerDiscordId = targetStaffId;
   }
 
-  // 3. Update opening embed di room match
+  // 3. Update opening embed di room match (memicu tag mention staf di body chat untuk update cache)
   const openingTask = matchChannelId
     ? sendOrUpdateOpeningEmbed({
         channelId: matchChannelId,
@@ -169,16 +169,14 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   await kv.set('twi:schedules', schedules);
 
   // 6. PATCH / UPDATE DUTY TRACKER MESSAGE DI DISCORD
-  // Jika match ini adalah hasil reschedule, perbarui embed tracker di channel CH_REFEREE / CH_STREAMER
-  if (match.isRescheduled) {
+  if ((match as any).isRescheduled) {
     try {
       const targetWeek = Number(match.weekNumber || getMatchWeekNumber(match.matchDate) || 1);
       const weekName = `Week ${targetWeek}`;
 
-      // Ambil seluruh match pekan tersebut yang sudah di-update
       const weekMatches = schedules.filter((m) => {
         const w = Number(m.weekNumber || getMatchWeekNumber(m.matchDate) || 1);
-        return w === targetWeek && Boolean(m.isRescheduled);
+        return w === targetWeek && Boolean((m as any).isRescheduled);
       });
 
       const dutyMatches: RescheduleDutyMatch[] = weekMatches.map((m) => {
@@ -211,7 +209,6 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
         };
       });
 
-      // Jalankan dalam mode PATCH agar pesan lama langsung diperbarui tanpa spam notifikasi
       await sendOrUpdateDutyRescheduleSchedule({
         weekName,
         matches: dutyMatches,
@@ -223,4 +220,4 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   }
 
   return { match, staffName, replacedStaffName };
-}
+        }
