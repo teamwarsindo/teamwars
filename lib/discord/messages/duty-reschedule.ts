@@ -27,20 +27,18 @@ const isDutyEmpty = (val?: string | null) => {
 };
 
 export async function sendOrUpdateDutyRescheduleSchedule(params: {
-  weekName: string; // Contoh: "Week 7"
+  weekName: string;
   matches: Array<RescheduleDutyMatch>;
+  isPatch?: boolean; // True jika hanya update list tanpa perlu ping ulang
 }) {
-  // 1. Hanya ambil match hasil reschedule yang sudah disepakati
+  const isPatchMode = params.isPatch ?? false;
   const rescheduledMatches = params.matches.filter((m) => Boolean(m.isRescheduled));
 
-  // 2. Filter per kebutuhan peran
   const needRefereeMatches = rescheduledMatches.filter((m) => isDutyEmpty(m.referee));
   const needStreamerMatches = rescheduledMatches.filter((m) => isDutyEmpty(m.streamer));
 
-  // 3. Format deskripsi match
   const buildDutyDescription = (schedules: Array<RescheduleDutyMatch>): string => {
     let desc = 'Penyesuaian jadwal pertandingan resmi yang sudah disepakati:\n\n';
-
     if (!schedules || schedules.length === 0) {
       desc += '_Belum ada jadwal terkonfirmasi._';
       return desc;
@@ -69,7 +67,6 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       emptyList: needRefereeMatches,
       title: `📊 Schedule Butuh Wasit - ${params.weekName}`,
       color: 0x3498db,
-      label: 'Referee',
       alertMessage: '📌 **TUGAS WAJIB:** Pertandingan resmi di bawah belum ada wasit. Segera ambil tugas masing-masing demi kelancaran turnamen.',
     },
     {
@@ -87,47 +84,59 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
   for (const target of targets) {
     if (!target.channelId) continue;
 
-    // Cek dan hapus pesan tracker lama dari KV jika ada
     const oldMsgId = await kv.get<string>(target.kvKey);
+
+    // Jika seluruh tugas sudah terisi penuh: hapus pesan lama dari Discord dan bersihkan KV
+    if (target.emptyList.length === 0) {
+      if (oldMsgId) {
+        await discordAPI(`/channels/${target.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
+        await kv.del(target.kvKey);
+      }
+      continue;
+    }
+
+    const roleMention = target.roleId ? `<@&${target.roleId}>` : '';
+    const contentText = roleMention ? `${roleMention}\n${target.alertMessage}` : target.alertMessage;
+
+    const embedPayload = {
+      title: target.title,
+      color: target.color,
+      description: buildDutyDescription(target.emptyList),
+      footer: { text: getEmbedFooterText() },
+    };
+
+    // LOGIKA PATCH: Jika pesan lama ada dan isPatchMode aktif, langsung PATCH
+    if (isPatchMode && oldMsgId) {
+      const patchRes: any = await discordAPI(
+        `/channels/${target.channelId}/messages/${oldMsgId}`,
+        'PATCH',
+        {
+          content: contentText,
+          embeds: [embedPayload],
+        }
+      ).catch(() => null);
+
+      if (patchRes?.id) continue;
+    }
+
+    // FALLBACK / MODE RE-POST: Hapus pesan lama lalu kirim baru
     if (oldMsgId) {
       await discordAPI(`/channels/${target.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
       await kv.del(target.kvKey);
     }
 
-    // Jika seluruh tugas sudah terisi (kosong), jangan kirim pesan baru
-    if (target.emptyList.length === 0) {
-      continue;
-    }
-
-    // Format tag role: <@&ID_ROLE>
-    const roleMention = target.roleId ? `<@&${target.roleId}>` : '';
-    const contentText = roleMention ? `${roleMention}\n${target.alertMessage}` : target.alertMessage;
-
-    // Buat payload pesan embed lengkap dengan content dan allowed_mentions
-    const payload = {
-      content: contentText,
-      embeds: [
-        {
-          title: target.title,
-          color: target.color,
-          description: buildDutyDescription(target.emptyList),
-          footer: { text: getEmbedFooterText() },
-        },
-      ],
-      allowed_mentions: {
-        parse: ['roles'], // Wajib agar tag <@&id> benar-benar memicu notifikasi ping
-      },
-    };
-
-    // Kirim pesan baru dan simpan ID ke KV
     const postRes: any = await discordAPI(
       `/channels/${target.channelId}/messages`,
       'POST',
-      payload
+      {
+        content: contentText,
+        embeds: [embedPayload],
+        allowed_mentions: { parse: ['roles'] },
+      }
     ).catch(() => null);
 
     if (postRes?.id) {
       await kv.set(target.kvKey, postRes.id);
     }
   }
-      }
+       }
