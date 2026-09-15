@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { TopBar, HeroHeader, Footer } from '@/components/layout-shared';
-import { DIVISION_MAP } from '@/app/tournament/_library';
+import { DIVISION_MAP, getTeamSlug } from '@/app/tournament/_library';
 import { AnalyticsFilter, FilterTeamItem } from '@/app/analytics/_components/analytics-filter';
 import { ReportScoreboard } from '@/app/analytics/_components/report-scoreboard';
 import { ReportLineup } from '@/app/analytics/_components/report-lineup';
@@ -20,7 +20,7 @@ export default function AdminInteractiveMatchReport() {
   // Filter States
   const [selectedGroup, setSelectedGroup] = useState<'ALL' | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B>('ALL');
   const [selectedTeam, setSelectedTeam] = useState('');
-  const [selectedWeek, setSelectedWeek] = useState<number | ''>(6);
+  const [selectedWeek, setSelectedWeek] = useState<number | ''>(1);
   const [selectedMatchId, setSelectedMatchId] = useState('');
 
   // Workspace States
@@ -37,23 +37,16 @@ export default function AdminInteractiveMatchReport() {
   const [scoreB, setScoreB] = useState(0);
   const [repeatsA, setRepeatsA] = useState(0);
   const [repeatsB, setRepeatsB] = useState(0);
+  const [warnsA, setWarnsA] = useState(0);
+  const [warnsB, setWarnsB] = useState(0);
 
+  // Metadata Autocomplete
   const [rosterA, setRosterA] = useState<any[]>([]);
   const [rosterB, setRosterB] = useState<any[]>([]);
+  const [masterDecks, setMasterDecks] = useState<string[]>([]);
+  const [masterSkills, setMasterSkills] = useState<Array<{ name: string; label: string }>>([]);
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/admin/match-report').then((r) => r.json()),
-      fetch('/api/tournament/teams').then((r) => r.json()).catch(() => ({ teams: [] })),
-    ]).then(([schedRes, teamRes]) => {
-      if (schedRes.schedules) setSchedules(schedRes.schedules);
-      if (teamRes.teams) setTeams(teamRes.teams);
-    });
-  }, []);
-
-  const activeMatch = useMemo(() => schedules.find((s) => s.id === selectedMatchId), [schedules, selectedMatchId]);
-
-  const initLineup = (): PlayerLineupItem[] =>
+  const initEmptyLineup = (): PlayerLineupItem[] =>
     Array.from({ length: 5 }, () => ({
       ign: '',
       idDuelLinks: '',
@@ -64,62 +57,121 @@ export default function AdminInteractiveMatchReport() {
       deck2: { archetype: '', skill: '', wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
     }));
 
+  // 1. Inisialisasi Schedules & Teams
   useEffect(() => {
-    if (!selectedMatchId) {
-      setTeamALineup(initLineup());
-      setTeamBLineup(initLineup());
+    Promise.all([
+      fetch('/api/admin/match-report').then((r) => r.json()),
+      fetch('/api/tournament/teams').then((r) => r.json()).catch(() => ({ teams: [] })),
+    ]).then(([schedRes, teamRes]) => {
+      if (schedRes.schedules) setSchedules(schedRes.schedules);
+      if (teamRes.teams) setTeams(teamRes.teams);
+    });
+  }, []);
+
+  const activeMatch = useMemo(
+    () => schedules.find((s) => s.id === selectedMatchId),
+    [schedules, selectedMatchId]
+  );
+
+  const matchesInView = useMemo(() => {
+    return schedules.filter((s) => {
+      if (selectedGroup !== 'ALL' && s.groupName !== selectedGroup) return false;
+      if (selectedWeek !== '' && Number(s.weekNumber) !== Number(selectedWeek)) return false;
+      if (selectedTeam !== '' && s.teamAName !== selectedTeam && s.teamBName !== selectedTeam) return false;
+      return true;
+    });
+  }, [schedules, selectedGroup, selectedWeek, selectedTeam]);
+
+  // 2. Load Report & Autocomplete Saat Match Dipilih
+  useEffect(() => {
+    if (!selectedMatchId || !activeMatch) {
+      setTeamALineup(initEmptyLineup());
+      setTeamBLineup(initEmptyLineup());
       setGames([]);
       setScoreA(0);
       setScoreB(0);
       return;
     }
 
+    let isSubscribed = true;
     setLoadingReport(true);
-    if (activeMatch) {
-      const tA = teams.find((t) => t.name?.toLowerCase() === activeMatch.teamAName?.toLowerCase());
-      const tB = teams.find((t) => t.name?.toLowerCase() === activeMatch.teamBName?.toLowerCase());
-      setRosterA(tA?.members || []);
-      setRosterB(tB?.members || []);
-    }
+    setStatusMsg(null);
 
+    const slugA = getTeamSlug(activeMatch.teamAName);
+    const slugB = getTeamSlug(activeMatch.teamBName);
+
+    // Ambil Roster dan Master Decks & Skills
+    fetch(`/api/admin/match-report/meta?slugA=${slugA}&slugB=${slugB}`)
+      .then((r) => r.json())
+      .then((meta) => {
+        if (isSubscribed && meta.success) {
+          setRosterA(meta.rosterA || []);
+          setRosterB(meta.rosterB || []);
+          setMasterDecks(meta.masterDecks || []);
+          setMasterSkills(meta.masterSkills || []);
+        }
+      });
+
+    // Ambil Data Report
     fetch(`/api/admin/match-report?matchId=${selectedMatchId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (json.success && json.report) {
+        if (!isSubscribed) return;
+
+        if (json.success && json.report && (json.report.teamA?.lineup?.length > 0 || json.report.games?.length > 0)) {
           const r = json.report;
-          setTeamALineup(r.teamA?.lineup || initLineup());
-          setTeamBLineup(r.teamB?.lineup || initLineup());
+          setTeamALineup(r.teamA?.lineup?.length === 5 ? r.teamA.lineup : initEmptyLineup());
+          setTeamBLineup(r.teamB?.lineup?.length === 5 ? r.teamB.lineup : initEmptyLineup());
           setGames(r.games || []);
+          // Hitung murni dari report
           setScoreA(r.teamA?.score ?? 0);
           setScoreB(r.teamB?.score ?? 0);
           setRepeatsA(r.teamA?.repeatsUsed ?? 0);
           setRepeatsB(r.teamB?.repeatsUsed ?? 0);
+          setWarnsA(r.teamA?.warningsUsed ?? 0);
+          setWarnsB(r.teamB?.warningsUsed ?? 0);
           if (r.games?.length > 0) setEditorTab('game');
+          else setEditorTab('lineup');
         } else {
-          setTeamALineup(initLineup());
-          setTeamBLineup(initLineup());
+          // JIKA BELUM ADA REPORT (Backfill): Force skor ke 0 - 0 dan siapkan 5 slot kosong
+          setTeamALineup(initEmptyLineup());
+          setTeamBLineup(initEmptyLineup());
           setGames([]);
           setScoreA(0);
           setScoreB(0);
+          setRepeatsA(0);
+          setRepeatsB(0);
+          setWarnsA(0);
+          setWarnsB(0);
           setEditorTab('lineup');
         }
       })
-      .finally(() => setLoadingReport(false));
-  }, [selectedMatchId, activeMatch, teams]);
+      .finally(() => {
+        if (isSubscribed) setLoadingReport(false);
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [selectedMatchId, activeMatch]);
 
   const handleLineupChange = (side: 'A' | 'B', idx: number, field: string, val: any, deckSlot?: 'deck1' | 'deck2') => {
     const list = side === 'A' ? [...teamALineup] : [...teamBLineup];
-    if (deckSlot) list[idx][deckSlot] = { ...list[idx][deckSlot], [field]: val };
-    else (list[idx] as any)[field] = val;
+    if (deckSlot) {
+      list[idx][deckSlot] = { ...list[idx][deckSlot], [field]: val };
+    } else {
+      (list[idx] as any)[field] = val;
+    }
     side === 'A' ? setTeamALineup(list) : setTeamBLineup(list);
   };
 
   const handleSelectRoster = (side: 'A' | 'B', idx: number, ign: string) => {
     const roster = side === 'A' ? rosterA : rosterB;
-    const found = roster.find((m) => (m.ign || m.name || m) === ign);
+    const found = roster.find((m) => m.ign?.toLowerCase() === ign.toLowerCase());
+
     handleLineupChange(side, idx, 'ign', ign);
-    if (found?.idDuelLinks || found?.gameId) {
-      handleLineupChange(side, idx, 'idDuelLinks', found.idDuelLinks || found.gameId);
+    if (found && found.idDuelLinks) {
+      handleLineupChange(side, idx, 'idDuelLinks', found.idDuelLinks);
     }
   };
 
@@ -193,15 +245,15 @@ export default function AdminInteractiveMatchReport() {
               referee: activeMatch?.referee || 'Kaiba',
               streamer: activeMatch?.streamer || '',
             },
-            teamA: { name: activeMatch?.teamAName, score: scoreA, repeatsUsed: repeatsA, lineup: teamALineup },
-            teamB: { name: activeMatch?.teamBName, score: scoreB, repeatsUsed: repeatsB, lineup: teamBLineup },
+            teamA: { name: activeMatch?.teamAName, score: scoreA, repeatsUsed: repeatsA, warningsUsed: warnsA, lineup: teamALineup },
+            teamB: { name: activeMatch?.teamBName, score: scoreB, repeatsUsed: repeatsB, warningsUsed: warnsB, lineup: teamBLineup },
             games,
             isFinished: scoreA >= 10 || scoreB >= 10,
           },
         }),
       });
       const data = await res.json();
-      if (data.success) setStatusMsg({ type: 'success', text: 'Match Report berhasil disimpan ke KV!' });
+      if (data.success) setStatusMsg({ type: 'success', text: 'Match Report berhasil disimpan & disinkronkan!' });
       else setStatusMsg({ type: 'error', text: data.error || 'Gagal menyimpan report.' });
     } catch (e: any) {
       setStatusMsg({ type: 'error', text: e.message });
@@ -231,9 +283,9 @@ export default function AdminInteractiveMatchReport() {
             availableWeeks={[1, 2, 3, 4, 5, 6, 7]}
             selectedMatchId={selectedMatchId}
             onMatchChange={(mId) => setSelectedMatchId(mId)}
-            matchesInView={schedules.filter((s) => (selectedWeek === '' || Number(s.weekNumber) === Number(selectedWeek)))}
+            matchesInView={matchesInView}
             isFilterActive={Boolean(selectedGroup !== 'ALL' || selectedTeam || selectedMatchId)}
-            onReset={() => { setSelectedGroup('ALL'); setSelectedTeam(''); setSelectedWeek(6); setSelectedMatchId(''); }}
+            onReset={() => { setSelectedGroup('ALL'); setSelectedTeam(''); setSelectedWeek(1); setSelectedMatchId(''); }}
           />
 
           {!selectedMatchId ? (
@@ -246,9 +298,10 @@ export default function AdminInteractiveMatchReport() {
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Scoreboard Interaktif: Murni Berdasarkan State Games/Report Aktif */}
               <ReportScoreboard
-                teamA={{ name: activeMatch?.teamAName, repeatsUsed: repeatsA }}
-                teamB={{ name: activeMatch?.teamBName, repeatsUsed: repeatsB }}
+                teamA={{ name: activeMatch?.teamAName, repeatsUsed: repeatsA, warningsUsed: warnsA }}
+                teamB={{ name: activeMatch?.teamBName, repeatsUsed: repeatsB, warningsUsed: warnsB }}
                 scoreA={scoreA}
                 scoreB={scoreB}
                 teamALogo={activeMatch?.teamALogo}
@@ -257,8 +310,8 @@ export default function AdminInteractiveMatchReport() {
                   week: activeMatch?.weekNumber || selectedWeek,
                   matchNumber: activeMatch?.id?.replace(/\D/g, '') || 1,
                   division: activeMatch?.groupName,
-                  referee: activeMatch?.referee || 'Kaiba',
-                  streamer: activeMatch?.streamer,
+                  referee: activeMatch?.referee || '-',
+                  streamer: activeMatch?.streamer || '-',
                   date: activeMatch?.matchDate ? activeMatch.matchDate.split('T')[0] : '-',
                 }}
               />
@@ -280,6 +333,8 @@ export default function AdminInteractiveMatchReport() {
                   teamBLineup={teamBLineup}
                   rosterA={rosterA}
                   rosterB={rosterB}
+                  masterDecks={masterDecks}
+                  masterSkills={masterSkills}
                   onChange={handleLineupChange}
                   onSelectRoster={handleSelectRoster}
                 />
@@ -319,5 +374,4 @@ export default function AdminInteractiveMatchReport() {
       </div>
     </main>
   );
-    }
-      
+              }
