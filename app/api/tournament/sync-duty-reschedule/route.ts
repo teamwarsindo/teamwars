@@ -3,20 +3,36 @@ import { kv } from '@vercel/kv';
 import { MatchScheduleItem, getTeamSlug, getWibDateKey, getMatchWeekNumber } from '@/app/tournament/_library';
 import { sendOrUpdateDutyRescheduleSchedule, RescheduleDutyMatch } from '@/lib/discord/messages/duty-reschedule';
 
-// Fungsi utama sinkronisasi
-async function handleDutySync(targetWeekStr?: string | null) {
+export const dynamic = 'force-dynamic';
+
+async function handleDutySync(targetWeekStr?: string | null, isForce: boolean = false) {
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
   if (schedules.length === 0) {
     return { success: false, message: 'Data twi:schedules kosong di KV.', status: 404 };
   }
 
-  // 1. Tentukan target week (jika tidak ada parameter, otomatis deteksi pekan aktif)
+  const now = new Date();
+  const todayWibKey = getWibDateKey(now); // Contoh: "2026-09-15"
+
+  // 1. Pengecekan apakah hari ini ada match (bisa di-bypass dengan ?force=true)
+  const hasMatchToday = schedules.some(
+    (m) => m.matchDate && getWibDateKey(new Date(m.matchDate)) === todayWibKey
+  );
+
+  if (!hasMatchToday && !isForce) {
+    return {
+      success: true,
+      skipped: true,
+      message: `Tidak ada jadwal pertandingan hari ini (${todayWibKey}). Eksekusi dilewati. Gunakan '?force=true' untuk tetap menjalankan.`,
+      status: 200,
+    };
+  }
+
+  // 2. Tentukan target week (jika tidak ada parameter, otomatis deteksi pekan aktif)
   let targetWeekNumber: number;
   if (targetWeekStr) {
     targetWeekNumber = parseInt(targetWeekStr.replace(/\D/g, ''), 10) || 1;
   } else {
-    const now = new Date();
-    const todayWibKey = getWibDateKey(now);
     const upcomingMatches = schedules.filter(
       (m) => m.matchDate && getWibDateKey(new Date(m.matchDate)) >= todayWibKey
     );
@@ -32,7 +48,7 @@ async function handleDutySync(targetWeekStr?: string | null) {
 
   const weekLabel = `Week ${targetWeekNumber}`;
 
-  // 2. Ambil semua match pada week tersebut
+  // 3. Ambil seluruh match pada week tersebut
   const weekMatches = schedules.filter(
     (m) => Number(m.weekNumber || getMatchWeekNumber(m.matchDate) || 1) === targetWeekNumber
   );
@@ -45,7 +61,7 @@ async function handleDutySync(targetWeekStr?: string | null) {
     };
   }
 
-  // 3. Susun data match lengkap dengan emoji tim
+  // 4. Susun data match lengkap dengan emoji tim
   const dutyMatches: RescheduleDutyMatch[] = await Promise.all(
     weekMatches.map(async (m) => {
       const slugA = getTeamSlug(m.teamAName);
@@ -99,7 +115,7 @@ async function handleDutySync(targetWeekStr?: string | null) {
     })
   );
 
-  // 4. Eksekusi sync ke CH_REFEREE & CH_STREAMER
+  // 5. Eksekusi sync ke CH_REFEREE & CH_STREAMER
   await sendOrUpdateDutyRescheduleSchedule({
     weekName: weekLabel,
     matches: dutyMatches,
@@ -115,8 +131,12 @@ async function handleDutySync(targetWeekStr?: string | null) {
 
   return {
     success: true,
+    skipped: false,
+    forced: isForce && !hasMatchToday,
     message: `Sinkronisasi duty reschedule untuk ${weekLabel} berhasil dijalankan!`,
     week: weekLabel,
+    todayDate: todayWibKey,
+    hasMatchToday,
     totalMatchInWeek: weekMatches.length,
     totalRescheduled: rescheduledMatches.length,
     butuhWasit: emptyReferee,
@@ -125,13 +145,14 @@ async function handleDutySync(targetWeekStr?: string | null) {
   };
 }
 
-// 🌐 Method GET: Untuk diakses langsung lewat address bar browser
+// 🌐 Method GET: Akses URL browser / Cron
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const weekParam = searchParams.get('week'); // contoh: ?week=7
+    const weekParam = searchParams.get('week');
+    const forceParam = searchParams.get('force') === 'true';
 
-    const result = await handleDutySync(weekParam);
+    const result = await handleDutySync(weekParam, forceParam);
     return NextResponse.json(result, { status: result.status || 200 });
   } catch (error: any) {
     console.error('[SYNC DUTY RESCHEDULE GET ERROR]:', error);
@@ -139,14 +160,15 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// 🌐 Method POST: Tetap disediakan jika dipanggil via fetch/curl
+// 🌐 Method POST: Webhook / Fetch API
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const result = await handleDutySync(body.targetWeek);
+    const isForce = Boolean(body.force);
+    const result = await handleDutySync(body.targetWeek, isForce);
     return NextResponse.json(result, { status: result.status || 200 });
   } catch (error: any) {
     console.error('[SYNC DUTY RESCHEDULE POST ERROR]:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
-      }
+}
