@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/app/tournament/_library';
+import { MatchScheduleItem, getMatchWeekNumber } from '@/app/tournament/_library';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, isValidSnowflake, formatWIBDate } from '@/lib/discord/utils';
 import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
@@ -8,6 +8,10 @@ import {
   sendOrUpdateStreamerAssignmentLog,
   sendReassignmentLog,
 } from '@/lib/discord/messages/assignment-log';
+import {
+  sendOrUpdateDutyRescheduleSchedule,
+  RescheduleDutyMatch,
+} from '@/lib/discord/messages/duty-reschedule';
 import { ExecuteAssignParams, ExecuteAssignResult, StaffItem } from './types';
 import {
   getMatchContext,
@@ -69,7 +73,7 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
     match.streamerDiscordId = targetStaffId;
   }
 
-  // 3. Update opening embed di room match (memicu tag mention staf di body chat untuk update cache)
+  // 3. Update opening embed di room match
   const openingTask = matchChannelId
     ? sendOrUpdateOpeningEmbed({
         channelId: matchChannelId,
@@ -163,6 +167,60 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
 
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
+
+  // 6. PATCH / UPDATE DUTY TRACKER MESSAGE DI DISCORD
+  // Jika match ini adalah hasil reschedule, perbarui embed tracker di channel CH_REFEREE / CH_STREAMER
+  if (match.isRescheduled) {
+    try {
+      const targetWeek = Number(match.weekNumber || getMatchWeekNumber(match.matchDate) || 1);
+      const weekName = `Week ${targetWeek}`;
+
+      // Ambil seluruh match pekan tersebut yang sudah di-update
+      const weekMatches = schedules.filter((m) => {
+        const w = Number(m.weekNumber || getMatchWeekNumber(m.matchDate) || 1);
+        return w === targetWeek && Boolean(m.isRescheduled);
+      });
+
+      const dutyMatches: RescheduleDutyMatch[] = weekMatches.map((m) => {
+        const d = new Date(m.matchDate);
+        return {
+          matchDateIso: m.matchDate,
+          dateStr: d.toLocaleDateString('id-ID', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            timeZone: 'Asia/Jakarta',
+          }),
+          timeStr:
+            d
+              .toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+                timeZone: 'Asia/Jakarta',
+              })
+              .replace(':', '.') + ' WIB',
+          team1Emoji: (m as any).team1Emoji || (m as any).teamAEmoji || '',
+          team1Name: m.teamAName,
+          team2Emoji: (m as any).team2Emoji || (m as any).teamBEmoji || '',
+          team2Name: m.teamBName,
+          referee: (m as any).referee || null,
+          streamer: (m as any).streamer || null,
+          isRescheduled: true,
+        };
+      });
+
+      // Jalankan dalam mode PATCH agar pesan lama langsung diperbarui tanpa spam notifikasi
+      await sendOrUpdateDutyRescheduleSchedule({
+        weekName,
+        matches: dutyMatches,
+        isPatch: true,
+      });
+    } catch (dutyErr) {
+      console.warn('Gagal sinkron duty reschedule setelah assign:', dutyErr);
+    }
+  }
 
   return { match, staffName, replacedStaffName };
 }
