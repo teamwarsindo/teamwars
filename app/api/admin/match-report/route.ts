@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
@@ -6,7 +7,7 @@ import { discordAPI, getEmbedFooterText } from '@/lib/discord/utils';
 
 export const dynamic = 'force-dynamic';
 
-// Helper sinkronisasi Live Tracker ke Camp masing-masing tim
+// Helper sinkronisasi Live Tracker ke Camp masing-masing tim di Discord
 async function syncCampTrackers(matchId: string, matchDateIso: string, reportData: any) {
   try {
     const matchMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
@@ -58,7 +59,7 @@ async function syncCampTrackers(matchId: string, matchDateIso: string, reportDat
 }
 
 // -------------------------------------------------------------
-// GET: Ambil Master Schedule & Match Report Draft
+// GET: Ambil Master Schedules ATAU Match Report Spesifik
 // -------------------------------------------------------------
 export async function GET(req: NextRequest) {
   try {
@@ -67,12 +68,14 @@ export async function GET(req: NextRequest) {
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
+    // Jika tanpa parameter matchId, kembalikan seluruh list jadwal (dipakai dropdown web editor)
     if (!matchId) {
       return NextResponse.json({ success: true, schedules });
     }
 
     const match = schedules.find((m) => String(m.id).toLowerCase() === matchId.toLowerCase());
-    const report = (await kv.hget<any>('twi:match_reports', matchId)) || null;
+    const rawReport = await kv.hget<any>('twi:match_reports', matchId);
+    const report = rawReport ? (typeof rawReport === 'string' ? JSON.parse(rawReport) : rawReport) : null;
 
     return NextResponse.json({ success: true, match, report });
   } catch (error: any) {
@@ -81,7 +84,7 @@ export async function GET(req: NextRequest) {
 }
 
 // -------------------------------------------------------------
-// POST: Simpan Lineup (/submit manager) atau Publish Discord
+// POST: Direct Save (Web Editor), Submit Lineup Manager, atau Publish
 // -------------------------------------------------------------
 export async function POST(req: NextRequest) {
   try {
@@ -89,10 +92,49 @@ export async function POST(req: NextRequest) {
     const { matchId, teamALineup, teamBLineup, action = 'save' } = body;
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const match = schedules.find((m) => String(m.id).toLowerCase() === matchId.toLowerCase());
-    if (!match) return NextResponse.json({ success: false, error: 'Match tidak ditemukan.' }, { status: 404 });
+    const idx = schedules.findIndex((m) => String(m.id).toLowerCase() === String(matchId).toLowerCase());
+    if (idx === -1) {
+      return NextResponse.json({ success: false, error: 'Match tidak ditemukan di jadwal.' }, { status: 404 });
+    }
+    const match = schedules[idx];
 
-    const existingReport = (await kv.hget<any>('twi:match_reports', matchId)) || {};
+    // =========================================================================
+    // 1. AKSI WEB EDITOR: DIRECT SAVE (Simpan Snapshot Utuh)
+    // =========================================================================
+    if (action === 'direct_save' || action === 'backfill') {
+      const fullReport = body.reportData || body;
+
+      // Pastikan format siap disimpan ke HASH twi:match_reports
+      await kv.hset('twi:match_reports', { [matchId]: fullReport });
+
+      // Sinkronisasi status selesai & skor akhir ke twi:schedules
+      const scoreA = Number(fullReport.teamA?.score ?? 0);
+      const scoreB = Number(fullReport.teamB?.score ?? 0);
+      const isFinished = scoreA >= 10 || scoreB >= 10 || Boolean(fullReport.isFinished);
+      const winnerName = scoreA > scoreB ? match.teamAName : scoreB > scoreA ? match.teamBName : null;
+
+      schedules[idx] = {
+        ...match,
+        isFinished,
+        scoreA,
+        scoreB,
+        winner: isFinished && winnerName ? winnerName : (match as any).winner,
+      } as any;
+
+      await kv.set('twi:schedules', schedules);
+
+      return NextResponse.json({
+        success: true,
+        message: `Match report ${matchId} berhasil disimpan & disinkronkan ke schedules.`,
+        report: fullReport,
+      });
+    }
+
+    // =========================================================================
+    // 2. AKSI DEFAULT: /submit Lineup Manager & Publish Live Tracker Discord
+    // =========================================================================
+    const existingRaw = await kv.hget<any>('twi:match_reports', matchId);
+    const existingReport = existingRaw ? (typeof existingRaw === 'string' ? JSON.parse(existingRaw) : existingRaw) : {};
 
     const formatLineup = (inputList: any[]) =>
       (inputList || []).map((p: any) => ({
@@ -101,8 +143,22 @@ export async function POST(req: NextRequest) {
         remainingLife: p.remainingLife ?? 2,
         totalWins: p.totalWins ?? 0,
         totalLosses: p.totalLosses ?? 0,
-        deck1: p.deck1 ? { archetype: p.deck1.archetype || '', skill: p.deck1.skill || '', wins: p.deck1.wins || 0, losses: p.deck1.losses || 0, isDead: !!p.deck1.isDead, isRepeatUsed: !!p.deck1.isRepeatUsed } : null,
-        deck2: p.deck2 ? { archetype: p.deck2.archetype || '', skill: p.deck2.skill || '', wins: p.deck2.wins || 0, losses: p.deck2.losses || 0, isDead: !!p.deck2.isDead, isRepeatUsed: !!p.deck2.isRepeatUsed } : null,
+        deck1: p.deck1 ? {
+          archetype: p.deck1.archetype || '',
+          skill: p.deck1.skill || '',
+          wins: p.deck1.wins || 0,
+          losses: p.deck1.losses || 0,
+          isDead: Boolean(p.deck1.isDead),
+          isRepeatUsed: Boolean(p.deck1.isRepeatUsed),
+        } : null,
+        deck2: p.deck2 ? {
+          archetype: p.deck2.archetype || '',
+          skill: p.deck2.skill || '',
+          wins: p.deck2.wins || 0,
+          losses: p.deck2.losses || 0,
+          isDead: Boolean(p.deck2.isDead),
+          isRepeatUsed: Boolean(p.deck2.isRepeatUsed),
+        } : null,
       }));
 
     const reportData = {
@@ -125,10 +181,8 @@ export async function POST(req: NextRequest) {
       winnerTeam: existingReport.winnerTeam ?? null,
     };
 
-    // 1. Simpan ke Database Draft (KV)
     await kv.hset('twi:match_reports', { [matchId]: reportData });
 
-    // 2. Jika Aksi Publish -> Trigger Sync ke Live Tracker Discord Camp A & B
     if (action === 'publish') {
       await syncCampTrackers(matchId, match.matchDate, reportData);
     }
@@ -140,7 +194,7 @@ export async function POST(req: NextRequest) {
 }
 
 // -------------------------------------------------------------
-// PUT: Tambah Ronde Game, Rollback, atau Publish Game Log
+// PUT: Tambah Ronde Game (/game add) atau Rollback (/game del) Discord
 // -------------------------------------------------------------
 export async function PUT(req: NextRequest) {
   try {
@@ -148,11 +202,12 @@ export async function PUT(req: NextRequest) {
     const { matchId, action } = body;
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const match = schedules.find((m) => String(m.id).toLowerCase() === matchId.toLowerCase());
+    const match = schedules.find((m) => String(m.id).toLowerCase() === String(matchId).toLowerCase());
     if (!match) return NextResponse.json({ success: false, error: 'Match tidak ditemukan.' }, { status: 404 });
 
-    const reportData = await kv.hget<any>('twi:match_reports', matchId);
-    if (!reportData) return NextResponse.json({ success: false, error: 'Lineup belum dibuat/disubmit.' }, { status: 400 });
+    const rawReport = await kv.hget<any>('twi:match_reports', matchId);
+    if (!rawReport) return NextResponse.json({ success: false, error: 'Lineup belum dibuat/disubmit.' }, { status: 400 });
+    const reportData = typeof rawReport === 'string' ? JSON.parse(rawReport) : rawReport;
 
     // 1. Tambah Ronde Duel (/game add)
     if (action === 'add_game') {
@@ -235,15 +290,12 @@ export async function PUT(req: NextRequest) {
         reportData.winnerTeam = 'teamB';
       }
 
-      // Simpan Draft
+      // Simpan HASH
       await kv.hset('twi:match_reports', { [matchId]: reportData });
 
-      // Jika tombol Publish ditekan
       if (shouldPublish) {
-        // 1. Update Tracker di Camp
         await syncCampTrackers(matchId, match.matchDate, reportData);
 
-        // 2. Kirim Pesan Log Game ke Channel Match
         const matchChannelId = (match as any).discordChannelId;
         if (matchChannelId) {
           const winnerColor = winnerOpt === 'A' ? 0x3b82f6 : 0xef4444;
@@ -352,5 +404,5 @@ export async function PUT(req: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
-}
-  
+           }
+          
