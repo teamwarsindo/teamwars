@@ -30,16 +30,16 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
   weekName: string; // Contoh: "Week 7"
   matches: Array<RescheduleDutyMatch>;
 }) {
-  // 1. Hanya ambil match hasil reschedule
+  // 1. Hanya ambil match hasil reschedule yang sudah disepakati
   const rescheduledMatches = params.matches.filter((m) => Boolean(m.isRescheduled));
 
   // 2. Filter per kebutuhan peran
   const needRefereeMatches = rescheduledMatches.filter((m) => isDutyEmpty(m.referee));
   const needStreamerMatches = rescheduledMatches.filter((m) => isDutyEmpty(m.streamer));
 
-  // 3. Format deskripsi mengadopsi pola buildGroupDescription
+  // 3. Format deskripsi match
   const buildDutyDescription = (schedules: Array<RescheduleDutyMatch>): string => {
-    let desc = 'Penyesuaian jadwal setelah permintaan reschedule\n\n';
+    let desc = 'Penyesuaian jadwal pertandingan resmi yang sudah disepakati:\n\n';
 
     if (!schedules || schedules.length === 0) {
       desc += '_Belum ada jadwal terkonfirmasi._';
@@ -64,26 +64,30 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
   const targets = [
     {
       channelId: DISCORD_CONFIG.CH_REFEREE,
+      roleId: DISCORD_CONFIG.ROLE_REFEREE,
       kvKey: `${KV_KEYS.REFEREE}_${weekSuffix}`,
       emptyList: needRefereeMatches,
       title: `📊 Schedule Butuh Wasit - ${params.weekName}`,
       color: 0x3498db,
       label: 'Referee',
+      alertMessage: '📌 **TUGAS WAJIB:** Pertandingan resmi di bawah belum ada wasit. Segera ambil tugas masing-masing demi kelancaran turnamen.',
     },
     {
       channelId: DISCORD_CONFIG.CH_STREAMER,
+      roleId: DISCORD_CONFIG.ROLE_STREAMER,
       kvKey: `${KV_KEYS.STREAMER}_${weekSuffix}`,
       emptyList: needStreamerMatches,
       title: `📊 Schedule Butuh Streamer - ${params.weekName}`,
       color: 0xe74c3c,
       label: 'Streamer',
+      alertMessage: '📺 Halo teman-teman! Jadwal tanding resmi sudah ditetapkan. Sekiranya ada yang tersedia untuk menyiarkan pertandingan ini, silakan konfirmasi ya~',
     },
   ];
 
   for (const target of targets) {
     if (!target.channelId) continue;
 
-    // Cek dan hapus pesan lama dari KV jika ada
+    // Cek dan hapus pesan tracker lama dari KV jika ada
     const oldMsgId = await kv.get<string>(target.kvKey);
     if (oldMsgId) {
       await discordAPI(`/channels/${target.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
@@ -95,8 +99,13 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       continue;
     }
 
-    // Buat payload pesan embed
+    // Format tag role: <@&ID_ROLE>
+    const roleMention = target.roleId ? `<@&${target.roleId}>` : '';
+    const contentText = roleMention ? `${roleMention}\n${target.alertMessage}` : target.alertMessage;
+
+    // Buat payload pesan embed lengkap dengan content dan allowed_mentions
     const payload = {
+      content: contentText,
       embeds: [
         {
           title: target.title,
@@ -105,6 +114,9 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
           footer: { text: getEmbedFooterText() },
         },
       ],
+      allowed_mentions: {
+        parse: ['roles'], // Wajib agar tag <@&id> benar-benar memicu notifikasi ping
+      },
     };
 
     // Kirim pesan baru dan simpan ID ke KV
@@ -118,4 +130,4 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       await kv.set(target.kvKey, postRes.id);
     }
   }
-        }
+      }
