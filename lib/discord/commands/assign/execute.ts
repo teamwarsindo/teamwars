@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem, getMatchWeekNumber } from '@/app/tournament/_library';
+import { MatchScheduleItem, getMatchWeekNumber, getTeamSlug } from '@/app/tournament/_library';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, isValidSnowflake, formatWIBDate } from '@/lib/discord/utils';
 import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
@@ -169,46 +169,69 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   await kv.set('twi:schedules', schedules);
 
   // 6. PATCH / UPDATE DUTY TRACKER MESSAGE DI DISCORD
+  // Jika match ini adalah hasil reschedule, perbarui embed tracker di channel CH_REFEREE / CH_STREAMER
   if ((match as any).isRescheduled) {
     try {
       const targetWeek = Number(match.weekNumber || getMatchWeekNumber(match.matchDate) || 1);
       const weekName = `Week ${targetWeek}`;
 
+      // Ambil seluruh match pekan tersebut yang sudah di-update
       const weekMatches = schedules.filter((m) => {
         const w = Number(m.weekNumber || getMatchWeekNumber(m.matchDate) || 1);
         return w === targetWeek && Boolean((m as any).isRescheduled);
       });
 
-      const dutyMatches: RescheduleDutyMatch[] = weekMatches.map((m) => {
-        const d = new Date(m.matchDate);
-        return {
-          matchDateIso: m.matchDate,
-          dateStr: d.toLocaleDateString('id-ID', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-            timeZone: 'Asia/Jakarta',
-          }),
-          timeStr:
-            d
-              .toLocaleTimeString('id-ID', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-                timeZone: 'Asia/Jakarta',
-              })
-              .replace(':', '.') + ' WIB',
-          team1Emoji: (m as any).team1Emoji || (m as any).teamAEmoji || '',
-          team1Name: m.teamAName,
-          team2Emoji: (m as any).team2Emoji || (m as any).teamBEmoji || '',
-          team2Name: m.teamBName,
-          referee: (m as any).referee || null,
-          streamer: (m as any).streamer || null,
-          isRescheduled: true,
-        };
-      });
+      const dutyMatches: RescheduleDutyMatch[] = await Promise.all(
+        weekMatches.map(async (m) => {
+          const slugA = getTeamSlug(m.teamAName);
+          const slugB = getTeamSlug(m.teamBName);
 
+          const [tA, tB] = await Promise.all([
+            kv.hgetall<any>(`teams:${slugA}`),
+            kv.hgetall<any>(`teams:${slugB}`),
+          ]);
+
+          const eA =
+            tA?.discordEmoji ||
+            tA?.emoji ||
+            (tA?.emojiId ? `<:${tA?.kodeTim || 'team'}:${tA?.emojiId}>` : undefined);
+
+          const eB =
+            tB?.discordEmoji ||
+            tB?.emoji ||
+            (tB?.emojiId ? `<:${tB?.kodeTim || 'team'}:${tB?.emojiId}>` : undefined);
+
+          const d = new Date(m.matchDate);
+          return {
+            matchDateIso: m.matchDate,
+            dateStr: d.toLocaleDateString('id-ID', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              timeZone: 'Asia/Jakarta',
+            }),
+            timeStr:
+              d
+                .toLocaleTimeString('id-ID', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                  timeZone: 'Asia/Jakarta',
+                })
+                .replace(':', '.') + ' WIB',
+            team1Emoji: eA,
+            team1Name: m.teamAName,
+            team2Emoji: eB,
+            team2Name: m.teamBName,
+            referee: (m as any).referee || null,
+            streamer: (m as any).streamer || null,
+            isRescheduled: true,
+          };
+        })
+      );
+
+      // Jalankan dalam mode PATCH agar pesan lama langsung diperbarui dengan emoji tim
       await sendOrUpdateDutyRescheduleSchedule({
         weekName,
         matches: dutyMatches,
