@@ -1,25 +1,3 @@
-import { NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
-import { MatchScheduleItem, getWibDateKey, getMatchWeekNumber } from '@/app/tournament/_library';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI } from '@/lib/discord/utils';
-
-export function getCheckMatchesComponent(matchId: string) {
-  return [
-    {
-      type: 1,
-      components: [
-        {
-          type: 2,
-          style: 2,
-          label: '📊 Cek Sisa Match Harian',
-          custom_id: `check_matches_${matchId}`,
-        },
-      ],
-    },
-  ];
-}
-
 export async function handleBtCheckMatches(body: any) {
   try {
     const customId: string = body.data?.custom_id || '';
@@ -46,7 +24,7 @@ export async function handleBtCheckMatches(body: any) {
     const matchTimestamps = weekMatches.map((m) => new Date(m.matchDate).getTime()).sort((a, b) => a - b);
     const earliestDate = new Date(matchTimestamps[0] || match.matchDate);
 
-    // Disesuaikan agar patokan awal jatuh pada hari SELASA (dayOfWeek === 2)
+    // Patokan awal hari Selasa (dayOfWeek === 2)
     const dayOfWeek = earliestDate.getDay();
     const diffToTue = dayOfWeek >= 2 ? dayOfWeek - 2 : dayOfWeek + 5;
     const tuesdayDate = new Date(earliestDate);
@@ -58,12 +36,22 @@ export async function handleBtCheckMatches(body: any) {
       matchCountByDate.set(key, (matchCountByDate.get(key) || 0) + 1);
     });
 
+    // Tanggal acuan hari ini (WIB)
+    const now = new Date();
+    const todayKey = getWibDateKey(now);
+
     const lines: string[] = [];
-    // Loop 6 hari: Selasa, Rabu, Kamis, Jumat, Sabtu, Minggu
+    // Loop 6 hari: Selasa s/d Minggu
     for (let i = 0; i < 6; i++) {
       const d = new Date(tuesdayDate);
       d.setDate(tuesdayDate.getDate() + i);
       const dateKey = getWibDateKey(d);
+
+      // Lewatkan hari ini dan hari-hari sebelumnya (hanya tampilkan H+1 ke atas)
+      if (dateKey <= todayKey) {
+        continue;
+      }
+
       const count = matchCountByDate.get(dateKey) || 0;
       const sisa = Math.max(0, 3 - count);
 
@@ -86,7 +74,6 @@ export async function handleBtCheckMatches(body: any) {
       lines.push(`📅 **${dayLabel}**\n${statusDot} ${statusText}`);
     }
 
-    const now = new Date();
     const updatedTime = now.toLocaleDateString('id-ID', {
       day: '2-digit',
       month: 'short',
@@ -96,9 +83,14 @@ export async function handleBtCheckMatches(body: any) {
       timeZone: 'Asia/Jakarta',
     });
 
+    const descriptionContent =
+      lines.length > 0
+        ? `Ketersediaan match per hari sebagai acuan reschedule (H+1).\n\n${lines.join('\n\n')}`
+        : '⚠️ Tidak ada slot reschedule yang tersisa untuk minggu ini (sudah melewati batas jadwal).';
+
     const embed = {
       title: `📊 Schedule Recap - Week ${matchWeek}`,
-      description: `Ketersediaan match per hari sebagai acuan reschedule.\n\n${lines.join('\n\n')}`,
+      description: descriptionContent,
       color: 0x5865f2,
       footer: { text: `Last Updated: ${updatedTime} WIB` },
     };
