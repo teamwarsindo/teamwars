@@ -119,10 +119,8 @@ export async function GET(request: NextRequest) {
     const titleA = formatBadge(teamDataA, targetMatch.teamAName);
     const titleB = formatBadge(teamDataB, targetMatch.teamBName);
 
-    // Format tanggal footer WIB (contoh: "18 Aug 2026 at 20.00 WIB")
     const formattedDate = formatDateTimeWIB(new Date());
 
-    // Anti-cache Discord dengan membersihkan query string lama & memasang timestamp baru
     const rawUrl = targetMatch.maskedImageUrl || targetMatch.reportImageUrl;
     const cleanBaseUrl = rawUrl ? rawUrl.split("?")[0] : undefined;
     const freshUrl = cleanBaseUrl ? `${cleanBaseUrl}?t=${Date.now()}` : undefined;
@@ -143,16 +141,38 @@ export async function GET(request: NextRequest) {
       ],
     };
 
-    let resData;
+    let resData: any = null;
     let actionType = "POST";
 
+    // ── LOGIKA FALLBACK PATCH -> POST ──
     if (targetMatch.discordMessageId) {
-      actionType = "PATCH";
-      resData = await discordAPI(
-        `/channels/${targetChannelId}/messages/${targetMatch.discordMessageId}`,
-        "PATCH",
-        payload
-      );
+      try {
+        actionType = "PATCH";
+        resData = await discordAPI(
+          `/channels/${targetChannelId}/messages/${targetMatch.discordMessageId}`,
+          "PATCH",
+          payload
+        );
+      } catch (patchErr) {
+        console.warn(`[Match #${matchNumber}] Gagal PATCH message lama:`, patchErr);
+        resData = null;
+      }
+
+      // Jika PATCH tidak mengembalikan ID pesan valid (misal pesan lama dihapus di Discord)
+      if (!resData || !resData.id) {
+        console.info(`[Match #${matchNumber}] Pesan lama tidak ditemukan atau gagal di-update. Melakukan fallback POST pesan baru...`);
+        actionType = "POST (fallback)";
+        try {
+          resData = await discordAPI(
+            `/channels/${targetChannelId}/messages`,
+            "POST",
+            payload
+          );
+        } catch (postErr) {
+          console.error(`[Match #${matchNumber}] Fallback POST juga gagal:`, postErr);
+          resData = null;
+        }
+      }
     } else {
       actionType = "POST";
       resData = await discordAPI(
@@ -177,11 +197,16 @@ export async function GET(request: NextRequest) {
         matchId: targetMatch.id || `match-${matchNumber}`,
         matchNumber: matchNumber,
         messageId: targetMatch.discordMessageId,
-        message: `Match #${matchNumber} (${targetMatch.teamAName} vs ${targetMatch.teamBName}) berhasil di-${actionType} ke Discord.`,
+        message: `Match #${matchNumber} (${targetMatch.teamAName} vs ${targetMatch.teamBName}) berhasil dikirim ke Discord (${actionType}).`,
       });
     } else {
       return NextResponse.json(
-        { success: false, error: `Gagal mengirim Match #${matchNumber} ke Discord API` },
+        {
+          success: false,
+          error: `Gagal mengirim Match #${matchNumber} ke Discord API`,
+          actionAttempted: actionType,
+          discordResponse: resData,
+        },
         { status: 500 }
       );
     }
@@ -189,4 +214,4 @@ export async function GET(request: NextRequest) {
     console.error("Cron Dispatcher Error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
-          }
+}
