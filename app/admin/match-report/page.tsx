@@ -1,203 +1,323 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Swal from 'sweetalert2';
-import { PlayerLineup, createEmptyPlayer } from './_types';
-import MatchBanner from './_components/match-banner';
-import LineupTab from './_components/lineup-tab';
-import GameTab from './_components/game-tab';
+import { useState, useMemo, useEffect } from 'react';
+import { TopBar, HeroHeader, Footer } from '@/components/layout-shared';
+import { DIVISION_MAP } from '@/app/tournament/_library';
+import { AnalyticsFilter, FilterTeamItem } from '@/app/analytics/_components/analytics-filter';
+import { ReportScoreboard } from '@/app/analytics/_components/report-scoreboard';
+import { ReportLineup } from '@/app/analytics/_components/report-lineup';
+import { ReportLogs } from '@/app/analytics/_components/report-logs';
 
-export default function AdminMatchReportPage() {
+import { PlayerLineupItem, GameEntry } from './types';
+import { EditorHeader } from './_components/editor-header';
+import { EditorLineup } from './_components/editor-lineup';
+import { EditorRunner } from './_components/editor-runner';
+
+export default function AdminInteractiveMatchReport() {
   const [schedules, setSchedules] = useState<any[]>([]);
-  const [selectedMatchId, setSelectedMatchId] = useState<string>('');
-  const [matchData, setMatchData] = useState<any>(null);
-  const [report, setReport] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'submit' | 'game'>('submit');
+  const [teams, setTeams] = useState<any[]>([]);
 
-  const [lineupA, setLineupA] = useState<PlayerLineup[]>(Array(5).fill(null).map(createEmptyPlayer));
-  const [lineupB, setLineupB] = useState<PlayerLineup[]>(Array(5).fill(null).map(createEmptyPlayer));
+  // Filter States
+  const [selectedGroup, setSelectedGroup] = useState<'ALL' | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B>('ALL');
+  const [selectedTeam, setSelectedTeam] = useState('');
+  const [selectedWeek, setSelectedWeek] = useState<number | ''>(6);
+  const [selectedMatchId, setSelectedMatchId] = useState('');
+
+  // Workspace States
+  const [editorTab, setEditorTab] = useState<'lineup' | 'game' | 'preview'>('lineup');
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Match Data States
+  const [teamALineup, setTeamALineup] = useState<PlayerLineupItem[]>([]);
+  const [teamBLineup, setTeamBLineup] = useState<PlayerLineupItem[]>([]);
+  const [games, setGames] = useState<GameEntry[]>([]);
+  const [scoreA, setScoreA] = useState(0);
+  const [scoreB, setScoreB] = useState(0);
+  const [repeatsA, setRepeatsA] = useState(0);
+  const [repeatsB, setRepeatsB] = useState(0);
+
+  const [rosterA, setRosterA] = useState<any[]>([]);
+  const [rosterB, setRosterB] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('/api/admin/match-report')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.schedules) setSchedules(data.schedules);
-      });
+    Promise.all([
+      fetch('/api/admin/match-report').then((r) => r.json()),
+      fetch('/api/tournament/teams').then((r) => r.json()).catch(() => ({ teams: [] })),
+    ]).then(([schedRes, teamRes]) => {
+      if (schedRes.schedules) setSchedules(schedRes.schedules);
+      if (teamRes.teams) setTeams(teamRes.teams);
+    });
   }, []);
 
-  const loadMatch = async (matchId: string) => {
-    setSelectedMatchId(matchId);
-    if (!matchId) {
-      setMatchData(null);
-      setReport(null);
+  const activeMatch = useMemo(() => schedules.find((s) => s.id === selectedMatchId), [schedules, selectedMatchId]);
+
+  const initLineup = (): PlayerLineupItem[] =>
+    Array.from({ length: 5 }, () => ({
+      ign: '',
+      idDuelLinks: '',
+      remainingLife: 2,
+      totalWins: 0,
+      totalLosses: 0,
+      deck1: { archetype: '', skill: '', wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+      deck2: { archetype: '', skill: '', wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+    }));
+
+  useEffect(() => {
+    if (!selectedMatchId) {
+      setTeamALineup(initLineup());
+      setTeamBLineup(initLineup());
+      setGames([]);
+      setScoreA(0);
+      setScoreB(0);
       return;
     }
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/admin/match-report?matchId=${matchId}`);
-      const data = await res.json();
-      setMatchData(data.match);
-      setReport(data.report);
 
-      setLineupA(data.report?.teamA?.lineup?.length ? data.report.teamA.lineup : Array(5).fill(null).map(createEmptyPlayer));
-      setLineupB(data.report?.teamB?.lineup?.length ? data.report.teamB.lineup : Array(5).fill(null).map(createEmptyPlayer));
-    } finally {
-      setLoading(false);
+    setLoadingReport(true);
+    if (activeMatch) {
+      const tA = teams.find((t) => t.name?.toLowerCase() === activeMatch.teamAName?.toLowerCase());
+      const tB = teams.find((t) => t.name?.toLowerCase() === activeMatch.teamBName?.toLowerCase());
+      setRosterA(tA?.members || []);
+      setRosterB(tB?.members || []);
+    }
+
+    fetch(`/api/admin/match-report?matchId=${selectedMatchId}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.report) {
+          const r = json.report;
+          setTeamALineup(r.teamA?.lineup || initLineup());
+          setTeamBLineup(r.teamB?.lineup || initLineup());
+          setGames(r.games || []);
+          setScoreA(r.teamA?.score ?? 0);
+          setScoreB(r.teamB?.score ?? 0);
+          setRepeatsA(r.teamA?.repeatsUsed ?? 0);
+          setRepeatsB(r.teamB?.repeatsUsed ?? 0);
+          if (r.games?.length > 0) setEditorTab('game');
+        } else {
+          setTeamALineup(initLineup());
+          setTeamBLineup(initLineup());
+          setGames([]);
+          setScoreA(0);
+          setScoreB(0);
+          setEditorTab('lineup');
+        }
+      })
+      .finally(() => setLoadingReport(false));
+  }, [selectedMatchId, activeMatch, teams]);
+
+  const handleLineupChange = (side: 'A' | 'B', idx: number, field: string, val: any, deckSlot?: 'deck1' | 'deck2') => {
+    const list = side === 'A' ? [...teamALineup] : [...teamBLineup];
+    if (deckSlot) list[idx][deckSlot] = { ...list[idx][deckSlot], [field]: val };
+    else (list[idx] as any)[field] = val;
+    side === 'A' ? setTeamALineup(list) : setTeamBLineup(list);
+  };
+
+  const handleSelectRoster = (side: 'A' | 'B', idx: number, ign: string) => {
+    const roster = side === 'A' ? rosterA : rosterB;
+    const found = roster.find((m) => (m.ign || m.name || m) === ign);
+    handleLineupChange(side, idx, 'ign', ign);
+    if (found?.idDuelLinks || found?.gameId) {
+      handleLineupChange(side, idx, 'idDuelLinks', found.idDuelLinks || found.gameId);
     }
   };
 
-  const handleLineupAction = async (action: 'save' | 'publish') => {
-    setLoading(true);
+  const handleAddGame = (d: any) => {
+    const pA = teamALineup.find((p) => p.ign === d.playerAIgn);
+    const pB = teamBLineup.find((p) => p.ign === d.playerBIgn);
+    if (!pA || !pB) return;
+
+    const dA = d.deckAType === 'deck1' ? pA.deck1 : pA.deck2;
+    const dB = d.deckBType === 'deck1' ? pB.deck1 : pB.deck2;
+    const isA = d.winner === 'teamA';
+
+    if (isA) {
+      pA.totalWins += 1;
+      dA.wins = (dA.wins || 0) + 1;
+      pB.totalLosses += 1;
+      pB.remainingLife = Math.max(0, pB.remainingLife - 1);
+      dB.losses = (dB.losses || 0) + 1;
+      dB.isDead = true;
+    } else {
+      pB.totalWins += 1;
+      dB.wins = (dB.wins || 0) + 1;
+      pA.totalLosses += 1;
+      pA.remainingLife = Math.max(0, pA.remainingLife - 1);
+      dA.losses = (dA.losses || 0) + 1;
+      dA.isDead = true;
+    }
+
+    if (d.isRepeatA) setRepeatsA((r) => r + 1);
+    if (d.isRepeatB) setRepeatsB((r) => r + 1);
+
+    setGames([
+      ...games,
+      {
+        gameNumber: games.length + 1,
+        winner: d.winner,
+        playerA: { ign: pA.ign, idDuelLinks: pA.idDuelLinks, archetype: dA.archetype, skill: dA.skill, isRepeat: d.isRepeatA },
+        playerB: { ign: pB.ign, idDuelLinks: pB.idDuelLinks, archetype: dB.archetype, skill: dB.skill, isRepeat: d.isRepeatB },
+        notes: d.notes,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+    setScoreA(isA ? scoreA + 1 : scoreA);
+    setScoreB(!isA ? scoreB + 1 : scoreB);
+  };
+
+  const handleRollbackGame = () => {
+    if (games.length === 0) return;
+    const popped = games[games.length - 1];
+    const isA = popped.winner === 'teamA';
+    setGames(games.slice(0, -1));
+    setScoreA(isA ? Math.max(0, scoreA - 1) : scoreA);
+    setScoreB(!isA ? Math.max(0, scoreB - 1) : scoreB);
+  };
+
+  const handleSaveToDatabase = async () => {
+    setSaving(true);
+    setStatusMsg(null);
     try {
       const res = await fetch('/api/admin/match-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: selectedMatchId, teamALineup: lineupA, teamBLineup: lineupB, action }),
+        body: JSON.stringify({
+          matchId: selectedMatchId,
+          action: 'direct_save',
+          reportData: {
+            matchId: selectedMatchId,
+            week: Number(activeMatch?.weekNumber || selectedWeek || 1),
+            metadata: {
+              date: activeMatch?.matchDate ? activeMatch.matchDate.split('T')[0] : '',
+              referee: activeMatch?.referee || 'Kaiba',
+              streamer: activeMatch?.streamer || '',
+            },
+            teamA: { name: activeMatch?.teamAName, score: scoreA, repeatsUsed: repeatsA, lineup: teamALineup },
+            teamB: { name: activeMatch?.teamBName, score: scoreB, repeatsUsed: repeatsB, lineup: teamBLineup },
+            games,
+            isFinished: scoreA >= 10 || scoreB >= 10,
+          },
+        }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      setReport(data.report);
-
-      Swal.fire({
-        icon: 'success',
-        title: action === 'publish' ? 'Lineup Terpublikasi!' : 'Draft Tersimpan!',
-        text: action === 'publish' ? 'Lineup tersimpan & Tracker Camp Discord ter-update.' : 'Lineup berhasil disimpan ke draft KV.',
-      });
+      if (data.success) setStatusMsg({ type: 'success', text: 'Match Report berhasil disimpan ke KV!' });
+      else setStatusMsg({ type: 'error', text: data.error || 'Gagal menyimpan report.' });
     } catch (e: any) {
-      Swal.fire('Error', e.message, 'error');
+      setStatusMsg({ type: 'error', text: e.message });
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddGame = async (params: any) => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/admin/match-report', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: selectedMatchId, action: 'add_game', ...params }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      setReport(data.report);
-
-      Swal.fire({
-        icon: 'success',
-        title: params.shouldPublish ? 'Game Berhasil Dipublish!' : 'Game Disimpan (Draft)!',
-        text: params.shouldPublish ? 'Log dikirim ke Discord & Tracker Camp dicoret.' : 'Ronde duel tersimpan di database draft.',
-      });
-    } catch (e: any) {
-      Swal.fire('Error', e.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRollback = async () => {
-    const confirm = await Swal.fire({
-      title: 'Rollback Game Terakhir?',
-      text: 'Skor dan status coretan deck duel terakhir akan dikembalikan.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Ya, Rollback & Publish Sync',
-    });
-    if (!confirm.isConfirmed) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch('/api/admin/match-report', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId: selectedMatchId, action: 'del_game', shouldPublish: true }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      setReport(data.report);
-      Swal.fire('Sukses', 'Game terakhir berhasil di-rollback!', 'success');
-    } catch (e: any) {
-      Swal.fire('Error', e.message, 'error');
-    } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Selector Header */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-white tracking-wide">⚔️ Match Operations (/submit & /game)</h1>
-          <p className="text-slate-400 text-xs mt-0.5">Kelola formasi pemain, deck, dan kontrol skor duel secara modular.</p>
-        </div>
-        <div className="w-full md:w-80">
-          <select
-            className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg p-2.5 text-sm outline-none focus:border-blue-500"
-            value={selectedMatchId}
-            onChange={(e) => loadMatch(e.target.value)}
-          >
-            <option value="">-- Pilih Pertandingan --</option>
-            {schedules.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.id.toUpperCase()} | {m.teamAName} vs {m.teamBName}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+    <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
+      <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
+      <TopBar title="Interactive Report Editor" />
 
-      {selectedMatchId && matchData && (
-        <>
-          <MatchBanner
-            teamAName={matchData.teamAName}
-            teamBName={matchData.teamBName}
-            scoreA={report?.teamA?.score ?? 0}
-            scoreB={report?.teamB?.score ?? 0}
+      <div className="relative z-10 flex w-full flex-1 flex-col items-center px-3 sm:px-6 pb-12">
+        <HeroHeader showDetails={false} />
+
+        <section className="w-full max-w-4xl space-y-4">
+          <AnalyticsFilter
+            mode="reports"
+            selectedGroup={selectedGroup}
+            onGroupChange={(g) => { setSelectedGroup(g); setSelectedMatchId(''); }}
+            selectedTeam={selectedTeam}
+            onTeamChange={(t) => { setSelectedTeam(t); setSelectedMatchId(''); }}
+            teams={teams}
+            selectedWeek={selectedWeek}
+            onWeekChange={(w) => { setSelectedWeek(w); setSelectedMatchId(''); }}
+            availableWeeks={[1, 2, 3, 4, 5, 6, 7]}
+            selectedMatchId={selectedMatchId}
+            onMatchChange={(mId) => setSelectedMatchId(mId)}
+            matchesInView={schedules.filter((s) => (selectedWeek === '' || Number(s.weekNumber) === Number(selectedWeek)))}
+            isFilterActive={Boolean(selectedGroup !== 'ALL' || selectedTeam || selectedMatchId)}
+            onReset={() => { setSelectedGroup('ALL'); setSelectedTeam(''); setSelectedWeek(6); setSelectedMatchId(''); }}
           />
 
-          <div className="flex border-b border-slate-800 space-x-4">
-            <button
-              onClick={() => setActiveTab('submit')}
-              className={`pb-3 text-sm font-semibold border-b-2 transition ${
-                activeTab === 'submit' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-white'
-              }`}
-            >
-              👥 1. Lineup & Deck (/submit)
-            </button>
-            <button
-              onClick={() => setActiveTab('game')}
-              className={`pb-3 text-sm font-semibold border-b-2 transition ${
-                activeTab === 'game' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-white'
-              }`}
-            >
-              🎮 2. Ronde Duel (/game)
-            </button>
-          </div>
-
-          {activeTab === 'submit' ? (
-            <LineupTab
-              teamAName={matchData.teamAName}
-              teamBName={matchData.teamBName}
-              lineupA={lineupA}
-              setLineupA={setLineupA}
-              lineupB={lineupB}
-              setLineupB={setLineupB}
-              loading={loading}
-              onAction={handleLineupAction}
-            />
+          {!selectedMatchId ? (
+            <div className="p-12 text-center text-xs text-muted-foreground bg-card rounded-2xl border border-border shadow-xs">
+              Pilih pertandingan pada filter di atas untuk memulai.
+            </div>
+          ) : loadingReport ? (
+            <div className="p-12 text-center text-xs font-bold text-primary animate-pulse bg-card rounded-2xl border border-border">
+              Memuat data pertandingan...
+            </div>
           ) : (
-            <GameTab
-              teamAName={matchData.teamAName}
-              teamBName={matchData.teamBName}
-              report={report}
-              loading={loading}
-              onAddGame={handleAddGame}
-              onRollback={handleRollback}
-            />
+            <div className="space-y-4">
+              <ReportScoreboard
+                teamA={{ name: activeMatch?.teamAName, repeatsUsed: repeatsA }}
+                teamB={{ name: activeMatch?.teamBName, repeatsUsed: repeatsB }}
+                scoreA={scoreA}
+                scoreB={scoreB}
+                teamALogo={activeMatch?.teamALogo}
+                teamBLogo={activeMatch?.teamBLogo}
+                metadata={{
+                  week: activeMatch?.weekNumber || selectedWeek,
+                  matchNumber: activeMatch?.id?.replace(/\D/g, '') || 1,
+                  division: activeMatch?.groupName,
+                  referee: activeMatch?.referee || 'Kaiba',
+                  streamer: activeMatch?.streamer,
+                  date: activeMatch?.matchDate ? activeMatch.matchDate.split('T')[0] : '-',
+                }}
+              />
+
+              <EditorHeader
+                currentTab={editorTab}
+                onTabChange={setEditorTab}
+                gameCount={games.length}
+                isSaving={saving}
+                onSave={handleSaveToDatabase}
+                statusMsg={statusMsg}
+              />
+
+              {editorTab === 'lineup' && (
+                <EditorLineup
+                  teamAName={activeMatch?.teamAName}
+                  teamBName={activeMatch?.teamBName}
+                  teamALineup={teamALineup}
+                  teamBLineup={teamBLineup}
+                  rosterA={rosterA}
+                  rosterB={rosterB}
+                  onChange={handleLineupChange}
+                  onSelectRoster={handleSelectRoster}
+                />
+              )}
+
+              {editorTab === 'game' && (
+                <EditorRunner
+                  teamAName={activeMatch?.teamAName}
+                  teamBName={activeMatch?.teamBName}
+                  teamALineup={teamALineup}
+                  teamBLineup={teamBLineup}
+                  games={games}
+                  scoreA={scoreA}
+                  scoreB={scoreB}
+                  onAddGame={handleAddGame}
+                  onRollbackGame={handleRollbackGame}
+                />
+              )}
+
+              {editorTab === 'preview' && (
+                <div className="space-y-4">
+                  <ReportLineup
+                    lineupA={teamALineup}
+                    lineupB={teamBLineup}
+                    games={games}
+                    isFinished={scoreA >= 10 || scoreB >= 10}
+                    isMatchStarted={true}
+                  />
+                  <ReportLogs games={games} isFinished={scoreA >= 10 || scoreB >= 10} isMatchStarted={true} />
+                </div>
+              )}
+            </div>
           )}
-        </>
-      )}
-    </div>
+        </section>
+
+        <Footer />
+      </div>
+    </main>
   );
-      }
+    }
+      
