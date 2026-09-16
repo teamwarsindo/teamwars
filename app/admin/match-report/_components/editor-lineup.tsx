@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { PlayerLineupItem } from '../types';
+import { PlayerLineupItem, RosterOption } from '../types';
 import { ArchetypeQuotaBanner } from './archetype-banner';
 import { DuelistEditorForm } from './duelist-editor-form';
 import { MetaAutocompleteOption } from './meta-autocomplete';
-import { RosterModal, RosterOption } from './roster-modal';
+import { RosterModal } from './roster-modal';
 
 export type { RosterOption };
 
