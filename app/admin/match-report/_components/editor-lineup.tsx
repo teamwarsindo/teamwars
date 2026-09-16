@@ -48,15 +48,17 @@ export function EditorLineup({
   const deckOptions: MetaAutocompleteOption[] = useMemo(() => masterDecks.map((d) => ({ label: d, val: d })), [masterDecks]);
   const skillOptions: MetaAutocompleteOption[] = useMemo(() => masterSkills.map((s) => ({ label: s.label, val: s.name, sub: s.code })), [masterSkills]);
 
-  const handleChangeDeck = useCallback((playerIdx: number, slot: 'deck1' | 'deck2', field: 'archetype' | 'skill', val: string) => {
+  // Handler Deck menggunakan pencarian IGN (aman terhadap perubahan sorting)
+  const handleChangeDeck = useCallback((ign: string, slot: 'deck1' | 'deck2', field: 'archetype' | 'skill', val: string) => {
     const active = currentLineup.filter((p) => Boolean(p.ign?.trim()));
-    const updated = [...active];
-    const target = { ...updated[playerIdx] };
+    const updated = active.map((p) => {
+      if (p.ign.toLowerCase() !== ign.toLowerCase()) return p;
+      const nextSlot = { ...(p[slot] || { archetype: '', skill: '' }), [field]: val };
+      return { ...p, [slot]: nextSlot };
+    });
 
-    target[slot] = { ...(target[slot] || { archetype: '', skill: '' }), [field]: val };
-    updated[playerIdx] = target;
-
-    if (target.ign) {
+    const target = updated.find((p) => p.ign.toLowerCase() === ign.toLowerCase());
+    if (target) {
       setDeckCache((prev) => ({ ...prev, [target.ign.toLowerCase()]: { deck1: target.deck1, deck2: target.deck2 } }));
     }
     onChangeLineup(activeSide, updated);
@@ -103,12 +105,13 @@ export function EditorLineup({
 
   return (
     <div className="space-y-4">
+      {/* Tab Kubu Tim & Tombol Modal Roster */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border shadow-xs">
         <div className="flex gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => { setActiveSide('A'); setModalWarn(null); }}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeSide === 'A' ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
@@ -117,7 +120,7 @@ export function EditorLineup({
           <button
             type="button"
             onClick={() => { setActiveSide('B'); setModalWarn(null); }}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeSide === 'B' ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
@@ -135,10 +138,10 @@ export function EditorLineup({
         </button>
       </div>
 
-      {/* Warning Box Jelas, Kontras, Font Tebal */}
+      {/* Warning Box Jelas, Kontras, Font Seragam */}
       {!audit.isClean && (
         <div className="p-3 rounded-xl border border-rose-400 bg-rose-100 dark:bg-rose-950/60 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-2 font-extrabold">
+          <div className="flex items-center gap-2 font-bold">
             <span className="text-base">⚠️</span>
             <span>
               {audit.totalDeckloss > 0 && `${audit.totalDeckloss} Deckloss`}
@@ -146,14 +149,16 @@ export function EditorLineup({
               {audit.missSkills > 0 && ` • ${audit.missSkills} Skill Belum Diisi`}
             </span>
           </div>
-          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">
             Audit Lineup
           </span>
         </div>
       )}
 
+      {/* Banner Limit Kuota 5 Duplikasi Archetype Tim */}
       <ArchetypeQuotaBanner lineup={currentLineup} masterArchetypes={masterArchetypes} />
 
+      {/* Formulir 5 Duelist & Deck */}
       <DuelistEditorForm
         lineup={currentLineup}
         deckOptions={deckOptions}
@@ -162,6 +167,7 @@ export function EditorLineup({
         onRefreshMeta={onRefreshMeta}
       />
 
+      {/* Modal Popup Pemilihan Roster */}
       <RosterModal
         isOpen={isRosterModalOpen}
         onClose={() => setIsRosterModalOpen(false)}
