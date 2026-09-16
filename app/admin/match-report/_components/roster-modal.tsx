@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { PlayerLineupItem, RosterOption } from '../types';
 
 interface RosterModalProps {
@@ -24,6 +24,17 @@ export function RosterModal({
   onClearWarn,
   onTogglePlayer,
 }: RosterModalProps) {
+  // Lock scroll pada body ketika modal terbuka
+  useEffect(() => {
+    if (isOpen) {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [isOpen]);
+
   const sortedRoster = useMemo(() => {
     const active = roster.filter((p) => !p.isReleased).sort((a, b) => a.ign.localeCompare(b.ign));
     const out = roster.filter((p) => p.isReleased).sort((a, b) => a.ign.localeCompare(b.ign));
@@ -67,7 +78,13 @@ export function RosterModal({
         {modalWarn && (
           <div className="p-2.5 rounded-xl border-2 border-rose-500/50 bg-rose-500/15 text-rose-950 dark:text-rose-200 text-xs font-bold flex items-center justify-between">
             <span>⚠️ {modalWarn}</span>
-            <button type="button" onClick={onClearWarn} className="text-[11px] font-black opacity-80 hover:opacity-100 cursor-pointer">✕</button>
+            <button
+              type="button"
+              onClick={onClearWarn}
+              className="text-[11px] font-black opacity-80 hover:opacity-100 cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
         )}
 
@@ -86,17 +103,25 @@ export function RosterModal({
                 }`}
               >
                 <div className="flex items-center gap-2 min-w-0 truncate">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${p.isReleased ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      p.isReleased ? 'bg-rose-500' : 'bg-emerald-500'
+                    }`}
+                  />
                   <span className="truncate">{p.ign}</span>
                 </div>
-                <span className="text-[10px] font-mono text-muted-foreground shrink-0">{p.idDuelLinks || '-'}</span>
+                <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                  {p.idDuelLinks || '-'}
+                </span>
               </button>
             );
           })}
         </div>
 
         <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
-          <span className="text-muted-foreground font-medium">Terpilih: <b className="text-foreground">{selectedCount} / 5</b></span>
+          <span className="text-muted-foreground font-medium">
+            Terpilih: <b className="text-foreground">{selectedCount} / 5</b>
+          </span>
           <button
             type="button"
             onClick={onClose}
@@ -108,4 +133,4 @@ export function RosterModal({
       </div>
     </div>
   );
-}
+                  }
