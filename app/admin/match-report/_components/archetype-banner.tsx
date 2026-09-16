@@ -32,7 +32,7 @@ function extractArchetypes(deckName: string, masterArchetypes: string[]): string
   return found.length > 0 ? found : [normalized];
 }
 
-// 2. Banner UI Kuota 5 Deck Duplikasi
+// 2. Banner UI Kuota 5 Deck Duplikasi (Warna Kontras & Terbaca Jelas)
 export function ArchetypeQuotaBanner({ lineup, masterArchetypes }: ArchetypeQuotaBannerProps) {
   const { duplicateCounts, totalViolations, isExceeded } = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -74,19 +74,19 @@ export function ArchetypeQuotaBanner({ lineup, masterArchetypes }: ArchetypeQuot
 
   return (
     <div
-      className={`p-3 rounded-2xl border text-xs space-y-2 shadow-2xs transition-colors ${
+      className={`p-3 rounded-2xl border text-xs space-y-2.5 shadow-xs transition-colors ${
         isExceeded
-          ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-          : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+          ? 'bg-rose-100 border-rose-400 text-rose-900 dark:bg-rose-950/60 dark:border-rose-800 dark:text-rose-200'
+          : 'bg-amber-100 border-amber-400 text-amber-900 dark:bg-amber-950/60 dark:border-amber-700 dark:text-amber-200'
       }`}
     >
-      <div className="flex items-center justify-between font-black">
-        <span className="flex items-center gap-1.5">
-          <span>{isExceeded ? '🚫' : '⚠️'}</span>
+      <div className="flex items-center justify-between font-bold">
+        <span className="flex items-center gap-2">
+          <span>{isExceeded ? '🛑' : '⚠️'}</span>
           <span>Duplikasi Archetype Tim ({totalViolations} / 5 batas kuota)</span>
         </span>
         {isExceeded && (
-          <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider">
+          <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-bold uppercase tracking-wider">
             Melebihi Kuota
           </span>
         )}
@@ -96,13 +96,25 @@ export function ArchetypeQuotaBanner({ lineup, masterArchetypes }: ArchetypeQuot
         {Object.entries(duplicateCounts).map(([arch, cnt]) => (
           <span
             key={arch}
-            className="px-2.5 py-1 rounded-lg bg-black/40 text-[11px] font-mono border border-white/10 flex items-center gap-1.5"
+            className={`px-2.5 py-1 rounded-xl text-xs font-semibold border flex items-center gap-1.5 ${
+              isExceeded
+                ? 'bg-rose-200/70 border-rose-300 text-rose-950 dark:bg-rose-900/50 dark:border-rose-700 dark:text-rose-100'
+                : 'bg-amber-200/70 border-amber-300 text-amber-950 dark:bg-amber-900/50 dark:border-amber-700 dark:text-amber-100'
+            }`}
           >
             <span>{arch}</span>
-            <b className={cnt >= 3 ? 'text-rose-400' : 'text-amber-400'}>×{cnt}</b>
+            <span
+              className={`text-[11px] font-bold px-1.5 py-0.2 rounded-md ${
+                cnt >= 3
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-black/10 dark:bg-white/15'
+              }`}
+            >
+              ×{cnt}
+            </span>
           </span>
         ))}
       </div>
     </div>
   );
-        }
+}
