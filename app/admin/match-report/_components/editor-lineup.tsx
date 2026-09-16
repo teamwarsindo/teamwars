@@ -38,6 +38,7 @@ export function EditorLineup({
   masterDecks = [],
   masterSkills = [],
   onChange,
+  onSelectRoster,
   onUpdateLineup,
   onSyncNewDeck,
   onSyncNewSkill,
@@ -77,6 +78,15 @@ export function EditorLineup({
     [masterSkills]
   );
 
+  // Helper agar update lineup tembus ke parent baik via onUpdateLineup, onSelectRoster, atau onChange
+  const triggerLineupUpdate = (updated: PlayerLineupItem[]) => {
+    if (onUpdateLineup) {
+      onUpdateLineup(activeSide === 'A' ? 'teamA' : 'teamB', updated);
+    } else if (onChange) {
+      onChange(activeSide, 0, 'lineup', updated);
+    }
+  };
+
   // Toggle Pemain di Modal Tahap 1
   const handleTogglePlayer = (player: RosterOption) => {
     const cleanPlayerIgn = (player.ign || '').trim().toLowerCase();
@@ -88,13 +98,38 @@ export function EditorLineup({
 
     if (existsIdx !== -1) {
       // Uncheck pemain
-      updated = currentLineup.filter((_, i) => i !== existsIdx);
+      if (onSelectRoster) {
+        onSelectRoster(activeSide, existsIdx, '', '');
+      }
+
+      // Jika bentuk data array tetap mempertahankan 5 slot
+      if (currentLineup.length === 5 && currentLineup.some((p) => !p?.ign?.trim())) {
+        updated = [...currentLineup];
+        updated[existsIdx] = {
+          ign: '',
+          idDuelLinks: '',
+          remainingLife: 2,
+          totalWins: 0,
+          totalLosses: 0,
+          deck1: { archetype: '', skill: '' },
+          deck2: { archetype: '', skill: '' },
+        };
+      } else {
+        // Jika bentuk data array dinamis (dihapus dari array)
+        updated = currentLineup.filter((_, i) => i !== existsIdx);
+      }
+
       if (selectedPlayerIdx >= updated.length) {
         setSelectedPlayerIdx(Math.max(0, updated.length - 1));
       }
+      triggerLineupUpdate(updated);
     } else {
       // Check pemain baru (maksimal 5 duelist)
       if (validPlayers.length >= 5) return;
+
+      const emptyIdx = currentLineup.findIndex(
+        (p) => !p?.ign || p.ign.trim() === '' || p.ign.trim() === '-'
+      );
 
       const newSlot: PlayerLineupItem = {
         ign: player.ign,
@@ -106,11 +141,24 @@ export function EditorLineup({
         deck2: { archetype: '', skill: '' },
       };
 
-      updated = [...validPlayers, newSlot];
-    }
+      if (emptyIdx !== -1) {
+        updated = [...currentLineup];
+        updated[emptyIdx] = {
+          ...updated[emptyIdx],
+          ign: player.ign,
+          idDuelLinks: player.idDuelLinks || '',
+        };
+        if (onSelectRoster) {
+          onSelectRoster(activeSide, emptyIdx, player.ign, player.idDuelLinks);
+        }
+      } else {
+        updated = [...currentLineup, newSlot];
+        if (onSelectRoster) {
+          onSelectRoster(activeSide, currentLineup.length, player.ign, player.idDuelLinks);
+        }
+      }
 
-    if (onUpdateLineup) {
-      onUpdateLineup(activeSide === 'A' ? 'teamA' : 'teamB', updated);
+      triggerLineupUpdate(updated);
     }
   };
 
@@ -158,13 +206,16 @@ export function EditorLineup({
               setActiveSide('A');
               setSelectedPlayerIdx(0);
             }}
-            className={`px-4 py-2 rounded-lg text-xs font-black transition cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
               activeSide === 'A'
                 ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {teamAName} ({teamALineup.filter((p) => p.ign?.trim()).length}/5)
+            <span className="truncate max-w-[120px] inline-block align-bottom">{teamAName}</span>{' '}
+            <span className="font-mono text-[11px] opacity-80 font-bold">
+              {teamALineup.filter((p) => p?.ign?.trim()).length}/5
+            </span>
           </button>
           <button
             type="button"
@@ -172,23 +223,26 @@ export function EditorLineup({
               setActiveSide('B');
               setSelectedPlayerIdx(0);
             }}
-            className={`px-4 py-2 rounded-lg text-xs font-black transition cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
               activeSide === 'B'
                 ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {teamBName} ({teamBLineup.filter((p) => p.ign?.trim()).length}/5)
+            <span className="truncate max-w-[120px] inline-block align-bottom">{teamBName}</span>{' '}
+            <span className="font-mono text-[11px] opacity-80 font-bold">
+              {teamBLineup.filter((p) => p?.ign?.trim()).length}/5
+            </span>
           </button>
         </div>
 
         <button
           type="button"
           onClick={() => setIsRosterModalOpen(!isRosterModalOpen)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-background hover:bg-muted text-foreground transition cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border border-border bg-background hover:bg-muted text-foreground transition cursor-pointer"
         >
           <span>👥</span>
-          <span>{isRosterModalOpen ? 'Tutup Pilihan Roster' : `Kelola 5 Duelist (${validPlayers.length}/5)`}</span>
+          <span>{isRosterModalOpen ? 'Tutup Pilihan Roster' : 'Kelola 5 Duelist'}</span>
         </button>
       </div>
 
@@ -263,4 +317,4 @@ export function EditorLineup({
       )}
     </div>
   );
-    }
+}
