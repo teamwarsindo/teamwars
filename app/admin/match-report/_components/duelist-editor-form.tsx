@@ -19,7 +19,6 @@ export function DuelistEditorForm({
   onChangeDeck,
   onRefreshMeta,
 }: DuelistEditorFormProps) {
-  // Hitung berapa deck valid (Archetype + Skill terisi)
   const getDeckCount = (p?: PlayerLineupItem) => {
     if (!p) return 0;
     let count = 0;
@@ -52,6 +51,45 @@ export function DuelistEditorForm({
   }, [sortedPlayers, selectedIgn]);
 
   const current = sortedPlayers.find((p) => p.ign.toLowerCase() === selectedIgn.toLowerCase()) || sortedPlayers[0];
+
+  // Bagi pemain ke 2 kolom: Kiri (1, 2, 3) dan Kanan (4, 5)
+  const leftColumnPlayers = sortedPlayers.slice(0, 3);
+  const rightColumnPlayers = sortedPlayers.slice(3, 5);
+
+  const renderDuelistButton = (p: PlayerLineupItem, displayNum: number) => {
+    const filled = getDeckCount(p);
+    const isSelected = current?.ign.toLowerCase() === p.ign.toLowerCase();
+
+    return (
+      <button
+        key={p.ign}
+        type="button"
+        onClick={() => setSelectedIgn(p.ign)}
+        className={`w-full flex items-center justify-between px-2 py-2 rounded-xl border transition cursor-pointer ${
+          isSelected 
+            ? 'border-primary bg-primary/10 text-primary shadow-xs' 
+            : 'border-border bg-card text-foreground hover:bg-muted/50'
+        }`}
+      >
+        <div className="flex items-center gap-1.5 min-w-0 pr-1">
+          <span className="w-4 h-4 rounded-full bg-muted flex items-center justify-center text-[10px] shrink-0 text-muted-foreground font-semibold">
+            {displayNum}
+          </span>
+          <span className="text-[11px] font-semibold leading-none truncate">{p.ign}</span>
+        </div>
+        
+        <span className={`text-[9px] font-semibold px-1 py-0.5 rounded shrink-0 ${
+          filled === 2 
+            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' 
+            : filled === 1 
+            ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' 
+            : 'bg-rose-500/20 text-rose-700 dark:text-rose-300'
+        }`}>
+          🃏 {filled}/2
+        </span>
+      </button>
+    );
+  };
 
   const renderSlot = (slot: 'deck1' | 'deck2', label: string) => {
     if (!current) return null;
@@ -119,49 +157,21 @@ export function DuelistEditorForm({
 
   return (
     <div className="space-y-4">
-      {/* 2 Pemain per baris, lebar sama, font diseragamkan */}
+      {/* 2 Kolom Vertikal: Kiri 1, 2, 3 | Kanan 4, 5 */}
       <div className="grid grid-cols-2 gap-2">
-        {sortedPlayers.map((p, idx) => {
-          const filled = getDeckCount(p);
-          const isSelected = current?.ign.toLowerCase() === p.ign.toLowerCase();
-
-          return (
-            <button
-              key={p.ign}
-              type="button"
-              onClick={() => setSelectedIgn(p.ign)}
-              className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer ${
-                isSelected 
-                  ? 'border-primary bg-primary/10 text-primary shadow-xs' 
-                  : 'border-border bg-card text-foreground hover:bg-muted/50'
-              }`}
-            >
-              <div className="flex items-center gap-2 min-w-0 truncate">
-                <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-xs shrink-0 text-muted-foreground font-semibold">
-                  {idx + 1}
-                </span>
-                <span className="truncate">{p.ign}</span>
-              </div>
-              
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md shrink-0 ml-1.5 ${
-                filled === 2 
-                  ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' 
-                  : filled === 1 
-                  ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' 
-                  : 'bg-rose-500/20 text-rose-700 dark:text-rose-300'
-              }`}>
-                🃏 {filled}/2
-              </span>
-            </button>
-          );
-        })}
+        <div className="space-y-2">
+          {leftColumnPlayers.map((p, idx) => renderDuelistButton(p, idx + 1))}
+        </div>
+        <div className="space-y-2">
+          {rightColumnPlayers.map((p, idx) => renderDuelistButton(p, idx + 4))}
+        </div>
       </div>
 
       {current && (
         <div className="p-4 rounded-2xl border border-border bg-card/70 space-y-4">
           <div className="flex items-center justify-between border-b border-border/70 pb-3">
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center">
                 {sortedPlayers.findIndex((p) => p.ign === current.ign) + 1}
               </span>
               <span className="text-sm font-bold text-foreground">{current.ign}</span>
