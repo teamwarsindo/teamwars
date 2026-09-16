@@ -1,22 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { PlayerLineupItem } from '../types';
 import { RosterPickerModal, RosterOption } from './roster-picker-modal';
 import { ArchetypeQuotaBanner } from './archetype-quota-banner';
 import { DuelistDeckCard } from './duelist-deck-card';
 
-interface EditorLineupProps {
+export interface EditorLineupProps {
   teamAName: string;
   teamBName: string;
+  teamALineup: PlayerLineupItem[];
+  teamBLineup: PlayerLineupItem[];
   rosterA?: RosterOption[];
   rosterB?: RosterOption[];
-  lineupA: PlayerLineupItem[];
-  lineupB: PlayerLineupItem[];
-  masterArchetypes?: string[];
-  deckOptions: Array<{ label: string; val: string }>;
-  skillOptions: Array<{ label: string; val: string; sub?: string }>;
-  onUpdateLineup: (side: 'teamA' | 'teamB', updated: PlayerLineupItem[]) => void;
+  masterDecks?: string[];
+  masterSkills?: Array<{ name: string; code?: string; label?: string }>;
+  onChange?: (
+    side: 'A' | 'B',
+    idx: number,
+    field: string,
+    val: any,
+    deckSlot?: 'deck1' | 'deck2'
+  ) => void;
+  onSelectRoster?: (side: 'A' | 'B', idx: number, ign: string, idDuelLinks?: string) => void;
+  onUpdateLineup?: (side: 'teamA' | 'teamB', updated: PlayerLineupItem[]) => void;
   onSyncNewDeck?: (newDeck: string) => Promise<void>;
   onSyncNewSkill?: (newSkill: string) => Promise<void>;
 }
@@ -24,45 +31,53 @@ interface EditorLineupProps {
 export function EditorLineup({
   teamAName,
   teamBName,
+  teamALineup = [],
+  teamBLineup = [],
   rosterA = [],
   rosterB = [],
-  lineupA = [],
-  lineupB = [],
-  masterArchetypes = [],
-  deckOptions = [],
-  skillOptions = [],
+  masterDecks = [],
+  masterSkills = [],
+  onChange,
   onUpdateLineup,
   onSyncNewDeck,
   onSyncNewSkill,
 }: EditorLineupProps) {
-  // State Level 1: Pilih Tim yang sedang aktif (Tim A atau Tim B)
-  const [activeSide, setActiveSide] = useState<'teamA' | 'teamB'>('teamA');
-
-  // State Level 2: Index Duelist yang sedang aktif diedit (0-4)
+  const [activeSide, setActiveSide] = useState<'A' | 'B'>('A');
   const [selectedPlayerIdx, setSelectedPlayerIdx] = useState<number>(0);
-
-  // State Modal Tahap 1: Buka/Tutup Pemilihan 5 Roster
   const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
 
-  const currentTeamName = activeSide === 'teamA' ? teamAName : teamBName;
-  const currentRoster = activeSide === 'teamA' ? rosterA : rosterB;
-  const currentLineup = activeSide === 'teamA' ? lineupA : lineupB;
+  const currentTeamName = activeSide === 'A' ? teamAName : teamBName;
+  const currentRoster = activeSide === 'A' ? rosterA : rosterB;
+  const currentLineup = activeSide === 'A' ? teamALineup : teamBLineup;
 
-  // Pastikan index pemain tidak melebihi panjang lineup saat ini
   const safeIdx = Math.min(selectedPlayerIdx, Math.max(0, currentLineup.length - 1));
   const activeDuelist = currentLineup[safeIdx];
 
-  // Handler: Toggle Pemain di Tahap 1 (Centang/Hapus dari 5 duelist)
+  // Mapping options autocomplete
+  const deckOptions = useMemo(
+    () => masterDecks.map((d) => ({ label: d, val: d })),
+    [masterDecks]
+  );
+
+  const skillOptions = useMemo(
+    () =>
+      masterSkills.map((s) => ({
+        label: s.label || (s.code ? `${s.name} [${s.code}]` : s.name),
+        val: s.name,
+        sub: s.code || '',
+      })),
+    [masterSkills]
+  );
+
+  // Toggle Pemain di Modal Tahap 1
   const handleTogglePlayer = (player: RosterOption) => {
-    const exists = currentLineup.some(
-      (p) => p.ign.toLowerCase() === player.ign.toLowerCase()
+    const existsIdx = currentLineup.findIndex(
+      (p) => p.ign?.toLowerCase() === player.ign.toLowerCase()
     );
 
     let updated: PlayerLineupItem[];
-    if (exists) {
-      updated = currentLineup.filter(
-        (p) => p.ign.toLowerCase() !== player.ign.toLowerCase()
-      );
+    if (existsIdx !== -1) {
+      updated = currentLineup.filter((_, i) => i !== existsIdx);
     } else {
       if (currentLineup.length >= 5) return;
       updated = [
@@ -78,35 +93,38 @@ export function EditorLineup({
         },
       ];
     }
-    onUpdateLineup(activeSide, updated);
+
+    if (onUpdateLineup) {
+      onUpdateLineup(activeSide === 'A' ? 'teamA' : 'teamB', updated);
+    }
   };
 
-  // Handler: Update Archetype atau Skill untuk Duelist aktif di Tahap 2
+  // Update Archetype / Skill untuk Duelist Aktif
   const handleDeckChange = (
     field: 'archetype' | 'skill',
     val: string,
     slot: 'deck1' | 'deck2'
   ) => {
-    if (!activeDuelist) return;
-    const updated = [...currentLineup];
-    const targetPlayer = { ...updated[safeIdx] };
-
-    targetPlayer[slot] = {
-      ...targetPlayer[slot],
-      [field]: val,
-    };
-
-    updated[safeIdx] = targetPlayer;
-    onUpdateLineup(activeSide, updated);
+    if (onChange) {
+      onChange(activeSide, safeIdx, field, val, slot);
+    } else if (onUpdateLineup) {
+      const updated = [...currentLineup];
+      updated[safeIdx] = {
+        ...updated[safeIdx],
+        [slot]: {
+          ...updated[safeIdx]?.[slot],
+          [field]: val,
+        },
+      };
+      onUpdateLineup(activeSide === 'A' ? 'teamA' : 'teamB', updated);
+    }
   };
 
-  // Handler: Tambah Deck Baru ke Database & langsung pasang ke duelist
   const handleAddNewDeck = async (newVal: string, slot: 'deck1' | 'deck2') => {
     handleDeckChange('archetype', newVal, slot);
     if (onSyncNewDeck) await onSyncNewDeck(newVal);
   };
 
-  // Handler: Tambah Skill Baru ke Database & langsung pasang ke duelist
   const handleAddNewSkill = async (newVal: string, slot: 'deck1' | 'deck2') => {
     handleDeckChange('skill', newVal, slot);
     if (onSyncNewSkill) await onSyncNewSkill(newVal);
@@ -114,43 +132,39 @@ export function EditorLineup({
 
   return (
     <div className="space-y-4">
-      {/* ========================================================================= */}
-      {/* LEVEL 1: PILIH TIM (Tim A vs Tim B) & TOMBOL KELOLA ROSTER */}
-      {/* ========================================================================= */}
+      {/* LEVEL 1: PILIH TIM (A vs B) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 border border-border p-3 rounded-2xl">
-        {/* Toggle Tim A / Tim B */}
         <div className="flex items-center gap-2 bg-background p-1 rounded-xl border border-border">
           <button
             type="button"
             onClick={() => {
-              setActiveSide('teamA');
+              setActiveSide('A');
               setSelectedPlayerIdx(0);
             }}
             className={`px-4 py-2 rounded-lg text-xs font-black transition ${
-              activeSide === 'teamA'
+              activeSide === 'A'
                 ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {teamAName} ({lineupA.length}/5)
+            {teamAName} ({teamALineup.length}/5)
           </button>
           <button
             type="button"
             onClick={() => {
-              setActiveSide('teamB');
+              setActiveSide('B');
               setSelectedPlayerIdx(0);
             }}
             className={`px-4 py-2 rounded-lg text-xs font-black transition ${
-              activeSide === 'teamB'
+              activeSide === 'B'
                 ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {teamBName} ({lineupB.length}/5)
+            {teamBName} ({teamBLineup.length}/5)
           </button>
         </div>
 
-        {/* Tombol Buka Modal Tahap 1 */}
         <button
           type="button"
           onClick={() => setIsRosterModalOpen(!isRosterModalOpen)}
@@ -161,7 +175,7 @@ export function EditorLineup({
         </button>
       </div>
 
-      {/* TAHAP 1: MODAL/DRAWER MULTI-CHOICE CENTANG 5 PEMAIN */}
+      {/* TAHAP 1: MODAL ROSTER */}
       <RosterPickerModal
         isOpen={isRosterModalOpen}
         onClose={() => setIsRosterModalOpen(false)}
@@ -171,33 +185,28 @@ export function EditorLineup({
         onTogglePlayer={handleTogglePlayer}
       />
 
-      {/* VALIDASI: BANNER KUOTA DUPLIKASI ARCHETYPE TIM (MAKS 5) */}
+      {/* BANNER KUOTA ARCHETYPE TIM */}
       <ArchetypeQuotaBanner
         lineup={currentLineup}
-        masterArchetypes={masterArchetypes}
+        masterArchetypes={masterDecks}
       />
 
-      {/* ========================================================================= */}
-      {/* LEVEL 2 & TAHAP 2: PILIH DUELIST & INPUT DECK 1 + DECK 2 */}
-      {/* ========================================================================= */}
+      {/* LEVEL 2: PILIH DUELIST & FORM DUA DECK */}
       {currentLineup.length === 0 ? (
         <div className="p-8 text-center rounded-2xl border border-dashed border-border text-xs text-muted-foreground">
           Belum ada duelist yang dipilih untuk <strong className="text-foreground">{currentTeamName}</strong>.
           <br />
-          Klik tombol <strong>&quot;Kelola 5 Duelist&quot;</strong> di atas untuk menentukan 5 pemain terlebih dahulu.
+          Klik tombol <strong>&quot;Kelola 5 Duelist&quot;</strong> di atas untuk menentukan pemain.
         </div>
       ) : (
         <div className="space-y-3">
-          {/* LEVEL 2: DROPDOWN / TAB DUELIST */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
             <span className="text-xs font-black uppercase tracking-wider text-muted-foreground shrink-0 pr-1">
               Pilih Duelist:
             </span>
             {currentLineup.map((p, idx) => {
               const isActive = idx === safeIdx;
-              const hasCompleteDecks = Boolean(
-                p.deck1?.archetype && p.deck2?.archetype
-              );
+              const hasCompleteDecks = Boolean(p.deck1?.archetype && p.deck2?.archetype);
 
               return (
                 <button
@@ -222,7 +231,6 @@ export function EditorLineup({
             })}
           </div>
 
-          {/* FORM DECK 1 & DECK 2 BERDAMPINGAN UNTUK DUELIST AKTIF */}
           {activeDuelist && (
             <DuelistDeckCard
               playerIndex={safeIdx}
@@ -238,4 +246,4 @@ export function EditorLineup({
       )}
     </div>
   );
-}
+              }
