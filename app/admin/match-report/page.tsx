@@ -42,7 +42,6 @@ export default function AdminInteractiveMatchReport() {
 
   const report = useMatchReport(selectedMatchId, activeMatch, selectedWeek);
 
-  // Formatter tanggal, hari, dan jam persis seperti di Analytics
   const scheduleDateInfo = useMemo(() => {
     const raw = activeMatch?.matchDate;
     if (!raw) return { day: '-', date: '-', time: '-' };
@@ -141,7 +140,7 @@ export default function AdminInteractiveMatchReport() {
                   masterDecks={report.masterDecks}
                   masterSkills={report.masterSkills}
                   masterArchetypes={report.masterArchetypes}
-                  onChangeLineup={(side, list) => side === 'A' ? report.setTeamALineup(list) : report.setTeamBLineup(list)}
+                  onChangeLineup={(side, list) => (side === 'A' ? report.setTeamALineup(list) : report.setTeamBLineup(list))}
                   onRefreshMeta={() => report.fetchMeta(activeMatch?.teamAName, activeMatch?.teamBName)}
                 />
               )}
@@ -150,8 +149,12 @@ export default function AdminInteractiveMatchReport() {
                 <EditorRunner
                   teamAName={activeMatch?.teamAName}
                   teamBName={activeMatch?.teamBName}
+                  teamALogo={activeMatch?.teamALogo}
+                  teamBLogo={activeMatch?.teamBLogo}
                   teamALineup={report.teamALineup}
                   teamBLineup={report.teamBLineup}
+                  repeatsA={report.repeatsA}
+                  repeatsB={report.repeatsB}
                   games={report.games}
                   scoreA={report.scoreA}
                   scoreB={report.scoreB}
@@ -180,5 +183,4 @@ export default function AdminInteractiveMatchReport() {
       </div>
     </main>
   );
-    }
-      
+}
