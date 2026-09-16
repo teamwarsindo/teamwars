@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { PlayerLineupItem } from '../types';
 import { ArchetypeQuotaBanner } from './archetype-banner';
-import { DuelistEditorForm, MetaAutocompleteOption } from './duelist-editor-form';
+import { DuelistEditorForm } from './duelist-editor-form';
+import { MetaAutocompleteOption } from './meta-autocomplete';
 
 export interface RosterOption {
   ign: string;
