@@ -8,23 +8,36 @@ interface ArchetypeQuotaBannerProps {
   masterArchetypes?: string[];
 }
 
-function extractArchetypes(deckName: string, masterList: string[] = []): string[] {
-  if (!deckName || deckName === '-') return [];
-  const normalized = deckName.toLowerCase().trim();
+export function extractArchetypesFromMaster(
+  deckName: string,
+  masterArchetypes: string[] = []
+): string[] {
+  if (!deckName || typeof deckName !== 'string') return [];
+  let text = deckName.trim();
+  if (!text || text === '-') return [];
 
-  if (!masterList.length) return [deckName.trim()];
+  if (!Array.isArray(masterArchetypes) || masterArchetypes.length === 0) {
+    return [text];
+  }
 
-  const sortedMasters = [...masterList].sort((a, b) => b.length - a.length);
-  const matched: string[] = [];
+  const sortedMasters = [...masterArchetypes].sort((a, b) => b.length - a.length);
+  const found: string[] = [];
 
-  for (const arch of sortedMasters) {
-    const archLower = arch.toLowerCase();
-    if (normalized.includes(archLower)) {
-      matched.push(arch);
+  for (const master of sortedMasters) {
+    const trimmedMaster = master.trim();
+    if (!trimmedMaster) continue;
+
+    const escaped = trimmedMaster.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(^|[^a-zA-Z0-9_-])(${escaped})([^a-zA-Z0-9_-]|$)`, 'i');
+
+    if (regex.test(text)) {
+      found.push(trimmedMaster);
+      text = text.replace(new RegExp(escaped, 'gi'), ' ');
     }
   }
 
-  return matched.length > 0 ? matched : [deckName.trim()];
+  const remainder = text.trim();
+  return found.length > 0 ? found : remainder ? [remainder] : [];
 }
 
 export function ArchetypeQuotaBanner({
@@ -39,17 +52,15 @@ export function ArchetypeQuotaBanner({
       const d2 = player.deck2?.archetype?.trim();
 
       if (d1 && d1 !== '-') {
-        const archs = extractArchetypes(d1, masterArchetypes);
-        for (const a of archs) {
+        extractArchetypesFromMaster(d1, masterArchetypes).forEach((a) => {
           counts[a] = (counts[a] || 0) + 1;
-        }
+        });
       }
 
       if (d2 && d2 !== '-') {
-        const archs = extractArchetypes(d2, masterArchetypes);
-        for (const a of archs) {
+        extractArchetypesFromMaster(d2, masterArchetypes).forEach((a) => {
           counts[a] = (counts[a] || 0) + 1;
-        }
+        });
       }
     }
 
@@ -68,7 +79,6 @@ export function ArchetypeQuotaBanner({
 
   if (duplicates.length === 0) return null;
 
-  // JIKA MELEBIHI BATAS (> 5): Peringatan tegas & tebal
   if (isExceeded) {
     return (
       <div className="p-3.5 rounded-2xl border border-rose-500/40 bg-rose-500/10 text-rose-800 dark:text-rose-200 text-xs space-y-2.5 shadow-xs">
@@ -82,7 +92,7 @@ export function ArchetypeQuotaBanner({
           </span>
         </div>
         <p className="text-[11px] font-medium opacity-90">
-          Total deck kembar dalam tim sudah melewati batas maksimal 5. Ganti salah satu deck duelist!
+          Total deck kembar dalam tim sudah melewati batas maksimal 5. Ganti salah satu deck duelist.
         </p>
         <div className="flex flex-wrap gap-1.5 pt-0.5">
           {duplicates.map(([arch, count]) => (
@@ -101,7 +111,6 @@ export function ArchetypeQuotaBanner({
     );
   }
 
-  // JIKA AMAN (<= 5): Tampilan minimalis & santai (cukup 1 baris ringkas)
   return (
     <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-xl bg-muted/40 border border-border/70 text-[11px] text-muted-foreground">
       <span className="font-semibold text-foreground">
@@ -121,4 +130,4 @@ export function ArchetypeQuotaBanner({
       </div>
     </div>
   );
-        }
+}
