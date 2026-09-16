@@ -28,6 +28,25 @@ export interface EditorLineupProps {
   onSyncNewSkill?: (newSkill: string) => Promise<void>;
 }
 
+// Helper untuk memastikan item lineup berupa plain JSON object tanpa circular reference
+function sanitizeLineup(items: PlayerLineupItem[]): PlayerLineupItem[] {
+  return items.map((p) => ({
+    ign: String(p?.ign || ''),
+    idDuelLinks: String(p?.idDuelLinks || ''),
+    remainingLife: Number(p?.remainingLife ?? 2),
+    totalWins: Number(p?.totalWins ?? 0),
+    totalLosses: Number(p?.totalLosses ?? 0),
+    deck1: {
+      archetype: String(p?.deck1?.archetype || ''),
+      skill: String(p?.deck1?.skill || ''),
+    },
+    deck2: {
+      archetype: String(p?.deck2?.archetype || ''),
+      skill: String(p?.deck2?.skill || ''),
+    },
+  }));
+}
+
 export function EditorLineup({
   teamAName,
   teamBName,
@@ -51,7 +70,6 @@ export function EditorLineup({
   const currentRoster = activeSide === 'A' ? rosterA : rosterB;
   const currentLineup = activeSide === 'A' ? teamALineup : teamBLineup;
 
-  // Filter hanya slot yang berisi pemain valid
   const validPlayers = useMemo(
     () =>
       currentLineup.filter(
@@ -78,60 +96,41 @@ export function EditorLineup({
     [masterSkills]
   );
 
-  // Helper agar update lineup tembus ke parent baik via onUpdateLineup, onSelectRoster, atau onChange
-  const triggerLineupUpdate = (updated: PlayerLineupItem[]) => {
+  // Kirim update lineup ke parent dengan sanitasi murni (menghindari circular JSON)
+  const emitLineup = (rawList: PlayerLineupItem[]) => {
+    const cleanList = sanitizeLineup(rawList);
+    const sideKey = activeSide === 'A' ? 'teamA' : 'teamB';
+
     if (onUpdateLineup) {
-      onUpdateLineup(activeSide === 'A' ? 'teamA' : 'teamB', updated);
-    } else if (onChange) {
-      onChange(activeSide, 0, 'lineup', updated);
+      onUpdateLineup(sideKey, cleanList);
+    } else if (onSelectRoster) {
+      // Sinkronisasi slot per slot
+      cleanList.forEach((p, i) => {
+        onSelectRoster(activeSide, i, p.ign, p.idDuelLinks);
+      });
     }
   };
 
-  // Toggle Pemain di Modal Tahap 1
+  // Toggle Pemain di Modal Roster
   const handleTogglePlayer = (player: RosterOption) => {
     const cleanPlayerIgn = (player.ign || '').trim().toLowerCase();
     const existsIdx = currentLineup.findIndex(
       (p) => (p?.ign || '').trim().toLowerCase() === cleanPlayerIgn && cleanPlayerIgn !== ''
     );
 
-    let updated: PlayerLineupItem[];
+    let nextLineup: PlayerLineupItem[];
 
     if (existsIdx !== -1) {
-      // Uncheck pemain
-      if (onSelectRoster) {
-        onSelectRoster(activeSide, existsIdx, '', '');
+      // Uncheck: Hapus duelist dari lineup
+      nextLineup = currentLineup.filter((_, i) => i !== existsIdx);
+      if (selectedPlayerIdx >= nextLineup.length) {
+        setSelectedPlayerIdx(Math.max(0, nextLineup.length - 1));
       }
-
-      // Jika bentuk data array tetap mempertahankan 5 slot
-      if (currentLineup.length === 5 && currentLineup.some((p) => !p?.ign?.trim())) {
-        updated = [...currentLineup];
-        updated[existsIdx] = {
-          ign: '',
-          idDuelLinks: '',
-          remainingLife: 2,
-          totalWins: 0,
-          totalLosses: 0,
-          deck1: { archetype: '', skill: '' },
-          deck2: { archetype: '', skill: '' },
-        };
-      } else {
-        // Jika bentuk data array dinamis (dihapus dari array)
-        updated = currentLineup.filter((_, i) => i !== existsIdx);
-      }
-
-      if (selectedPlayerIdx >= updated.length) {
-        setSelectedPlayerIdx(Math.max(0, updated.length - 1));
-      }
-      triggerLineupUpdate(updated);
     } else {
-      // Check pemain baru (maksimal 5 duelist)
+      // Check: Tambah duelist baru jika belum 5 pemain
       if (validPlayers.length >= 5) return;
 
-      const emptyIdx = currentLineup.findIndex(
-        (p) => !p?.ign || p.ign.trim() === '' || p.ign.trim() === '-'
-      );
-
-      const newSlot: PlayerLineupItem = {
+      const newPlayer: PlayerLineupItem = {
         ign: player.ign,
         idDuelLinks: player.idDuelLinks || '',
         remainingLife: 2,
@@ -141,25 +140,10 @@ export function EditorLineup({
         deck2: { archetype: '', skill: '' },
       };
 
-      if (emptyIdx !== -1) {
-        updated = [...currentLineup];
-        updated[emptyIdx] = {
-          ...updated[emptyIdx],
-          ign: player.ign,
-          idDuelLinks: player.idDuelLinks || '',
-        };
-        if (onSelectRoster) {
-          onSelectRoster(activeSide, emptyIdx, player.ign, player.idDuelLinks);
-        }
-      } else {
-        updated = [...currentLineup, newSlot];
-        if (onSelectRoster) {
-          onSelectRoster(activeSide, currentLineup.length, player.ign, player.idDuelLinks);
-        }
-      }
-
-      triggerLineupUpdate(updated);
+      nextLineup = [...validPlayers, newPlayer];
     }
+
+    emitLineup(nextLineup);
   };
 
   // Update Archetype / Skill untuk Duelist Aktif
@@ -171,17 +155,17 @@ export function EditorLineup({
     if (onChange) {
       onChange(activeSide, safeIdx, field, val, slot);
     } else if (onUpdateLineup) {
-      const updated = [...currentLineup];
-      if (updated[safeIdx]) {
-        updated[safeIdx] = {
-          ...updated[safeIdx],
+      const updated = currentLineup.map((p, i) => {
+        if (i !== safeIdx) return p;
+        return {
+          ...p,
           [slot]: {
-            ...updated[safeIdx]?.[slot],
+            ...p[slot],
             [field]: val,
           },
         };
-        onUpdateLineup(activeSide === 'A' ? 'teamA' : 'teamB', updated);
-      }
+      });
+      emitLineup(updated);
     }
   };
 
@@ -317,4 +301,4 @@ export function EditorLineup({
       )}
     </div>
   );
-}
+    }
