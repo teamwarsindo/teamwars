@@ -1,13 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { PlayerLineupItem } from '../types';
-
-export interface RosterOption {
-  ign: string;
-  idDuelLinks?: string;
-  isReleased?: boolean;
-}
+import { PlayerLineupItem, RosterOption } from '../types';
 
 interface RosterModalProps {
   isOpen: boolean;
