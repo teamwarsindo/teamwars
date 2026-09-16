@@ -5,7 +5,7 @@ import { PlayerLineupItem } from '../types';
 import { ArchetypeQuotaBanner } from './archetype-banner';
 import { DuelistEditorForm } from './duelist-editor-form';
 import { MetaAutocompleteOption } from './meta-autocomplete';
-  
+
 export interface RosterOption {
   ign: string;
   idDuelLinks?: string;
@@ -43,21 +43,21 @@ export function EditorLineup({
   const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
   const [modalWarn, setModalWarn] = useState<string | null>(null);
 
-  // Cache deck terikat IGN agar saat uncheck dan check kembali susunan deck tidak hilang
+  // Cache deck agar saat uncheck dan check kembali susunan deck tidak hilang
   const [deckCache, setDeckCache] = useState<Record<string, { deck1: any; deck2: any }>>({});
 
   const currentTeamName = activeSide === 'A' ? teamAName : teamBName;
   const currentLineup = activeSide === 'A' ? teamALineup : teamBLineup;
   const rawRoster = activeSide === 'A' ? rosterA : rosterB;
 
-  // SORTING ROSTER: Aktif A-Z duluan, baru kemudian Out A-Z
+  // SORTING ROSTER: Aktif A-Z dulu, kemudian Out A-Z
   const sortedRoster = useMemo(() => {
     const active = rawRoster.filter((p) => !p.isReleased).sort((a, b) => a.ign.localeCompare(b.ign));
     const out = rawRoster.filter((p) => p.isReleased).sort((a, b) => a.ign.localeCompare(b.ign));
     return [...active, ...out];
   }, [rawRoster]);
 
-  // Simpan initial deck ke cache saat lineup di-load dari API
+  // Simpan data deck awal ke cache saat pertama kali di-load
   useMemo(() => {
     const initial: Record<string, { deck1: any; deck2: any }> = {};
     [...teamALineup, ...teamBLineup].forEach((p) => {
@@ -71,7 +71,6 @@ export function EditorLineup({
   const deckOptions: MetaAutocompleteOption[] = useMemo(() => masterDecks.map((d) => ({ label: d, val: d })), [masterDecks]);
   const skillOptions: MetaAutocompleteOption[] = useMemo(() => masterSkills.map((s) => ({ label: s.label, val: s.name, sub: s.code })), [masterSkills]);
 
-  // Handler Edit Deck/Skill
   const handleChangeDeck = useCallback((playerIdx: number, slot: 'deck1' | 'deck2', field: 'archetype' | 'skill', val: string) => {
     const activePlayers = currentLineup.filter((p) => Boolean(p.ign?.trim()));
     const updated = [...activePlayers];
@@ -80,25 +79,21 @@ export function EditorLineup({
     target[slot] = { ...(target[slot] || { archetype: '', skill: '' }), [field]: val };
     updated[playerIdx] = target;
 
-    // Kunci ke cache IGN
     if (target.ign) {
       setDeckCache((prev) => ({
         ...prev,
         [target.ign.toLowerCase()]: { deck1: target.deck1, deck2: target.deck2 },
       }));
     }
-
     onChangeLineup(activeSide, updated);
   }, [currentLineup, activeSide, onChangeLineup]);
 
-  // Handler Centang Roster
   const handleToggleRoster = (player: RosterOption) => {
     setModalWarn(null);
     const activePlayers = currentLineup.filter((p) => Boolean(p.ign?.trim()));
     const exists = activePlayers.some((p) => p.ign.toLowerCase() === player.ign.toLowerCase());
 
     if (exists) {
-      // Uncheck: Simpan deck terakhir pemain ke cache sebelum dilepas
       const existing = activePlayers.find((p) => p.ign.toLowerCase() === player.ign.toLowerCase());
       if (existing) {
         setDeckCache((prev) => ({
@@ -106,16 +101,12 @@ export function EditorLineup({
           [player.ign.toLowerCase()]: { deck1: existing.deck1, deck2: existing.deck2 },
         }));
       }
-      const nextList = activePlayers.filter((p) => p.ign.toLowerCase() !== player.ign.toLowerCase());
-      onChangeLineup(activeSide, nextList);
+      onChangeLineup(activeSide, activePlayers.filter((p) => p.ign.toLowerCase() !== player.ign.toLowerCase()));
     } else {
-      // Check: Maksimal 5 pemain
       if (activePlayers.length >= 5) {
         setModalWarn('Maksimal 5 pemain dalam lineup tim.');
         return;
       }
-
-      // Ambil susunan deck dari cache bila pernah diisi sebelumnya
       const cached = deckCache[player.ign.toLowerCase()];
       const newPlayer: PlayerLineupItem = {
         ign: player.ign,
@@ -126,23 +117,48 @@ export function EditorLineup({
         deck1: cached?.deck1 || { archetype: '', skill: '', wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
         deck2: cached?.deck2 || { archetype: '', skill: '', wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
       };
-
       onChangeLineup(activeSide, [...activePlayers, newPlayer]);
     }
   };
 
-  const selectedCount = currentLineup.filter((p) => Boolean(p.ign?.trim())).length;
+  // AUDIT GABUNGAN: Roster (Target 5) & Deck (Target 10)
+  const audit = useMemo(() => {
+    const activePlayers = currentLineup.filter((p) => Boolean(p.ign?.trim()));
+    const playerCount = activePlayers.length;
+    const missingPlayers = Math.max(0, 5 - playerCount);
+
+    let filledDecks = 0;
+    let missingSkills = 0;
+
+    activePlayers.forEach((p) => {
+      const d1 = p.deck1?.archetype?.trim();
+      const d2 = p.deck2?.archetype?.trim();
+      if (d1 && d1 !== '-') {
+        filledDecks++;
+        if (!p.deck1?.skill?.trim()) missingSkills++;
+      }
+      if (d2 && d2 !== '-') {
+        filledDecks++;
+        if (!p.deck2?.skill?.trim()) missingSkills++;
+      }
+    });
+
+    const totalDeckloss = 10 - filledDecks;
+    const isClean = playerCount === 5 && totalDeckloss === 0 && missingSkills === 0;
+
+    return { playerCount, missingPlayers, filledDecks, totalDeckloss, missingSkills, isClean };
+  }, [currentLineup]);
 
   return (
     <div className="space-y-4">
-      {/* 1. Pemilihan Tim (Murni Nama Tim Saja) & Tombol Modal Roster */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border shadow-2xs">
+      {/* 1. Pemilihan Tim (Nama Tim Bersih) & Tombol Modal Roster */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border shadow-xs">
         <div className="flex gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => { setActiveSide('A'); setModalWarn(null); }}
             className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
-              activeSide === 'A' ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              activeSide === 'A' ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
             {teamAName}
@@ -151,7 +167,7 @@ export function EditorLineup({
             type="button"
             onClick={() => { setActiveSide('B'); setModalWarn(null); }}
             className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
-              activeSide === 'B' ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              activeSide === 'B' ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
             {teamBName}
@@ -164,16 +180,32 @@ export function EditorLineup({
           className="w-full sm:w-auto px-4 py-2 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
         >
           <span>📋</span>
-          <span>Pilih 5 Pemain ({selectedCount}/5)</span>
+          <span>Pilih 5 Pemain ({audit.playerCount}/5)</span>
         </button>
       </div>
 
-      {/* 2. Banner Peringatan Kuota Tim / Slot Kurang (Muted & Tema Halus) */}
-      {selectedCount < 5 && (
-        <div className="p-3 rounded-2xl border border-border/80 bg-muted/30 text-muted-foreground text-xs flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-amber-500">⚠️</span>
-            <span>Lineup belum lengkap: <b>{selectedCount} dari 5 duelist</b> terpilih. Slot kosong dihitung sebagai deckloss.</span>
+      {/* 2. WARNING GABUNGAN DECKLOSS (Tebal, Jelas, Kontras Tinggi) */}
+      {!audit.isClean && (
+        <div className="p-3.5 rounded-2xl border-2 border-amber-500/60 bg-amber-500/15 text-amber-950 dark:text-amber-200 text-xs shadow-xs space-y-1">
+          <div className="flex items-center justify-between font-black">
+            <span className="flex items-center gap-1.5 text-sm">
+              <span>⚠️</span>
+              <span>Total {audit.totalDeckloss} Deckloss Terdeteksi</span>
+            </span>
+            <span className="px-2 py-0.5 rounded-md bg-amber-500/30 text-[10px] font-black uppercase tracking-wider">
+              Lineup Belum Lengkap
+            </span>
+          </div>
+          <div className="text-[11px] font-medium leading-relaxed opacity-95">
+            {audit.missingPlayers > 0 && (
+              <span>• Roster kurang <b>{audit.missingPlayers} pemain</b> ({audit.playerCount}/5 terpilih) menyumbang <b>{audit.missingPlayers * 2} Deckloss</b>.<br /></span>
+            )}
+            {audit.totalDeckloss - audit.missingPlayers * 2 > 0 && (
+              <span>• Ada <b>{audit.totalDeckloss - audit.missingPlayers * 2} slot deck kosong</b> dari pemain yang dipilih.<br /></span>
+            )}
+            {audit.missingSkills > 0 && (
+              <span className="text-rose-700 dark:text-rose-300 font-bold">• <b>{audit.missingSkills} deck</b> belum memiliki Skill Karakter!</span>
+            )}
           </div>
         </div>
       )}
@@ -190,7 +222,7 @@ export function EditorLineup({
         onRefreshMeta={onRefreshMeta}
       />
 
-      {/* 5. Modal Roster Picker (Menutup Saat Klik Luar / Backdrop) */}
+      {/* 5. Modal Roster Picker */}
       {isRosterModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in"
@@ -198,9 +230,8 @@ export function EditorLineup({
         >
           <div
             className="bg-card border border-border w-full max-w-md rounded-2xl p-4 space-y-3 shadow-2xl"
-            onClick={(e) => e.stopPropagation()} // Mencegah klik di dalam kotak menutup modal
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-border pb-2.5">
               <div>
                 <h3 className="text-xs font-black uppercase text-foreground">Roster {currentTeamName}</h3>
@@ -222,15 +253,14 @@ export function EditorLineup({
               </button>
             </div>
 
-            {/* Peringatan Modal Bertema (Bukan alert bawaan browser) */}
+            {/* Peringatan Modal Kontras Tinggi */}
             {modalWarn && (
-              <div className="p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs font-bold flex items-center justify-between">
+              <div className="p-2.5 rounded-xl border-2 border-rose-500/50 bg-rose-500/15 text-rose-950 dark:text-rose-200 text-xs font-bold flex items-center justify-between">
                 <span>⚠️ {modalWarn}</span>
-                <button type="button" onClick={() => setModalWarn(null)} className="text-[10px] opacity-70 hover:opacity-100">✕</button>
+                <button type="button" onClick={() => setModalWarn(null)} className="text-[11px] font-black opacity-80 hover:opacity-100 cursor-pointer">✕</button>
               </div>
             )}
 
-            {/* List Roster Ter-sort A-Z (Aktif dulu, baru Out) */}
             <div className="max-h-72 overflow-y-auto space-y-1 p-1">
               {sortedRoster.map((p, idx) => {
                 const isSelected = currentLineup.some(
@@ -258,9 +288,8 @@ export function EditorLineup({
               })}
             </div>
 
-            {/* Modal Footer */}
             <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
-              <span className="text-muted-foreground font-medium">Terpilih: <b className="text-foreground">{selectedCount} / 5</b></span>
+              <span className="text-muted-foreground font-medium">Terpilih: <b className="text-foreground">{audit.playerCount} / 5</b></span>
               <button
                 type="button"
                 onClick={() => setIsRosterModalOpen(false)}
@@ -274,4 +303,5 @@ export function EditorLineup({
       )}
     </div>
   );
-}
+                                 }
+    
