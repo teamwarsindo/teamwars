@@ -135,18 +135,20 @@ export function EditorLineup({
         </button>
       </div>
 
-      {/* Peringatan Merah Ringkas & Seragam */}
+      {/* Warning Box Jelas, Kontras, Font Tebal */}
       {!audit.isClean && (
-        <div className="p-3 rounded-2xl border border-rose-500/40 bg-rose-500/10 text-rose-800 dark:text-rose-200 text-xs shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-2 font-medium">
-            <span className="text-sm">⚠️</span>
+        <div className="p-3 rounded-xl border border-rose-400 bg-rose-100 dark:bg-rose-950/60 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs shadow-xs flex items-center justify-between">
+          <div className="flex items-center gap-2 font-extrabold">
+            <span className="text-base">⚠️</span>
             <span>
-              {audit.totalDeckloss > 0 && <b>{audit.totalDeckloss} Deckloss </b>}
-              {audit.pCount < 5 && `(${audit.pCount}/5 pemain)`}
-              {audit.missSkills > 0 && <span className="opacity-90"> • {audit.missSkills} skill belum diisi</span>}
+              {audit.totalDeckloss > 0 && `${audit.totalDeckloss} Deckloss`}
+              {audit.pCount < 5 && ` (${audit.pCount}/5 Pemain)`}
+              {audit.missSkills > 0 && ` • ${audit.missSkills} Skill Belum Diisi`}
             </span>
           </div>
-          <span className="text-[10px] font-mono opacity-60">Audit Lineup</span>
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">
+            Audit Lineup
+          </span>
         </div>
       )}
 
