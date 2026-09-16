@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { PlayerLineupItem } from '../types';
+import { PlayerLineupItem } from "../types";
 
 export interface RosterOption {
   ign: string;
@@ -27,27 +27,31 @@ export function RosterPickerModal({
 }: RosterPickerModalProps) {
   if (!isOpen) return null;
 
-  const selectedCount = lineup.length;
-  const isFull = selectedCount === 5;
+  // Hitung hanya yang memiliki IGN valid
+  const validSelected = lineup.filter(
+    (p) => p && typeof p.ign === "string" && p.ign.trim() !== "" && p.ign.trim() !== "-"
+  );
+  const selectedCount = validSelected.length;
+  const isFull = selectedCount >= 5;
 
   return (
-    <div className="p-4 bg-card border border-border rounded-2xl space-y-3.5 shadow-sm transition-all">
-      {/* Header Box */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-border/60 pb-2.5">
+    <div className="p-4 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-2xl space-y-4 shadow-md">
+      {/* Header Info */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
-          <h4 className="text-xs font-black uppercase text-foreground">
-            Kelola 5 Duelist: <span className="text-sky-600 dark:text-sky-400">{teamName}</span>
+          <h4 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wide">
+            Kelola 5 Duelist: <span className="text-blue-600 dark:text-blue-400">{teamName}</span>
           </h4>
-          <p className="text-[11px] text-muted-foreground font-medium">
-            Centang duelist dari roster resmi yang bertanding di match ini.
+          <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+            Centang duelist yang akan bertanding di match ini.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <span
-            className={`text-xs font-mono font-black px-2.5 py-1 rounded-lg border ${
+            className={`text-xs font-mono font-black px-3 py-1 rounded-lg border ${
               isFull
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-500/15 dark:border-emerald-500/30 dark:text-emerald-400'
-                : 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-500/15 dark:border-amber-500/30 dark:text-amber-400'
+                ? "bg-emerald-100 border-emerald-400 text-emerald-950 dark:bg-emerald-950/60 dark:border-emerald-500/50 dark:text-emerald-300"
+                : "bg-amber-100 border-amber-400 text-amber-950 dark:bg-amber-950/60 dark:border-amber-500/50 dark:text-amber-300"
             }`}
           >
             {selectedCount} / 5 Duelist Terpilih
@@ -55,54 +59,60 @@ export function RosterPickerModal({
         </div>
       </div>
 
-      {/* Grid Roster Pemain */}
+      {/* Grid Pemain */}
       {roster.length === 0 ? (
-        <div className="text-center py-6 text-xs text-muted-foreground font-medium">
-          Roster untuk tim ini belum tersedia atau belum disinkronkan.
+        <div className="text-center py-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
+          Daftar roster tim ini belum tersedia.
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1">
           {roster.map((player, idx) => {
+            const cleanPlayerIgn = (player.ign || "").trim().toLowerCase();
             const isSelected = lineup.some(
-              (p) => p.ign?.toLowerCase() === player.ign.toLowerCase()
+              (p) => (p?.ign || "").trim().toLowerCase() === cleanPlayerIgn && cleanPlayerIgn !== ""
             );
-            const disabled = !isSelected && isFull;
 
             return (
               <button
                 key={`${player.ign}-${idx}`}
                 type="button"
-                disabled={disabled}
-                onClick={() => onTogglePlayer(player)}
-                className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition text-left ${
+                onClick={() => {
+                  if (!isSelected && isFull) {
+                    alert(
+                      "Lineup sudah penuh (5 pemain). Klik pemain yang sudah terpilih untuk meng-uncheck sebelum memilih pemain lain."
+                    );
+                    return;
+                  }
+                  onTogglePlayer(player);
+                }}
+                className={`flex items-center justify-between p-3 rounded-xl border text-xs font-bold transition text-left cursor-pointer ${
                   isSelected
-                    ? 'bg-sky-50 border-sky-400 text-sky-950 dark:bg-sky-950/40 dark:border-sky-500 dark:text-sky-100 shadow-xs'
-                    : disabled
-                    ? 'opacity-40 border-border/50 bg-muted/20 cursor-not-allowed text-muted-foreground'
-                    : 'bg-background border-border hover:border-slate-400 text-slate-900 dark:text-slate-100'
+                    ? "bg-blue-50 border-blue-600 text-blue-950 dark:bg-blue-950/60 dark:border-blue-400 dark:text-blue-100 shadow-sm"
+                    : "bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-900 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
                 }`}
               >
-                {/* Sisi Kiri: Status Dot + IGN */}
-                <div className="flex items-center gap-2 min-w-0 truncate">
+                {/* Sisi Kiri: Dot status & IGN */}
+                <div className="flex items-center gap-2.5 min-w-0">
                   <span
                     className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                      player.isReleased ? 'bg-rose-500' : 'bg-emerald-500'
+                      player.isReleased ? "bg-rose-600 dark:bg-rose-500" : "bg-emerald-600 dark:bg-emerald-400"
                     }`}
-                    title={player.isReleased ? 'Pemain Out / Released' : 'Pemain Aktif'}
                   />
-                  <span className="truncate font-black tracking-tight">{player.ign}</span>
+                  <span className="truncate font-black tracking-tight text-slate-900 dark:text-white">
+                    {player.ign}
+                  </span>
                 </div>
 
-                {/* Sisi Kanan: ID DL + Checkbox Visual */}
+                {/* Sisi Kanan: ID DL & Checkbox */}
                 <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <span className="text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400">
-                    {player.idDuelLinks || '-'}
+                  <span className="text-[11px] font-mono font-bold text-slate-600 dark:text-slate-400">
+                    {player.idDuelLinks || "-"}
                   </span>
                   <span
                     className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-black border transition ${
                       isSelected
-                        ? 'bg-sky-600 text-white border-sky-600 dark:bg-sky-500 dark:border-sky-500'
-                        : 'border-slate-300 dark:border-slate-600 bg-background text-transparent'
+                        ? "bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500"
+                        : "border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-900 text-transparent"
                     }`}
                   >
                     ✓
@@ -114,22 +124,20 @@ export function RosterPickerModal({
         </div>
       )}
 
-      {/* Tombol Simpan / Tutup */}
-      <div className="pt-1 flex items-center justify-end gap-2">
+      {/* Footer Tombol Tutup */}
+      <div className="pt-2">
         <button
           type="button"
           onClick={onClose}
-          className={`w-full py-2.5 px-4 font-black text-xs rounded-xl transition shadow-xs ${
+          className={`w-full py-2.5 px-4 font-black text-xs rounded-xl transition cursor-pointer ${
             isFull
-              ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 dark:bg-muted dark:text-foreground dark:border-border'
+              ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              : "bg-slate-200 hover:bg-slate-300 text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-white dark:border-slate-700"
           }`}
         >
-          {isFull
-            ? '✅ Simpan 5 Duelist & Lanjut Atur Deck / Skill'
-            : 'Tutup & Simpan Pilihan'}
+          {isFull ? "Simpan 5 Duelist & Lanjut Atur Deck / Skill" : "Tutup Pilihan Roster"}
         </button>
       </div>
     </div>
   );
-                }
+}
