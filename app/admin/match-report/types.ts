@@ -39,3 +39,37 @@ export interface GameEntry {
   notes?: string;
   timestamp: string;
 }
+
+export interface RosterOption {
+  ign: string;
+  idDuelLinks?: string;
+  isReleased?: boolean;
+}
+
+export interface MatchReportData {
+  matchId: string;
+  week: number;
+  metadata: {
+    date: string;
+    referee: string;
+    streamer?: string;
+    day?: string;
+    time?: string;
+  };
+  teamA: {
+    name: string;
+    score: number;
+    repeatsUsed: number;
+    warningsUsed: number;
+    lineup: PlayerLineupItem[];
+  };
+  teamB: {
+    name: string;
+    score: number;
+    repeatsUsed: number;
+    warningsUsed: number;
+    lineup: PlayerLineupItem[];
+  };
+  games: GameEntry[];
+  isFinished: boolean;
+}
