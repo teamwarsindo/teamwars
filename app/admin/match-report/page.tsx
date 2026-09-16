@@ -42,6 +42,30 @@ export default function AdminInteractiveMatchReport() {
 
   const report = useMatchReport(selectedMatchId, activeMatch, selectedWeek);
 
+  // Formatter tanggal, hari, dan jam persis seperti di Analytics
+  const scheduleDateInfo = useMemo(() => {
+    const raw = activeMatch?.matchDate;
+    if (!raw) return { day: '-', date: '-', time: '-' };
+    try {
+      const d = new Date(raw);
+      const day = new Intl.DateTimeFormat('id-ID', { weekday: 'long', timeZone: 'Asia/Jakarta' }).format(d);
+      const date = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(d);
+      const timeStr = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).format(d);
+      return { day, date, time: `${timeStr.replace(':', '.')} WIB` };
+    } catch {
+      return { day: '-', date: raw, time: '-' };
+    }
+  }, [activeMatch?.matchDate]);
+
+  const resolvedMatchNumber = useMemo(() => {
+    if (activeMatch?.matchNumber) return activeMatch.matchNumber;
+    if (selectedMatchId) {
+      const extracted = selectedMatchId.replace(/\D/g, '');
+      if (extracted) return extracted;
+    }
+    return 1;
+  }, [activeMatch?.matchNumber, selectedMatchId]);
+
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
@@ -86,12 +110,14 @@ export default function AdminInteractiveMatchReport() {
                 teamALogo={activeMatch?.teamALogo}
                 teamBLogo={activeMatch?.teamBLogo}
                 metadata={{
-                  week: activeMatch?.weekNumber || selectedWeek,
-                  matchNumber: activeMatch?.id?.replace(/\D/g, '') || 1,
+                  matchNumber: resolvedMatchNumber,
                   division: activeMatch?.groupName,
+                  week: activeMatch?.weekNumber || selectedWeek,
+                  day: scheduleDateInfo.day,
+                  date: scheduleDateInfo.date,
+                  time: scheduleDateInfo.time,
                   referee: activeMatch?.referee || '-',
                   streamer: activeMatch?.streamer || '-',
-                  date: activeMatch?.matchDate ? activeMatch.matchDate.split('T')[0] : '-',
                 }}
               />
 
@@ -154,4 +180,5 @@ export default function AdminInteractiveMatchReport() {
       </div>
     </main>
   );
-}
+    }
+      
