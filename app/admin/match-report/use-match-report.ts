@@ -2,11 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getTeamSlug } from '@/app/tournament/_library';
-import { PlayerLineupItem, GameEntry } from './types';
+import { PlayerLineupItem, GameEntry, RosterOption } from './types';
 
 const initEmpty = (): PlayerLineupItem[] =>
   Array.from({ length: 5 }, () => ({
-    ign: '', idDuelLinks: '', remainingLife: 2, totalWins: 0, totalLosses: 0,
+    ign: '',
+    idDuelLinks: '',
+    remainingLife: 2,
+    totalWins: 0,
+    totalLosses: 0,
     deck1: { archetype: '', skill: '', wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
     deck2: { archetype: '', skill: '', wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
   }));
@@ -26,8 +30,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
   const [warnsA, setWarnsA] = useState(0);
   const [warnsB, setWarnsB] = useState(0);
 
-  const [rosterA, setRosterA] = useState<any[]>([]);
-  const [rosterB, setRosterB] = useState<any[]>([]);
+  const [rosterA, setRosterA] = useState<RosterOption[]>([]);
+  const [rosterB, setRosterB] = useState<RosterOption[]>([]);
   const [masterDecks, setMasterDecks] = useState<string[]>([]);
   const [masterSkills, setMasterSkills] = useState<Array<{ name: string; label: string; code?: string }>>([]);
   const [masterArchetypes, setMasterArchetypes] = useState<string[]>([]);
@@ -97,26 +101,47 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const isA = d.winner === 'teamA';
 
     if (isA) {
-      pA.totalWins += 1; dA.wins = (dA.wins || 0) + 1;
-      pB.totalLosses += 1; pB.remainingLife = Math.max(0, pB.remainingLife - 1);
-      dB.losses = (dB.losses || 0) + 1; dB.isDead = true;
+      pA.totalWins += 1;
+      dA.wins = (dA.wins || 0) + 1;
+      pB.totalLosses += 1;
+      pB.remainingLife = Math.max(0, pB.remainingLife - 1);
+      dB.losses = (dB.losses || 0) + 1;
+      dB.isDead = true;
     } else {
-      pB.totalWins += 1; dB.wins = (dB.wins || 0) + 1;
-      pA.totalLosses += 1; pA.remainingLife = Math.max(0, pA.remainingLife - 1);
-      dA.losses = (dA.losses || 0) + 1; dA.isDead = true;
+      pB.totalWins += 1;
+      dB.wins = (dB.wins || 0) + 1;
+      pA.totalLosses += 1;
+      pA.remainingLife = Math.max(0, pA.remainingLife - 1);
+      dA.losses = (dA.losses || 0) + 1;
+      dA.isDead = true;
     }
 
     if (d.isRepeatA) setRepeatsA((r) => r + 1);
     if (d.isRepeatB) setRepeatsB((r) => r + 1);
 
-    setGames([...games, {
-      gameNumber: games.length + 1,
-      winner: d.winner,
-      playerA: { ign: pA.ign, idDuelLinks: pA.idDuelLinks, archetype: dA.archetype, skill: dA.skill, isRepeat: d.isRepeatA },
-      playerB: { ign: pB.ign, idDuelLinks: pB.idDuelLinks, archetype: dB.archetype, skill: dB.skill, isRepeat: d.isRepeatB },
-      notes: d.notes,
-      timestamp: new Date().toISOString(),
-    }]);
+    setGames([
+      ...games,
+      {
+        gameNumber: games.length + 1,
+        winner: d.winner,
+        playerA: {
+          ign: pA.ign,
+          idDuelLinks: pA.idDuelLinks,
+          archetype: dA.archetype,
+          skill: dA.skill,
+          isRepeat: d.isRepeatA,
+        },
+        playerB: {
+          ign: pB.ign,
+          idDuelLinks: pB.idDuelLinks,
+          archetype: dB.archetype,
+          skill: dB.skill,
+          isRepeat: d.isRepeatB,
+        },
+        notes: d.notes,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
     setScoreA(isA ? scoreA + 1 : scoreA);
     setScoreB(!isA ? scoreB + 1 : scoreB);
   };
@@ -148,16 +173,31 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
               referee: activeMatch?.referee || 'Kaiba',
               streamer: activeMatch?.streamer || '',
             },
-            teamA: { name: activeMatch?.teamAName, score: scoreA, repeatsUsed: repeatsA, warningsUsed: warnsA, lineup: teamALineup },
-            teamB: { name: activeMatch?.teamBName, score: scoreB, repeatsUsed: repeatsB, warningsUsed: warnsB, lineup: teamBLineup },
+            teamA: {
+              name: activeMatch?.teamAName,
+              score: scoreA,
+              repeatsUsed: repeatsA,
+              warningsUsed: warnsA,
+              lineup: teamALineup,
+            },
+            teamB: {
+              name: activeMatch?.teamBName,
+              score: scoreB,
+              repeatsUsed: repeatsB,
+              warningsUsed: warnsB,
+              lineup: teamBLineup,
+            },
             games,
             isFinished: scoreA >= 10 || scoreB >= 10,
           },
         }),
       });
       const data = await res.json();
-      if (data.success) setStatusMsg({ type: 'success', text: 'Match Report berhasil disimpan!' });
-      else setStatusMsg({ type: 'error', text: data.error || 'Gagal menyimpan report.' });
+      if (data.success) {
+        setStatusMsg({ type: 'success', text: 'Match Report berhasil disimpan!' });
+      } else {
+        setStatusMsg({ type: 'error', text: data.error || 'Gagal menyimpan report.' });
+      }
     } catch (e: any) {
       setStatusMsg({ type: 'error', text: e.message });
     } finally {
@@ -166,10 +206,28 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
   };
 
   return {
-    loading, saving, statusMsg,
-    teamALineup, setTeamALineup, teamBLineup, setTeamBLineup,
-    games, scoreA, scoreB, repeatsA, repeatsB, warnsA, warnsB,
-    rosterA, rosterB, masterDecks, masterSkills, masterArchetypes,
-    fetchMeta, handleAddGame, handleRollbackGame, handleSaveToDatabase,
+    loading,
+    saving,
+    statusMsg,
+    teamALineup,
+    setTeamALineup,
+    teamBLineup,
+    setTeamBLineup,
+    games,
+    scoreA,
+    scoreB,
+    repeatsA,
+    repeatsB,
+    warnsA,
+    warnsB,
+    rosterA,
+    rosterB,
+    masterDecks,
+    masterSkills,
+    masterArchetypes,
+    fetchMeta,
+    handleAddGame,
+    handleRollbackGame,
+    handleSaveToDatabase,
   };
-                                                                                                            }
+    }
