@@ -18,6 +18,16 @@ interface EditorLineupProps {
   onChangeLineupB: (newLineup: PlayerLineupItem[]) => void;
 }
 
+const createEmptyPlayerSlot = (ign = "", idDuelLinks = ""): PlayerLineupItem => ({
+  ign,
+  idDuelLinks,
+  remainingLife: 2,
+  totalWins: 0,
+  totalLosses: 0,
+  deck1: { archetype: "", skill: "" },
+  deck2: { archetype: "", skill: "" },
+});
+
 export function EditorLineup({
   teamAName,
   teamBName,
@@ -40,12 +50,10 @@ export function EditorLineup({
   const currentRoster = isTeamA ? rosterA : rosterB;
   const updateCurrentLineup = isTeamA ? onChangeLineupA : onChangeLineupB;
 
-  // Hitung jumlah pemain yang benar-benar valid
   const validPlayersCount = currentLineup.filter(
     (p) => p && typeof p.ign === "string" && p.ign.trim() !== "" && p.ign.trim() !== "-"
   ).length;
 
-  // Toggle pemain dari modal roster
   const handleToggleRosterPlayer = (player: RosterOption) => {
     const cleanPlayerIgn = (player.ign || "").trim().toLowerCase();
     const existingIndex = currentLineup.findIndex(
@@ -53,17 +61,10 @@ export function EditorLineup({
     );
 
     if (existingIndex !== -1) {
-      // Pemain sudah ada -> uncheck / kosongkan slot
       const updated = [...currentLineup];
-      updated[existingIndex] = {
-        ign: "",
-        idDuelLinks: "",
-        deck1: { archetype: "", skill: "" },
-        deck2: { archetype: "", skill: "" },
-      };
+      updated[existingIndex] = createEmptyPlayerSlot();
       updateCurrentLineup(updated);
     } else {
-      // Cari slot kosong pertama (ign kosong atau "-")
       const emptySlotIdx = currentLineup.findIndex(
         (p) => !p?.ign || p.ign.trim() === "" || p.ign.trim() === "-"
       );
@@ -77,31 +78,19 @@ export function EditorLineup({
         };
         updateCurrentLineup(updated);
       } else if (currentLineup.length < 5) {
-        // Jika panjang array belum mencapai 5
         const updated = [
           ...currentLineup,
-          {
-            ign: player.ign,
-            idDuelLinks: player.idDuelLinks || "",
-            deck1: { archetype: "", skill: "" },
-            deck2: { archetype: "", skill: "" },
-          },
+          createEmptyPlayerSlot(player.ign, player.idDuelLinks || ""),
         ];
         updateCurrentLineup(updated);
       }
     }
   };
 
-  // Update data spesifik duelist yang aktif dipilih tab bawah (#1 s/d #5)
   const handleUpdateActivePlayer = (field: string, value: any) => {
     const updated = [...currentLineup];
     while (updated.length <= activeDuelistIdx) {
-      updated.push({
-        ign: "",
-        idDuelLinks: "",
-        deck1: { archetype: "", skill: "" },
-        deck2: { archetype: "", skill: "" },
-      });
+      updated.push(createEmptyPlayerSlot());
     }
 
     const targetPlayer = { ...updated[activeDuelistIdx] };
@@ -125,12 +114,7 @@ export function EditorLineup({
     updateCurrentLineup(updated);
   };
 
-  const selectedDuelist = currentLineup[activeDuelistIdx] || {
-    ign: "",
-    idDuelLinks: "",
-    deck1: { archetype: "", skill: "" },
-    deck2: { archetype: "", skill: "" },
-  };
+  const selectedDuelist = currentLineup[activeDuelistIdx] || createEmptyPlayerSlot();
 
   return (
     <div className="space-y-4">
@@ -182,7 +166,6 @@ export function EditorLineup({
           </span>
         </button>
 
-        {/* MODAL / ACCORDION PILIH DUELIST DARI ROSTER */}
         <RosterPickerModal
           isOpen={isRosterModalOpen}
           onClose={() => setIsRosterModalOpen(false)}
@@ -193,14 +176,14 @@ export function EditorLineup({
         />
       </div>
 
-      {/* BANNER KUOTA ARCHETYPE TIM (Fix Type Error: teamName disertakan) */}
+      {/* BANNER KUOTA ARCHETYPE TIM */}
       <ArchetypeQuotaBanner
         teamName={activeTeamName || "Tim"}
         lineup={currentLineup}
         masterArchetypes={masterDecks}
       />
 
-      {/* NAVIGASI 5 SLOT DUELIST (#1 s/d #5) */}
+      {/* NAVIGASI 5 SLOT DUELIST */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
         <span className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 whitespace-nowrap mr-1">
           Pilih Duelist:
@@ -237,7 +220,7 @@ export function EditorLineup({
         })}
       </div>
 
-      {/* DETAIL DECK & SKILL DUELIST YANG AKTIF */}
+      {/* DETAIL DECK & SKILL DUELIST */}
       <div className="p-4 bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 rounded-2xl space-y-4 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/80 pb-3">
           <div>
@@ -253,7 +236,6 @@ export function EditorLineup({
           </div>
         </div>
 
-        {/* Form Input Manual IGN & DL ID (Bisa disesuaikan jika perlu perbaikan) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -281,7 +263,6 @@ export function EditorLineup({
           </div>
         </div>
 
-        {/* Form Deck 1 & Deck 2 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
           {/* DECK 1 */}
           <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 space-y-2.5">
@@ -297,7 +278,7 @@ export function EditorLineup({
                 list="archetype-options"
                 value={selectedDuelist.deck1?.archetype || ""}
                 onChange={(e) => handleUpdateActivePlayer("deck1.archetype", e.target.value)}
-                placeholder="Pilih atau ketik archetype (bisa multi-deck)"
+                placeholder="Pilih atau ketik archetype..."
                 className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -330,7 +311,7 @@ export function EditorLineup({
                 list="archetype-options"
                 value={selectedDuelist.deck2?.archetype || ""}
                 onChange={(e) => handleUpdateActivePlayer("deck2.archetype", e.target.value)}
-                placeholder="Pilih atau ketik archetype (bisa multi-deck)"
+                placeholder="Pilih atau ketik archetype..."
                 className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -351,7 +332,6 @@ export function EditorLineup({
         </div>
       </div>
 
-      {/* DATALIST SUGGESTIONS DARI MASTER KV */}
       <datalist id="archetype-options">
         {masterDecks.map((d) => (
           <option key={d} value={d} />
@@ -364,4 +344,5 @@ export function EditorLineup({
       </datalist>
     </div>
   );
-        }
+    }
+          
