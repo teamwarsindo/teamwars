@@ -30,13 +30,13 @@ export function DuelistEditorForm({
 
   const current = activePlayers[activeTab];
 
-  const getTabStatus = (p?: PlayerLineupItem) => {
-    if (!p || !p.ign) return 'empty';
-    const d1Ok = Boolean(p.deck1?.archetype?.trim() && p.deck1?.skill?.trim());
-    const d2Ok = Boolean(p.deck2?.archetype?.trim() && p.deck2?.skill?.trim());
-    if (d1Ok && d2Ok) return 'complete';
-    if (p.deck1?.archetype?.trim() || p.deck2?.archetype?.trim()) return 'partial';
-    return 'empty';
+  // Hitung berapa deck yang valid (punya Archetype & Skill)
+  const getDeckCount = (p?: PlayerLineupItem) => {
+    if (!p) return 0;
+    let count = 0;
+    if (p.deck1?.archetype?.trim() && p.deck1.archetype !== '-' && p.deck1?.skill?.trim()) count++;
+    if (p.deck2?.archetype?.trim() && p.deck2.archetype !== '-' && p.deck2?.skill?.trim()) count++;
+    return count;
   };
 
   const renderSlot = (slot: 'deck1' | 'deck2', label: string) => {
@@ -54,7 +54,7 @@ export function DuelistEditorForm({
         <div className="flex items-center justify-between">
           <span className="text-xs font-black uppercase tracking-wider text-foreground">{label}</span>
           <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
-            !hasArch ? 'bg-muted text-muted-foreground' : isMissingSkill ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
+            !hasArch ? 'bg-muted text-muted-foreground' : isMissingSkill ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
           }`}>
             {!hasArch ? 'Deckloss' : isMissingSkill ? 'Wajib Skill' : 'Lengkap'}
           </span>
@@ -76,7 +76,7 @@ export function DuelistEditorForm({
         </div>
 
         <div className="space-y-1">
-          <label className={`text-[11px] font-bold ${isMissingSkill ? 'text-rose-400' : 'text-muted-foreground'}`}>
+          <label className={`text-[11px] font-bold ${isMissingSkill ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'}`}>
             Skill Karakter {hasArch && <span className="text-rose-500">*</span>}
           </label>
           <MetaAutocompleteDropdown
@@ -105,33 +105,40 @@ export function DuelistEditorForm({
 
   return (
     <div className="space-y-4">
-      {/* 2 Baris: 3 tombol di atas (span 2), 2 tombol di bawah (span 3) */}
-      <div className="grid grid-cols-6 gap-2">
+      {/* 2 Kolom per Baris, jika ada 5 tetap 2 kolom per baris dengan lebar identik */}
+      <div className="grid grid-cols-2 gap-2">
         {activePlayers.map((p, idx) => {
-          const status = getTabStatus(p);
+          const filled = getDeckCount(p);
           const isSelected = activeTab === idx;
-          const colClass = activePlayers.length <= 3 
-            ? 'col-span-2' 
-            : idx < 3 ? 'col-span-2' : 'col-span-3';
 
           return (
             <button
               key={p.ign}
               type="button"
               onClick={() => setActiveTab(idx)}
-              className={`${colClass} flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
-                isSelected ? 'border-primary bg-primary/10 text-primary shadow-2xs' : 'border-border bg-card/60 text-muted-foreground hover:bg-muted/50'
+              className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                isSelected 
+                  ? 'border-primary bg-primary/15 text-primary shadow-xs' 
+                  : 'border-border bg-card text-foreground hover:bg-muted/50'
               }`}
             >
               <div className="flex items-center gap-1.5 min-w-0 truncate">
-                <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] shrink-0 font-mono">
+                <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] shrink-0 font-mono text-muted-foreground">
                   {idx + 1}
                 </span>
                 <span className="truncate">{p.ign}</span>
               </div>
-              <span className={`w-2 h-2 rounded-full shrink-0 ml-1.5 ${
-                status === 'complete' ? 'bg-emerald-500' : status === 'partial' ? 'bg-amber-500' : 'bg-rose-500'
-              }`} />
+              
+              {/* Badge Kartu: 0/2, 1/2, 2/2 */}
+              <span className={`text-[10px] font-mono font-black px-1.5 py-0.5 rounded-md shrink-0 ml-1.5 ${
+                filled === 2 
+                  ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' 
+                  : filled === 1 
+                  ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' 
+                  : 'bg-rose-500/20 text-rose-700 dark:text-rose-300'
+              }`}>
+                🃏 {filled}/2
+              </span>
             </button>
           );
         })}
@@ -157,4 +164,4 @@ export function DuelistEditorForm({
       )}
     </div>
   );
-            }
+        }
