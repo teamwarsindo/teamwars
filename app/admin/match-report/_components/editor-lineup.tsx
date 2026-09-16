@@ -1,220 +1,241 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useState } from 'react';
 import { PlayerLineupItem } from '../types';
-import { PlayerSelectDropdown, RosterOption } from './player-dropdown';
-import { MetaAutocompleteDropdown } from './meta-autocomplete';
-import { extractArchetypesFromDeck } from '@/lib/discord/commands/submit/archetype';
+import { RosterPickerModal, RosterOption } from './roster-picker-modal';
+import { ArchetypeQuotaBanner } from './archetype-quota-banner';
+import { DuelistDeckCard } from './duelist-deck-card';
 
 interface EditorLineupProps {
-  teamAName?: string;
-  teamBName?: string;
-  teamALineup: PlayerLineupItem[];
-  teamBLineup: PlayerLineupItem[];
-  rosterA: RosterOption[];
-  rosterB: RosterOption[];
-  masterDecks: string[];
-  masterSkills: Array<{ name: string; label: string; code?: string }>;
+  teamAName: string;
+  teamBName: string;
+  rosterA?: RosterOption[];
+  rosterB?: RosterOption[];
+  lineupA: PlayerLineupItem[];
+  lineupB: PlayerLineupItem[];
   masterArchetypes?: string[];
-  onChange: (side: 'A' | 'B', idx: number, field: string, val: any, deckSlot?: 'deck1' | 'deck2') => void;
-  onSelectRoster: (side: 'A' | 'B', idx: number, ign: string) => void;
-  onAddNewDeck?: (newDeck: string) => void;
-  onAddNewSkill?: (newSkill: { name: string; label: string; code?: string }) => void;
+  deckOptions: Array<{ label: string; val: string }>;
+  skillOptions: Array<{ label: string; val: string; sub?: string }>;
+  onUpdateLineup: (side: 'teamA' | 'teamB', updated: PlayerLineupItem[]) => void;
+  onSyncNewDeck?: (newDeck: string) => Promise<void>;
+  onSyncNewSkill?: (newSkill: string) => Promise<void>;
 }
 
 export function EditorLineup({
-  teamAName = 'Team A',
-  teamBName = 'Team B',
-  teamALineup,
-  teamBLineup,
+  teamAName,
+  teamBName,
   rosterA = [],
   rosterB = [],
-  masterDecks = [],
-  masterSkills = [],
+  lineupA = [],
+  lineupB = [],
   masterArchetypes = [],
-  onChange,
-  onSelectRoster,
-  onAddNewDeck,
-  onAddNewSkill,
+  deckOptions = [],
+  skillOptions = [],
+  onUpdateLineup,
+  onSyncNewDeck,
+  onSyncNewSkill,
 }: EditorLineupProps) {
-  // Sync deck baru ke KV
-  const handleAddNewDeck = async (side: 'A' | 'B', idx: number, slot: 'deck1' | 'deck2', deckName: string) => {
-    onChange(side, idx, 'archetype', deckName, slot);
-    try {
-      const res = await fetch('/api/admin/match-report/sync-meta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deck: deckName }),
-      });
-      const data = await res.json();
-      if (data.success && data.cleanDeck) {
-        onChange(side, idx, 'archetype', data.cleanDeck, slot);
-        if (onAddNewDeck) onAddNewDeck(data.cleanDeck);
-      }
-    } catch (err) {
-      console.error('Gagal sync deck:', err);
+  // State Level 1: Pilih Tim yang sedang aktif (Tim A atau Tim B)
+  const [activeSide, setActiveSide] = useState<'teamA' | 'teamB'>('teamA');
+
+  // State Level 2: Index Duelist yang sedang aktif diedit (0-4)
+  const [selectedPlayerIdx, setSelectedPlayerIdx] = useState<number>(0);
+
+  // State Modal Tahap 1: Buka/Tutup Pemilihan 5 Roster
+  const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
+
+  const currentTeamName = activeSide === 'teamA' ? teamAName : teamBName;
+  const currentRoster = activeSide === 'teamA' ? rosterA : rosterB;
+  const currentLineup = activeSide === 'teamA' ? lineupA : lineupB;
+
+  // Pastikan index pemain tidak melebihi panjang lineup saat ini
+  const safeIdx = Math.min(selectedPlayerIdx, Math.max(0, currentLineup.length - 1));
+  const activeDuelist = currentLineup[safeIdx];
+
+  // Handler: Toggle Pemain di Tahap 1 (Centang/Hapus dari 5 duelist)
+  const handleTogglePlayer = (player: RosterOption) => {
+    const exists = currentLineup.some(
+      (p) => p.ign.toLowerCase() === player.ign.toLowerCase()
+    );
+
+    let updated: PlayerLineupItem[];
+    if (exists) {
+      updated = currentLineup.filter(
+        (p) => p.ign.toLowerCase() !== player.ign.toLowerCase()
+      );
+    } else {
+      if (currentLineup.length >= 5) return;
+      updated = [
+        ...currentLineup,
+        {
+          ign: player.ign,
+          idDuelLinks: player.idDuelLinks || '',
+          remainingLife: 2,
+          totalWins: 0,
+          totalLosses: 0,
+          deck1: { archetype: '', skill: '' },
+          deck2: { archetype: '', skill: '' },
+        },
+      ];
     }
+    onUpdateLineup(activeSide, updated);
   };
 
-  // Sync skill baru ke KV
-  const handleAddNewSkill = async (side: 'A' | 'B', idx: number, slot: 'deck1' | 'deck2', skillName: string) => {
-    onChange(side, idx, 'skill', skillName, slot);
-    try {
-      const res = await fetch('/api/admin/match-report/sync-meta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill: skillName }),
-      });
-      const data = await res.json();
-      if (data.success && data.cleanSkill) {
-        onChange(side, idx, 'skill', data.cleanSkill, slot);
-        if (onAddNewSkill) {
-          onAddNewSkill({
-            name: data.cleanSkill,
-            code: data.generatedCode,
-            label: data.generatedCode ? `${data.cleanSkill} [${data.generatedCode}]` : data.cleanSkill,
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Gagal sync skill:', err);
-    }
+  // Handler: Update Archetype atau Skill untuk Duelist aktif di Tahap 2
+  const handleDeckChange = (
+    field: 'archetype' | 'skill',
+    val: string,
+    slot: 'deck1' | 'deck2'
+  ) => {
+    if (!activeDuelist) return;
+    const updated = [...currentLineup];
+    const targetPlayer = { ...updated[safeIdx] };
+
+    targetPlayer[slot] = {
+      ...targetPlayer[slot],
+      [field]: val,
+    };
+
+    updated[safeIdx] = targetPlayer;
+    onUpdateLineup(activeSide, updated);
   };
 
-  // Cek duplikasi archetype tim (Max 5)
-  const checkDuplicates = (lineup: PlayerLineupItem[]) => {
-    const counts: Record<string, number> = {};
-    for (const p of lineup || []) {
-      const d1 = p.deck1?.archetype?.trim();
-      const d2 = p.deck2?.archetype?.trim();
-      if (d1 && d1 !== '-') {
-        for (const arch of extractArchetypesFromDeck(d1, masterArchetypes)) {
-          counts[arch] = (counts[arch] || 0) + 1;
-        }
-      }
-      if (d2 && d2 !== '-') {
-        for (const arch of extractArchetypesFromDeck(d2, masterArchetypes)) {
-          counts[arch] = (counts[arch] || 0) + 1;
-        }
-      }
-    }
-    const dupes = Object.entries(counts).filter(([_, count]) => count >= 2).sort((a, b) => b[1] - a[1]);
-    const total = dupes.reduce((acc, [_, count]) => acc + count, 0);
-    return { dupes, total, isExceeded: total > 5 };
+  // Handler: Tambah Deck Baru ke Database & langsung pasang ke duelist
+  const handleAddNewDeck = async (newVal: string, slot: 'deck1' | 'deck2') => {
+    handleDeckChange('archetype', newVal, slot);
+    if (onSyncNewDeck) await onSyncNewDeck(newVal);
   };
 
-  const dupA = checkDuplicates(teamALineup);
-  const dupB = checkDuplicates(teamBLineup);
-
-  const deckOptions = useMemo(() => masterDecks.map((d) => ({ label: d, val: d })), [masterDecks]);
-  const skillOptions = useMemo(
-    () => masterSkills.map((s) => ({ label: s.label, val: s.name, sub: s.code })),
-    [masterSkills]
-  );
-
-  const slotsA = teamALineup.length === 5 ? teamALineup : Array.from({ length: 5 }, (_, i) => teamALineup[i] || {
-    ign: '', idDuelLinks: '', remainingLife: 2, totalWins: 0, totalLosses: 0,
-    deck1: { archetype: '', skill: '' }, deck2: { archetype: '', skill: '' }
-  });
-
-  const slotsB = teamBLineup.length === 5 ? teamBLineup : Array.from({ length: 5 }, (_, i) => teamBLineup[i] || {
-    ign: '', idDuelLinks: '', remainingLife: 2, totalWins: 0, totalLosses: 0,
-    deck1: { archetype: '', skill: '' }, deck2: { archetype: '', skill: '' }
-  });
-
-  const renderSide = (
-    side: 'A' | 'B',
-    title: string,
-    list: PlayerLineupItem[],
-    roster: RosterOption[],
-    color: string,
-    dupInfo: ReturnType<typeof checkDuplicates>
-  ) => (
-    <div className="rounded-2xl border border-border bg-card p-3.5 space-y-3 shadow-xs">
-      <div className={`text-xs font-black uppercase tracking-wider ${color} border-b border-border/60 pb-2 flex justify-between items-center`}>
-        <span>{title} (5 Duelist)</span>
-        <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground">
-          <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Aktif</span>
-          <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Out</span>
-        </div>
-      </div>
-
-      {dupInfo.dupes.length > 0 && (
-        <div className={`p-2.5 rounded-xl border text-[11px] space-y-1 ${
-          dupInfo.isExceeded ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-        }`}>
-          <div className="font-black flex justify-between items-center">
-            <span>📑 Duplikasi Archetype ({dupInfo.total} / 5)</span>
-            {dupInfo.isExceeded && <span className="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded font-black">LEWAT BATAS</span>}
-          </div>
-          <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {dupInfo.dupes.map(([arch, cnt]) => (
-              <span key={arch} className="px-2 py-0.5 rounded-md bg-black/40 text-[10px] font-mono border border-white/10">
-                {arch}: <b>{cnt}</b>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {list.map((p, idx) => (
-          <div key={idx} className="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-2.5">
-            <div className="flex gap-2 items-center">
-              <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-[11px] font-black flex items-center justify-center shrink-0">
-                {idx + 1}
-              </span>
-
-              <PlayerSelectDropdown
-                value={p.ign || ''}
-                roster={roster}
-                onSelect={(ign) => onSelectRoster(side, idx, ign)}
-              />
-
-              <input
-                type="text"
-                placeholder="ID Duel Links"
-                value={p.idDuelLinks || ''}
-                readOnly
-                className="w-28 bg-muted/40 border border-border rounded-xl px-2.5 py-2 text-[11px] font-mono text-muted-foreground focus:outline-none shrink-0 cursor-not-allowed text-center"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-[10px]">
-              {(['deck1', 'deck2'] as const).map((dSlot, dIdx) => (
-                <div key={dSlot} className="space-y-1.5 bg-background/60 p-2 rounded-xl border border-border/40">
-                  <span className="font-black text-muted-foreground uppercase text-[9px] tracking-wider">
-                    Deck {dIdx + 1}
-                  </span>
-
-                  <MetaAutocompleteDropdown
-                    value={p[dSlot]?.archetype || ''}
-                    placeholder="Archetype..."
-                    options={deckOptions}
-                    onSelect={(val) => onChange(side, idx, 'archetype', val, dSlot)}
-                    onAddNew={(val) => handleAddNewDeck(side, idx, dSlot, val)}
-                  />
-
-                  <MetaAutocompleteDropdown
-                    value={p[dSlot]?.skill || ''}
-                    placeholder="Skill..."
-                    options={skillOptions}
-                    onSelect={(val) => onChange(side, idx, 'skill', val, dSlot)}
-                    onAddNew={(val) => handleAddNewSkill(side, idx, dSlot, val)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  // Handler: Tambah Skill Baru ke Database & langsung pasang ke duelist
+  const handleAddNewSkill = async (newVal: string, slot: 'deck1' | 'deck2') => {
+    handleDeckChange('skill', newVal, slot);
+    if (onSyncNewSkill) await onSyncNewSkill(newVal);
+  };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      {renderSide('A', teamAName, slotsA, rosterA, 'text-primary', dupA)}
-      {renderSide('B', teamBName, slotsB, rosterB, 'text-rose-500', dupB)}
+    <div className="space-y-4">
+      {/* ========================================================================= */}
+      {/* LEVEL 1: PILIH TIM (Tim A vs Tim B) & TOMBOL KELOLA ROSTER */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 border border-border p-3 rounded-2xl">
+        {/* Toggle Tim A / Tim B */}
+        <div className="flex items-center gap-2 bg-background p-1 rounded-xl border border-border">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSide('teamA');
+              setSelectedPlayerIdx(0);
+            }}
+            className={`px-4 py-2 rounded-lg text-xs font-black transition ${
+              activeSide === 'teamA'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {teamAName} ({lineupA.length}/5)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSide('teamB');
+              setSelectedPlayerIdx(0);
+            }}
+            className={`px-4 py-2 rounded-lg text-xs font-black transition ${
+              activeSide === 'teamB'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {teamBName} ({lineupB.length}/5)
+          </button>
+        </div>
+
+        {/* Tombol Buka Modal Tahap 1 */}
+        <button
+          type="button"
+          onClick={() => setIsRosterModalOpen(!isRosterModalOpen)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-background hover:bg-muted text-foreground transition"
+        >
+          <span>👥</span>
+          <span>{isRosterModalOpen ? 'Tutup Pilihan Roster' : 'Kelola 5 Duelist'}</span>
+        </button>
+      </div>
+
+      {/* TAHAP 1: MODAL/DRAWER MULTI-CHOICE CENTANG 5 PEMAIN */}
+      <RosterPickerModal
+        isOpen={isRosterModalOpen}
+        onClose={() => setIsRosterModalOpen(false)}
+        teamName={currentTeamName}
+        roster={currentRoster}
+        lineup={currentLineup}
+        onTogglePlayer={handleTogglePlayer}
+      />
+
+      {/* VALIDASI: BANNER KUOTA DUPLIKASI ARCHETYPE TIM (MAKS 5) */}
+      <ArchetypeQuotaBanner
+        lineup={currentLineup}
+        masterArchetypes={masterArchetypes}
+      />
+
+      {/* ========================================================================= */}
+      {/* LEVEL 2 & TAHAP 2: PILIH DUELIST & INPUT DECK 1 + DECK 2 */}
+      {/* ========================================================================= */}
+      {currentLineup.length === 0 ? (
+        <div className="p-8 text-center rounded-2xl border border-dashed border-border text-xs text-muted-foreground">
+          Belum ada duelist yang dipilih untuk <strong className="text-foreground">{currentTeamName}</strong>.
+          <br />
+          Klik tombol <strong>&quot;Kelola 5 Duelist&quot;</strong> di atas untuk menentukan 5 pemain terlebih dahulu.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* LEVEL 2: DROPDOWN / TAB DUELIST */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <span className="text-xs font-black uppercase tracking-wider text-muted-foreground shrink-0 pr-1">
+              Pilih Duelist:
+            </span>
+            {currentLineup.map((p, idx) => {
+              const isActive = idx === safeIdx;
+              const hasCompleteDecks = Boolean(
+                p.deck1?.archetype && p.deck2?.archetype
+              );
+
+              return (
+                <button
+                  key={`${p.ign}-${idx}`}
+                  type="button"
+                  onClick={() => setSelectedPlayerIdx(idx)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition border ${
+                    isActive
+                      ? 'bg-foreground text-background border-foreground shadow-xs'
+                      : 'bg-card border-border hover:border-primary/50 text-foreground'
+                  }`}
+                >
+                  <span className="opacity-70 text-[10px]">#{idx + 1}</span>
+                  <span>{p.ign}</span>
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      hasCompleteDecks ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* FORM DECK 1 & DECK 2 BERDAMPINGAN UNTUK DUELIST AKTIF */}
+          {activeDuelist && (
+            <DuelistDeckCard
+              playerIndex={safeIdx}
+              player={activeDuelist}
+              deckOptions={deckOptions}
+              skillOptions={skillOptions}
+              onChange={handleDeckChange}
+              onAddNewDeck={handleAddNewDeck}
+              onAddNewSkill={handleAddNewSkill}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
