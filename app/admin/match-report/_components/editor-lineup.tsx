@@ -17,6 +17,7 @@ export interface EditorLineupProps {
   rosterB?: RosterOption[];
   masterDecks?: string[];
   masterSkills?: Array<{ name: string; code?: string; label?: string }>;
+  games?: any[]; // Tambahan untuk deteksi proteksi riwayat duel
   onChange?: (
     side: 'A' | 'B',
     idx: number,
@@ -39,6 +40,7 @@ export function EditorLineup({
   rosterB = [],
   masterDecks = [],
   masterSkills = [],
+  games = [],
   onChange,
   onSelectRoster,
   onUpdateLineup,
@@ -79,7 +81,7 @@ export function EditorLineup({
     [masterSkills]
   );
 
-  // Normalisasi array fixed 5 slot murni tanpa circular JSON
+  // Normalisasi lineup: Auto-shift jika cuma 1 deck, jadikan deck2 null jika kosong
   const emitLineup = (validList: PlayerLineupItem[]) => {
     const active = validList
       .filter((p) => p && typeof p.ign === 'string' && p.ign.trim() !== '' && p.ign.trim() !== '-')
@@ -87,23 +89,42 @@ export function EditorLineup({
 
     const normalized5Slots: PlayerLineupItem[] = Array.from({ length: 5 }, (_, i) => {
       if (active[i]) {
-        const hasD1 = Boolean(active[i].deck1?.archetype?.trim());
-        const hasD2 = Boolean(active[i].deck2?.archetype?.trim());
+        const d1 = active[i].deck1;
+        const d2 = active[i].deck2;
+
+        const hasD1 = Boolean(d1?.archetype?.trim() && d1.archetype.trim() !== '-');
+        const hasD2 = Boolean(d2?.archetype?.trim() && d2.archetype.trim() !== '-');
+
+        let finalD1: any = { archetype: '', skill: '' };
+        let finalD2: any = { archetype: '', skill: '' };
+        let life = 2;
+
+        if (hasD1 && hasD2) {
+          finalD1 = { archetype: d1!.archetype.trim(), skill: d1!.skill?.trim() || '' };
+          finalD2 = { archetype: d2!.archetype.trim(), skill: d2!.skill?.trim() || '' };
+          life = 2;
+        } else if (!hasD1 && hasD2) {
+          // Hanya isi di Deck 2 -> Auto-shift ke Deck 1, Deck 2 dikosongkan
+          finalD1 = { archetype: d2!.archetype.trim(), skill: d2!.skill?.trim() || '' };
+          finalD2 = { archetype: '', skill: '' };
+          life = 1;
+        } else if (hasD1 && !hasD2) {
+          // Hanya isi di Deck 1 -> Deck 2 dikosongkan
+          finalD1 = { archetype: d1!.archetype.trim(), skill: d1!.skill?.trim() || '' };
+          finalD2 = { archetype: '', skill: '' };
+          life = 1;
+        } else {
+          life = Number(active[i].remainingLife ?? 0);
+        }
 
         return {
           ign: String(active[i].ign || ''),
           idDuelLinks: String(active[i].idDuelLinks || ''),
-          remainingLife: Number(active[i].remainingLife ?? 2),
+          remainingLife: life,
           totalWins: Number(active[i].totalWins ?? 0),
           totalLosses: Number(active[i].totalLosses ?? 0),
-          deck1: {
-            archetype: String(active[i].deck1?.archetype || ''),
-            skill: hasD1 ? String(active[i].deck1?.skill || '') : '',
-          },
-          deck2: {
-            archetype: String(active[i].deck2?.archetype || ''),
-            skill: hasD2 ? String(active[i].deck2?.skill || '') : '',
-          },
+          deck1: finalD1,
+          deck2: finalD2,
         };
       }
       return {
@@ -140,6 +161,18 @@ export function EditorLineup({
     let nextValidList: PlayerLineupItem[];
 
     if (existsIdx !== -1) {
+      // PROTEKSI: Cek apakah pemain sudah memiliki riwayat duel sebelum dihapus
+      const isLocked = (games || []).some((g: any) => {
+        const duelPlayer = activeSide === 'A' ? g.playerA : g.playerB;
+        const duelIgn = typeof duelPlayer === 'object' ? duelPlayer?.ign : duelPlayer;
+        return String(duelIgn || '').trim().toLowerCase() === cleanPlayerIgn;
+      });
+
+      if (isLocked) {
+        alert(`❌ Penghapusan Ditolak! Duelist ${player.ign} sudah bertanding pada match ini.`);
+        return;
+      }
+
       nextValidList = currentValid.filter((_, i) => i !== existsIdx);
       if (selectedPlayerIdx >= nextValidList.length) {
         setSelectedPlayerIdx(Math.max(0, nextValidList.length - 1));
@@ -173,7 +206,10 @@ export function EditorLineup({
         let newArchetype = field === 'archetype' ? val : currentSlot.archetype;
         let newSkill = field === 'skill' ? val : currentSlot.skill;
 
-        if (!newArchetype?.trim()) newSkill = '';
+        // Reset skill jika archetype dikosongkan
+        if (!newArchetype?.trim() || newArchetype.trim() === '-') {
+          newSkill = '';
+        }
 
         return {
           ...p,
@@ -203,7 +239,7 @@ export function EditorLineup({
           >
             <span className="truncate max-w-[120px] inline-block align-bottom">{teamAName}</span>{' '}
             <span className="font-mono text-[11px] opacity-80 font-bold">
-              {teamALineup.filter((p) => p?.ign?.trim()).length}/5
+              {teamALineup.filter((p) => p?.ign?.trim() && p?.ign?.trim() !== '-').length}/5
             </span>
           </button>
           <button
@@ -220,7 +256,7 @@ export function EditorLineup({
           >
             <span className="truncate max-w-[120px] inline-block align-bottom">{teamBName}</span>{' '}
             <span className="font-mono text-[11px] opacity-80 font-bold">
-              {teamBLineup.filter((p) => p?.ign?.trim()).length}/5
+              {teamBLineup.filter((p) => p?.ign?.trim() && p?.ign?.trim() !== '-').length}/5
             </span>
           </button>
         </div>
@@ -288,4 +324,4 @@ export function EditorLineup({
       )}
     </div>
   );
-          }
+    }
