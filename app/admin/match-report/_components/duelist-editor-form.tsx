@@ -98,24 +98,28 @@ export function DuelistEditorForm({
     return (
       <div className="p-8 text-center rounded-2xl border border-dashed border-border bg-card/40 space-y-1">
         <p className="text-xs font-bold text-foreground">Belum ada duelist yang dipilih</p>
-        <p className="text-[11px] text-muted-foreground">Klik tombol &ldquo;Pilih 5 Pemain&rdquo; di atas untuk memasukkan pemain ke dalam lineup.</p>
+        <p className="text-[11px] text-muted-foreground">Pilih pemain melalui menu di atas terlebih dahulu.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      {/* 2 Baris: 3 tombol di atas (span 2), 2 tombol di bawah (span 3) */}
+      <div className="grid grid-cols-6 gap-2">
         {activePlayers.map((p, idx) => {
           const status = getTabStatus(p);
           const isSelected = activeTab === idx;
+          const colClass = activePlayers.length <= 3 
+            ? 'col-span-2' 
+            : idx < 3 ? 'col-span-2' : 'col-span-3';
 
           return (
             <button
               key={p.ign}
               type="button"
               onClick={() => setActiveTab(idx)}
-              className={`flex-1 min-w-[120px] flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
+              className={`${colClass} flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
                 isSelected ? 'border-primary bg-primary/10 text-primary shadow-2xs' : 'border-border bg-card/60 text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -125,7 +129,7 @@ export function DuelistEditorForm({
                 </span>
                 <span className="truncate">{p.ign}</span>
               </div>
-              <span className={`w-2 h-2 rounded-full shrink-0 ml-2 ${
+              <span className={`w-2 h-2 rounded-full shrink-0 ml-1.5 ${
                 status === 'complete' ? 'bg-emerald-500' : status === 'partial' ? 'bg-amber-500' : 'bg-rose-500'
               }`} />
             </button>
@@ -153,4 +157,4 @@ export function DuelistEditorForm({
       )}
     </div>
   );
-}
+            }
