@@ -25,10 +25,23 @@ export default function AdminInteractiveMatchReport() {
   useEffect(() => {
     Promise.all([
       fetch('/api/admin/match-report').then((r) => r.json()),
-      fetch('/api/tournament/teams').then((r) => r.json()).catch(() => ({ teams: [] })),
+      fetch('/api/tournament/teams').then((r) => r.json()).catch(() => null),
     ]).then(([schedRes, teamRes]) => {
-      if (schedRes.schedules) setSchedules(schedRes.schedules);
-      if (teamRes.teams) setTeams(teamRes.teams);
+      const schedList = schedRes?.schedules || [];
+      if (schedList.length > 0) setSchedules(schedList);
+
+      const apiTeams = Array.isArray(teamRes) ? teamRes : teamRes?.teams || teamRes?.data || [];
+      if (apiTeams.length > 0) {
+        setTeams(apiTeams);
+      } else if (schedList.length > 0) {
+        // Fallback: Ekstrak list tim langsung dari schedules jika API teams kosong
+        const map = new Map<string, any>();
+        schedList.forEach((s: any) => {
+          if (s.teamAName && !map.has(s.teamAName)) map.set(s.teamAName, { name: s.teamAName, slug: s.teamASlug, groupName: s.groupName, logo: s.teamALogo });
+          if (s.teamBName && !map.has(s.teamBName)) map.set(s.teamBName, { name: s.teamBName, slug: s.teamBSlug, groupName: s.groupName, logo: s.teamBLogo });
+        });
+        setTeams(Array.from(map.values()));
+      }
     });
   }, []);
 
@@ -55,15 +68,6 @@ export default function AdminInteractiveMatchReport() {
       return { day: '-', date: raw, time: '-' };
     }
   }, [activeMatch?.matchDate]);
-
-  const resolvedMatchNumber = useMemo(() => {
-    if (activeMatch?.matchNumber) return activeMatch.matchNumber;
-    if (selectedMatchId) {
-      const extracted = selectedMatchId.replace(/\D/g, '');
-      if (extracted) return extracted;
-    }
-    return 1;
-  }, [activeMatch?.matchNumber, selectedMatchId]);
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
@@ -109,9 +113,9 @@ export default function AdminInteractiveMatchReport() {
                 teamALogo={activeMatch?.teamALogo}
                 teamBLogo={activeMatch?.teamBLogo}
                 metadata={{
-                  matchNumber: resolvedMatchNumber,
-                  division: activeMatch?.groupName,
                   week: activeMatch?.weekNumber || selectedWeek,
+                  matchNumber: activeMatch?.id?.replace(/\D/g, '') || 1,
+                  division: activeMatch?.groupName,
                   day: scheduleDateInfo.day,
                   date: scheduleDateInfo.date,
                   time: scheduleDateInfo.time,
@@ -140,7 +144,7 @@ export default function AdminInteractiveMatchReport() {
                   masterDecks={report.masterDecks}
                   masterSkills={report.masterSkills}
                   masterArchetypes={report.masterArchetypes}
-                  onChangeLineup={(side, list) => (side === 'A' ? report.setTeamALineup(list) : report.setTeamBLineup(list))}
+                  onChangeLineup={(side, list) => side === 'A' ? report.setTeamALineup(list) : report.setTeamBLineup(list)}
                   onRefreshMeta={() => report.fetchMeta(activeMatch?.teamAName, activeMatch?.teamBName)}
                 />
               )}
@@ -149,12 +153,8 @@ export default function AdminInteractiveMatchReport() {
                 <EditorRunner
                   teamAName={activeMatch?.teamAName}
                   teamBName={activeMatch?.teamBName}
-                  teamALogo={activeMatch?.teamALogo}
-                  teamBLogo={activeMatch?.teamBLogo}
                   teamALineup={report.teamALineup}
                   teamBLineup={report.teamBLineup}
-                  repeatsA={report.repeatsA}
-                  repeatsB={report.repeatsB}
                   games={report.games}
                   scoreA={report.scoreA}
                   scoreB={report.scoreB}
@@ -183,4 +183,4 @@ export default function AdminInteractiveMatchReport() {
       </div>
     </main>
   );
-}
+                                          }
