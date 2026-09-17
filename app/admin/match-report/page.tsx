@@ -34,7 +34,6 @@ export default function AdminInteractiveMatchReport() {
       if (apiTeams.length > 0) {
         setTeams(apiTeams);
       } else if (schedList.length > 0) {
-        // Fallback: Ekstrak list tim langsung dari schedules jika API teams kosong
         const map = new Map<string, any>();
         schedList.forEach((s: any) => {
           if (s.teamAName && !map.has(s.teamAName)) map.set(s.teamAName, { name: s.teamAName, slug: s.teamASlug, groupName: s.groupName, logo: s.teamALogo });
@@ -68,6 +67,35 @@ export default function AdminInteractiveMatchReport() {
       return { day: '-', date: raw, time: '-' };
     }
   }, [activeMatch?.matchDate]);
+
+  // Memetakan nama skill panjang ke kode singkatan (skillAbbr) agar identik dengan halaman Analytics
+  const previewGames = useMemo(() => {
+    return report.games.map((g: any) => {
+      const findAbbr = (rawSkill: string) => {
+        if (!rawSkill) return '-';
+        const target = rawSkill.trim().toLowerCase();
+        const matched = report.masterSkills.find(
+          (s) =>
+            s.name?.trim().toLowerCase() === target ||
+            s.label?.trim().toLowerCase() === target ||
+            s.code?.trim().toLowerCase() === target
+        );
+        return matched?.code || rawSkill;
+      };
+
+      return {
+        ...g,
+        playerA: {
+          ...g.playerA,
+          skillAbbr: findAbbr(g.playerA?.skill),
+        },
+        playerB: {
+          ...g.playerB,
+          skillAbbr: findAbbr(g.playerB?.skill),
+        },
+      };
+    });
+  }, [report.games, report.masterSkills]);
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
@@ -172,7 +200,11 @@ export default function AdminInteractiveMatchReport() {
                     isFinished={report.scoreA >= 10 || report.scoreB >= 10}
                     isMatchStarted={true}
                   />
-                  <ReportLogs games={report.games} isFinished={report.scoreA >= 10 || report.scoreB >= 10} isMatchStarted={true} />
+                  <ReportLogs
+                    games={previewGames}
+                    isFinished={report.scoreA >= 10 || report.scoreB >= 10}
+                    isMatchStarted={true}
+                  />
                 </div>
               )}
             </div>
@@ -183,4 +215,4 @@ export default function AdminInteractiveMatchReport() {
       </div>
     </main>
   );
-                                          }
+}
