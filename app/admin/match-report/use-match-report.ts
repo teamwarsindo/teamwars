@@ -73,8 +73,6 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
 
     let repA = 0;
     let repB = 0;
-
-    // Reset hitungan warning setiap kali terjadi Deckloss akibat warning
     let activeWarnsA = 0;
     let activeWarnsB = 0;
 
@@ -86,14 +84,12 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       if (g.playerA.isRepeat) repA++;
       if (g.playerB.isRepeat) repB++;
 
-      // Hitung warn dari SS Hand
       if (g.ssHandA === false) activeWarnsA++;
       if (g.ssHandB === false) activeWarnsB++;
 
-      // Jika game merupakan eksekusi deckloss penalti, reset warn tim yang dihukum
       if ((g as any).isDeckloss || (g as any).lossCondition === 'PENALTY_2') {
-        if (!isAWin) activeWarnsA = 0; // Tim A kena penalti deckloss
-        else activeWarnsB = 0;         // Tim B kena penalti deckloss
+        if (!isAWin) activeWarnsA = 0;
+        else activeWarnsB = 0;
       }
 
       if (pA) {
@@ -179,11 +175,26 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const dA = d.deckAType === 'deck1' ? pA.deck1 : pA.deck2;
     const dB = d.deckBType === 'deck1' ? pB.deck1 : pB.deck2;
 
+    const skillCodeA = masterSkills.find((s) => s.name === dA.skill || s.label === dA.skill)?.code || dA.skill;
+    const skillCodeB = masterSkills.find((s) => s.name === dB.skill || s.label === dB.skill)?.code || dB.skill;
+
     const newGame: GameEntry = {
       gameNumber: games.length + 1,
       winner: d.winner,
-      playerA: { ign: pA.ign, idDuelLinks: pA.idDuelLinks, archetype: dA.archetype, skill: dA.skill, isRepeat: d.isRepeatA },
-      playerB: { ign: pB.ign, idDuelLinks: pB.idDuelLinks, archetype: dB.archetype, skill: dB.skill, isRepeat: d.isRepeatB },
+      playerA: {
+        ign: pA.ign,
+        idDuelLinks: pA.idDuelLinks,
+        archetype: dA.archetype,
+        skill: skillCodeA,
+        isRepeat: d.isRepeatA,
+      },
+      playerB: {
+        ign: pB.ign,
+        idDuelLinks: pB.idDuelLinks,
+        archetype: dB.archetype,
+        skill: skillCodeB,
+        isRepeat: d.isRepeatB,
+      },
       notes: d.notes,
       timestamp: new Date().toISOString(),
       ...(d.isDeckloss ? { isDeckloss: true } : {}),
@@ -268,4 +279,5 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleRollbackGame,
     handleSaveToDatabase,
   };
-          }
+         }
+                                         
