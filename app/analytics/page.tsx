@@ -33,17 +33,26 @@ export default async function AnalyticsLandingPage() {
 
   const scheduleList = rawSchedules
     .filter((m: any) => Number(m.weekNumber || 1) <= maxActiveWeek)
-    .map((m: any) => ({
-      id: m.id,
-      weekNumber: Number(m.weekNumber || 1),
-      groupName: m.groupName || "",
-      teamAName: m.teamAName || "",
-      teamBName: m.teamBName || "",
-      teamALogo: m.teamALogo || "",
-      teamBLogo: m.teamBLogo || "",
-      matchDate: m.matchDate || "",
-      isFinished: Boolean(m.isFinished),
-    }));
+    .map((m: any) => {
+      const rep = rawReportsHash[m.id] || {};
+      const scoreA = rep.teamA?.score ?? m.scoreA ?? m.teamAScore ?? 0;
+      const scoreB = rep.teamB?.score ?? m.scoreB ?? m.teamBScore ?? 0;
+      const isFinished = Boolean(m.isFinished || rep.isFinished || scoreA >= 10 || scoreB >= 10);
+
+      return {
+        id: m.id,
+        weekNumber: Number(m.weekNumber || 1),
+        groupName: m.groupName || "",
+        teamAName: m.teamAName || "",
+        teamBName: m.teamBName || "",
+        teamALogo: m.teamALogo || "",
+        teamBLogo: m.teamBLogo || "",
+        matchDate: m.matchDate || "",
+        scoreA,
+        scoreB,
+        isFinished,
+      };
+    });
 
   // AMBIL SEMUA MATCH (Selesai maupun yang sedang berjalan yang sudah memiliki log report/games)
   const activeMatches = rawSchedules.filter((m: any) => {
@@ -66,6 +75,8 @@ export default async function AnalyticsLandingPage() {
   // Parse reports dari match yang aktif (finished + ongoing)
   const reports: RawMatchReport[] = activeMatches.map((m: any) => {
     const rep = rawReportsHash[m.id] || {};
+    const scoreA = rep.teamA?.score ?? m.scoreA ?? m.teamAScore ?? 0;
+    const scoreB = rep.teamB?.score ?? m.scoreB ?? m.teamBScore ?? 0;
 
     return {
       id: m.id,
@@ -74,7 +85,7 @@ export default async function AnalyticsLandingPage() {
       teamA: {
         name: rep.teamA?.name || m.teamAName || "",
         slug: rep.teamA?.slug || m.teamASlug || m.teamAName?.toLowerCase().replace(/\s+/g, "-"),
-        score: rep.teamA?.score ?? m.teamAScore ?? 0,
+        score: scoreA,
         logo: m.teamALogo || rep.teamA?.logo || "",
         groupName: m.groupName || "",
         lineup: rep.teamA?.lineup || [],
@@ -82,13 +93,13 @@ export default async function AnalyticsLandingPage() {
       teamB: {
         name: rep.teamB?.name || m.teamBName || "",
         slug: rep.teamB?.slug || m.teamBSlug || m.teamBName?.toLowerCase().replace(/\s+/g, "-"),
-        score: rep.teamB?.score ?? m.teamBScore ?? 0,
+        score: scoreB,
         logo: m.teamBLogo || rep.teamB?.logo || "",
         groupName: m.groupName || "",
         lineup: rep.teamB?.lineup || [],
       },
       games: rep.games || [],
-      isFinished: Boolean(m.isFinished),
+      isFinished: Boolean(m.isFinished || rep.isFinished || scoreA >= 10 || scoreB >= 10),
     };
   });
 
@@ -129,4 +140,5 @@ export default async function AnalyticsLandingPage() {
       </div>
     </main>
   );
-}
+        }
+      
