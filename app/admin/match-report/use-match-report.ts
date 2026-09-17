@@ -53,7 +53,7 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
   }, []);
 
   const recalculateFromGames = useCallback((currentGames: GameEntry[], baseLineupA: PlayerLineupItem[], baseLineupB: PlayerLineupItem[]) => {
-    const freshA = baseLineupA.map(p => ({
+    const freshA = baseLineupA.map((p) => ({
       ...p,
       remainingLife: 2,
       totalWins: 0,
@@ -62,7 +62,7 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
     }));
 
-    const freshB = baseLineupB.map(p => ({
+    const freshB = baseLineupB.map((p) => ({
       ...p,
       remainingLife: 2,
       totalWins: 0,
@@ -75,8 +75,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     let repB = 0;
 
     for (const g of currentGames) {
-      const pA = freshA.find(p => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
-      const pB = freshB.find(p => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
+      const pA = freshA.find((p) => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
+      const pB = freshB.find((p) => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
       const isAWin = g.winner === 'teamA';
 
       if (g.playerA.isRepeat) repA++;
@@ -113,8 +113,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     setTeamBLineup(freshB);
     setRepeatsA(repA);
     setRepeatsB(repB);
-    setScoreA(currentGames.filter(g => g.winner === 'teamA').length);
-    setScoreB(currentGames.filter(g => g.winner === 'teamB').length);
+    setScoreA(currentGames.filter((g) => g.winner === 'teamA').length);
+    setScoreB(currentGames.filter((g) => g.winner === 'teamB').length);
   }, []);
 
   useEffect(() => {
@@ -165,21 +165,15 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const dA = d.deckAType === 'deck1' ? pA.deck1 : pA.deck2;
     const dB = d.deckBType === 'deck1' ? pB.deck1 : pB.deck2;
 
-    const isDecklossA = d.isDeckloss && d.winner === 'teamB';
-    const isDecklossB = d.isDeckloss && d.winner === 'teamA';
-
     const newGame: GameEntry = {
       gameNumber: games.length + 1,
       winner: d.winner,
-      isDeckloss: Boolean(d.isDeckloss),
       playerA: {
         ign: pA.ign,
         idDuelLinks: pA.idDuelLinks,
         archetype: dA.archetype,
         skill: dA.skill,
         isRepeat: d.isRepeatA,
-        isDeckloss: isDecklossA,
-        isTechnicalLoss: isDecklossA,
       },
       playerB: {
         ign: pB.ign,
@@ -187,8 +181,6 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
         archetype: dB.archetype,
         skill: dB.skill,
         isRepeat: d.isRepeatB,
-        isDeckloss: isDecklossB,
-        isTechnicalLoss: isDecklossB,
       },
       notes: d.notes,
       timestamp: new Date().toISOString(),
@@ -271,4 +263,4 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleRollbackGame,
     handleSaveToDatabase,
   };
-}
+        }
