@@ -41,7 +41,7 @@ export function RunnerOutcomeForm({
 }: RunnerOutcomeFormProps) {
   return (
     <div className="space-y-4">
-      {/* Status Pertandingan & SS Hand */}
+      {/* Status Pertandingan & Validasi SS Hand */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-muted-foreground block">Status Pertandingan:</label>
@@ -52,7 +52,7 @@ export function RunnerOutcomeForm({
               onClick={() => onGameStatusChange('normal')}
               className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition ${
                 gameStatus === 'normal'
-                  ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                   : 'border-border bg-background text-muted-foreground'
               } ${isPenaltyLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
             >
@@ -80,7 +80,7 @@ export function RunnerOutcomeForm({
                 type="checkbox"
                 checked={ssHandA}
                 onChange={(e) => onSsHandAChange(e.target.checked)}
-                className="w-4 h-4 rounded border-border text-primary cursor-pointer"
+                className="w-4 h-4 rounded border-border text-blue-600 cursor-pointer"
               />
               <span>SS {teamAName} {!ssHandA && <b className="text-rose-500">(Lupa)</b>}</span>
             </label>
@@ -89,7 +89,7 @@ export function RunnerOutcomeForm({
                 type="checkbox"
                 checked={ssHandB}
                 onChange={(e) => onSsHandBChange(e.target.checked)}
-                className="w-4 h-4 rounded border-border text-primary cursor-pointer"
+                className="w-4 h-4 rounded border-border text-blue-600 cursor-pointer"
               />
               <span>SS {teamBName} {!ssHandB && <b className="text-rose-500">(Lupa)</b>}</span>
             </label>
@@ -104,7 +104,7 @@ export function RunnerOutcomeForm({
         </div>
       </div>
 
-      {/* Pemenang Ronde & Tombol Submit */}
+      {/* Pemenang Ronde: Keduanya Menggunakan Biru */}
       <div className="pt-2 space-y-2 border-t border-border/70">
         <label className="text-xs font-semibold text-muted-foreground block">Pemenang Ronde Ini:</label>
         <div className="grid grid-cols-2 gap-2">
@@ -126,7 +126,7 @@ export function RunnerOutcomeForm({
             onClick={() => onWinnerChange('teamB')}
             className={`py-2.5 px-3 rounded-xl border text-xs font-black transition cursor-pointer text-center whitespace-normal leading-snug ${
               winner === 'teamB'
-                ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                 : 'bg-card border-border hover:bg-muted text-foreground disabled:opacity-50'
             }`}
           >
