@@ -30,7 +30,7 @@ interface AnalyticsFilterProps {
   onTeamChange: (team: string) => void;
   teams: FilterTeamItem[];
   selectedWeek: number | "";
-  onWeekChange: (week: number | "") => void;
+  onWeekChange: (week: number) => void;
   availableWeeks: number[];
   maxActiveWeek?: number;
   selectedMatchId?: string;
@@ -69,13 +69,11 @@ export function AnalyticsFilter({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter tim di dropdown berdasarkan divisi aktif
   const filteredTeams = useMemo(() => {
     if (selectedGroup === "ALL") return teams;
     return teams.filter((t) => !t.groupName || t.groupName === selectedGroup);
   }, [teams, selectedGroup]);
 
-  // Handler memilih tim: HANYA ubah tim terpilih, JANGAN auto-select divisi
   const handleSelectTeam = (teamName: string) => {
     if (!teamName || teamName === "ALL") {
       onTeamChange("");
@@ -85,7 +83,6 @@ export function AnalyticsFilter({
     setOpenDropdown(null);
   };
 
-  // Handler toggle divisi
   const handleToggleGroup = (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
     if (selectedGroup === group) {
       onGroupChange("ALL");
@@ -125,7 +122,7 @@ export function AnalyticsFilter({
 
   return (
     <div ref={containerRef} className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2.5">
-      {/* ── BARIS 1: TOGGLE DUA DIVISI ── */}
+      {/* BARIS 1: TOGGLE DUA DIVISI */}
       <div className="grid grid-cols-2 gap-2 w-full">
         <button
           type="button"
@@ -152,7 +149,7 @@ export function AnalyticsFilter({
         </button>
       </div>
 
-      {/* ── BARIS 2: TIM & WEEK + RESET ── */}
+      {/* BARIS 2: TIM & WEEK + RESET */}
       <div className="grid grid-cols-2 gap-2 items-center">
         {/* Dropdown Tim */}
         <div className="relative">
@@ -237,7 +234,7 @@ export function AnalyticsFilter({
               className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
             >
               <span className="truncate">
-                {selectedWeek !== "" ? `Week ${selectedWeek}` : "-- Semua Week --"}
+                {selectedWeek ? `Week ${selectedWeek}` : (availableWeeks[0] ? `Week ${availableWeeks[0]}` : "Pilih Week")}
               </span>
               <span className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${openDropdown === "week" ? "rotate-180" : ""}`}>
                 ▼
@@ -246,20 +243,6 @@ export function AnalyticsFilter({
 
             {openDropdown === "week" && (
               <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl space-y-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onWeekChange("");
-                    setOpenDropdown(null);
-                  }}
-                  className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
-                    selectedWeek === "" ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
-                  }`}
-                >
-                  <span>-- Semua Week --</span>
-                  {selectedWeek === "" && <span>✓</span>}
-                </button>
-
                 {availableWeeks.map((w) => (
                   <button
                     key={w}
@@ -296,7 +279,7 @@ export function AnalyticsFilter({
         </div>
       </div>
 
-      {/* ── BARIS 3: MATCH SPESIFIK (HANYA TAB MATCH REPORTS) ── */}
+      {/* BARIS 3: MATCH SPESIFIK */}
       {mode === "reports" && onMatchChange && (
         <div className="relative w-full">
           <button
@@ -310,11 +293,6 @@ export function AnalyticsFilter({
             <span className="truncate flex items-center gap-1.5">
               {activeMatch ? (
                 <>
-                  {selectedWeek === "" && (
-                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-primary/10 text-primary border border-primary/20 shrink-0">
-                      W{activeMatch.weekNumber}
-                    </span>
-                  )}
                   <span className="truncate">
                     {activeMatch.teamAName} vs {activeMatch.teamBName}
                   </span>
@@ -348,11 +326,6 @@ export function AnalyticsFilter({
                     }`}
                   >
                     <div className="flex items-center gap-1.5 truncate pr-2">
-                      {selectedWeek === "" && (
-                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-primary/10 text-primary border border-primary/20 shrink-0">
-                          W{m.weekNumber}
-                        </span>
-                      )}
                       <span className="truncate">
                         <span className="font-medium text-foreground">{m.teamAName}</span>
                         <span className="text-muted-foreground text-[10px] mx-1">vs</span>
@@ -373,4 +346,4 @@ export function AnalyticsFilter({
       )}
     </div>
   );
-}
+                      }
