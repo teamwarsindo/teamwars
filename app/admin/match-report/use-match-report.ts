@@ -73,14 +73,19 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
 
     let repA = 0;
     let repB = 0;
+    let warnCountA = 0;
+    let warnCountB = 0;
 
     for (const g of currentGames) {
       const pA = freshA.find((p) => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
       const pB = freshB.find((p) => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
       const isAWin = g.winner === 'teamA';
 
-      if (g.playerA.isRepeat) repA++;
-      if (g.playerB.isRepeat) repB++;
+      if (g.playerA?.isRepeat) repA++;
+      if (g.playerB?.isRepeat) repB++;
+
+      if (g.ssHandA === false) warnCountA++;
+      if (g.ssHandB === false) warnCountB++;
 
       if (pA) {
         const dA = pA.deck1.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
@@ -113,6 +118,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     setTeamBLineup(freshB);
     setRepeatsA(repA);
     setRepeatsB(repB);
+    setWarnsA(warnCountA);
+    setWarnsB(warnCountB);
     setScoreA(currentGames.filter((g) => g.winner === 'teamA').length);
     setScoreB(currentGames.filter((g) => g.winner === 'teamB').length);
   }, []);
@@ -165,6 +172,9 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const dA = d.deckAType === 'deck1' ? pA.deck1 : pA.deck2;
     const dB = d.deckBType === 'deck1' ? pB.deck1 : pB.deck2;
 
+    const isDeckloss = Boolean(d.isDeckloss);
+    const decklossTeam = isDeckloss ? (d.winner === 'teamA' ? 'teamB' : 'teamA') : '';
+
     const newGame: GameEntry = {
       gameNumber: games.length + 1,
       winner: d.winner,
@@ -173,16 +183,20 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
         idDuelLinks: pA.idDuelLinks,
         archetype: dA.archetype,
         skill: dA.skill,
-        isRepeat: d.isRepeatA,
+        isRepeat: Boolean(d.isRepeatA),
       },
       playerB: {
         ign: pB.ign,
         idDuelLinks: pB.idDuelLinks,
         archetype: dB.archetype,
         skill: dB.skill,
-        isRepeat: d.isRepeatB,
+        isRepeat: Boolean(d.isRepeatB),
       },
-      notes: d.notes,
+      ssHandA: Boolean(d.ssHandA),
+      ssHandB: Boolean(d.ssHandB),
+      isDeckloss,
+      decklossTeam,
+      notes: d.notes || (isDeckloss ? `Sanksi Deckloss (${d.winner === 'teamA' ? activeMatch?.teamBName : activeMatch?.teamAName})` : ''),
       timestamp: new Date().toISOString(),
     };
 
@@ -263,4 +277,4 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleRollbackGame,
     handleSaveToDatabase,
   };
-        }
+  }
