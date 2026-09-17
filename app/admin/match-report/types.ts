@@ -34,10 +34,13 @@ export interface GameEntry {
     skill: string;
     isRepeat?: boolean;
   };
+  ssHandA?: boolean;
+  ssHandB?: boolean;
   isDeckloss?: boolean;
   decklossTeam?: '' | 'teamA' | 'teamB';
   notes?: string;
   timestamp: string;
+  snapshot?: any;
 }
 
 export interface RosterOption {
