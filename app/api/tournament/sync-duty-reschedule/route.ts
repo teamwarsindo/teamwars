@@ -5,6 +5,12 @@ import { sendOrUpdateDutyRescheduleSchedule, RescheduleDutyMatch } from '@/lib/d
 
 export const dynamic = 'force-dynamic';
 
+function isDutyEmpty(val?: string | null): boolean {
+  if (!val) return true;
+  const clean = val.trim();
+  return clean === '' || clean === '-' || clean.toLowerCase() === 'tbd';
+}
+
 async function handleDutySync(targetWeekStr?: string | null, isForce: boolean = false) {
   const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
   if (schedules.length === 0) {
@@ -12,23 +18,9 @@ async function handleDutySync(targetWeekStr?: string | null, isForce: boolean = 
   }
 
   const now = new Date();
-  const todayWibKey = getWibDateKey(now); // Contoh: "2026-09-15"
+  const todayWibKey = getWibDateKey(now); // Contoh: "2026-09-18"
 
-  // 1. Pengecekan apakah hari ini ada match (bisa di-bypass dengan ?force=true)
-  const hasMatchToday = schedules.some(
-    (m) => m.matchDate && getWibDateKey(new Date(m.matchDate)) === todayWibKey
-  );
-
-  if (!hasMatchToday && !isForce) {
-    return {
-      success: true,
-      skipped: true,
-      message: `Tidak ada jadwal pertandingan hari ini (${todayWibKey}). Eksekusi dilewati. Gunakan '?force=true' untuk tetap menjalankan.`,
-      status: 200,
-    };
-  }
-
-  // 2. Tentukan target week (jika tidak ada parameter, otomatis deteksi pekan aktif)
+  // 1. Tentukan target pekan aktif
   let targetWeekNumber: number;
   if (targetWeekStr) {
     targetWeekNumber = parseInt(targetWeekStr.replace(/\D/g, ''), 10) || 1;
@@ -48,22 +40,43 @@ async function handleDutySync(targetWeekStr?: string | null, isForce: boolean = 
 
   const weekLabel = `Week ${targetWeekNumber}`;
 
-  // 3. Ambil seluruh match pada week tersebut
-  const weekMatches = schedules.filter(
-    (m) => Number(m.weekNumber || getMatchWeekNumber(m.matchDate) || 1) === targetWeekNumber
-  );
+  // 2. Ambil match pekan ini yang BELUM LEWAT (hari ini sampai selesai week)
+  // Jadwal kemarin otomatis tereliminasi dari daftar
+  const activeWeekMatches = schedules.filter((m) => {
+    const isSameWeek = Number(m.weekNumber || getMatchWeekNumber(m.matchDate) || 1) === targetWeekNumber;
+    const isNotPast = m.matchDate && getWibDateKey(new Date(m.matchDate)) >= todayWibKey;
+    return isSameWeek && isNotPast;
+  });
 
-  if (weekMatches.length === 0) {
-    return {
-      success: false,
-      message: `Tidak ditemukan match untuk ${weekLabel}.`,
-      status: 200,
-    };
+  // 3. Pengecekan match khusus HARI INI
+  const todayMatches = schedules.filter(
+    (m) => m.matchDate && getWibDateKey(new Date(m.matchDate)) === todayWibKey
+  );
+  const hasMatchToday = todayMatches.length > 0;
+
+  // Logika Penentu Mode:
+  // - Jika hari ini tidak ada match: Mode PATCH untuk kedua channel (perbarui embed tanpa ping)
+  // - Jika hari ini ada match: Cek apakah petugasnya sudah terisi
+  let patchReferee = false;
+  let patchStreamer = false;
+
+  if (!hasMatchToday) {
+    // SYARAT 1: Hari ini tidak ada jadwal -> PATCH pesan agar jadwal kemarin terhapus
+    patchReferee = true;
+    patchStreamer = true;
+  } else {
+    // SYARAT 2: Hari ini ada match -> Cek kelengkapan masing-masing role
+    const isRefereeFilledToday = todayMatches.every((m) => !isDutyEmpty((m as any).referee));
+    const isStreamerFilledToday = todayMatches.every((m) => !isDutyEmpty((m as any).streamer));
+
+    // Sudah terisi -> PATCH. Belum terisi -> RE-POST (isPatch = false)
+    patchReferee = isForce ? false : isRefereeFilledToday;
+    patchStreamer = isForce ? false : isStreamerFilledToday;
   }
 
   // 4. Susun data match lengkap dengan emoji tim
   const dutyMatches: RescheduleDutyMatch[] = await Promise.all(
-    weekMatches.map(async (m) => {
+    activeWeekMatches.map(async (m) => {
       const slugA = getTeamSlug(m.teamAName);
       const slugB = getTeamSlug(m.teamBName);
 
@@ -115,37 +128,28 @@ async function handleDutySync(targetWeekStr?: string | null, isForce: boolean = 
     })
   );
 
-  // 5. Eksekusi sync ke CH_REFEREE & CH_STREAMER
+  // 5. Kirim atau perbarui pesan ke Discord
   await sendOrUpdateDutyRescheduleSchedule({
     weekName: weekLabel,
     matches: dutyMatches,
+    patchReferee,
+    patchStreamer,
   });
-
-  const rescheduledMatches = dutyMatches.filter((m) => Boolean(m.isRescheduled));
-  const emptyReferee = rescheduledMatches.filter(
-    (m) => !m.referee || m.referee.trim() === '' || m.referee === '-'
-  ).length;
-  const emptyStreamer = rescheduledMatches.filter(
-    (m) => !m.streamer || m.streamer.trim() === '' || m.streamer === '-'
-  ).length;
 
   return {
     success: true,
-    skipped: false,
-    forced: isForce && !hasMatchToday,
-    message: `Sinkronisasi duty reschedule untuk ${weekLabel} berhasil dijalankan!`,
     week: weekLabel,
     todayDate: todayWibKey,
     hasMatchToday,
-    totalMatchInWeek: weekMatches.length,
-    totalRescheduled: rescheduledMatches.length,
-    butuhWasit: emptyReferee,
-    butuhStreamer: emptyStreamer,
+    remainingMatchesInWeek: activeWeekMatches.length,
+    actions: {
+      refereeChannel: patchReferee ? 'PATCH (Edit Tanpa Ping)' : 'RE-POST (Delete & Ping Ulang)',
+      streamerChannel: patchStreamer ? 'PATCH (Edit Tanpa Ping)' : 'RE-POST (Delete & Ping Ulang)',
+    },
     status: 200,
   };
 }
 
-// 🌐 Method GET: Akses URL browser / Cron
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -160,7 +164,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// 🌐 Method POST: Webhook / Fetch API
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
