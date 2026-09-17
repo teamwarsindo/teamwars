@@ -1,25 +1,45 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { PlayerLineupItem } from '../types';
 
-interface EditorRunnerProps {
-  teamAName: string;
-  teamBName: string;
-  lineupA: PlayerLineupItem[];
-  lineupB: PlayerLineupItem[];
-  nextGameNumber: number;
+export interface EditorRunnerProps {
+  teamAName?: string;
+  teamBName?: string;
+  teamALogo?: string;
+  teamBLogo?: string;
+  teamALineup?: PlayerLineupItem[];
+  teamBLineup?: PlayerLineupItem[];
+  lineupA?: PlayerLineupItem[];
+  lineupB?: PlayerLineupItem[];
+  repeatsA?: number;
+  repeatsB?: number;
+  scoreA?: number;
+  scoreB?: number;
+  games?: any[];
+  nextGameNumber?: number;
   onAddGame: (gameData: any) => void;
+  onRollbackGame?: () => void;
 }
 
 export function EditorRunner({
-  teamAName,
-  teamBName,
-  lineupA = [],
-  lineupB = [],
+  teamAName = 'Team A',
+  teamBName = 'Team B',
+  teamALogo,
+  teamBLogo,
+  teamALineup,
+  teamBLineup,
+  lineupA,
+  lineupB,
+  games = [],
   nextGameNumber,
   onAddGame,
 }: EditorRunnerProps) {
+  const currentLineupA = teamALineup || lineupA || [];
+  const currentLineupB = teamBLineup || lineupB || [];
+  const currentGameNumber = nextGameNumber ?? (games.length + 1);
+
   const [selectedAIgn, setSelectedAIgn] = useState<string>('');
   const [deckAType, setDeckAType] = useState<'deck1' | 'deck2'>('deck1');
   const [isRepeatA, setIsRepeatA] = useState(false);
@@ -35,8 +55,8 @@ export function EditorRunner({
   const [notes, setNotes] = useState('');
   const [winner, setWinner] = useState<'teamA' | 'teamB' | null>(null);
 
-  const activeLineupA = lineupA.filter((p) => p.ign && p.ign.trim() !== '' && p.ign.trim() !== '-');
-  const activeLineupB = lineupB.filter((p) => p.ign && p.ign.trim() !== '' && p.ign.trim() !== '-');
+  const activeLineupA = currentLineupA.filter((p) => p.ign && p.ign.trim() !== '' && p.ign.trim() !== '-');
+  const activeLineupB = currentLineupB.filter((p) => p.ign && p.ign.trim() !== '' && p.ign.trim() !== '-');
 
   const playerA = activeLineupA.find((p) => p.ign === selectedAIgn) || activeLineupA[0];
   const playerB = activeLineupB.find((p) => p.ign === selectedBIgn) || activeLineupB[0];
@@ -76,7 +96,7 @@ export function EditorRunner({
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <h3 className="text-xs font-black uppercase tracking-wider text-foreground">
-            INPUT GAME G{nextGameNumber}
+            INPUT GAME G{currentGameNumber}
           </h3>
         </div>
         <span className="text-[10px] font-mono font-bold text-muted-foreground">
@@ -85,8 +105,8 @@ export function EditorRunner({
       </div>
 
       {!isLineupReady && (
-        <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-medium flex items-center justify-between">
-          <span>⚠️ Pilih 5 duelist untuk kedua tim sebelum mencatat game!</span>
+        <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-medium">
+          ⚠️ Pilih 5 duelist untuk kedua tim sebelum mencatat game!
         </div>
       )}
 
@@ -95,24 +115,31 @@ export function EditorRunner({
         <button
           type="button"
           onClick={() => setActiveTab('A')}
-          className={`py-2 px-3 rounded-lg text-xs font-black transition cursor-pointer ${
+          className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-black transition cursor-pointer ${
             activeTab === 'A'
               ? 'bg-background text-foreground shadow-xs border border-border'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          {teamAName}
+          {teamALogo && (
+            <Image src={teamALogo} alt={teamAName} width={18} height={18} className="rounded-full shrink-0" />
+          )}
+          <span className="truncate">{teamAName}</span>
         </button>
+
         <button
           type="button"
           onClick={() => setActiveTab('B')}
-          className={`py-2 px-3 rounded-lg text-xs font-black transition cursor-pointer ${
+          className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-black transition cursor-pointer ${
             activeTab === 'B'
               ? 'bg-background text-foreground shadow-xs border border-border'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          {teamBName}
+          {teamBLogo && (
+            <Image src={teamBLogo} alt={teamBName} width={18} height={18} className="rounded-full shrink-0" />
+          )}
+          <span className="truncate">{teamBName}</span>
         </button>
       </div>
 
@@ -122,7 +149,7 @@ export function EditorRunner({
           <span className="text-xs font-black uppercase text-foreground">
             DUELIST {activeTab === 'A' ? teamAName : teamBName}
           </span>
-          <span className="text-[11px] text-muted-foreground font-medium">Pilih Pemain (Roster Aktif):</span>
+          <span className="text-[11px] text-muted-foreground font-medium">Pilih Pemain:</span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -248,7 +275,7 @@ export function EditorRunner({
         </div>
       </div>
 
-      {/* PEMENANG & SUBMIT */}
+      {/* PILIH PEMENANG (LOGO + NAMA TIM) */}
       <div className="pt-2 space-y-2">
         <label className="text-xs font-semibold text-muted-foreground block">Pemenang Ronde Ini:</label>
         <div className="grid grid-cols-2 gap-2">
@@ -256,25 +283,32 @@ export function EditorRunner({
             type="button"
             disabled={!isLineupReady}
             onClick={() => setWinner('teamA')}
-            className={`py-2.5 px-3 rounded-xl border text-xs font-black transition cursor-pointer ${
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-black transition cursor-pointer text-center ${
               winner === 'teamA'
                 ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                 : 'bg-card border-border hover:bg-muted text-foreground disabled:opacity-50'
             }`}
           >
-            {teamAName} Win
+            {teamALogo && (
+              <Image src={teamALogo} alt={teamAName} width={22} height={22} className="rounded-full shrink-0" />
+            )}
+            <span className="leading-tight break-words">{teamAName}</span>
           </button>
+
           <button
             type="button"
             disabled={!isLineupReady}
             onClick={() => setWinner('teamB')}
-            className={`py-2.5 px-3 rounded-xl border text-xs font-black transition cursor-pointer ${
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-black transition cursor-pointer text-center ${
               winner === 'teamB'
                 ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                 : 'bg-card border-border hover:bg-muted text-foreground disabled:opacity-50'
             }`}
           >
-            {teamBName} Win
+            {teamBLogo && (
+              <Image src={teamBLogo} alt={teamBName} width={22} height={22} className="rounded-full shrink-0" />
+            )}
+            <span className="leading-tight break-words">{teamBName}</span>
           </button>
         </div>
 
@@ -284,10 +318,10 @@ export function EditorRunner({
             onClick={() => handleSubmit(winner)}
             className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition cursor-pointer shadow-xs mt-2"
           >
-            + Tambahkan Hasil Game {nextGameNumber}
+            + Tambahkan Hasil Game {currentGameNumber}
           </button>
         )}
       </div>
     </div>
   );
-      }
+}
