@@ -31,8 +31,6 @@ export function EditorRunner({
   repeatsA = 0,
   repeatsB = 0,
   games = [],
-  scoreA = 0,
-  scoreB = 0,
   nextGameNumber,
   onAddGame,
   onRollbackGame,
@@ -40,7 +38,6 @@ export function EditorRunner({
   const resolvedNextGameNumber = nextGameNumber ?? games.length + 1;
   const [activeTab, setActiveTab] = useState<'A' | 'B'>('A');
 
-  // Tidak ada default duelist: mulai dengan nilai string kosong
   const [selectedAIgn, setSelectedAIgn] = useState<string>('');
   const [deckAType, setDeckAType] = useState<'deck1' | 'deck2'>('deck1');
   const [isRepeatA, setIsRepeatA] = useState(false);
@@ -68,14 +65,10 @@ export function EditorRunner({
   const isStayA = lastGame?.winner === 'teamA';
   const isStayB = lastGame?.winner === 'teamB';
 
-  // =========================================================================
-  // 1. SIKLUS WARNING & RESET DECKLOSS SETELAH DIBERIKAN
-  // =========================================================================
-  // Cari index terakhir terjadinya Deckloss penalti untuk masing-masing tim
+  // Deteksi reset warning setelah deckloss penalti
   const lastDecklossIdxA = games.map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamB') ? idx : -1)).filter(i => i !== -1).pop() ?? -1;
   const lastDecklossIdxB = games.map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamA') ? idx : -1)).filter(i => i !== -1).pop() ?? -1;
 
-  // Warning games hanya dihitung pada siklus aktif saat ini
   const warnGamesA = games.slice(lastDecklossIdxA + 1).filter((g) => g.ssHandA === false);
   const warnGamesB = games.slice(lastDecklossIdxB + 1).filter((g) => g.ssHandB === false);
 
@@ -90,19 +83,14 @@ export function EditorRunner({
     warnDetails = warnGamesB.map((g) => `G${g.gameNumber} (${g.playerB?.ign || 'Unknown'})`);
   }
 
-  // =========================================================================
-  // 2. KUNCI DUELIST DENGAN SISA 1 NYAWA (LIFE: 1) / STAY TABLE
-  // =========================================================================
   const lastPlayerA = lastGame ? activeLineupA.find((p) => p.ign.toLowerCase() === (lastGame.playerA?.ign || '').toLowerCase()) : null;
   const lastPlayerB = lastGame ? activeLineupB.find((p) => p.ign.toLowerCase() === (lastGame.playerB?.ign || '').toLowerCase()) : null;
 
-  // Wajib lanjut jika yang kalah di ronde sebelumnya masih menyisakan nyawa 1
   const mustContinueA = !isStayA && Boolean(lastPlayerA && (lastPlayerA.remainingLife ?? 2) === 1);
   const mustContinueB = !isStayB && Boolean(lastPlayerB && (lastPlayerB.remainingLife ?? 2) === 1);
 
-  // Otomatisasi kunci meja & deck saat ronde berganti
+  // Kunci otomatis saat giliran lanjut
   useEffect(() => {
-    // Sisi Tim A
     if (isStayA && lastPlayerA) {
       setSelectedAIgn(lastPlayerA.ign);
       const isD1Dead = Boolean(lastPlayerA.deck1?.isDead);
@@ -115,7 +103,6 @@ export function EditorRunner({
       setSelectedAIgn('');
     }
 
-    // Sisi Tim B
     if (isStayB && lastPlayerB) {
       setSelectedBIgn(lastPlayerB.ign);
       const isD1Dead = Boolean(lastPlayerB.deck1?.isDead);
@@ -129,9 +116,6 @@ export function EditorRunner({
     }
   }, [games.length, isStayA, isStayB, mustContinueA, mustContinueB]);
 
-  // =========================================================================
-  // 3. PENANGANAN EKSEKUSI PENALTI DECKLOSS & CATATAN OTOMATIS
-  // =========================================================================
   const penalizedLineup = pendingPenaltyTeam === 'teamA' ? activeLineupA : activeLineupB;
   const penalizedLastPlayer = pendingPenaltyTeam === 'teamA' ? lastPlayerA : lastPlayerB;
   const isTargetLocked = Boolean(pendingPenaltyTeam && penalizedLastPlayer && (penalizedLastPlayer.remainingLife ?? 2) === 1);
@@ -141,7 +125,6 @@ export function EditorRunner({
       setGameStatus('deckloss');
       setWinner(pendingPenaltyTeam === 'teamA' ? 'teamB' : 'teamA');
 
-      // Catatan otomatis terisi spesifik untuk siklus penalti saat ini
       const teamLabel = pendingPenaltyTeam === 'teamA' ? teamAName : teamBName;
       setNotes(`Penalti Deckloss (${teamLabel}): Akumulasi 2x Lupa SS Hand [${warnDetails.join(', ')}]`);
 
@@ -191,9 +174,6 @@ export function EditorRunner({
           <h3 className="text-xs font-black uppercase tracking-wider text-foreground">
             INPUT GAME G{resolvedNextGameNumber}
           </h3>
-          <span className="text-[11px] font-mono font-bold text-muted-foreground ml-2">
-            ({scoreA} - {scoreB})
-          </span>
         </div>
 
         {onRollbackGame && games.length > 0 && (
@@ -220,7 +200,6 @@ export function EditorRunner({
         lockedPlayerIgn={penalizedLastPlayer?.ign}
       />
 
-      {/* Tab Navigasi Tim (Keduanya Biru Netral Saat Aktif) */}
       <div className="grid grid-cols-2 gap-2 p-1 bg-muted/40 rounded-xl border border-border">
         <button
           type="button"
@@ -246,7 +225,6 @@ export function EditorRunner({
         </button>
       </div>
 
-      {/* Panel Duelist Tim */}
       <EditorRunnerTeamPanel
         teamName={activeTab === 'A' ? teamAName : teamBName}
         lineup={activeTab === 'A' ? activeLineupA : activeLineupB}
@@ -309,4 +287,4 @@ export function EditorRunner({
       />
     </div>
   );
-}
+  }
