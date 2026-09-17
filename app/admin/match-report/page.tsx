@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { TopBar, HeroHeader, Footer } from '@/components/layout-shared';
 import { DIVISION_MAP } from '@/app/tournament/_library';
 import { AnalyticsFilter } from '@/app/analytics/_components/analytics-filter';
 import { ReportScoreboard } from '@/app/analytics/_components/report-scoreboard';
 import { ReportLineup } from '@/app/analytics/_components/report-lineup';
 import { ReportLogs } from '@/app/analytics/_components/report-logs';
+import { ReportSummary } from '@/app/analytics/_components/report-summary';
 
 import { EditorHeader } from './_components/editor-header';
 import { EditorLineup } from './_components/editor-lineup';
@@ -22,10 +23,11 @@ export default function AdminInteractiveMatchReport() {
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [editorTab, setEditorTab] = useState<'lineup' | 'game' | 'preview'>('lineup');
 
-  useEffect(() => {
+  // 1. Fetch Master Schedule & Teams
+  const fetchInitialData = useCallback(() => {
     Promise.all([
-      fetch('/api/admin/match-report').then((r) => r.json()),
-      fetch('/api/tournament/teams').then((r) => r.json()).catch(() => null),
+      fetch('/api/admin/match-report', { cache: 'no-store' }).then((r) => r.json()),
+      fetch('/api/tournament/teams', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
     ]).then(([schedRes, teamRes]) => {
       const schedList = schedRes?.schedules || [];
       if (schedList.length > 0) setSchedules(schedList);
@@ -44,6 +46,10 @@ export default function AdminInteractiveMatchReport() {
     });
   }, []);
 
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
   const activeMatch = useMemo(() => schedules.find((s) => s.id === selectedMatchId), [schedules, selectedMatchId]);
   const matchesInView = useMemo(() => schedules.filter((s) => {
     if (selectedGroup !== 'ALL' && s.groupName !== selectedGroup) return false;
@@ -54,6 +60,16 @@ export default function AdminInteractiveMatchReport() {
 
   const report = useMatchReport(selectedMatchId, activeMatch, selectedWeek);
 
+  // Status Laga
+  const isFinished = useMemo(() => {
+    return report.scoreA >= 10 || report.scoreB >= 10;
+  }, [report.scoreA, report.scoreB]);
+
+  const isMatchStarted = useMemo(() => {
+    return report.games.length > 0 || report.scoreA > 0 || report.scoreB > 0;
+  }, [report.games.length, report.scoreA, report.scoreB]);
+
+  // Format Tanggal WIB
   const scheduleDateInfo = useMemo(() => {
     const raw = activeMatch?.matchDate;
     if (!raw) return { day: '-', date: '-', time: '-' };
@@ -68,7 +84,16 @@ export default function AdminInteractiveMatchReport() {
     }
   }, [activeMatch?.matchDate]);
 
-  // Memetakan nama skill panjang ke kode singkatan (skillAbbr) agar identik dengan halaman Analytics
+  const resolvedMatchNumber = useMemo(() => {
+    if (activeMatch?.matchNumber) return activeMatch.matchNumber;
+    if (selectedMatchId) {
+      const extracted = selectedMatchId.replace(/\D/g, '');
+      if (extracted) return extracted;
+    }
+    return 1;
+  }, [activeMatch?.matchNumber, selectedMatchId]);
+
+  // Pemetaan Skill Abbreviation agar identik dengan Analytics Live Report
   const previewGames = useMemo(() => {
     return report.games.map((g: any) => {
       const findAbbr = (rawSkill: string) => {
@@ -96,6 +121,18 @@ export default function AdminInteractiveMatchReport() {
       };
     });
   }, [report.games, report.masterSkills]);
+
+  // Live Instruction (Persis sama seperti di MatchReportsView)
+  const liveInstruction = useMemo(() => {
+    if (isFinished || !report.games.length) return null;
+    const last = report.games[report.games.length - 1];
+    const isWinnerA = last.winner === 'teamA';
+    return {
+      nextGameNumber: report.games.length + 1,
+      stayTable: (isWinnerA ? last.playerA?.ign : last.playerB?.ign) || 'Pemenang Ronde Sebelumnya',
+      nextActionTeam: (isWinnerA ? activeMatch?.teamBName : activeMatch?.teamAName) || 'Kubu Lawan',
+    };
+  }, [isFinished, report.games, activeMatch?.teamAName, activeMatch?.teamBName]);
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
@@ -141,14 +178,15 @@ export default function AdminInteractiveMatchReport() {
                 teamALogo={activeMatch?.teamALogo}
                 teamBLogo={activeMatch?.teamBLogo}
                 metadata={{
-                  week: activeMatch?.weekNumber || selectedWeek,
-                  matchNumber: activeMatch?.id?.replace(/\D/g, '') || 1,
+                  matchNumber: resolvedMatchNumber,
                   division: activeMatch?.groupName,
+                  week: activeMatch?.weekNumber || selectedWeek,
                   day: scheduleDateInfo.day,
                   date: scheduleDateInfo.date,
                   time: scheduleDateInfo.time,
                   referee: activeMatch?.referee || '-',
                   streamer: activeMatch?.streamer || '-',
+                  streamUrl: activeMatch?.streamUrl || '',
                 }}
               />
 
@@ -191,19 +229,29 @@ export default function AdminInteractiveMatchReport() {
                 />
               )}
 
+              {/* TAB 3: LIVE PREVIEW IDENTIK 1:1 DENGAN MATCH REPORTS VIEW */}
               {editorTab === 'preview' && (
-                <div className="space-y-4">
+                <div className="space-y-4 animate-in fade-in duration-150">
                   <ReportLineup
                     lineupA={report.teamALineup}
                     lineupB={report.teamBLineup}
                     games={report.games}
-                    isFinished={report.scoreA >= 10 || report.scoreB >= 10}
-                    isMatchStarted={true}
+                    isFinished={isFinished}
+                    isMatchStarted={isMatchStarted}
                   />
+
                   <ReportLogs
                     games={previewGames}
-                    isFinished={report.scoreA >= 10 || report.scoreB >= 10}
-                    isMatchStarted={true}
+                    isFinished={isFinished}
+                    isMatchStarted={isMatchStarted}
+                  />
+
+                  <ReportSummary
+                    games={report.games}
+                    isFinished={isFinished}
+                    scoreA={report.scoreA}
+                    scoreB={report.scoreB}
+                    liveInstruction={liveInstruction}
                   />
                 </div>
               )}
