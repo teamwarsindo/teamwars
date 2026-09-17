@@ -1,7 +1,7 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem, getMatchWeekNumber, getTeamSlug } from '@/app/tournament/_library';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI, isValidSnowflake, formatWIBDate } from '@/lib/discord/utils';
+import { isValidSnowflake } from '@/lib/discord/utils';
 import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
 import {
   sendOrUpdateRefereeAssignmentLog,
@@ -34,6 +34,16 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   if (idx === -1) throw new Error('Match tidak ditemukan di database.');
   const match = schedules[idx];
 
+  const isRef = assignType === 'REFEREE';
+  const oldStaffId = isRef ? match.refereeDiscordId : match.streamerDiscordId;
+
+  // 1. VALIDASI: Jika staf yang dipilih sudah terdaftar di match ini, skip & beri peringatan
+  if (oldStaffId === targetStaffId) {
+    const currentName = isRef ? match.referee : match.streamer;
+    throw new Error(`⚠️ Staf **${currentName || targetStaffId}** sudah bertugas sebagai ${assignType} pada match ini.`);
+  }
+
+  // Cek apakah staf sedang aktif di match lain
   const busy = schedules.find(
     (m) =>
       m.id !== matchId &&
@@ -43,13 +53,11 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
 
   const ctx = await getMatchContext(match);
   const matchChannelId = (match as any).discordChannelId;
-  const isRef = assignType === 'REFEREE';
-  const oldStaffId = isRef ? match.refereeDiscordId : match.streamerDiscordId;
 
   let replacedStaffName: string | undefined;
 
-  // 1. Cabut akses staf lama jika ini adalah aksi penggantian (reassignment)
-  if (oldStaffId && oldStaffId !== targetStaffId && isValidSnowflake(oldStaffId)) {
+  // 2. Cabut akses staf lama jika ini aksi penggantian (reassignment)
+  if (oldStaffId && isValidSnowflake(oldStaffId)) {
     replacedStaffName = (isRef ? match.referee : match.streamer) || oldStaffId;
     await Promise.all([
       revokeStaffPermissions({
@@ -63,7 +71,7 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
     ]);
   }
 
-  // 2. Tentukan nama server staf baru
+  // 3. Tentukan nama server staf baru
   const staffName = staffList.find((s) => s.discordId === targetStaffId)?.discordName || targetStaffId;
   if (isRef) {
     match.referee = staffName;
@@ -73,7 +81,7 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
     match.streamerDiscordId = targetStaffId;
   }
 
-  // 3. Update opening embed di room match (memicu tag mention staf di body chat untuk update cache)
+  // 4. Update opening embed di room match
   const openingTask = matchChannelId
     ? sendOrUpdateOpeningEmbed({
         channelId: matchChannelId,
@@ -100,29 +108,6 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
         newStaffDiscordId: targetStaffId,
       })
     : Promise.resolve(null);
-
-  // 4. Kirim notifikasi ringkas ke Camp Tim A & B (Khusus Wasit)
-  const campNotificationTasks: Promise<any>[] = [];
-  if (isRef) {
-    const matchRoomLink = matchChannelId ? `<#${matchChannelId}>` : 'Room Match';
-    const scheduleDateStr = formatWIBDate(match.matchDate);
-
-    if (isValidSnowflake(ctx.campChannelAId)) {
-      const rolePrefixA = isValidSnowflake(ctx.roleAId) ? `<@&${ctx.roleAId}> ` : '';
-      const msgCampA = `${rolePrefixA}Pertandingan kalian melawan **${match.teamBName}** akan dipimpin oleh Wasit <@${targetStaffId}>.\n\n📅 **Jadwal:** ${scheduleDateStr}\n⚔️ **Room Match:** ${matchRoomLink}`;
-      campNotificationTasks.push(
-        discordAPI(`/channels/${ctx.campChannelAId}/messages`, 'POST', { content: msgCampA }).catch(() => null)
-      );
-    }
-
-    if (isValidSnowflake(ctx.campChannelBId)) {
-      const rolePrefixB = isValidSnowflake(ctx.roleBId) ? `<@&${ctx.roleBId}> ` : '';
-      const msgCampB = `${rolePrefixB}Pertandingan kalian melawan **${match.teamAName}** akan dipimpin oleh Wasit <@${targetStaffId}>.\n\n📅 **Jadwal:** ${scheduleDateStr}\n⚔️ **Room Match:** ${matchRoomLink}`;
-      campNotificationTasks.push(
-        discordAPI(`/channels/${ctx.campChannelBId}/messages`, 'POST', { content: msgCampB }).catch(() => null)
-      );
-    }
-  }
 
   // 5. Kirim log ke channel #CH_ASSIGN
   const baseLog = buildBaseLogPayload(match, ctx, matchChannelId);
@@ -156,7 +141,6 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
       roleBId: ctx.roleBId,
     }),
     updateStaffHistory(assignType, targetStaffId, match.id, 'ADD'),
-    ...campNotificationTasks,
   ]);
 
   if (newOpeningMsgId) (match as any).openingMsgId = newOpeningMsgId;
@@ -169,13 +153,11 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   await kv.set('twi:schedules', schedules);
 
   // 6. PATCH / UPDATE DUTY TRACKER MESSAGE DI DISCORD
-  // Jika match ini adalah hasil reschedule, perbarui embed tracker di channel CH_REFEREE / CH_STREAMER
   if ((match as any).isRescheduled) {
     try {
       const targetWeek = Number(match.weekNumber || getMatchWeekNumber(match.matchDate) || 1);
       const weekName = `Week ${targetWeek}`;
 
-      // Ambil seluruh match pekan tersebut yang sudah di-update
       const weekMatches = schedules.filter((m) => {
         const w = Number(m.weekNumber || getMatchWeekNumber(m.matchDate) || 1);
         return w === targetWeek && Boolean((m as any).isRescheduled);
@@ -231,11 +213,12 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
         })
       );
 
-      // Jalankan dalam mode PATCH agar pesan lama langsung diperbarui dengan emoji tim
+      // Jalankan dalam mode PATCH untuk kedua channel tanpa repost/ping ulang
       await sendOrUpdateDutyRescheduleSchedule({
         weekName,
         matches: dutyMatches,
-        isPatch: true,
+        patchReferee: true,
+        patchStreamer: true,
       });
     } catch (dutyErr) {
       console.warn('Gagal sinkron duty reschedule setelah assign:', dutyErr);
