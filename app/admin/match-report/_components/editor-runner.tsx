@@ -55,7 +55,6 @@ export function EditorRunner({
   const isStayA = lastGame?.winner === 'teamA';
   const isStayB = lastGame?.winner === 'teamB';
 
-  // Cek apakah pemain yang kalah ronde lalu masih punya 1 nyawa tersisa
   const loserPlayerA = !isStayA && lastGame ? teamALineup.find(p => p.ign === lastGame.playerA.ign) : null;
   const loserPlayerB = !isStayB && lastGame ? teamBLineup.find(p => p.ign === lastGame.playerB.ign) : null;
   const mustContinueA = Boolean(loserPlayerA && loserPlayerA.remainingLife === 1);
@@ -64,7 +63,6 @@ export function EditorRunner({
   useEffect(() => {
     if (!lastGame) return;
 
-    // Sinkronisasi Kubu Tim A
     if (isStayA) {
       setPlayerAIgn(lastGame.playerA.ign);
       const p = teamALineup.find((x) => x.ign === lastGame.playerA.ign);
@@ -74,9 +72,10 @@ export function EditorRunner({
       setPlayerAIgn(loserPlayerA.ign);
       setDeckAType(!loserPlayerA.deck1.isDead ? 'deck1' : 'deck2');
       setIsRepeatA(false);
+    } else {
+      setPlayerAIgn(''); // Reset jika nyawa habis
     }
 
-    // Sinkronisasi Kubu Tim B
     if (isStayB) {
       setPlayerBIgn(lastGame.playerB.ign);
       const p = teamBLineup.find((x) => x.ign === lastGame.playerB.ign);
@@ -86,6 +85,8 @@ export function EditorRunner({
       setPlayerBIgn(loserPlayerB.ign);
       setDeckBType(!loserPlayerB.deck1.isDead ? 'deck1' : 'deck2');
       setIsRepeatB(false);
+    } else {
+      setPlayerBIgn(''); // Reset jika nyawa habis
     }
   }, [lastGame, isStayA, isStayB, mustContinueA, mustContinueB, teamALineup, teamBLineup]);
 
@@ -96,11 +97,11 @@ export function EditorRunner({
       return;
     }
 
+    const isDeckloss = gameStatus === 'deckloss';
     const noteParts: string[] = [];
     if (!isSsHandChecked) noteParts.push('Lupa SS Hand');
-    if (gameStatus === 'deckloss') {
-      const loserTeam = winner === 'teamA' ? teamBName : teamAName;
-      noteParts.push(`Deckloss (${loserTeam})`);
+    if (isDeckloss) {
+      noteParts.push(`Deckloss (${winner === 'teamA' ? teamBName : teamAName})`);
     }
     if (notes.trim()) noteParts.push(notes.trim());
 
@@ -112,6 +113,7 @@ export function EditorRunner({
       deckBType,
       isRepeatB,
       winner,
+      isDeckloss,
       notes: noteParts.join(' • '),
     });
 
@@ -122,10 +124,12 @@ export function EditorRunner({
     setNotes('');
 
     if (winner === 'teamA') {
-      if (!mustContinueB) setPlayerBIgn('');
+      const pB = teamBLineup.find(p => p.ign === playerBIgn);
+      if (!pB || pB.remainingLife <= 1) setPlayerBIgn('');
       setActiveTab('B');
     } else {
-      if (!mustContinueA) setPlayerAIgn('');
+      const pA = teamALineup.find(p => p.ign === playerAIgn);
+      if (!pA || pA.remainingLife <= 1) setPlayerAIgn('');
       setActiveTab('A');
     }
   };
@@ -298,4 +302,4 @@ export function EditorRunner({
       <ReportLogs games={games} isFinished={scoreA >= 10 || scoreB >= 10} isMatchStarted={true} />
     </div>
   );
-      }
+                                         }
