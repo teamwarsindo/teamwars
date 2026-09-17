@@ -37,7 +37,11 @@ export function EditorRunnerTeamPanel({
 
   const canRepeat = useMemo(() => {
     if (!activePlayer) return false;
-    return activePlayer.totalWins === 0 && activePlayer.totalLosses === 1 && repeatsUsed < 2;
+    return (
+      (activePlayer.totalWins ?? 0) === 0 &&
+      (activePlayer.totalLosses ?? 0) === 1 &&
+      repeatsUsed < 2
+    );
   }, [activePlayer, repeatsUsed]);
 
   return (
@@ -61,7 +65,7 @@ export function EditorRunnerTeamPanel({
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {lineup.filter((p) => p.ign?.trim()).map((p) => {
             const isSelected = selectedIgn === p.ign;
-            const isDead = p.remainingLife <= 0;
+            const isDead = (p.remainingLife ?? 2) <= 0;
             const isDisabled = isDead || (isLockedPlayer && !isSelected);
 
             return (
@@ -70,7 +74,9 @@ export function EditorRunnerTeamPanel({
                 type="button"
                 disabled={isDisabled}
                 onClick={() => {
-                  const defDeck = !p.deck1.isDead ? 'deck1' : 'deck2';
+                  // Safe check agar tidak crash jika deck1 belum lengkap
+                  const isDeck1Dead = Boolean(p.deck1?.isDead);
+                  const defDeck = !isDeck1Dead ? 'deck1' : 'deck2';
                   onSelectPlayer(p.ign, defDeck);
                 }}
                 className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition cursor-pointer ${
@@ -82,7 +88,7 @@ export function EditorRunnerTeamPanel({
                 }`}
               >
                 <div className="truncate font-bold">{p.ign}</div>
-                <div className="text-[11px] opacity-80">Life: {p.remainingLife}</div>
+                <div className="text-[11px] opacity-80">Life: {p.remainingLife ?? 2}</div>
               </button>
             );
           })}
@@ -95,9 +101,11 @@ export function EditorRunnerTeamPanel({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {(['deck1', 'deck2'] as const).map((slot) => {
               const d = activePlayer[slot];
-              const isDead = d.isDead;
+              const isDead = Boolean(d?.isDead);
               const isCurrentSelected = selectedDeck === slot && !isRepeat;
-              const isDisabled = isDead || (isStayTable && selectedDeck !== slot);
+              
+              // Kunci deck jika pemain stay table ATAU wajib lanjut ke sisa 1 deck
+              const isDisabled = isDead || (isStayTable && selectedDeck !== slot) || (mustContinue && isDead);
 
               return (
                 <button
@@ -116,8 +124,8 @@ export function EditorRunnerTeamPanel({
                   <div className="text-[10px] uppercase opacity-75">
                     {slot === 'deck1' ? 'Deck 1' : 'Deck 2'} {isDead && '(Mati)'}
                   </div>
-                  <div className="text-xs font-bold truncate">{d.archetype || '-'}</div>
-                  <div className="text-[11px] truncate opacity-75">{d.skill || '-'}</div>
+                  <div className="text-xs font-bold truncate">{d?.archetype || 'Belum diatur'}</div>
+                  <div className="text-[11px] truncate opacity-75">{d?.skill || '-'}</div>
                 </button>
               );
             })}
@@ -127,7 +135,10 @@ export function EditorRunnerTeamPanel({
             <div className="pt-1.5">
               <button
                 type="button"
-                onClick={() => onTriggerRepeat(activePlayer.deck1.isDead ? 'deck1' : 'deck2')}
+                onClick={() => {
+                  const deadDeckSlot = activePlayer.deck1?.isDead ? 'deck1' : 'deck2';
+                  onTriggerRepeat(deadDeckSlot);
+                }}
                 className={`w-full p-2 rounded-xl border text-center transition cursor-pointer ${
                   isRepeat
                     ? 'bg-amber-500 text-white border-amber-600 font-bold shadow-xs'
