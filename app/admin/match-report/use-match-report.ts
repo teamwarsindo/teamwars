@@ -27,8 +27,6 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
   const [scoreB, setScoreB] = useState(0);
   const [repeatsA, setRepeatsA] = useState(0);
   const [repeatsB, setRepeatsB] = useState(0);
-  const [warnsA, setWarnsA] = useState(0);
-  const [warnsB, setWarnsB] = useState(0);
 
   const [rosterA, setRosterA] = useState<RosterOption[]>([]);
   const [rosterB, setRosterB] = useState<RosterOption[]>([]);
@@ -52,6 +50,72 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     }
   }, []);
 
+  // Hitung ulang seluruh life, wins, losses, dan repeats dari game list aktif
+  const recalculateFromGames = useCallback((currentGames: GameEntry[], baseLineupA: PlayerLineupItem[], baseLineupB: PlayerLineupItem[]) => {
+    const freshA = baseLineupA.map(p => ({
+      ...p,
+      remainingLife: 2,
+      totalWins: 0,
+      totalLosses: 0,
+      deck1: { ...p.deck1, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+      deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+    }));
+
+    const freshB = baseLineupB.map(p => ({
+      ...p,
+      remainingLife: 2,
+      totalWins: 0,
+      totalLosses: 0,
+      deck1: { ...p.deck1, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+      deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+    }));
+
+    let repA = 0;
+    let repB = 0;
+
+    for (const g of currentGames) {
+      const pA = freshA.find(p => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
+      const pB = freshB.find(p => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
+      const isAWin = g.winner === 'teamA';
+
+      if (g.playerA.isRepeat) repA++;
+      if (g.playerB.isRepeat) repB++;
+
+      if (pA) {
+        const dA = pA.deck1.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
+        if (isAWin) {
+          pA.totalWins++;
+          dA.wins++;
+        } else {
+          pA.totalLosses++;
+          pA.remainingLife = Math.max(0, pA.remainingLife - 1);
+          dA.losses++;
+          dA.isDead = true;
+        }
+      }
+
+      if (pB) {
+        const dB = pB.deck1.archetype === g.playerB.archetype ? pB.deck1 : pB.deck2;
+        if (!isAWin) {
+          pB.totalWins++;
+          dB.wins++;
+        } else {
+          pB.totalLosses++;
+          pB.remainingLife = Math.max(0, pB.remainingLife - 1);
+          dB.losses++;
+          dB.isDead = true;
+        }
+      }
+    }
+
+    setTeamALineup(freshA);
+    setTeamBLineup(freshB);
+    setRepeatsA(repA);
+    setRepeatsB(repB);
+    setScoreA(currentGames.filter(g => g.winner === 'teamA').length);
+    setScoreB(currentGames.filter(g => g.winner === 'teamB').length);
+  }, []);
+
   useEffect(() => {
     if (!selectedMatchId || !activeMatch) {
       setTeamALineup(initEmpty());
@@ -71,15 +135,10 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       .then((json) => {
         if (json.success && json.report && (json.report.teamA?.lineup?.length > 0 || json.report.games?.length > 0)) {
           const r = json.report;
-          setTeamALineup(r.teamA?.lineup?.length === 5 ? r.teamA.lineup : initEmpty());
-          setTeamBLineup(r.teamB?.lineup?.length === 5 ? r.teamB.lineup : initEmpty());
+          const lA = r.teamA?.lineup?.length === 5 ? r.teamA.lineup : initEmpty();
+          const lB = r.teamB?.lineup?.length === 5 ? r.teamB.lineup : initEmpty();
           setGames(r.games || []);
-          setScoreA(r.teamA?.score ?? 0);
-          setScoreB(r.teamB?.score ?? 0);
-          setRepeatsA(r.teamA?.repeatsUsed ?? 0);
-          setRepeatsB(r.teamB?.repeatsUsed ?? 0);
-          setWarnsA(r.teamA?.warningsUsed ?? 0);
-          setWarnsB(r.teamB?.warningsUsed ?? 0);
+          recalculateFromGames(r.games || [], lA, lB);
         } else {
           setTeamALineup(initEmpty());
           setTeamBLineup(initEmpty());
@@ -89,7 +148,7 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
         }
       })
       .finally(() => setLoading(false));
-  }, [selectedMatchId, activeMatch, fetchMeta]);
+  }, [selectedMatchId, activeMatch, fetchMeta, recalculateFromGames]);
 
   const handleAddGame = (d: any) => {
     const pA = teamALineup.find((p) => p.ign === d.playerAIgn);
@@ -98,61 +157,26 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
 
     const dA = d.deckAType === 'deck1' ? pA.deck1 : pA.deck2;
     const dB = d.deckBType === 'deck1' ? pB.deck1 : pB.deck2;
-    const isA = d.winner === 'teamA';
 
-    if (isA) {
-      pA.totalWins += 1;
-      dA.wins = (dA.wins || 0) + 1;
-      pB.totalLosses += 1;
-      pB.remainingLife = Math.max(0, pB.remainingLife - 1);
-      dB.losses = (dB.losses || 0) + 1;
-      dB.isDead = true;
-    } else {
-      pB.totalWins += 1;
-      dB.wins = (dB.wins || 0) + 1;
-      pA.totalLosses += 1;
-      pA.remainingLife = Math.max(0, pA.remainingLife - 1);
-      dA.losses = (dA.losses || 0) + 1;
-      dA.isDead = true;
-    }
+    const newGame: GameEntry = {
+      gameNumber: games.length + 1,
+      winner: d.winner,
+      playerA: { ign: pA.ign, idDuelLinks: pA.idDuelLinks, archetype: dA.archetype, skill: dA.skill, isRepeat: d.isRepeatA },
+      playerB: { ign: pB.ign, idDuelLinks: pB.idDuelLinks, archetype: dB.archetype, skill: dB.skill, isRepeat: d.isRepeatB },
+      notes: d.notes,
+      timestamp: new Date().toISOString(),
+    };
 
-    if (d.isRepeatA) setRepeatsA((r) => r + 1);
-    if (d.isRepeatB) setRepeatsB((r) => r + 1);
-
-    setGames([
-      ...games,
-      {
-        gameNumber: games.length + 1,
-        winner: d.winner,
-        playerA: {
-          ign: pA.ign,
-          idDuelLinks: pA.idDuelLinks,
-          archetype: dA.archetype,
-          skill: dA.skill,
-          isRepeat: d.isRepeatA,
-        },
-        playerB: {
-          ign: pB.ign,
-          idDuelLinks: pB.idDuelLinks,
-          archetype: dB.archetype,
-          skill: dB.skill,
-          isRepeat: d.isRepeatB,
-        },
-        notes: d.notes,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-    setScoreA(isA ? scoreA + 1 : scoreA);
-    setScoreB(!isA ? scoreB + 1 : scoreB);
+    const nextGames = [...games, newGame];
+    setGames(nextGames);
+    recalculateFromGames(nextGames, teamALineup, teamBLineup);
   };
 
   const handleRollbackGame = () => {
     if (games.length === 0) return;
-    const popped = games[games.length - 1];
-    const isA = popped.winner === 'teamA';
-    setGames(games.slice(0, -1));
-    setScoreA(isA ? Math.max(0, scoreA - 1) : scoreA);
-    setScoreB(!isA ? Math.max(0, scoreB - 1) : scoreB);
+    const nextGames = games.slice(0, -1);
+    setGames(nextGames);
+    recalculateFromGames(nextGames, teamALineup, teamBLineup);
   };
 
   const handleSaveToDatabase = async () => {
@@ -173,20 +197,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
               referee: activeMatch?.referee || 'Kaiba',
               streamer: activeMatch?.streamer || '',
             },
-            teamA: {
-              name: activeMatch?.teamAName,
-              score: scoreA,
-              repeatsUsed: repeatsA,
-              warningsUsed: warnsA,
-              lineup: teamALineup,
-            },
-            teamB: {
-              name: activeMatch?.teamBName,
-              score: scoreB,
-              repeatsUsed: repeatsB,
-              warningsUsed: warnsB,
-              lineup: teamBLineup,
-            },
+            teamA: { name: activeMatch?.teamAName, score: scoreA, repeatsUsed: repeatsA, lineup: teamALineup },
+            teamB: { name: activeMatch?.teamBName, score: scoreB, repeatsUsed: repeatsB, lineup: teamBLineup },
             games,
             isFinished: scoreA >= 10 || scoreB >= 10,
           },
@@ -218,8 +230,6 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     scoreB,
     repeatsA,
     repeatsB,
-    warnsA,
-    warnsB,
     rosterA,
     rosterB,
     masterDecks,
@@ -230,4 +240,4 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleRollbackGame,
     handleSaveToDatabase,
   };
-    }
+              }
