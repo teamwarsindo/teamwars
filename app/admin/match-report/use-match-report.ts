@@ -73,19 +73,28 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
 
     let repA = 0;
     let repB = 0;
-    let warnCountA = 0;
-    let warnCountB = 0;
+
+    // Reset hitungan warning setiap kali terjadi Deckloss akibat warning
+    let activeWarnsA = 0;
+    let activeWarnsB = 0;
 
     for (const g of currentGames) {
       const pA = freshA.find((p) => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
       const pB = freshB.find((p) => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
       const isAWin = g.winner === 'teamA';
 
-      if (g.playerA?.isRepeat) repA++;
-      if (g.playerB?.isRepeat) repB++;
+      if (g.playerA.isRepeat) repA++;
+      if (g.playerB.isRepeat) repB++;
 
-      if (g.ssHandA === false) warnCountA++;
-      if (g.ssHandB === false) warnCountB++;
+      // Hitung warn dari SS Hand
+      if (g.ssHandA === false) activeWarnsA++;
+      if (g.ssHandB === false) activeWarnsB++;
+
+      // Jika game merupakan eksekusi deckloss penalti, reset warn tim yang dihukum
+      if ((g as any).isDeckloss || (g as any).lossCondition === 'PENALTY_2') {
+        if (!isAWin) activeWarnsA = 0; // Tim A kena penalti deckloss
+        else activeWarnsB = 0;         // Tim B kena penalti deckloss
+      }
 
       if (pA) {
         const dA = pA.deck1.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
@@ -118,8 +127,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     setTeamBLineup(freshB);
     setRepeatsA(repA);
     setRepeatsB(repB);
-    setWarnsA(warnCountA);
-    setWarnsB(warnCountB);
+    setWarnsA(activeWarnsA);
+    setWarnsB(activeWarnsB);
     setScoreA(currentGames.filter((g) => g.winner === 'teamA').length);
     setScoreB(currentGames.filter((g) => g.winner === 'teamB').length);
   }, []);
@@ -147,8 +156,6 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
           const r = json.report;
           const lA = r.teamA?.lineup?.length === 5 ? r.teamA.lineup : initEmpty();
           const lB = r.teamB?.lineup?.length === 5 ? r.teamB.lineup : initEmpty();
-          setWarnsA(r.teamA?.warningsUsed || 0);
-          setWarnsB(r.teamB?.warningsUsed || 0);
           setGames(r.games || []);
           recalculateFromGames(r.games || [], lA, lB);
         } else {
@@ -172,33 +179,17 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const dA = d.deckAType === 'deck1' ? pA.deck1 : pA.deck2;
     const dB = d.deckBType === 'deck1' ? pB.deck1 : pB.deck2;
 
-    const isDeckloss = Boolean(d.isDeckloss);
-    const decklossTeam = isDeckloss ? (d.winner === 'teamA' ? 'teamB' : 'teamA') : '';
-
     const newGame: GameEntry = {
       gameNumber: games.length + 1,
       winner: d.winner,
-      playerA: {
-        ign: pA.ign,
-        idDuelLinks: pA.idDuelLinks,
-        archetype: dA.archetype,
-        skill: dA.skill,
-        isRepeat: Boolean(d.isRepeatA),
-      },
-      playerB: {
-        ign: pB.ign,
-        idDuelLinks: pB.idDuelLinks,
-        archetype: dB.archetype,
-        skill: dB.skill,
-        isRepeat: Boolean(d.isRepeatB),
-      },
-      ssHandA: Boolean(d.ssHandA),
-      ssHandB: Boolean(d.ssHandB),
-      isDeckloss,
-      decklossTeam,
-      notes: d.notes || (isDeckloss ? `Sanksi Deckloss (${d.winner === 'teamA' ? activeMatch?.teamBName : activeMatch?.teamAName})` : ''),
+      playerA: { ign: pA.ign, idDuelLinks: pA.idDuelLinks, archetype: dA.archetype, skill: dA.skill, isRepeat: d.isRepeatA },
+      playerB: { ign: pB.ign, idDuelLinks: pB.idDuelLinks, archetype: dB.archetype, skill: dB.skill, isRepeat: d.isRepeatB },
+      notes: d.notes,
       timestamp: new Date().toISOString(),
-    };
+      ...(d.isDeckloss ? { isDeckloss: true } : {}),
+      ssHandA: d.ssHandA,
+      ssHandB: d.ssHandB,
+    } as any;
 
     const nextGames = [...games, newGame];
     setGames(nextGames);
@@ -277,4 +268,4 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleRollbackGame,
     handleSaveToDatabase,
   };
-  }
+          }
