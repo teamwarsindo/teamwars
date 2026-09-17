@@ -69,9 +69,14 @@ export function AnalyticsFilter({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Filter dan urutkan tim dari A ke Z
   const filteredTeams = useMemo(() => {
-    if (selectedGroup === "ALL") return teams;
-    return teams.filter((t) => !t.groupName || t.groupName === selectedGroup);
+    const list =
+      selectedGroup === "ALL"
+        ? [...teams]
+        : teams.filter((t) => !t.groupName || t.groupName === selectedGroup);
+
+    return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   }, [teams, selectedGroup]);
 
   const handleSelectTeam = (teamName: string) => {
@@ -346,4 +351,4 @@ export function AnalyticsFilter({
       )}
     </div>
   );
-                      }
+}
