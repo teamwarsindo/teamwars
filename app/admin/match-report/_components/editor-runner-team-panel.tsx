@@ -47,7 +47,7 @@ export function EditorRunnerTeamPanel({
   return (
     <div className="p-3.5 rounded-xl border border-border bg-card space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold uppercase text-foreground">Duelist {teamName}</span>
+        <span className="text-xs font-black uppercase text-foreground">Duelist {teamName}</span>
         {isStayTable && (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
             STAY TABLE (MENANG G{lastWinnerGameNum})
@@ -66,6 +66,7 @@ export function EditorRunnerTeamPanel({
           {lineup.filter((p) => p.ign?.trim()).map((p) => {
             const isSelected = selectedIgn === p.ign;
             const isDead = (p.remainingLife ?? 2) <= 0;
+            // Disable jika mati ATAU jika sedang wajib lanjut/stay table dan bukan pemain yang aktif di meja
             const isDisabled = isDead || (isLockedPlayer && !isSelected);
 
             return (
@@ -74,14 +75,13 @@ export function EditorRunnerTeamPanel({
                 type="button"
                 disabled={isDisabled}
                 onClick={() => {
-                  // Safe check agar tidak crash jika deck1 belum lengkap
                   const isDeck1Dead = Boolean(p.deck1?.isDead);
                   const defDeck = !isDeck1Dead ? 'deck1' : 'deck2';
                   onSelectPlayer(p.ign, defDeck);
                 }}
                 className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition cursor-pointer ${
                   isSelected
-                    ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                    ? 'border-blue-600 bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-600'
                     : isDisabled
                     ? 'opacity-35 border-border/50 bg-muted/20 cursor-not-allowed text-muted-foreground'
                     : 'border-border bg-background text-foreground hover:bg-muted/40'
@@ -95,7 +95,7 @@ export function EditorRunnerTeamPanel({
         </div>
       </div>
 
-      {activePlayer && (
+      {activePlayer ? (
         <div className="space-y-1.5 pt-1">
           <label className="text-xs font-semibold text-muted-foreground block">Deck yang Digunakan:</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -103,20 +103,20 @@ export function EditorRunnerTeamPanel({
               const d = activePlayer[slot];
               const isDead = Boolean(d?.isDead);
               const isCurrentSelected = selectedDeck === slot && !isRepeat;
-              
-              // Kunci deck jika pemain stay table ATAU wajib lanjut ke sisa 1 deck
-              const isDisabled = isDead || (isStayTable && selectedDeck !== slot) || (mustContinue && isDead);
+
+              // Deck terkunci jika deck mati, pemain stay table, atau pemain wajib lanjut ke deck sisa
+              const isSlotDisabled = isDead || (isStayTable && selectedDeck !== slot) || (mustContinue && isDead);
 
               return (
                 <button
                   key={slot}
                   type="button"
-                  disabled={isDisabled}
+                  disabled={isSlotDisabled}
                   onClick={() => onSelectDeck(slot)}
                   className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
                     isCurrentSelected
-                      ? 'border-primary bg-primary/15 text-primary font-bold shadow-xs'
-                      : isDisabled
+                      ? 'border-blue-600 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold ring-1 ring-blue-600'
+                      : isSlotDisabled
                       ? 'opacity-35 border-border/50 bg-muted/20 cursor-not-allowed text-muted-foreground'
                       : 'border-border bg-background hover:bg-muted/40 text-foreground font-semibold'
                   }`}
@@ -150,7 +150,11 @@ export function EditorRunnerTeamPanel({
             </div>
           )}
         </div>
+      ) : (
+        <div className="p-4 text-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+          Pilih pemain untuk menentukan deck yang digunakan.
+        </div>
       )}
     </div>
   );
-                  }
+      }
