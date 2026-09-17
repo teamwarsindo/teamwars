@@ -7,7 +7,6 @@ import { AnalyticsFilter } from '@/app/analytics/_components/analytics-filter';
 import { ReportScoreboard } from '@/app/analytics/_components/report-scoreboard';
 import { ReportLineup } from '@/app/analytics/_components/report-lineup';
 import { ReportLogs } from '@/app/analytics/_components/report-logs';
-import { ReportSummary } from '@/app/analytics/_components/report-summary';
 
 import { EditorHeader } from './_components/editor-header';
 import { EditorLineup } from './_components/editor-lineup';
@@ -23,7 +22,7 @@ export default function AdminInteractiveMatchReport() {
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [editorTab, setEditorTab] = useState<'lineup' | 'game' | 'preview'>('lineup');
 
-  // 1. Fetch Master Schedule & Teams
+  // Fetch Master Schedule & Teams
   const fetchInitialData = useCallback(() => {
     Promise.all([
       fetch('/api/admin/match-report', { cache: 'no-store' }).then((r) => r.json()),
@@ -122,18 +121,6 @@ export default function AdminInteractiveMatchReport() {
     });
   }, [report.games, report.masterSkills]);
 
-  // Live Instruction (Persis sama seperti di MatchReportsView)
-  const liveInstruction = useMemo(() => {
-    if (isFinished || !report.games.length) return null;
-    const last = report.games[report.games.length - 1];
-    const isWinnerA = last.winner === 'teamA';
-    return {
-      nextGameNumber: report.games.length + 1,
-      stayTable: (isWinnerA ? last.playerA?.ign : last.playerB?.ign) || 'Pemenang Ronde Sebelumnya',
-      nextActionTeam: (isWinnerA ? activeMatch?.teamBName : activeMatch?.teamAName) || 'Kubu Lawan',
-    };
-  }, [isFinished, report.games, activeMatch?.teamAName, activeMatch?.teamBName]);
-
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
@@ -229,7 +216,7 @@ export default function AdminInteractiveMatchReport() {
                 />
               )}
 
-              {/* TAB 3: LIVE PREVIEW IDENTIK 1:1 DENGAN MATCH REPORTS VIEW */}
+              {/* TAB 3: LIVE PREVIEW (Lineup & Logs Bersih) */}
               {editorTab === 'preview' && (
                 <div className="space-y-4 animate-in fade-in duration-150">
                   <ReportLineup
@@ -244,14 +231,6 @@ export default function AdminInteractiveMatchReport() {
                     games={previewGames}
                     isFinished={isFinished}
                     isMatchStarted={isMatchStarted}
-                  />
-
-                  <ReportSummary
-                    games={report.games}
-                    isFinished={isFinished}
-                    scoreA={report.scoreA}
-                    scoreB={report.scoreB}
-                    liveInstruction={liveInstruction}
                   />
                 </div>
               )}
