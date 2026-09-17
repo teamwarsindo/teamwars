@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { PlayerLineupItem, GameEntry } from '../types';
 import { ReportLogs } from '@/app/analytics/_components/report-logs';
 import { EditorRunnerTeamPanel } from './editor-runner-team-panel';
@@ -47,39 +47,61 @@ export function EditorRunner({
 
   const [winner, setWinner] = useState<'teamA' | 'teamB'>('teamA');
   const [gameStatus, setGameStatus] = useState<'normal' | 'deckloss'>('normal');
-  const [decklossTeam, setDecklossTeam] = useState<'teamA' | 'teamB'>('teamB');
   const [isSsHandChecked, setIsSsHandChecked] = useState(true);
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const lastGame = games[games.length - 1];
-  const stayWinner = lastGame?.winner;
+  const isStayA = lastGame?.winner === 'teamA';
+  const isStayB = lastGame?.winner === 'teamB';
+
+  // Cek apakah pemain yang kalah ronde lalu masih punya 1 nyawa tersisa
+  const loserPlayerA = !isStayA && lastGame ? teamALineup.find(p => p.ign === lastGame.playerA.ign) : null;
+  const loserPlayerB = !isStayB && lastGame ? teamBLineup.find(p => p.ign === lastGame.playerB.ign) : null;
+  const mustContinueA = Boolean(loserPlayerA && loserPlayerA.remainingLife === 1);
+  const mustContinueB = Boolean(loserPlayerB && loserPlayerB.remainingLife === 1);
 
   useEffect(() => {
     if (!lastGame) return;
-    if (stayWinner === 'teamA') {
-      const p = teamALineup.find((x) => x.ign === lastGame.playerA.ign);
+
+    // Sinkronisasi Kubu Tim A
+    if (isStayA) {
       setPlayerAIgn(lastGame.playerA.ign);
-      if (p) setDeckAType(!p.deck1.isDead ? 'deck1' : 'deck2');
+      const p = teamALineup.find((x) => x.ign === lastGame.playerA.ign);
+      if (p) setDeckAType(p.deck1.archetype === lastGame.playerA.archetype && !p.deck1.isDead ? 'deck1' : 'deck2');
       setIsRepeatA(false);
-    } else {
-      const p = teamBLineup.find((x) => x.ign === lastGame.playerB.ign);
+    } else if (mustContinueA && loserPlayerA) {
+      setPlayerAIgn(loserPlayerA.ign);
+      setDeckAType(!loserPlayerA.deck1.isDead ? 'deck1' : 'deck2');
+      setIsRepeatA(false);
+    }
+
+    // Sinkronisasi Kubu Tim B
+    if (isStayB) {
       setPlayerBIgn(lastGame.playerB.ign);
-      if (p) setDeckBType(!p.deck1.isDead ? 'deck1' : 'deck2');
+      const p = teamBLineup.find((x) => x.ign === lastGame.playerB.ign);
+      if (p) setDeckBType(p.deck1.archetype === lastGame.playerB.archetype && !p.deck1.isDead ? 'deck1' : 'deck2');
+      setIsRepeatB(false);
+    } else if (mustContinueB && loserPlayerB) {
+      setPlayerBIgn(loserPlayerB.ign);
+      setDeckBType(!loserPlayerB.deck1.isDead ? 'deck1' : 'deck2');
       setIsRepeatB(false);
     }
-  }, [lastGame, stayWinner, teamALineup, teamBLineup]);
+  }, [lastGame, isStayA, isStayB, mustContinueA, mustContinueB, teamALineup, teamBLineup]);
 
   const handleSubmit = () => {
     setErrorMsg(null);
     if (!playerAIgn || !playerBIgn) {
-      setErrorMsg('Pilih duelist untuk kedua kubu sebelum menambahkan game!');
+      setErrorMsg('Pilih duelist untuk kedua tim sebelum menambahkan game!');
       return;
     }
 
     const noteParts: string[] = [];
     if (!isSsHandChecked) noteParts.push('Lupa SS Hand');
-    if (gameStatus === 'deckloss') noteParts.push(`Deckloss (${decklossTeam === 'teamA' ? teamAName : teamBName})`);
+    if (gameStatus === 'deckloss') {
+      const loserTeam = winner === 'teamA' ? teamBName : teamAName;
+      noteParts.push(`Deckloss (${loserTeam})`);
+    }
     if (notes.trim()) noteParts.push(notes.trim());
 
     onAddGame({
@@ -100,10 +122,10 @@ export function EditorRunner({
     setNotes('');
 
     if (winner === 'teamA') {
-      setPlayerBIgn('');
+      if (!mustContinueB) setPlayerBIgn('');
       setActiveTab('B');
     } else {
-      setPlayerAIgn('');
+      if (!mustContinueA) setPlayerAIgn('');
       setActiveTab('A');
     }
   };
@@ -111,10 +133,10 @@ export function EditorRunner({
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-border bg-card p-4 space-y-4 shadow-xs">
-        <div className="flex items-center justify-between border-b border-border/60 pb-3">
+        <div className="flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-black uppercase tracking-wider text-foreground">
+            <span className="text-xs font-bold uppercase tracking-wider text-foreground">
               Input Game G{games.length + 1}
             </span>
           </div>
@@ -122,7 +144,7 @@ export function EditorRunner({
             <button
               type="button"
               onClick={onRollbackGame}
-              className="px-3 py-1 rounded-xl text-xs font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 transition cursor-pointer"
+              className="px-3 py-1 rounded-xl text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border transition cursor-pointer"
             >
               ↩ Rollback Game G{games.length}
             </button>
@@ -130,47 +152,45 @@ export function EditorRunner({
         </div>
 
         {errorMsg && (
-          <div className="p-3 rounded-xl border-2 border-rose-500/60 bg-rose-500/15 text-rose-950 dark:text-rose-100 text-xs font-bold flex items-center justify-between">
+          <div className="p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-800 dark:text-rose-200 text-xs font-bold flex items-center justify-between">
             <span>⚠️ {errorMsg}</span>
-            <button type="button" onClick={() => setErrorMsg(null)} className="text-xs font-black px-2 cursor-pointer">✕</button>
+            <button type="button" onClick={() => setErrorMsg(null)} className="text-xs font-bold px-2 cursor-pointer">✕</button>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2 p-1 bg-muted/40 rounded-xl border border-border/60">
-          <button
-            type="button"
-            onClick={() => setActiveTab('A')}
-            className={`py-2 px-3 rounded-lg text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'A' ? 'bg-background text-foreground shadow-xs border border-border' : 'text-muted-foreground'
-            }`}
-          >
-            {teamALogo && <img src={teamALogo} alt={teamAName} className="w-4 h-4 object-contain rounded-full" />}
-            <span className="truncate">{teamAName}</span>
-            {playerAIgn && <span className="text-emerald-500 font-bold">✓</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('B')}
-            className={`py-2 px-3 rounded-lg text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'B' ? 'bg-background text-foreground shadow-xs border border-border' : 'text-muted-foreground'
-            }`}
-          >
-            {teamBLogo && <img src={teamBLogo} alt={teamBName} className="w-4 h-4 object-contain rounded-full" />}
-            <span className="truncate">{teamBName}</span>
-            {playerBIgn && <span className="text-emerald-500 font-bold">✓</span>}
-          </button>
+        <div className="grid grid-cols-2 gap-2 p-1 bg-muted/40 rounded-xl border border-border">
+          {(['A', 'B'] as const).map((tab) => {
+            const isTabA = tab === 'A';
+            const name = isTabA ? teamAName : teamBName;
+            const logo = isTabA ? teamALogo : teamBLogo;
+            const ign = isTabA ? playerAIgn : playerBIgn;
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                  activeTab === tab ? 'bg-background text-foreground shadow-xs border border-border' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {logo && <img src={logo} alt={name} className="w-4 h-4 object-contain rounded-full" />}
+                <span className="truncate">{name}</span>
+                {ign && <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓</span>}
+              </button>
+            );
+          })}
         </div>
 
         {activeTab === 'A' ? (
           <EditorRunnerTeamPanel
             teamName={teamAName}
-            isTeamA={true}
             lineup={teamALineup}
             selectedIgn={playerAIgn}
             selectedDeck={deckAType}
             isRepeat={isRepeatA}
             repeatsUsed={repeatsA}
-            isStayTable={stayWinner === 'teamA'}
+            isStayTable={isStayA}
+            mustContinue={mustContinueA}
             lastWinnerGameNum={games.length}
             onSelectPlayer={(ign, defDeck) => { setPlayerAIgn(ign); setDeckAType(defDeck); setIsRepeatA(false); }}
             onSelectDeck={(deck) => { setDeckAType(deck); setIsRepeatA(false); }}
@@ -179,13 +199,13 @@ export function EditorRunner({
         ) : (
           <EditorRunnerTeamPanel
             teamName={teamBName}
-            isTeamA={false}
             lineup={teamBLineup}
             selectedIgn={playerBIgn}
             selectedDeck={deckBType}
             isRepeat={isRepeatB}
             repeatsUsed={repeatsB}
-            isStayTable={stayWinner === 'teamB'}
+            isStayTable={isStayB}
+            mustContinue={mustContinueB}
             lastWinnerGameNum={games.length}
             onSelectPlayer={(ign, defDeck) => { setPlayerBIgn(ign); setDeckBType(defDeck); setIsRepeatB(false); }}
             onSelectDeck={(deck) => { setDeckBType(deck); setIsRepeatB(false); }}
@@ -195,13 +215,13 @@ export function EditorRunner({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-muted-foreground block">Status Pertandingan:</label>
+            <label className="text-xs font-semibold text-muted-foreground block">Status Pertandingan:</label>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setGameStatus('normal')}
-                className={`flex-1 py-2 rounded-xl text-xs font-black border cursor-pointer ${
-                  gameStatus === 'normal' ? 'bg-emerald-600 text-white border-emerald-600' : 'border-border text-muted-foreground'
+                className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition ${
+                  gameStatus === 'normal' ? 'bg-primary text-primary-foreground border-primary shadow-xs' : 'border-border bg-background text-muted-foreground'
                 }`}
               >
                 Normal Game
@@ -209,55 +229,38 @@ export function EditorRunner({
               <button
                 type="button"
                 onClick={() => setGameStatus('deckloss')}
-                className={`flex-1 py-2 rounded-xl text-xs font-black border cursor-pointer ${
-                  gameStatus === 'deckloss' ? 'bg-rose-600 text-white border-rose-600' : 'border-border text-muted-foreground'
+                className={`flex-1 py-2 rounded-xl text-xs font-bold border cursor-pointer transition ${
+                  gameStatus === 'deckloss' ? 'bg-amber-600 text-white border-amber-600 shadow-xs' : 'border-border bg-background text-muted-foreground'
                 }`}
               >
                 Deckloss
               </button>
             </div>
-            {gameStatus === 'deckloss' && (
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[10px] font-bold text-muted-foreground">Kena DL:</span>
-                {(['teamA', 'teamB'] as const).map((side) => (
-                  <button
-                    key={side}
-                    type="button"
-                    onClick={() => setDecklossTeam(side)}
-                    className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold cursor-pointer ${
-                      decklossTeam === side ? 'bg-rose-600 text-white border-rose-600' : 'border-border text-foreground'
-                    }`}
-                  >
-                    {side === 'teamA' ? teamAName : teamBName}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-muted-foreground block">Validasi & Catatan:</label>
-            <label className="flex items-center gap-2 text-xs font-bold text-foreground cursor-pointer select-none">
+            <label className="text-xs font-semibold text-muted-foreground block">Validasi & Catatan:</label>
+            <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={isSsHandChecked}
                 onChange={(e) => setIsSsHandChecked(e.target.checked)}
                 className="w-4 h-4 rounded border-border text-primary cursor-pointer"
               />
-              <span>SS Hand Aman {!isSsHandChecked && <b className="text-rose-600">(Lupa SS Hand)</b>}</span>
+              <span>SS Hand Aman {!isSsHandChecked && <b className="text-amber-600 dark:text-amber-400">(Lupa SS Hand)</b>}</span>
             </label>
             <input
               type="text"
               placeholder="Catatan tambahan..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-background border border-border rounded-xl p-2 text-xs text-foreground focus:outline-none placeholder:text-muted-foreground"
+              className="w-full bg-background border border-border rounded-xl p-2 text-xs text-foreground focus:outline-none"
             />
           </div>
         </div>
 
-        <div className="space-y-1.5 pt-2 border-t border-border/60">
-          <label className="text-[11px] font-bold text-muted-foreground block">Pemenang Ronde Ini:</label>
+        <div className="space-y-1.5 pt-2 border-t border-border">
+          <label className="text-xs font-semibold text-muted-foreground block">Pemenang Ronde Ini:</label>
           <div className="grid grid-cols-2 gap-2">
             {(['teamA', 'teamB'] as const).map((side) => {
               const isA = side === 'teamA';
@@ -269,9 +272,9 @@ export function EditorRunner({
                   key={side}
                   type="button"
                   onClick={() => setWinner(side)}
-                  className={`py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer border ${
+                  className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer border ${
                     isSelected
-                      ? isA ? 'bg-primary text-primary-foreground border-primary' : 'bg-rose-600 text-white border-rose-600'
+                      ? 'bg-primary text-primary-foreground border-primary shadow-xs'
                       : 'bg-background border-border text-foreground hover:bg-muted/40'
                   }`}
                 >
@@ -286,7 +289,7 @@ export function EditorRunner({
         <button
           type="button"
           onClick={handleSubmit}
-          className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer"
+          className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
         >
           + Tambahkan Hasil Game {games.length + 1}
         </button>
@@ -295,4 +298,4 @@ export function EditorRunner({
       <ReportLogs games={games} isFinished={scoreA >= 10 || scoreB >= 10} isMatchStarted={true} />
     </div>
   );
-}
+      }
