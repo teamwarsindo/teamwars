@@ -27,6 +27,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
   const [scoreB, setScoreB] = useState(0);
   const [repeatsA, setRepeatsA] = useState(0);
   const [repeatsB, setRepeatsB] = useState(0);
+  const [warnsA, setWarnsA] = useState(0);
+  const [warnsB, setWarnsB] = useState(0);
 
   const [rosterA, setRosterA] = useState<RosterOption[]>([]);
   const [rosterB, setRosterB] = useState<RosterOption[]>([]);
@@ -50,9 +52,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     }
   }, []);
 
-  // Hitung ulang seluruh life, wins, losses, dan repeats dari game list aktif
   const recalculateFromGames = useCallback((currentGames: GameEntry[], baseLineupA: PlayerLineupItem[], baseLineupB: PlayerLineupItem[]) => {
-    const freshA = baseLineupA.map(p => ({
+    const freshA = baseLineupA.map((p) => ({
       ...p,
       remainingLife: 2,
       totalWins: 0,
@@ -61,7 +62,7 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
     }));
 
-    const freshB = baseLineupB.map(p => ({
+    const freshB = baseLineupB.map((p) => ({
       ...p,
       remainingLife: 2,
       totalWins: 0,
@@ -74,8 +75,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     let repB = 0;
 
     for (const g of currentGames) {
-      const pA = freshA.find(p => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
-      const pB = freshB.find(p => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
+      const pA = freshA.find((p) => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
+      const pB = freshB.find((p) => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
       const isAWin = g.winner === 'teamA';
 
       if (g.playerA.isRepeat) repA++;
@@ -112,8 +113,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     setTeamBLineup(freshB);
     setRepeatsA(repA);
     setRepeatsB(repB);
-    setScoreA(currentGames.filter(g => g.winner === 'teamA').length);
-    setScoreB(currentGames.filter(g => g.winner === 'teamB').length);
+    setScoreA(currentGames.filter((g) => g.winner === 'teamA').length);
+    setScoreB(currentGames.filter((g) => g.winner === 'teamB').length);
   }, []);
 
   useEffect(() => {
@@ -123,6 +124,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       setGames([]);
       setScoreA(0);
       setScoreB(0);
+      setWarnsA(0);
+      setWarnsB(0);
       return;
     }
 
@@ -137,6 +140,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
           const r = json.report;
           const lA = r.teamA?.lineup?.length === 5 ? r.teamA.lineup : initEmpty();
           const lB = r.teamB?.lineup?.length === 5 ? r.teamB.lineup : initEmpty();
+          setWarnsA(r.teamA?.warningsUsed || 0);
+          setWarnsB(r.teamB?.warningsUsed || 0);
           setGames(r.games || []);
           recalculateFromGames(r.games || [], lA, lB);
         } else {
@@ -145,6 +150,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
           setGames([]);
           setScoreA(0);
           setScoreB(0);
+          setWarnsA(0);
+          setWarnsB(0);
         }
       })
       .finally(() => setLoading(false));
@@ -197,8 +204,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
               referee: activeMatch?.referee || 'Kaiba',
               streamer: activeMatch?.streamer || '',
             },
-            teamA: { name: activeMatch?.teamAName, score: scoreA, repeatsUsed: repeatsA, lineup: teamALineup },
-            teamB: { name: activeMatch?.teamBName, score: scoreB, repeatsUsed: repeatsB, lineup: teamBLineup },
+            teamA: { name: activeMatch?.teamAName, score: scoreA, repeatsUsed: repeatsA, warningsUsed: warnsA, lineup: teamALineup },
+            teamB: { name: activeMatch?.teamBName, score: scoreB, repeatsUsed: repeatsB, warningsUsed: warnsB, lineup: teamBLineup },
             games,
             isFinished: scoreA >= 10 || scoreB >= 10,
           },
@@ -230,6 +237,10 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     scoreB,
     repeatsA,
     repeatsB,
+    warnsA,
+    setWarnsA,
+    warnsB,
+    setWarnsB,
     rosterA,
     rosterB,
     masterDecks,
@@ -240,4 +251,4 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleRollbackGame,
     handleSaveToDatabase,
   };
-              }
+        }
