@@ -23,15 +23,15 @@ const KV_KEYS = {
 const isDutyEmpty = (val?: string | null) => {
   if (!val) return true;
   const clean = val.trim();
-  return clean === '' || clean === '-';
+  return clean === '' || clean === '-' || clean.toLowerCase() === 'tbd';
 };
 
 export async function sendOrUpdateDutyRescheduleSchedule(params: {
   weekName: string;
   matches: Array<RescheduleDutyMatch>;
-  isPatch?: boolean; // True jika hanya update list tanpa perlu ping ulang
+  patchReferee: boolean;  // true: PATCH (edit), false: RE-POST (delete lalu ping ulang)
+  patchStreamer: boolean; // true: PATCH (edit), false: RE-POST (delete lalu ping ulang)
 }) {
-  const isPatchMode = params.isPatch ?? false;
   const rescheduledMatches = params.matches.filter((m) => Boolean(m.isRescheduled));
 
   const needRefereeMatches = rescheduledMatches.filter((m) => isDutyEmpty(m.referee));
@@ -40,7 +40,7 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
   const buildDutyDescription = (schedules: Array<RescheduleDutyMatch>): string => {
     let desc = 'Penyesuaian jadwal pertandingan resmi yang sudah disepakati:\n\n';
     if (!schedules || schedules.length === 0) {
-      desc += '_Belum ada jadwal terkonfirmasi._';
+      desc += '_Semua pertandingan pekan ini sudah terisi penuh._';
       return desc;
     }
 
@@ -65,18 +65,19 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       roleId: DISCORD_CONFIG.ROLE_REFEREE,
       kvKey: `${KV_KEYS.REFEREE}_${weekSuffix}`,
       emptyList: needRefereeMatches,
+      isPatch: params.patchReferee,
       title: `📊 Schedule Butuh Wasit - ${params.weekName}`,
       color: 0x3498db,
-      alertMessage: '📌 **TUGAS WAJIB:** Pertandingan resmi di bawah belum ada wasit. Segera ambil tugas masing-masing demi kelancaran turnamen.',
+      alertMessage: '📌 **TUGAS WAJIB:** Masih ada pertandingan resmi yang belum ada wasit. Segera ambil tugas masing-masing demi kelancaran turnamen.',
     },
     {
       channelId: DISCORD_CONFIG.CH_STREAMER,
       roleId: DISCORD_CONFIG.ROLE_STREAMER,
       kvKey: `${KV_KEYS.STREAMER}_${weekSuffix}`,
       emptyList: needStreamerMatches,
+      isPatch: params.patchStreamer,
       title: `📊 Schedule Butuh Streamer - ${params.weekName}`,
       color: 0xe74c3c,
-      label: 'Streamer',
       alertMessage: '📺 Halo teman-teman! Jadwal tanding resmi sudah ditetapkan. Sekiranya ada yang tersedia untuk menyiarkan pertandingan ini, silakan konfirmasi ya~',
     },
   ];
@@ -86,7 +87,7 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
 
     const oldMsgId = await kv.get<string>(target.kvKey);
 
-    // Jika seluruh tugas sudah terisi penuh: hapus pesan lama dari Discord dan bersihkan KV
+    // Jika seluruh tugas di pekan ini sudah habis/terisi penuh: bersihkan pesan
     if (target.emptyList.length === 0) {
       if (oldMsgId) {
         await discordAPI(`/channels/${target.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
@@ -96,7 +97,12 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
     }
 
     const roleMention = target.roleId ? `<@&${target.roleId}>` : '';
-    const contentText = roleMention ? `${roleMention}\n${target.alertMessage}` : target.alertMessage;
+    // Jika PATCH: jangan mention role agar tidak ada notifikasi suara/pop-up
+    const contentText = target.isPatch
+      ? target.alertMessage
+      : roleMention
+      ? `${roleMention}\n${target.alertMessage}`
+      : target.alertMessage;
 
     const embedPayload = {
       title: target.title,
@@ -105,8 +111,8 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       footer: { text: getEmbedFooterText() },
     };
 
-    // LOGIKA PATCH: Jika pesan lama ada dan isPatchMode aktif, langsung PATCH
-    if (isPatchMode && oldMsgId) {
+    // 1. KONDISI PATCH: Jika pesan lama ada di Discord dan isPatch = true
+    if (target.isPatch && oldMsgId) {
       const patchRes: any = await discordAPI(
         `/channels/${target.channelId}/messages/${oldMsgId}`,
         'PATCH',
@@ -119,7 +125,7 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       if (patchRes?.id) continue;
     }
 
-    // FALLBACK / MODE RE-POST: Hapus pesan lama lalu kirim baru
+    // 2. KONDISI RE-POST: Hapus pesan lama lalu kirim pesan baru dengan ping
     if (oldMsgId) {
       await discordAPI(`/channels/${target.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
       await kv.del(target.kvKey);
@@ -139,4 +145,4 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       await kv.set(target.kvKey, postRes.id);
     }
   }
-       }
+}
