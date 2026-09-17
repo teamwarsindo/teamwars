@@ -27,7 +27,6 @@ export function EditorRunnerTeamPanel({
   repeatsUsed,
   isStayTable,
   mustContinue,
-  lastWinnerGameNum,
   onSelectPlayer,
   onSelectDeck,
   onTriggerRepeat,
@@ -44,20 +43,26 @@ export function EditorRunnerTeamPanel({
     );
   }, [activePlayer, repeatsUsed]);
 
+  // Label status alur perintah sesuai Discord Bot
+  const flowBadge = useMemo(() => {
+    if (isStayTable) {
+      return { text: 'Stay table', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30' };
+    }
+    if (mustContinue) {
+      return canRepeat
+        ? { text: 'Next deck or repeat', color: 'bg-amber-500/15 text-amber-800 dark:text-amber-400 border-amber-500/30' }
+        : { text: 'Next deck', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30' };
+    }
+    return { text: 'Next player', color: 'bg-muted text-muted-foreground border-border' };
+  }, [isStayTable, mustContinue, canRepeat]);
+
   return (
     <div className="p-3.5 rounded-xl border border-border bg-card space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-black uppercase text-foreground">Duelist {teamName}</span>
-        {isStayTable && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-            STAY TABLE (MENANG G{lastWinnerGameNum})
-          </span>
-        )}
-        {mustContinue && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-800 dark:text-amber-400 border border-amber-500/30">
-            WAJIB LANJUT (SISA 1 NYAWA)
-          </span>
-        )}
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${flowBadge.color}`}>
+          {flowBadge.text}
+        </span>
       </div>
 
       <div className="space-y-1.5">
@@ -66,7 +71,6 @@ export function EditorRunnerTeamPanel({
           {lineup.filter((p) => p.ign?.trim()).map((p) => {
             const isSelected = selectedIgn === p.ign;
             const isDead = (p.remainingLife ?? 2) <= 0;
-            // Disable jika mati ATAU jika sedang wajib lanjut/stay table dan bukan pemain yang aktif di meja
             const isDisabled = isDead || (isLockedPlayer && !isSelected);
 
             return (
@@ -103,8 +107,6 @@ export function EditorRunnerTeamPanel({
               const d = activePlayer[slot];
               const isDead = Boolean(d?.isDead);
               const isCurrentSelected = selectedDeck === slot && !isRepeat;
-
-              // Deck terkunci jika deck mati, pemain stay table, atau pemain wajib lanjut ke deck sisa
               const isSlotDisabled = isDead || (isStayTable && selectedDeck !== slot) || (mustContinue && isDead);
 
               return (
