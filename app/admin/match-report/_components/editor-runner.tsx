@@ -6,25 +6,38 @@ import { EditorRunnerTeamPanel } from './editor-runner-team-panel';
 import { RunnerPenaltyBanner } from './runner-penalty-banner';
 import { RunnerOutcomeForm } from './runner-outcome-form';
 
-interface EditorRunnerProps {
+export interface EditorRunnerProps {
   teamAName: string;
   teamBName: string;
-  lineupA: PlayerLineupItem[];
-  lineupB: PlayerLineupItem[];
-  nextGameNumber: number;
-  gamesHistory?: any[];
+  teamALogo?: string;
+  teamBLogo?: string;
+  teamALineup: PlayerLineupItem[];
+  teamBLineup: PlayerLineupItem[];
+  repeatsA?: number;
+  repeatsB?: number;
+  games?: any[];
+  scoreA?: number;
+  scoreB?: number;
+  nextGameNumber?: number;
   onAddGame: (gameData: any) => void;
+  onRollbackGame?: () => void;
 }
 
 export function EditorRunner({
   teamAName,
   teamBName,
-  lineupA = [],
-  lineupB = [],
+  teamALineup = [],
+  teamBLineup = [],
+  repeatsA = 0,
+  repeatsB = 0,
+  games = [],
+  scoreA = 0,
+  scoreB = 0,
   nextGameNumber,
-  gamesHistory = [],
   onAddGame,
+  onRollbackGame,
 }: EditorRunnerProps) {
+  const resolvedNextGameNumber = nextGameNumber ?? games.length + 1;
   const [activeTab, setActiveTab] = useState<'A' | 'B'>('A');
 
   const [selectedAIgn, setSelectedAIgn] = useState<string>('');
@@ -42,21 +55,21 @@ export function EditorRunner({
   const [winner, setWinner] = useState<'teamA' | 'teamB' | null>(null);
 
   const activeLineupA = useMemo(
-    () => lineupA.filter((p) => p.ign && p.ign.trim() !== '' && p.ign.trim() !== '-'),
-    [lineupA]
+    () => teamALineup.filter((p) => p.ign && p.ign.trim() !== '' && p.ign.trim() !== '-'),
+    [teamALineup]
   );
   const activeLineupB = useMemo(
-    () => lineupB.filter((p) => p.ign && p.ign.trim() !== '' && p.ign.trim() !== '-'),
-    [lineupB]
+    () => teamBLineup.filter((p) => p.ign && p.ign.trim() !== '' && p.ign.trim() !== '-'),
+    [teamBLineup]
   );
 
   // Status Game Terakhir & Riwayat Peringatan SS Hand
-  const lastGame = gamesHistory.length > 0 ? gamesHistory[gamesHistory.length - 1] : null;
+  const lastGame = games.length > 0 ? games[games.length - 1] : null;
   const isStayA = lastGame?.winner === 'teamA';
   const isStayB = lastGame?.winner === 'teamB';
 
-  const warnCountA = gamesHistory.filter((g) => g.ssHandA === false).length;
-  const warnCountB = gamesHistory.filter((g) => g.ssHandB === false).length;
+  const warnCountA = games.filter((g) => g.ssHandA === false).length;
+  const warnCountB = games.filter((g) => g.ssHandB === false).length;
 
   let pendingPenaltyTeam: 'teamA' | 'teamB' | null = null;
   if (warnCountA >= 2 && lastGame?.ssHandA === false) pendingPenaltyTeam = 'teamA';
@@ -75,11 +88,11 @@ export function EditorRunner({
 
       if (pendingPenaltyTeam === 'teamA' && isTargetLocked && lastDuelist) {
         setSelectedAIgn(lastDuelist.ign);
-        const nextSlot = !lastDuelist.deck1.isDead ? 'deck1' : 'deck2';
+        const nextSlot = !lastDuelist.deck1?.isDead ? 'deck1' : 'deck2';
         setDeckAType(nextSlot);
       } else if (pendingPenaltyTeam === 'teamB' && isTargetLocked && lastDuelist) {
         setSelectedBIgn(lastDuelist.ign);
-        const nextSlot = !lastDuelist.deck1.isDead ? 'deck1' : 'deck2';
+        const nextSlot = !lastDuelist.deck1?.isDead ? 'deck1' : 'deck2';
         setDeckBType(nextSlot);
       }
     }
@@ -88,15 +101,12 @@ export function EditorRunner({
   // Status Wajib Lanjut (Sisa 1 Nyawa)
   const activeDuelistA = activeLineupA.find((p) => p.ign === selectedAIgn);
   const activeDuelistB = activeLineupB.find((p) => p.ign === selectedBIgn);
-  const mustContinueA = !isStayA && Boolean(activeDuelistA && activeDuelistA.remainingLife === 1);
-  const mustContinueB = !isStayB && Boolean(activeDuelistB && activeDuelistB.remainingLife === 1);
+  const mustContinueA = !isStayA && Boolean(activeDuelistA && (activeDuelistA.remainingLife ?? 2) === 1);
+  const mustContinueB = !isStayB && Boolean(activeDuelistB && (activeDuelistB.remainingLife ?? 2) === 1);
 
   const currentAIgn = (activeLineupA.find((p) => p.ign === selectedAIgn) || activeLineupA[0])?.ign || '';
   const currentBIgn = (activeLineupB.find((p) => p.ign === selectedBIgn) || activeLineupB[0])?.ign || '';
   const isLineupReady = activeLineupA.length === 5 && activeLineupB.length === 5;
-
-  const repeatsA = gamesHistory.filter((g) => g.playerA?.isRepeat).length;
-  const repeatsB = gamesHistory.filter((g) => g.playerB?.isRepeat).length;
 
   const handleSubmit = () => {
     if (!winner || !currentAIgn || !currentBIgn) return;
@@ -130,10 +140,22 @@ export function EditorRunner({
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <h3 className="text-xs font-black uppercase tracking-wider text-foreground">
-            INPUT GAME G{nextGameNumber}
+            INPUT GAME G{resolvedNextGameNumber}
           </h3>
+          <span className="text-[11px] font-mono font-bold text-muted-foreground ml-2">
+            ({scoreA} - {scoreB})
+          </span>
         </div>
-        <span className="text-[10px] font-mono font-bold text-muted-foreground">TW INDONESIA</span>
+
+        {onRollbackGame && games.length > 0 && (
+          <button
+            type="button"
+            onClick={onRollbackGame}
+            className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition cursor-pointer"
+          >
+            ↩️ Rollback G{games.length}
+          </button>
+        )}
       </div>
 
       {!isLineupReady && (
@@ -175,7 +197,7 @@ export function EditorRunner({
         </button>
       </div>
 
-      {/* Panel Duelist Tim dengan Fitur Repeat & Kunci Nyawa 0 */}
+      {/* Panel Duelist Tim */}
       <EditorRunnerTeamPanel
         teamName={activeTab === 'A' ? teamAName : teamBName}
         lineup={activeTab === 'A' ? activeLineupA : activeLineupB}
@@ -185,7 +207,7 @@ export function EditorRunner({
         repeatsUsed={activeTab === 'A' ? repeatsA : repeatsB}
         isStayTable={activeTab === 'A' ? isStayA : isStayB}
         mustContinue={activeTab === 'A' ? mustContinueA : mustContinueB}
-        lastWinnerGameNum={gamesHistory.length}
+        lastWinnerGameNum={games.length}
         onSelectPlayer={(ign, defDeck) => {
           if (activeTab === 'A') {
             setSelectedAIgn(ign);
@@ -233,7 +255,7 @@ export function EditorRunner({
         onWinnerChange={setWinner}
         pendingPenaltyTeam={pendingPenaltyTeam}
         isLineupReady={isLineupReady}
-        nextGameNumber={nextGameNumber}
+        nextGameNumber={resolvedNextGameNumber}
         onSubmit={handleSubmit}
       />
     </div>
