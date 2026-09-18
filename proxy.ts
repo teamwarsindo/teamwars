@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { verifyMatchToken } from '@/app/admin/match-report/match-token';
 
 // ==========================================
 // 1. HELPER: BACA DAN PROTEKSI AKSES ADMIN
 // ==========================================
-function handleAdminRoutes(req: NextRequest) {
+async function handleAdminRoutes(req: NextRequest) {
   const { pathname, search, searchParams } = req.nextUrl;
 
   // 1. Biarkan API Admin lewat tanpa di-redirect oleh middleware
@@ -11,8 +12,19 @@ function handleAdminRoutes(req: NextRequest) {
     return null;
   }
 
-  // 2. Baca Cookie Session
+  // 2. Baca Cookie Session Admin
   const sessionToken = req.cookies.get('admin_session')?.value;
+
+  // 🟢 2.4 IZINKAN AKSES EDITOR MATCH REPORT KHUSUS REFEREE JIKA MEMBAWA TOKEN YANG SAH
+  if (pathname.startsWith('/admin/match-report')) {
+    const tokenParam = searchParams.get('token');
+    if (tokenParam) {
+      const matchId = await verifyMatchToken(tokenParam);
+      if (matchId) {
+        return null;
+      }
+    }
+  }
 
   // 🟢 2.5 IZINKAN AKSES KHUSUS REFEREE PAYROLL & MATCH LOGS JIKA MEMBAWA TOKEN YANG VALID
   if (
@@ -22,7 +34,6 @@ function handleAdminRoutes(req: NextRequest) {
     const tokenParam = searchParams.get('token');
     const validChiefToken = process.env.CHIEF_REFEREE_TOKEN || 'xK9p2Lm5Qo8RstVb3N2wY7zE4Hj1K0Q';
 
-    // Jika memiliki token yang cocok atau sudah punya session admin, izinkan lewat
     if ((tokenParam && tokenParam === validChiefToken) || sessionToken) {
       return null;
     }
@@ -85,8 +96,8 @@ function handleRegistration(req: NextRequest) {
 // ==========================================
 // 3. FUNGSI UTAMA (DEFAULT EXPORT)
 // ==========================================
-export default function proxy(request: NextRequest) {
-  const adminRedirect = handleAdminRoutes(request);
+export default async function proxy(request: NextRequest) {
+  const adminRedirect = await handleAdminRoutes(request);
   if (adminRedirect) return adminRedirect;
 
   const registrationLogic = handleRegistration(request);
