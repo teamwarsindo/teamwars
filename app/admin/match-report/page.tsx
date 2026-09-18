@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { TopBar, HeroHeader, Footer } from '@/components/layout-shared';
 import { DIVISION_MAP } from '@/app/tournament/_library';
 import { AnalyticsFilter } from '@/app/analytics/_components/analytics-filter';
@@ -14,6 +15,10 @@ import { EditorRunner } from './_components/editor-runner';
 import { useMatchReport } from './use-match-report';
 
 export default function AdminInteractiveMatchReport() {
+  const searchParams = useSearchParams();
+  const tokenParam = searchParams.get('token');
+  const isRefereeMode = Boolean(tokenParam);
+
   const [schedules, setSchedules] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<'ALL' | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B>('ALL');
@@ -48,6 +53,20 @@ export default function AdminInteractiveMatchReport() {
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
+
+  // Otomatis verifikasi dan kunci pertandingan jika dibuka lewat link wasit (/t-:token)
+  useEffect(() => {
+    if (tokenParam) {
+      fetch(`/api/admin/match-report/token?token=${tokenParam}`)
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.success && res.matchId) {
+            setSelectedMatchId(res.matchId);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [tokenParam]);
 
   const activeMatch = useMemo(() => schedules.find((s) => s.id === selectedMatchId), [schedules, selectedMatchId]);
   const matchesInView = useMemo(() => schedules.filter((s) => {
@@ -124,32 +143,44 @@ export default function AdminInteractiveMatchReport() {
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
-      <TopBar title="Interactive Report Editor" />
+      <TopBar title={isRefereeMode ? "Referee Match Editor" : "Interactive Report Editor"} />
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-3 sm:px-6 pb-12">
         <HeroHeader showDetails={false} />
 
         <section className="w-full max-w-4xl space-y-4">
-          <AnalyticsFilter
-            mode="reports"
-            selectedGroup={selectedGroup}
-            onGroupChange={(g) => { setSelectedGroup(g); setSelectedMatchId(''); }}
-            selectedTeam={selectedTeam}
-            onTeamChange={(t) => { setSelectedTeam(t); setSelectedMatchId(''); }}
-            teams={teams}
-            selectedWeek={selectedWeek}
-            onWeekChange={(w) => { setSelectedWeek(w); setSelectedMatchId(''); }}
-            availableWeeks={[1, 2, 3, 4, 5, 6, 7]}
-            selectedMatchId={selectedMatchId}
-            onMatchChange={setSelectedMatchId}
-            matchesInView={matchesInView}
-            isFilterActive={Boolean(selectedGroup !== 'ALL' || selectedTeam || selectedMatchId)}
-            onReset={() => { setSelectedGroup('ALL'); setSelectedTeam(''); setSelectedWeek(1); setSelectedMatchId(''); }}
-          />
+          {!isRefereeMode ? (
+            <AnalyticsFilter
+              mode="reports"
+              selectedGroup={selectedGroup}
+              onGroupChange={(g) => { setSelectedGroup(g); setSelectedMatchId(''); }}
+              selectedTeam={selectedTeam}
+              onTeamChange={(t) => { setSelectedTeam(t); setSelectedMatchId(''); }}
+              teams={teams}
+              selectedWeek={selectedWeek}
+              onWeekChange={(w) => { setSelectedWeek(w); setSelectedMatchId(''); }}
+              availableWeeks={[1, 2, 3, 4, 5, 6, 7]}
+              selectedMatchId={selectedMatchId}
+              onMatchChange={setSelectedMatchId}
+              matchesInView={matchesInView}
+              isFilterActive={Boolean(selectedGroup !== 'ALL' || selectedTeam || selectedMatchId)}
+              onReset={() => { setSelectedGroup('ALL'); setSelectedTeam(''); setSelectedWeek(1); setSelectedMatchId(''); }}
+            />
+          ) : (
+            <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/30 text-sky-700 dark:text-sky-300 text-xs font-bold flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span>🛡️</span>
+                <span>Akses Pengisian Wasit Resmi</span>
+              </span>
+              <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-700 dark:text-sky-300">
+                Referee Token Active
+              </span>
+            </div>
+          )}
 
           {!selectedMatchId ? (
             <div className="p-12 text-center text-xs text-muted-foreground bg-card rounded-2xl border border-border shadow-xs">
-              Pilih pertandingan pada filter di atas untuk memulai.
+              {isRefereeMode ? 'Memuat pertandingan dari token wasit...' : 'Pilih pertandingan pada filter di atas untuk memulai.'}
             </div>
           ) : report.loading ? (
             <div className="p-12 text-center text-xs font-bold text-primary animate-pulse bg-card rounded-2xl border border-border">
@@ -216,7 +247,6 @@ export default function AdminInteractiveMatchReport() {
                 />
               )}
 
-              {/* TAB 3: LIVE PREVIEW (Lineup & Logs Bersih) */}
               {editorTab === 'preview' && (
                 <div className="space-y-4 animate-in fade-in duration-150">
                   <ReportLineup
