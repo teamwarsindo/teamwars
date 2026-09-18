@@ -35,15 +35,14 @@ export function EditorRunnerTeamPanel({
   const isLockedPlayer = isStayTable || mustContinue;
 
   const canRepeat = useMemo(() => {
-    if (!activePlayer) return false;
+    if (!activePlayer || isStayTable) return false;
     return (
       (activePlayer.totalWins ?? 0) === 0 &&
       (activePlayer.totalLosses ?? 0) === 1 &&
       repeatsUsed < 2
     );
-  }, [activePlayer, repeatsUsed]);
+  }, [activePlayer, isStayTable, repeatsUsed]);
 
-  // Label status alur perintah sesuai Discord Bot
   const flowBadge = useMemo(() => {
     if (isStayTable) {
       return { text: 'Stay table', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30' };
@@ -107,6 +106,7 @@ export function EditorRunnerTeamPanel({
               const d = activePlayer[slot];
               const isDead = Boolean(d?.isDead);
               const isCurrentSelected = selectedDeck === slot && !isRepeat;
+              // Jika Stay Table, deck selain yang dipakai menang otomatis dikunci mati
               const isSlotDisabled = isDead || (isStayTable && selectedDeck !== slot) || (mustContinue && isDead);
 
               return (
@@ -159,4 +159,4 @@ export function EditorRunnerTeamPanel({
       )}
     </div>
   );
-      }
+                  }
