@@ -16,6 +16,13 @@ const nextConfig = {
 
   async rewrites() {
     return [
+      // 🟢 MASKING LINK WASIT KE ADMIN MATCH REPORT
+      {
+        source: '/t-:token',
+        destination: '/admin/match-report?token=:token',
+      },
+
+      // CLOUDINARY ASSETS REWRITES
       {
         source: '/match-logs/:path*',
         destination: 'https://res.cloudinary.com/dhplw8rsd/image/upload/match-logs/:path*',
@@ -110,3 +117,4 @@ const nextConfig = {
 };
 
 export default nextConfig;
+        
