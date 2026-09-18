@@ -37,13 +37,11 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   const isRef = assignType === 'REFEREE';
   const oldStaffId = isRef ? match.refereeDiscordId : match.streamerDiscordId;
 
-  // 1. VALIDASI: Jika staf yang dipilih sudah terdaftar di match ini, skip & beri peringatan
   if (oldStaffId === targetStaffId) {
     const currentName = isRef ? match.referee : match.streamer;
     throw new Error(`⚠️ Staf **${currentName || targetStaffId}** sudah bertugas sebagai ${assignType} pada match ini.`);
   }
 
-  // Cek apakah staf sedang aktif di match lain
   const busy = schedules.find(
     (m) =>
       m.id !== matchId &&
@@ -56,7 +54,6 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
 
   let replacedStaffName: string | undefined;
 
-  // 2. Cabut akses staf lama jika ini aksi penggantian (reassignment)
   if (oldStaffId && isValidSnowflake(oldStaffId)) {
     replacedStaffName = (isRef ? match.referee : match.streamer) || oldStaffId;
     await Promise.all([
@@ -71,7 +68,6 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
     ]);
   }
 
-  // 3. Tentukan nama server staf baru
   const staffName = staffList.find((s) => s.discordId === targetStaffId)?.discordName || targetStaffId;
   if (isRef) {
     match.referee = staffName;
@@ -81,7 +77,6 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
     match.streamerDiscordId = targetStaffId;
   }
 
-  // 4. Update opening embed di room match
   const openingTask = matchChannelId
     ? sendOrUpdateOpeningEmbed({
         channelId: matchChannelId,
@@ -109,7 +104,6 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
       })
     : Promise.resolve(null);
 
-  // 5. Kirim log ke channel #CH_ASSIGN
   const baseLog = buildBaseLogPayload(match, ctx, matchChannelId);
   const existingLogId = isRef ? (match as any).refereeLogMsgId : (match as any).streamerLogMsgId;
 
@@ -152,7 +146,7 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
-  // 6. PATCH / UPDATE DUTY TRACKER MESSAGE DI DISCORD
+  // 6. PATCH DUTY TRACKER: Hanya patch channel yang perannya di-assign
   if ((match as any).isRescheduled) {
     try {
       const targetWeek = Number(match.weekNumber || getMatchWeekNumber(match.matchDate) || 1);
@@ -213,12 +207,12 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
         })
       );
 
-      // Jalankan dalam mode PATCH untuk kedua channel tanpa repost/ping ulang
+      // KUNCI: patchReferee aktif HANYA jika isRef, patchStreamer aktif HANYA jika !isRef
       await sendOrUpdateDutyRescheduleSchedule({
         weekName,
         matches: dutyMatches,
-        patchReferee: true,
-        patchStreamer: true,
+        patchReferee: isRef,
+        patchStreamer: !isRef,
       });
     } catch (dutyErr) {
       console.warn('Gagal sinkron duty reschedule setelah assign:', dutyErr);
@@ -226,4 +220,5 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   }
 
   return { match, staffName, replacedStaffName };
-        }
+}
+  
