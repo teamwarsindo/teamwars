@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Suspense, useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { TopBar, HeroHeader, Footer } from '@/components/layout-shared';
 import { DIVISION_MAP } from '@/app/tournament/_library';
@@ -14,7 +14,7 @@ import { EditorLineup } from './_components/editor-lineup';
 import { EditorRunner } from './_components/editor-runner';
 import { useMatchReport } from './use-match-report';
 
-export default function AdminInteractiveMatchReport() {
+function MatchReportContent() {
   const searchParams = useSearchParams();
   const tokenParam = searchParams.get('token');
   const isRefereeMode = Boolean(tokenParam);
@@ -27,7 +27,6 @@ export default function AdminInteractiveMatchReport() {
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [editorTab, setEditorTab] = useState<'lineup' | 'game' | 'preview'>('lineup');
 
-  // Fetch Master Schedule & Teams
   const fetchInitialData = useCallback(() => {
     Promise.all([
       fetch('/api/admin/match-report', { cache: 'no-store' }).then((r) => r.json()),
@@ -54,7 +53,6 @@ export default function AdminInteractiveMatchReport() {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // Otomatis verifikasi dan kunci pertandingan jika dibuka lewat link wasit (/t-:token)
   useEffect(() => {
     if (tokenParam) {
       fetch(`/api/admin/match-report/token?token=${tokenParam}`)
@@ -78,7 +76,6 @@ export default function AdminInteractiveMatchReport() {
 
   const report = useMatchReport(selectedMatchId, activeMatch, selectedWeek);
 
-  // Status Laga
   const isFinished = useMemo(() => {
     return report.scoreA >= 10 || report.scoreB >= 10;
   }, [report.scoreA, report.scoreB]);
@@ -87,7 +84,6 @@ export default function AdminInteractiveMatchReport() {
     return report.games.length > 0 || report.scoreA > 0 || report.scoreB > 0;
   }, [report.games.length, report.scoreA, report.scoreB]);
 
-  // Format Tanggal WIB
   const scheduleDateInfo = useMemo(() => {
     const raw = activeMatch?.matchDate;
     if (!raw) return { day: '-', date: '-', time: '-' };
@@ -111,7 +107,6 @@ export default function AdminInteractiveMatchReport() {
     return 1;
   }, [activeMatch?.matchNumber, selectedMatchId]);
 
-  // Pemetaan Skill Abbreviation agar identik dengan Analytics Live Report
   const previewGames = useMemo(() => {
     return report.games.map((g: any) => {
       const findAbbr = (rawSkill: string) => {
@@ -143,7 +138,7 @@ export default function AdminInteractiveMatchReport() {
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
-      <TopBar title={isRefereeMode ? "Referee Match Editor" : "Interactive Report Editor"} />
+      <TopBar title={isRefereeMode ? 'Referee Match Editor' : 'Interactive Report Editor'} />
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-3 sm:px-6 pb-12">
         <HeroHeader showDetails={false} />
@@ -273,3 +268,18 @@ export default function AdminInteractiveMatchReport() {
     </main>
   );
 }
+
+export default function AdminInteractiveMatchReport() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-xs font-bold">
+          Memuat Match Editor...
+        </div>
+      }
+    >
+      <MatchReportContent />
+    </Suspense>
+  );
+            }
+    
