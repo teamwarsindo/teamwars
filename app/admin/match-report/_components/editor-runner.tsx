@@ -100,12 +100,12 @@ export function EditorRunner({
 
   // Kunci otomatis alur Stay Table & Next Deck
   useEffect(() => {
-    // Tim A
     if (isStayA && lastPlayerA && lastGame) {
       setSelectedAIgn(lastPlayerA.ign);
       const isD1Won = lastPlayerA.deck1.archetype === lastGame.playerA?.archetype;
       setDeckAType(isD1Won ? 'deck1' : 'deck2');
-      setIsRepeatA(false);
+      // Pertahankan status repeat jika duel sebelumnya adalah repeat
+      setIsRepeatA(Boolean(lastGame.playerA?.isRepeat));
     } else if (mustContinueA && lastPlayerA) {
       setSelectedAIgn(lastPlayerA.ign);
       setDeckAType(!lastPlayerA.deck1?.isDead ? 'deck1' : 'deck2');
@@ -115,12 +115,12 @@ export function EditorRunner({
       setIsRepeatA(false);
     }
 
-    // Tim B
     if (isStayB && lastPlayerB && lastGame) {
       setSelectedBIgn(lastPlayerB.ign);
       const isD1Won = lastPlayerB.deck1.archetype === lastGame.playerB?.archetype;
       setDeckBType(isD1Won ? 'deck1' : 'deck2');
-      setIsRepeatB(false);
+      // Pertahankan status repeat jika duel sebelumnya adalah repeat
+      setIsRepeatB(Boolean(lastGame.playerB?.isRepeat));
     } else if (mustContinueB && lastPlayerB) {
       setSelectedBIgn(lastPlayerB.ign);
       setDeckBType(!lastPlayerB.deck1?.isDead ? 'deck1' : 'deck2');
@@ -128,6 +128,11 @@ export function EditorRunner({
     } else {
       setSelectedBIgn('');
       setIsRepeatB(false);
+    }
+
+    // Arahkan pointer tab ke tim yang kalah saat inisialisasi / rollback
+    if (lastGame?.winner) {
+      setActiveTab(lastGame.winner === 'teamA' ? 'B' : 'A');
     }
   }, [games.length, isStayA, isStayB, mustContinueA, mustContinueB]);
 
@@ -173,13 +178,14 @@ export function EditorRunner({
       notes: notes.trim(),
     });
 
+    // Otomatis pindahkan pointer tab ke tim yang kalah
+    setActiveTab(winner === 'teamA' ? 'B' : 'A');
+
     setGameStatus('normal');
     setSsHandA(true);
     setSsHandB(true);
     setNotes('');
     setWinner(null);
-    setIsRepeatA(false);
-    setIsRepeatB(false);
   };
 
   return (
@@ -303,5 +309,4 @@ export function EditorRunner({
       />
     </div>
   );
-          }
-      
+                      }
