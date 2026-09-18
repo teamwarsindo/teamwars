@@ -1,6 +1,5 @@
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   async redirects() {
     return [
       {
@@ -18,7 +17,7 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     return [
-      // 🟢 MASKING LINK WASIT KE RUTE DEDICATED TANPA FILTER
+      // MASKING LINK WASIT KE RUTE DEDICATED
       {
         source: '/t-:token',
         destination: '/admin/match-report/:token',
@@ -119,4 +118,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-        
+          
