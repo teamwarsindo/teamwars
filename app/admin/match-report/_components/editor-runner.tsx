@@ -65,9 +65,14 @@ export function EditorRunner({
   const isStayA = lastGame?.winner === 'teamA';
   const isStayB = lastGame?.winner === 'teamB';
 
-  // Deteksi reset warning setelah deckloss penalti
-  const lastDecklossIdxA = games.map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamB') ? idx : -1)).filter(i => i !== -1).pop() ?? -1;
-  const lastDecklossIdxB = games.map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamA') ? idx : -1)).filter(i => i !== -1).pop() ?? -1;
+  const lastDecklossIdxA = games
+    .map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamB') ? idx : -1))
+    .filter((i) => i !== -1)
+    .pop() ?? -1;
+  const lastDecklossIdxB = games
+    .map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamA') ? idx : -1))
+    .filter((i) => i !== -1)
+    .pop() ?? -1;
 
   const warnGamesA = games.slice(lastDecklossIdxA + 1).filter((g) => g.ssHandA === false);
   const warnGamesB = games.slice(lastDecklossIdxB + 1).filter((g) => g.ssHandB === false);
@@ -83,42 +88,53 @@ export function EditorRunner({
     warnDetails = warnGamesB.map((g) => `G${g.gameNumber} (${g.playerB?.ign || 'Unknown'})`);
   }
 
-  const lastPlayerA = lastGame ? activeLineupA.find((p) => p.ign.toLowerCase() === (lastGame.playerA?.ign || '').toLowerCase()) : null;
-  const lastPlayerB = lastGame ? activeLineupB.find((p) => p.ign.toLowerCase() === (lastGame.playerB?.ign || '').toLowerCase()) : null;
+  const lastPlayerA = lastGame
+    ? activeLineupA.find((p) => p.ign.toLowerCase() === (lastGame.playerA?.ign || '').toLowerCase())
+    : null;
+  const lastPlayerB = lastGame
+    ? activeLineupB.find((p) => p.ign.toLowerCase() === (lastGame.playerB?.ign || '').toLowerCase())
+    : null;
 
   const mustContinueA = !isStayA && Boolean(lastPlayerA && (lastPlayerA.remainingLife ?? 2) === 1);
   const mustContinueB = !isStayB && Boolean(lastPlayerB && (lastPlayerB.remainingLife ?? 2) === 1);
 
-  // Kunci otomatis saat giliran lanjut
+  // Kunci otomatis alur Stay Table & Next Deck
   useEffect(() => {
-    if (isStayA && lastPlayerA) {
+    // Tim A
+    if (isStayA && lastPlayerA && lastGame) {
       setSelectedAIgn(lastPlayerA.ign);
-      const isD1Dead = Boolean(lastPlayerA.deck1?.isDead);
-      setDeckAType(!isD1Dead ? 'deck1' : 'deck2');
+      const isD1Won = lastPlayerA.deck1.archetype === lastGame.playerA?.archetype;
+      setDeckAType(isD1Won ? 'deck1' : 'deck2');
+      setIsRepeatA(false);
     } else if (mustContinueA && lastPlayerA) {
       setSelectedAIgn(lastPlayerA.ign);
-      const isD1Dead = Boolean(lastPlayerA.deck1?.isDead);
-      setDeckAType(!isD1Dead ? 'deck1' : 'deck2');
+      setDeckAType(!lastPlayerA.deck1?.isDead ? 'deck1' : 'deck2');
+      setIsRepeatA(false);
     } else {
       setSelectedAIgn('');
+      setIsRepeatA(false);
     }
 
-    if (isStayB && lastPlayerB) {
+    // Tim B
+    if (isStayB && lastPlayerB && lastGame) {
       setSelectedBIgn(lastPlayerB.ign);
-      const isD1Dead = Boolean(lastPlayerB.deck1?.isDead);
-      setDeckBType(!isD1Dead ? 'deck1' : 'deck2');
+      const isD1Won = lastPlayerB.deck1.archetype === lastGame.playerB?.archetype;
+      setDeckBType(isD1Won ? 'deck1' : 'deck2');
+      setIsRepeatB(false);
     } else if (mustContinueB && lastPlayerB) {
       setSelectedBIgn(lastPlayerB.ign);
-      const isD1Dead = Boolean(lastPlayerB.deck1?.isDead);
-      setDeckBType(!isD1Dead ? 'deck1' : 'deck2');
+      setDeckBType(!lastPlayerB.deck1?.isDead ? 'deck1' : 'deck2');
+      setIsRepeatB(false);
     } else {
       setSelectedBIgn('');
+      setIsRepeatB(false);
     }
   }, [games.length, isStayA, isStayB, mustContinueA, mustContinueB]);
 
-  const penalizedLineup = pendingPenaltyTeam === 'teamA' ? activeLineupA : activeLineupB;
   const penalizedLastPlayer = pendingPenaltyTeam === 'teamA' ? lastPlayerA : lastPlayerB;
-  const isTargetLocked = Boolean(pendingPenaltyTeam && penalizedLastPlayer && (penalizedLastPlayer.remainingLife ?? 2) === 1);
+  const isTargetLocked = Boolean(
+    pendingPenaltyTeam && penalizedLastPlayer && (penalizedLastPlayer.remainingLife ?? 2) === 1
+  );
 
   useEffect(() => {
     if (pendingPenaltyTeam) {
@@ -287,4 +303,5 @@ export function EditorRunner({
       />
     </div>
   );
-  }
+          }
+      
