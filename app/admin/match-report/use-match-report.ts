@@ -71,8 +71,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
     }));
 
-    let repA = 0;
-    let repB = 0;
+    const repeatedPlayersA = new Set<string>();
+    const repeatedPlayersB = new Set<string>();
     let activeWarnsA = 0;
     let activeWarnsB = 0;
 
@@ -81,32 +81,28 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       const pB = freshB.find((p) => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
       const isAWin = g.winner === 'teamA';
 
-      // 1. Validasi & Hitung Repeat Team A (Maksimal 2x dan 1x per deck)
-      if (g.playerA.isRepeat) {
-        if (pA) {
-          const dA = pA.deck1.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
-          if (!dA.isRepeatUsed && repA < 2) {
-            dA.isRepeatUsed = true;
-            repA++;
-          } else {
-            // Flag repeat dibatalkan jika melanggar kuota
-            g.playerA.isRepeat = false;
-          }
-        }
+      // 1. Eksekusi Repeat Team A
+      if (g.playerA?.isRepeat && pA) {
+        repeatedPlayersA.add(pA.ign.toLowerCase());
+        const isD1 = pA.deck1.archetype === g.playerA.archetype;
+        const activeDeck = isD1 ? pA.deck1 : pA.deck2;
+        const skippedDeck = isD1 ? pA.deck2 : pA.deck1;
+
+        activeDeck.isDead = false;
+        activeDeck.isRepeatUsed = true;
+        skippedDeck.isDead = true; // Deck pasangan otomatis gugur
       }
 
-      // 2. Validasi & Hitung Repeat Team B (Maksimal 2x dan 1x per deck)
-      if (g.playerB.isRepeat) {
-        if (pB) {
-          const dB = pB.deck1.archetype === g.playerB.archetype ? pB.deck1 : pB.deck2;
-          if (!dB.isRepeatUsed && repB < 2) {
-            dB.isRepeatUsed = true;
-            repB++;
-          } else {
-            // Flag repeat dibatalkan jika melanggar kuota
-            g.playerB.isRepeat = false;
-          }
-        }
+      // 2. Eksekusi Repeat Team B
+      if (g.playerB?.isRepeat && pB) {
+        repeatedPlayersB.add(pB.ign.toLowerCase());
+        const isD1 = pB.deck1.archetype === g.playerB.archetype;
+        const activeDeck = isD1 ? pB.deck1 : pB.deck2;
+        const skippedDeck = isD1 ? pB.deck2 : pB.deck1;
+
+        activeDeck.isDead = false;
+        activeDeck.isRepeatUsed = true;
+        skippedDeck.isDead = true; // Deck pasangan otomatis gugur
       }
 
       if (g.ssHandA === false) activeWarnsA++;
@@ -121,11 +117,11 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
         const dA = pA.deck1.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
         if (isAWin) {
           pA.totalWins++;
-          dA.wins++;
+          dA.wins = (dA.wins || 0) + 1;
         } else {
           pA.totalLosses++;
           pA.remainingLife = Math.max(0, pA.remainingLife - 1);
-          dA.losses++;
+          dA.losses = (dA.losses || 0) + 1;
           dA.isDead = true;
         }
       }
@@ -134,11 +130,11 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
         const dB = pB.deck1.archetype === g.playerB.archetype ? pB.deck1 : pB.deck2;
         if (!isAWin) {
           pB.totalWins++;
-          dB.wins++;
+          dB.wins = (dB.wins || 0) + 1;
         } else {
           pB.totalLosses++;
           pB.remainingLife = Math.max(0, pB.remainingLife - 1);
-          dB.losses++;
+          dB.losses = (dB.losses || 0) + 1;
           dB.isDead = true;
         }
       }
@@ -146,8 +142,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
 
     setTeamALineup(freshA);
     setTeamBLineup(freshB);
-    setRepeatsA(repA);
-    setRepeatsB(repB);
+    setRepeatsA(repeatedPlayersA.size);
+    setRepeatsB(repeatedPlayersB.size);
     setWarnsA(activeWarnsA);
     setWarnsB(activeWarnsB);
     setScoreA(currentGames.filter((g) => g.winner === 'teamA').length);
@@ -201,12 +197,11 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const dA = d.deckAType === 'deck1' ? pA.deck1 : pA.deck2;
     const dB = d.deckBType === 'deck1' ? pB.deck1 : pB.deck2;
 
-    // Kunci validasi repeat saat penambahan game baru
-    const canRepeatA = Boolean(d.isRepeatA && !dA.isRepeatUsed && repeatsA < 2);
-    const canRepeatB = Boolean(d.isRepeatB && !dB.isRepeatUsed && repeatsB < 2);
-
     const skillCodeA = masterSkills.find((s) => s.name === dA.skill || s.label === dA.skill)?.code || dA.skill;
     const skillCodeB = masterSkills.find((s) => s.name === dB.skill || s.label === dB.skill)?.code || dB.skill;
+
+    const isDeckloss = Boolean(d.isDeckloss);
+    const decklossTeam = isDeckloss ? (d.winner === 'teamA' ? 'teamB' : 'teamA') : '';
 
     const newGame: GameEntry = {
       gameNumber: games.length + 1,
@@ -216,20 +211,21 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
         idDuelLinks: pA.idDuelLinks,
         archetype: dA.archetype,
         skill: skillCodeA,
-        isRepeat: canRepeatA,
+        isRepeat: Boolean(d.isRepeatA),
       },
       playerB: {
         ign: pB.ign,
         idDuelLinks: pB.idDuelLinks,
         archetype: dB.archetype,
         skill: skillCodeB,
-        isRepeat: canRepeatB,
+        isRepeat: Boolean(d.isRepeatB),
       },
+      ssHandA: Boolean(d.ssHandA),
+      ssHandB: Boolean(d.ssHandB),
+      isDeckloss,
+      decklossTeam,
       notes: d.notes,
       timestamp: new Date().toISOString(),
-      ...(d.isDeckloss ? { isDeckloss: true } : {}),
-      ssHandA: d.ssHandA,
-      ssHandB: d.ssHandB,
     } as any;
 
     const nextGames = [...games, newGame];
@@ -309,4 +305,4 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleRollbackGame,
     handleSaveToDatabase,
   };
-          }
+            }
