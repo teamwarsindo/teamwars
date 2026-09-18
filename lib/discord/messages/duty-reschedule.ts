@@ -33,12 +33,10 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
   patchReferee?: boolean;
   patchStreamer?: boolean;
 }) {
-  // Kompatibilitas mundur: jika isPatch bernilai true, otomatis jadi default untuk kedua channel
   const patchRef = params.patchReferee ?? params.isPatch ?? false;
   const patchStream = params.patchStreamer ?? params.isPatch ?? false;
 
   const rescheduledMatches = params.matches.filter((m) => Boolean(m.isRescheduled));
-
   const needRefereeMatches = rescheduledMatches.filter((m) => isDutyEmpty(m.referee));
   const needStreamerMatches = rescheduledMatches.filter((m) => isDutyEmpty(m.streamer));
 
@@ -66,6 +64,7 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
 
   const targets = [
     {
+      roleType: 'REFEREE',
       channelId: DISCORD_CONFIG.CH_REFEREE,
       roleId: DISCORD_CONFIG.ROLE_REFEREE,
       kvKey: `${KV_KEYS.REFEREE}_${weekSuffix}`,
@@ -76,6 +75,7 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       alertMessage: '📌 **TUGAS WAJIB:** Masih ada pertandingan resmi yang belum ada wasit. Segera ambil tugas masing-masing demi kelancaran turnamen.',
     },
     {
+      roleType: 'STREAMER',
       channelId: DISCORD_CONFIG.CH_STREAMER,
       roleId: DISCORD_CONFIG.ROLE_STREAMER,
       kvKey: `${KV_KEYS.STREAMER}_${weekSuffix}`,
@@ -90,9 +90,14 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
   for (const target of targets) {
     if (!target.channelId) continue;
 
+    // 🛑 Lewati target jika parameter spesifik ditentukan dan role ini tidak ditargetkan patch
+    if ((params.patchReferee !== undefined || params.patchStreamer !== undefined) && !target.isPatch) {
+      continue;
+    }
+
     const oldMsgId = await kv.get<string>(target.kvKey);
 
-    // 1. Jika semua tugas sudah terisi: Hapus pesan tracker lama
+    // 1. Jika tugas sudah penuh: hapus tracker lama
     if (target.emptyList.length === 0) {
       if (oldMsgId) {
         await discordAPI(`/channels/${target.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
@@ -115,7 +120,7 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       footer: { text: getEmbedFooterText() },
     };
 
-    // 2. KONDISI PATCH (Dipicu saat assign staff atau saat hari ini sudah ada petugas): Cukup edit pesan lama
+    // 2. KONDISI PATCH: hanya edit pesan yang ada di channel ini
     if (target.isPatch && oldMsgId) {
       const patchRes: any = await discordAPI(
         `/channels/${target.channelId}/messages/${oldMsgId}`,
@@ -129,7 +134,7 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       if (patchRes?.id) continue;
     }
 
-    // 3. KONDISI RE-POST: Hapus pesan lama lalu kirim ulang pesan baru beserta ping role
+    // 3. KONDISI RE-POST: jika bukan patch atau pesan lama belum ada
     if (oldMsgId) {
       await discordAPI(`/channels/${target.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
       await kv.del(target.kvKey);
@@ -149,4 +154,4 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       await kv.set(target.kvKey, postRes.id);
     }
   }
-      }
+    }
