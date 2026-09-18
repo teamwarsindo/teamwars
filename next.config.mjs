@@ -1,4 +1,6 @@
-const nextConfig = {
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
@@ -16,10 +18,10 @@ const nextConfig = {
 
   async rewrites() {
     return [
-      // 🟢 MASKING LINK WASIT KE ADMIN MATCH REPORT
+      // 🟢 MASKING LINK WASIT KE RUTE DEDICATED TANPA FILTER
       {
         source: '/t-:token',
-        destination: '/admin/match-report?token=:token',
+        destination: '/admin/match-report/:token',
       },
 
       // CLOUDINARY ASSETS REWRITES
