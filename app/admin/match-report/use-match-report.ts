@@ -52,112 +52,85 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     }
   }, []);
 
-  const recalculateFromGames = useCallback((currentGames: GameEntry[], baseLineupA: PlayerLineupItem[], baseLineupB: PlayerLineupItem[]) => {
-    const freshA = baseLineupA.map((p) => ({
-      ...p,
-      remainingLife: 2,
-      totalWins: 0,
-      totalLosses: 0,
-      deck1: { ...p.deck1, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
-      deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
-    }));
+  const recalculateFromGames = useCallback(
+    (currentGames: GameEntry[], baseLineupA: PlayerLineupItem[], baseLineupB: PlayerLineupItem[]) => {
+      const freshA = baseLineupA.map((p) => ({
+        ...p,
+        remainingLife: 2,
+        totalWins: 0,
+        totalLosses: 0,
+        deck1: { ...p.deck1, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+        deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+      }));
 
-    const freshB = baseLineupB.map((p) => ({
-      ...p,
-      remainingLife: 2,
-      totalWins: 0,
-      totalLosses: 0,
-      deck1: { ...p.deck1, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
-      deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
-    }));
+      const freshB = baseLineupB.map((p) => ({
+        ...p,
+        remainingLife: 2,
+        totalWins: 0,
+        totalLosses: 0,
+        deck1: { ...p.deck1, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+        deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+      }));
 
-    let activeWarnsA = 0;
-    let activeWarnsB = 0;
+      let repA = 0;
+      let repB = 0;
+      let activeWarnsA = 0;
+      let activeWarnsB = 0;
 
-    for (const g of currentGames) {
-      const pA = freshA.find((p) => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
-      const pB = freshB.find((p) => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
-      const isAWin = g.winner === 'teamA';
-      const isDeckloss = Boolean((g as any).isDeckloss);
+      for (const g of currentGames) {
+        const pA = freshA.find((p) => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
+        const pB = freshB.find((p) => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
+        const isAWin = g.winner === 'teamA';
 
-      if (g.ssHandA === false) activeWarnsA++;
-      if (g.ssHandB === false) activeWarnsB++;
+        if (g.playerA.isRepeat) repA++;
+        if (g.playerB.isRepeat) repB++;
 
-      if (isDeckloss || (g as any).lossCondition === 'PENALTY_2') {
-        if (!isAWin) activeWarnsA = 0;
-        else activeWarnsB = 0;
-      }
+        if (g.ssHandA === false) activeWarnsA++;
+        if (g.ssHandB === false) activeWarnsB++;
 
-      // Evaluasi Tim A
-      if (pA) {
-        const dA = [pA.deck1, pA.deck2].find(
-          (d) => d && String(d.archetype || '').toLowerCase() === String(g.playerA.archetype || '').toLowerCase()
-        ) || pA.deck1;
-
-        if (!isDeckloss && g.playerA?.isRepeat && !dA.isRepeatUsed) {
-          dA.isRepeatUsed = true;
-          dA.isDead = false;
-          if (dA === pA.deck1 && pA.deck2) pA.deck2.isDead = true;
-          if (dA === pA.deck2 && pA.deck1) pA.deck1.isDead = true;
-          pA.remainingLife = 1;
+        if ((g as any).isDeckloss || (g as any).lossCondition === 'PENALTY_2' || (g as any).lossCondition === 'DECKLOSS') {
+          if (!isAWin) activeWarnsA = 0;
+          else activeWarnsB = 0;
         }
 
-        if (isAWin) {
-          pA.totalWins = (pA.totalWins || 0) + 1;
-          dA.wins = (dA.wins || 0) + 1;
-        } else {
-          pA.totalLosses = (pA.totalLosses || 0) + 1;
-          pA.remainingLife = Math.max(0, (pA.remainingLife || 2) - 1);
-          dA.losses = (dA.losses || 0) + 1;
-          dA.isDead = true;
-        }
-      }
-
-      // Evaluasi Tim B
-      if (pB) {
-        const dB = [pB.deck1, pB.deck2].find(
-          (d) => d && String(d.archetype || '').toLowerCase() === String(g.playerB.archetype || '').toLowerCase()
-        ) || pB.deck1;
-
-        if (!isDeckloss && g.playerB?.isRepeat && !dB.isRepeatUsed) {
-          dB.isRepeatUsed = true;
-          dB.isDead = false;
-          if (dB === pB.deck1 && pB.deck2) pB.deck2.isDead = true;
-          if (dB === pB.deck2 && pB.deck1) pB.deck1.isDead = true;
-          pB.remainingLife = 1;
+        if (pA) {
+          const dA = pA.deck1.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
+          if (isAWin) {
+            pA.totalWins++;
+            dA.wins++;
+          } else {
+            pA.totalLosses++;
+            pA.remainingLife = Math.max(0, pA.remainingLife - 1);
+            dA.losses++;
+            dA.isDead = true;
+          }
         }
 
-        if (!isAWin) {
-          pB.totalWins = (pB.totalWins || 0) + 1;
-          dB.wins = (dB.wins || 0) + 1;
-        } else {
-          pB.totalLosses = (pB.totalLosses || 0) + 1;
-          pB.remainingLife = Math.max(0, (pB.remainingLife || 2) - 1);
-          dB.losses = (dB.losses || 0) + 1;
-          dB.isDead = true;
+        if (pB) {
+          const dB = pB.deck1.archetype === g.playerB.archetype ? pB.deck1 : pB.deck2;
+          if (!isAWin) {
+            pB.totalWins++;
+            dB.wins++;
+          } else {
+            pB.totalLosses++;
+            pB.remainingLife = Math.max(0, pB.remainingLife - 1);
+            dB.losses++;
+            dB.isDead = true;
+          }
         }
       }
-    }
 
-    // Hitung pemakaian hak repeat berdasarkan berapa slot deck yang ditandai repeat
-    const repA = freshA.reduce(
-      (count, p) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
-      0
-    );
-    const repB = freshB.reduce(
-      (count, p) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
-      0
-    );
-
-    setTeamALineup(freshA);
-    setTeamBLineup(freshB);
-    setRepeatsA(repA);
-    setRepeatsB(repB);
-    setWarnsA(activeWarnsA);
-    setWarnsB(activeWarnsB);
-    setScoreA(currentGames.filter((g) => g.winner === 'teamA').length);
-    setScoreB(currentGames.filter((g) => g.winner === 'teamB').length);
-  }, []);
+      setTeamALineup(freshA);
+      setTeamBLineup(freshB);
+      setRepeatsA(repA);
+      setRepeatsB(repB);
+      setWarnsA(activeWarnsA);
+      setWarnsB(activeWarnsB);
+      setScoreA(currentGames.filter((g) => g.winner === 'teamA').length);
+      setScoreB(currentGames.filter((g) => g.winner === 'teamB').length);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!selectedMatchId || !activeMatch) {
@@ -182,9 +155,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
           const r = json.report;
           const lA = r.teamA?.lineup?.length === 5 ? r.teamA.lineup : initEmpty();
           const lB = r.teamB?.lineup?.length === 5 ? r.teamB.lineup : initEmpty();
-          const loadedGames = r.games || [];
-          setGames(loadedGames);
-          recalculateFromGames(loadedGames, lA, lB);
+          setGames(r.games || []);
+          recalculateFromGames(r.games || [], lA, lB);
         } else {
           setTeamALineup(initEmpty());
           setTeamBLineup(initEmpty());
@@ -198,6 +170,7 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       .finally(() => setLoading(false));
   }, [selectedMatchId, activeMatch, fetchMeta, recalculateFromGames]);
 
+  // TAMBAH GAME: Simpan Deep Clone Snapshot Lineup sebelum perubahan ronde diterapkan
   const handleAddGame = (d: any) => {
     const pA = teamALineup.find((p) => p.ign === d.playerAIgn);
     const pB = teamBLineup.find((p) => p.ign === d.playerBIgn);
@@ -209,12 +182,9 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const skillCodeA = masterSkills.find((s) => s.name === dA.skill || s.label === dA.skill)?.code || dA.skill;
     const skillCodeB = masterSkills.find((s) => s.name === dB.skill || s.label === dB.skill)?.code || dB.skill;
 
-    const isDeckloss = Boolean(d.isDeckloss);
-    const decklossTeam = isDeckloss ? (d.winner === 'teamA' ? 'teamB' : 'teamA') : '';
-
-    // Status repeat tetap aktif jika baru saja ditekan ATAU deck tersebut memang deck repeat yang sedang stay
-    const isRepeatA = Boolean(d.isRepeatA || dA.isRepeatUsed);
-    const isRepeatB = Boolean(d.isRepeatB || dB.isRepeatUsed);
+    // Snapshot deep clone mandiri kondisi sebelum game ini dimainkan
+    const snapshotA = structuredClone(teamALineup);
+    const snapshotB = structuredClone(teamBLineup);
 
     const newGame: GameEntry = {
       gameNumber: games.length + 1,
@@ -224,21 +194,23 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
         idDuelLinks: pA.idDuelLinks,
         archetype: dA.archetype,
         skill: skillCodeA,
-        isRepeat: isRepeatA,
+        isRepeat: d.isRepeatA,
       },
       playerB: {
         ign: pB.ign,
         idDuelLinks: pB.idDuelLinks,
         archetype: dB.archetype,
         skill: skillCodeB,
-        isRepeat: isRepeatB,
+        isRepeat: d.isRepeatB,
       },
-      ssHandA: Boolean(d.ssHandA),
-      ssHandB: Boolean(d.ssHandB),
-      isDeckloss,
-      decklossTeam,
       notes: d.notes,
       timestamp: new Date().toISOString(),
+      ...(d.isDeckloss ? { isDeckloss: true } : {}),
+      lossCondition: d.lossCondition || (d.isDeckloss ? 'DECKLOSS' : 'REGULAR'),
+      ssHandA: d.ssHandA,
+      ssHandB: d.ssHandB,
+      snapshotA,
+      snapshotB,
     } as any;
 
     const nextGames = [...games, newGame];
@@ -246,11 +218,23 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     recalculateFromGames(nextGames, teamALineup, teamBLineup);
   };
 
+  // ROLLBACK GAME: Pulihkan snapshot deep clone game yang dibatalkan
   const handleRollbackGame = () => {
     if (games.length === 0) return;
+
+    const poppedGame = games[games.length - 1] as any;
     const nextGames = games.slice(0, -1);
+
+    if (poppedGame?.snapshotA && poppedGame?.snapshotB) {
+      setTeamALineup(structuredClone(poppedGame.snapshotA));
+      setTeamBLineup(structuredClone(poppedGame.snapshotB));
+    }
+
     setGames(nextGames);
-    recalculateFromGames(nextGames, teamALineup, teamBLineup);
+    setScoreA(nextGames.filter((g) => g.winner === 'teamA').length);
+    setScoreB(nextGames.filter((g) => g.winner === 'teamB').length);
+    setRepeatsA(nextGames.filter((g) => g.playerA?.isRepeat).length);
+    setRepeatsB(nextGames.filter((g) => g.playerB?.isRepeat).length);
   };
 
   const handleSaveToDatabase = async () => {
@@ -271,8 +255,20 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
               referee: activeMatch?.referee || 'Kaiba',
               streamer: activeMatch?.streamer || '',
             },
-            teamA: { name: activeMatch?.teamAName, score: scoreA, repeatsUsed: repeatsA, warningsUsed: warnsA, lineup: teamALineup },
-            teamB: { name: activeMatch?.teamBName, score: scoreB, repeatsUsed: repeatsB, warningsUsed: warnsB, lineup: teamBLineup },
+            teamA: {
+              name: activeMatch?.teamAName,
+              score: scoreA,
+              repeatsUsed: repeatsA,
+              warningsUsed: warnsA,
+              lineup: teamALineup,
+            },
+            teamB: {
+              name: activeMatch?.teamBName,
+              score: scoreB,
+              repeatsUsed: repeatsB,
+              warningsUsed: warnsB,
+              lineup: teamBLineup,
+            },
             games,
             isFinished: scoreA >= 10 || scoreB >= 10,
           },
@@ -318,4 +314,4 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleRollbackGame,
     handleSaveToDatabase,
   };
-  }
+                               }
