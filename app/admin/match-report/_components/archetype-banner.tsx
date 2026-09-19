@@ -8,8 +8,7 @@ interface ArchetypeQuotaBannerProps {
   masterArchetypes: string[];
 }
 
-// 1. Logika Regex Boundary Extractor (Single Source of Truth)
-function extractArchetypes(deckName: string, masterArchetypes: string[]): string[] {
+export function extractArchetypes(deckName: string, masterArchetypes: string[]): string[] {
   if (!deckName || typeof deckName !== 'string') return [];
   const normalized = deckName.trim();
   if (!normalized || normalized === '-') return [];
@@ -32,7 +31,6 @@ function extractArchetypes(deckName: string, masterArchetypes: string[]): string
   return found.length > 0 ? found : [normalized];
 }
 
-// 2. Banner UI Kuota 5 Deck Duplikasi (Warna Kontras & Terbaca Jelas)
 export function ArchetypeQuotaBanner({ lineup, masterArchetypes }: ArchetypeQuotaBannerProps) {
   const { duplicateCounts, totalViolations, isExceeded } = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -77,21 +75,27 @@ export function ArchetypeQuotaBanner({ lineup, masterArchetypes }: ArchetypeQuot
       className={`p-3 rounded-2xl border text-xs space-y-2.5 shadow-xs transition-colors ${
         isExceeded
           ? 'bg-rose-100 border-rose-400 text-rose-900 dark:bg-rose-950/60 dark:border-rose-800 dark:text-rose-200'
-          : 'bg-amber-100 border-amber-400 text-amber-900 dark:bg-amber-950/60 dark:border-amber-700 dark:text-amber-200'
+          : 'bg-emerald-100 border-emerald-400 text-emerald-900 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-200'
       }`}
     >
+      {/* Header Banner: Judul Ringkas & Label Kanan */}
       <div className="flex items-center justify-between font-bold">
-        <span className="flex items-center gap-2">
-          <span>{isExceeded ? '🛑' : '⚠️'}</span>
-          <span>Duplikasi Archetype Tim ({totalViolations} / 5 batas kuota)</span>
+        <div className="flex items-center gap-2">
+          <span>{isExceeded ? '🔴' : '🟢'}</span>
+          <span>Duplikasi Archetype Tim</span>
+        </div>
+        
+        {/* Label Status Ringkas */}
+        <span
+          className={`px-2.5 py-0.5 rounded-lg text-[11px] font-black uppercase tracking-wider text-white shadow-xs ${
+            isExceeded ? 'bg-rose-600' : 'bg-emerald-600'
+          }`}
+        >
+          {totalViolations}/5 {isExceeded ? 'Over' : 'Aman'}
         </span>
-        {isExceeded && (
-          <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-bold uppercase tracking-wider">
-            Melebihi Kuota
-          </span>
-        )}
       </div>
 
+      {/* Chip Archetype */}
       <div className="flex flex-wrap gap-1.5">
         {Object.entries(duplicateCounts).map(([arch, cnt]) => (
           <span
@@ -99,7 +103,7 @@ export function ArchetypeQuotaBanner({ lineup, masterArchetypes }: ArchetypeQuot
             className={`px-2.5 py-1 rounded-xl text-xs font-semibold border flex items-center gap-1.5 ${
               isExceeded
                 ? 'bg-rose-200/70 border-rose-300 text-rose-950 dark:bg-rose-900/50 dark:border-rose-700 dark:text-rose-100'
-                : 'bg-amber-200/70 border-amber-300 text-amber-950 dark:bg-amber-900/50 dark:border-amber-700 dark:text-amber-100'
+                : 'bg-emerald-200/70 border-emerald-300 text-emerald-950 dark:bg-emerald-900/50 dark:border-emerald-700 dark:text-emerald-100'
             }`}
           >
             <span>{arch}</span>
@@ -117,4 +121,4 @@ export function ArchetypeQuotaBanner({ lineup, masterArchetypes }: ArchetypeQuot
       </div>
     </div>
   );
-}
+      }
