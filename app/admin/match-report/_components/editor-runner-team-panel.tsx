@@ -14,6 +14,9 @@ interface EditorRunnerTeamPanelProps {
   mustContinue?: boolean;
   lastWinnerGameNum?: number;
   games?: any[];
+  scoreA?: number;
+  scoreB?: number;
+  isTeamA?: boolean;
   onSelectPlayer: (ign: string, defaultDeck: 'deck1' | 'deck2') => void;
   onSelectDeck: (slot: 'deck1' | 'deck2') => void;
   onToggleRepeat: () => void;
@@ -29,6 +32,9 @@ export function EditorRunnerTeamPanel({
   isStayTable = false,
   mustContinue = false,
   games = [],
+  scoreA = 0,
+  scoreB = 0,
+  isTeamA = false,
   onSelectPlayer,
   onSelectDeck,
   onToggleRepeat,
@@ -86,8 +92,34 @@ export function EditorRunnerTeamPanel({
     return null;
   }, [repeatedSlot, isRepeat, deadSlotBeforeRepeat]);
 
-  // Teks label alur status (Title Case)
+  // Teks label alur status
   const flowBadge = useMemo(() => {
+    const isFinished = scoreA >= 10 || scoreB >= 10;
+    const isMatchStarted = games.length > 0;
+    const isWinnerTeam = (scoreA >= 10 && isTeamA) || (scoreB >= 10 && !isTeamA);
+
+    // 1. Kondisi jika pertandingan belum dimulai
+    if (!isMatchStarted) {
+      return {
+        text: 'First Player',
+        className: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      };
+    }
+
+    // 2. Kondisi jika pertandingan sudah selesai (salah satu kubu mencapai skor 10)
+    if (isFinished) {
+      return isWinnerTeam
+        ? {
+            text: 'Finish Win',
+            className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+          }
+        : {
+            text: 'Finish Lose',
+            className: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
+          };
+    }
+
+    // 3. Kondisi duel sedang berlangsung (Ongoing)
     if (isStayTable) {
       return {
         text: 'Stay Table',
@@ -110,7 +142,7 @@ export function EditorRunnerTeamPanel({
       text: 'Next Player',
       className: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
     };
-  }, [isStayTable, mustContinue, canShowRepeatToggle]);
+  }, [isStayTable, mustContinue, canShowRepeatToggle, games.length, scoreA, scoreB, isTeamA]);
 
   return (
     <div className="border border-border/80 rounded-xl p-3 bg-muted/10 space-y-3">
@@ -172,9 +204,7 @@ export function EditorRunnerTeamPanel({
               // Hanya deck slot ini yang menerima tag REPEAT
               const isThisSlotRepeat = currentRepeatActiveSlot === slot;
 
-              // Kondisi mati display:
-              // - Jika pemain sedang memakai repeat: deck repeat HIDUP, deck lainnya MATI
-              // - Jika normal: ikuti deckObj.isDead bawaan database
+              // Kondisi mati display
               let isDeadDisplay = false;
               if (currentRepeatActiveSlot !== null) {
                 isDeadDisplay = !isThisSlotRepeat;
@@ -231,4 +261,4 @@ export function EditorRunnerTeamPanel({
       )}
     </div>
   );
-      }
+    }
