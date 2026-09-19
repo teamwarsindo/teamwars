@@ -31,6 +31,8 @@ export function EditorRunner({
   repeatsA = 0,
   repeatsB = 0,
   games = [],
+  scoreA = 0,
+  scoreB = 0,
   nextGameNumber,
   onAddGame,
   onRollbackGame,
@@ -100,16 +102,12 @@ export function EditorRunner({
 
   // Kunci otomatis alur Stay Table & Next Deck
   useEffect(() => {
-    // 🔵 TIM A STAY TABLE
+    // TIM A STAY TABLE
     if (isStayA && lastPlayerA && lastGame) {
       setSelectedAIgn(lastPlayerA.ign);
-
-      // Cari slot deck yang archetype-nya cocok dengan game terakhir
       const isD1 = String(lastPlayerA.deck1?.archetype || '').toLowerCase() === String(lastGame.playerA?.archetype || '').toLowerCase();
       const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
       setDeckAType(currentDeckSlot);
-
-      // Kunci flag repeat jika deck ini adalah deck repeat
       const isDeckRepeated = Boolean(lastPlayerA[currentDeckSlot]?.isRepeatUsed || lastGame.playerA?.isRepeat);
       setIsRepeatA(isDeckRepeated);
     } else if (mustContinueA && lastPlayerA) {
@@ -121,16 +119,12 @@ export function EditorRunner({
       setIsRepeatA(false);
     }
 
-    // 🔴 TIM B STAY TABLE
+    // TIM B STAY TABLE
     if (isStayB && lastPlayerB && lastGame) {
       setSelectedBIgn(lastPlayerB.ign);
-
-      // Cari slot deck yang archetype-nya cocok dengan game terakhir
       const isD1 = String(lastPlayerB.deck1?.archetype || '').toLowerCase() === String(lastGame.playerB?.archetype || '').toLowerCase();
       const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
       setDeckBType(currentDeckSlot);
-
-      // Kunci flag repeat jika deck ini adalah deck repeat
       const isDeckRepeated = Boolean(lastPlayerB[currentDeckSlot]?.isRepeatUsed || lastGame.playerB?.isRepeat);
       setIsRepeatB(isDeckRepeated);
     } else if (mustContinueB && lastPlayerB) {
@@ -298,6 +292,9 @@ export function EditorRunner({
         mustContinue={activeTab === 'A' ? mustContinueA : mustContinueB}
         lastWinnerGameNum={games.length}
         games={games}
+        scoreA={scoreA}
+        scoreB={scoreB}
+        isTeamA={activeTab === 'A'}
         onSelectPlayer={(ign, defDeck) => {
           if (activeTab === 'A') {
             setSelectedAIgn(ign);
@@ -342,5 +339,5 @@ export function EditorRunner({
       />
     </div>
   );
-                                 }
-      
+                         }
+        
