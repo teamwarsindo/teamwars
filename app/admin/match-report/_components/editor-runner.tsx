@@ -100,14 +100,18 @@ export function EditorRunner({
 
   // Kunci otomatis alur Stay Table & Next Deck
   useEffect(() => {
-    // 🔵 TIM A
+    // 🔵 TIM A STAY TABLE
     if (isStayA && lastPlayerA && lastGame) {
       setSelectedAIgn(lastPlayerA.ign);
+
+      // Cari slot deck yang archetype-nya cocok dengan game terakhir
       const isD1 = String(lastPlayerA.deck1?.archetype || '').toLowerCase() === String(lastGame.playerA?.archetype || '').toLowerCase();
       const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
       setDeckAType(currentDeckSlot);
-      // Teruskan status repeat jika deck ini adalah deck repeat
-      setIsRepeatA(Boolean(lastPlayerA[currentDeckSlot]?.isRepeatUsed || lastGame.playerA?.isRepeat));
+
+      // Kunci flag repeat jika deck ini adalah deck repeat
+      const isDeckRepeated = Boolean(lastPlayerA[currentDeckSlot]?.isRepeatUsed || lastGame.playerA?.isRepeat);
+      setIsRepeatA(isDeckRepeated);
     } else if (mustContinueA && lastPlayerA) {
       setSelectedAIgn(lastPlayerA.ign);
       setDeckAType(!lastPlayerA.deck1?.isDead ? 'deck1' : 'deck2');
@@ -117,14 +121,18 @@ export function EditorRunner({
       setIsRepeatA(false);
     }
 
-    // 🔴 TIM B
+    // 🔴 TIM B STAY TABLE
     if (isStayB && lastPlayerB && lastGame) {
       setSelectedBIgn(lastPlayerB.ign);
+
+      // Cari slot deck yang archetype-nya cocok dengan game terakhir
       const isD1 = String(lastPlayerB.deck1?.archetype || '').toLowerCase() === String(lastGame.playerB?.archetype || '').toLowerCase();
       const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
       setDeckBType(currentDeckSlot);
-      // Teruskan status repeat jika deck ini adalah deck repeat
-      setIsRepeatB(Boolean(lastPlayerB[currentDeckSlot]?.isRepeatUsed || lastGame.playerB?.isRepeat));
+
+      // Kunci flag repeat jika deck ini adalah deck repeat
+      const isDeckRepeated = Boolean(lastPlayerB[currentDeckSlot]?.isRepeatUsed || lastGame.playerB?.isRepeat);
+      setIsRepeatB(isDeckRepeated);
     } else if (mustContinueB && lastPlayerB) {
       setSelectedBIgn(lastPlayerB.ign);
       setDeckBType(!lastPlayerB.deck1?.isDead ? 'deck1' : 'deck2');
@@ -139,6 +147,39 @@ export function EditorRunner({
       setActiveTab(lastGame.winner === 'teamA' ? 'B' : 'A');
     }
   }, [games.length, isStayA, isStayB, mustContinueA, mustContinueB]);
+
+  // Handler Swap / Toggle Switch Repeat
+  const handleToggleRepeatA = () => {
+    const p = activeLineupA.find((x) => x.ign.toLowerCase() === selectedAIgn.toLowerCase());
+    if (!p) return;
+    if (!isRepeatA) {
+      // ON: pointer swap ke deck yang mati
+      const deadSlot = p.deck1?.isDead ? 'deck1' : 'deck2';
+      setDeckAType(deadSlot);
+      setIsRepeatA(true);
+    } else {
+      // OFF: pointer swap kembali ke deck hidup
+      const aliveSlot = !p.deck1?.isDead ? 'deck1' : 'deck2';
+      setDeckAType(aliveSlot);
+      setIsRepeatA(false);
+    }
+  };
+
+  const handleToggleRepeatB = () => {
+    const p = activeLineupB.find((x) => x.ign.toLowerCase() === selectedBIgn.toLowerCase());
+    if (!p) return;
+    if (!isRepeatB) {
+      // ON: pointer swap ke deck yang mati
+      const deadSlot = p.deck1?.isDead ? 'deck1' : 'deck2';
+      setDeckBType(deadSlot);
+      setIsRepeatB(true);
+    } else {
+      // OFF: pointer swap kembali ke deck hidup
+      const aliveSlot = !p.deck1?.isDead ? 'deck1' : 'deck2';
+      setDeckBType(aliveSlot);
+      setIsRepeatB(false);
+    }
+  };
 
   const penalizedLastPlayer = pendingPenaltyTeam === 'teamA' ? lastPlayerA : lastPlayerB;
   const isTargetLocked = Boolean(
@@ -182,7 +223,6 @@ export function EditorRunner({
       notes: notes.trim(),
     });
 
-    // Otomatis pindahkan fokus tab ke tim yang kalah
     setActiveTab(winner === 'teamA' ? 'B' : 'A');
 
     setGameStatus('normal');
@@ -281,15 +321,7 @@ export function EditorRunner({
             setIsRepeatB(false);
           }
         }}
-        onTriggerRepeat={(deadDeckSlot) => {
-          if (activeTab === 'A') {
-            setDeckAType(deadDeckSlot);
-            setIsRepeatA(true);
-          } else {
-            setDeckBType(deadDeckSlot);
-            setIsRepeatB(true);
-          }
-        }}
+        onToggleRepeat={activeTab === 'A' ? handleToggleRepeatA : handleToggleRepeatB}
       />
 
       <RunnerOutcomeForm
@@ -313,5 +345,4 @@ export function EditorRunner({
       />
     </div>
   );
-                             }
-        
+  }
