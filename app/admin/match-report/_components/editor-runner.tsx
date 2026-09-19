@@ -65,9 +65,14 @@ export function EditorRunner({
   const isStayA = lastGame?.winner === 'teamA';
   const isStayB = lastGame?.winner === 'teamB';
 
-  // Deteksi reset warning setelah deckloss penalti
-  const lastDecklossIdxA = games.map((g, idx) => ((g as any).lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamB') ? idx : -1)).filter((i) => i !== -1).pop() ?? -1;
-  const lastDecklossIdxB = games.map((g, idx) => ((g as any).lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamA') ? idx : -1)).filter((i) => i !== -1).pop() ?? -1;
+  const lastDecklossIdxA = games
+    .map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamB') ? idx : -1))
+    .filter((i) => i !== -1)
+    .pop() ?? -1;
+  const lastDecklossIdxB = games
+    .map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamA') ? idx : -1))
+    .filter((i) => i !== -1)
+    .pop() ?? -1;
 
   const warnGamesA = games.slice(lastDecklossIdxA + 1).filter((g) => g.ssHandA === false);
   const warnGamesB = games.slice(lastDecklossIdxB + 1).filter((g) => g.ssHandB === false);
@@ -83,49 +88,99 @@ export function EditorRunner({
     warnDetails = warnGamesB.map((g) => `G${g.gameNumber} (${g.playerB?.ign || 'Unknown'})`);
   }
 
-  const lastPlayerA = lastGame ? activeLineupA.find((p) => p.ign.toLowerCase() === (lastGame.playerA?.ign || '').toLowerCase()) : null;
-  const lastPlayerB = lastGame ? activeLineupB.find((p) => p.ign.toLowerCase() === (lastGame.playerB?.ign || '').toLowerCase()) : null;
+  const lastPlayerA = lastGame
+    ? activeLineupA.find((p) => p.ign.toLowerCase() === (lastGame.playerA?.ign || '').toLowerCase())
+    : null;
+  const lastPlayerB = lastGame
+    ? activeLineupB.find((p) => p.ign.toLowerCase() === (lastGame.playerB?.ign || '').toLowerCase())
+    : null;
 
   const mustContinueA = !isStayA && Boolean(lastPlayerA && (lastPlayerA.remainingLife ?? 2) === 1);
   const mustContinueB = !isStayB && Boolean(lastPlayerB && (lastPlayerB.remainingLife ?? 2) === 1);
 
-  // SINKRONISASI PEMEGANG MEJA: Mengikuti game history terakhir (aman saat rollback)
+  // Kunci otomatis alur Stay Table & Next Deck
   useEffect(() => {
-    if (games.length > 0 && lastGame) {
-      if (lastGame.winner === 'teamA') {
-        setSelectedAIgn(lastGame.playerA?.ign || '');
-        const currentDeckA = lastPlayerA?.deck1 && !lastPlayerA.deck1.isDead ? 'deck1' : 'deck2';
-        setDeckAType(currentDeckA);
+    // 🔵 TIM A STAY TABLE
+    if (isStayA && lastPlayerA && lastGame) {
+      setSelectedAIgn(lastPlayerA.ign);
 
-        if (mustContinueB && lastPlayerB) {
-          setSelectedBIgn(lastPlayerB.ign);
-          const currentDeckB = lastPlayerB?.deck1 && !lastPlayerB.deck1.isDead ? 'deck1' : 'deck2';
-          setDeckBType(currentDeckB);
-        } else {
-          setSelectedBIgn('');
-        }
-      } else {
-        setSelectedBIgn(lastGame.playerB?.ign || '');
-        const currentDeckB = lastPlayerB?.deck1 && !lastPlayerB.deck1.isDead ? 'deck1' : 'deck2';
-        setDeckBType(currentDeckB);
+      // Cari slot deck yang archetype-nya cocok dengan game terakhir
+      const isD1 = String(lastPlayerA.deck1?.archetype || '').toLowerCase() === String(lastGame.playerA?.archetype || '').toLowerCase();
+      const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
+      setDeckAType(currentDeckSlot);
 
-        if (mustContinueA && lastPlayerA) {
-          setSelectedAIgn(lastPlayerA.ign);
-          const currentDeckA = lastPlayerA?.deck1 && !lastPlayerA.deck1.isDead ? 'deck1' : 'deck2';
-          setDeckAType(currentDeckA);
-        } else {
-          setSelectedAIgn('');
-        }
-      }
-    } else {
+      // Kunci flag repeat jika deck ini adalah deck repeat
+      const isDeckRepeated = Boolean(lastPlayerA[currentDeckSlot]?.isRepeatUsed || lastGame.playerA?.isRepeat);
+      setIsRepeatA(isDeckRepeated);
+    } else if (mustContinueA && lastPlayerA) {
+      setSelectedAIgn(lastPlayerA.ign);
+      setDeckAType(!lastPlayerA.deck1?.isDead ? 'deck1' : 'deck2');
+      setIsRepeatA(false);
+    } else if (!isStayA && !mustContinueA) {
       setSelectedAIgn('');
-      setSelectedBIgn('');
+      setIsRepeatA(false);
     }
-  }, [games.length, teamALineup, teamBLineup]);
 
-  const penalizedLineup = pendingPenaltyTeam === 'teamA' ? activeLineupA : activeLineupB;
+    // 🔴 TIM B STAY TABLE
+    if (isStayB && lastPlayerB && lastGame) {
+      setSelectedBIgn(lastPlayerB.ign);
+
+      // Cari slot deck yang archetype-nya cocok dengan game terakhir
+      const isD1 = String(lastPlayerB.deck1?.archetype || '').toLowerCase() === String(lastGame.playerB?.archetype || '').toLowerCase();
+      const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
+      setDeckBType(currentDeckSlot);
+
+      // Kunci flag repeat jika deck ini adalah deck repeat
+      const isDeckRepeated = Boolean(lastPlayerB[currentDeckSlot]?.isRepeatUsed || lastGame.playerB?.isRepeat);
+      setIsRepeatB(isDeckRepeated);
+    } else if (mustContinueB && lastPlayerB) {
+      setSelectedBIgn(lastPlayerB.ign);
+      setDeckBType(!lastPlayerB.deck1?.isDead ? 'deck1' : 'deck2');
+      setIsRepeatB(false);
+    } else if (!isStayB && !mustContinueB) {
+      setSelectedBIgn('');
+      setIsRepeatB(false);
+    }
+
+    // Pointer otomatis fokus ke tim yang kalah
+    if (lastGame?.winner) {
+      setActiveTab(lastGame.winner === 'teamA' ? 'B' : 'A');
+    }
+  }, [games.length, isStayA, isStayB, mustContinueA, mustContinueB]);
+
+  // Handler Swap / Toggle Switch Repeat
+  const handleToggleRepeatA = () => {
+    const p = activeLineupA.find((x) => x.ign.toLowerCase() === selectedAIgn.toLowerCase());
+    if (!p) return;
+    if (!isRepeatA) {
+      const deadSlot = p.deck1?.isDead ? 'deck1' : 'deck2';
+      setDeckAType(deadSlot);
+      setIsRepeatA(true);
+    } else {
+      const aliveSlot = !p.deck1?.isDead ? 'deck1' : 'deck2';
+      setDeckAType(aliveSlot);
+      setIsRepeatA(false);
+    }
+  };
+
+  const handleToggleRepeatB = () => {
+    const p = activeLineupB.find((x) => x.ign.toLowerCase() === selectedBIgn.toLowerCase());
+    if (!p) return;
+    if (!isRepeatB) {
+      const deadSlot = p.deck1?.isDead ? 'deck1' : 'deck2';
+      setDeckBType(deadSlot);
+      setIsRepeatB(true);
+    } else {
+      const aliveSlot = !p.deck1?.isDead ? 'deck1' : 'deck2';
+      setDeckBType(aliveSlot);
+      setIsRepeatB(false);
+    }
+  };
+
   const penalizedLastPlayer = pendingPenaltyTeam === 'teamA' ? lastPlayerA : lastPlayerB;
-  const isTargetLocked = Boolean(pendingPenaltyTeam && penalizedLastPlayer && (penalizedLastPlayer.remainingLife ?? 2) === 1);
+  const isTargetLocked = Boolean(
+    pendingPenaltyTeam && penalizedLastPlayer && (penalizedLastPlayer.remainingLife ?? 2) === 1
+  );
 
   useEffect(() => {
     if (pendingPenaltyTeam) {
@@ -164,13 +219,13 @@ export function EditorRunner({
       notes: notes.trim(),
     });
 
+    setActiveTab(winner === 'teamA' ? 'B' : 'A');
+
     setGameStatus('normal');
     setSsHandA(true);
     setSsHandB(true);
     setNotes('');
     setWinner(null);
-    setIsRepeatA(false);
-    setIsRepeatB(false);
   };
 
   return (
@@ -242,7 +297,7 @@ export function EditorRunner({
         isStayTable={activeTab === 'A' ? isStayA : isStayB}
         mustContinue={activeTab === 'A' ? mustContinueA : mustContinueB}
         lastWinnerGameNum={games.length}
-        gamesHistory={games}
+        games={games}
         onSelectPlayer={(ign, defDeck) => {
           if (activeTab === 'A') {
             setSelectedAIgn(ign);
@@ -263,15 +318,7 @@ export function EditorRunner({
             setIsRepeatB(false);
           }
         }}
-        onTriggerRepeat={(deadDeckSlot) => {
-          if (activeTab === 'A') {
-            setDeckAType(deadDeckSlot);
-            setIsRepeatA(true);
-          } else {
-            setDeckBType(deadDeckSlot);
-            setIsRepeatB(true);
-          }
-        }}
+        onToggleRepeat={activeTab === 'A' ? handleToggleRepeatA : handleToggleRepeatB}
       />
 
       <RunnerOutcomeForm
@@ -295,4 +342,5 @@ export function EditorRunner({
       />
     </div>
   );
-            }
+                                 }
+      
