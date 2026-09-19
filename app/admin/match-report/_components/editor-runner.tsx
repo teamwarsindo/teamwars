@@ -31,6 +31,8 @@ export function EditorRunner({
   repeatsA = 0,
   repeatsB = 0,
   games = [],
+  scoreA = 0,
+  scoreB = 0,
   nextGameNumber,
   onAddGame,
   onRollbackGame,
@@ -52,6 +54,9 @@ export function EditorRunner({
   const [notes, setNotes] = useState('');
   const [winner, setWinner] = useState<'teamA' | 'teamB' | null>(null);
 
+  // Pilihan Tim Mana yang Kena Deckloss (Bisa manual dipindahkan admin)
+  const [penaltyTargetSide, setPenaltyTargetSide] = useState<'teamA' | 'teamB' | null>(null);
+
   const activeLineupA = useMemo(
     () => teamALineup.filter((p) => p.ign && p.ign.trim() !== '' && p.ign.trim() !== '-'),
     [teamALineup]
@@ -65,171 +70,89 @@ export function EditorRunner({
   const isStayA = lastGame?.winner === 'teamA';
   const isStayB = lastGame?.winner === 'teamB';
 
-  const lastDecklossIdxA = games
-    .map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamB') ? idx : -1))
-    .filter((i) => i !== -1)
-    .pop() ?? -1;
-  const lastDecklossIdxB = games
-    .map((g, idx) => (g.lossCondition === 'PENALTY_2' || (g.isDeckloss && g.winner === 'teamA') ? idx : -1))
-    .filter((i) => i !== -1)
-    .pop() ?? -1;
+  const warnCountA = games.filter((g) => g.ssHandA === false).length;
+  const warnCountB = games.filter((g) => g.ssHandB === false).length;
 
-  const warnGamesA = games.slice(lastDecklossIdxA + 1).filter((g) => g.ssHandA === false);
-  const warnGamesB = games.slice(lastDecklossIdxB + 1).filter((g) => g.ssHandB === false);
+  // Cek apakah kedua tim atau salah satu tim punya sanksi pending
+  const hasPendingA = warnCountA >= 2 && lastGame?.ssHandA === false;
+  const hasPendingB = warnCountB >= 2 && lastGame?.ssHandB === false;
 
-  let pendingPenaltyTeam: 'teamA' | 'teamB' | null = null;
-  let warnDetails: string[] = [];
-
-  if (warnGamesA.length >= 2) {
-    pendingPenaltyTeam = 'teamA';
-    warnDetails = warnGamesA.map((g) => `G${g.gameNumber} (${g.playerA?.ign || 'Unknown'})`);
-  } else if (warnGamesB.length >= 2) {
-    pendingPenaltyTeam = 'teamB';
-    warnDetails = warnGamesB.map((g) => `G${g.gameNumber} (${g.playerB?.ign || 'Unknown'})`);
-  }
-
-  const lastPlayerA = lastGame
-    ? activeLineupA.find((p) => p.ign.toLowerCase() === (lastGame.playerA?.ign || '').toLowerCase())
-    : null;
-  const lastPlayerB = lastGame
-    ? activeLineupB.find((p) => p.ign.toLowerCase() === (lastGame.playerB?.ign || '').toLowerCase())
-    : null;
-
-  const mustContinueA = !isStayA && Boolean(lastPlayerA && (lastPlayerA.remainingLife ?? 2) === 1);
-  const mustContinueB = !isStayB && Boolean(lastPlayerB && (lastPlayerB.remainingLife ?? 2) === 1);
-
-  // Kunci otomatis alur Stay Table & Next Deck
   useEffect(() => {
-    // 🔵 TIM A STAY TABLE
-    if (isStayA && lastPlayerA && lastGame) {
-      setSelectedAIgn(lastPlayerA.ign);
-
-      // Cari slot deck yang archetype-nya cocok dengan game terakhir
-      const isD1 = String(lastPlayerA.deck1?.archetype || '').toLowerCase() === String(lastGame.playerA?.archetype || '').toLowerCase();
-      const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
-      setDeckAType(currentDeckSlot);
-
-      // Kunci flag repeat jika deck ini adalah deck repeat
-      const isDeckRepeated = Boolean(lastPlayerA[currentDeckSlot]?.isRepeatUsed || lastGame.playerA?.isRepeat);
-      setIsRepeatA(isDeckRepeated);
-    } else if (mustContinueA && lastPlayerA) {
-      setSelectedAIgn(lastPlayerA.ign);
-      setDeckAType(!lastPlayerA.deck1?.isDead ? 'deck1' : 'deck2');
-      setIsRepeatA(false);
-    } else if (!isStayA && !mustContinueA) {
-      setSelectedAIgn('');
-      setIsRepeatA(false);
-    }
-
-    // 🔴 TIM B STAY TABLE
-    if (isStayB && lastPlayerB && lastGame) {
-      setSelectedBIgn(lastPlayerB.ign);
-
-      // Cari slot deck yang archetype-nya cocok dengan game terakhir
-      const isD1 = String(lastPlayerB.deck1?.archetype || '').toLowerCase() === String(lastGame.playerB?.archetype || '').toLowerCase();
-      const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
-      setDeckBType(currentDeckSlot);
-
-      // Kunci flag repeat jika deck ini adalah deck repeat
-      const isDeckRepeated = Boolean(lastPlayerB[currentDeckSlot]?.isRepeatUsed || lastGame.playerB?.isRepeat);
-      setIsRepeatB(isDeckRepeated);
-    } else if (mustContinueB && lastPlayerB) {
-      setSelectedBIgn(lastPlayerB.ign);
-      setDeckBType(!lastPlayerB.deck1?.isDead ? 'deck1' : 'deck2');
-      setIsRepeatB(false);
-    } else if (!isStayB && !mustContinueB) {
-      setSelectedBIgn('');
-      setIsRepeatB(false);
-    }
-
-    // Pointer otomatis fokus ke tim yang kalah
-    if (lastGame?.winner) {
-      setActiveTab(lastGame.winner === 'teamA' ? 'B' : 'A');
-    }
-  }, [games.length, isStayA, isStayB, mustContinueA, mustContinueB]);
-
-  // Handler Swap / Toggle Switch Repeat
-  const handleToggleRepeatA = () => {
-    const p = activeLineupA.find((x) => x.ign.toLowerCase() === selectedAIgn.toLowerCase());
-    if (!p) return;
-    if (!isRepeatA) {
-      // ON: pointer swap ke deck yang mati
-      const deadSlot = p.deck1?.isDead ? 'deck1' : 'deck2';
-      setDeckAType(deadSlot);
-      setIsRepeatA(true);
+    if (hasPendingA && hasPendingB) {
+      // Dua-duanya pending: default ke Tim A, tapi admin bisa switch ke B
+      setPenaltyTargetSide((prev) => prev || 'teamA');
+      setGameStatus('deckloss');
+    } else if (hasPendingA) {
+      setPenaltyTargetSide('teamA');
+      setGameStatus('deckloss');
+    } else if (hasPendingB) {
+      setPenaltyTargetSide('teamB');
+      setGameStatus('deckloss');
     } else {
-      // OFF: pointer swap kembali ke deck hidup
-      const aliveSlot = !p.deck1?.isDead ? 'deck1' : 'deck2';
-      setDeckAType(aliveSlot);
-      setIsRepeatA(false);
+      setPenaltyTargetSide(null);
     }
-  };
+  }, [hasPendingA, hasPendingB]);
 
-  const handleToggleRepeatB = () => {
-    const p = activeLineupB.find((x) => x.ign.toLowerCase() === selectedBIgn.toLowerCase());
-    if (!p) return;
-    if (!isRepeatB) {
-      // ON: pointer swap ke deck yang mati
-      const deadSlot = p.deck1?.isDead ? 'deck1' : 'deck2';
-      setDeckBType(deadSlot);
-      setIsRepeatB(true);
-    } else {
-      // OFF: pointer swap kembali ke deck hidup
-      const aliveSlot = !p.deck1?.isDead ? 'deck1' : 'deck2';
-      setDeckBType(aliveSlot);
-      setIsRepeatB(false);
-    }
-  };
+  // Efek penyesuaian pemenang dan penguncian target
+  const pendingPenaltyTeam = gameStatus === 'deckloss' ? penaltyTargetSide : null;
 
-  const penalizedLastPlayer = pendingPenaltyTeam === 'teamA' ? lastPlayerA : lastPlayerB;
-  const isTargetLocked = Boolean(
-    pendingPenaltyTeam && penalizedLastPlayer && (penalizedLastPlayer.remainingLife ?? 2) === 1
-  );
+  const penalizedLineup = pendingPenaltyTeam === 'teamA' ? activeLineupA : activeLineupB;
+  const lastPlayerIgn = pendingPenaltyTeam === 'teamA' ? lastGame?.playerA?.ign : lastGame?.playerB?.ign;
+  const lastDuelist = penalizedLineup.find((p) => p.ign.toLowerCase() === (lastPlayerIgn || '').toLowerCase());
+  const isTargetLocked = Boolean(pendingPenaltyTeam && lastDuelist && (lastDuelist.remainingLife ?? 2) === 1);
 
   useEffect(() => {
     if (pendingPenaltyTeam) {
-      setGameStatus('deckloss');
-      setWinner(pendingPenaltyTeam === 'teamA' ? 'teamB' : 'teamA');
+      const autoWinner = pendingPenaltyTeam === 'teamA' ? 'teamB' : 'teamA';
+      setWinner(autoWinner);
 
-      const teamLabel = pendingPenaltyTeam === 'teamA' ? teamAName : teamBName;
-      setNotes(`Penalti Deckloss (${teamLabel}): Akumulasi 2x Lupa SS Hand [${warnDetails.join(', ')}]`);
-
-      if (pendingPenaltyTeam === 'teamA' && isTargetLocked && penalizedLastPlayer) {
-        setSelectedAIgn(penalizedLastPlayer.ign);
-        setDeckAType(!penalizedLastPlayer.deck1?.isDead ? 'deck1' : 'deck2');
-      } else if (pendingPenaltyTeam === 'teamB' && isTargetLocked && penalizedLastPlayer) {
-        setSelectedBIgn(penalizedLastPlayer.ign);
-        setDeckBType(!penalizedLastPlayer.deck1?.isDead ? 'deck1' : 'deck2');
+      if (pendingPenaltyTeam === 'teamA' && isTargetLocked && lastDuelist) {
+        setSelectedAIgn(lastDuelist.ign);
+        const nextSlot = !lastDuelist.deck1?.isDead ? 'deck1' : 'deck2';
+        setDeckAType(nextSlot);
+      } else if (pendingPenaltyTeam === 'teamB' && isTargetLocked && lastDuelist) {
+        setSelectedBIgn(lastDuelist.ign);
+        const nextSlot = !lastDuelist.deck1?.isDead ? 'deck1' : 'deck2';
+        setDeckBType(nextSlot);
       }
     }
-  }, [pendingPenaltyTeam, isTargetLocked]);
+  }, [pendingPenaltyTeam, isTargetLocked, lastDuelist]);
 
+  const activeDuelistA = activeLineupA.find((p) => p.ign === selectedAIgn);
+  const activeDuelistB = activeLineupB.find((p) => p.ign === selectedBIgn);
+  const mustContinueA = !isStayA && Boolean(activeDuelistA && (activeDuelistA.remainingLife ?? 2) === 1);
+  const mustContinueB = !isStayB && Boolean(activeDuelistB && (activeDuelistB.remainingLife ?? 2) === 1);
+
+  const currentAIgn = (activeLineupA.find((p) => p.ign === selectedAIgn) || activeLineupA[0])?.ign || '';
+  const currentBIgn = (activeLineupB.find((p) => p.ign === selectedBIgn) || activeLineupB[0])?.ign || '';
   const isLineupReady = activeLineupA.length === 5 && activeLineupB.length === 5;
 
   const handleSubmit = () => {
-    if (!winner || !selectedAIgn || !selectedBIgn) return;
+    if (!winner || !currentAIgn || !currentBIgn) return;
 
     onAddGame({
-      playerAIgn: selectedAIgn,
+      playerAIgn: currentAIgn,
       deckAType,
       isRepeatA,
-      playerBIgn: selectedBIgn,
+      playerBIgn: currentBIgn,
       deckBType,
       isRepeatB,
       winner,
       isDeckloss: gameStatus === 'deckloss',
+      lossCondition: gameStatus === 'deckloss' ? 'DECKLOSS' : isRepeatA || isRepeatB ? 'REPEAT' : 'REGULAR',
       ssHandA,
       ssHandB,
       notes: notes.trim(),
     });
 
-    setActiveTab(winner === 'teamA' ? 'B' : 'A');
-
     setGameStatus('normal');
+    setPenaltyTargetSide(null);
     setSsHandA(true);
     setSsHandB(true);
     setNotes('');
     setWinner(null);
+    setIsRepeatA(false);
+    setIsRepeatB(false);
   };
 
   return (
@@ -240,6 +163,9 @@ export function EditorRunner({
           <h3 className="text-xs font-black uppercase tracking-wider text-foreground">
             INPUT GAME G{resolvedNextGameNumber}
           </h3>
+          <span className="text-[11px] font-mono font-bold text-muted-foreground ml-2">
+            ({scoreA} - {scoreB})
+          </span>
         </div>
 
         {onRollbackGame && games.length > 0 && (
@@ -255,7 +181,40 @@ export function EditorRunner({
 
       {!isLineupReady && (
         <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-medium flex items-center justify-between">
-          <span>⚠️ Daftarkan 5 duelist untuk kedua tim sebelum mencatat game!</span>
+          <span>⚠️ Pilih 5 duelist untuk kedua tim sebelum mencatat game!</span>
+        </div>
+      )}
+
+      {/* PENGATURAN PILIH TIM YANG KENA DECKLOSS JIKA KEDUANYA KENA SANKSI / STATUS DECKLOSS DIPILIH */}
+      {gameStatus === 'deckloss' && (
+        <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2">
+          <span className="text-xs font-bold text-amber-900 dark:text-amber-200 block">
+            ⚖️ Pilih Tim yang Menerima Sanksi Deckloss di Ronde Ini:
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setPenaltyTargetSide('teamA')}
+              className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                penaltyTargetSide === 'teamA'
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                  : 'bg-background border-border text-foreground hover:bg-muted'
+              }`}
+            >
+              {teamAName} (Kena Deckloss)
+            </button>
+            <button
+              type="button"
+              onClick={() => setPenaltyTargetSide('teamB')}
+              className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                penaltyTargetSide === 'teamB'
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                  : 'bg-background border-border text-foreground hover:bg-muted'
+              }`}
+            >
+              {teamBName} (Kena Deckloss)
+            </button>
+          </div>
         </div>
       )}
 
@@ -263,9 +222,10 @@ export function EditorRunner({
         pendingPenaltyTeam={pendingPenaltyTeam}
         penalizedTeamName={pendingPenaltyTeam === 'teamA' ? teamAName : teamBName}
         isTargetLocked={isTargetLocked}
-        lockedPlayerIgn={penalizedLastPlayer?.ign}
+        lockedPlayerIgn={lastDuelist?.ign}
       />
 
+      {/* Tab Navigasi Tim (Biru / Merah) */}
       <div className="grid grid-cols-2 gap-2 p-1 bg-muted/40 rounded-xl border border-border">
         <button
           type="button"
@@ -276,31 +236,33 @@ export function EditorRunner({
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          {teamAName} {selectedAIgn && '✓'}
+          {teamAName}
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('B')}
           className={`py-2 px-3 rounded-lg text-xs font-black transition cursor-pointer ${
             activeTab === 'B'
-              ? 'bg-blue-600 text-white shadow-xs border border-blue-600'
+              ? 'bg-red-600 text-white shadow-xs border border-red-600'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          {teamBName} {selectedBIgn && '✓'}
+          {teamBName}
         </button>
       </div>
 
+      {/* Panel Duelist Tim */}
       <EditorRunnerTeamPanel
         teamName={activeTab === 'A' ? teamAName : teamBName}
         lineup={activeTab === 'A' ? activeLineupA : activeLineupB}
-        selectedIgn={activeTab === 'A' ? selectedAIgn : selectedBIgn}
+        selectedIgn={activeTab === 'A' ? currentAIgn : currentBIgn}
         selectedDeck={activeTab === 'A' ? deckAType : deckBType}
         isRepeat={activeTab === 'A' ? isRepeatA : isRepeatB}
         repeatsUsed={activeTab === 'A' ? repeatsA : repeatsB}
         isStayTable={activeTab === 'A' ? isStayA : isStayB}
         mustContinue={activeTab === 'A' ? mustContinueA : mustContinueB}
         lastWinnerGameNum={games.length}
+        gamesHistory={games}
         onSelectPlayer={(ign, defDeck) => {
           if (activeTab === 'A') {
             setSelectedAIgn(ign);
@@ -321,15 +283,28 @@ export function EditorRunner({
             setIsRepeatB(false);
           }
         }}
-        onToggleRepeat={activeTab === 'A' ? handleToggleRepeatA : handleToggleRepeatB}
+        onTriggerRepeat={(deadDeckSlot) => {
+          if (activeTab === 'A') {
+            setDeckAType(deadDeckSlot);
+            setIsRepeatA(true);
+          } else {
+            setDeckBType(deadDeckSlot);
+            setIsRepeatB(true);
+          }
+        }}
       />
 
       <RunnerOutcomeForm
         teamAName={teamAName}
         teamBName={teamBName}
         gameStatus={gameStatus}
-        onGameStatusChange={setGameStatus}
-        isPenaltyLocked={Boolean(pendingPenaltyTeam)}
+        onGameStatusChange={(status) => {
+          setGameStatus(status);
+          if (status === 'deckloss' && !penaltyTargetSide) {
+            setPenaltyTargetSide('teamA');
+          }
+        }}
+        isPenaltyLocked={Boolean(pendingPenaltyTeam && isTargetLocked)}
         ssHandA={ssHandA}
         onSsHandAChange={setSsHandA}
         ssHandB={ssHandB}
@@ -339,10 +314,11 @@ export function EditorRunner({
         winner={winner}
         onWinnerChange={setWinner}
         pendingPenaltyTeam={pendingPenaltyTeam}
-        isLineupReady={isLineupReady && Boolean(selectedAIgn && selectedBIgn)}
+        isLineupReady={isLineupReady}
         nextGameNumber={resolvedNextGameNumber}
         onSubmit={handleSubmit}
       />
     </div>
   );
   }
+            
