@@ -100,12 +100,12 @@ export function EditorRunner({
 
   // Kunci otomatis alur Stay Table & Next Deck
   useEffect(() => {
+    // Tim A
     if (isStayA && lastPlayerA && lastGame) {
       setSelectedAIgn(lastPlayerA.ign);
-      const isD1Won = lastPlayerA.deck1.archetype === lastGame.playerA?.archetype;
-      setDeckAType(isD1Won ? 'deck1' : 'deck2');
-      // Pertahankan status repeat jika duel sebelumnya adalah repeat
-      setIsRepeatA(Boolean(lastGame.playerA?.isRepeat));
+      const isD1 = lastPlayerA.deck1?.archetype?.toLowerCase() === lastGame.playerA?.archetype?.toLowerCase();
+      setDeckAType(isD1 ? 'deck1' : 'deck2');
+      setIsRepeatA(false); // Game kemenangan berikutnya bukan aktivasi repeat baru
     } else if (mustContinueA && lastPlayerA) {
       setSelectedAIgn(lastPlayerA.ign);
       setDeckAType(!lastPlayerA.deck1?.isDead ? 'deck1' : 'deck2');
@@ -115,12 +115,12 @@ export function EditorRunner({
       setIsRepeatA(false);
     }
 
+    // Tim B
     if (isStayB && lastPlayerB && lastGame) {
       setSelectedBIgn(lastPlayerB.ign);
-      const isD1Won = lastPlayerB.deck1.archetype === lastGame.playerB?.archetype;
-      setDeckBType(isD1Won ? 'deck1' : 'deck2');
-      // Pertahankan status repeat jika duel sebelumnya adalah repeat
-      setIsRepeatB(Boolean(lastGame.playerB?.isRepeat));
+      const isD1 = lastPlayerB.deck1?.archetype?.toLowerCase() === lastGame.playerB?.archetype?.toLowerCase();
+      setDeckBType(isD1 ? 'deck1' : 'deck2');
+      setIsRepeatB(false); // Game kemenangan berikutnya bukan aktivasi repeat baru
     } else if (mustContinueB && lastPlayerB) {
       setSelectedBIgn(lastPlayerB.ign);
       setDeckBType(!lastPlayerB.deck1?.isDead ? 'deck1' : 'deck2');
@@ -130,7 +130,7 @@ export function EditorRunner({
       setIsRepeatB(false);
     }
 
-    // Arahkan pointer tab ke tim yang kalah saat inisialisasi / rollback
+    // Arahkan fokus tab otomatis ke tim yang kalah
     if (lastGame?.winner) {
       setActiveTab(lastGame.winner === 'teamA' ? 'B' : 'A');
     }
@@ -178,7 +178,7 @@ export function EditorRunner({
       notes: notes.trim(),
     });
 
-    // Otomatis pindahkan pointer tab ke tim yang kalah
+    // Otomatis pindahkan fokus tab ke tim yang kalah
     setActiveTab(winner === 'teamA' ? 'B' : 'A');
 
     setGameStatus('normal');
@@ -186,6 +186,8 @@ export function EditorRunner({
     setSsHandB(true);
     setNotes('');
     setWinner(null);
+    setIsRepeatA(false);
+    setIsRepeatB(false);
   };
 
   return (
@@ -309,4 +311,4 @@ export function EditorRunner({
       />
     </div>
   );
-                      }
+}
