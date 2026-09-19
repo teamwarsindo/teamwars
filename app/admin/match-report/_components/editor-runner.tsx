@@ -100,37 +100,41 @@ export function EditorRunner({
 
   // Kunci otomatis alur Stay Table & Next Deck
   useEffect(() => {
-    // Tim A
+    // 🔵 TIM A
     if (isStayA && lastPlayerA && lastGame) {
       setSelectedAIgn(lastPlayerA.ign);
-      const isD1 = lastPlayerA.deck1?.archetype?.toLowerCase() === lastGame.playerA?.archetype?.toLowerCase();
-      setDeckAType(isD1 ? 'deck1' : 'deck2');
-      setIsRepeatA(false); // Game kemenangan berikutnya bukan aktivasi repeat baru
+      const isD1 = String(lastPlayerA.deck1?.archetype || '').toLowerCase() === String(lastGame.playerA?.archetype || '').toLowerCase();
+      const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
+      setDeckAType(currentDeckSlot);
+      // Teruskan status repeat jika deck ini adalah deck repeat
+      setIsRepeatA(Boolean(lastPlayerA[currentDeckSlot]?.isRepeatUsed || lastGame.playerA?.isRepeat));
     } else if (mustContinueA && lastPlayerA) {
       setSelectedAIgn(lastPlayerA.ign);
       setDeckAType(!lastPlayerA.deck1?.isDead ? 'deck1' : 'deck2');
       setIsRepeatA(false);
-    } else {
+    } else if (!isStayA && !mustContinueA) {
       setSelectedAIgn('');
       setIsRepeatA(false);
     }
 
-    // Tim B
+    // 🔴 TIM B
     if (isStayB && lastPlayerB && lastGame) {
       setSelectedBIgn(lastPlayerB.ign);
-      const isD1 = lastPlayerB.deck1?.archetype?.toLowerCase() === lastGame.playerB?.archetype?.toLowerCase();
-      setDeckBType(isD1 ? 'deck1' : 'deck2');
-      setIsRepeatB(false); // Game kemenangan berikutnya bukan aktivasi repeat baru
+      const isD1 = String(lastPlayerB.deck1?.archetype || '').toLowerCase() === String(lastGame.playerB?.archetype || '').toLowerCase();
+      const currentDeckSlot = isD1 ? 'deck1' : 'deck2';
+      setDeckBType(currentDeckSlot);
+      // Teruskan status repeat jika deck ini adalah deck repeat
+      setIsRepeatB(Boolean(lastPlayerB[currentDeckSlot]?.isRepeatUsed || lastGame.playerB?.isRepeat));
     } else if (mustContinueB && lastPlayerB) {
       setSelectedBIgn(lastPlayerB.ign);
       setDeckBType(!lastPlayerB.deck1?.isDead ? 'deck1' : 'deck2');
       setIsRepeatB(false);
-    } else {
+    } else if (!isStayB && !mustContinueB) {
       setSelectedBIgn('');
       setIsRepeatB(false);
     }
 
-    // Arahkan fokus tab otomatis ke tim yang kalah
+    // Pointer otomatis fokus ke tim yang kalah
     if (lastGame?.winner) {
       setActiveTab(lastGame.winner === 'teamA' ? 'B' : 'A');
     }
@@ -186,8 +190,6 @@ export function EditorRunner({
     setSsHandB(true);
     setNotes('');
     setWinner(null);
-    setIsRepeatA(false);
-    setIsRepeatB(false);
   };
 
   return (
@@ -311,4 +313,5 @@ export function EditorRunner({
       />
     </div>
   );
-}
+                             }
+        
