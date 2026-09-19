@@ -8,6 +8,7 @@ interface DuelistEditorFormProps {
   lineup: PlayerLineupItem[];
   deckOptions: MetaAutocompleteOption[];
   skillOptions: MetaAutocompleteOption[];
+  flaggedIgns?: Set<string>;
   onChangeDeck: (ign: string, slot: 'deck1' | 'deck2', field: 'archetype' | 'skill', val: string) => void;
   onRefreshMeta?: () => Promise<void>;
 }
@@ -16,6 +17,7 @@ export function DuelistEditorForm({
   lineup,
   deckOptions,
   skillOptions,
+  flaggedIgns,
   onChangeDeck,
   onRefreshMeta,
 }: DuelistEditorFormProps) {
@@ -59,6 +61,7 @@ export function DuelistEditorForm({
   const renderDuelistButton = (p: PlayerLineupItem, displayNum: number) => {
     const filled = getDeckCount(p);
     const isSelected = current?.ign.toLowerCase() === p.ign.toLowerCase();
+    const isFlagged = Boolean(flaggedIgns?.has(p.ign.toLowerCase()));
 
     return (
       <button
@@ -68,14 +71,27 @@ export function DuelistEditorForm({
         className={`w-full flex items-center justify-between px-2 py-2 rounded-xl border transition cursor-pointer ${
           isSelected 
             ? 'border-primary bg-primary/10 text-primary shadow-xs' 
+            : isFlagged
+            ? 'border-rose-400 bg-rose-500/5 hover:bg-rose-500/10 text-foreground'
             : 'border-border bg-card text-foreground hover:bg-muted/50'
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0 pr-1">
-          <span className="w-4 h-4 rounded-full bg-muted flex items-center justify-center text-[10px] shrink-0 text-muted-foreground font-semibold">
+          <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 font-semibold ${
+            isFlagged ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-muted text-muted-foreground'
+          }`}>
             {displayNum}
           </span>
-          <span className="text-[11px] font-semibold leading-none truncate">{p.ign}</span>
+          {isFlagged && (
+            <span className="text-[11px] text-rose-500 select-none shrink-0" title="Duplikasi Archetype">
+              ⚠️
+            </span>
+          )}
+          <span className={`text-[11px] font-semibold leading-none truncate ${
+            isFlagged && !isSelected ? 'text-rose-600 dark:text-rose-400' : ''
+          }`}>
+            {p.ign}
+          </span>
         </div>
         
         <span className={`text-[9px] font-semibold px-1 py-0.5 rounded shrink-0 ${
