@@ -20,11 +20,9 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Lineup aktif hasil kalkulasi permainan
   const [teamALineup, setTeamALineupState] = useState<PlayerLineupItem[]>([]);
   const [teamBLineup, setTeamBLineupState] = useState<PlayerLineupItem[]>([]);
 
-  // Master lineup murni (sebelum dikurangi game apapun)
   const masterBaseLineupA = useRef<PlayerLineupItem[]>(initEmpty());
   const masterBaseLineupB = useRef<PlayerLineupItem[]>(initEmpty());
 
@@ -58,9 +56,7 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     }
   }, []);
 
-  // REPLAY ENGINE: Menghitung ulang kondisi dari Master Base Roster yang selalu bersih
   const replayEngine = useCallback((currentGames: GameEntry[], baseA: PlayerLineupItem[], baseB: PlayerLineupItem[]) => {
-    // Reset seluruh duelist ke kondisi bersih (Life: 2, Deck Hidup, Win/Loss: 0)
     const freshA: PlayerLineupItem[] = baseA.map((p) => ({
       ign: p.ign,
       idDuelLinks: p.idDuelLinks || '',
@@ -97,44 +93,49 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       if (g.ssHandA === false) activeWarnsA++;
       if (g.ssHandB === false) activeWarnsB++;
 
-      // Reset hitungan warning jika ronde ini adalah sanksi deckloss
       if ((g as any).isDeckloss || (g as any).lossCondition === 'PENALTY_2' || (g as any).lossCondition === 'DECKLOSS') {
         if (!isAWin) activeWarnsA = 0;
         else activeWarnsB = 0;
       }
 
-      // Hitung dampak ke Tim A
       if (pA) {
-        const dA = pA.deck1.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
+        const dA = pA.deck1?.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
         if (isAWin) {
-          pA.totalWins++;
-          dA.wins++;
+          pA.totalWins = (pA.totalWins ?? 0) + 1;
+          if (dA) {
+            dA.wins = (dA.wins ?? 0) + 1;
+          }
         } else {
-          pA.totalLosses++;
+          pA.totalLosses = (pA.totalLosses ?? 0) + 1;
           if (g.playerA.isRepeat) {
-            dA.isRepeatUsed = true;
+            if (dA) dA.isRepeatUsed = true;
           } else {
-            pA.remainingLife = Math.max(0, pA.remainingLife - 1);
-            dA.losses++;
-            dA.isDead = true;
+            pA.remainingLife = Math.max(0, (pA.remainingLife ?? 2) - 1);
+            if (dA) {
+              dA.losses = (dA.losses ?? 0) + 1;
+              dA.isDead = true;
+            }
           }
         }
       }
 
-      // Hitung dampak ke Tim B
       if (pB) {
-        const dB = pB.deck1.archetype === g.playerB.archetype ? pB.deck1 : pB.deck2;
+        const dB = pB.deck1?.archetype === g.playerB.archetype ? pB.deck1 : pB.deck2;
         if (!isAWin) {
-          pB.totalWins++;
-          dB.wins++;
+          pB.totalWins = (pB.totalWins ?? 0) + 1;
+          if (dB) {
+            dB.wins = (dB.wins ?? 0) + 1;
+          }
         } else {
-          pB.totalLosses++;
+          pB.totalLosses = (pB.totalLosses ?? 0) + 1;
           if (g.playerB.isRepeat) {
-            dB.isRepeatUsed = true;
+            if (dB) dB.isRepeatUsed = true;
           } else {
-            pB.remainingLife = Math.max(0, pB.remainingLife - 1);
-            dB.losses++;
-            dB.isDead = true;
+            pB.remainingLife = Math.max(0, (pB.remainingLife ?? 2) - 1);
+            if (dB) {
+              dB.losses = (dB.losses ?? 0) + 1;
+              dB.isDead = true;
+            }
           }
         }
       }
@@ -214,8 +215,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const dA = d.deckAType === 'deck1' ? pA.deck1 : pA.deck2;
     const dB = d.deckBType === 'deck1' ? pB.deck1 : pB.deck2;
 
-    const skillCodeA = masterSkills.find((s) => s.name === dA.skill || s.label === dA.skill)?.code || dA.skill;
-    const skillCodeB = masterSkills.find((s) => s.name === dB.skill || s.label === dB.skill)?.code || dB.skill;
+    const skillCodeA = masterSkills.find((s) => s.name === dA?.skill || s.label === dA?.skill)?.code || dA?.skill || '';
+    const skillCodeB = masterSkills.find((s) => s.name === dB?.skill || s.label === dB?.skill)?.code || dB?.skill || '';
 
     const newGame: GameEntry = {
       gameNumber: games.length + 1,
@@ -223,14 +224,14 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       playerA: {
         ign: pA.ign,
         idDuelLinks: pA.idDuelLinks,
-        archetype: dA.archetype,
+        archetype: dA?.archetype || '',
         skill: skillCodeA,
         isRepeat: d.isRepeatA,
       },
       playerB: {
         ign: pB.ign,
         idDuelLinks: pB.idDuelLinks,
-        archetype: dB.archetype,
+        archetype: dB?.archetype || '',
         skill: skillCodeB,
         isRepeat: d.isRepeatB,
       },
@@ -244,11 +245,9 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
 
     const nextGames = [...games, newGame];
     setGames(nextGames);
-    // Jalankan kalkulasi ulang dari master lineup murni
     replayEngine(nextGames, masterBaseLineupA.current, masterBaseLineupB.current);
   };
 
-  // ROLLBACK GAME: Cukup potong game terakhir dan kalkulasi ulang dari master lineup murni
   const handleRollbackGame = () => {
     if (games.length === 0) return;
     const nextGames = games.slice(0, -1);
@@ -332,5 +331,5 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleAddGame,
     handleRollbackGame,
     handleSaveToDatabase,
-  };
-                                       }
+  };     
+}
