@@ -36,7 +36,7 @@ export function EditorRunnerTeamPanel({
     [lineup, selectedIgn]
   );
 
-  // Cari apakah pemain ini memiliki slot deck yang sudah pernah dipakai repeat
+  // Cari slot deck spesifik yang pernah di-repeat di histori match sebelumnya
   const repeatedSlot = useMemo<'deck1' | 'deck2' | null>(() => {
     if (!activePlayer) return null;
     if (activePlayer.deck1?.isRepeatUsed) return 'deck1';
@@ -44,15 +44,15 @@ export function EditorRunnerTeamPanel({
     return null;
   }, [activePlayer]);
 
-  // Cari deck yang mati di ronde pertama (hanya untuk pemain dengan sisa Life 1)
-  const deadDeckSlot = useMemo<'deck1' | 'deck2' | null>(() => {
+  // Slot deck yang mati di ronde pertama (hanya jika Life = 1 dan belum pernah repeat)
+  const deadSlotBeforeRepeat = useMemo<'deck1' | 'deck2' | null>(() => {
     if (!activePlayer) return null;
     if (activePlayer.deck1?.isDead && !activePlayer.deck2?.isDead) return 'deck1';
     if (activePlayer.deck2?.isDead && !activePlayer.deck1?.isDead) return 'deck2';
     return null;
   }, [activePlayer]);
 
-  // Tampilkan tombol repeat jika belum pernah repeat, life 1, dan belum pernah menang fisik
+  // Tombol toggle repeat hanya muncul saat giliran normal (bukan stay table) dan memenuhi regulasi
   const canShowRepeatToggle = useMemo(() => {
     if (!activePlayer || isStayTable || repeatedSlot !== null) return false;
     if (isRepeat) return true;
@@ -61,14 +61,21 @@ export function EditorRunnerTeamPanel({
       !hasPhysicalWin &&
       (activePlayer.totalLosses ?? 0) === 1 &&
       repeatsUsed < 2 &&
-      deadDeckSlot !== null
+      deadSlotBeforeRepeat !== null
     );
-  }, [activePlayer, isStayTable, repeatedSlot, isRepeat, repeatsUsed, deadDeckSlot]);
+  }, [activePlayer, isStayTable, repeatedSlot, isRepeat, repeatsUsed, deadSlotBeforeRepeat]);
+
+  // Tentukan slot mana yang menjadi target deck repeat
+  const currentRepeatActiveSlot = useMemo<'deck1' | 'deck2' | null>(() => {
+    if (repeatedSlot) return repeatedSlot;
+    if (isRepeat && deadSlotBeforeRepeat) return deadSlotBeforeRepeat;
+    return null;
+  }, [repeatedSlot, isRepeat, deadSlotBeforeRepeat]);
 
   return (
     <div className="border border-border/80 rounded-xl p-3 bg-muted/10 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-black uppercase text-foreground">
+        <span className="text-xs font-bold uppercase text-foreground">
           DUELIST {teamName}
         </span>
         {isStayTable && (
@@ -78,7 +85,7 @@ export function EditorRunnerTeamPanel({
         )}
       </div>
 
-      {/* LIST DUELIST */}
+      {/* DAFTAR ROSTER */}
       <div className="space-y-1">
         <span className="text-[11px] text-muted-foreground font-medium">Pilih Pemain (Roster Aktif):</span>
         <div className="grid grid-cols-2 gap-2">
@@ -102,7 +109,8 @@ export function EditorRunnerTeamPanel({
                     : 'border-border bg-card hover:bg-muted/40'
                 } disabled:opacity-30 disabled:cursor-not-allowed`}
               >
-                <div className="text-xs font-black text-foreground truncate">{p.ign}</div>
+                {/* Font diganti ke font-semibold agar ketebalannya proporsional */}
+                <div className="text-xs font-semibold text-foreground truncate">{p.ign}</div>
                 <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
                   Life: {p.remainingLife ?? 2}
                 </div>
@@ -122,23 +130,15 @@ export function EditorRunnerTeamPanel({
               const deckObj = activePlayer[slot];
               const isSelected = selectedDeck === slot;
 
-              // Tentukan apakah slot ini adalah deck yang aktif di-repeat
-              const isThisDeckRepeated =
-                (repeatedSlot === slot) ||
-                (isRepeat && slot === deadDeckSlot) ||
-                (isSelected && Boolean(deckObj?.isRepeatUsed));
+              // Hanya deck slot ini yang menerima tag REPEAT
+              const isThisSlotRepeat = currentRepeatActiveSlot === slot;
 
-              // Tentukan apakah pemain sedang dalam mode bermain repeat
-              const isPlayerInRepeatMode = isRepeat || repeatedSlot !== null;
-
-              // Logika status mati:
-              // Jika mode repeat aktif:
-              // - Deck repeat = HIDUP
-              // - Deck pasangan = MATI
-              // Jika duel reguler biasa: ikuti deckObj.isDead
+              // Kondisi mati display:
+              // - Jika pemain sedang memakai repeat: deck repeat HIDUP, deck lainnya MATI
+              // - Jika normal: ikuti deckObj.isDead bawaan database
               let isDeadDisplay = false;
-              if (isPlayerInRepeatMode) {
-                isDeadDisplay = !isThisDeckRepeated;
+              if (currentRepeatActiveSlot !== null) {
+                isDeadDisplay = !isThisSlotRepeat;
               } else {
                 isDeadDisplay = Boolean(deckObj?.isDead);
               }
@@ -156,16 +156,16 @@ export function EditorRunnerTeamPanel({
                   } ${isDeadDisplay ? 'opacity-35 cursor-not-allowed bg-muted/20' : ''}`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`text-[10px] font-black uppercase ${isDeadDisplay ? 'text-rose-500' : 'text-muted-foreground'}`}>
+                    <span className={`text-[10px] font-bold uppercase ${isDeadDisplay ? 'text-rose-500' : 'text-muted-foreground'}`}>
                       DECK {num} {isDeadDisplay && '(MATI)'}
                     </span>
-                    {isThisDeckRepeated && (
-                      <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-amber-500 text-white rounded-md tracking-wider shadow-xs">
+                    {isThisSlotRepeat && (
+                      <span className="text-[9px] font-bold uppercase px-2 py-0.5 bg-amber-500 text-white rounded-md tracking-wider shadow-xs">
                         REPEAT
                       </span>
                     )}
                   </div>
-                  <div className={`text-xs font-bold truncate mt-0.5 ${isDeadDisplay ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                  <div className={`text-xs font-semibold truncate mt-0.5 ${isDeadDisplay ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
                     {deckObj?.archetype || 'Belum diatur'}
                   </div>
                   <div className="text-[10px] text-muted-foreground truncate">{deckObj?.skill || '-'}</div>
@@ -192,4 +192,5 @@ export function EditorRunnerTeamPanel({
       )}
     </div>
   );
-}
+              }
+            
