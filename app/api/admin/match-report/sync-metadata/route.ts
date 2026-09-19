@@ -10,7 +10,8 @@ interface ScheduleItem {
   streamPlatform?: string;
   streamer?: string;
   referee?: string;
-  streamUrl?: string;
+  streamLink?: string; // Key resmi dari twi:schedules
+  streamUrl?: string;  // Fallback jika ada penamaan lama
   isFinished?: boolean;
   scoreA?: number;
   scoreB?: number;
@@ -20,10 +21,8 @@ interface ScheduleItem {
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
-    // Tambahkan query ?dryRun=true jika ingin audit/cek preview dulu tanpa menyimpan ke DB
     const isDryRun = url.searchParams.get("dryRun") === "true";
 
-    // 1. Ambil data schedules (string JSON) dan match_reports (HASH)
     const [rawSchedules, rawReports] = await Promise.all([
       kv.get<ScheduleItem[] | string>("twi:schedules"),
       kv.hgetall<Record<string, any>>("twi:match_reports"),
@@ -42,7 +41,6 @@ export async function POST(req: Request) {
 
     const reportsHash: Record<string, any> = rawReports || {};
 
-    // Penampung audit
     const hasStreamerNoUrl: string[] = [];
     const hasUrlNoStreamer: string[] = [];
     const hasNoReferee: string[] = [];
@@ -55,7 +53,7 @@ export async function POST(req: Request) {
       const matchId = schedule.id;
       if (!matchId) continue;
 
-      // Cek status isFinished (bisa dari flag langsung atau skor >= 10)
+      // Evaluasi status isFinished
       const isFinished = Boolean(
         schedule.isFinished ||
         (schedule.scoreA !== undefined && schedule.scoreA >= 10) ||
@@ -67,7 +65,6 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // Ambil report yang sudah ada di hash atau buat skeleton baru
       let currentReport = reportsHash[matchId];
       if (typeof currentReport === "string") {
         try {
@@ -78,20 +75,24 @@ export async function POST(req: Request) {
       }
       currentReport = currentReport || { matchId, metadata: {} };
 
-      // Normalisasi field metadata dari schedule
       const date = schedule.matchDate
         ? schedule.matchDate.split("T")[0]
         : (currentReport.metadata?.date || "");
 
       const streamer = (schedule.streamer ?? currentReport.metadata?.streamer ?? "").trim();
-      const streamUrl = (schedule.streamUrl ?? currentReport.metadata?.streamUrl ?? "").trim();
+      
+      // Mengambil link dari schedule.streamLink (dengan fallback streamUrl)
+      const rawUrl = schedule.streamLink ?? schedule.streamUrl ?? currentReport.metadata?.streamUrl ?? "";
+      const streamUrl = String(rawUrl).trim();
+
       const referee = (schedule.referee ?? currentReport.metadata?.referee ?? "").trim();
+      
       const streamPlatform =
         schedule.streamPlatform ??
         currentReport.metadata?.streamPlatform ??
         (streamUrl.toLowerCase().includes("tiktok") ? "TikTok" : "YouTube");
 
-      // Audit kondisi isFinished true
+      // Validasi kosong
       const hasStreamer = streamer !== "" && streamer !== "-";
       const hasUrl = streamUrl !== "" && streamUrl !== "-";
       const hasRef = referee !== "" && referee !== "-";
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
         hasNoReferee.push(matchId);
       }
 
-      // Update metadata report
+      // Metadata di match report tetap menggunakan key streamUrl
       currentReport.metadata = {
         ...currentReport.metadata,
         date,
@@ -120,7 +121,6 @@ export async function POST(req: Request) {
       updatedMatches.push(matchId);
     }
 
-    // 2. Simpan kembali ke HASH jika bukan dry-run
     if (!isDryRun && Object.keys(updatesToSave).length > 0) {
       await kv.hset("twi:match_reports", updatesToSave);
     }
@@ -159,7 +159,6 @@ export async function POST(req: Request) {
   }
 }
 
-// Support metode GET untuk memudahkan audit langsung lewat browser / curl
 export async function GET(req: Request) {
   return POST(req);
-  }
+}
