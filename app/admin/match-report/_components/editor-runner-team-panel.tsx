@@ -54,7 +54,7 @@ export function EditorRunnerTeamPanel({
     return null;
   }, [activePlayer]);
 
-  // HANYA UPDATE INI: Hitung kemenangan nyata (duel biasa, BUKAN hasil lawan deckloss)
+  // Hitung kemenangan nyata: game normal tanpa sanksi deckloss lawan
   const realDuelWins = useMemo(() => {
     if (!activePlayer) return 0;
     const ign = activePlayer.ign.toLowerCase();
@@ -67,17 +67,23 @@ export function EditorRunnerTeamPanel({
     }).length;
   }, [activePlayer, games]);
 
-  // Tombol toggle repeat hanya muncul saat giliran normal (bukan stay table) dan memenuhi regulasi
-  const canShowRepeatToggle = useMemo(() => {
+  // Syarat hak repeat
+  const canRepeat = useMemo(() => {
     if (!activePlayer || isStayTable || repeatedSlot !== null) return false;
-    if (isRepeat) return true;
     return (
       realDuelWins === 0 &&
       (activePlayer.totalLosses ?? 0) === 1 &&
       repeatsUsed < 2 &&
       deadSlotBeforeRepeat !== null
     );
-  }, [activePlayer, isStayTable, repeatedSlot, isRepeat, realDuelWins, repeatsUsed, deadSlotBeforeRepeat]);
+  }, [activePlayer, isStayTable, repeatedSlot, realDuelWins, repeatsUsed, deadSlotBeforeRepeat]);
+
+  // Tombol toggle repeat hanya muncul saat giliran normal dan memenuhi regulasi (atau sedang aktif)
+  const canShowRepeatToggle = useMemo(() => {
+    if (!activePlayer || isStayTable || repeatedSlot !== null) return false;
+    if (isRepeat) return true;
+    return canRepeat;
+  }, [activePlayer, isStayTable, repeatedSlot, isRepeat, canRepeat]);
 
   // Tentukan slot mana yang menjadi target deck repeat
   const currentRepeatActiveSlot = useMemo<'deck1' | 'deck2' | null>(() => {
@@ -86,15 +92,41 @@ export function EditorRunnerTeamPanel({
     return null;
   }, [repeatedSlot, isRepeat, deadSlotBeforeRepeat]);
 
+  // Badge Alur (Stay Table, Next Deck Or Repeat, Next Deck, Next Player)
+  const flowBadge = useMemo(() => {
+    if (isStayTable) {
+      return {
+        text: 'Stay Table',
+        className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+      };
+    }
+    if (mustContinue) {
+      if (canRepeat) {
+        return {
+          text: 'Next Deck / Repeat',
+          className: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+        };
+      }
+      return {
+        text: 'Next Deck',
+        className: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      };
+    }
+    return {
+      text: 'Next Player',
+      className: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
+    };
+  }, [isStayTable, mustContinue, canRepeat]);
+
   return (
     <div className="border border-border/80 rounded-xl p-3 bg-muted/10 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase text-foreground">
           DUELIST {teamName}
         </span>
-        {isStayTable && (
-          <span className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2 py-0.5 rounded-full border border-emerald-500/20">
-            Stay table
+        {flowBadge && (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${flowBadge.className}`}>
+            {flowBadge.text}
           </span>
         )}
       </div>
@@ -143,12 +175,8 @@ export function EditorRunnerTeamPanel({
               const deckObj = activePlayer[slot];
               const isSelected = selectedDeck === slot;
 
-              // Hanya deck slot ini yang menerima tag REPEAT
               const isThisSlotRepeat = currentRepeatActiveSlot === slot;
 
-              // Kondisi mati display:
-              // - Jika pemain sedang memakai repeat: deck repeat HIDUP, deck lainnya MATI
-              // - Jika normal: ikuti deckObj.isDead bawaan database
               let isDeadDisplay = false;
               if (currentRepeatActiveSlot !== null) {
                 isDeadDisplay = !isThisSlotRepeat;
@@ -205,4 +233,5 @@ export function EditorRunnerTeamPanel({
       )}
     </div>
   );
-                                      }
+    }
+                  
