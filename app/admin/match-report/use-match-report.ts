@@ -71,8 +71,6 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
     }));
 
-    let repA = 0;
-    let repB = 0;
     let activeWarnsA = 0;
     let activeWarnsB = 0;
 
@@ -80,67 +78,76 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       const pA = freshA.find((p) => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
       const pB = freshB.find((p) => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
       const isAWin = g.winner === 'teamA';
-
-      // 1. Eksekusi Repeat Team A
-      if (g.playerA?.isRepeat && pA) {
-        repA++;
-        const isD1 = pA.deck1.archetype === g.playerA.archetype;
-        const activeDeck = isD1 ? pA.deck1 : pA.deck2;
-        const otherDeck = isD1 ? pA.deck2 : pA.deck1;
-
-        activeDeck.isDead = false;
-        activeDeck.isRepeatUsed = true;
-        otherDeck.isDead = true; // deck yang tidak dipakai hangus
-        pA.remainingLife = 1;
-      }
-
-      // 2. Eksekusi Repeat Team B
-      if (g.playerB?.isRepeat && pB) {
-        repB++;
-        const isD1 = pB.deck1.archetype === g.playerB.archetype;
-        const activeDeck = isD1 ? pB.deck1 : pB.deck2;
-        const otherDeck = isD1 ? pB.deck2 : pB.deck1;
-
-        activeDeck.isDead = false;
-        activeDeck.isRepeatUsed = true;
-        otherDeck.isDead = true; // deck yang tidak dipakai hangus
-        pB.remainingLife = 1;
-      }
+      const isDeckloss = Boolean((g as any).isDeckloss);
 
       if (g.ssHandA === false) activeWarnsA++;
       if (g.ssHandB === false) activeWarnsB++;
 
-      if ((g as any).isDeckloss || (g as any).lossCondition === 'PENALTY_2') {
+      if (isDeckloss || (g as any).lossCondition === 'PENALTY_2') {
         if (!isAWin) activeWarnsA = 0;
         else activeWarnsB = 0;
       }
 
+      // Evaluasi Tim A
       if (pA) {
-        const dA = pA.deck1.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
+        const dA = [pA.deck1, pA.deck2].find(
+          (d) => d && String(d.archetype || '').toLowerCase() === String(g.playerA.archetype || '').toLowerCase()
+        ) || pA.deck1;
+
+        if (!isDeckloss && g.playerA?.isRepeat && !dA.isRepeatUsed) {
+          dA.isRepeatUsed = true;
+          dA.isDead = false;
+          if (dA === pA.deck1 && pA.deck2) pA.deck2.isDead = true;
+          if (dA === pA.deck2 && pA.deck1) pA.deck1.isDead = true;
+          pA.remainingLife = 1;
+        }
+
         if (isAWin) {
-          pA.totalWins++;
+          pA.totalWins = (pA.totalWins || 0) + 1;
           dA.wins = (dA.wins || 0) + 1;
         } else {
-          pA.totalLosses++;
-          pA.remainingLife = Math.max(0, pA.remainingLife - 1);
+          pA.totalLosses = (pA.totalLosses || 0) + 1;
+          pA.remainingLife = Math.max(0, (pA.remainingLife || 2) - 1);
           dA.losses = (dA.losses || 0) + 1;
           dA.isDead = true;
         }
       }
 
+      // Evaluasi Tim B
       if (pB) {
-        const dB = pB.deck1.archetype === g.playerB.archetype ? pB.deck1 : pB.deck2;
+        const dB = [pB.deck1, pB.deck2].find(
+          (d) => d && String(d.archetype || '').toLowerCase() === String(g.playerB.archetype || '').toLowerCase()
+        ) || pB.deck1;
+
+        if (!isDeckloss && g.playerB?.isRepeat && !dB.isRepeatUsed) {
+          dB.isRepeatUsed = true;
+          dB.isDead = false;
+          if (dB === pB.deck1 && pB.deck2) pB.deck2.isDead = true;
+          if (dB === pB.deck2 && pB.deck1) pB.deck1.isDead = true;
+          pB.remainingLife = 1;
+        }
+
         if (!isAWin) {
-          pB.totalWins++;
+          pB.totalWins = (pB.totalWins || 0) + 1;
           dB.wins = (dB.wins || 0) + 1;
         } else {
-          pB.totalLosses++;
-          pB.remainingLife = Math.max(0, pB.remainingLife - 1);
+          pB.totalLosses = (pB.totalLosses || 0) + 1;
+          pB.remainingLife = Math.max(0, (pB.remainingLife || 2) - 1);
           dB.losses = (dB.losses || 0) + 1;
           dB.isDead = true;
         }
       }
     }
+
+    // Hitung pemakaian hak repeat berdasarkan berapa slot deck yang ditandai repeat
+    const repA = freshA.reduce(
+      (count, p) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
+      0
+    );
+    const repB = freshB.reduce(
+      (count, p) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
+      0
+    );
 
     setTeamALineup(freshA);
     setTeamBLineup(freshB);
@@ -205,6 +212,10 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const isDeckloss = Boolean(d.isDeckloss);
     const decklossTeam = isDeckloss ? (d.winner === 'teamA' ? 'teamB' : 'teamA') : '';
 
+    // Status repeat tetap aktif jika baru saja ditekan ATAU deck tersebut memang deck repeat yang sedang stay
+    const isRepeatA = Boolean(d.isRepeatA || dA.isRepeatUsed);
+    const isRepeatB = Boolean(d.isRepeatB || dB.isRepeatUsed);
+
     const newGame: GameEntry = {
       gameNumber: games.length + 1,
       winner: d.winner,
@@ -213,14 +224,14 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
         idDuelLinks: pA.idDuelLinks,
         archetype: dA.archetype,
         skill: skillCodeA,
-        isRepeat: Boolean(d.isRepeatA), // Langsung simpan sesuai keputusan wasit
+        isRepeat: isRepeatA,
       },
       playerB: {
         ign: pB.ign,
         idDuelLinks: pB.idDuelLinks,
         archetype: dB.archetype,
         skill: skillCodeB,
-        isRepeat: Boolean(d.isRepeatB), // Langsung simpan sesuai keputusan wasit
+        isRepeat: isRepeatB,
       },
       ssHandA: Boolean(d.ssHandA),
       ssHandB: Boolean(d.ssHandB),
@@ -307,5 +318,4 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleRollbackGame,
     handleSaveToDatabase,
   };
-              }
-        
+  }
