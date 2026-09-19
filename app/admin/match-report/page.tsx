@@ -94,7 +94,7 @@ function MatchReportContent() {
                   time: scheduleDateInfo.time,
                   referee: activeMatch?.referee || '-',
                   streamer: activeMatch?.streamer || '-',
-                  streamUrl: activeMatch?.streamUrl || '',
+                  streamUrl: activeMatch?.streamLink || activeMatch?.streamUrl || '',                 
                 }}
               />
 
