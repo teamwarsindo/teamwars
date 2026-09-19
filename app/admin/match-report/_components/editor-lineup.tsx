@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { PlayerLineupItem, RosterOption } from '../types';
-import { ArchetypeQuotaBanner } from './archetype-banner';
+import { ArchetypeQuotaBanner, extractArchetypes } from './archetype-banner';
 import { DuelistEditorForm } from './duelist-editor-form';
 import { MetaAutocompleteOption } from './meta-autocomplete';
 import { RosterModal } from './roster-modal';
@@ -103,6 +103,32 @@ export function EditorLineup({
     return { pCount, totalDeckloss, missSkills, isClean: pCount === 5 && totalDeckloss === 0 && missSkills === 0 };
   }, [currentLineup]);
 
+  // Cari siapa saja pemain yang menggunakan archetype yang terduplikasi
+  const flaggedDuplicateIgns = useMemo(() => {
+    const counts: Record<string, string[]> = {};
+    currentLineup.forEach((player) => {
+      if (!player.ign) return;
+      ['deck1', 'deck2'].forEach((slot) => {
+        const d = player[slot as 'deck1' | 'deck2']?.archetype?.trim();
+        if (d && d !== '-') {
+          extractArchetypes(d, masterArchetypes).forEach((arch) => {
+            if (!counts[arch]) counts[arch] = [];
+            counts[arch].push(player.ign.toLowerCase());
+          });
+        }
+      });
+    });
+
+    const flagged = new Set<string>();
+    Object.values(counts).forEach((owners) => {
+      if (owners.length > 1) {
+        owners.forEach((ign) => flagged.add(ign));
+      }
+    });
+
+    return flagged;
+  }, [currentLineup, masterArchetypes]);
+
   return (
     <div className="space-y-4">
       {/* Tab Kubu Tim & Tombol Modal Roster */}
@@ -138,7 +164,7 @@ export function EditorLineup({
         </button>
       </div>
 
-      {/* Warning Box Jelas, Kontras, Font Seragam */}
+      {/* Warning Box Audit */}
       {!audit.isClean && (
         <div className="p-3 rounded-xl border border-rose-400 bg-rose-100 dark:bg-rose-950/60 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs shadow-xs flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold">
@@ -155,14 +181,15 @@ export function EditorLineup({
         </div>
       )}
 
-      {/* Banner Limit Kuota 5 Duplikasi Archetype Tim */}
+      {/* Banner Limit Kuota Duplikasi Archetype */}
       <ArchetypeQuotaBanner lineup={currentLineup} masterArchetypes={masterArchetypes} />
 
-      {/* Formulir 5 Duelist & Deck */}
+      {/* Formulir 5 Duelist & Deck (dengan props flaggedIgns) */}
       <DuelistEditorForm
         lineup={currentLineup}
         deckOptions={deckOptions}
         skillOptions={skillOptions}
+        flaggedIgns={flaggedDuplicateIgns}
         onChangeDeck={handleChangeDeck}
         onRefreshMeta={onRefreshMeta}
       />
@@ -180,4 +207,4 @@ export function EditorLineup({
       />
     </div>
   );
-}
+  }
