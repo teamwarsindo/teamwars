@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getTeamSlug } from '@/app/tournament/_library';
 import { PlayerLineupItem, GameEntry, RosterOption } from './types';
 
@@ -20,12 +20,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const [teamALineup, setTeamALineupState] = useState<PlayerLineupItem[]>([]);
-  const [teamBLineup, setTeamBLineupState] = useState<PlayerLineupItem[]>([]);
-
-  const masterBaseLineupA = useRef<PlayerLineupItem[]>(initEmpty());
-  const masterBaseLineupB = useRef<PlayerLineupItem[]>(initEmpty());
-
+  const [teamALineup, setTeamALineup] = useState<PlayerLineupItem[]>([]);
+  const [teamBLineup, setTeamBLineup] = useState<PlayerLineupItem[]>([]);
   const [games, setGames] = useState<GameEntry[]>([]);
   const [scoreA, setScoreA] = useState(0);
   const [scoreB, setScoreB] = useState(0);
@@ -56,29 +52,25 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     }
   }, []);
 
-  const replayEngine = useCallback((currentGames: GameEntry[], baseA: PlayerLineupItem[], baseB: PlayerLineupItem[]) => {
-    const freshA: PlayerLineupItem[] = baseA.map((p) => ({
-      ign: p.ign,
-      idDuelLinks: p.idDuelLinks || '',
+  const recalculateFromGames = useCallback((currentGames: GameEntry[], baseLineupA: PlayerLineupItem[], baseLineupB: PlayerLineupItem[]) => {
+    const freshA = baseLineupA.map((p) => ({
+      ...p,
       remainingLife: 2,
       totalWins: 0,
       totalLosses: 0,
-      deck1: { ...(p.deck1 || { archetype: '', skill: '' }), wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
-      deck2: { ...(p.deck2 || { archetype: '', skill: '' }), wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+      deck1: { ...p.deck1, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+      deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
     }));
 
-    const freshB: PlayerLineupItem[] = baseB.map((p) => ({
-      ign: p.ign,
-      idDuelLinks: p.idDuelLinks || '',
+    const freshB = baseLineupB.map((p) => ({
+      ...p,
       remainingLife: 2,
       totalWins: 0,
       totalLosses: 0,
-      deck1: { ...(p.deck1 || { archetype: '', skill: '' }), wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
-      deck2: { ...(p.deck2 || { archetype: '', skill: '' }), wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+      deck1: { ...p.deck1, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+      deck2: { ...p.deck2, wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
     }));
 
-    let repA = 0;
-    let repB = 0;
     let activeWarnsA = 0;
     let activeWarnsB = 0;
 
@@ -86,63 +78,71 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       const pA = freshA.find((p) => p.ign.toLowerCase() === g.playerA.ign.toLowerCase());
       const pB = freshB.find((p) => p.ign.toLowerCase() === g.playerB.ign.toLowerCase());
       const isAWin = g.winner === 'teamA';
-
-      if (g.playerA.isRepeat) repA++;
-      if (g.playerB.isRepeat) repB++;
+      const isDeckloss = Boolean((g as any).isDeckloss);
 
       if (g.ssHandA === false) activeWarnsA++;
       if (g.ssHandB === false) activeWarnsB++;
 
-      if ((g as any).isDeckloss || (g as any).lossCondition === 'PENALTY_2' || (g as any).lossCondition === 'DECKLOSS') {
+      if (isDeckloss || (g as any).lossCondition === 'PENALTY_2') {
         if (!isAWin) activeWarnsA = 0;
         else activeWarnsB = 0;
       }
 
+      // Evaluasi Tim A
       if (pA) {
-        const dA = pA.deck1?.archetype === g.playerA.archetype ? pA.deck1 : pA.deck2;
+        const dA = [pA.deck1, pA.deck2].find(
+          (d) => d && String(d.archetype || '').toLowerCase() === String(g.playerA.archetype || '').toLowerCase()
+        ) || pA.deck1;
+
+        if (g.playerA?.isRepeat) {
+          dA.isRepeatUsed = true;
+        }
+
         if (isAWin) {
-          pA.totalWins = (pA.totalWins ?? 0) + 1;
-          if (dA) {
-            dA.wins = (dA.wins ?? 0) + 1;
-          }
+          pA.totalWins = (pA.totalWins || 0) + 1;
+          dA.wins = (dA.wins || 0) + 1;
         } else {
-          pA.totalLosses = (pA.totalLosses ?? 0) + 1;
-          if (g.playerA.isRepeat) {
-            if (dA) dA.isRepeatUsed = true;
-          } else {
-            pA.remainingLife = Math.max(0, (pA.remainingLife ?? 2) - 1);
-            if (dA) {
-              dA.losses = (dA.losses ?? 0) + 1;
-              dA.isDead = true;
-            }
-          }
+          pA.totalLosses = (pA.totalLosses || 0) + 1;
+          pA.remainingLife = Math.max(0, (pA.remainingLife || 2) - 1);
+          dA.losses = (dA.losses || 0) + 1;
+          dA.isDead = true;
         }
       }
 
+      // Evaluasi Tim B
       if (pB) {
-        const dB = pB.deck1?.archetype === g.playerB.archetype ? pB.deck1 : pB.deck2;
+        const dB = [pB.deck1, pB.deck2].find(
+          (d) => d && String(d.archetype || '').toLowerCase() === String(g.playerB.archetype || '').toLowerCase()
+        ) || pB.deck1;
+
+        if (g.playerB?.isRepeat) {
+          dB.isRepeatUsed = true;
+        }
+
         if (!isAWin) {
-          pB.totalWins = (pB.totalWins ?? 0) + 1;
-          if (dB) {
-            dB.wins = (dB.wins ?? 0) + 1;
-          }
+          pB.totalWins = (pB.totalWins || 0) + 1;
+          dB.wins = (dB.wins || 0) + 1;
         } else {
-          pB.totalLosses = (pB.totalLosses ?? 0) + 1;
-          if (g.playerB.isRepeat) {
-            if (dB) dB.isRepeatUsed = true;
-          } else {
-            pB.remainingLife = Math.max(0, (pB.remainingLife ?? 2) - 1);
-            if (dB) {
-              dB.losses = (dB.losses ?? 0) + 1;
-              dB.isDead = true;
-            }
-          }
+          pB.totalLosses = (pB.totalLosses || 0) + 1;
+          pB.remainingLife = Math.max(0, (pB.remainingLife || 2) - 1);
+          dB.losses = (dB.losses || 0) + 1;
+          dB.isDead = true;
         }
       }
     }
 
-    setTeamALineupState(freshA);
-    setTeamBLineupState(freshB);
+    // Hitung pemakaian hak repeat berdasarkan berapa slot deck yang ditandai repeat
+    const repA = freshA.reduce(
+      (count, p) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
+      0
+    );
+    const repB = freshB.reduce(
+      (count, p) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0),
+      0
+    );
+
+    setTeamALineup(freshA);
+    setTeamBLineup(freshB);
     setRepeatsA(repA);
     setRepeatsB(repB);
     setWarnsA(activeWarnsA);
@@ -151,22 +151,10 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     setScoreB(currentGames.filter((g) => g.winner === 'teamB').length);
   }, []);
 
-  const setTeamALineup = (list: PlayerLineupItem[]) => {
-    masterBaseLineupA.current = structuredClone(list);
-    replayEngine(games, list, masterBaseLineupB.current);
-  };
-
-  const setTeamBLineup = (list: PlayerLineupItem[]) => {
-    masterBaseLineupB.current = structuredClone(list);
-    replayEngine(games, masterBaseLineupA.current, list);
-  };
-
   useEffect(() => {
     if (!selectedMatchId || !activeMatch) {
-      masterBaseLineupA.current = initEmpty();
-      masterBaseLineupB.current = initEmpty();
-      setTeamALineupState(initEmpty());
-      setTeamBLineupState(initEmpty());
+      setTeamALineup(initEmpty());
+      setTeamBLineup(initEmpty());
       setGames([]);
       setScoreA(0);
       setScoreB(0);
@@ -182,21 +170,16 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     fetch(`/api/admin/match-report?matchId=${selectedMatchId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (json.success && json.report) {
+        if (json.success && json.report && (json.report.teamA?.lineup?.length > 0 || json.report.games?.length > 0)) {
           const r = json.report;
           const lA = r.teamA?.lineup?.length === 5 ? r.teamA.lineup : initEmpty();
           const lB = r.teamB?.lineup?.length === 5 ? r.teamB.lineup : initEmpty();
-          masterBaseLineupA.current = structuredClone(lA);
-          masterBaseLineupB.current = structuredClone(lB);
-          setGames(r.games || []);
-          replayEngine(r.games || [], lA, lB);
+          const loadedGames = r.games || [];
+          setGames(loadedGames);
+          recalculateFromGames(loadedGames, lA, lB);
         } else {
-          const emptyA = initEmpty();
-          const emptyB = initEmpty();
-          masterBaseLineupA.current = emptyA;
-          masterBaseLineupB.current = emptyB;
-          setTeamALineupState(emptyA);
-          setTeamBLineupState(emptyB);
+          setTeamALineup(initEmpty());
+          setTeamBLineup(initEmpty());
           setGames([]);
           setScoreA(0);
           setScoreB(0);
@@ -205,7 +188,7 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
         }
       })
       .finally(() => setLoading(false));
-  }, [selectedMatchId, activeMatch, fetchMeta, replayEngine]);
+  }, [selectedMatchId, activeMatch, fetchMeta, recalculateFromGames]);
 
   const handleAddGame = (d: any) => {
     const pA = teamALineup.find((p) => p.ign === d.playerAIgn);
@@ -215,8 +198,15 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     const dA = d.deckAType === 'deck1' ? pA.deck1 : pA.deck2;
     const dB = d.deckBType === 'deck1' ? pB.deck1 : pB.deck2;
 
-    const skillCodeA = masterSkills.find((s) => s.name === dA?.skill || s.label === dA?.skill)?.code || dA?.skill || '';
-    const skillCodeB = masterSkills.find((s) => s.name === dB?.skill || s.label === dB?.skill)?.code || dB?.skill || '';
+    const skillCodeA = masterSkills.find((s) => s.name === dA.skill || s.label === dA.skill)?.code || dA.skill;
+    const skillCodeB = masterSkills.find((s) => s.name === dB.skill || s.label === dB.skill)?.code || dB.skill;
+
+    const isDeckloss = Boolean(d.isDeckloss);
+    const decklossTeam = isDeckloss ? (d.winner === 'teamA' ? 'teamB' : 'teamA') : '';
+
+    // Status repeat tetap aktif jika baru saja ditekan ATAU deck tersebut memang deck repeat yang sedang stay
+    const isRepeatA = Boolean(d.isRepeatA || dA.isRepeatUsed);
+    const isRepeatB = Boolean(d.isRepeatB || dB.isRepeatUsed);
 
     const newGame: GameEntry = {
       gameNumber: games.length + 1,
@@ -224,35 +214,35 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
       playerA: {
         ign: pA.ign,
         idDuelLinks: pA.idDuelLinks,
-        archetype: dA?.archetype || '',
+        archetype: dA.archetype,
         skill: skillCodeA,
-        isRepeat: d.isRepeatA,
+        isRepeat: isRepeatA,
       },
       playerB: {
         ign: pB.ign,
         idDuelLinks: pB.idDuelLinks,
-        archetype: dB?.archetype || '',
+        archetype: dB.archetype,
         skill: skillCodeB,
-        isRepeat: d.isRepeatB,
+        isRepeat: isRepeatB,
       },
+      ssHandA: Boolean(d.ssHandA),
+      ssHandB: Boolean(d.ssHandB),
+      isDeckloss,
+      decklossTeam,
       notes: d.notes,
       timestamp: new Date().toISOString(),
-      ...(d.isDeckloss ? { isDeckloss: true } : {}),
-      lossCondition: d.lossCondition || (d.isDeckloss ? 'DECKLOSS' : d.isRepeatA || d.isRepeatB ? 'REPEAT' : 'REGULAR'),
-      ssHandA: d.ssHandA,
-      ssHandB: d.ssHandB,
     } as any;
 
     const nextGames = [...games, newGame];
     setGames(nextGames);
-    replayEngine(nextGames, masterBaseLineupA.current, masterBaseLineupB.current);
+    recalculateFromGames(nextGames, teamALineup, teamBLineup);
   };
 
   const handleRollbackGame = () => {
     if (games.length === 0) return;
     const nextGames = games.slice(0, -1);
     setGames(nextGames);
-    replayEngine(nextGames, masterBaseLineupA.current, masterBaseLineupB.current);
+    recalculateFromGames(nextGames, teamALineup, teamBLineup);
   };
 
   const handleSaveToDatabase = async () => {
@@ -273,20 +263,8 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
               referee: activeMatch?.referee || 'Kaiba',
               streamer: activeMatch?.streamer || '',
             },
-            teamA: {
-              name: activeMatch?.teamAName,
-              score: scoreA,
-              repeatsUsed: repeatsA,
-              warningsUsed: warnsA,
-              lineup: teamALineup,
-            },
-            teamB: {
-              name: activeMatch?.teamBName,
-              score: scoreB,
-              repeatsUsed: repeatsB,
-              warningsUsed: warnsB,
-              lineup: teamBLineup,
-            },
+            teamA: { name: activeMatch?.teamAName, score: scoreA, repeatsUsed: repeatsA, warningsUsed: warnsA, lineup: teamALineup },
+            teamB: { name: activeMatch?.teamBName, score: scoreB, repeatsUsed: repeatsB, warningsUsed: warnsB, lineup: teamBLineup },
             games,
             isFinished: scoreA >= 10 || scoreB >= 10,
           },
@@ -331,5 +309,6 @@ export function useMatchReport(selectedMatchId: string, activeMatch: any, select
     handleAddGame,
     handleRollbackGame,
     handleSaveToDatabase,
-  };     
-}
+  };
+                                }
+            
