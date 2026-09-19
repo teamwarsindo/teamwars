@@ -28,7 +28,6 @@ export function EditorRunnerTeamPanel({
   repeatsUsed,
   isStayTable,
   mustContinue,
-  lastWinnerGameNum,
   gamesHistory = [],
   onSelectPlayer,
   onSelectDeck,
@@ -37,7 +36,7 @@ export function EditorRunnerTeamPanel({
   const activePlayer = useMemo(() => lineup.find((p) => p.ign === selectedIgn), [lineup, selectedIgn]);
   const isLockedPlayer = isStayTable || mustContinue;
 
-  // KUNCI PERBAIKAN: Hitung hanya kemenangan dari DUEL NYATA (bukan gratisan Deckloss/TL lawan)
+  // Hitung kemenangan duel nyata (bukan kemenangan hadiah deckloss lawan)
   const realDuelWins = useMemo(() => {
     if (!activePlayer) return 0;
     return gamesHistory.filter((g) => {
@@ -48,7 +47,7 @@ export function EditorRunnerTeamPanel({
     }).length;
   }, [gamesHistory, activePlayer]);
 
-  // Hak Repeat: Belum pernah menang di duel nyata, sudah kalah 1 kali, dan kuota tim < 2
+  // Hak repeat valid jika belum pernah menang di duel nyata dan baru kalah 1x
   const canRepeat = useMemo(() => {
     if (!activePlayer) return false;
     return (
@@ -58,20 +57,36 @@ export function EditorRunnerTeamPanel({
     );
   }, [activePlayer, realDuelWins, repeatsUsed]);
 
+  // Status alur perintah baku sesuai kesepakatan:
+  // 1. Stay table
+  // 2. Next deck or repeat
+  // 3. Next deck
+  // 4. Next player
+  const flowBadge = useMemo(() => {
+    if (isStayTable) {
+      return { 
+        text: 'Stay table', 
+        color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30' 
+      };
+    }
+    if (mustContinue) {
+      return canRepeat
+        ? { text: 'Next deck or repeat', color: 'bg-amber-500/15 text-amber-800 dark:text-amber-400 border-amber-500/30' }
+        : { text: 'Next deck', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30' };
+    }
+    return { 
+      text: 'Next player', 
+      color: 'bg-muted text-muted-foreground border-border' 
+    };
+  }, [isStayTable, mustContinue, canRepeat]);
+
   return (
     <div className="p-3.5 rounded-xl border border-border bg-card space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold uppercase text-foreground">Duelist {teamName}</span>
-        {isStayTable && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-            STAY TABLE (MENANG G{lastWinnerGameNum})
-          </span>
-        )}
-        {mustContinue && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-800 dark:text-amber-400 border border-amber-500/30">
-            WAJIB LANJUT (SISA 1 NYAWA)
-          </span>
-        )}
+        <span className="text-xs font-black uppercase text-foreground">Duelist {teamName}</span>
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${flowBadge.color}`}>
+          {flowBadge.text}
+        </span>
       </div>
 
       <div className="space-y-1.5">
@@ -94,7 +109,7 @@ export function EditorRunnerTeamPanel({
                 }}
                 className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition cursor-pointer ${
                   isSelected
-                    ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                    ? 'border-blue-600 bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-600'
                     : isDisabled
                     ? 'opacity-35 border-border/50 bg-muted/20 cursor-not-allowed text-muted-foreground'
                     : 'border-border bg-background text-foreground hover:bg-muted/40'
@@ -108,7 +123,7 @@ export function EditorRunnerTeamPanel({
         </div>
       </div>
 
-      {activePlayer && (
+      {activePlayer ? (
         <div className="space-y-1.5 pt-1">
           <label className="text-xs font-semibold text-muted-foreground block">Deck yang Digunakan:</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -116,18 +131,18 @@ export function EditorRunnerTeamPanel({
               const d = activePlayer[slot];
               const isDead = Boolean(d?.isDead);
               const isCurrentSelected = selectedDeck === slot && !isRepeat;
-              const isDisabled = isDead || (isStayTable && selectedDeck !== slot) || (mustContinue && isDead);
+              const isSlotDisabled = isDead || (isStayTable && selectedDeck !== slot) || (mustContinue && isDead);
 
               return (
                 <button
                   key={slot}
                   type="button"
-                  disabled={isDisabled}
+                  disabled={isSlotDisabled}
                   onClick={() => onSelectDeck(slot)}
                   className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
                     isCurrentSelected
-                      ? 'border-primary bg-primary/15 text-primary font-bold shadow-xs'
-                      : isDisabled
+                      ? 'border-blue-600 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold ring-1 ring-blue-600'
+                      : isSlotDisabled
                       ? 'opacity-35 border-border/50 bg-muted/20 cursor-not-allowed text-muted-foreground'
                       : 'border-border bg-background hover:bg-muted/40 text-foreground font-semibold'
                   }`}
@@ -160,6 +175,10 @@ export function EditorRunnerTeamPanel({
               </button>
             </div>
           )}
+        </div>
+      ) : (
+        <div className="p-4 text-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+          Pilih pemain untuk menentukan deck yang digunakan.
         </div>
       )}
     </div>
