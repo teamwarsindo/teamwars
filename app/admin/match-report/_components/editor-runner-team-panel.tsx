@@ -67,23 +67,17 @@ export function EditorRunnerTeamPanel({
     }).length;
   }, [activePlayer, games]);
 
-  // Syarat hak repeat
-  const canRepeat = useMemo(() => {
+  // Tombol toggle repeat hanya muncul saat giliran normal (bukan stay table) dan memenuhi regulasi
+  const canShowRepeatToggle = useMemo(() => {
     if (!activePlayer || isStayTable || repeatedSlot !== null) return false;
+    if (isRepeat) return true;
     return (
       realDuelWins === 0 &&
       (activePlayer.totalLosses ?? 0) === 1 &&
       repeatsUsed < 2 &&
       deadSlotBeforeRepeat !== null
     );
-  }, [activePlayer, isStayTable, repeatedSlot, realDuelWins, repeatsUsed, deadSlotBeforeRepeat]);
-
-  // Tombol toggle repeat hanya muncul saat giliran normal dan memenuhi regulasi (atau sedang aktif)
-  const canShowRepeatToggle = useMemo(() => {
-    if (!activePlayer || isStayTable || repeatedSlot !== null) return false;
-    if (isRepeat) return true;
-    return canRepeat;
-  }, [activePlayer, isStayTable, repeatedSlot, isRepeat, canRepeat]);
+  }, [activePlayer, isStayTable, repeatedSlot, isRepeat, realDuelWins, repeatsUsed, deadSlotBeforeRepeat]);
 
   // Tentukan slot mana yang menjadi target deck repeat
   const currentRepeatActiveSlot = useMemo<'deck1' | 'deck2' | null>(() => {
@@ -92,7 +86,7 @@ export function EditorRunnerTeamPanel({
     return null;
   }, [repeatedSlot, isRepeat, deadSlotBeforeRepeat]);
 
-  // Badge Alur (Stay Table, Next Deck Or Repeat, Next Deck, Next Player)
+  // Teks label alur status (Title Case)
   const flowBadge = useMemo(() => {
     if (isStayTable) {
       return {
@@ -101,7 +95,7 @@ export function EditorRunnerTeamPanel({
       };
     }
     if (mustContinue) {
-      if (canRepeat) {
+      if (canShowRepeatToggle) {
         return {
           text: 'Next Deck / Repeat',
           className: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
@@ -116,7 +110,7 @@ export function EditorRunnerTeamPanel({
       text: 'Next Player',
       className: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
     };
-  }, [isStayTable, mustContinue, canRepeat]);
+  }, [isStayTable, mustContinue, canShowRepeatToggle]);
 
   return (
     <div className="border border-border/80 rounded-xl p-3 bg-muted/10 space-y-3">
@@ -175,8 +169,12 @@ export function EditorRunnerTeamPanel({
               const deckObj = activePlayer[slot];
               const isSelected = selectedDeck === slot;
 
+              // Hanya deck slot ini yang menerima tag REPEAT
               const isThisSlotRepeat = currentRepeatActiveSlot === slot;
 
+              // Kondisi mati display:
+              // - Jika pemain sedang memakai repeat: deck repeat HIDUP, deck lainnya MATI
+              // - Jika normal: ikuti deckObj.isDead bawaan database
               let isDeadDisplay = false;
               if (currentRepeatActiveSlot !== null) {
                 isDeadDisplay = !isThisSlotRepeat;
@@ -233,5 +231,4 @@ export function EditorRunnerTeamPanel({
       )}
     </div>
   );
-    }
-                  
+      }
