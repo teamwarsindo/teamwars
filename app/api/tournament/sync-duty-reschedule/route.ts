@@ -18,9 +18,9 @@ async function handleDutySync(targetWeekStr?: string | null, isForce: boolean = 
   }
 
   const now = new Date();
-  const todayWibKey = getWibDateKey(now); // Contoh: "2026-09-18"
+  const todayWibKey = getWibDateKey(now); // Contoh: "2026-09-20"
 
-  // 1. Tentukan target pekan aktif
+  // 1. Tentukan target pekan
   let targetWeekNumber: number;
   if (targetWeekStr) {
     targetWeekNumber = parseInt(targetWeekStr.replace(/\D/g, ''), 10) || 1;
@@ -41,40 +41,40 @@ async function handleDutySync(targetWeekStr?: string | null, isForce: boolean = 
   const weekLabel = `Week ${targetWeekNumber}`;
 
   // 2. Ambil match pekan ini yang BELUM LEWAT (hari ini sampai selesai week)
-  // Jadwal kemarin otomatis tereliminasi dari daftar
+  // Match kemarin otomatis dieliminasi dari daftar embed
   const activeWeekMatches = schedules.filter((m) => {
     const isSameWeek = Number(m.weekNumber || getMatchWeekNumber(m.matchDate) || 1) === targetWeekNumber;
     const isNotPast = m.matchDate && getWibDateKey(new Date(m.matchDate)) >= todayWibKey;
-    return isSameWeek && isNotPast;
+    const isRescheduled = Boolean((m as any).isRescheduled);
+    return isSameWeek && isNotPast && isRescheduled;
   });
 
-  // 3. Pengecekan match khusus HARI INI
+  // 3. Pengecekan status match khusus HARI INI
   const todayMatches = schedules.filter(
-    (m) => m.matchDate && getWibDateKey(new Date(m.matchDate)) === todayWibKey
+    (m) =>
+      m.matchDate &&
+      getWibDateKey(new Date(m.matchDate)) === todayWibKey &&
+      Boolean((m as any).isRescheduled)
   );
   const hasMatchToday = todayMatches.length > 0;
 
-  // Logika Penentu Mode:
-  // - Jika hari ini tidak ada match: Mode PATCH untuk kedua channel (perbarui embed tanpa ping)
-  // - Jika hari ini ada match: Cek apakah petugasnya sudah terisi
   let patchReferee = false;
   let patchStreamer = false;
 
   if (!hasMatchToday) {
-    // SYARAT 1: Hari ini tidak ada jadwal -> PATCH pesan agar jadwal kemarin terhapus
+    // Tidak ada jadwal hari ini -> PATCH (hapus jadwal kemarin secara diam-diam)
     patchReferee = true;
     patchStreamer = true;
   } else {
-    // SYARAT 2: Hari ini ada match -> Cek kelengkapan masing-masing role
+    // Ada jadwal hari ini -> cek kelengkapan
     const isRefereeFilledToday = todayMatches.every((m) => !isDutyEmpty((m as any).referee));
     const isStreamerFilledToday = todayMatches.every((m) => !isDutyEmpty((m as any).streamer));
 
-    // Sudah terisi -> PATCH. Belum terisi -> RE-POST (isPatch = false)
     patchReferee = isForce ? false : isRefereeFilledToday;
     patchStreamer = isForce ? false : isStreamerFilledToday;
   }
 
-  // 4. Susun data match lengkap dengan emoji tim
+  // 4. Susun data match lengkap beserta emoji tim
   const dutyMatches: RescheduleDutyMatch[] = await Promise.all(
     activeWeekMatches.map(async (m) => {
       const slugA = getTeamSlug(m.teamAName);
@@ -121,14 +121,14 @@ async function handleDutySync(targetWeekStr?: string | null, isForce: boolean = 
         team1Name: m.teamAName,
         team2Emoji: eB,
         team2Name: m.teamBName,
-        referee: (m as any).referee,
-        streamer: (m as any).streamer,
-        isRescheduled: (m as any).isRescheduled,
+        referee: (m as any).referee || null,
+        streamer: (m as any).streamer || null,
+        isRescheduled: true,
       };
     })
   );
 
-  // 5. Kirim atau perbarui pesan ke Discord
+  // 5. Eksekusi pengiriman ke Discord
   await sendOrUpdateDutyRescheduleSchedule({
     weekName: weekLabel,
     matches: dutyMatches,
@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
     const result = await handleDutySync(weekParam, forceParam);
     return NextResponse.json(result, { status: result.status || 200 });
   } catch (error: any) {
-    console.error('[SYNC DUTY RESCHEDULE GET ERROR]:', error);
+    console.error('[SYNC DUTY RESCHEDULE ERROR]:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
@@ -171,7 +171,8 @@ export async function POST(req: NextRequest) {
     const result = await handleDutySync(body.targetWeek, isForce);
     return NextResponse.json(result, { status: result.status || 200 });
   } catch (error: any) {
-    console.error('[SYNC DUTY RESCHEDULE POST ERROR]:', error);
+    console.error('[SYNC DUTY RESCHEDULE ERROR]:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+  
