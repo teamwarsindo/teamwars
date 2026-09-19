@@ -45,24 +45,36 @@ export function EditorLineup({
   const currentLineup = activeSide === 'A' ? teamALineup : teamBLineup;
   const currentRoster = activeSide === 'A' ? rosterA : rosterB;
 
-  const deckOptions: MetaAutocompleteOption[] = useMemo(() => masterDecks.map((d) => ({ label: d, val: d })), [masterDecks]);
-  const skillOptions: MetaAutocompleteOption[] = useMemo(() => masterSkills.map((s) => ({ label: s.label, val: s.name, sub: s.code })), [masterSkills]);
+  const deckOptions: MetaAutocompleteOption[] = useMemo(
+    () => masterDecks.map((d) => ({ label: d, val: d })),
+    [masterDecks]
+  );
+  const skillOptions: MetaAutocompleteOption[] = useMemo(
+    () => masterSkills.map((s) => ({ label: s.label, val: s.name, sub: s.code })),
+    [masterSkills]
+  );
 
   // Handler Deck menggunakan pencarian IGN (aman terhadap perubahan sorting)
-  const handleChangeDeck = useCallback((ign: string, slot: 'deck1' | 'deck2', field: 'archetype' | 'skill', val: string) => {
-    const active = currentLineup.filter((p) => Boolean(p.ign?.trim()));
-    const updated = active.map((p) => {
-      if (p.ign.toLowerCase() !== ign.toLowerCase()) return p;
-      const nextSlot = { ...(p[slot] || { archetype: '', skill: '' }), [field]: val };
-      return { ...p, [slot]: nextSlot };
-    });
+  const handleChangeDeck = useCallback(
+    (ign: string, slot: 'deck1' | 'deck2', field: 'archetype' | 'skill', val: string) => {
+      const active = currentLineup.filter((p) => Boolean(p.ign?.trim()));
+      const updated = active.map((p) => {
+        if (p.ign.toLowerCase() !== ign.toLowerCase()) return p;
+        const nextSlot = { ...(p[slot] || { archetype: '', skill: '' }), [field]: val };
+        return { ...p, [slot]: nextSlot };
+      });
 
-    const target = updated.find((p) => p.ign.toLowerCase() === ign.toLowerCase());
-    if (target) {
-      setDeckCache((prev) => ({ ...prev, [target.ign.toLowerCase()]: { deck1: target.deck1, deck2: target.deck2 } }));
-    }
-    onChangeLineup(activeSide, updated);
-  }, [currentLineup, activeSide, onChangeLineup]);
+      const target = updated.find((p) => p.ign.toLowerCase() === ign.toLowerCase());
+      if (target) {
+        setDeckCache((prev) => ({
+          ...prev,
+          [target.ign.toLowerCase()]: { deck1: target.deck1, deck2: target.deck2 },
+        }));
+      }
+      onChangeLineup(activeSide, updated);
+    },
+    [currentLineup, activeSide, onChangeLineup]
+  );
 
   const handleToggleRoster = (player: RosterOption) => {
     setModalWarn(null);
@@ -71,8 +83,16 @@ export function EditorLineup({
 
     if (exists) {
       const found = active.find((p) => p.ign.toLowerCase() === player.ign.toLowerCase());
-      if (found) setDeckCache((prev) => ({ ...prev, [player.ign.toLowerCase()]: { deck1: found.deck1, deck2: found.deck2 } }));
-      onChangeLineup(activeSide, active.filter((p) => p.ign.toLowerCase() !== player.ign.toLowerCase()));
+      if (found) {
+        setDeckCache((prev) => ({
+          ...prev,
+          [player.ign.toLowerCase()]: { deck1: found.deck1, deck2: found.deck2 },
+        }));
+      }
+      onChangeLineup(
+        activeSide,
+        active.filter((p) => p.ign.toLowerCase() !== player.ign.toLowerCase())
+      );
     } else {
       if (active.length >= 5) {
         setModalWarn('Maksimal 5 pemain per tim.');
@@ -80,9 +100,27 @@ export function EditorLineup({
       }
       const cached = deckCache[player.ign.toLowerCase()];
       const newP: PlayerLineupItem = {
-        ign: player.ign, idDuelLinks: player.idDuelLinks || '', remainingLife: 2, totalWins: 0, totalLosses: 0,
-        deck1: cached?.deck1 || { archetype: '', skill: '', wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
-        deck2: cached?.deck2 || { archetype: '', skill: '', wins: 0, losses: 0, isDead: false, isRepeatUsed: false },
+        ign: player.ign,
+        idDuelLinks: player.idDuelLinks || '',
+        remainingLife: 2,
+        totalWins: 0,
+        totalLosses: 0,
+        deck1: cached?.deck1 || {
+          archetype: '',
+          skill: '',
+          wins: 0,
+          losses: 0,
+          isDead: false,
+          isRepeatUsed: false,
+        },
+        deck2: cached?.deck2 || {
+          archetype: '',
+          skill: '',
+          wins: 0,
+          losses: 0,
+          isDead: false,
+          isRepeatUsed: false,
+        },
       };
       onChangeLineup(activeSide, [...active, newP]);
     }
@@ -95,15 +133,27 @@ export function EditorLineup({
     let missSkills = 0;
 
     active.forEach((p) => {
-      if (p.deck1?.archetype?.trim() && p.deck1.archetype !== '-') { filled++; if (!p.deck1?.skill?.trim()) missSkills++; }
-      if (p.deck2?.archetype?.trim() && p.deck2.archetype !== '-') { filled++; if (!p.deck2?.skill?.trim()) missSkills++; }
+      if (p.deck1?.archetype?.trim() && p.deck1.archetype !== '-') {
+        filled++;
+        if (!p.deck1?.skill?.trim()) missSkills++;
+      }
+      if (p.deck2?.archetype?.trim() && p.deck2.archetype !== '-') {
+        filled++;
+        if (!p.deck2?.skill?.trim()) missSkills++;
+      }
     });
 
     const totalDeckloss = 10 - filled;
-    return { pCount, totalDeckloss, missSkills, isClean: pCount === 5 && totalDeckloss === 0 && missSkills === 0 };
+    return {
+      pCount,
+      totalDeckloss,
+      missSkills,
+      isClean: pCount === 5 && totalDeckloss === 0 && missSkills === 0,
+    };
   }, [currentLineup]);
 
   // Cari siapa saja pemain yang menggunakan archetype yang terduplikasi
+  // HANYA ditandai jika total penggunaan duplikasi MELEBIHI kuota 5 (> 5 / Over)
   const flaggedDuplicateIgns = useMemo(() => {
     const counts: Record<string, string[]> = {};
     currentLineup.forEach((player) => {
@@ -119,6 +169,20 @@ export function EditorLineup({
       });
     });
 
+    // 1. Hitung total pelanggaran kuota tim
+    let totalViolations = 0;
+    Object.values(counts).forEach((owners) => {
+      if (owners.length > 1) {
+        totalViolations += owners.length;
+      }
+    });
+
+    // 2. Jika masih aman (<= 5), jangan tandai pemain manapun
+    if (totalViolations <= 5) {
+      return new Set<string>();
+    }
+
+    // 3. Jika over (> 5), baru masukkan IGN pemilik deck dobel
     const flagged = new Set<string>();
     Object.values(counts).forEach((owners) => {
       if (owners.length > 1) {
@@ -136,18 +200,28 @@ export function EditorLineup({
         <div className="flex gap-2 w-full sm:w-auto">
           <button
             type="button"
-            onClick={() => { setActiveSide('A'); setModalWarn(null); }}
+            onClick={() => {
+              setActiveSide('A');
+              setModalWarn(null);
+            }}
             className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeSide === 'A' ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              activeSide === 'A'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
             {teamAName}
           </button>
           <button
             type="button"
-            onClick={() => { setActiveSide('B'); setModalWarn(null); }}
+            onClick={() => {
+              setActiveSide('B');
+              setModalWarn(null);
+            }}
             className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeSide === 'B' ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              activeSide === 'B'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
             {teamBName}
@@ -156,7 +230,10 @@ export function EditorLineup({
 
         <button
           type="button"
-          onClick={() => { setIsRosterModalOpen(true); setModalWarn(null); }}
+          onClick={() => {
+            setIsRosterModalOpen(true);
+            setModalWarn(null);
+          }}
           className="w-full sm:w-auto px-4 py-2 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
         >
           <span>📋</span>
@@ -164,7 +241,7 @@ export function EditorLineup({
         </button>
       </div>
 
-      {/* Warning Box Audit */}
+      {/* Warning Box Jelas, Kontras, Font Seragam */}
       {!audit.isClean && (
         <div className="p-3 rounded-xl border border-rose-400 bg-rose-100 dark:bg-rose-950/60 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs shadow-xs flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold">
@@ -181,10 +258,10 @@ export function EditorLineup({
         </div>
       )}
 
-      {/* Banner Limit Kuota Duplikasi Archetype */}
+      {/* Banner Limit Kuota 5 Duplikasi Archetype Tim */}
       <ArchetypeQuotaBanner lineup={currentLineup} masterArchetypes={masterArchetypes} />
 
-      {/* Formulir 5 Duelist & Deck (dengan props flaggedIgns) */}
+      {/* Formulir 5 Duelist & Deck */}
       <DuelistEditorForm
         lineup={currentLineup}
         deckOptions={deckOptions}
@@ -206,5 +283,5 @@ export function EditorLineup({
         onTogglePlayer={handleToggleRoster}
       />
     </div>
-  );
-  }
+  );       
+}
