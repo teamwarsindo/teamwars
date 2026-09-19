@@ -90,14 +90,10 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
   for (const target of targets) {
     if (!target.channelId) continue;
 
-    // 🛑 Lewati target jika parameter spesifik ditentukan dan role ini tidak ditargetkan patch
-    if ((params.patchReferee !== undefined || params.patchStreamer !== undefined) && !target.isPatch) {
-      continue;
-    }
-
+    // Ambil ID pesan lama dari KV
     const oldMsgId = await kv.get<string>(target.kvKey);
 
-    // 1. Jika tugas sudah penuh: hapus tracker lama
+    // 1. Jika tugas di pekan ini sudah bersih: hapus tracker lama
     if (target.emptyList.length === 0) {
       if (oldMsgId) {
         await discordAPI(`/channels/${target.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
@@ -120,7 +116,7 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       footer: { text: getEmbedFooterText() },
     };
 
-    // 2. KONDISI PATCH: hanya edit pesan yang ada di channel ini
+    // 2. KONDISI PATCH: Jika mode patch aktif dan pesan lama ada, cukup EDIT pesan
     if (target.isPatch && oldMsgId) {
       const patchRes: any = await discordAPI(
         `/channels/${target.channelId}/messages/${oldMsgId}`,
@@ -134,7 +130,7 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       if (patchRes?.id) continue;
     }
 
-    // 3. KONDISI RE-POST: jika bukan patch atau pesan lama belum ada
+    // 3. KONDISI RE-POST: Jika target.isPatch bernilai FALSE, hapus pesan lama lalu POST pesan baru
     if (oldMsgId) {
       await discordAPI(`/channels/${target.channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
       await kv.del(target.kvKey);
@@ -154,4 +150,4 @@ export async function sendOrUpdateDutyRescheduleSchedule(params: {
       await kv.set(target.kvKey, postRes.id);
     }
   }
-    }
+}
