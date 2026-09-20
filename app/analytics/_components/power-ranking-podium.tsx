@@ -33,7 +33,6 @@ export function PowerRankingPodium({
     teamLogoMap.get(normSlug) ||
     "";
 
-  // Warna tim tetap untuk border & ambient card
   const teamColor =
     (top1 as any).warna ||
     (top1 as any).color ||
@@ -56,15 +55,15 @@ export function PowerRankingPodium({
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border-2 bg-card p-3 sm:p-3.5 shadow-xs transition flex flex-col gap-2.5"
+      className="relative overflow-hidden rounded-2xl border-2 bg-card p-3.5 sm:p-4 shadow-xs transition flex flex-col gap-3"
       style={{
         borderColor: `${teamColor}99`,
         background: `linear-gradient(135deg, ${teamColor}22 0%, var(--card) 65%, var(--card) 100%)`,
       }}
     >
-      {/* ── BARIS ATAS: Info Pemain & Badge Best Deck Center ── */}
+      {/* Baris Atas */}
       <div className="flex items-center justify-between gap-2 min-w-0">
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="relative shrink-0">
             <div
               className="h-10 w-10 sm:h-11 sm:w-11 rounded-full border-2 overflow-hidden bg-background flex items-center justify-center shadow-inner"
@@ -89,56 +88,56 @@ export function PowerRankingPodium({
             </div>
           </div>
 
-          <div className="min-w-0 flex flex-col">
+          <div className="min-w-0 flex flex-col justify-center">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-black text-xs sm:text-sm text-foreground truncate">
+              <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
                 {top1.name}
               </span>
-              {/* Badge MVP #1 biru netral yang tajam dan kontras */}
-              <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0 bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+              <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 leading-none">
                 MVP #1
               </span>
             </div>
-            <span className="text-[10px] text-muted-foreground font-medium truncate">
+            {/* Nama tim diturunkan sedikit dengan margin-top agar tidak menempel */}
+            <span className="text-[10px] text-muted-foreground font-medium truncate mt-1 leading-tight">
               {top1.teamName}
             </span>
           </div>
         </div>
 
-        {/* ── BEST DECK BADGE (Warna Biru Netral, Jelas, & Tidak Terpotong) ── */}
+        {/* Best Deck Badge */}
         <div className="shrink-0 px-3 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/10 dark:bg-blue-950/40 flex flex-col items-center justify-center text-center shadow-xs">
-          <span className="text-[7.5px] font-black uppercase tracking-wider leading-none mb-1 text-blue-600 dark:text-blue-400">
+          <span className="text-[7.5px] font-bold uppercase tracking-wider leading-none mb-1 text-blue-600 dark:text-blue-400">
             BEST DECK
           </span>
-          <span className="text-[10px] sm:text-[11px] font-extrabold whitespace-nowrap leading-none text-blue-700 dark:text-blue-300">
+          <span className="text-[10px] sm:text-[11px] font-bold whitespace-nowrap leading-none text-blue-700 dark:text-blue-300">
             {bestDeckName}
           </span>
         </div>
       </div>
 
-      {/* ── BARIS BAWAH: 5 Kolom Stat Rata ── */}
-      <div className="grid grid-cols-5 gap-1 pt-1.5 border-t border-border/40 text-center">
+      {/* Baris Bawah: 5 Kolom Stat Rata */}
+      <div className="grid grid-cols-5 gap-1 pt-2 border-t border-border/40 text-center">
         <div className="flex flex-col items-center">
-          <span className="text-[7.5px] font-bold uppercase text-muted-foreground">PLAY</span>
-          <span className="text-xs font-bold text-foreground">{top1.played}</span>
+          <span className="text-[8px] font-bold uppercase text-muted-foreground">PLAY</span>
+          <span className="text-xs font-bold text-foreground mt-0.5">{top1.played}</span>
         </div>
         <div className="flex flex-col items-center">
-          <span className="text-[7.5px] font-bold uppercase text-emerald-600 dark:text-emerald-400">WIN</span>
-          <span className="text-xs font-bold text-emerald-500">{top1.won}</span>
+          <span className="text-[8px] font-bold uppercase text-emerald-600 dark:text-emerald-400">WIN</span>
+          <span className="text-xs font-bold text-emerald-500 mt-0.5">{top1.won}</span>
         </div>
         <div className="flex flex-col items-center">
-          <span className="text-[7.5px] font-bold uppercase text-rose-600 dark:text-rose-400">LOSE</span>
-          <span className="text-xs font-bold text-rose-500">{top1.lost}</span>
+          <span className="text-[8px] font-bold uppercase text-rose-600 dark:text-rose-400">LOSE</span>
+          <span className="text-xs font-bold text-rose-500 mt-0.5">{top1.lost}</span>
         </div>
         <div className="flex flex-col items-center">
-          <span className="text-[7.5px] font-bold uppercase text-muted-foreground">WPM</span>
-          <span className="text-xs font-bold text-foreground">{formatWpm(top1.wpm)}</span>
+          <span className="text-[8px] font-bold uppercase text-muted-foreground">WPM</span>
+          <span className="text-xs font-bold text-foreground mt-0.5">{formatWpm(top1.wpm)}</span>
         </div>
         <div className="flex flex-col items-center">
-          <span className="text-[7.5px] font-bold uppercase text-muted-foreground">AGG</span>
-          <span className="text-xs">{renderAgg(top1.agg)}</span>
+          <span className="text-[8px] font-bold uppercase text-muted-foreground">AGG</span>
+          <span className="text-xs mt-0.5">{renderAgg(top1.agg)}</span>
         </div>
       </div>
     </div>
-  );
+  );       
 }
