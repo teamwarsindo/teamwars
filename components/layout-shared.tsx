@@ -126,11 +126,7 @@ export function HeroHeader({ showDetails = true }: HeroHeaderProps) {
           <div className="mt-3 md:mt-5 inline-flex items-center gap-2 md:gap-3 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1 md:px-5 md:py-1.5 text-[11px] md:text-sm font-black uppercase tracking-[0.15em] text-primary shadow-sm">
             <span className="h-2 w-2 md:h-2.5 md:w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             Season 7 — Duel Links
-          </div>
-
-          <p className="mt-3 md:mt-4 max-w-lg md:max-w-2xl text-center text-xs md:text-sm lg:text-base leading-relaxed text-muted-foreground font-medium">
-            Platform kompetisi beregu Yu-Gi-Oh! Duel Links terbesar di Indonesia. Pantau jadwal pertandingan, klasemen grup, dan hasil match secara real-time.
-          </p>
+          </div>          
         </>
       )}
     </header>
