@@ -49,16 +49,18 @@ export function PowerRankingTable({
     <div className="rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden flex flex-col">
       <div className="max-h-[60vh] sm:max-h-[66vh] overflow-y-auto overflow-x-hidden">
         <table className="w-full border-collapse text-left table-fixed">
+          {/* Header Tabel */}
           <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/80 text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
             <tr>
-              {/* Kolom RANK dikunci w-11 dan text-center */}
-              <th className="py-2.5 px-1 text-center w-11 sm:w-12">RANK</th>
+              {/* Pl-4 sm:pl-5 menggeser rank ke kanan */}
+              <th className="py-2.5 pl-4 sm:pl-5 pr-1 text-center w-12 sm:w-14">RANK</th>
               <th className="py-2.5 pl-2 sm:pl-3 pr-2 text-left">PLAYER</th>
-              <th className="py-2.5 px-0.5 text-center w-8 sm:w-11">PLAY</th>
-              <th className="py-2.5 px-0.5 text-center w-8 sm:w-11 text-emerald-600 dark:text-emerald-400">WIN</th>
-              <th className="py-2.5 px-0.5 text-center w-8 sm:w-11 text-rose-600 dark:text-rose-400">LOSE</th>
-              <th className="py-2.5 px-0.5 text-center w-10 sm:w-13">WPM</th>
-              <th className="py-2.5 pr-3 pl-0.5 text-center w-10 sm:w-13">AGG</th>
+              <th className="py-2.5 px-0.5 text-center w-8 sm:w-10">PLAY</th>
+              <th className="py-2.5 px-0.5 text-center w-8 sm:w-10 text-emerald-600 dark:text-emerald-400">WIN</th>
+              <th className="py-2.5 px-0.5 text-center w-8 sm:w-10 text-rose-600 dark:text-rose-400">LOSE</th>
+              <th className="py-2.5 px-0.5 text-center w-10 sm:w-12">WPM</th>
+              {/* Pr-4 sm:pr-5 menggeser AGG ke kiri dari tepi kartu */}
+              <th className="py-2.5 pr-4 sm:pr-5 pl-0.5 text-center w-11 sm:w-13">AGG</th>
             </tr>
           </thead>
 
@@ -81,8 +83,8 @@ export function PowerRankingTable({
                     key={`${p.name}-${p.teamSlug}`} 
                     className="hover:bg-muted/40 transition-colors duration-150"
                   >
-                    {/* Kolom RANK rapat, panah dan angka menyatu rapi */}
-                    <td className="py-2.5 px-1 text-center">
+                    {/* Kolom RANK bergeser proporsional */}
+                    <td className="py-2.5 pl-4 sm:pl-5 pr-1 text-center">
                       <div className="flex items-center justify-center gap-1 font-mono">
                         {renderRankChange(p.rankDiff, p.isNew, p.played)}
                         <span className="text-foreground font-bold text-xs">{p.rank}</span>
@@ -121,7 +123,7 @@ export function PowerRankingTable({
                       </div>
                     </td>
 
-                    {/* Kolom Statistik */}
+                    {/* Kolom Angka dan Poin */}
                     <td className="py-2.5 px-0.5 text-center font-medium text-foreground/80">
                       {p.played}
                     </td>
@@ -134,7 +136,8 @@ export function PowerRankingTable({
                     <td className="py-2.5 px-0.5 text-center font-semibold text-foreground/90">
                       {formatWpm(p.wpm)}
                     </td>
-                    <td className="py-2.5 pr-3 pl-0.5 text-center">
+                    {/* Ruang bernapas di ujung kanan */}
+                    <td className="py-2.5 pr-4 sm:pr-5 pl-0.5 text-center">
                       {renderAgg(p.agg)}
                     </td>
                   </tr>
@@ -147,12 +150,12 @@ export function PowerRankingTable({
           {isTeamView && grandTotal && (
             <tfoot className="sticky bottom-0 bg-card border-t-2 border-border/80 shadow-xs text-[11px]">
               <tr>
-                <td colSpan={2} className="py-2.5 pl-3 pr-2 text-foreground font-black">TOTAL ROSTER</td>
+                <td colSpan={2} className="py-2.5 pl-4 sm:pl-5 pr-2 text-foreground font-bold">TOTAL ROSTER</td>
                 <td className="py-2.5 px-0.5 text-center font-bold text-foreground">{grandTotal.played}</td>
                 <td className="py-2.5 px-0.5 text-center font-bold text-emerald-500">{grandTotal.won}</td>
                 <td className="py-2.5 px-0.5 text-center font-bold text-rose-500">{grandTotal.lost}</td>
                 <td className="py-2.5 px-0.5 text-center font-bold text-foreground">{formatWpm(grandTotal.wpm)}</td>
-                <td className="py-2.5 pr-3 pl-0.5 text-center">{renderAgg(grandTotal.agg)}</td>
+                <td className="py-2.5 pr-4 sm:pr-5 pl-0.5 text-center">{renderAgg(grandTotal.agg)}</td>
               </tr>
             </tfoot>
           )}
