@@ -23,18 +23,18 @@ export function PowerRankingTable({
 }: PowerRankingTableProps) {
   const renderRankChange = (diff: number, isNew: boolean, played: number) => {
     if (played === 0) {
-      return <span className="text-[10px] text-muted-foreground/30 shrink-0 w-3 text-center">—</span>;
+      return <span className="text-[10px] text-muted-foreground/30 leading-none">—</span>;
     }
     if (isNew) {
-      return <span className="text-[10px] text-amber-500 font-bold shrink-0 w-3 text-center leading-none">★</span>;
+      return <span className="text-[10px] text-amber-500 font-bold leading-none">★</span>;
     }
     if (diff > 0) {
-      return <span className="text-[9px] text-emerald-500 font-bold shrink-0 w-3 text-center leading-none">▲</span>;
+      return <span className="text-[9px] text-emerald-500 font-bold leading-none">▲</span>;
     }
     if (diff < 0) {
-      return <span className="text-[9px] text-rose-500 font-bold shrink-0 w-3 text-center leading-none">▼</span>;
+      return <span className="text-[9px] text-rose-500 font-bold leading-none">▼</span>;
     }
-    return <span className="text-[10px] text-muted-foreground/40 shrink-0 w-3 text-center">—</span>;
+    return <span className="text-[10px] text-muted-foreground/40 leading-none">—</span>;
   };
 
   const renderAgg = (val: number) => {
@@ -49,10 +49,10 @@ export function PowerRankingTable({
     <div className="rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden flex flex-col">
       <div className="max-h-[60vh] sm:max-h-[66vh] overflow-y-auto overflow-x-hidden">
         <table className="w-full border-collapse text-left table-fixed">
-          {/* Header Elegan & Proporsional */}
           <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/80 text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
             <tr>
-              <th className="py-2.5 pl-3 pr-1 text-center w-13 sm:w-16">RANK</th>
+              {/* Kolom RANK dikunci w-11 dan text-center */}
+              <th className="py-2.5 px-1 text-center w-11 sm:w-12">RANK</th>
               <th className="py-2.5 pl-2 sm:pl-3 pr-2 text-left">PLAYER</th>
               <th className="py-2.5 px-0.5 text-center w-8 sm:w-11">PLAY</th>
               <th className="py-2.5 px-0.5 text-center w-8 sm:w-11 text-emerald-600 dark:text-emerald-400">WIN</th>
@@ -81,15 +81,15 @@ export function PowerRankingTable({
                     key={`${p.name}-${p.teamSlug}`} 
                     className="hover:bg-muted/40 transition-colors duration-150"
                   >
-                    {/* Kolom RANK dengan space indicator yang rapi */}
-                    <td className="py-2.5 pl-3 pr-1 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    {/* Kolom RANK rapat, panah dan angka menyatu rapi */}
+                    <td className="py-2.5 px-1 text-center">
+                      <div className="flex items-center justify-center gap-1 font-mono">
                         {renderRankChange(p.rankDiff, p.isNew, p.played)}
-                        <span className="text-foreground font-bold min-w-4 text-center">{p.rank}</span>
+                        <span className="text-foreground font-bold text-xs">{p.rank}</span>
                       </div>
                     </td>
 
-                    {/* Kolom PLAYER: Ada gap ruang napas ke kanan */}
+                    {/* Kolom PLAYER */}
                     <td className="py-2.5 pl-2 sm:pl-3 pr-2 min-w-0">
                       <div className="flex items-center gap-2 min-w-0">
                         {!isTeamView && logo && (
@@ -121,7 +121,7 @@ export function PowerRankingTable({
                       </div>
                     </td>
 
-                    {/* Stats Reguler Rapi */}
+                    {/* Kolom Statistik */}
                     <td className="py-2.5 px-0.5 text-center font-medium text-foreground/80">
                       {p.played}
                     </td>
@@ -160,4 +160,4 @@ export function PowerRankingTable({
       </div>
     </div>
   );
-                      }
+}
