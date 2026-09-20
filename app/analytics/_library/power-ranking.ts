@@ -57,6 +57,7 @@ export interface TeamRosterData {
   slug: string;
   name: string;
   logo?: string;
+  color?: string;
   groupName?: string;
   members: string[];
 }
@@ -100,11 +101,8 @@ function calculateBestDeck(deckStatsMap: Map<string, { wins: number; losses: num
     const statA = a[1];
     const statB = b[1];
 
-    // 1. Win Terbanyak
     if (statB.wins !== statA.wins) return statB.wins - statA.wins;
-    // 2. Lose Paling Sedikit
     if (statA.losses !== statB.losses) return statA.losses - statB.losses;
-    // 3. Total Play Terbanyak
     const totalA = statA.wins + statA.losses;
     const totalB = statB.wins + statB.losses;
     return totalB - totalA;
@@ -416,7 +414,6 @@ export function calculatePowerRanking({
     }
   }
 
-  // Urutan Ranking: (1) Total Win, (2) WPM, (3) AGG, (4) Played
   playerList.sort((a, b) => {
     if (b.won !== a.won) return b.won - a.won;
     if (b.wpm !== a.wpm) return b.wpm - a.wpm;
@@ -433,4 +430,4 @@ export function calculatePowerRanking({
     players: playerList,
     grandTotal,
   };
-      }
+}
