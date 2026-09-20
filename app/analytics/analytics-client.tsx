@@ -207,6 +207,7 @@ export default function AnalyticsClientContent({
         <PowerRankingView
           reports={reports}
           teams={teams}
+          schedules={schedules}
           maxActiveWeek={maxActiveWeek}
           selectedGroup={selectedGroup}
           selectedTeam={selectedTeam}
@@ -215,4 +216,4 @@ export default function AnalyticsClientContent({
       )}
     </div>
   );
-}
+                  }
