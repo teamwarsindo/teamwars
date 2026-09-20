@@ -14,10 +14,9 @@ export const metadata = {
 };
 
 export default async function AnalyticsLandingPage() {
-  // Ambil Schedules, Teams, dan Match Reports Hash secara paralel (1 round-trip)
-  const [rawSchedules, rawTeams, rawReportsHash] = await Promise.all([
+  // Hanya ambil schedules dan match reports hash (twi:teams dihapus karena deadcode)
+  const [rawSchedules, rawReportsHash] = await Promise.all([
     kv.get<any[]>("twi:schedules").then((res) => res || []),
-    kv.get<any[]>("twi:teams").then((res) => res || []),
     kv.hgetall<Record<string, any>>("twi:match_reports").then((res) => res || {}),
   ]);
 
@@ -47,6 +46,8 @@ export default async function AnalyticsLandingPage() {
         teamBName: m.teamBName || "",
         teamALogo: m.teamALogo || "",
         teamBLogo: m.teamBLogo || "",
+        teamAColor: m.teamAColor || "",
+        teamBColor: m.teamBColor || "",
         matchDate: m.matchDate || "",
         scoreA,
         scoreB,
@@ -68,7 +69,6 @@ export default async function AnalyticsLandingPage() {
       )
     );
 
-    // Ikut sertakan jika match sudah finished ATAU sedang berlangsung dan sudah ada duel/game
     return Boolean(m.isFinished) || hasReportData;
   });
 
@@ -87,6 +87,7 @@ export default async function AnalyticsLandingPage() {
         slug: rep.teamA?.slug || m.teamASlug || m.teamAName?.toLowerCase().replace(/\s+/g, "-"),
         score: scoreA,
         logo: m.teamALogo || rep.teamA?.logo || "",
+        color: m.teamAColor || rep.teamA?.color || "",
         groupName: m.groupName || "",
         lineup: rep.teamA?.lineup || [],
       },
@@ -95,6 +96,7 @@ export default async function AnalyticsLandingPage() {
         slug: rep.teamB?.slug || m.teamBSlug || m.teamBName?.toLowerCase().replace(/\s+/g, "-"),
         score: scoreB,
         logo: m.teamBLogo || rep.teamB?.logo || "",
+        color: m.teamBColor || rep.teamB?.color || "",
         groupName: m.groupName || "",
         lineup: rep.teamB?.lineup || [],
       },
@@ -103,13 +105,32 @@ export default async function AnalyticsLandingPage() {
     };
   });
 
-  const teams: TeamRosterData[] = rawTeams.map((t: any) => ({
-    slug: t.slug || t.name?.toLowerCase().replace(/\s+/g, "-"),
-    name: t.name || "",
-    logo: t.logo || "",
-    groupName: t.groupName || "",
-    members: Array.isArray(t.members) ? t.members : [],
-  }));
+  // Ekstraksi data tim dari rawSchedules termasuk logo dan warna tim
+  const teamMap = new Map<string, TeamRosterData>();
+  rawSchedules.forEach((s: any) => {
+    if (s.teamAName && !teamMap.has(s.teamAName.toLowerCase())) {
+      teamMap.set(s.teamAName.toLowerCase(), {
+        slug: s.teamASlug || s.teamAName.toLowerCase().replace(/\s+/g, "-"),
+        name: s.teamAName,
+        logo: s.teamALogo || "",
+        color: s.teamAColor || "",
+        groupName: s.groupName || "",
+        members: [],
+      });
+    }
+    if (s.teamBName && !teamMap.has(s.teamBName.toLowerCase())) {
+      teamMap.set(s.teamBName.toLowerCase(), {
+        slug: s.teamBSlug || s.teamBName.toLowerCase().replace(/\s+/g, "-"),
+        name: s.teamBName,
+        logo: s.teamBLogo || "",
+        color: s.teamBColor || "",
+        groupName: s.groupName || "",
+        members: [],
+      });
+    }
+  });
+
+  const teams: TeamRosterData[] = Array.from(teamMap.values());
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
@@ -140,5 +161,5 @@ export default async function AnalyticsLandingPage() {
       </div>
     </main>
   );
-        }
-      
+    }
+        
