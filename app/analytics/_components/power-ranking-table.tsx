@@ -46,34 +46,34 @@ export function PowerRankingTable({
   };
 
   const renderAgg = (val: number) => {
-    if (val > 0) return <span className="text-emerald-500">+{val}</span>;
-    if (val < 0) return <span className="text-rose-500">{val}</span>;
-    return <span className="text-muted-foreground">0</span>;
+    if (val > 0) return <span className="text-emerald-500 font-bold">+{val}</span>;
+    if (val < 0) return <span className="text-rose-500 font-bold">{val}</span>;
+    return <span className="text-muted-foreground font-medium">0</span>;
   };
 
   const formatWpm = (val: number) => Number(val || 0).toFixed(1);
 
   return (
     <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden flex flex-col">
-      <div className="max-h-[58vh] sm:max-h-[64vh] overflow-y-auto overflow-x-auto">
-        <table className="w-full border-collapse text-left text-xs">
-          {/* Header */}
-          <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/80 text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="max-h-[60vh] sm:max-h-[66vh] overflow-y-auto overflow-x-hidden">
+        <table className="w-full border-collapse text-left table-fixed">
+          {/* Header Kompak */}
+          <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/80 text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
             <tr>
-              <th className="py-2.5 pl-3 pr-1 text-center w-12 sm:w-14">RANK</th>
-              <th className="py-2.5 px-2 text-left">PLAYER</th>
-              <th className="py-2.5 px-2 text-center w-12 sm:w-14">PLAY</th>
-              <th className="py-2.5 px-2 text-center w-12 sm:w-14 text-emerald-600 dark:text-emerald-400">WIN</th>
-              <th className="py-2.5 px-2 text-center w-12 sm:w-14 text-rose-600 dark:text-rose-400">LOSE</th>
-              <th className="py-2.5 px-2 text-center w-14 sm:w-16">WPM</th>
-              <th className="py-2.5 px-2 text-center w-14 sm:w-16">AGG</th>
+              <th className="py-2 pl-2 pr-0.5 text-center w-10 sm:w-12">RANK</th>
+              <th className="py-2 px-1 text-left">PLAYER</th>
+              <th className="py-2 px-0.5 text-center w-8 sm:w-11">PLAY</th>
+              <th className="py-2 px-0.5 text-center w-8 sm:w-11 text-emerald-600 dark:text-emerald-400">WIN</th>
+              <th className="py-2 px-0.5 text-center w-8 sm:w-11 text-rose-600 dark:text-rose-400">LOSE</th>
+              <th className="py-2 px-0.5 text-center w-10 sm:w-13">WPM</th>
+              <th className="py-2 pr-2 pl-0.5 text-center w-10 sm:w-13">AGG</th>
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-border/40">
+          <tbody className="divide-y divide-border/40 text-[11px]">
             {players.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-14 text-center text-xs text-muted-foreground italic">
+                <td colSpan={7} className="py-12 text-center text-xs text-muted-foreground italic">
                   Tidak ada data pemain yang cocok.
                 </td>
               </tr>
@@ -87,61 +87,59 @@ export function PowerRankingTable({
                 return (
                   <tr key={`${p.name}-${p.teamSlug}`} className="hover:bg-muted/30 transition-colors">
                     {/* Rank */}
-                    <td className="py-2.5 pl-3 pr-1 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <td className="py-2 pl-2 pr-0.5 text-center">
+                      <div className="flex items-center justify-center gap-1">
                         {renderRankChange(p.rankDiff, p.isNew, p.played)}
-                        <span className="text-foreground text-xs">{p.rank}</span>
+                        <span className="text-foreground font-bold">{p.rank}</span>
                       </div>
                     </td>
 
-                    {/* Kolom PLAYER */}
-                    <td className="py-2.5 px-2 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-foreground text-xs truncate max-w-[130px] sm:max-w-[200px]">
+                    {/* Kolom PLAYER: Logo Tim di sebelah kiri Nama Pemain (Tanpa Text Nama Tim di bawah) */}
+                    <td className="py-2 px-1 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {!isTeamView && logo && (
+                          <div
+                            className="h-4 w-4 rounded-full overflow-hidden shrink-0 border border-border/60 bg-muted/40"
+                            title={p.teamName}
+                          >
+                            <Image
+                              src={logo}
+                              alt={p.teamName}
+                              width={16}
+                              height={16}
+                              className="h-full w-full object-cover rounded-full"
+                              unoptimized
+                            />
+                          </div>
+                        )}
+                        <span
+                          className="font-bold text-foreground truncate min-w-0"
+                          title={`${p.name} (${p.teamName})`}
+                        >
                           {p.name}
                         </span>
                         {p.isExPlayer && (
-                          <span className="px-1 py-0.2 rounded text-[8px] bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0">
+                          <span className="px-1 py-0.2 rounded text-[7.5px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0">
                             EX
                           </span>
                         )}
                       </div>
-
-                      {/* Tampilkan Logo dan Nama Tim HANYA jika bukan filter tim */}
-                      {!isTeamView && (
-                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground truncate mt-0.5">
-                          {logo && (
-                            <div className="h-3.5 w-3.5 rounded-full overflow-hidden shrink-0 border border-border/60 bg-muted/30">
-                              <Image
-                                src={logo}
-                                alt={p.teamName}
-                                width={14}
-                                height={14}
-                                className="h-full w-full object-cover rounded-full"
-                                unoptimized
-                              />
-                            </div>
-                          )}
-                          <span className="truncate">{p.teamName}</span>
-                        </div>
-                      )}
                     </td>
 
-                    {/* Stats */}
-                    <td className="py-2.5 px-2 text-center text-[11px] text-foreground/85">
+                    {/* Stats Angka Rapi & Konsisten */}
+                    <td className="py-2 px-0.5 text-center font-mono font-medium text-foreground/80">
                       {p.played}
                     </td>
-                    <td className="py-2.5 px-2 text-center text-[11px] text-emerald-500">
+                    <td className="py-2 px-0.5 text-center font-mono font-bold text-emerald-500">
                       {p.won}
                     </td>
-                    <td className="py-2.5 px-2 text-center text-[11px] text-rose-500">
+                    <td className="py-2 px-0.5 text-center font-mono font-bold text-rose-500">
                       {p.lost}
                     </td>
-                    <td className="py-2.5 px-2 text-center text-[11px] text-foreground/85">
+                    <td className="py-2 px-0.5 text-center font-mono font-semibold text-foreground/90">
                       {formatWpm(p.wpm)}
                     </td>
-                    {/* AGG Center */}
-                    <td className="py-2.5 px-2 text-center text-[11px]">
+                    <td className="py-2 pr-2 pl-0.5 text-center font-mono">
                       {renderAgg(p.agg)}
                     </td>
                   </tr>
@@ -152,14 +150,14 @@ export function PowerRankingTable({
 
           {/* Footer Total Roster */}
           {isTeamView && grandTotal && (
-            <tfoot className="sticky bottom-0 bg-card border-t-2 border-border shadow-xs">
-              <tr className="text-[11px]">
-                <td colSpan={2} className="py-2.5 pl-3 px-2 text-foreground font-semibold">TOTAL ROSTER</td>
-                <td className="py-2.5 px-2 text-center text-foreground">{grandTotal.played}</td>
-                <td className="py-2.5 px-2 text-center text-emerald-500">{grandTotal.won}</td>
-                <td className="py-2.5 px-2 text-center text-rose-500">{grandTotal.lost}</td>
-                <td className="py-2.5 px-2 text-center text-foreground">{formatWpm(grandTotal.wpm)}</td>
-                <td className="py-2.5 px-2 text-center">{renderAgg(grandTotal.agg)}</td>
+            <tfoot className="sticky bottom-0 bg-card border-t-2 border-border shadow-xs text-[11px]">
+              <tr>
+                <td colSpan={2} className="py-2 pl-3 px-1 text-foreground font-black">TOTAL ROSTER</td>
+                <td className="py-2 px-0.5 text-center font-mono font-bold text-foreground">{grandTotal.played}</td>
+                <td className="py-2 px-0.5 text-center font-mono font-bold text-emerald-500">{grandTotal.won}</td>
+                <td className="py-2 px-0.5 text-center font-mono font-bold text-rose-500">{grandTotal.lost}</td>
+                <td className="py-2 px-0.5 text-center font-mono font-bold text-foreground">{formatWpm(grandTotal.wpm)}</td>
+                <td className="py-2 pr-2 pl-0.5 text-center font-mono">{renderAgg(grandTotal.agg)}</td>
               </tr>
             </tfoot>
           )}
@@ -167,4 +165,5 @@ export function PowerRankingTable({
       </div>
     </div>
   );
-}
+      }
+                  
