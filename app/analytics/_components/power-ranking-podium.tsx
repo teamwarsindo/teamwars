@@ -2,10 +2,10 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { RankedPlayer, TeamRosterData } from '../_library/power-ranking';
+import { PowerRankingPlayer, TeamRosterData } from '../_library/power-ranking';
 
 interface PowerRankingPodiumProps {
-  topPlayers: RankedPlayer[];
+  topPlayers: PowerRankingPlayer[];
   teams: TeamRosterData[];
 }
 
@@ -18,6 +18,8 @@ export function PowerRankingPodium({ topPlayers, teams }: PowerRankingPodiumProp
   );
 
   const teamColor = playerTeam?.color || '#f59e0b';
+  const playerName = mvp.name;
+  const winRate = mvp.played > 0 ? ((mvp.won / mvp.played) * 100).toFixed(1) : '0.0';
 
   return (
     <div className="relative w-full overflow-hidden rounded-3xl border border-border/60 bg-card/60 p-4 sm:p-6 shadow-sm backdrop-blur-md">
@@ -42,7 +44,7 @@ export function PowerRankingPodium({ topPlayers, teams }: PowerRankingPodiumProp
                 className="h-full w-full object-contain rounded-xl"
               />
             ) : (
-              <span className="text-2xl font-black">{mvp.playerName.slice(0, 2).toUpperCase()}</span>
+              <span className="text-2xl font-black">{playerName.slice(0, 2).toUpperCase()}</span>
             )}
             <span className="absolute -bottom-2.5 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase text-slate-950 shadow-xs">
               MVP #1
@@ -54,7 +56,7 @@ export function PowerRankingPodium({ topPlayers, teams }: PowerRankingPodiumProp
               Current MVP Leader
             </span>
             <h3 className="truncate text-lg sm:text-xl font-black text-foreground">
-              {mvp.playerName}
+              {playerName}
             </h3>
             <span className="truncate text-xs font-semibold text-muted-foreground">
               {mvp.teamName}
@@ -65,16 +67,16 @@ export function PowerRankingPodium({ topPlayers, teams }: PowerRankingPodiumProp
         {/* Kanan: Ringkasan Performa Tanpa Font Monospace */}
         <div className="grid grid-cols-3 gap-2 w-full sm:w-auto sm:min-w-[280px]">
           <div className="flex flex-col items-center justify-center rounded-2xl bg-muted/40 p-2 text-center border border-border/40">
-            <span className="text-[9px] font-bold text-muted-foreground uppercase">Score</span>
-            <span className="text-sm sm:text-base font-black text-foreground">{mvp.powerScore}</span>
+            <span className="text-[9px] font-bold text-muted-foreground uppercase">WPM</span>
+            <span className="text-sm sm:text-base font-black text-foreground">{Number(mvp.wpm || 0).toFixed(1)}</span>
           </div>
           <div className="flex flex-col items-center justify-center rounded-2xl bg-muted/40 p-2 text-center border border-border/40">
             <span className="text-[9px] font-bold text-muted-foreground uppercase">Winrate</span>
-            <span className="text-sm sm:text-base font-black text-emerald-500">{mvp.winRate}%</span>
+            <span className="text-sm sm:text-base font-black text-emerald-500">{winRate}%</span>
           </div>
           <div className="flex flex-col items-center justify-center rounded-2xl bg-muted/40 p-2 text-center border border-border/40">
             <span className="text-[9px] font-bold text-muted-foreground uppercase">Record</span>
-            <span className="text-sm sm:text-base font-black text-foreground">{mvp.wins}W - {mvp.losses}L</span>
+            <span className="text-sm sm:text-base font-black text-foreground">{mvp.won}W - {mvp.lost}L</span>
           </div>
         </div>
       </div>
