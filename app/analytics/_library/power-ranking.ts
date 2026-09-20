@@ -15,6 +15,16 @@ export interface LineupPlayer {
   ign: string;
   totalWins?: number;
   totalLosses?: number;
+  deck1?: {
+    archetype?: string;
+    wins?: number;
+    losses?: number;
+  };
+  deck2?: {
+    archetype?: string;
+    wins?: number;
+    losses?: number;
+  };
 }
 
 export interface RawMatchReport {
@@ -64,6 +74,7 @@ export interface PowerRankingPlayer {
   wpm: number;
   agg: number;
   isExPlayer?: boolean;
+  bestDeck?: string;
 }
 
 export interface PowerRankingGrandTotal {
@@ -79,6 +90,28 @@ const normalizeKey = (str?: string) =>
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]/g, "");
+
+function calculateBestDeck(deckStatsMap: Map<string, { wins: number; losses: number }>): string {
+  if (deckStatsMap.size === 0) return "-";
+
+  const entries = Array.from(deckStatsMap.entries());
+
+  entries.sort((a, b) => {
+    const statA = a[1];
+    const statB = b[1];
+
+    // 1. Win Terbanyak
+    if (statB.wins !== statA.wins) return statB.wins - statA.wins;
+    // 2. Lose Paling Sedikit
+    if (statA.losses !== statB.losses) return statA.losses - statB.losses;
+    // 3. Total Play Terbanyak
+    const totalA = statA.wins + statA.losses;
+    const totalB = statB.wins + statB.losses;
+    return totalB - totalA;
+  });
+
+  return entries[0][0] || "-";
+}
 
 export function calculatePowerRanking({
   reports,
@@ -112,6 +145,7 @@ export function calculatePowerRanking({
       won: number;
       lost: number;
       matchesAppeared: Set<string>;
+      deckStats: Map<string, { wins: number; losses: number }>;
     }
   >();
 
@@ -145,6 +179,7 @@ export function calculatePowerRanking({
             won: 0,
             lost: 0,
             matchesAppeared: new Set(),
+            deckStats: new Map(),
           });
         }
 
@@ -158,6 +193,7 @@ export function calculatePowerRanking({
             won: 0,
             lost: 0,
             matchesAppeared: new Set(),
+            deckStats: new Map(),
           });
         }
 
@@ -177,12 +213,30 @@ export function calculatePowerRanking({
           w === pBName.toLowerCase() ||
           w === normalizeKey(rep.teamB.name);
 
+        const deckA = g.playerA?.archetype?.trim();
+        const deckB = g.playerB?.archetype?.trim();
+
+        if (deckA) {
+          if (!statA.deckStats.has(deckA)) {
+            statA.deckStats.set(deckA, { wins: 0, losses: 0 });
+          }
+        }
+        if (deckB) {
+          if (!statB.deckStats.has(deckB)) {
+            statB.deckStats.set(deckB, { wins: 0, losses: 0 });
+          }
+        }
+
         if (winA) {
           statA.won += 1;
           statB.lost += 1;
+          if (deckA) statA.deckStats.get(deckA)!.wins += 1;
+          if (deckB) statB.deckStats.get(deckB)!.losses += 1;
         } else if (winB) {
           statB.won += 1;
           statA.lost += 1;
+          if (deckB) statB.deckStats.get(deckB)!.wins += 1;
+          if (deckA) statA.deckStats.get(deckA)!.losses += 1;
         }
       }
     } else {
@@ -211,12 +265,31 @@ export function calculatePowerRanking({
               won: 0,
               lost: 0,
               matchesAppeared: new Set(),
+              deckStats: new Map(),
             });
           }
           const stat = playerStatsMap.get(key)!;
           stat.won += wins;
           stat.lost += losses;
           stat.matchesAppeared.add(reportId);
+
+          if (p.deck1?.archetype) {
+            const arch1 = p.deck1.archetype.trim();
+            if (!stat.deckStats.has(arch1)) {
+              stat.deckStats.set(arch1, { wins: 0, losses: 0 });
+            }
+            stat.deckStats.get(arch1)!.wins += Number(p.deck1.wins || 0);
+            stat.deckStats.get(arch1)!.losses += Number(p.deck1.losses || 0);
+          }
+
+          if (p.deck2?.archetype) {
+            const arch2 = p.deck2.archetype.trim();
+            if (!stat.deckStats.has(arch2)) {
+              stat.deckStats.set(arch2, { wins: 0, losses: 0 });
+            }
+            stat.deckStats.get(arch2)!.wins += Number(p.deck2.wins || 0);
+            stat.deckStats.get(arch2)!.losses += Number(p.deck2.losses || 0);
+          }
         }
       };
 
@@ -260,6 +333,7 @@ export function calculatePowerRanking({
       lost,
       wpm,
       agg,
+      bestDeck: calculateBestDeck(p.deckStats),
     };
   });
 
@@ -268,7 +342,6 @@ export function calculatePowerRanking({
   if (filterScope === "TEAM" && selectedTeamSlug) {
     const targetNorm = normalizeKey(selectedTeamSlug);
 
-    // Cari referensi tim di roster
     const selectedTeam = teams.find(
       (t) =>
         normalizeKey(t.slug) === targetNorm ||
@@ -279,7 +352,6 @@ export function calculatePowerRanking({
       (selectedTeam?.members || []).map((m) => normalizeKey(m))
     );
 
-    // Filter pemain tim yang ada catatan bertanding
     const teamReportPlayers = playerList.filter(
       (p) =>
         normalizeKey(p.teamSlug) === targetNorm ||
@@ -297,7 +369,6 @@ export function calculatePowerRanking({
       }
     );
 
-    // Sisipkan semua anggota roster yang BELUM pernah main (0/0/0)
     for (const memberName of selectedTeam?.members || []) {
       const normM = normalizeKey(memberName);
       if (!recordedMemberKeys.has(normM)) {
@@ -314,6 +385,7 @@ export function calculatePowerRanking({
           wpm: 0,
           agg: 0,
           isExPlayer: false,
+          bestDeck: "-",
         });
       }
     }
@@ -361,4 +433,4 @@ export function calculatePowerRanking({
     players: playerList,
     grandTotal,
   };
-}
+      }
