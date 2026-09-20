@@ -1,89 +1,160 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Image from 'next/image';
-import { RankedPlayer, TeamRosterData } from '../_library/power-ranking';
+import Image from "next/image";
+import { PowerRankingPlayer, PowerRankingGrandTotal } from "../_library/power-ranking";
+
+export interface RankedPlayerWithDiff extends PowerRankingPlayer {
+  rankDiff: number;
+  isNew: boolean;
+}
 
 interface PowerRankingTableProps {
-  players: RankedPlayer[];
-  teams: TeamRosterData[];
+  players: RankedPlayerWithDiff[];
+  isTeamView: boolean;
+  grandTotal?: PowerRankingGrandTotal;
+  teamLogoMap: Map<string, string>;
 }
 
-export function PowerRankingTable({ players, teams }: PowerRankingTableProps) {
-  const teamMap = React.useMemo(() => {
-    const map = new Map<string, TeamRosterData>();
-    teams.forEach((t) => {
-      map.set(t.name.toLowerCase(), t);
-      if (t.slug) map.set(t.slug.toLowerCase(), t);
-    });
-    return map;
-  }, [teams]);
+export function PowerRankingTable({
+  players,
+  isTeamView,
+  grandTotal,
+  teamLogoMap,
+}: PowerRankingTableProps) {
+  const renderRankChange = (diff: number, isNew: boolean, played: number) => {
+    if (played === 0) {
+      return <span className="text-[9px] text-muted-foreground/30 shrink-0">—</span>;
+    }
+    if (isNew) {
+      return <span className="text-[9px] text-amber-500 font-bold shrink-0">NEW</span>;
+    }
+    if (diff > 0) {
+      return <span className="text-[10px] text-emerald-500 font-bold shrink-0">▲</span>;
+    }
+    if (diff < 0) {
+      return <span className="text-[10px] text-rose-500 font-bold shrink-0">▼</span>;
+    }
+    return <span className="text-[9px] text-muted-foreground/40 shrink-0">•</span>;
+  };
+
+  const renderAgg = (val: number) => {
+    if (val > 0) return <span className="text-emerald-500 font-bold">+{val}</span>;
+    if (val < 0) return <span className="text-rose-500 font-bold">{val}</span>;
+    return <span className="text-muted-foreground font-medium">0</span>;
+  };
+
+  const formatWpm = (val: number) => Number(val || 0).toFixed(1);
 
   return (
-    <div className="w-full overflow-x-auto rounded-2xl border border-border/60 bg-card/40 shadow-xs">
-      <table className="w-full border-collapse text-left text-xs">
-        <thead>
-          <tr className="border-b border-border/60 bg-muted/30 text-[10px] font-black uppercase text-muted-foreground">
-            <th className="w-12 py-3 px-3 text-center">Rank</th>
-            <th className="py-3 px-3">Player</th>
-            <th className="py-3 px-3 text-center">Deck Utama</th>
-            <th className="py-3 px-3 text-center">W - L</th>
-            <th className="py-3 px-3 text-center">Winrate</th>
-            <th className="py-3 px-3 text-right">Pts</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/40">
-          {players.map((p) => {
-            const team = teamMap.get(p.teamName.toLowerCase()) || teamMap.get(p.teamSlug.toLowerCase());
-            const diff = (p.previousRank || p.rank) - p.rank;
+    <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden flex flex-col">
+      <div className="max-h-[60vh] sm:max-h-[66vh] overflow-y-auto overflow-x-hidden">
+        <table className="w-full border-collapse text-left table-fixed">
+          {/* Header Kompak */}
+          <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/80 text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+            <tr>
+              <th className="py-2 pl-2 pr-0.5 text-center w-10 sm:w-12">RANK</th>
+              <th className="py-2 px-1 text-left">PLAYER</th>
+              <th className="py-2 px-0.5 text-center w-8 sm:w-11">PLAY</th>
+              <th className="py-2 px-0.5 text-center w-8 sm:w-11 text-emerald-600 dark:text-emerald-400">WIN</th>
+              <th className="py-2 px-0.5 text-center w-8 sm:w-11 text-rose-600 dark:text-rose-400">LOSE</th>
+              <th className="py-2 px-0.5 text-center w-10 sm:w-13">WPM</th>
+              <th className="py-2 pr-2 pl-0.5 text-center w-10 sm:w-13">AGG</th>
+            </tr>
+          </thead>
 
-            return (
-              <tr key={`${p.playerName}-${p.teamName}`} className="hover:bg-muted/20 transition-colors">
-                {/* Kolom Rank Ramping: Simbol + Angka Rank */}
-                <td className="py-3 px-3 text-center whitespace-nowrap">
-                  <div className="flex items-center justify-center gap-1">
-                    {diff > 0 && <span className="text-[10px] font-black text-emerald-500">▲</span>}
-                    {diff < 0 && <span className="text-[10px] font-black text-rose-500">▼</span>}
-                    {diff === 0 && <span className="text-[10px] text-muted-foreground/40">•</span>}
-                    <span className="font-black text-foreground">{p.rank}</span>
-                  </div>
-                </td>
-
-                {/* Kolom Player + Logo Tim */}
-                <td className="py-3 px-3">
-                  <div className="flex items-center gap-2">
-                    {team?.logo && (
-                      <div className="relative h-5 w-5 shrink-0 overflow-hidden rounded-md border border-border/40">
-                        <Image src={team.logo} alt={p.teamName} fill sizes="20px" className="object-contain" />
-                      </div>
-                    )}
-                    <div className="flex flex-col min-w-0">
-                      <span className="truncate font-bold text-foreground">{p.playerName}</span>
-                      <span className="truncate text-[10px] text-muted-foreground">{p.teamName}</span>
-                    </div>
-                  </div>
-                </td>
-
-                <td className="py-3 px-3 text-center font-medium text-muted-foreground whitespace-nowrap">
-                  {p.favDeck || '-'}
-                </td>
-
-                <td className="py-3 px-3 text-center font-bold text-foreground whitespace-nowrap">
-                  {p.wins} - {p.losses}
-                </td>
-
-                <td className="py-3 px-3 text-center font-bold text-emerald-500 whitespace-nowrap">
-                  {p.winRate}%
-                </td>
-
-                <td className="py-3 px-3 text-right font-black text-primary whitespace-nowrap">
-                  {p.powerScore}
+          <tbody className="divide-y divide-border/40 text-[11px]">
+            {players.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-12 text-center text-xs text-muted-foreground italic">
+                  Tidak ada data pemain yang cocok.
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ) : (
+              players.map((p) => {
+                const logo =
+                  p.teamLogo ||
+                  teamLogoMap.get(p.teamName.toLowerCase()) ||
+                  teamLogoMap.get(p.teamSlug.toLowerCase());
+
+                return (
+                  <tr key={`${p.name}-${p.teamSlug}`} className="hover:bg-muted/30 transition-colors">
+                    {/* Rank */}
+                    <td className="py-2 pl-2 pr-0.5 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        {renderRankChange(p.rankDiff, p.isNew, p.played)}
+                        <span className="text-foreground font-bold">{p.rank}</span>
+                      </div>
+                    </td>
+
+                    {/* Kolom PLAYER */}
+                    <td className="py-2 px-1 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {!isTeamView && logo && (
+                          <div
+                            className="h-4 w-4 rounded-full overflow-hidden shrink-0 border border-border/60 bg-muted/40"
+                            title={p.teamName}
+                          >
+                            <Image
+                              src={logo}
+                              alt={p.teamName}
+                              width={16}
+                              height={16}
+                              className="h-full w-full object-cover rounded-full"
+                              unoptimized
+                            />
+                          </div>
+                        )}
+                        <span
+                          className="font-bold text-foreground truncate min-w-0"
+                          title={`${p.name} (${p.teamName})`}
+                        >
+                          {p.name}
+                        </span>
+                        {p.isExPlayer && (
+                          <span className="px-1 py-0.2 rounded text-[7.5px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0">
+                            EX
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Stats Angka Reguler Tanpa Font Mono */}
+                    <td className="py-2 px-0.5 text-center font-medium text-foreground/80">
+                      {p.played}
+                    </td>
+                    <td className="py-2 px-0.5 text-center font-bold text-emerald-500">
+                      {p.won}
+                    </td>
+                    <td className="py-2 px-0.5 text-center font-bold text-rose-500">
+                      {p.lost}
+                    </td>
+                    <td className="py-2 px-0.5 text-center font-semibold text-foreground/90">
+                      {formatWpm(p.wpm)}
+                    </td>
+                    <td className="py-2 pr-2 pl-0.5 text-center">
+                      {renderAgg(p.agg)}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+
+          {/* Footer Total Roster */}
+          {isTeamView && grandTotal && (
+            <tfoot className="sticky bottom-0 bg-card border-t-2 border-border shadow-xs text-[11px]">
+              <tr>
+                <td colSpan={2} className="py-2 pl-3 px-1 text-foreground font-black">TOTAL ROSTER</td>
+                <td className="py-2 px-0.5 text-center font-bold text-foreground">{grandTotal.played}</td>
+                <td className="py-2 px-0.5 text-center font-bold text-emerald-500">{grandTotal.won}</td>
+                <td className="py-2 px-0.5 text-center font-bold text-rose-500">{grandTotal.lost}</td>
+                <td className="py-2 px-0.5 text-center font-bold text-foreground">{formatWpm(grandTotal.wpm)}</td>
+                <td className="py-2 pr-2 pl-0.5 text-center">{renderAgg(grandTotal.agg)}</td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
     </div>
   );
-}
+                        }
