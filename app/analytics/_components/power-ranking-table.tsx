@@ -23,46 +23,46 @@ export function PowerRankingTable({
 }: PowerRankingTableProps) {
   const renderRankChange = (diff: number, isNew: boolean, played: number) => {
     if (played === 0) {
-      return <span className="text-[9px] text-muted-foreground/30 shrink-0">—</span>;
+      return <span className="text-[10px] text-muted-foreground/30 shrink-0 w-3 text-center">—</span>;
     }
     if (isNew) {
-      return <span className="text-[9px] text-amber-500 font-bold shrink-0">NEW</span>;
+      return <span className="text-[10px] text-amber-500 font-bold shrink-0 w-3 text-center leading-none">★</span>;
     }
     if (diff > 0) {
-      return <span className="text-[10px] text-emerald-500 font-bold shrink-0">▲</span>;
+      return <span className="text-[9px] text-emerald-500 font-bold shrink-0 w-3 text-center leading-none">▲</span>;
     }
     if (diff < 0) {
-      return <span className="text-[10px] text-rose-500 font-bold shrink-0">▼</span>;
+      return <span className="text-[9px] text-rose-500 font-bold shrink-0 w-3 text-center leading-none">▼</span>;
     }
-    return <span className="text-[9px] text-muted-foreground/40 shrink-0">•</span>;
+    return <span className="text-[10px] text-muted-foreground/40 shrink-0 w-3 text-center">—</span>;
   };
 
   const renderAgg = (val: number) => {
     if (val > 0) return <span className="text-emerald-500 font-bold">+{val}</span>;
     if (val < 0) return <span className="text-rose-500 font-bold">{val}</span>;
-    return <span className="text-muted-foreground font-medium">0</span>;
+    return <span className="text-muted-foreground font-semibold">0</span>;
   };
 
   const formatWpm = (val: number) => Number(val || 0).toFixed(1);
 
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden flex flex-col">
+    <div className="rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden flex flex-col">
       <div className="max-h-[60vh] sm:max-h-[66vh] overflow-y-auto overflow-x-hidden">
         <table className="w-full border-collapse text-left table-fixed">
-          {/* Header Kompak */}
+          {/* Header Elegan & Proporsional */}
           <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border/80 text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
             <tr>
-              <th className="py-2 pl-2 pr-0.5 text-center w-10 sm:w-12">RANK</th>
-              <th className="py-2 px-1 text-left">PLAYER</th>
-              <th className="py-2 px-0.5 text-center w-8 sm:w-11">PLAY</th>
-              <th className="py-2 px-0.5 text-center w-8 sm:w-11 text-emerald-600 dark:text-emerald-400">WIN</th>
-              <th className="py-2 px-0.5 text-center w-8 sm:w-11 text-rose-600 dark:text-rose-400">LOSE</th>
-              <th className="py-2 px-0.5 text-center w-10 sm:w-13">WPM</th>
-              <th className="py-2 pr-2 pl-0.5 text-center w-10 sm:w-13">AGG</th>
+              <th className="py-2.5 pl-3 pr-1 text-center w-13 sm:w-16">RANK</th>
+              <th className="py-2.5 pl-2 sm:pl-3 pr-2 text-left">PLAYER</th>
+              <th className="py-2.5 px-0.5 text-center w-8 sm:w-11">PLAY</th>
+              <th className="py-2.5 px-0.5 text-center w-8 sm:w-11 text-emerald-600 dark:text-emerald-400">WIN</th>
+              <th className="py-2.5 px-0.5 text-center w-8 sm:w-11 text-rose-600 dark:text-rose-400">LOSE</th>
+              <th className="py-2.5 px-0.5 text-center w-10 sm:w-13">WPM</th>
+              <th className="py-2.5 pr-3 pl-0.5 text-center w-10 sm:w-13">AGG</th>
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-border/40 text-[11px]">
+          <tbody className="divide-y divide-border/30 text-[11px]">
             {players.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-12 text-center text-xs text-muted-foreground italic">
@@ -77,18 +77,21 @@ export function PowerRankingTable({
                   teamLogoMap.get(p.teamSlug.toLowerCase());
 
                 return (
-                  <tr key={`${p.name}-${p.teamSlug}`} className="hover:bg-muted/30 transition-colors">
-                    {/* Rank */}
-                    <td className="py-2 pl-2 pr-0.5 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                  <tr 
+                    key={`${p.name}-${p.teamSlug}`} 
+                    className="hover:bg-muted/40 transition-colors duration-150"
+                  >
+                    {/* Kolom RANK dengan space indicator yang rapi */}
+                    <td className="py-2.5 pl-3 pr-1 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
                         {renderRankChange(p.rankDiff, p.isNew, p.played)}
-                        <span className="text-foreground font-bold">{p.rank}</span>
+                        <span className="text-foreground font-bold min-w-4 text-center">{p.rank}</span>
                       </div>
                     </td>
 
-                    {/* Kolom PLAYER */}
-                    <td className="py-2 px-1 min-w-0">
-                      <div className="flex items-center gap-1.5 min-w-0">
+                    {/* Kolom PLAYER: Ada gap ruang napas ke kanan */}
+                    <td className="py-2.5 pl-2 sm:pl-3 pr-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         {!isTeamView && logo && (
                           <div
                             className="h-4 w-4 rounded-full overflow-hidden shrink-0 border border-border/60 bg-muted/40"
@@ -118,20 +121,20 @@ export function PowerRankingTable({
                       </div>
                     </td>
 
-                    {/* Stats Angka Reguler Tanpa Font Mono */}
-                    <td className="py-2 px-0.5 text-center font-medium text-foreground/80">
+                    {/* Stats Reguler Rapi */}
+                    <td className="py-2.5 px-0.5 text-center font-medium text-foreground/80">
                       {p.played}
                     </td>
-                    <td className="py-2 px-0.5 text-center font-bold text-emerald-500">
+                    <td className="py-2.5 px-0.5 text-center font-bold text-emerald-500">
                       {p.won}
                     </td>
-                    <td className="py-2 px-0.5 text-center font-bold text-rose-500">
+                    <td className="py-2.5 px-0.5 text-center font-bold text-rose-500">
                       {p.lost}
                     </td>
-                    <td className="py-2 px-0.5 text-center font-semibold text-foreground/90">
+                    <td className="py-2.5 px-0.5 text-center font-semibold text-foreground/90">
                       {formatWpm(p.wpm)}
                     </td>
-                    <td className="py-2 pr-2 pl-0.5 text-center">
+                    <td className="py-2.5 pr-3 pl-0.5 text-center">
                       {renderAgg(p.agg)}
                     </td>
                   </tr>
@@ -142,14 +145,14 @@ export function PowerRankingTable({
 
           {/* Footer Total Roster */}
           {isTeamView && grandTotal && (
-            <tfoot className="sticky bottom-0 bg-card border-t-2 border-border shadow-xs text-[11px]">
+            <tfoot className="sticky bottom-0 bg-card border-t-2 border-border/80 shadow-xs text-[11px]">
               <tr>
-                <td colSpan={2} className="py-2 pl-3 px-1 text-foreground font-black">TOTAL ROSTER</td>
-                <td className="py-2 px-0.5 text-center font-bold text-foreground">{grandTotal.played}</td>
-                <td className="py-2 px-0.5 text-center font-bold text-emerald-500">{grandTotal.won}</td>
-                <td className="py-2 px-0.5 text-center font-bold text-rose-500">{grandTotal.lost}</td>
-                <td className="py-2 px-0.5 text-center font-bold text-foreground">{formatWpm(grandTotal.wpm)}</td>
-                <td className="py-2 pr-2 pl-0.5 text-center">{renderAgg(grandTotal.agg)}</td>
+                <td colSpan={2} className="py-2.5 pl-3 pr-2 text-foreground font-black">TOTAL ROSTER</td>
+                <td className="py-2.5 px-0.5 text-center font-bold text-foreground">{grandTotal.played}</td>
+                <td className="py-2.5 px-0.5 text-center font-bold text-emerald-500">{grandTotal.won}</td>
+                <td className="py-2.5 px-0.5 text-center font-bold text-rose-500">{grandTotal.lost}</td>
+                <td className="py-2.5 px-0.5 text-center font-bold text-foreground">{formatWpm(grandTotal.wpm)}</td>
+                <td className="py-2.5 pr-3 pl-0.5 text-center">{renderAgg(grandTotal.agg)}</td>
               </tr>
             </tfoot>
           )}
@@ -157,4 +160,4 @@ export function PowerRankingTable({
       </div>
     </div>
   );
-                        }
+                      }
