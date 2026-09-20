@@ -33,16 +33,16 @@ export function PowerRankingPodium({
     teamLogoMap.get(normSlug) ||
     "";
 
-  // Ambil warna tim dari semua kemungkinan properti data (warna, color, themeColor, hexColor)
+  // Warna tim tetap untuk border & ambient card
   const teamColor =
     (top1 as any).warna ||
     (top1 as any).color ||
-    (top1 as any).themeColor ||
+    (top1 as any).teamColor ||
     teamColorMap?.get(rawKey) ||
     teamColorMap?.get(rawSlug) ||
     teamColorMap?.get(normKey) ||
     teamColorMap?.get(normSlug) ||
-    "#eab308";
+    "#3b82f6";
 
   const bestDeckName = top1.bestDeck || (top1 as any).deck1?.archetype || "-";
 
@@ -59,10 +59,10 @@ export function PowerRankingPodium({
       className="relative overflow-hidden rounded-2xl border-2 bg-card p-3 sm:p-3.5 shadow-xs transition flex flex-col gap-2.5"
       style={{
         borderColor: `${teamColor}99`,
-        background: `linear-gradient(135deg, ${teamColor}18 0%, var(--card) 65%, var(--card) 100%)`,
+        background: `linear-gradient(135deg, ${teamColor}22 0%, var(--card) 65%, var(--card) 100%)`,
       }}
     >
-      {/* ── BARIS ATAS: Info Pemain & Badge Best Deck Luwes ── */}
+      {/* ── BARIS ATAS: Info Pemain & Badge Best Deck Center ── */}
       <div className="flex items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="relative shrink-0">
@@ -80,14 +80,11 @@ export function PowerRankingPodium({
                   unoptimized
                 />
               ) : (
-                <Trophy className="h-5 w-5" style={{ color: teamColor }} />
+                <Trophy className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               )}
             </div>
 
-            <div
-              className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full text-slate-950 shadow-xs"
-              style={{ backgroundColor: teamColor }}
-            >
+            <div className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-slate-950 shadow-xs">
               <Crown className="w-2.5 h-2.5 fill-current" />
             </div>
           </div>
@@ -97,15 +94,8 @@ export function PowerRankingPodium({
               <span className="font-black text-xs sm:text-sm text-foreground truncate">
                 {top1.name}
               </span>
-              <span
-                className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0"
-                style={{
-                  backgroundColor: `${teamColor}25`,
-                  color: teamColor,
-                  borderColor: `${teamColor}50`,
-                  borderWidth: "1px",
-                }}
-              >
+              {/* Badge MVP #1 biru netral yang tajam dan kontras */}
+              <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0 bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
                 MVP #1
               </span>
             </div>
@@ -115,24 +105,12 @@ export function PowerRankingPodium({
           </div>
         </div>
 
-        {/* ── BEST DECK BADGE (Luwes, Full Text, Tidak Terpotong) ── */}
-        <div
-          className="shrink-0 px-3 py-1.5 rounded-xl border flex flex-col items-center justify-center text-center shadow-xs"
-          style={{
-            backgroundColor: `${teamColor}12`,
-            borderColor: `${teamColor}35`,
-          }}
-        >
-          <span
-            className="text-[7.5px] font-black uppercase tracking-wider leading-none mb-1 opacity-80"
-            style={{ color: teamColor }}
-          >
+        {/* ── BEST DECK BADGE (Warna Biru Netral, Jelas, & Tidak Terpotong) ── */}
+        <div className="shrink-0 px-3 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/10 dark:bg-blue-950/40 flex flex-col items-center justify-center text-center shadow-xs">
+          <span className="text-[7.5px] font-black uppercase tracking-wider leading-none mb-1 text-blue-600 dark:text-blue-400">
             BEST DECK
           </span>
-          <span
-            className="text-[10px] sm:text-[11px] font-extrabold whitespace-nowrap leading-none text-foreground"
-            style={{ color: teamColor }}
-          >
+          <span className="text-[10px] sm:text-[11px] font-extrabold whitespace-nowrap leading-none text-blue-700 dark:text-blue-300">
             {bestDeckName}
           </span>
         </div>
