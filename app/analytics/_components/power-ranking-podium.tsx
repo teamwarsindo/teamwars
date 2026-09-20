@@ -33,15 +33,16 @@ export function PowerRankingPodium({
     teamLogoMap.get(normSlug) ||
     "";
 
-  // Ambil warna tim dari properti langsung atau map ter-normalisasi
+  // Ambil warna tim dari semua kemungkinan properti data (warna, color, themeColor, hexColor)
   const teamColor =
+    (top1 as any).warna ||
     (top1 as any).color ||
-    (top1 as any).teamColor ||
+    (top1 as any).themeColor ||
     teamColorMap?.get(rawKey) ||
     teamColorMap?.get(rawSlug) ||
     teamColorMap?.get(normKey) ||
     teamColorMap?.get(normSlug) ||
-    "#3b82f6"; // Fallback biru netral jika belum diset
+    "#eab308";
 
   const bestDeckName = top1.bestDeck || (top1 as any).deck1?.archetype || "-";
 
@@ -58,11 +59,11 @@ export function PowerRankingPodium({
       className="relative overflow-hidden rounded-2xl border-2 bg-card p-3 sm:p-3.5 shadow-xs transition flex flex-col gap-2.5"
       style={{
         borderColor: `${teamColor}99`,
-        background: `linear-gradient(135deg, ${teamColor}18 0%, var(--card) 60%, var(--card) 100%)`,
+        background: `linear-gradient(135deg, ${teamColor}18 0%, var(--card) 65%, var(--card) 100%)`,
       }}
     >
-      {/* ── BARIS ATAS: Info Pemain & Badge Best Deck Center ── */}
-      <div className="flex items-center justify-between gap-3 min-w-0">
+      {/* ── BARIS ATAS: Info Pemain & Badge Best Deck Luwes ── */}
+      <div className="flex items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="relative shrink-0">
             <div
@@ -97,7 +98,7 @@ export function PowerRankingPodium({
                 {top1.name}
               </span>
               <span
-                className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider shrink-0"
+                className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0"
                 style={{
                   backgroundColor: `${teamColor}25`,
                   color: teamColor,
@@ -114,9 +115,9 @@ export function PowerRankingPodium({
           </div>
         </div>
 
-        {/* ── BEST DECK BADGE (CENTER ALIGNED & FLUID) ── */}
+        {/* ── BEST DECK BADGE (Luwes, Full Text, Tidak Terpotong) ── */}
         <div
-          className="px-2.5 py-1.5 rounded-xl border shrink-0 flex flex-col items-center justify-center text-center max-w-[140px] sm:max-w-[170px]"
+          className="shrink-0 px-3 py-1.5 rounded-xl border flex flex-col items-center justify-center text-center shadow-xs"
           style={{
             backgroundColor: `${teamColor}12`,
             borderColor: `${teamColor}35`,
@@ -129,8 +130,8 @@ export function PowerRankingPodium({
             BEST DECK
           </span>
           <span
-            className="text-[10px] sm:text-[11px] font-extrabold truncate leading-tight w-full text-center text-foreground"
-            title={bestDeckName}
+            className="text-[10px] sm:text-[11px] font-extrabold whitespace-nowrap leading-none text-foreground"
+            style={{ color: teamColor }}
           >
             {bestDeckName}
           </span>
@@ -162,4 +163,4 @@ export function PowerRankingPodium({
       </div>
     </div>
   );
-        }
+}
