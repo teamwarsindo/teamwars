@@ -1,144 +1,83 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import { Trophy, Crown } from "lucide-react";
-import { PowerRankingPlayer } from "../_library/power-ranking";
+import React from 'react';
+import Image from 'next/image';
+import { RankedPlayer, TeamRosterData } from '../_library/power-ranking';
 
 interface PowerRankingPodiumProps {
-  top1: PowerRankingPlayer | null;
-  teamLogoMap: Map<string, string>;
-  teamColorMap?: Map<string, string>; // Hex code warna tim (contoh: #e11d48)
+  topPlayers: RankedPlayer[];
+  teams: TeamRosterData[];
 }
 
-export function PowerRankingPodium({
-  top1,
-  teamLogoMap,
-  teamColorMap,
-}: PowerRankingPodiumProps) {
-  if (!top1) return null;
+export function PowerRankingPodium({ topPlayers, teams }: PowerRankingPodiumProps) {
+  const mvp = topPlayers[0];
+  if (!mvp) return null;
 
-  const logo =
-    top1.teamLogo ||
-    teamLogoMap.get(top1.teamName.toLowerCase()) ||
-    teamLogoMap.get(top1.teamSlug.toLowerCase()) ||
-    "";
+  const playerTeam = teams.find(
+    (t) => t.name.toLowerCase() === mvp.teamName.toLowerCase() || t.slug === mvp.teamSlug
+  );
 
-  // Ambil warna tim jika ada, fallback ke warna emas turnamen
-  const teamColor =
-    (top1 as any).teamColor ||
-    teamColorMap?.get(top1.teamName.toLowerCase()) ||
-    teamColorMap?.get(top1.teamSlug.toLowerCase()) ||
-    "#f59e0b"; // amber-500 default
-
-  const renderAgg = (val: number) => {
-    if (val > 0) return <span className="text-emerald-500 font-bold">+{val}</span>;
-    if (val < 0) return <span className="text-rose-500 font-bold">{val}</span>;
-    return <span className="text-muted-foreground font-semibold">0</span>;
-  };
-
-  const formatWpm = (val: number) => Number(val || 0).toFixed(1);
+  const teamColor = playerTeam?.color || '#f59e0b';
 
   return (
-    <div
-      className="relative overflow-hidden rounded-2xl border-2 bg-card p-2.5 sm:p-3 shadow-xs transition hover:shadow-md flex items-center justify-between gap-2"
-      style={{
-        borderColor: teamColor,
-        background: `linear-gradient(90deg, ${teamColor}22 0%, var(--card) 45%, var(--card) 100%)`,
-      }}
-    >
-      {/* ── Sisi Kiri: Badge #1, Avatar Tim Bulat, Info Player & Tim ── */}
-      <div className="flex items-center gap-2.5 min-w-0">
-        <div className="relative shrink-0">
+    <div className="relative w-full overflow-hidden rounded-3xl border border-border/60 bg-card/60 p-4 sm:p-6 shadow-sm backdrop-blur-md">
+      <div
+        className="absolute -right-20 -top-20 h-64 w-64 rounded-full opacity-15 blur-3xl pointer-events-none transition-colors duration-500"
+        style={{ backgroundColor: teamColor }}
+      />
+
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        {/* Kiri: Gelar & Identitas Pemain */}
+        <div className="flex items-center gap-4 w-full sm:w-auto">
           <div
-            className="h-10 w-10 sm:h-11 sm:w-11 rounded-full border-2 overflow-hidden bg-background flex items-center justify-center shadow-inner"
+            className="relative flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center rounded-2xl border-2 p-1 bg-background/50 shadow-inner"
             style={{ borderColor: teamColor }}
           >
-            {logo ? (
+            {playerTeam?.logo ? (
               <Image
-                src={logo}
-                alt={top1.teamName}
-                width={44}
-                height={44}
-                className="h-full w-full object-cover rounded-full"
-                unoptimized
+                src={playerTeam.logo}
+                alt={mvp.teamName}
+                width={64}
+                height={64}
+                className="h-full w-full object-contain rounded-xl"
               />
             ) : (
-              <Trophy className="h-5 w-5" style={{ color: teamColor }} />
+              <span className="text-2xl font-black">{mvp.playerName.slice(0, 2).toUpperCase()}</span>
             )}
-          </div>
-
-          <div
-            className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full text-slate-950 shadow-xs"
-            style={{ backgroundColor: teamColor }}
-          >
-            <Crown className="w-2.5 h-2.5 fill-current" />
-          </div>
-        </div>
-
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="font-black text-xs sm:text-sm text-foreground truncate">
-              {top1.name}
-            </span>
-            <span
-              className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider shrink-0"
-              style={{
-                backgroundColor: `${teamColor}25`,
-                color: teamColor,
-                borderColor: `${teamColor}40`,
-                borderWidth: "1px",
-              }}
-            >
+            <span className="absolute -bottom-2.5 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black uppercase text-slate-950 shadow-xs">
               MVP #1
             </span>
           </div>
-          <div className="text-[10px] text-muted-foreground font-medium truncate">
-            {top1.teamName}
-          </div>
-        </div>
-      </div>
 
-      {/* ── Sisi Kanan: Stats Baris Atas (P / W / L) & Baris Bawah (WPM · AGG) ── */}
-      <div className="flex flex-col items-end shrink-0 gap-1 font-mono text-right">
-        {/* Baris Atas: Play, Win, Lose sejajar */}
-        <div className="flex items-center gap-2 sm:gap-2.5 text-center">
-          <div className="flex flex-col items-center min-w-5">
-            <span className="text-[7.5px] font-sans font-bold uppercase text-muted-foreground leading-none mb-0.5">
-              PLAY
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Current MVP Leader
             </span>
-            <span className="text-xs sm:text-[13px] font-bold text-foreground leading-tight">
-              {top1.played}
-            </span>
-          </div>
-          <div className="flex flex-col items-center min-w-5">
-            <span className="text-[7.5px] font-sans font-bold uppercase text-emerald-600 dark:text-emerald-400 leading-none mb-0.5">
-              WIN
-            </span>
-            <span className="text-xs sm:text-[13px] font-bold text-emerald-500 leading-tight">
-              {top1.won}
-            </span>
-          </div>
-          <div className="flex flex-col items-center min-w-5">
-            <span className="text-[7.5px] font-sans font-bold uppercase text-rose-600 dark:text-rose-400 leading-none mb-0.5">
-              LOSE
-            </span>
-            <span className="text-xs sm:text-[13px] font-bold text-rose-500 leading-tight">
-              {top1.lost}
+            <h3 className="truncate text-lg sm:text-xl font-black text-foreground">
+              {mvp.playerName}
+            </h3>
+            <span className="truncate text-xs font-semibold text-muted-foreground">
+              {mvp.teamName}
             </span>
           </div>
         </div>
 
-        {/* Baris Bawah: WPM dan AGG Sejajar */}
-        <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-muted-foreground font-sans">
-          <span>
-            WPM <strong className="text-foreground font-mono font-bold">{formatWpm(top1.wpm)}</strong>
-          </span>
-          <span className="text-muted-foreground/30">·</span>
-          <span>
-            AGG <span className="font-mono font-bold">{renderAgg(top1.agg)}</span>
-          </span>
+        {/* Kanan: Ringkasan Performa Tanpa Font Monospace */}
+        <div className="grid grid-cols-3 gap-2 w-full sm:w-auto sm:min-w-[280px]">
+          <div className="flex flex-col items-center justify-center rounded-2xl bg-muted/40 p-2 text-center border border-border/40">
+            <span className="text-[9px] font-bold text-muted-foreground uppercase">Score</span>
+            <span className="text-sm sm:text-base font-black text-foreground">{mvp.powerScore}</span>
+          </div>
+          <div className="flex flex-col items-center justify-center rounded-2xl bg-muted/40 p-2 text-center border border-border/40">
+            <span className="text-[9px] font-bold text-muted-foreground uppercase">Winrate</span>
+            <span className="text-sm sm:text-base font-black text-emerald-500">{mvp.winRate}%</span>
+          </div>
+          <div className="flex flex-col items-center justify-center rounded-2xl bg-muted/40 p-2 text-center border border-border/40">
+            <span className="text-[9px] font-bold text-muted-foreground uppercase">Record</span>
+            <span className="text-sm sm:text-base font-black text-foreground">{mvp.wins}W - {mvp.losses}L</span>
+          </div>
         </div>
       </div>
     </div>
   );
-                  }
+}
