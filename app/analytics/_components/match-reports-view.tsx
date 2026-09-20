@@ -14,6 +14,8 @@ export interface ScheduleItem {
   teamBName?: string;
   teamALogo?: string;
   teamBLogo?: string;
+  teamAColor?: string;
+  teamBColor?: string;
   matchDate?: string;
   matchNumber?: number | string;
   isFinished?: boolean;
