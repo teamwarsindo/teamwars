@@ -47,6 +47,8 @@ export default async function AnalyticsLandingPage() {
         teamBName: m.teamBName || "",
         teamALogo: m.teamALogo || "",
         teamBLogo: m.teamBLogo || "",
+        teamAColor: m.teamAColor || "",
+        teamBColor: m.teamBColor || "",
         matchDate: m.matchDate || "",
         scoreA,
         scoreB,
@@ -141,4 +143,4 @@ export default async function AnalyticsLandingPage() {
       </div>
     </main>
   );
-                   }
+      }
