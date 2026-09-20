@@ -6,6 +6,7 @@ import {
   calculatePowerRanking,
   MatchReportData,
   TeamRosterData,
+  PowerRankingPlayer,
 } from "../_library/power-ranking";
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
@@ -19,6 +20,16 @@ interface PowerRankingViewProps {
   selectedWeek: number | "";
 }
 
+// 🟢 Multi-tier Sorting: Win -> WPM -> AGG -> Abjad Nama Pemain
+function sortPowerRankings(data: PowerRankingPlayer[]): PowerRankingPlayer[] {
+  return [...data].sort((a, b) => {
+    if (b.won !== a.won) return b.won - a.won;
+    if (b.wpm !== a.wpm) return b.wpm - a.wpm;
+    if (b.agg !== a.agg) return b.agg - a.agg;
+    return a.name.localeCompare(b.name, "id", { sensitivity: "base" });
+  });
+}
+
 export function PowerRankingView({
   reports = [],
   teams = [],
@@ -29,7 +40,6 @@ export function PowerRankingView({
 }: PowerRankingViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Temukan slug tim yang cocok dari nama tim yang dipilih
   const matchedTeamSlug = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL") return undefined;
     const found = teams.find(
@@ -51,39 +61,55 @@ export function PowerRankingView({
 
   const targetWeek = typeof selectedWeek === "number" ? selectedWeek : maxActiveWeek;
 
-  // 1. Ranking Pekan Aktif
+  // 1. Ranking Pekan Aktif (diterapkan multi-tier sorting & re-index rank)
   const { players: currentPlayers, grandTotal } = useMemo(() => {
-    return calculatePowerRanking({
+    const res = calculatePowerRanking({
       reports,
       targetWeek,
       teams,
       filterScope,
       selectedTeamSlug: matchedTeamSlug,
     });
+
+    const sorted = sortPowerRankings(res.players);
+    const reindexed = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
+
+    return { players: reindexed, grandTotal: res.grandTotal };
   }, [reports, targetWeek, teams, filterScope, matchedTeamSlug]);
 
   // 2. Ranking Pekan Sebelumnya (untuk Delta +/-)
   const prevPlayers = useMemo(() => {
     if (targetWeek <= 1) return [];
-    return calculatePowerRanking({
+    const res = calculatePowerRanking({
       reports,
       targetWeek: targetWeek - 1,
       teams,
       filterScope,
       selectedTeamSlug: matchedTeamSlug,
-    }).players;
+    });
+
+    const sorted = sortPowerRankings(res.players);
+    return sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
   }, [reports, targetWeek, teams, filterScope, matchedTeamSlug]);
 
-  // Map logo tim
-  const teamLogoMap = useMemo(() => {
-    const map = new Map<string, string>();
+  // Map logo tim & Map warna aksen tim
+  const { teamLogoMap, teamColorMap } = useMemo(() => {
+    const lMap = new Map<string, string>();
+    const cMap = new Map<string, string>();
+
     teams.forEach((t) => {
       if (t.logo) {
-        map.set(t.name.toLowerCase(), t.logo);
-        if (t.slug) map.set(t.slug.toLowerCase(), t.logo);
+        lMap.set(t.name.toLowerCase(), t.logo);
+        if (t.slug) lMap.set(t.slug.toLowerCase(), t.logo);
+      }
+      const color = (t as any).color || (t as any).themeColor || (t as any).hexColor;
+      if (color) {
+        cMap.set(t.name.toLowerCase(), color);
+        if (t.slug) cMap.set(t.slug.toLowerCase(), color);
       }
     });
-    return map;
+
+    return { teamLogoMap: lMap, teamColorMap: cMap };
   }, [teams]);
 
   // 3. Gabungkan diff rank
@@ -111,13 +137,11 @@ export function PowerRankingView({
   const isTeamView = filterScope === "TEAM";
   const isSearching = searchQuery.trim().length > 0;
 
-  // MVP HANYA muncul di mode GLOBAL penuh (tanpa filter divisi dan tanpa filter tim)
   const isGlobalMode =
     (selectedGroup === "ALL" || !selectedGroup) && (!selectedTeam || selectedTeam === "ALL");
   const showMvpCard = isGlobalMode && !isSearching && playersWithDiff.length >= 1;
   const top1 = showMvpCard ? playersWithDiff[0] : null;
 
-  // Tabel: jika MVP card tampil, mulai dari index 1. Jika divisi/tim dipilih, tampilkan semua mulai dari rank 1.
   const tablePlayers = useMemo(() => {
     let list = showMvpCard ? playersWithDiff.slice(1) : playersWithDiff;
     if (isSearching) {
@@ -131,15 +155,16 @@ export function PowerRankingView({
 
   return (
     <div className="w-full space-y-3">
-      {/* ── MVP #1 CARD (HANYA MUNCUL DI MODE GLOBAL) ── */}
+      {/* ── MVP #1 CARD DINAMIS DENGAN WARNA TIM ── */}
       {showMvpCard && (
         <PowerRankingPodium
           top1={top1}
           teamLogoMap={teamLogoMap}
+          teamColorMap={teamColorMap}
         />
       )}
 
-      {/* ── SEARCH BAR PEMAIN ── */}
+      {/* ── SEARCH BAR ── */}
       <div className="relative w-full">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <input
@@ -160,7 +185,7 @@ export function PowerRankingView({
         )}
       </div>
 
-      {/* ── TABEL RANKING LEGA & PROPORSIONAL ── */}
+      {/* ── TABEL POWER RANKING ── */}
       <PowerRankingTable
         players={tablePlayers}
         isTeamView={isTeamView}
@@ -169,4 +194,5 @@ export function PowerRankingView({
       />
     </div>
   );
-}
+  }
+        
