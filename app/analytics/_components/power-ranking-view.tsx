@@ -10,15 +10,20 @@ import {
 } from "../_library/power-ranking";
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
+import { ScheduleItem } from "./match-reports-view";
 
 interface PowerRankingViewProps {
   reports: MatchReportData[];
   teams: TeamRosterData[];
+  schedules?: ScheduleItem[];
   maxActiveWeek: number;
   selectedGroup: string;
   selectedTeam: string;
   selectedWeek: number | "";
 }
+
+const normalize = (str?: string) =>
+  (str || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 
 // 🟢 Multi-tier Sorting: Win -> WPM -> AGG -> Abjad Nama Pemain
 function sortPowerRankings(data: PowerRankingPlayer[]): PowerRankingPlayer[] {
@@ -33,6 +38,7 @@ function sortPowerRankings(data: PowerRankingPlayer[]): PowerRankingPlayer[] {
 export function PowerRankingView({
   reports = [],
   teams = [],
+  schedules = [],
   maxActiveWeek = 1,
   selectedGroup,
   selectedTeam,
@@ -61,7 +67,7 @@ export function PowerRankingView({
 
   const targetWeek = typeof selectedWeek === "number" ? selectedWeek : maxActiveWeek;
 
-  // 1. Ranking Pekan Aktif (diterapkan multi-tier sorting & re-index rank)
+  // 1. Ranking Pekan Aktif
   const { players: currentPlayers, grandTotal } = useMemo(() => {
     const res = calculatePowerRanking({
       reports,
@@ -77,7 +83,7 @@ export function PowerRankingView({
     return { players: reindexed, grandTotal: res.grandTotal };
   }, [reports, targetWeek, teams, filterScope, matchedTeamSlug]);
 
-  // 2. Ranking Pekan Sebelumnya (untuk Delta +/-)
+  // 2. Ranking Pekan Sebelumnya (Delta +/-)
   const prevPlayers = useMemo(() => {
     if (targetWeek <= 1) return [];
     const res = calculatePowerRanking({
@@ -92,25 +98,56 @@ export function PowerRankingView({
     return sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
   }, [reports, targetWeek, teams, filterScope, matchedTeamSlug]);
 
-  // Map logo tim & Map warna aksen tim
+  // Map logo tim & Map warna aksen tim (Diambil langsung dari schedules)
   const { teamLogoMap, teamColorMap } = useMemo(() => {
     const lMap = new Map<string, string>();
     const cMap = new Map<string, string>();
 
+    // Logo dari teams & schedules
     teams.forEach((t) => {
       if (t.logo) {
         lMap.set(t.name.toLowerCase(), t.logo);
         if (t.slug) lMap.set(t.slug.toLowerCase(), t.logo);
+        lMap.set(normalize(t.name), t.logo);
+        if (t.slug) lMap.set(normalize(t.slug), t.logo);
       }
-      const color = (t as any).color || (t as any).themeColor || (t as any).hexColor;
-      if (color) {
-        cMap.set(t.name.toLowerCase(), color);
-        if (t.slug) cMap.set(t.slug.toLowerCase(), color);
+    });
+
+    // Warna & Logo diekstrak langsung dari schedules TWI
+    schedules.forEach((s: any) => {
+      // Tim A
+      if (s.teamAName) {
+        const keyA = s.teamAName.toLowerCase();
+        const normA = normalize(s.teamAName);
+        const colorA = s.teamAColor || s.teamAWarna || s.colorA || s.warnaA;
+        if (colorA) {
+          cMap.set(keyA, colorA);
+          cMap.set(normA, colorA);
+        }
+        if (s.teamALogo) {
+          lMap.set(keyA, s.teamALogo);
+          lMap.set(normA, s.teamALogo);
+        }
+      }
+
+      // Tim B
+      if (s.teamBName) {
+        const keyB = s.teamBName.toLowerCase();
+        const normB = normalize(s.teamBName);
+        const colorB = s.teamBColor || s.teamBWarna || s.colorB || s.warnaB;
+        if (colorB) {
+          cMap.set(keyB, colorB);
+          cMap.set(normB, colorB);
+        }
+        if (s.teamBLogo) {
+          lMap.set(keyB, s.teamBLogo);
+          lMap.set(normB, s.teamBLogo);
+        }
       }
     });
 
     return { teamLogoMap: lMap, teamColorMap: cMap };
-  }, [teams]);
+  }, [teams, schedules]);
 
   // 3. Gabungkan diff rank
   const playersWithDiff: RankedPlayerWithDiff[] = useMemo(() => {
@@ -155,7 +192,7 @@ export function PowerRankingView({
 
   return (
     <div className="w-full space-y-3">
-      {/* ── MVP #1 CARD DINAMIS DENGAN WARNA TIM ── */}
+      {/* ── MVP #1 CARD DINAMIS DENGAN WARNA TIM DARI SCHEDULES ── */}
       {showMvpCard && (
         <PowerRankingPodium
           top1={top1}
@@ -194,5 +231,4 @@ export function PowerRankingView({
       />
     </div>
   );
-  }
-        
+}
