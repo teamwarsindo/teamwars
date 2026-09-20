@@ -1,13 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   MatchScheduleItem,
   DIVISION_MAP,
   TOURNAMENT_RULES,
 } from "@/app/tournament/_library";
-import { calculateStandings, ExtendedStandingItem } from "@/app/tournament/_library/calculator";
-import { CircleCheckBig } from "lucide-react";
+import {
+  calculateStandings,
+  buildGlobalStandings,
+  ExtendedStandingItem,
+} from "@/app/tournament/_library/calculator";
+import { Eye, EyeOff, CircleCheckBig } from "lucide-react";
 
 interface PlayoffTabProps {
   schedules?: MatchScheduleItem[];
@@ -50,6 +54,7 @@ interface TimelineMatchCardProps {
   label?: string;
   isDirect?: boolean;
   colorTheme?: "sky" | "amber" | "emerald" | "purple";
+  showTeams?: boolean;
 }
 
 function TimelineMatchCard({
@@ -60,6 +65,7 @@ function TimelineMatchCard({
   label,
   isDirect,
   colorTheme = "sky",
+  showTeams = false,
 }: TimelineMatchCardProps) {
   const borderThemeMap = {
     sky: "border-sky-500/30 bg-background/80 hover:border-sky-500/70",
@@ -69,18 +75,28 @@ function TimelineMatchCard({
   };
 
   const getTeamDisplay = (teamData?: ExtendedStandingItem, fallbackName: string = "TBD") => {
-    if (teamData) {
+    if (showTeams && teamData) {
       const isWinner = teamData.teamName.includes("✓");
       return (
-        <div className="flex items-center gap-2 truncate">
-          <img src={teamData.teamLogo || "/logo.webp"} alt="" className="h-4.5 w-4.5 md:h-5 md:w-5 shrink-0 object-contain" />
-          <span className="truncate leading-tight text-xs md:text-sm font-extrabold text-foreground">
-            {isWinner ? teamData.teamName.replace(" ✓", "") : teamData.teamName}
-          </span>
-          {isWinner && <CircleCheckBig className="h-4 w-4 text-emerald-500 shrink-0" />}
+        <div className="flex items-center gap-2 truncate min-w-0">
+          <img
+            src={teamData.teamLogo || "/logo.webp"}
+            alt=""
+            className="h-4.5 w-4.5 md:h-5 md:w-5 shrink-0 object-contain"
+          />
+          <div className="flex flex-col min-w-0">
+            <span className="truncate leading-tight text-xs md:text-sm font-extrabold text-foreground flex items-center gap-1">
+              {isWinner ? teamData.teamName.replace(" ✓", "") : teamData.teamName}
+              {isWinner && <CircleCheckBig className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+            </span>
+            <span className="text-[10px] text-muted-foreground/75 font-semibold truncate leading-none">
+              ({fallbackName})
+            </span>
+          </div>
         </div>
       );
     }
+
     return (
       <div className="flex items-center gap-2 truncate">
         <span className="h-2 w-2 rounded-full bg-muted shrink-0" />
@@ -124,17 +140,19 @@ export function PlayoffTab({
   groupAName = DIVISION_MAP.GROUP_A,
   groupBName = DIVISION_MAP.GROUP_B,
 }: PlayoffTabProps) {
+  const [showQualifiedTeams, setShowQualifiedTeams] = useState(false);
+
   const standings = useMemo(() => {
     if (!schedules.length || !masterTeams.length) return [];
     return calculateStandings(schedules, masterTeams);
   }, [schedules, masterTeams]);
 
   const groupAStandings = useMemo(
-    () => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A || s.groupName === groupAName),
+    () => standings.filter((s) => s.groupName === groupAName || s.groupName === DIVISION_MAP.GROUP_A),
     [standings, groupAName]
   );
   const groupBStandings = useMemo(
-    () => standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B || s.groupName === groupBName),
+    () => standings.filter((s) => s.groupName === groupBName || s.groupName === DIVISION_MAP.GROUP_B),
     [standings, groupBName]
   );
 
@@ -145,29 +163,43 @@ export function PlayoffTab({
 
   const wildcardSeeds = useMemo(() => {
     if (!standings.length) return [];
-    const directNames = new Set(
-      [top1GroupA?.teamName, top2GroupA?.teamName, top1GroupB?.teamName, top2GroupB?.teamName].filter(Boolean)
-    );
-    return standings
-      .filter((t) => !directNames.has(t.teamName))
+    return buildGlobalStandings(standings)
+      .filter((t) => !t.isTopGroup)
       .slice(0, TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA);
-  }, [standings, top1GroupA, top2GroupA, top1GroupB, top2GroupB]);
+  }, [standings]);
 
   return (
     <div className="flex flex-col gap-6 md:gap-8 rounded-3xl border border-border bg-card p-4 sm:p-6 md:p-8 shadow-xl relative">
-      {/* HEADER PAGE */}
-      <div className="border-b border-border pb-3 text-center sm:text-left space-y-1">
-        <h3 className="text-xs sm:text-sm md:text-base font-black uppercase text-primary tracking-wider flex items-center justify-center sm:justify-start gap-1.5">
-          <span>🏆</span> Playoff Stage Bracket
-        </h3>
-        <p className="text-xs md:text-sm text-muted-foreground font-semibold">
-          Bagan bracket akan otomatis terisi tim kualifikasi setelah memasuki Fase Playoff.
-        </p>
+      <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="text-center sm:text-left space-y-1">
+          <h3 className="text-xs sm:text-sm md:text-base font-black uppercase text-primary tracking-wider flex items-center justify-center sm:justify-start gap-1.5">
+            <span>🏆</span> Playoff Stage Bracket
+          </h3>
+          <p className="text-xs md:text-sm text-muted-foreground font-semibold">
+            Bagan bracket akan otomatis terisi tim kualifikasi setelah memasuki Fase Playoff.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowQualifiedTeams((prev) => !prev)}
+          className="self-center sm:self-auto flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted font-bold text-xs md:text-sm text-foreground transition cursor-pointer shrink-0 shadow-2xs"
+        >
+          {showQualifiedTeams ? (
+            <>
+              <EyeOff className="h-4 w-4 text-muted-foreground" />
+              <span>Sembunyikan Tim</span>
+            </>
+          ) : (
+            <>
+              <Eye className="h-4 w-4 text-primary" />
+              <span>Tampilkan Tim Lolos</span>
+            </>
+          )}
+        </button>
       </div>
 
-      {/* GRID FASE 4 KOLOM PROPORSI DESKTOP */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative">
-        {/* ROUND 1: PLAY-INS */}
         <div className="rounded-2xl border-2 border-sky-500/40 bg-sky-950/10 p-4 md:p-5 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="ROUND 1 (PLAY-INS)" colorTheme="sky" />
           <div className="space-y-3 flex-1 flex flex-col justify-around">
@@ -178,6 +210,7 @@ export function PlayoffTab({
               fallback2="Wildcard Seed 8"
               label="Play-Ins #1"
               colorTheme="sky"
+              showTeams={showQualifiedTeams}
             />
             <TimelineMatchCard
               team1={wildcardSeeds[3]}
@@ -186,6 +219,7 @@ export function PlayoffTab({
               fallback2="Wildcard Seed 5"
               label="Play-Ins #2"
               colorTheme="sky"
+              showTeams={showQualifiedTeams}
             />
             <TimelineMatchCard
               team1={wildcardSeeds[1]}
@@ -194,6 +228,7 @@ export function PlayoffTab({
               fallback2="Wildcard Seed 7"
               label="Play-Ins #3"
               colorTheme="sky"
+              showTeams={showQualifiedTeams}
             />
             <TimelineMatchCard
               team1={wildcardSeeds[2]}
@@ -202,11 +237,11 @@ export function PlayoffTab({
               fallback2="Wildcard Seed 6"
               label="Play-Ins #4"
               colorTheme="sky"
+              showTeams={showQualifiedTeams}
             />
           </div>
         </div>
 
-        {/* QUARTER-FINAL */}
         <div className="rounded-2xl border-2 border-amber-500/40 bg-amber-950/10 p-4 md:p-5 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="QUARTER-FINAL" colorTheme="amber" />
           <div className="space-y-3 flex-1 flex flex-col justify-around">
@@ -217,6 +252,7 @@ export function PlayoffTab({
               label="Quarter-Final #1"
               isDirect
               colorTheme="amber"
+              showTeams={showQualifiedTeams}
             />
             <TimelineMatchCard
               team1={top2GroupB}
@@ -225,6 +261,7 @@ export function PlayoffTab({
               label="Quarter-Final #2"
               isDirect
               colorTheme="amber"
+              showTeams={showQualifiedTeams}
             />
             <TimelineMatchCard
               team1={top1GroupB}
@@ -233,6 +270,7 @@ export function PlayoffTab({
               label="Quarter-Final #3"
               isDirect
               colorTheme="amber"
+              showTeams={showQualifiedTeams}
             />
             <TimelineMatchCard
               team1={top2GroupA}
@@ -241,11 +279,11 @@ export function PlayoffTab({
               label="Quarter-Final #4"
               isDirect
               colorTheme="amber"
+              showTeams={showQualifiedTeams}
             />
           </div>
         </div>
 
-        {/* SEMI-FINAL */}
         <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-950/10 p-4 md:p-5 space-y-4 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="SEMI-FINAL" colorTheme="emerald" />
           <div className="space-y-3 flex-1 flex flex-col justify-around my-auto">
@@ -264,7 +302,6 @@ export function PlayoffTab({
           </div>
         </div>
 
-        {/* GRAND FINAL */}
         <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/20 p-5 md:p-6 text-center shadow-lg flex flex-col justify-between space-y-4">
           <PhaseHeader title="GRAND FINAL" colorTheme="purple" />
           <div className="p-4 md:p-6 rounded-2xl border border-purple-500/40 bg-background/80 space-y-3 my-auto shadow-sm">
@@ -282,4 +319,4 @@ export function PlayoffTab({
       </div>
     </div>
   );
-}
+                }
