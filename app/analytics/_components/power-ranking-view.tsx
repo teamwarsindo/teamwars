@@ -281,6 +281,7 @@ export function PowerRankingView({
         isTeamView={isTeamView}
         grandTotal={grandTotal}
         teamLogoMap={teamLogoMap}
+        standing={selectedTeamStanding}
       />
     </div>
   );
