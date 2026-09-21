@@ -9,10 +9,7 @@ import {
   PowerRankingPlayer,
   FreeDuelistRecord,
 } from "../_library/power-ranking";
-import {
-  calculateStandings,
-  getTeamStatsFromStandings,
-} from "@/app/tournament/_library/calculator";
+import { calculateStandings, getTeamStatsFromStandings } from "@/app/tournament/_library/calculator";
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTeamCard } from "./power-ranking-team-card";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
@@ -82,7 +79,36 @@ export function PowerRankingView({
 
   const targetWeek = typeof selectedWeek === "number" ? selectedWeek : maxActiveWeek;
 
-  // 1. Ranking Pekan Aktif
+  // 1. Data Standing Tim Resmi & Kualifikasi (Single Source of Truth dari Tournament Calculator)
+  const selectedTeamStanding = useMemo(() => {
+    if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
+      return undefined;
+    }
+
+    const filteredSchedules = schedules.filter((s: any) => {
+      const matchWeek = Number(s.weekNumber || s.week || s.matchWeek || 1);
+      return matchWeek <= targetWeek;
+    });
+
+    const standings = calculateStandings(filteredSchedules as any, teams as any);
+    const stats = getTeamStatsFromStandings(selectedTeam, standings, undefined, filteredSchedules as any);
+
+    if (!stats) return undefined;
+
+    // Normalisasi form / streak agar box MATCH FORM terisi
+    const streakList = stats.streak || stats.form || [];
+
+    return {
+      ...stats,
+      streak: streakList,
+      form: streakList,
+      rawDiff: Number(
+        String(stats.roundDifference ?? stats.rawDiff ?? stats.pointsDifference ?? 0).replace(/^\+/, "")
+      ),
+    };
+  }, [selectedTeam, schedules, teams, targetWeek]);
+
+  // 2. Ranking Pekan Aktif
   const { players: currentPlayers, grandTotal } = useMemo(() => {
     const res = calculatePowerRanking({
       reports,
@@ -96,10 +122,24 @@ export function PowerRankingView({
     const sorted = sortPowerRankings(res.players);
     const reindexed = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
 
-    return { players: reindexed, grandTotal: res.grandTotal };
-  }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug]);
+    // Di Team View, PLAY Grand Total disesuaikan dengan total Match tim (W + L)
+    let adjustedGrandTotal = res.grandTotal;
+    if (adjustedGrandTotal && filterScope === "TEAM" && selectedTeamStanding) {
+      const teamPlayedMatches =
+        (selectedTeamStanding.matchWins ?? 0) + (selectedTeamStanding.matchLosses ?? 0);
 
-  // 2. Ranking Pekan Sebelumnya (Delta +/-)
+      const actualPlayed = teamPlayedMatches > 0 ? teamPlayedMatches : adjustedGrandTotal.played;
+      adjustedGrandTotal = {
+        ...adjustedGrandTotal,
+        played: actualPlayed,
+        wpm: actualPlayed > 0 ? Number((adjustedGrandTotal.won / actualPlayed).toFixed(1)) : 0,
+      };
+    }
+
+    return { players: reindexed, grandTotal: adjustedGrandTotal };
+  }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug, selectedTeamStanding]);
+
+  // 3. Ranking Pekan Sebelumnya (Delta +/-)
   const prevPlayers = useMemo(() => {
     if (targetWeek <= 1) return [];
     const res = calculatePowerRanking({
@@ -115,7 +155,7 @@ export function PowerRankingView({
     return sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
   }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug]);
 
-  // Map logo tim & Map warna aksen tim
+  // Map logo tim & Map warna aksen tim (Diambil dari teams & schedules)
   const { teamLogoMap, teamColorMap } = useMemo(() => {
     const lMap = new Map<string, string>();
     const cMap = new Map<string, string>();
@@ -162,7 +202,7 @@ export function PowerRankingView({
     return { teamLogoMap: lMap, teamColorMap: cMap };
   }, [teams, schedules]);
 
-  // 3. Gabungkan diff rank
+  // 4. Gabungkan diff rank
   const playersWithDiff: RankedPlayerWithDiff[] = useMemo(() => {
     const prevRankMap = new Map<string, number>();
     prevPlayers.forEach((p) => {
@@ -183,29 +223,6 @@ export function PowerRankingView({
       };
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
-
-  // 4. Single Source of Truth: Ambil Standing & Kualifikasi Resmi via getTeamStatsFromStandings
-  const selectedTeamStanding = useMemo(() => {
-    if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
-      return undefined;
-    }
-
-    // Hitung standings turnamen resmi hingga targetWeek
-    const standings = calculateStandings(schedules as any, teams as any, targetWeek);
-
-    // Ambil stats & qualification resmi langsung dari calculator turnamen
-    const stats = getTeamStatsFromStandings(selectedTeam, standings, undefined, schedules as any);
-
-    return {
-      matchWins: stats.matchWins,
-      matchLosses: stats.matchLosses,
-      pointsScored: stats.setWins,
-      roundDifference: stats.roundDifference,
-      rawDiff: stats.rawDiff,
-      matchForm: stats.streak,
-      qualification: stats.qualification,
-    };
-  }, [selectedTeam, schedules, teams, targetWeek]);
 
   const isTeamView = filterScope === "TEAM";
   const isSearching = searchQuery.trim().length > 0;
@@ -276,7 +293,8 @@ export function PowerRankingView({
         isTeamView={isTeamView}
         grandTotal={grandTotal}
         teamLogoMap={teamLogoMap}
+        standing={selectedTeamStanding}
       />
     </div>
   );
-        }
+      }
