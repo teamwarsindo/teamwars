@@ -180,20 +180,38 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
-  // 4. Ambil standing tim (Cast ke any agar aman dari TypeScript check)
+  // 4. Ambil standing tim (Difilter sesuai jadwal sampai targetWeek)
   const selectedTeamStanding = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
       return undefined;
     }
-    const standings = calculateStandings(schedules as any, teams as any);
+
+    const filteredSchedules = schedules.filter((s: any) => {
+      const matchWeek = Number(s.weekNumber || s.week || s.matchWeek || 1);
+      return matchWeek <= targetWeek;
+    });
+
+    const standings = calculateStandings(filteredSchedules as any, teams as any);
     const normTarget = normalize(selectedTeam);
 
-    return standings.find((s: any) => {
+    const targetStanding = standings.find((s: any) => {
       const nameMatch = normalize(s.teamName) === normTarget;
       const slugMatch = s.teamSlug && normalize(s.teamSlug) === normTarget;
       return nameMatch || slugMatch;
     });
-  }, [selectedTeam, schedules, teams]);
+
+    if (!targetStanding) return undefined;
+
+    const groupTeams = standings.filter((s: any) => s.groupName === targetStanding.groupName);
+    const groupRank = groupTeams.findIndex(
+      (s: any) => normalize(s.teamName) === normalize(targetStanding.teamName)
+    );
+
+    return {
+      ...targetStanding,
+      rank: groupRank !== -1 ? groupRank + 1 : targetStanding.rank,
+    };
+  }, [selectedTeam, schedules, teams, targetWeek]);
 
   const isTeamView = filterScope === "TEAM";
   const isSearching = searchQuery.trim().length > 0;
@@ -266,4 +284,4 @@ export function PowerRankingView({
       />
     </div>
   );
-}
+      }
