@@ -75,18 +75,12 @@ export function PowerRankingTable({
 
                   const isTripleDigit = p.rank >= 100;
                   const isOut = Boolean(p.isExPlayer);
-                  const isAdd = !isOut && Boolean(p.isAdded || ((p.teamsJoinedCount ?? 0) >= 1));
+                  const isAdd = !isOut && Boolean(p.isAdded);
 
                   return (
                     <tr 
                       key={`${p.name}-${p.teamSlug}`} 
-                      className={`transition-colors duration-150 ${
-                        isTeamView && isOut
-                          ? "bg-rose-500/5 hover:bg-rose-500/10"
-                          : isTeamView && isAdd
-                          ? "bg-blue-500/5 hover:bg-blue-500/10"
-                          : "hover:bg-muted/40"
-                      }`}
+                      className={`hover:bg-muted/40 transition-colors duration-150`}
                     >
                       {/* Kolom RANK */}
                       <td className="py-2.5 pl-3.5 sm:pl-4 pr-1 text-center">
@@ -135,27 +129,15 @@ export function PowerRankingTable({
                           <span
                             className={`font-bold truncate min-w-0 ${
                               isTeamView && isOut
-                                ? "text-rose-600 dark:text-rose-400 line-through decoration-rose-500/60"
+                                ? "text-rose-500 line-through decoration-rose-500/50"
                                 : isTeamView && isAdd
-                                ? "text-blue-600 dark:text-blue-400"
+                                ? "text-blue-500"
                                 : "text-foreground"
                             }`}
                             title={`${p.name} (${p.teamName})`}
                           >
                             {p.name}
                           </span>
-
-                          {/* Tag Ringkas Status */}
-                          {isTeamView && isOut && (
-                            <span className="px-1 py-0.2 rounded text-[7.5px] font-extrabold uppercase bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
-                              OUT
-                            </span>
-                          )}
-                          {isTeamView && isAdd && (
-                            <span className="px-1 py-0.2 rounded text-[7.5px] font-extrabold uppercase bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 shrink-0">
-                              ADD
-                            </span>
-                          )}
                         </div>
                       </td>
 
@@ -198,24 +180,19 @@ export function PowerRankingTable({
         </div>
       </div>
 
-      {/* Keterangan Status Khusus Tampilan Tim */}
+      {/* 2 Keterangan Label: Transfer Add & Transfer Out */}
       {isTeamView && (
         <div className="flex items-center justify-end gap-3 px-2 text-[10px] text-muted-foreground font-medium">
-          <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-foreground/60" />
-            <span>Pemain Inti</span>
-          </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-blue-600 dark:text-blue-400 font-semibold">Pemain Tambahan (Add)</span>
+            <span className="text-blue-500 font-semibold">Transfer Add</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-rose-500" />
-            <span className="text-rose-600 dark:text-rose-400 font-semibold">Pemain Keluar (Out)</span>
+            <span className="text-rose-500 font-semibold">Transfer Out</span>
           </div>
         </div>
       )}
     </div>
   );
-                        }
-              
+}
