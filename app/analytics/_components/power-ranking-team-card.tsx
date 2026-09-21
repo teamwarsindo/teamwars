@@ -1,234 +1,227 @@
 "use client";
 
 import Image from "next/image";
-import { Shield } from "lucide-react";
-import {
-  ExtendedStandingItem,
-  TeamComparisonStats,
-} from "@/app/tournament/_library/calculator";
+import { Shield, Trophy, Users } from "lucide-react";
+
+interface QualificationInfo {
+  rankLabel?: string;
+  stageLabel?: string;
+  isQualified?: boolean;
+}
+
+interface TeamStandingProps {
+  rank?: number;
+  groupRank?: number;
+  wildcardRank?: number;
+  teamName?: string;
+  teamSlug?: string;
+  groupName?: string;
+  matchWins?: number;
+  matchLosses?: number;
+  gameWins?: number;
+  gameLosses?: number;
+  setWins?: number;
+  setLosses?: number;
+  roundDifference?: number | string;
+  rawDiff?: number;
+  streak?: Array<"W" | "L">;
+  form?: Array<"W" | "L">;
+  qualification?: QualificationInfo;
+}
 
 interface PowerRankingTeamCardProps {
   teamName: string;
-  standing?: ExtendedStandingItem | TeamComparisonStats | any;
+  standing?: TeamStandingProps;
   teamLogoMap: Map<string, string>;
   teamColorMap: Map<string, string>;
-  totalRosterCount?: number;
-  currentWeek?: number;
+  totalRosterCount: number;
+  currentWeek: number;
 }
-
-const normalize = (str?: string) =>
-  (str || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 
 export function PowerRankingTeamCard({
   teamName,
   standing,
   teamLogoMap,
   teamColorMap,
-  currentWeek = 1,
+  totalRosterCount,
+  currentWeek,
 }: PowerRankingTeamCardProps) {
-  const rawKey = teamName.toLowerCase();
-  const normKey = normalize(teamName);
-
-  const logo =
-    standing?.teamLogo ||
-    standing?.logo ||
-    teamLogoMap.get(rawKey) ||
-    teamLogoMap.get(normKey) ||
-    "";
-
-  // Warna aksen tim resmi
-  const teamColor =
-    teamColorMap.get(rawKey) ||
-    teamColorMap.get(normKey) ||
-    "#3b82f6";
+  const normKey = teamName.toLowerCase().trim();
+  const logo = teamLogoMap.get(normKey);
+  const accentColor = teamColorMap.get(normKey) || "#6366f1";
 
   const matchWins = standing?.matchWins ?? 0;
   const matchLosses = standing?.matchLosses ?? 0;
   const totalMatches = matchWins + matchLosses;
+  const winRate = totalMatches > 0 ? Math.round((matchWins / totalMatches) * 100) : 0;
 
-  // Bersihkan tanda '+' atau '-' bawaan string agar tidak terjadi duplikasi "++"
-  const rawDiffNum = Number(
-    String(
-      standing?.roundDifference ??
-      standing?.rawDiff ??
-      standing?.pointsDifference ??
-      0
-    ).replace(/^\+/, "")
-  );
+  // Form Riwayat Pertandingan (W / L)
+  const matchForm: Array<"W" | "L"> = standing?.form || standing?.streak || [];
 
-  const ptsScored = standing?.setWins ?? standing?.pointsScored ?? 0;
-  const winRate =
-    standing?.winRate !== undefined
-      ? Math.round(standing.winRate)
-      : totalMatches > 0
-      ? Math.round((matchWins / totalMatches) * 100)
-      : 0;
+  // Data Kualifikasi Resmi
+  const qual = standing?.qualification;
+  const rankLabel = qual?.rankLabel ?? (standing?.rank ? `#${standing.rank}` : "-");
+  const stageLabel = qual?.stageLabel ?? "";
+  const isQualified = qual?.isQualified ?? false;
 
-  const formList = (standing?.streak || standing?.form || []).slice(0, 7);
+  // Perhitungan Selisih Poin / Round Difference
+  const rawDiff =
+    standing?.rawDiff ??
+    (typeof standing?.roundDifference === "number"
+      ? standing.roundDifference
+      : Number(String(standing?.roundDifference ?? 0).replace(/^\+/, "")));
 
-  // Label Peringkat (#1 Wildcard / #2 Group)
-  const rankLabel =
-    standing?.qualification?.rankLabel ||
-    (standing?.rank ? `#${standing.rank} Group` : "Peringkat Klasemen");
+  const formattedDiff = rawDiff > 0 ? `+${rawDiff}` : `${rawDiff}`;
 
-  // Badge Status Playoff (Quarter Finals, Play-Ins, Tereliminasi)
-  const stageLabel = standing?.qualification?.stageLabel;
-  const isQualified = Boolean(standing?.qualification?.isQualified);
-
-  const renderDiff = (val: number) => {
-    if (isNaN(val) || val === 0) {
-      return <span className="text-muted-foreground font-semibold">0</span>;
-    }
-    if (val > 0) {
-      return <span className="text-emerald-500 font-bold">+{val}</span>;
-    }
-    return <span className="text-rose-500 font-bold">{val}</span>;
-  };
+  const isQuarter = stageLabel.toLowerCase().includes("quarter");
 
   return (
-    <div
-      className="relative overflow-hidden rounded-2xl border-2 bg-card p-3.5 sm:p-4 shadow-xs transition flex flex-col gap-3"
-      style={{
-        borderColor: `${teamColor}99`,
-        background: `linear-gradient(135deg, ${teamColor}22 0%, var(--card) 65%, var(--card) 100%)`,
-      }}
-    >
-      {/* ── BARIS ATAS: Logo Tim, Identitas & Form ── */}
-      <div className="flex items-center justify-between gap-2 min-w-0">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          {/* Logo Tim */}
-          <div className="relative shrink-0">
-            <div
-              className="h-11 w-11 sm:h-12 sm:w-12 rounded-full border-2 overflow-hidden bg-background flex items-center justify-center shadow-inner"
-              style={{ borderColor: teamColor }}
-            >
-              {logo ? (
-                <Image
-                  src={logo}
-                  alt={teamName}
-                  width={48}
-                  height={48}
-                  className="h-full w-full object-cover rounded-full"
-                  unoptimized
-                />
-              ) : (
-                <Shield className="h-5 w-5" style={{ color: teamColor }} />
-              )}
-            </div>
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all">
+      {/* Background Accent Glow */}
+      <div
+        className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full opacity-10 blur-2xl"
+        style={{ backgroundColor: accentColor }}
+      />
+
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Sisi Kiri: Logo, Nama Tim, Grup, & Roster */}
+        <div className="flex items-center gap-3.5">
+          <div
+            className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-border/80 bg-background/60 p-2 shadow-xs"
+            style={{ borderColor: `${accentColor}30` }}
+          >
+            {logo ? (
+              <Image
+                src={logo}
+                alt={teamName}
+                width={48}
+                height={48}
+                className="h-full w-full object-contain"
+                unoptimized
+              />
+            ) : (
+              <Shield className="h-7 w-7 text-muted-foreground" />
+            )}
           </div>
 
-          {/* Info Tim & Divisi Grup */}
-          <div className="min-w-0 flex flex-col justify-center">
-            {/* Baris 1: Nama Tim */}
-            <span className="font-extrabold text-xs sm:text-sm text-foreground truncate leading-tight">
-              {standing?.teamName || teamName}
-            </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="truncate text-base sm:text-lg font-black tracking-tight text-foreground">
+                {teamName}
+              </h2>
+            </div>
 
-            {/* Baris 2: Divisi Grup */}
-            <span className="text-[10px] text-muted-foreground font-semibold truncate leading-tight mt-0.5">
-              {standing?.groupName || "Team Wars Indonesia"}
-            </span>
-
-            {/* Baris 3: Peringkat */}
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="text-[9.5px] font-bold text-foreground/80 truncate leading-tight">
-                {rankLabel}
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {standing?.groupName && (
+                <span className="font-medium">{standing.groupName}</span>
+              )}
+              {standing?.groupName && <span>•</span>}
+              <span className="inline-flex items-center gap-1 font-medium">
+                <Users className="h-3 w-3" />
+                {totalRosterCount} Pemain
               </span>
             </div>
           </div>
         </div>
 
-        {/* ── KANAN: MATCH FORM BOX DENGAN BADGE DI ATASNYA ── */}
-        <div className="shrink-0 flex flex-col items-center sm:items-end gap-1">
-          {/* Badge Status Playoff (Week >= 7) Diletakkan di Atas Form */}
-          {currentWeek >= 7 && stageLabel && (
-            <span
-              className={`rounded border px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider leading-none ${
-                stageLabel.includes("QUARTER")
-                  ? "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400"
-                  : isQualified
-                  ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                  : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400"
-              }`}
-            >
-              {stageLabel}
+        {/* Sisi Kanan: Status Kualifikasi & Match Form */}
+        <div className="flex flex-wrap items-center gap-3 sm:flex-col sm:items-end sm:gap-1.5">
+          {/* Badge Posisi / Status Turnamen */}
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[10px] font-bold text-foreground">
+              <Trophy className="h-2.5 w-2.5 text-primary" />
+              {rankLabel}
             </span>
-          )}
 
-          {/* Match Form Box */}
-          <div className="px-2.5 py-1.5 rounded-xl border border-border/80 bg-muted/30 flex flex-col items-center justify-center text-center shadow-xs">
-            <span className="text-[7.5px] font-bold uppercase tracking-wider leading-none mb-1 text-muted-foreground">
-              MATCH FORM
+            {currentWeek >= 7 && stageLabel && (
+              <span
+                className={`rounded-md border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider leading-none ${
+                  isQuarter
+                    ? "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                    : isQualified
+                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                    : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                }`}
+              >
+                {stageLabel}
+              </span>
+            )}
+          </div>
+
+          {/* Form Match (W / L) */}
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
+              FORM:
             </span>
-            <div className="flex items-center gap-1">
-              {formList.length > 0 ? (
-                formList.map((res: string, i: number) => {
-                  const isWin = res.toUpperCase() === "W";
-                  return (
-                    <span
-                      key={i}
-                      className={`h-3.5 w-3.5 sm:h-4 sm:w-4 flex items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black leading-none ${
-                        isWin
-                          ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
-                          : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
-                      }`}
-                    >
-                      {res.toUpperCase()}
-                    </span>
-                  );
-                })
-              ) : (
-                <span className="text-[9px] text-muted-foreground font-medium px-1">
-                  -
+            {matchForm.length > 0 ? (
+              matchForm.map((result, idx) => (
+                <span
+                  key={idx}
+                  className={`inline-flex h-4 w-4 items-center justify-center rounded text-[9px] font-black ${
+                    result === "W"
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                      : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                  }`}
+                >
+                  {result}
                 </span>
-              )}
-            </div>
+              ))
+            ) : (
+              <span className="text-xs text-muted-foreground">-</span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── BARIS BAWAH: 5 Kolom Stat Simetris ── */}
-      <div className="grid grid-cols-5 gap-1 pt-2 border-t border-border/40 text-center">
-        {/* 1. WIN */}
-        <div className="flex flex-col items-center">
-          <span className="text-[8px] font-bold uppercase text-emerald-600 dark:text-emerald-400">WIN</span>
-          <span className="text-xs font-bold text-emerald-500 mt-0.5">
-            {matchWins}
-          </span>
+      {/* Grid Statistik Rekor Match & Game */}
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 border-t border-border/60 pt-3">
+        {/* Match Record */}
+        <div className="rounded-xl bg-background/50 p-2.5 border border-border/40">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Match W-L
+          </p>
+          <p className="mt-0.5 text-sm font-bold text-foreground">
+            {matchWins} - {matchLosses}
+          </p>
         </div>
 
-        {/* 2. LOSE */}
-        <div className="flex flex-col items-center">
-          <span className="text-[8px] font-bold uppercase text-rose-600 dark:text-rose-400">LOSE</span>
-          <span className="text-xs font-bold text-rose-500 mt-0.5">
-            {matchLosses}
-          </span>
+        {/* Win Rate */}
+        <div className="rounded-xl bg-background/50 p-2.5 border border-border/40">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Win Rate
+          </p>
+          <p className="mt-0.5 text-sm font-bold text-foreground">
+            {winRate}%
+          </p>
         </div>
 
-        {/* 3. PTS DIFF */}
-        <div className="flex flex-col items-center">
-          <span className="text-[8px] font-bold uppercase text-muted-foreground">PTS DIFF</span>
-          <span className="text-xs mt-0.5">{renderDiff(rawDiffNum)}</span>
+        {/* Sets / Game Score */}
+        <div className="rounded-xl bg-background/50 p-2.5 border border-border/40">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Game W-L
+          </p>
+          <p className="mt-0.5 text-sm font-bold text-foreground">
+            {standing?.setWins ?? standing?.gameWins ?? 0} -{" "}
+            {standing?.setLosses ?? standing?.gameLosses ?? 0}
+          </p>
         </div>
 
-        {/* 4. PTS SCORED */}
-        <div className="flex flex-col items-center">
-          <span className="text-[8px] font-bold uppercase text-muted-foreground">PTS SCORED</span>
-          <span className="text-xs font-bold text-foreground mt-0.5">
-            {ptsScored}
-          </span>
-        </div>
-
-        {/* 5. WIN RATE */}
-        <div className="flex flex-col items-center">
-          <span className="text-[8px] font-bold uppercase text-muted-foreground">WIN RATE</span>
-          <span
-            className={`text-xs font-bold mt-0.5 ${
-              winRate >= 50 ? "text-emerald-500" : "text-rose-500"
+        {/* Point Difference */}
+        <div className="rounded-xl bg-background/50 p-2.5 border border-border/40">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Pts Diff
+          </p>
+          <p
+            className={`mt-0.5 text-sm font-bold ${
+              rawDiff > 0
+                ? "text-emerald-500"
+                : rawDiff < 0
+                ? "text-rose-500"
+                : "text-foreground"
             }`}
           >
-            {winRate}%
-          </span>
+            {formattedDiff}
+          </p>
         </div>
       </div>
     </div>
