@@ -14,21 +14,33 @@ export const metadata = {
 };
 
 export default async function AnalyticsLandingPage() {
-  // 1. Ambil Schedules, Match Reports Hash, dan seluruh keys "teams:*" (Opsi 1)
-  const [rawSchedules, rawReportsHash, teamKeys] = await Promise.all([
+  // 1. Ambil Schedules, Match Reports Hash, Teams Keys, dan Free Duelists Hash secara paralel
+  const [rawSchedules, rawReportsHash, teamKeys, rawFreeDuelistsHash] = await Promise.all([
     kv.get<any[]>("twi:schedules").then((res) => res || []),
     kv.hgetall<Record<string, any>>("twi:match_reports").then((res) => res || {}),
     kv.keys("teams:*").then((res) => res || []),
+    kv.hgetall<Record<string, any>>("global:free_duelists").then((res) => res || {}),
   ]);
 
-  // 2. Tarik detail seluruh tim dari masing-masing hash key teams:*
+  // 2. Parse data transfer out dari hash global:free_duelists
+  const freeDuelists = Object.values(rawFreeDuelistsHash || {}).map((item) => {
+    if (typeof item === "string") {
+      try {
+        return JSON.parse(item);
+      } catch {
+        return {};
+      }
+    }
+    return item || {};
+  });
+
+  // 3. Tarik detail seluruh tim dari masing-masing hash key teams:*
   const teamsDataList = await Promise.all(
     teamKeys.map(async (key) => {
       const slug = key.replace(/^teams:/, "");
       const t = await kv.hgetall<any>(key);
       if (!t) return null;
 
-      // Handle roster jika formatnya string JSON atau array
       let rosterList: any[] = [];
       const rawRoster = t.players || t.members || [];
       if (typeof rawRoster === "string") {
@@ -57,7 +69,7 @@ export default async function AnalyticsLandingPage() {
     (item): item is TeamRosterData => item !== null
   );
 
-  // 3. Cari pekan aktif tertinggi: hitung jika sudah selesai ATAU sudah memiliki laporan/games berjalan
+  // 4. Cari pekan aktif tertinggi: hitung jika sudah selesai ATAU sudah memiliki laporan/games berjalan
   const maxActiveWeek: number = rawSchedules.reduce((max: number, m: any) => {
     const w = Number(m.weekNumber || 1);
     const rep = rawReportsHash[m.id];
@@ -92,7 +104,7 @@ export default async function AnalyticsLandingPage() {
       };
     });
 
-  // 4. AMBIL SEMUA MATCH (Selesai maupun yang sedang berjalan yang sudah memiliki log report/games)
+  // 5. Ambil semua match aktif (finished + ongoing)
   const activeMatches = rawSchedules.filter((m: any) => {
     const w = Number(m.weekNumber || 1);
     if (w > maxActiveWeek) return false;
@@ -109,7 +121,7 @@ export default async function AnalyticsLandingPage() {
     return Boolean(m.isFinished) || hasReportData;
   });
 
-  // 5. Parse reports dari match yang aktif (finished + ongoing)
+  // 6. Parse reports dari match yang aktif
   const reports: RawMatchReport[] = activeMatches.map((m: any) => {
     const rep = rawReportsHash[m.id] || {};
     const scoreA = rep.teamA?.score ?? m.scoreA ?? m.teamAScore ?? 0;
@@ -160,6 +172,7 @@ export default async function AnalyticsLandingPage() {
               schedules={scheduleList}
               reports={reports}
               teams={teams}
+              freeDuelists={freeDuelists}
               maxActiveWeek={maxActiveWeek}
             />
           </Suspense>
