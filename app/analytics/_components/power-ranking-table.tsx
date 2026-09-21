@@ -80,7 +80,7 @@ export function PowerRankingTable({
                   return (
                     <tr 
                       key={`${p.name}-${p.teamSlug}`} 
-                      className={`hover:bg-muted/40 transition-colors duration-150`}
+                      className="hover:bg-muted/40 transition-colors duration-150"
                     >
                       {/* Kolom RANK */}
                       <td className="py-2.5 pl-3.5 sm:pl-4 pr-1 text-center">
@@ -129,10 +129,10 @@ export function PowerRankingTable({
                           <span
                             className={`font-bold truncate min-w-0 ${
                               isTeamView && isOut
-                                ? "text-rose-500 line-through decoration-rose-500/50"
+                                ? "text-rose-500 font-bold"
                                 : isTeamView && isAdd
-                                ? "text-blue-500"
-                                : "text-foreground"
+                                ? "text-blue-500 font-bold"
+                                : "text-foreground font-semibold"
                             }`}
                             title={`${p.name} (${p.teamName})`}
                           >
@@ -180,9 +180,13 @@ export function PowerRankingTable({
         </div>
       </div>
 
-      {/* 2 Keterangan Label: Transfer Add & Transfer Out */}
+      {/* Keterangan Label Legend */}
       {isTeamView && (
         <div className="flex items-center justify-end gap-3 px-2 text-[10px] text-muted-foreground font-medium">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-foreground/70" />
+            <span className="text-foreground/80 font-semibold">Original</span>
+          </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-blue-500" />
             <span className="text-blue-500 font-semibold">Transfer Add</span>
@@ -195,4 +199,5 @@ export function PowerRankingTable({
       )}
     </div>
   );
-}
+                    }
+                
