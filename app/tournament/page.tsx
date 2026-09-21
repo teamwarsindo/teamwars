@@ -24,8 +24,8 @@ export default async function TournamentLandingPage() {
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-12 sm:px-6">
         <HeroHeader showDetails={true} />
 
-        {/* 3. MAIN CONTENT */}
-        <section className="w-full max-w-5xl">
+        {/* 3. MAIN CONTENT (DIPERLEBAR AGAR PC MAKSIMAL & NAMA TIM TIDAK KEPOTONG) */}
+        <section className="w-full max-w-7xl 2xl:max-w-[1440px] transition-all duration-300">
           <Suspense
             fallback={
               <div className="p-8 text-center text-xs font-bold text-primary animate-pulse">
@@ -41,4 +41,4 @@ export default async function TournamentLandingPage() {
       </div>
     </main>
   );
-            }
+}
