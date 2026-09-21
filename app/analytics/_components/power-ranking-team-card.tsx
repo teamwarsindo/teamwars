@@ -10,9 +10,9 @@ interface QualificationInfo {
 }
 
 export interface TeamStandingProps {
-  rank?: string | number;
-  groupRank?: string | number;
-  wildcardRank?: string | number;
+  rank?: string | number | null;
+  groupRank?: string | number | null;
+  wildcardRank?: string | number | null;
   teamName?: string;
   teamSlug?: string;
   groupName?: string;
@@ -227,5 +227,4 @@ export function PowerRankingTeamCard({
       </div>
     </div>
   );
-    }
-    
+            }
