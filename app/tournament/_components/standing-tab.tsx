@@ -43,7 +43,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const selectedWeek = rawWeekParam && rawWeekParam !== "ALL" ? Number(rawWeekParam) : currentWeek;
 
   const weeksList = useMemo(() => {
-    const fromSched = schedules.map((s) => s.weekNumber || 1);
+    const fromSched = schedules.map((s: any) => s.weekNumber || s.week || s.matchWeek || 1);
     return Array.from(new Set([...fromSched, ...Array.from({ length: currentWeek }, (_, i) => i + 1)]))
       .filter((w) => w <= currentWeek)
       .sort((a, b) => a - b);
@@ -111,12 +111,37 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     });
   };
 
+  // Filter jadwal sesuai batas pekan yang dipilih
   const displayedData = useMemo(() => {
-    const currRaw = calculateStandings(schedules, masterTeams, selectedWeek);
-    const prevRaw = selectedWeek > 1 ? calculateStandings(schedules, masterTeams, selectedWeek - 1) : [];
+    // 1. Saring jadwal hingga selectedWeek
+    const filteredCurrSchedules = schedules.filter((s: any) => {
+      const matchWeek = Number(s.weekNumber || s.week || s.matchWeek || 1);
+      return matchWeek <= selectedWeek;
+    });
+
+    // 2. Saring jadwal untuk pekan sebelumnya (untuk indikator tren naik/turun)
+    const filteredPrevSchedules =
+      selectedWeek > 1
+        ? schedules.filter((s: any) => {
+            const matchWeek = Number(s.weekNumber || s.week || s.matchWeek || 1);
+            return matchWeek <= selectedWeek - 1;
+          })
+        : [];
+
+    const currRaw = calculateStandings(filteredCurrSchedules as any, masterTeams);
+    const prevRaw = filteredPrevSchedules.length
+      ? calculateStandings(filteredPrevSchedules as any, masterTeams)
+      : [];
 
     const sortFn = (list: ExtendedStandingItem[]) =>
-      [...list].sort((a, b) => b.points - a.points || b.matchWins - a.matchWins || b.roundDifference - a.roundDifference || b.setWins - a.setWins || a.teamName.localeCompare(b.teamName));
+      [...list].sort(
+        (a, b) =>
+          b.points - a.points ||
+          b.matchWins - a.matchWins ||
+          b.roundDifference - a.roundDifference ||
+          b.setWins - a.setWins ||
+          a.teamName.localeCompare(b.teamName)
+      );
 
     if (isWildcardActive) {
       const currWild = buildGlobalStandings(currRaw).filter((t) => !t.isTopGroup);
@@ -125,7 +150,10 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     }
 
     if (selectedGroup === DIVISION_MAP.GROUP_A || selectedGroup === DIVISION_MAP.GROUP_B) {
-      return getListWithTrend(currRaw.filter((s) => s.groupName === selectedGroup), prevRaw.filter((s) => s.groupName === selectedGroup));
+      return getListWithTrend(
+        currRaw.filter((s) => s.groupName === selectedGroup),
+        prevRaw.filter((s) => s.groupName === selectedGroup)
+      );
     }
 
     return getListWithTrend(sortFn(currRaw), prevRaw.length ? sortFn(prevRaw) : []);
@@ -216,5 +244,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       </div>
     </div>
   );
-}
-  
+    }
