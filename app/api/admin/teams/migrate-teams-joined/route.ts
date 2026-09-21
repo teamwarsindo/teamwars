@@ -20,7 +20,6 @@ const TARGET_PLAYERS: Array<{ ign: string; slug: string }> = [
   { ign: 'Pak Malik', slug: 'licht-dracarys' },
   { ign: '[T]Bee', slug: 'true-god' },
   { ign: 'FPF Dioscuri', slug: 'fpf-fabulous' },
-  { ign: 'zxpro', slug: 'licht-dracarys' },
 ];
 
 export async function POST(req: NextRequest) {
