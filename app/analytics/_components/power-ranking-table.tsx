@@ -182,11 +182,7 @@ export function PowerRankingTable({
 
       {/* Keterangan Label Legend */}
       {isTeamView && (
-        <div className="flex items-center justify-end gap-3 px-2 text-[10px] text-muted-foreground font-medium">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-foreground/70" />
-            <span className="text-foreground/80 font-semibold">Original</span>
-          </div>
+        <div className="flex items-center justify-end gap-3 px-2 text-[10px] text-muted-foreground font-medium">      
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-blue-500" />
             <span className="text-blue-500 font-semibold">Transfer Add</span>
