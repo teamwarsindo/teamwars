@@ -29,23 +29,12 @@ export default function AnalyticsClientContent({
 
   const currentTab = searchParams.get("tab") === "power-ranking" ? "power-ranking" : "reports";
   const selectedMatchId = searchParams.get("match") || "";
+  const teamParam = searchParams.get("team") || "";
 
-  // Filter State - Default ke maxActiveWeek agar konsisten
-  const [selectedGroup, setSelectedGroup] = useState<
-    "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B
-  >("ALL");
-  const [selectedTeam, setSelectedTeam] = useState<string>("");
-  const [selectedWeek, setSelectedWeek] = useState<number | "">(maxActiveWeek);
-
-  const availableWeeks = useMemo(() => {
-    return Array.from({ length: maxActiveWeek }, (_, i) => i + 1);
-  }, [maxActiveWeek]);
-
-  // Ekstraksi Tim Terpadu: Sertakan Logo Tim agar muncul di Dropdown
+  // Ekstraksi Tim Terpadu: Sertakan Logo Tim & Slug Resmi
   const allTeamsList = useMemo(() => {
     const map = new Map<string, { name: string; slug: string; groupName: string; logo?: string }>();
 
-    // 1. Masukkan data teams roster
     teams.forEach((t) => {
       if (t.name) {
         map.set(t.name.toLowerCase(), {
@@ -57,7 +46,6 @@ export default function AnalyticsClientContent({
       }
     });
 
-    // 2. Ekstrak pelengkap dari schedules
     schedules.forEach((s) => {
       if (s.teamAName && !map.has(s.teamAName.toLowerCase())) {
         map.set(s.teamAName.toLowerCase(), {
@@ -80,56 +68,111 @@ export default function AnalyticsClientContent({
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [schedules, teams]);
 
-  // Hapus parameter match lama dari URL saat kriteria filter berubah
-  const clearMatchParam = () => {
-    if (!searchParams.get("match")) return;
+  // Resolusi nama tim awal dari query parameter ?team=[slug-atau-nama]
+  const initialTeamName = useMemo(() => {
+    if (!teamParam) return "";
+    const found = allTeamsList.find(
+      (t) =>
+        t.slug.toLowerCase() === teamParam.toLowerCase() ||
+        t.name.toLowerCase() === teamParam.toLowerCase()
+    );
+    return found ? found.name : teamParam;
+  }, [teamParam, allTeamsList]);
+
+  // Filter State
+  const [selectedGroup, setSelectedGroup] = useState<
+    "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B
+  >("ALL");
+  const [selectedTeam, setSelectedTeam] = useState<string>(initialTeamName);
+  const [selectedWeek, setSelectedWeek] = useState<number | "">(maxActiveWeek);
+
+  // Sinkronisasi state saat tombol Back / Forward browser ditekan
+  useEffect(() => {
+    if (teamParam) {
+      const found = allTeamsList.find(
+        (t) =>
+          t.slug.toLowerCase() === teamParam.toLowerCase() ||
+          t.name.toLowerCase() === teamParam.toLowerCase()
+      );
+      setSelectedTeam(found ? found.name : teamParam);
+    } else {
+      setSelectedTeam("");
+    }
+  }, [teamParam, allTeamsList]);
+
+  const availableWeeks = useMemo(() => {
+    return Array.from({ length: maxActiveWeek }, (_, i) => i + 1);
+  }, [maxActiveWeek]);
+
+  // Helper pembaruan URL query param
+  const updateUrlParams = (updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.delete("match");
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === "") {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
   };
 
   const handleGroupChange = (g: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
     setSelectedGroup(g);
-    clearMatchParam();
+    updateUrlParams({ match: null });
   };
 
-  const handleTeamChange = (t: string) => {
-    setSelectedTeam(t);
-    clearMatchParam();
+  const handleTeamChange = (teamName: string) => {
+    setSelectedTeam(teamName);
+
+    // Cari slug dari tim yang dipilih
+    const targetTeam = allTeamsList.find(
+      (t) => t.name.toLowerCase() === teamName.toLowerCase()
+    );
+    const teamSlug = targetTeam?.slug || (teamName ? teamName.toLowerCase().replace(/\s+/g, "-") : null);
+
+    // Simpan parameter team=slug ke URL dan bersihkan match param lama
+    updateUrlParams({
+      team: teamSlug,
+      match: null,
+    });
   };
 
   const handleWeekChange = (w: number | "") => {
     setSelectedWeek(w);
-    clearMatchParam();
+    updateUrlParams({ match: null });
   };
 
   const handleTabChange = (tabKey: "reports" | "power-ranking") => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", tabKey);
-    if (tabKey !== "reports") params.delete("match");
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    updateUrlParams({
+      tab: tabKey,
+      match: tabKey !== "reports" ? null : selectedMatchId || null,
+    });
   };
 
   const handleMatchChange = (matchId: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "reports");
-    params.set("match", matchId);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    updateUrlParams({
+      tab: "reports",
+      match: matchId,
+    });
   };
 
   const isFilterActive =
     selectedGroup !== "ALL" ||
     selectedTeam !== "" ||
     selectedWeek !== maxActiveWeek ||
-    Boolean(selectedMatchId);
+    Boolean(selectedMatchId) ||
+    Boolean(teamParam);
 
   const handleReset = () => {
     setSelectedGroup("ALL");
     setSelectedTeam("");
     setSelectedWeek(maxActiveWeek);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("match");
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    updateUrlParams({
+      team: null,
+      match: null,
+    });
   };
 
   // Filter daftar jadwal untuk Match Reports
@@ -219,4 +262,5 @@ export default function AnalyticsClientContent({
       )}
     </div>
   );
-}
+          }
+                                 
