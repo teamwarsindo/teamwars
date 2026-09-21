@@ -9,7 +9,10 @@ import {
   PowerRankingPlayer,
   FreeDuelistRecord,
 } from "../_library/power-ranking";
-import { calculateStandings } from "@/app/tournament/_library/calculator";
+import {
+  calculateStandings,
+  getTeamProfileStats,
+} from "@/app/tournament/_library/calculator";
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTeamCard } from "./power-ranking-team-card";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
@@ -180,7 +183,7 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
-  // 4. Ambil standing tim (Difilter sesuai jadwal sampai targetWeek)
+  // 4. Ambil standing & kualifikasi tim via getTeamProfileStats
   const selectedTeamStanding = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
       return undefined;
@@ -194,23 +197,14 @@ export function PowerRankingView({
     const standings = calculateStandings(filteredSchedules as any, teams as any);
     const normTarget = normalize(selectedTeam);
 
-    const targetStanding = standings.find((s: any) => {
-      const nameMatch = normalize(s.teamName) === normTarget;
-      const slugMatch = s.teamSlug && normalize(s.teamSlug) === normTarget;
-      return nameMatch || slugMatch;
-    });
+    const targetTeamObj =
+      teams.find((t: any) => {
+        const nName = normalize(t.name);
+        const nSlug = normalize(t.slug);
+        return nName === normTarget || nSlug === normTarget;
+      }) || { name: selectedTeam, slug: selectedTeam };
 
-    if (!targetStanding) return undefined;
-
-    const groupTeams = standings.filter((s: any) => s.groupName === targetStanding.groupName);
-    const groupRank = groupTeams.findIndex(
-      (s: any) => normalize(s.teamName) === normalize(targetStanding.teamName)
-    );
-
-    return {
-      ...targetStanding,
-      rank: groupRank !== -1 ? groupRank + 1 : targetStanding.rank,
-    };
+    return getTeamProfileStats(targetTeamObj, standings, filteredSchedules as any);
   }, [selectedTeam, schedules, teams, targetWeek]);
 
   const isTeamView = filterScope === "TEAM";
@@ -251,6 +245,7 @@ export function PowerRankingView({
           teamLogoMap={teamLogoMap}
           teamColorMap={teamColorMap}
           totalRosterCount={currentPlayers.length}
+          currentWeek={targetWeek}
         />
       )}
 
@@ -285,4 +280,4 @@ export function PowerRankingView({
       />
     </div>
   );
-      }
+                 }
