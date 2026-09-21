@@ -1,3 +1,5 @@
+import { TWI_START_DATETIME } from "@/app/tournament/_library/constants";
+
 export const normalizeKey = (str?: any): string =>
   String(str || "")
     .toLowerCase()
@@ -23,4 +25,26 @@ export function calculateBestDeck(
   });
 
   return entries[0][0] || "-";
-      }
+}
+
+export function getJoinedWeekFromDate(
+  transferDateStr?: string | null,
+  baselineDateStr: string = TWI_START_DATETIME
+): number {
+  if (!transferDateStr) return 1;
+
+  const formattedDate = transferDateStr.includes("T")
+    ? transferDateStr
+    : `${transferDateStr}T00:00:00+07:00`;
+
+  const startMs = new Date(baselineDateStr).getTime();
+  const transferMs = new Date(formattedDate).getTime();
+
+  if (transferMs <= startMs) return 1;
+
+  const diffMs = transferMs - startMs;
+  const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+
+  return Math.floor(diffMs / oneWeekMs) + 1;
+}
+  
