@@ -69,7 +69,9 @@ export function MetaAutocompleteDropdown({
       });
       const json = await res.json();
       if (json.success) {
-        onSelect(newName);
+        const finalVal = json.savedValue || newName;
+        onSelect(finalVal);
+        setQuery(finalVal);
         setIsOpen(false);
         if (onRefreshMeta) await onRefreshMeta();
       }
@@ -142,4 +144,4 @@ export function MetaAutocompleteDropdown({
       )}
     </div>
   );
-}
+        }
