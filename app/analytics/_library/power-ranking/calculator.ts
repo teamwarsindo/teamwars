@@ -7,6 +7,13 @@ import {
 } from "./types";
 import { normalizeKey, calculateBestDeck, getJoinedWeekFromDate } from "./utils";
 
+export interface FreeDuelistRecord {
+  ign: string;
+  discordId?: string;
+  lastTeam?: string;
+  releasedAt?: string;
+}
+
 interface PlayerStatAccumulator {
   name: string;
   teamSlug: string;
@@ -23,12 +30,14 @@ export function calculatePowerRanking({
   reports,
   targetWeek,
   teams = [],
+  freeDuelists = [],
   filterScope = "GLOBAL",
   selectedTeamSlug,
 }: {
   reports: RawMatchReport[];
   targetWeek: number;
   teams?: TeamRosterData[];
+  freeDuelists?: FreeDuelistRecord[];
   filterScope: "GLOBAL" | "Anda Yakin?" | "Sakurasawa Fighters" | "TEAM";
   selectedTeamSlug?: string;
 }): {
@@ -205,6 +214,18 @@ export function calculatePowerRanking({
       activeMemberMap.set(normalizeKey(ign), { ign, isTransfer });
     }
 
+    // Mapping pemain keluar dari tim ini berdasarkan freeDuelists
+    const outDuelistMap = new Map<string, { ign: string; outWeek: number }>();
+    freeDuelists.forEach((fd) => {
+      if (fd.ign && fd.lastTeam && fd.releasedAt) {
+        const teamNorm = normalizeKey(fd.lastTeam);
+        if (teamNorm === targetNorm || teamNorm === normalizeKey(selectedTeam?.name || "")) {
+          const outWeek = getJoinedWeekFromDate(fd.releasedAt);
+          outDuelistMap.set(normalizeKey(fd.ign), { ign: fd.ign, outWeek });
+        }
+      }
+    });
+
     const teamReportPlayers = playerList.filter(
       (p) => normalizeKey(p.teamSlug) === targetNorm || normalizeKey(p.teamName) === targetNorm
     );
@@ -212,12 +233,21 @@ export function calculatePowerRanking({
 
     const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map((p) => {
       const normPName = normalizeKey(p.name);
-      const memberInfo = activeMemberMap.get(normPName);
-
-      const isEx = activeMemberMap.size > 0 && !memberInfo;
-      const isAdd = !isEx && Boolean(memberInfo?.isTransfer);
-
       recordedMemberKeys.add(normPName);
+
+      const memberInfo = activeMemberMap.get(normPName);
+      const outInfo = outDuelistMap.get(normPName);
+
+      let isEx = false;
+      let isAdd = false;
+
+      if (memberInfo) {
+        isAdd = Boolean(memberInfo.isTransfer);
+      } else if (outInfo) {
+        isEx = targetWeek >= outInfo.outWeek;
+      } else {
+        isEx = activeMemberMap.size > 0;
+      }
 
       return {
         ...p,
@@ -226,8 +256,10 @@ export function calculatePowerRanking({
       };
     });
 
+    // Anggota aktif saat ini yang belum bertanding
     for (const [normM, memberInfo] of Array.from(activeMemberMap.entries())) {
       if (!recordedMemberKeys.has(normM)) {
+        recordedMemberKeys.add(normM);
         processedTeamPlayers.push({
           rank: 0,
           name: memberInfo.ign.trim(),
@@ -242,6 +274,29 @@ export function calculatePowerRanking({
           agg: 0,
           isExPlayer: false,
           isAdded: memberInfo.isTransfer,
+          bestDeck: "-",
+        });
+      }
+    }
+
+    // Pemain keluar yang belum masuk pekan keluarnya dan belum pernah bertanding (ditampilkan dengan nilai 0)
+    for (const [normOut, outInfo] of Array.from(outDuelistMap.entries())) {
+      if (targetWeek < outInfo.outWeek && !recordedMemberKeys.has(normOut)) {
+        recordedMemberKeys.add(normOut);
+        processedTeamPlayers.push({
+          rank: 0,
+          name: outInfo.ign.trim(),
+          teamSlug: selectedTeam?.slug || selectedTeamSlug,
+          teamName: selectedTeam?.name || selectedTeamSlug,
+          teamLogo: selectedTeam?.logo,
+          groupName: selectedTeam?.groupName,
+          played: 0,
+          won: 0,
+          lost: 0,
+          wpm: 0,
+          agg: 0,
+          isExPlayer: false,
+          isAdded: false,
           bestDeck: "-",
         });
       }
@@ -268,14 +323,12 @@ export function calculatePowerRanking({
   }
 
   playerList.sort((a, b) => {
-    // 1. Pemain yang sudah pernah main (played > 0) selalu di atas pemain yang belum pernah main (played === 0)
     const aPlayed = a.played > 0 ? 1 : 0;
     const bPlayed = b.played > 0 ? 1 : 0;
     if (bPlayed !== aPlayed) {
       return bPlayed - aPlayed;
     }
 
-    // 2. Jika sama-sama sudah main, urutkan berdasarkan Win, WPM, AGG, dan Abjad Nama Pemain
     if (b.won !== a.won) return b.won - a.won;
     if (b.wpm !== a.wpm) return b.wpm - a.wpm;
     if (b.agg !== a.agg) return b.agg - a.agg;
@@ -285,4 +338,5 @@ export function calculatePowerRanking({
   playerList = playerList.map((p, idx) => ({ ...p, rank: idx + 1 }));
 
   return { players: playerList, grandTotal };
-                                              }
+}
+  
