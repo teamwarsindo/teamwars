@@ -7,8 +7,8 @@ import {
   MatchReportData,
   TeamRosterData,
   PowerRankingPlayer,
+  FreeDuelistRecord,
 } from "../_library/power-ranking";
-import { FreeDuelistRecord } from "../_library/types"; // Sesuaikan lokasi import jika berbeda
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
 import { ScheduleItem } from "./match-reports-view";
@@ -17,7 +17,7 @@ interface PowerRankingViewProps {
   reports: MatchReportData[];
   teams: TeamRosterData[];
   schedules?: ScheduleItem[];
-  freeDuelists?: FreeDuelistRecord[]; // 🟢 Tambahkan prop freeDuelists
+  freeDuelists?: FreeDuelistRecord[];
   maxActiveWeek: number;
   selectedGroup: string;
   selectedTeam: string;
@@ -27,17 +27,15 @@ interface PowerRankingViewProps {
 const normalize = (str?: string) =>
   (str || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 
-// 🟢 Multi-tier Sorting: Prioritas Pemain Main (played > 0) -> Win -> WPM -> AGG -> Abjad Nama Pemain
+// Multi-tier Sorting: Prioritas Pemain Main (played > 0) -> Win -> WPM -> AGG -> Abjad Nama Pemain
 function sortPowerRankings(data: PowerRankingPlayer[]): PowerRankingPlayer[] {
   return [...data].sort((a, b) => {
-    // 1. Pemain yang sudah pernah main (played > 0) selalu di atas yang belum main (played === 0)
     const aPlayed = a.played > 0 ? 1 : 0;
     const bPlayed = b.played > 0 ? 1 : 0;
     if (bPlayed !== aPlayed) {
       return bPlayed - aPlayed;
     }
 
-    // 2. Jika sama-sama sudah main atau sama-sama belum main
     if (b.won !== a.won) return b.won - a.won;
     if (b.wpm !== a.wpm) return b.wpm - a.wpm;
     if (b.agg !== a.agg) return b.agg - a.agg;
@@ -49,7 +47,7 @@ export function PowerRankingView({
   reports = [],
   teams = [],
   schedules = [],
-  freeDuelists = [], // 🟢 Terima prop freeDuelists
+  freeDuelists = [],
   maxActiveWeek = 1,
   selectedGroup,
   selectedTeam,
@@ -84,7 +82,7 @@ export function PowerRankingView({
       reports,
       targetWeek,
       teams,
-      freeDuelists, // 🟢 Oper ke fungsi kalkulasi
+      freeDuelists,
       filterScope,
       selectedTeamSlug: matchedTeamSlug,
     });
@@ -102,7 +100,7 @@ export function PowerRankingView({
       reports,
       targetWeek: targetWeek - 1,
       teams,
-      freeDuelists, // 🟢 Oper ke fungsi kalkulasi (agar konsisten)
+      freeDuelists,
       filterScope,
       selectedTeamSlug: matchedTeamSlug,
     });
@@ -116,7 +114,6 @@ export function PowerRankingView({
     const lMap = new Map<string, string>();
     const cMap = new Map<string, string>();
 
-    // Logo dari teams & schedules
     teams.forEach((t) => {
       if (t.logo) {
         lMap.set(t.name.toLowerCase(), t.logo);
@@ -126,9 +123,7 @@ export function PowerRankingView({
       }
     });
 
-    // Warna & Logo diekstrak langsung dari schedules TWI
     schedules.forEach((s: any) => {
-      // Tim A
       if (s.teamAName) {
         const keyA = s.teamAName.toLowerCase();
         const normA = normalize(s.teamAName);
@@ -143,7 +138,6 @@ export function PowerRankingView({
         }
       }
 
-      // Tim B
       if (s.teamBName) {
         const keyB = s.teamBName.toLowerCase();
         const normB = normalize(s.teamBName);
@@ -205,7 +199,7 @@ export function PowerRankingView({
 
   return (
     <div className="w-full space-y-3">
-      {/* ── MVP #1 CARD DINAMIS DENGAN WARNA TIM DARI SCHEDULES ── */}
+      {/* MVP #1 CARD */}
       {showMvpCard && (
         <PowerRankingPodium
           top1={top1}
@@ -214,7 +208,7 @@ export function PowerRankingView({
         />
       )}
 
-      {/* ── SEARCH BAR ── */}
+      {/* SEARCH BAR */}
       <div className="relative w-full">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <input
@@ -235,7 +229,7 @@ export function PowerRankingView({
         )}
       </div>
 
-      {/* ── TABEL POWER RANKING ── */}
+      {/* TABEL POWER RANKING */}
       <PowerRankingTable
         players={tablePlayers}
         isTeamView={isTeamView}
