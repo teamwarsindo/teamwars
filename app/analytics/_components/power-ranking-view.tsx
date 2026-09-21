@@ -103,7 +103,7 @@ export function PowerRankingView({
       streak: streakList,
       form: streakList,
       rawDiff: Number(
-        String(stats.roundDifference ?? stats.rawDiff ?? stats.pointsDifference ?? 0).replace(/^\+/, "")
+        String(stats.rawDiff ?? stats.roundDifference ?? 0).replace(/^\+/, "")        
       ),
     };
   }, [selectedTeam, schedules, teams, targetWeek]);
