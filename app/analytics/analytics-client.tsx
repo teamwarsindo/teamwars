@@ -6,12 +6,13 @@ import { DIVISION_MAP } from "@/app/tournament/_library";
 import { MatchReportsView, ScheduleItem } from "./_components/match-reports-view";
 import { PowerRankingView } from "./_components/power-ranking-view";
 import { AnalyticsFilter, AnalyticsFilterMatchItem } from "./_components/analytics-filter";
-import { MatchReportData, TeamRosterData } from "./_library/power-ranking";
+import { MatchReportData, TeamRosterData, FreeDuelistRecord } from "./_library/power-ranking";
 
 interface AnalyticsClientContentProps {
   schedules: ScheduleItem[];
   reports?: MatchReportData[];
   teams?: TeamRosterData[];
+  freeDuelists?: FreeDuelistRecord[];
   maxActiveWeek?: number;
 }
 
@@ -19,6 +20,7 @@ export default function AnalyticsClientContent({
   schedules = [],
   reports = [],
   teams = [],
+  freeDuelists = [],
   maxActiveWeek = 1,
 }: AnalyticsClientContentProps) {
   const searchParams = useSearchParams();
@@ -28,7 +30,7 @@ export default function AnalyticsClientContent({
   const currentTab = searchParams.get("tab") === "power-ranking" ? "power-ranking" : "reports";
   const selectedMatchId = searchParams.get("match") || "";
 
-  // Filter State - Keduanya default ke maxActiveWeek agar konsisten
+  // Filter State - Default ke maxActiveWeek agar konsisten
   const [selectedGroup, setSelectedGroup] = useState<
     "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B
   >("ALL");
@@ -208,6 +210,7 @@ export default function AnalyticsClientContent({
           reports={reports}
           teams={teams}
           schedules={schedules}
+          freeDuelists={freeDuelists}
           maxActiveWeek={maxActiveWeek}
           selectedGroup={selectedGroup}
           selectedTeam={selectedTeam}
@@ -216,4 +219,4 @@ export default function AnalyticsClientContent({
       )}
     </div>
   );
-                  }
+}
