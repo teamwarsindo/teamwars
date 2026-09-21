@@ -96,3 +96,60 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+
+// Handler POST untuk menambah Deck Baru ke twi:master_decks
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const newDeck = (body?.name || body?.deckName || body?.deck || '').trim();
+
+    if (!newDeck) {
+      return NextResponse.json(
+        { success: false, error: 'Nama deck tidak boleh kosong' },
+        { status: 400 }
+      );
+    }
+
+    // Ambil master deck yang ada
+    const rawDecks = await kv.get<any>('twi:master_decks');
+    let currentDecks: string[] = [];
+
+    if (Array.isArray(rawDecks)) {
+      currentDecks = rawDecks;
+    } else if (typeof rawDecks === 'string') {
+      try {
+        currentDecks = JSON.parse(rawDecks);
+      } catch {
+        currentDecks = [];
+      }
+    }
+
+    // Hindari duplikasi deck (case-insensitive)
+    const exists = currentDecks.some(
+      (d) => d.toLowerCase() === newDeck.toLowerCase()
+    );
+
+    let updatedDecks = currentDecks;
+    if (!exists) {
+      updatedDecks = [...currentDecks, newDeck].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base' })
+      );
+      await kv.set('twi:master_decks', updatedDecks);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: exists
+        ? `Deck "${newDeck}" sudah ada di database.`
+        : `Deck "${newDeck}" berhasil ditambahkan!`,
+      deck: newDeck,
+      masterDecks: updatedDecks,
+    });
+  } catch (error: any) {
+    console.error('Error in POST /api/admin/match-report/meta:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Gagal menambahkan deck baru' },
+      { status: 500 }
+    );
+  }
+        }
