@@ -6,10 +6,11 @@ import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 
 interface PowerRankingTeamCardProps {
   teamName: string;
-  standing?: ExtendedStandingItem;
+  standing?: ExtendedStandingItem | any;
   teamLogoMap: Map<string, string>;
   teamColorMap: Map<string, string>;
   totalRosterCount?: number;
+  currentWeek?: number;
 }
 
 const normalize = (str?: string) =>
@@ -20,12 +21,14 @@ export function PowerRankingTeamCard({
   standing,
   teamLogoMap,
   teamColorMap,
+  currentWeek = 1,
 }: PowerRankingTeamCardProps) {
   const rawKey = teamName.toLowerCase();
   const normKey = normalize(teamName);
 
   const logo =
     standing?.teamLogo ||
+    standing?.logo ||
     teamLogoMap.get(rawKey) ||
     teamLogoMap.get(normKey) ||
     "";
@@ -39,13 +42,25 @@ export function PowerRankingTeamCard({
   const matchWins = standing?.matchWins ?? 0;
   const matchLosses = standing?.matchLosses ?? 0;
   const totalMatches = matchWins + matchLosses;
-  const ptsDiff = standing?.roundDifference ?? 0;
-  const ptsScored = standing?.setWins ?? 0;
-  const rankNumber = standing?.rank;
+  const ptsDiff = standing?.roundDifference ?? standing?.rawDiff ?? standing?.pointsDifference ?? 0;
+  const ptsScored = standing?.setWins ?? standing?.pointsScored ?? 0;
   const winRate =
-    totalMatches > 0 ? Math.round((matchWins / totalMatches) * 100) : 0;
+    standing?.winRate !== undefined
+      ? Math.round(standing.winRate)
+      : totalMatches > 0
+      ? Math.round((matchWins / totalMatches) * 100)
+      : 0;
 
-  const formList = (standing?.form || []).slice(0, 7);
+  const formList = (standing?.streak || standing?.form || []).slice(0, 7);
+
+  // Label Peringkat (#1 Wildcard / #1 Group)
+  const rankLabel =
+    standing?.qualification?.rankLabel ||
+    (standing?.rank ? `#${standing.rank} Group` : "Peringkat Klasemen");
+
+  // Badge Status Playoff (Quarter Finals, Play-Ins, Tereliminasi)
+  const stageLabel = standing?.qualification?.stageLabel;
+  const isQualified = Boolean(standing?.qualification?.isQualified);
 
   const renderDiff = (val: number) => {
     if (val > 0) return <span className="text-emerald-500 font-bold">+{val}</span>;
@@ -85,11 +100,11 @@ export function PowerRankingTeamCard({
             </div>
           </div>
 
-          {/* Info Tim & Peringkat Beda Baris */}
+          {/* Info Tim, Grup & Badge Status */}
           <div className="min-w-0 flex flex-col justify-center">
             {/* Baris 1: Nama Tim */}
             <span className="font-extrabold text-xs sm:text-sm text-foreground truncate leading-tight">
-              {teamName}
+              {standing?.teamName || teamName}
             </span>
 
             {/* Baris 2: Divisi Grup */}
@@ -97,10 +112,24 @@ export function PowerRankingTeamCard({
               {standing?.groupName || "Team Wars Indonesia"}
             </span>
 
-            {/* Baris 3: Peringkat Klasemen */}
-            <span className="text-[9.5px] font-bold text-foreground/80 truncate leading-tight mt-0.5">
-              {rankNumber ? `Peringkat #${rankNumber} Klasemen` : "Peringkat Klasemen"}
-            </span>
+            {/* Baris 3: Peringkat & Badge Playoff (Week >= 7) */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              <span className="text-[9.5px] font-bold text-foreground/80 truncate leading-tight">
+                {rankLabel}
+              </span>
+
+              {currentWeek >= 7 && stageLabel && (
+                <span
+                  className={`rounded border px-1.5 py-0.2 text-[8px] font-extrabold uppercase tracking-wider leading-none ${
+                    isQualified
+                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                      : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                  }`}
+                >
+                  {stageLabel}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -111,18 +140,21 @@ export function PowerRankingTeamCard({
           </span>
           <div className="flex items-center gap-1">
             {formList.length > 0 ? (
-              formList.map((res, i) => (
-                <span
-                  key={i}
-                  className={`h-3.5 w-3.5 sm:h-4 sm:w-4 flex items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black leading-none ${
-                    res === "W"
-                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
-                      : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
-                  }`}
-                >
-                  {res}
-                </span>
-              ))
+              formList.map((res: string, i: number) => {
+                const isWin = res.toUpperCase() === "W";
+                return (
+                  <span
+                    key={i}
+                    className={`h-3.5 w-3.5 sm:h-4 sm:w-4 flex items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black leading-none ${
+                      isWin
+                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
+                        : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
+                    }`}
+                  >
+                    {res.toUpperCase()}
+                  </span>
+                );
+              })
             ) : (
               <span className="text-[9px] text-muted-foreground font-medium px-1">
                 -
@@ -156,7 +188,7 @@ export function PowerRankingTeamCard({
           <span className="text-xs mt-0.5">{renderDiff(ptsDiff)}</span>
         </div>
 
-        {/* 4. PTS SCORED (Judul Netral/Item) */}
+        {/* 4. PTS SCORED */}
         <div className="flex flex-col items-center">
           <span className="text-[8px] font-bold uppercase text-muted-foreground">PTS SCORED</span>
           <span className="text-xs font-bold text-foreground mt-0.5">
@@ -164,7 +196,7 @@ export function PowerRankingTeamCard({
           </span>
         </div>
 
-        {/* 5. WIN RATE (Judul Netral/Item, Angka >= 50% Hijau & < 50% Merah) */}
+        {/* 5. WIN RATE */}
         <div className="flex flex-col items-center">
           <span className="text-[8px] font-bold uppercase text-muted-foreground">WIN RATE</span>
           <span
@@ -178,4 +210,4 @@ export function PowerRankingTeamCard({
       </div>
     </div>
   );
-}
+              }
