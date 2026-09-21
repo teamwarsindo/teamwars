@@ -20,7 +20,6 @@ export function PowerRankingTeamCard({
   standing,
   teamLogoMap,
   teamColorMap,
-  totalRosterCount = 0,
 }: PowerRankingTeamCardProps) {
   const rawKey = teamName.toLowerCase();
   const normKey = normalize(teamName);
@@ -37,16 +36,15 @@ export function PowerRankingTeamCard({
     teamColorMap.get(normKey) ||
     "#3b82f6";
 
-  const isQualified = standing?.isTopGroup;
   const matchWins = standing?.matchWins ?? 0;
   const matchLosses = standing?.matchLosses ?? 0;
   const totalMatches = matchWins + matchLosses;
   const ptsDiff = standing?.roundDifference ?? 0;
-  const setWins = standing?.setWins ?? 0;
+  const ptsScored = standing?.setWins ?? 0;
+  const rankNumber = standing?.rank;
   const winRate =
     totalMatches > 0 ? Math.round((matchWins / totalMatches) * 100) : 0;
 
-  // Form riwayat W/L (maksimal 7 pekan reguler)
   const formList = (standing?.form || []).slice(0, 7);
 
   const renderDiff = (val: number) => {
@@ -63,21 +61,21 @@ export function PowerRankingTeamCard({
         background: `linear-gradient(135deg, ${teamColor}22 0%, var(--card) 65%, var(--card) 100%)`,
       }}
     >
-      {/* ── BARIS ATAS: Logo Tim, Identitas, Status Lolos & Match Form ── */}
+      {/* ── BARIS ATAS: Logo Tim, Identitas & Form ── */}
       <div className="flex items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {/* Logo Tim */}
           <div className="relative shrink-0">
             <div
-              className="h-10 w-10 sm:h-11 sm:w-11 rounded-full border-2 overflow-hidden bg-background flex items-center justify-center shadow-inner"
+              className="h-11 w-11 sm:h-12 sm:w-12 rounded-full border-2 overflow-hidden bg-background flex items-center justify-center shadow-inner"
               style={{ borderColor: teamColor }}
             >
               {logo ? (
                 <Image
                   src={logo}
                   alt={teamName}
-                  width={44}
-                  height={44}
+                  width={48}
+                  height={48}
                   className="h-full w-full object-cover rounded-full"
                   unoptimized
                 />
@@ -87,27 +85,21 @@ export function PowerRankingTeamCard({
             </div>
           </div>
 
-          {/* Info Tim & Status */}
+          {/* Info Tim & Peringkat Beda Baris */}
           <div className="min-w-0 flex flex-col justify-center">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
-                {teamName}
-              </span>
+            {/* Baris 1: Nama Tim */}
+            <span className="font-extrabold text-xs sm:text-sm text-foreground truncate leading-tight">
+              {teamName}
+            </span>
 
-              {/* Status Lolos / Zona */}
-              <span
-                className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 leading-none border ${
-                  isQualified
-                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                    : "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30"
-                }`}
-              >
-                {isQualified ? "QUALIFIED" : "ROSTER STATS"}
-              </span>
-            </div>
+            {/* Baris 2: Divisi Grup */}
+            <span className="text-[10px] text-muted-foreground font-semibold truncate leading-tight mt-0.5">
+              {standing?.groupName || "Team Wars Indonesia"}
+            </span>
 
-            <span className="text-[10px] text-muted-foreground font-medium truncate mt-1 leading-tight">
-              {standing?.groupName || "Team Wars Indonesia"} • {totalRosterCount} Pemain
+            {/* Baris 3: Peringkat Klasemen */}
+            <span className="text-[9.5px] font-bold text-foreground/80 truncate leading-tight mt-0.5">
+              {rankNumber ? `Peringkat #${rankNumber} Klasemen` : "Peringkat Klasemen"}
             </span>
           </div>
         </div>
@@ -140,30 +132,39 @@ export function PowerRankingTeamCard({
         </div>
       </div>
 
-      {/* ── BARIS BAWAH: 5 Kolom Stat Tim Simetris ── */}
+      {/* ── BARIS BAWAH: 5 Kolom Stat Simetris (Win, Lose, Pts Diff, Pts Scored, Win Rate) ── */}
       <div className="grid grid-cols-5 gap-1 pt-2 border-t border-border/40 text-center">
-        <div className="flex flex-col items-center">
-          <span className="text-[8px] font-bold uppercase text-muted-foreground">MATCH</span>
-          <span className="text-xs font-bold text-foreground mt-0.5">
-            {matchWins}-{matchLosses}
-          </span>
-        </div>
+        {/* 1. WIN */}
         <div className="flex flex-col items-center">
           <span className="text-[8px] font-bold uppercase text-emerald-600 dark:text-emerald-400">WIN</span>
           <span className="text-xs font-bold text-emerald-500 mt-0.5">
             {matchWins}
           </span>
         </div>
+
+        {/* 2. LOSE */}
         <div className="flex flex-col items-center">
           <span className="text-[8px] font-bold uppercase text-rose-600 dark:text-rose-400">LOSE</span>
           <span className="text-xs font-bold text-rose-500 mt-0.5">
             {matchLosses}
           </span>
         </div>
+
+        {/* 3. PTS DIFF */}
         <div className="flex flex-col items-center">
           <span className="text-[8px] font-bold uppercase text-muted-foreground">PTS DIFF</span>
           <span className="text-xs mt-0.5">{renderDiff(ptsDiff)}</span>
         </div>
+
+        {/* 4. PTS SCORED */}
+        <div className="flex flex-col items-center">
+          <span className="text-[8px] font-bold uppercase text-blue-600 dark:text-blue-400">PTS SCORED</span>
+          <span className="text-xs font-bold text-foreground mt-0.5">
+            {ptsScored}
+          </span>
+        </div>
+
+        {/* 5. WIN RATE */}
         <div className="flex flex-col items-center">
           <span className="text-[8px] font-bold uppercase text-amber-600 dark:text-amber-400">WIN RATE</span>
           <span className="text-xs font-bold text-amber-500 mt-0.5">
@@ -173,4 +174,4 @@ export function PowerRankingTeamCard({
       </div>
     </div>
   );
-      }
+            }
