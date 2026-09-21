@@ -25,9 +25,17 @@ interface PowerRankingViewProps {
 const normalize = (str?: string) =>
   (str || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 
-// 🟢 Multi-tier Sorting: Win -> WPM -> AGG -> Abjad Nama Pemain
+// 🟢 Multi-tier Sorting: Prioritas Pemain Main (played > 0) -> Win -> WPM -> AGG -> Abjad Nama Pemain
 function sortPowerRankings(data: PowerRankingPlayer[]): PowerRankingPlayer[] {
   return [...data].sort((a, b) => {
+    // 1. Pemain yang sudah pernah main (played > 0) selalu di atas yang belum main (played === 0)
+    const aPlayed = a.played > 0 ? 1 : 0;
+    const bPlayed = b.played > 0 ? 1 : 0;
+    if (bPlayed !== aPlayed) {
+      return bPlayed - aPlayed;
+    }
+
+    // 2. Jika sama-sama sudah main atau sama-sama belum main
     if (b.won !== a.won) return b.won - a.won;
     if (b.wpm !== a.wpm) return b.wpm - a.wpm;
     if (b.agg !== a.agg) return b.agg - a.agg;
@@ -231,4 +239,5 @@ export function PowerRankingView({
       />
     </div>
   );
-}
+      }
+                                                
