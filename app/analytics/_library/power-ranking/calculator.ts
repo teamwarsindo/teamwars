@@ -3,242 +3,276 @@ import {
   TeamRosterData,
   PowerRankingPlayer,
   PowerRankingGrandTotal,
-} from "./power-ranking";
+  LineupPlayer,
+} from "./types";
+import { normalizeKey, calculateBestDeck } from "./utils";
 
-export function normalizeKey(str?: string | null): string {
-  if (!str) return "";
-  return str
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/[\u200B-\u200D\uFEFF]/g, "");
+interface PlayerStatAccumulator {
+  name: string;
+  teamSlug: string;
+  teamName: string;
+  teamLogo?: string;
+  groupName?: string;
+  won: number;
+  lost: number;
+  matchesAppeared: Set<string>;
+  deckStats: Map<string, { wins: number; losses: number }>;
 }
 
-/**
- * Kalkulasi Power Ranking Pemain & Roster Tim
- */
-export function calculatePowerRanking(
-  reports: RawMatchReport[],
-  teams: TeamRosterData[],
-  selectedTeamSlug?: string,
-  selectedWeek?: number
-): {
+export function calculatePowerRanking({
+  reports,
+  targetWeek,
+  teams = [],
+  filterScope = "GLOBAL",
+  selectedTeamSlug,
+}: {
+  reports: RawMatchReport[];
+  targetWeek: number;
+  teams?: TeamRosterData[];
+  filterScope: "GLOBAL" | "Anda Yakin?" | "Sakurasawa Fighters" | "TEAM";
+  selectedTeamSlug?: string;
+}): {
   players: PowerRankingPlayer[];
   grandTotal?: PowerRankingGrandTotal;
 } {
-  // 1. Filter laporan berdasarkan week jika dipilih
-  const filteredReports = reports.filter((r) => {
-    if (selectedWeek && selectedWeek > 0) {
-      return Number(r.week) <= selectedWeek;
-    }
-    return true;
-  });
+  const validReports = reports.filter((r) => Number(r.week || 1) <= targetWeek);
+  const playerStatsMap = new Map<string, PlayerStatAccumulator>();
 
-  // Map akumulasi statistik per pemain (key: slugTim_ign)
-  const playerStatsMap = new Map<
-    string,
-    {
-      name: string;
-      teamSlug: string;
-      teamName: string;
-      teamLogo?: string;
-      groupName?: string;
-      played: number;
-      won: number;
-      lost: number;
-      agg: number;
-      isExPlayer?: boolean;
-      isAdded?: boolean;
-    }
-  >();
-
-  // 2. Hitung statistik dari laporan duel
-  filteredReports.forEach((rep) => {
-    const games = rep.games || [];
-    games.forEach((g) => {
-      const ignA = g.playerA?.ign?.trim();
-      const ignB = g.playerB?.ign?.trim();
-
-      if (ignA) {
-        const keyA = `${rep.teamA.slug || normalizeKey(rep.teamA.name)}_${normalizeKey(ignA)}`;
-        const curA = playerStatsMap.get(keyA) || {
-          name: ignA,
-          teamSlug: rep.teamA.slug || normalizeKey(rep.teamA.name),
-          teamName: rep.teamA.name,
-          teamLogo: rep.teamA.logo,
-          groupName: rep.teamA.groupName,
-          played: 0,
-          won: 0,
-          lost: 0,
-          agg: 0,
-        };
-
-        curA.played += 1;
-        if (g.winner === "teamA") {
-          curA.won += 1;
-          curA.agg += 1;
-        } else if (g.winner === "teamB") {
-          curA.lost += 1;
-          curA.agg -= 1;
-        }
-        playerStatsMap.set(keyA, curA);
-      }
-
-      if (ignB) {
-        const keyB = `${rep.teamB.slug || normalizeKey(rep.teamB.name)}_${normalizeKey(ignB)}`;
-        const curB = playerStatsMap.get(keyB) || {
-          name: ignB,
-          teamSlug: rep.teamB.slug || normalizeKey(rep.teamB.name),
-          teamName: rep.teamB.name,
-          teamLogo: rep.teamB.logo,
-          groupName: rep.teamB.groupName,
-          played: 0,
-          won: 0,
-          lost: 0,
-          agg: 0,
-        };
-
-        curB.played += 1;
-        if (g.winner === "teamB") {
-          curB.won += 1;
-          curB.agg += 1;
-        } else if (g.winner === "teamA") {
-          curB.lost += 1;
-          curB.agg -= 1;
-        }
-        playerStatsMap.set(keyB, curB);
-      }
-    });
-  });
-
-  // 3. Gabungkan seluruh anggota roster resmi dari data tim
-  teams.forEach((t) => {
-    const rawList = t.players || t.members || [];
-    const rosterList = Array.isArray(rawList) ? rawList : [];
-
-    rosterList.forEach((m: any) => {
-      const ign = (typeof m === "string" ? m : m.ign || m.name || "").trim();
-      if (!ign) return;
-
-      const key = `${t.slug || normalizeKey(t.name)}_${normalizeKey(ign)}`;
-      const existing = playerStatsMap.get(key);
-
-      const isAdded = Boolean(
-        m.isAdded ||
-        m.isTransfer ||
-        (typeof m.teamsJoinedCount === "number" && m.teamsJoinedCount >= 1)
-      );
-
-      if (!existing) {
-        // Pemain yang belum pernah main sama sekali (0 play)
-        playerStatsMap.set(key, {
-          name: ign,
-          teamSlug: t.slug || normalizeKey(t.name),
-          teamName: t.name,
-          teamLogo: t.logo,
-          groupName: t.groupName,
-          played: 0,
-          won: 0,
-          lost: 0,
-          agg: 0,
-          isAdded,
-          isExPlayer: false,
-        });
-      } else {
-        existing.isAdded = isAdded;
-      }
-    });
-  });
-
-  // 4. Deteksi Transfer Out (Pemain yang punya record game di tim ini tapi sudah keluar dari roster)
-  playerStatsMap.forEach((p, key) => {
-    const teamObj = teams.find((t) => (t.slug || normalizeKey(t.name)) === p.teamSlug);
-    if (teamObj) {
-      const rawList = teamObj.players || teamObj.members || [];
-      const rosterList = Array.isArray(rawList) ? rawList : [];
-      const isStillInRoster = rosterList.some((m: any) => {
-        const ign = (typeof m === "string" ? m : m.ign || m.name || "").trim();
-        return normalizeKey(ign) === normalizeKey(p.name);
+  const getOrCreateStat = (
+    normSlug: string,
+    ign: string,
+    slug: string,
+    teamName: string,
+    logo?: string,
+    group?: string
+  ) => {
+    const key = `${normSlug}:${normalizeKey(ign)}`;
+    if (!playerStatsMap.has(key)) {
+      playerStatsMap.set(key, {
+        name: ign.trim(),
+        teamSlug: slug,
+        teamName,
+        teamLogo: logo,
+        groupName: group,
+        won: 0,
+        lost: 0,
+        matchesAppeared: new Set(),
+        deckStats: new Map(),
       });
-
-      if (!isStillInRoster) {
-        p.isExPlayer = true;
-      }
     }
-  });
+    return playerStatsMap.get(key)!;
+  };
 
-  // 5. Filter jika memilih tim tertentu
-  let playerList = Array.from(playerStatsMap.values());
-  if (selectedTeamSlug && selectedTeamSlug !== "all") {
-    playerList = playerList.filter(
-      (p) => p.teamSlug === selectedTeamSlug || normalizeKey(p.teamName) === selectedTeamSlug
-    );
+  for (const rep of validReports) {
+    const reportId =
+      rep.matchId || rep.id || `${rep.week}-${rep.teamA.name}-vs-${rep.teamB.name}`;
+    const slugA = rep.teamA.slug || rep.teamA.name;
+    const slugB = rep.teamB.slug || rep.teamB.name;
+    const normSlugA = normalizeKey(slugA);
+    const normSlugB = normalizeKey(slugB);
+
+    if (Array.isArray(rep.games) && rep.games.length > 0) {
+      for (const g of rep.games) {
+        const pAName = g.playerA?.ign?.trim();
+        const pBName = g.playerB?.ign?.trim();
+        if (!pAName || !pBName) continue;
+
+        const statA = getOrCreateStat(normSlugA, pAName, slugA, rep.teamA.name, rep.teamA.logo, rep.teamA.groupName);
+        const statB = getOrCreateStat(normSlugB, pBName, slugB, rep.teamB.name, rep.teamB.logo, rep.teamB.groupName);
+
+        statA.matchesAppeared.add(reportId);
+        statB.matchesAppeared.add(reportId);
+
+        const w = (g.winner || "").toLowerCase().trim();
+        const winA = w === "teama" || w === pAName.toLowerCase() || w === normalizeKey(rep.teamA.name);
+        const winB = w === "teamb" || w === pBName.toLowerCase() || w === normalizeKey(rep.teamB.name);
+
+        const deckA = g.playerA?.archetype?.trim();
+        const deckB = g.playerB?.archetype?.trim();
+
+        if (deckA && !statA.deckStats.has(deckA)) statA.deckStats.set(deckA, { wins: 0, losses: 0 });
+        if (deckB && !statB.deckStats.has(deckB)) statB.deckStats.set(deckB, { wins: 0, losses: 0 });
+
+        if (winA) {
+          statA.won += 1;
+          statB.lost += 1;
+          if (deckA) statA.deckStats.get(deckA)!.wins += 1;
+          if (deckB) statB.deckStats.get(deckB)!.losses += 1;
+        } else if (winB) {
+          statB.won += 1;
+          statA.lost += 1;
+          if (deckB) statB.deckStats.get(deckB)!.wins += 1;
+          if (deckA) statA.deckStats.get(deckA)!.losses += 1;
+        }
+      }
+    } else {
+      const processLineup = (
+        lineup: LineupPlayer[] = [],
+        slug: string,
+        normSlug: string,
+        tName: string,
+        logo?: string,
+        group?: string
+      ) => {
+        for (const p of lineup) {
+          if (!p.ign) continue;
+          const wins = Number(p.totalWins || 0);
+          const losses = Number(p.totalLosses || 0);
+          if (wins === 0 && losses === 0) continue;
+
+          const stat = getOrCreateStat(normSlug, p.ign, slug, tName, logo, group);
+          stat.won += wins;
+          stat.lost += losses;
+          stat.matchesAppeared.add(reportId);
+
+          if (p.deck1?.archetype) {
+            const arch = p.deck1.archetype.trim();
+            if (!stat.deckStats.has(arch)) stat.deckStats.set(arch, { wins: 0, losses: 0 });
+            stat.deckStats.get(arch)!.wins += Number(p.deck1.wins || 0);
+            stat.deckStats.get(arch)!.losses += Number(p.deck1.losses || 0);
+          }
+          if (p.deck2?.archetype) {
+            const arch = p.deck2.archetype.trim();
+            if (!stat.deckStats.has(arch)) stat.deckStats.set(arch, { wins: 0, losses: 0 });
+            stat.deckStats.get(arch)!.wins += Number(p.deck2.wins || 0);
+            stat.deckStats.get(arch)!.losses += Number(p.deck2.losses || 0);
+          }
+        }
+      };
+
+      processLineup(rep.teamA.lineup, slugA, normSlugA, rep.teamA.name, rep.teamA.logo, rep.teamA.groupName);
+      processLineup(rep.teamB.lineup, slugB, normSlugB, rep.teamB.name, rep.teamB.logo, rep.teamB.groupName);
+    }
   }
 
-  // 6. ATURAN SORTIR: Pemain belum pernah main (played === 0) WAJIB DI PALING BAWAH
+  let playerList: PowerRankingPlayer[] = Array.from(playerStatsMap.values()).map((p) => {
+    const played = p.matchesAppeared.size;
+    const won = p.won;
+    const lost = p.lost;
+    return {
+      rank: 0,
+      name: p.name,
+      teamSlug: p.teamSlug,
+      teamName: p.teamName,
+      teamLogo: p.teamLogo,
+      groupName: p.groupName,
+      played,
+      won,
+      lost,
+      wpm: played > 0 ? Number((won / played).toFixed(2)) : 0,
+      agg: won - lost,
+      bestDeck: calculateBestDeck(p.deckStats),
+    };
+  });
+
+  let grandTotal: PowerRankingGrandTotal | undefined;
+
+  if (filterScope === "TEAM" && selectedTeamSlug) {
+    const targetNorm = normalizeKey(selectedTeamSlug);
+    const selectedTeam = teams.find(
+      (t) => normalizeKey(t.slug) === targetNorm || normalizeKey(t.name) === targetNorm
+    );
+
+    let rawRoster = selectedTeam?.players || (selectedTeam as any)?.members || [];
+    if (typeof rawRoster === "string") {
+      try {
+        rawRoster = JSON.parse(rawRoster);
+      } catch {
+        rawRoster = [];
+      }
+    }
+
+    const activeMemberMap = new Map<string, { ign: string; isTransfer: boolean }>();
+
+    for (const item of rawRoster) {
+      const ign = typeof item === "string" ? item : item.ign || item.name || "";
+      if (!ign) continue;
+
+      const count = typeof item === "object" ? Number(item.teamsJoinedCount || 0) : 0;
+      const explicitTransfer = typeof item === "object" ? Boolean(item.isTransfer || item.isAdded) : false;
+      const isTransfer = explicitTransfer || count >= 1;
+
+      activeMemberMap.set(normalizeKey(ign), { ign, isTransfer });
+    }
+
+    const teamReportPlayers = playerList.filter(
+      (p) => normalizeKey(p.teamSlug) === targetNorm || normalizeKey(p.teamName) === targetNorm
+    );
+    const recordedMemberKeys = new Set<string>();
+
+    const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map((p) => {
+      const normPName = normalizeKey(p.name);
+      const memberInfo = activeMemberMap.get(normPName);
+
+      const isEx = activeMemberMap.size > 0 && !memberInfo;
+      const isAdd = !isEx && Boolean(memberInfo?.isTransfer);
+
+      recordedMemberKeys.add(normPName);
+
+      return {
+        ...p,
+        isExPlayer: isEx,
+        isAdded: isAdd,
+      };
+    });
+
+    for (const [normM, memberInfo] of Array.from(activeMemberMap.entries())) {
+      if (!recordedMemberKeys.has(normM)) {
+        processedTeamPlayers.push({
+          rank: 0,
+          name: memberInfo.ign.trim(),
+          teamSlug: selectedTeam?.slug || selectedTeamSlug,
+          teamName: selectedTeam?.name || selectedTeamSlug,
+          teamLogo: selectedTeam?.logo,
+          groupName: selectedTeam?.groupName,
+          played: 0,
+          won: 0,
+          lost: 0,
+          wpm: 0,
+          agg: 0,
+          isExPlayer: false,
+          isAdded: memberInfo.isTransfer,
+          bestDeck: "-",
+        });
+      }
+    }
+
+    playerList = processedTeamPlayers;
+
+    const totalWon = playerList.reduce((acc, cur) => acc + cur.won, 0);
+    const totalLost = playerList.reduce((acc, cur) => acc + cur.lost, 0);
+    const totalPlayed = playerList.reduce((acc, cur) => acc + cur.played, 0);
+
+    grandTotal = {
+      played: totalPlayed,
+      won: totalWon,
+      lost: totalLost,
+      wpm: totalPlayed > 0 ? Number((totalWon / totalPlayed).toFixed(2)) : 0,
+      agg: totalWon - totalLost,
+    };
+  } else {
+    playerList = playerList.filter((p) => p.played >= 1);
+    if (filterScope === "Anda Yakin?" || filterScope === "Sakurasawa Fighters") {
+      playerList = playerList.filter((p) => p.groupName === filterScope);
+    }
+  }
+
   playerList.sort((a, b) => {
-    // a. Pemain yang sudah main selalu di atas pemain yang belum pernah main
+    // 1. Pemain yang sudah pernah main (played > 0) selalu di atas pemain yang belum pernah main (played === 0)
     const aPlayed = a.played > 0 ? 1 : 0;
     const bPlayed = b.played > 0 ? 1 : 0;
     if (bPlayed !== aPlayed) {
       return bPlayed - aPlayed;
     }
 
-    // b. Jika sama-sama sudah main, sortir berdasarkan WIN, WPM, AGG, lalu PLAY
+    // 2. Jika sama-sama sudah main, urutkan berdasarkan Win, WPM, AGG, dan Abjad Nama Pemain
     if (b.won !== a.won) return b.won - a.won;
-
-    const wpmA = a.played > 0 ? a.won / a.played : 0;
-    const wpmB = b.played > 0 ? b.won / b.played : 0;
-    if (wpmB !== wpmA) return wpmB - wpmA;
-
+    if (b.wpm !== a.wpm) return b.wpm - a.wpm;
     if (b.agg !== a.agg) return b.agg - a.agg;
-    if (b.played !== a.played) return b.played - a.played;
-
-    // c. Jika sama-sama belum pernah main (0 semua), sortir secara alfabetis nama
-    return a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name, "id", { sensitivity: "base" });
   });
 
-  // 7. Berikan peringkat (Rank) & format WPM
-  const rankedPlayers: PowerRankingPlayer[] = playerList.map((p, idx) => ({
-    rank: idx + 1,
-    name: p.name,
-    teamSlug: p.teamSlug,
-    teamName: p.teamName,
-    teamLogo: p.teamLogo,
-    groupName: p.groupName,
-    played: p.played,
-    won: p.won,
-    lost: p.lost,
-    wpm: p.played > 0 ? Number((p.won / p.played).toFixed(1)) : 0,
-    agg: p.agg,
-    isExPlayer: p.isExPlayer,
-    isAdded: p.isAdded,
-  }));
+  playerList = playerList.map((p, idx) => ({ ...p, rank: idx + 1 }));
 
-  // 8. Hitung Grand Total Roster jika tampilan per tim
-  let grandTotal: PowerRankingGrandTotal | undefined = undefined;
-  if (selectedTeamSlug && selectedTeamSlug !== "all") {
-    const totPlayed = rankedPlayers.reduce((acc, p) => acc + p.played, 0);
-    const totWon = rankedPlayers.reduce((acc, p) => acc + p.won, 0);
-    const totLost = rankedPlayers.reduce((acc, p) => acc + p.lost, 0);
-    const totAgg = rankedPlayers.reduce((acc, p) => acc + p.agg, 0);
-    const avgWpm = totPlayed > 0 ? Number((totWon / totPlayed).toFixed(1)) : 0;
-
-    grandTotal = {
-      played: totPlayed,
-      won: totWon,
-      lost: totLost,
-      wpm: avgWpm,
-      agg: totAgg,
-    };
-  }
-
-  return {
-    players: rankedPlayers,
-    grandTotal,
-  };
-}
-
-// Alias agar kedua nama ekspor valid
-export const buildPowerRankingData = calculatePowerRanking;
-        
+  return { players: playerList, grandTotal };
+            }
