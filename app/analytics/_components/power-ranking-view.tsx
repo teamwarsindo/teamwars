@@ -9,7 +9,10 @@ import {
   PowerRankingPlayer,
   FreeDuelistRecord,
 } from "../_library/power-ranking";
-import { calculateStandings } from "@/app/tournament/_library/calculator";
+import {
+  calculateStandings,
+  getTeamStatsFromStandings,
+} from "@/app/tournament/_library/calculator";
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTeamCard } from "./power-ranking-team-card";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
@@ -112,7 +115,7 @@ export function PowerRankingView({
     return sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
   }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug]);
 
-  // Map logo tim & Map warna aksen tim (Diambil dari teams & schedules)
+  // Map logo tim & Map warna aksen tim
   const { teamLogoMap, teamColorMap } = useMemo(() => {
     const lMap = new Map<string, string>();
     const cMap = new Map<string, string>();
@@ -181,117 +184,26 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
-  // 4. Hitung Standing Tim Resmi & Kualifikasi Playoff (Top 2 Group -> Sisanya Pool Wildcard Global)
+  // 4. Single Source of Truth: Ambil Standing & Kualifikasi Resmi via getTeamStatsFromStandings
   const selectedTeamStanding = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
       return undefined;
     }
 
-    const filteredSchedules = schedules.filter((s: any) => {
-      const matchWeek = Number(s.weekNumber || s.week || s.matchWeek || 1);
-      return matchWeek <= targetWeek;
-    });
+    // Hitung standings turnamen resmi hingga targetWeek
+    const standings = calculateStandings(schedules as any, teams as any, targetWeek);
 
-    const standings = calculateStandings(filteredSchedules as any, teams as any);
-    const normTarget = normalizeKey(selectedTeam);
-
-    // Kelompokkan per grup
-    const groupMap = new Map<string, any[]>();
-    standings.forEach((st: any) => {
-      const g = st.groupName || "Regular Division";
-      if (!groupMap.has(g)) groupMap.set(g, []);
-      groupMap.get(g)!.push(st);
-    });
-
-    const qualifiedTopGroup = new Set<string>();
-    const wildcardCandidates: any[] = [];
-    const teamGroupRanks = new Map<string, number>();
-
-    // Saring Top 2 per grup untuk Quarter Finals, rank 3+ masuk kandidat Wildcard
-    groupMap.forEach((teamList) => {
-      teamList.sort((a, b) => {
-        if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-        const diffA = Number(String(a.roundDifference ?? a.pointsDifference ?? 0).replace(/^\+/, ""));
-        const diffB = Number(String(b.roundDifference ?? b.pointsDifference ?? 0).replace(/^\+/, ""));
-        if (diffB !== diffA) return diffB - diffA;
-        const scoredA = a.setWins ?? a.pointsScored ?? 0;
-        const scoredB = b.setWins ?? b.pointsScored ?? 0;
-        return scoredB - scoredA;
-      });
-
-      teamList.forEach((t, idx) => {
-        const gRank = idx + 1;
-        const tKey = normalizeKey(t.teamName);
-        teamGroupRanks.set(tKey, gRank);
-
-        if (gRank <= 2) {
-          qualifiedTopGroup.add(tKey);
-        } else {
-          wildcardCandidates.push(t);
-        }
-      });
-    });
-
-    // Urutkan sisa tim (exclude Top 2) di pool Wildcard secara global
-    wildcardCandidates.sort((a, b) => {
-      if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-      const diffA = Number(String(a.roundDifference ?? a.pointsDifference ?? 0).replace(/^\+/, ""));
-      const diffB = Number(String(b.roundDifference ?? b.pointsDifference ?? 0).replace(/^\+/, ""));
-      if (diffB !== diffA) return diffB - diffA;
-      const scoredA = a.setWins ?? a.pointsScored ?? 0;
-      const scoredB = b.setWins ?? b.pointsScored ?? 0;
-      return scoredB - scoredA;
-    });
-
-    const wildcardRankMap = new Map<string, number>();
-    wildcardCandidates.forEach((t, idx) => {
-      wildcardRankMap.set(normalizeKey(t.teamName), idx + 1);
-    });
-
-    // Cari tim yang sedang dipilih
-    const targetTeam: any = standings.find((s: any) => {
-      const nName = normalizeKey(s.teamName);
-      const nSlug = s.teamSlug ? normalizeKey(s.teamSlug) : "";
-      return nName === normTarget || nSlug === normTarget;
-    });
-
-    if (!targetTeam) return undefined;
-
-    const targetKey = normalizeKey(targetTeam.teamName);
-    const groupRank = teamGroupRanks.get(targetKey) || 1;
-    const isTop2Group = qualifiedTopGroup.has(targetKey);
-
-    let rankLabel = `#${groupRank} Group`;
-    let stageLabel = "TERELIMINASI";
-    let isQualified = false;
-
-    if (isTop2Group) {
-      rankLabel = `#${groupRank} Group`;
-      stageLabel = "QUARTER FINALS";
-      isQualified = true;
-    } else {
-      const wildcardRank = wildcardRankMap.get(targetKey) || 1;
-      rankLabel = `#${wildcardRank} Wildcard`;
-
-      if (wildcardRank <= 8) {
-        stageLabel = "PLAY-INS";
-        isQualified = true;
-      } else {
-        stageLabel = "TERELIMINASI";
-        isQualified = false;
-      }
-    }
+    // Ambil stats & qualification resmi langsung dari calculator turnamen
+    const stats = getTeamStatsFromStandings(selectedTeam, standings, undefined, schedules as any);
 
     return {
-      ...targetTeam,
-      rawDiff: Number(
-        String(targetTeam.roundDifference ?? targetTeam.pointsDifference ?? 0).replace(/^\+/, "")
-      ),
-      qualification: {
-        rankLabel,
-        stageLabel,
-        isQualified,
-      },
+      matchWins: stats.matchWins,
+      matchLosses: stats.matchLosses,
+      pointsScored: stats.setWins,
+      roundDifference: stats.roundDifference,
+      rawDiff: stats.rawDiff,
+      matchForm: stats.streak,
+      qualification: stats.qualification,
     };
   }, [selectedTeam, schedules, teams, targetWeek]);
 
@@ -368,4 +280,3 @@ export function PowerRankingView({
     </div>
   );
         }
-        
