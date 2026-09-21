@@ -9,10 +9,7 @@ import {
   PowerRankingPlayer,
   FreeDuelistRecord,
 } from "../_library/power-ranking";
-import {
-  calculateStandings,
-  getTeamProfileStats,
-} from "@/app/tournament/_library/calculator";
+import { calculateStandings } from "@/app/tournament/_library/calculator";
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTeamCard } from "./power-ranking-team-card";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
@@ -29,7 +26,7 @@ interface PowerRankingViewProps {
   selectedWeek: number | "";
 }
 
-const normalize = (str?: string) =>
+const normalizeKey = (str?: string) =>
   (str || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 
 // Multi-tier Sorting: Prioritas Pemain Main (played > 0) -> Win -> WPM -> AGG -> Abjad Nama Pemain
@@ -62,10 +59,11 @@ export function PowerRankingView({
 
   const matchedTeamSlug = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL") return undefined;
+    const normTarget = normalizeKey(selectedTeam);
     const found = teams.find(
       (t) =>
-        t.name.toLowerCase() === selectedTeam.toLowerCase() ||
-        t.slug?.toLowerCase() === selectedTeam.toLowerCase()
+        normalizeKey(t.name) === normTarget ||
+        (t.slug && normalizeKey(t.slug) === normTarget)
     );
     return found ? found.slug || found.name : selectedTeam;
   }, [teams, selectedTeam]);
@@ -114,7 +112,7 @@ export function PowerRankingView({
     return sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
   }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug]);
 
-  // Map logo tim & Map warna aksen tim (Diambil langsung dari schedules)
+  // Map logo tim & Map warna aksen tim (Diambil dari teams & schedules)
   const { teamLogoMap, teamColorMap } = useMemo(() => {
     const lMap = new Map<string, string>();
     const cMap = new Map<string, string>();
@@ -123,15 +121,15 @@ export function PowerRankingView({
       if (t.logo) {
         lMap.set(t.name.toLowerCase(), t.logo);
         if (t.slug) lMap.set(t.slug.toLowerCase(), t.logo);
-        lMap.set(normalize(t.name), t.logo);
-        if (t.slug) lMap.set(normalize(t.slug), t.logo);
+        lMap.set(normalizeKey(t.name), t.logo);
+        if (t.slug) lMap.set(normalizeKey(t.slug), t.logo);
       }
     });
 
     schedules.forEach((s: any) => {
       if (s.teamAName) {
         const keyA = s.teamAName.toLowerCase();
-        const normA = normalize(s.teamAName);
+        const normA = normalizeKey(s.teamAName);
         const colorA = s.teamAColor || s.teamAWarna || s.colorA || s.warnaA;
         if (colorA) {
           cMap.set(keyA, colorA);
@@ -145,7 +143,7 @@ export function PowerRankingView({
 
       if (s.teamBName) {
         const keyB = s.teamBName.toLowerCase();
-        const normB = normalize(s.teamBName);
+        const normB = normalizeKey(s.teamBName);
         const colorB = s.teamBColor || s.teamBWarna || s.colorB || s.warnaB;
         if (colorB) {
           cMap.set(keyB, colorB);
@@ -183,7 +181,7 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
-  // 4. Ambil standing & kualifikasi tim via getTeamProfileStats
+  // 4. Hitung Standing Tim Resmi & Kualifikasi Playoff Akurat
   const selectedTeamStanding = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
       return undefined;
@@ -195,16 +193,82 @@ export function PowerRankingView({
     });
 
     const standings = calculateStandings(filteredSchedules as any, teams as any);
-    const normTarget = normalize(selectedTeam);
+    const normTarget = normalizeKey(selectedTeam);
 
-    const targetTeamObj =
-      teams.find((t: any) => {
-        const nName = normalize(t.name);
-        const nSlug = normalize(t.slug);
-        return nName === normTarget || nSlug === normTarget;
-      }) || { name: selectedTeam, slug: selectedTeam };
+    // Pisahkan per grup
+    const groupMap = new Map<string, any[]>();
+    standings.forEach((st: any) => {
+      const g = st.groupName || "Regular Division";
+      if (!groupMap.has(g)) groupMap.set(g, []);
+      groupMap.get(g)!.push(st);
+    });
 
-    return getTeamProfileStats(targetTeamObj, standings, filteredSchedules as any);
+    const wildcardCandidates: any[] = [];
+
+    // Tentukan rank grup: Top 2 lolos Quarter Finals, rank 3+ jadi kandidat Wildcard[span_0](start_span)[span_0](end_span)[span_1](start_span)[span_1](end_span)
+    groupMap.forEach((teamList) => {
+      teamList.forEach((t, idx) => {
+        t.groupRank = idx + 1;
+        if (t.groupRank > 2) {
+          wildcardCandidates.push(t);
+        }
+      });
+    });
+
+    // Urutkan kandidat Wildcard (hanya tim dari Rank 3 ke bawah)[span_2](start_span)[span_2](end_span)[span_3](start_span)[span_3](end_span)
+    wildcardCandidates.sort((a, b) => {
+      if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
+      const diffA = Number(String(a.roundDifference ?? a.pointsDifference ?? 0).replace(/^\+/, ""));
+      const diffB = Number(String(b.roundDifference ?? b.pointsDifference ?? 0).replace(/^\+/, ""));
+      if (diffB !== diffA) return diffB - diffA;
+      const scoredA = a.setWins ?? a.pointsScored ?? 0;
+      const scoredB = b.setWins ?? b.pointsScored ?? 0;
+      return scoredB - scoredA;
+    });
+
+    wildcardCandidates.forEach((t, idx) => {
+      t.wildcardRank = idx + 1;
+    });
+
+    // Temukan tim yang sedang dipilih
+    const targetTeam = standings.find((s: any) => {
+      const nName = normalizeKey(s.teamName);
+      const nSlug = s.teamSlug ? normalizeKey(s.teamSlug) : "";
+      return nName === normTarget || nSlug === normTarget;
+    });
+
+    if (!targetTeam) return undefined;
+
+    let rankLabel = `#${targetTeam.groupRank} Group`;
+    let stageLabel = "Tereliminasi";
+    let isQualified = false;
+
+    if (targetTeam.groupRank <= 2) {
+      rankLabel = `#${targetTeam.groupRank} Group`;
+      stageLabel = "QUARTER FINALS";
+      isQualified = true;
+    } else {
+      rankLabel = `#${targetTeam.wildcardRank} Wildcard`;
+      if (targetTeam.wildcardRank <= 8) {
+        stageLabel = "PLAY-INS";
+        isQualified = true;
+      } else {
+        stageLabel = "TERELIMINASI";
+        isQualified = false;
+      }
+    }
+
+    return {
+      ...targetTeam,
+      rawDiff: Number(
+        String(targetTeam.roundDifference ?? targetTeam.pointsDifference ?? 0).replace(/^\+/, "")
+      ),
+      qualification: {
+        rankLabel,
+        stageLabel,
+        isQualified,
+      },
+    };
   }, [selectedTeam, schedules, teams, targetWeek]);
 
   const isTeamView = filterScope === "TEAM";
@@ -280,4 +344,5 @@ export function PowerRankingView({
       />
     </div>
   );
-                 }
+                                 }
+        
