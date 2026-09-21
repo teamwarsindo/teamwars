@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { parsePlayers, PlayerItem } from '@/lib/discord/utils';
-import { syncCustomDeckAndSkillToMaster } from '@/lib/discord/commands/submit/master-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,17 +65,13 @@ export async function GET(req: NextRequest) {
     // 3. Decks & Skills
     const masterDecks: string[] = Array.isArray(rawDecks)
       ? rawDecks
-      : typeof rawDecks === 'string'
-      ? JSON.parse(rawDecks)
-      : [];
+      : typeof rawDecks === 'string' ? JSON.parse(rawDecks) : [];
 
     let skillsObj: Record<string, string> = {};
     if (rawSkills && typeof rawSkills === 'object' && !Array.isArray(rawSkills)) {
       skillsObj = rawSkills;
     } else if (typeof rawSkills === 'string') {
-      try {
-        skillsObj = JSON.parse(rawSkills);
-      } catch {}
+      try { skillsObj = JSON.parse(rawSkills); } catch {}
     }
 
     const masterSkills = Object.entries(skillsObj).map(([name, code]) => ({
@@ -87,9 +82,7 @@ export async function GET(req: NextRequest) {
 
     const masterArchetypes: string[] = Array.isArray(rawMasterArch)
       ? rawMasterArch
-      : typeof rawMasterArch === 'string'
-      ? JSON.parse(rawMasterArch)
-      : [];
+      : typeof rawMasterArch === 'string' ? JSON.parse(rawMasterArch) : [];
 
     return NextResponse.json({
       success: true,
@@ -103,37 +96,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
-
-// POST: Memakai fungsi resmi master-sync agar aturan akronim & anti-bentrok tetap satu pintu
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const type = body?.type === 'skill' ? 'skill' : 'deck';
-    const inputName = (body?.name || '').trim();
-
-    if (!inputName) {
-      return NextResponse.json({ success: false, error: 'Nama tidak boleh kosong' }, { status: 400 });
-    }
-
-    const syncResult = await syncCustomDeckAndSkillToMaster(
-      type === 'deck' ? inputName : null,
-      type === 'skill' ? inputName : null
-    );
-
-    const savedValue = type === 'deck' ? syncResult.cleanDeck : syncResult.cleanSkill;
-
-    return NextResponse.json({
-      success: true,
-      type,
-      savedValue,
-      generatedCode: syncResult.generatedCode,
-      message: `${type === 'deck' ? 'Deck' : 'Skill'} "${savedValue}" ${
-        syncResult.generatedCode ? `[${syncResult.generatedCode}] ` : ''
-      }berhasil disimpan!`,
-    });
-  } catch (error: any) {
-    console.error('Error POST /api/admin/match-report/meta:', error);
-    return NextResponse.json({ success: false, error: error.message || 'Gagal menyimpan data' }, { status: 500 });
-  }
-}
-  
