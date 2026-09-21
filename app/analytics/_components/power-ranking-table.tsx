@@ -167,7 +167,7 @@ export function PowerRankingTable({
             {isTeamView && grandTotal && (
               <tfoot className="sticky bottom-0 bg-muted/90 backdrop-blur-md border-t-2 border-border shadow-xs text-[11px]">
                 <tr>
-                  <td colSpan={2} className="py-2.5 pl-3.5 sm:pl-4 pr-2 text-foreground font-bold">TOTAL ROSTER</td>
+                  <td colSpan={2} className="py-2.5 pl-3.5 sm:pl-4 pr-2 text-foreground font-bold">TOTAL POIN</td>
                   <td className="py-2.5 px-0.5 text-center font-bold text-foreground">{grandTotal.played}</td>
                   <td className="py-2.5 px-0.5 text-center font-bold text-emerald-500">{grandTotal.won}</td>
                   <td className="py-2.5 px-0.5 text-center font-bold text-rose-500">{grandTotal.lost}</td>
