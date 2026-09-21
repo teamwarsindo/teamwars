@@ -2,10 +2,13 @@
 
 import Image from "next/image";
 import { PowerRankingPlayer, PowerRankingGrandTotal } from "../_library/power-ranking";
+import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 
 export interface RankedPlayerWithDiff extends PowerRankingPlayer {
   rankDiff: number;
   isNew: boolean;
+  teamsJoinedCount?: number;
+  isAdded?: boolean;
 }
 
 interface PowerRankingTableProps {
@@ -13,6 +16,7 @@ interface PowerRankingTableProps {
   isTeamView: boolean;
   grandTotal?: PowerRankingGrandTotal;
   teamLogoMap: Map<string, string>;
+  standing?: ExtendedStandingItem;
 }
 
 export function PowerRankingTable({
@@ -20,6 +24,7 @@ export function PowerRankingTable({
   isTeamView,
   grandTotal,
   teamLogoMap,
+  standing,
 }: PowerRankingTableProps) {
   const renderRankChange = (diff: number, played: number) => {
     if (played === 0) {
@@ -41,6 +46,11 @@ export function PowerRankingTable({
   };
 
   const formatWpm = (val: number) => Number(val || 0).toFixed(1);
+
+  // Jika di Team View, total play mengacu pada jumlah match yang dimainkan tim (bukan akumulasi play individu)
+  const teamTotalMatches = standing
+    ? (standing.matchWins ?? 0) + (standing.matchLosses ?? 0)
+    : grandTotal?.played ?? 0;
 
   return (
     <div className="space-y-2">
@@ -75,7 +85,7 @@ export function PowerRankingTable({
 
                   const isTripleDigit = p.rank >= 100;
                   const isOut = Boolean(p.isExPlayer);
-                  const isAdd = !isOut && Boolean(p.isAdded);
+                  const isAdd = !isOut && (Boolean(p.isAdded) || (p.teamsJoinedCount ?? 0) >= 1);
 
                   return (
                     <tr 
@@ -163,16 +173,28 @@ export function PowerRankingTable({
               )}
             </tbody>
 
-            {/* Footer Total Roster */}
+            {/* Footer Grand Total */}
             {isTeamView && grandTotal && (
               <tfoot className="sticky bottom-0 bg-muted/90 backdrop-blur-md border-t-2 border-border shadow-xs text-[11px]">
                 <tr>
-                  <td colSpan={2} className="py-2.5 pl-3.5 sm:pl-4 pr-2 text-foreground font-bold">TOTAL POIN</td>
-                  <td className="py-2.5 px-0.5 text-center font-bold text-foreground">{grandTotal.played}</td>
-                  <td className="py-2.5 px-0.5 text-center font-bold text-emerald-500">{grandTotal.won}</td>
-                  <td className="py-2.5 px-0.5 text-center font-bold text-rose-500">{grandTotal.lost}</td>
-                  <td className="py-2.5 px-0.5 text-center font-bold text-foreground">{formatWpm(grandTotal.wpm)}</td>
-                  <td className="py-2.5 pr-4 sm:pr-5 pl-0.5 text-center">{renderAgg(grandTotal.agg)}</td>
+                  <td colSpan={2} className="py-2.5 pl-3.5 sm:pl-4 pr-2 text-foreground font-bold">
+                    GRAND TOTAL
+                  </td>
+                  <td className="py-2.5 px-0.5 text-center font-bold text-foreground">
+                    {teamTotalMatches}
+                  </td>
+                  <td className="py-2.5 px-0.5 text-center font-bold text-emerald-500">
+                    {grandTotal.won}
+                  </td>
+                  <td className="py-2.5 px-0.5 text-center font-bold text-rose-500">
+                    {grandTotal.lost}
+                  </td>
+                  <td className="py-2.5 px-0.5 text-center font-bold text-foreground">
+                    {formatWpm(grandTotal.wpm)}
+                  </td>
+                  <td className="py-2.5 pr-4 sm:pr-5 pl-0.5 text-center">
+                    {renderAgg(grandTotal.agg)}
+                  </td>
                 </tr>
               </tfoot>
             )}
@@ -195,5 +217,4 @@ export function PowerRankingTable({
       )}
     </div>
   );
-                    }
-                
+                                    }
