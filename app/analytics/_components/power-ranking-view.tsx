@@ -8,6 +8,7 @@ import {
   TeamRosterData,
   PowerRankingPlayer,
 } from "../_library/power-ranking";
+import { FreeDuelistRecord } from "../_library/types"; // Sesuaikan lokasi import jika berbeda
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
 import { ScheduleItem } from "./match-reports-view";
@@ -16,6 +17,7 @@ interface PowerRankingViewProps {
   reports: MatchReportData[];
   teams: TeamRosterData[];
   schedules?: ScheduleItem[];
+  freeDuelists?: FreeDuelistRecord[]; // 🟢 Tambahkan prop freeDuelists
   maxActiveWeek: number;
   selectedGroup: string;
   selectedTeam: string;
@@ -47,6 +49,7 @@ export function PowerRankingView({
   reports = [],
   teams = [],
   schedules = [],
+  freeDuelists = [], // 🟢 Terima prop freeDuelists
   maxActiveWeek = 1,
   selectedGroup,
   selectedTeam,
@@ -81,6 +84,7 @@ export function PowerRankingView({
       reports,
       targetWeek,
       teams,
+      freeDuelists, // 🟢 Oper ke fungsi kalkulasi
       filterScope,
       selectedTeamSlug: matchedTeamSlug,
     });
@@ -89,7 +93,7 @@ export function PowerRankingView({
     const reindexed = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
 
     return { players: reindexed, grandTotal: res.grandTotal };
-  }, [reports, targetWeek, teams, filterScope, matchedTeamSlug]);
+  }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug]);
 
   // 2. Ranking Pekan Sebelumnya (Delta +/-)
   const prevPlayers = useMemo(() => {
@@ -98,13 +102,14 @@ export function PowerRankingView({
       reports,
       targetWeek: targetWeek - 1,
       teams,
+      freeDuelists, // 🟢 Oper ke fungsi kalkulasi (agar konsisten)
       filterScope,
       selectedTeamSlug: matchedTeamSlug,
     });
 
     const sorted = sortPowerRankings(res.players);
     return sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
-  }, [reports, targetWeek, teams, filterScope, matchedTeamSlug]);
+  }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug]);
 
   // Map logo tim & Map warna aksen tim (Diambil langsung dari schedules)
   const { teamLogoMap, teamColorMap } = useMemo(() => {
@@ -239,5 +244,4 @@ export function PowerRankingView({
       />
     </div>
   );
-      }
-                                                
+          }
