@@ -5,7 +5,7 @@ import {
   PowerRankingGrandTotal,
   LineupPlayer,
 } from "./types";
-import { normalizeKey, calculateBestDeck } from "./utils";
+import { normalizeKey, calculateBestDeck, getJoinedWeekFromDate } from "./utils";
 
 interface PlayerStatAccumulator {
   name: string;
@@ -190,7 +190,17 @@ export function calculatePowerRanking({
 
       const count = typeof item === "object" ? Number(item.teamsJoinedCount || 0) : 0;
       const explicitTransfer = typeof item === "object" ? Boolean(item.isTransfer || item.isAdded) : false;
+      const transferDate = typeof item === "object" ? item.transferDate || item.joinedAt : undefined;
+
       const isTransfer = explicitTransfer || count >= 1;
+
+      // Filter: jika pemain transfer dan tanggal transfernya berada di pekan setelah targetWeek, lewati
+      if (isTransfer && transferDate) {
+        const joinedWeek = getJoinedWeekFromDate(transferDate);
+        if (joinedWeek > targetWeek) {
+          continue;
+        }
+      }
 
       activeMemberMap.set(normalizeKey(ign), { ign, isTransfer });
     }
@@ -275,4 +285,4 @@ export function calculatePowerRanking({
   playerList = playerList.map((p, idx) => ({ ...p, rank: idx + 1 }));
 
   return { players: playerList, grandTotal };
-            }
+                                              }
