@@ -205,7 +205,7 @@ export function PowerRankingView({
 
     const wildcardCandidates: any[] = [];
 
-    // Tentukan rank grup: Top 2 lolos Quarter Finals, rank 3+ jadi kandidat Wildcard[span_0](start_span)[span_0](end_span)[span_1](start_span)[span_1](end_span)
+    // Tentukan rank grup: Top 2 lolos Quarter Finals, rank 3+ jadi kandidat Wildcard
     groupMap.forEach((teamList) => {
       teamList.forEach((t, idx) => {
         t.groupRank = idx + 1;
@@ -215,7 +215,7 @@ export function PowerRankingView({
       });
     });
 
-    // Urutkan kandidat Wildcard (hanya tim dari Rank 3 ke bawah)[span_2](start_span)[span_2](end_span)[span_3](start_span)[span_3](end_span)
+    // Urutkan kandidat Wildcard (hanya tim dari Rank 3 ke bawah)
     wildcardCandidates.sort((a, b) => {
       if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
       const diffA = Number(String(a.roundDifference ?? a.pointsDifference ?? 0).replace(/^\+/, ""));
@@ -230,8 +230,8 @@ export function PowerRankingView({
       t.wildcardRank = idx + 1;
     });
 
-    // Temukan tim yang sedang dipilih
-    const targetTeam = standings.find((s: any) => {
+    // Temukan tim yang sedang dipilih (diketik dengan assertion any agar lolos type-checker)
+    const targetTeam: any = standings.find((s: any) => {
       const nName = normalizeKey(s.teamName);
       const nSlug = s.teamSlug ? normalizeKey(s.teamSlug) : "";
       return nName === normTarget || nSlug === normTarget;
@@ -239,17 +239,20 @@ export function PowerRankingView({
 
     if (!targetTeam) return undefined;
 
-    let rankLabel = `#${targetTeam.groupRank} Group`;
-    let stageLabel = "Tereliminasi";
+    const groupRank = Number(targetTeam.groupRank ?? targetTeam.rank ?? 1);
+    const wildcardRank = Number(targetTeam.wildcardRank ?? 1);
+
+    let rankLabel = `#${groupRank} Group`;
+    let stageLabel = "TERELIMINASI";
     let isQualified = false;
 
-    if (targetTeam.groupRank <= 2) {
-      rankLabel = `#${targetTeam.groupRank} Group`;
+    if (groupRank <= 2) {
+      rankLabel = `#${groupRank} Group`;
       stageLabel = "QUARTER FINALS";
       isQualified = true;
     } else {
-      rankLabel = `#${targetTeam.wildcardRank} Wildcard`;
-      if (targetTeam.wildcardRank <= 8) {
+      rankLabel = `#${wildcardRank} Wildcard`;
+      if (wildcardRank <= 8) {
         stageLabel = "PLAY-INS";
         isQualified = true;
       } else {
@@ -344,5 +347,5 @@ export function PowerRankingView({
       />
     </div>
   );
-                                 }
-        
+            }
+                                       
