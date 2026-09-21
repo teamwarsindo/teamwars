@@ -180,7 +180,7 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
-  // 4. Hitung Standing Tim untuk Team Record Card
+  // 4. Ambil standing tim (Cast ke any agar aman dari TypeScript check)
   const selectedTeamStanding = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
       return undefined;
@@ -188,11 +188,11 @@ export function PowerRankingView({
     const standings = calculateStandings(schedules as any, teams as any);
     const normTarget = normalize(selectedTeam);
 
-    return standings.find(
-      (s) =>
-        normalize(s.teamName) === normTarget ||
-        (s.teamSlug && normalize(s.teamSlug) === normTarget)
-    );
+    return standings.find((s: any) => {
+      const nameMatch = normalize(s.teamName) === normTarget;
+      const slugMatch = s.teamSlug && normalize(s.teamSlug) === normTarget;
+      return nameMatch || slugMatch;
+    });
   }, [selectedTeam, schedules, teams]);
 
   const isTeamView = filterScope === "TEAM";
@@ -216,7 +216,7 @@ export function PowerRankingView({
 
   return (
     <div className="w-full space-y-3">
-      {/* MVP #1 CARD (Tampil saat mode Semua Tim / Global) */}
+      {/* MVP #1 CARD */}
       {showMvpCard && (
         <PowerRankingPodium
           top1={top1}
@@ -225,7 +225,7 @@ export function PowerRankingView({
         />
       )}
 
-      {/* TEAM RECORD CARD (Tampil saat Tim tertentu dipilih & tidak sedang search) */}
+      {/* TEAM RECORD CARD */}
       {isTeamView && !isSearching && (
         <PowerRankingTeamCard
           teamName={selectedTeam}
@@ -266,4 +266,4 @@ export function PowerRankingView({
       />
     </div>
   );
-    }
+}
