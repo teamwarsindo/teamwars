@@ -2,11 +2,14 @@
 
 import Image from "next/image";
 import { Shield } from "lucide-react";
-import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
+import {
+  ExtendedStandingItem,
+  TeamComparisonStats,
+} from "@/app/tournament/_library/calculator";
 
 interface PowerRankingTeamCardProps {
   teamName: string;
-  standing?: ExtendedStandingItem | any;
+  standing?: ExtendedStandingItem | TeamComparisonStats | any;
   teamLogoMap: Map<string, string>;
   teamColorMap: Map<string, string>;
   totalRosterCount?: number;
@@ -42,7 +45,17 @@ export function PowerRankingTeamCard({
   const matchWins = standing?.matchWins ?? 0;
   const matchLosses = standing?.matchLosses ?? 0;
   const totalMatches = matchWins + matchLosses;
-  const ptsDiff = standing?.roundDifference ?? standing?.rawDiff ?? standing?.pointsDifference ?? 0;
+
+  // Bersihkan tanda '+' atau '-' bawaan string agar tidak terjadi duplikasi "++"
+  const rawDiffNum = Number(
+    String(
+      standing?.roundDifference ??
+      standing?.rawDiff ??
+      standing?.pointsDifference ??
+      0
+    ).replace(/^\+/, "")
+  );
+
   const ptsScored = standing?.setWins ?? standing?.pointsScored ?? 0;
   const winRate =
     standing?.winRate !== undefined
@@ -53,7 +66,7 @@ export function PowerRankingTeamCard({
 
   const formList = (standing?.streak || standing?.form || []).slice(0, 7);
 
-  // Label Peringkat (#1 Wildcard / #1 Group)
+  // Label Peringkat (#1 Wildcard / #2 Group)
   const rankLabel =
     standing?.qualification?.rankLabel ||
     (standing?.rank ? `#${standing.rank} Group` : "Peringkat Klasemen");
@@ -63,9 +76,13 @@ export function PowerRankingTeamCard({
   const isQualified = Boolean(standing?.qualification?.isQualified);
 
   const renderDiff = (val: number) => {
-    if (val > 0) return <span className="text-emerald-500 font-bold">+{val}</span>;
-    if (val < 0) return <span className="text-rose-500 font-bold">{val}</span>;
-    return <span className="text-muted-foreground font-semibold">0</span>;
+    if (isNaN(val) || val === 0) {
+      return <span className="text-muted-foreground font-semibold">0</span>;
+    }
+    if (val > 0) {
+      return <span className="text-emerald-500 font-bold">+{val}</span>;
+    }
+    return <span className="text-rose-500 font-bold">{val}</span>;
   };
 
   return (
@@ -120,8 +137,10 @@ export function PowerRankingTeamCard({
 
               {currentWeek >= 7 && stageLabel && (
                 <span
-                  className={`rounded border px-1.5 py-0.2 text-[8px] font-extrabold uppercase tracking-wider leading-none ${
-                    isQualified
+                  className={`rounded border px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider leading-none ${
+                    stageLabel.includes("QUARTER")
+                      ? "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                      : isQualified
                       ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                       : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400"
                   }`}
@@ -185,7 +204,7 @@ export function PowerRankingTeamCard({
         {/* 3. PTS DIFF */}
         <div className="flex flex-col items-center">
           <span className="text-[8px] font-bold uppercase text-muted-foreground">PTS DIFF</span>
-          <span className="text-xs mt-0.5">{renderDiff(ptsDiff)}</span>
+          <span className="text-xs mt-0.5">{renderDiff(rawDiffNum)}</span>
         </div>
 
         {/* 4. PTS SCORED */}
@@ -210,4 +229,5 @@ export function PowerRankingTeamCard({
       </div>
     </div>
   );
-              }
+    }
+          
