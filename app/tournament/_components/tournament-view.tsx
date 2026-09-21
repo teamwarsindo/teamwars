@@ -142,7 +142,7 @@ export function TournamentView({
       {/* 3 TAB NAVIGASI UTAMA (UKURAN PRESISI & STANDAR LABEL STANDING) */}
       <div className="grid grid-cols-3 gap-2 w-full max-w-xl mx-auto">
         {[
-          { key: "SCHEDULE", label: "Group Stage" },
+          { key: "SCHEDULE", label: "Schedule" },
           { key: "STANDINGS", label: "Standing" },
           { key: "PLAYOFF", label: "Playoff" },
         ].map((tab) => (
