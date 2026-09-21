@@ -132,7 +132,7 @@ export function PowerRankingTeamCard({
         </div>
       </div>
 
-      {/* ── BARIS BAWAH: 5 Kolom Stat Simetris (Win, Lose, Pts Diff, Pts Scored, Win Rate) ── */}
+      {/* ── BARIS BAWAH: 5 Kolom Stat Simetris ── */}
       <div className="grid grid-cols-5 gap-1 pt-2 border-t border-border/40 text-center">
         {/* 1. WIN */}
         <div className="flex flex-col items-center">
@@ -156,22 +156,26 @@ export function PowerRankingTeamCard({
           <span className="text-xs mt-0.5">{renderDiff(ptsDiff)}</span>
         </div>
 
-        {/* 4. PTS SCORED */}
+        {/* 4. PTS SCORED (Judul Netral/Item) */}
         <div className="flex flex-col items-center">
-          <span className="text-[8px] font-bold uppercase text-blue-600 dark:text-blue-400">PTS SCORED</span>
+          <span className="text-[8px] font-bold uppercase text-muted-foreground">PTS SCORED</span>
           <span className="text-xs font-bold text-foreground mt-0.5">
             {ptsScored}
           </span>
         </div>
 
-        {/* 5. WIN RATE */}
+        {/* 5. WIN RATE (Judul Netral/Item, Angka >= 50% Hijau & < 50% Merah) */}
         <div className="flex flex-col items-center">
-          <span className="text-[8px] font-bold uppercase text-amber-600 dark:text-amber-400">WIN RATE</span>
-          <span className="text-xs font-bold text-amber-500 mt-0.5">
+          <span className="text-[8px] font-bold uppercase text-muted-foreground">WIN RATE</span>
+          <span
+            className={`text-xs font-bold mt-0.5 ${
+              winRate >= 50 ? "text-emerald-500" : "text-rose-500"
+            }`}
+          >
             {winRate}%
           </span>
         </div>
       </div>
     </div>
   );
-            }
+}
