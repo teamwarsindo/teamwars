@@ -14,14 +14,50 @@ export const metadata = {
 };
 
 export default async function AnalyticsLandingPage() {
-  // Ambil Schedules, Teams, dan Match Reports Hash secara paralel (1 round-trip)
-  const [rawSchedules, rawTeams, rawReportsHash] = await Promise.all([
+  // 1. Ambil Schedules, Match Reports Hash, dan seluruh keys "teams:*" (Opsi 1)
+  const [rawSchedules, rawReportsHash, teamKeys] = await Promise.all([
     kv.get<any[]>("twi:schedules").then((res) => res || []),
-    kv.get<any[]>("twi:teams").then((res) => res || []),
     kv.hgetall<Record<string, any>>("twi:match_reports").then((res) => res || {}),
+    kv.keys("teams:*").then((res) => res || []),
   ]);
 
-  // Cari pekan aktif tertinggi: hitung jika sudah selesai ATAU sudah memiliki laporan/games berjalan
+  // 2. Tarik detail seluruh tim dari masing-masing hash key teams:*
+  const teamsDataList = await Promise.all(
+    teamKeys.map(async (key) => {
+      const slug = key.replace(/^teams:/, "");
+      const t = await kv.hgetall<any>(key);
+      if (!t) return null;
+
+      // Handle roster jika formatnya string JSON atau array
+      let rosterList: any[] = [];
+      const rawRoster = t.players || t.members || [];
+      if (typeof rawRoster === "string") {
+        try {
+          rosterList = JSON.parse(rawRoster);
+        } catch {
+          rosterList = [];
+        }
+      } else if (Array.isArray(rawRoster)) {
+        rosterList = rawRoster;
+      }
+
+      return {
+        slug: t.slug || slug,
+        name: t.name || t.namaTim || slug,
+        logo: t.logo || t.logoTim || "",
+        color: t.color || t.warna || "",
+        groupName: t.groupName || t.group || t.grup || "",
+        players: rosterList,
+        members: rosterList,
+      } as TeamRosterData;
+    })
+  );
+
+  const teams: TeamRosterData[] = teamsDataList.filter(
+    (item): item is TeamRosterData => item !== null
+  );
+
+  // 3. Cari pekan aktif tertinggi: hitung jika sudah selesai ATAU sudah memiliki laporan/games berjalan
   const maxActiveWeek: number = rawSchedules.reduce((max: number, m: any) => {
     const w = Number(m.weekNumber || 1);
     const rep = rawReportsHash[m.id];
@@ -56,7 +92,7 @@ export default async function AnalyticsLandingPage() {
       };
     });
 
-  // AMBIL SEMUA MATCH (Selesai maupun yang sedang berjalan yang sudah memiliki log report/games)
+  // 4. AMBIL SEMUA MATCH (Selesai maupun yang sedang berjalan yang sudah memiliki log report/games)
   const activeMatches = rawSchedules.filter((m: any) => {
     const w = Number(m.weekNumber || 1);
     if (w > maxActiveWeek) return false;
@@ -65,16 +101,15 @@ export default async function AnalyticsLandingPage() {
     const hasReportData = Boolean(
       rep && (
         (Array.isArray(rep.games) && rep.games.length > 0) ||
-        rep.teamA?.score > 0 ||
-        rep.teamB?.score > 0
+        (rep.teamA?.score ?? 0) > 0 ||
+        (rep.teamB?.score ?? 0) > 0
       )
     );
 
-    // Ikut sertakan jika match sudah finished ATAU sedang berlangsung dan sudah ada duel/game
     return Boolean(m.isFinished) || hasReportData;
   });
 
-  // Parse reports dari match yang aktif (finished + ongoing)
+  // 5. Parse reports dari match yang aktif (finished + ongoing)
   const reports: RawMatchReport[] = activeMatches.map((m: any) => {
     const rep = rawReportsHash[m.id] || {};
     const scoreA = rep.teamA?.score ?? m.scoreA ?? m.teamAScore ?? 0;
@@ -105,15 +140,6 @@ export default async function AnalyticsLandingPage() {
     };
   });
 
-  const teams: TeamRosterData[] = rawTeams.map((t: any) => ({
-    slug: t.slug || t.name?.toLowerCase().replace(/\s+/g, "-"),
-    name: t.name || "",
-    logo: t.logo || "",
-    color: t.color || "",
-    groupName: t.groupName || "",
-    members: Array.isArray(t.members) ? t.members : [],
-  }));
-
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       <div className="ambient-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
@@ -143,4 +169,4 @@ export default async function AnalyticsLandingPage() {
       </div>
     </main>
   );
-      }
+}
