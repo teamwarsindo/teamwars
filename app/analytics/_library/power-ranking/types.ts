@@ -53,14 +53,23 @@ export interface RawMatchReport {
 
 export type MatchReportData = RawMatchReport;
 
+export interface TeamMemberItem {
+  ign?: string;
+  name?: string;
+  role?: string;
+  teamsJoinedCount?: number;
+  isAdded?: boolean;
+  isTransfer?: boolean;
+}
+
 export interface TeamRosterData {
   slug: string;
   name: string;
   logo?: string;
   color?: string;
   groupName?: string;
-  members?: any[];
-  players?: any[];
+  members?: TeamMemberItem[] | string;
+  players?: TeamMemberItem[] | string;
 }
 
 export interface PowerRankingPlayer {
