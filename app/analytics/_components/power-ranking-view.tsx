@@ -181,7 +181,7 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
-  // 4. Hitung Standing Tim Resmi & Kualifikasi Playoff Akurat
+  // 4. Hitung Standing Tim Resmi & Kualifikasi Playoff (Top 2 Group -> Sisanya Pool Wildcard Global)
   const selectedTeamStanding = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
       return undefined;
@@ -195,7 +195,7 @@ export function PowerRankingView({
     const standings = calculateStandings(filteredSchedules as any, teams as any);
     const normTarget = normalizeKey(selectedTeam);
 
-    // Pisahkan per grup
+    // Kelompokkan per grup
     const groupMap = new Map<string, any[]>();
     standings.forEach((st: any) => {
       const g = st.groupName || "Regular Division";
@@ -203,19 +203,36 @@ export function PowerRankingView({
       groupMap.get(g)!.push(st);
     });
 
+    const qualifiedTopGroup = new Set<string>();
     const wildcardCandidates: any[] = [];
+    const teamGroupRanks = new Map<string, number>();
 
-    // Tentukan rank grup: Top 2 lolos Quarter Finals, rank 3+ jadi kandidat Wildcard
+    // Saring Top 2 per grup untuk Quarter Finals, rank 3+ masuk kandidat Wildcard
     groupMap.forEach((teamList) => {
+      teamList.sort((a, b) => {
+        if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
+        const diffA = Number(String(a.roundDifference ?? a.pointsDifference ?? 0).replace(/^\+/, ""));
+        const diffB = Number(String(b.roundDifference ?? b.pointsDifference ?? 0).replace(/^\+/, ""));
+        if (diffB !== diffA) return diffB - diffA;
+        const scoredA = a.setWins ?? a.pointsScored ?? 0;
+        const scoredB = b.setWins ?? b.pointsScored ?? 0;
+        return scoredB - scoredA;
+      });
+
       teamList.forEach((t, idx) => {
-        t.groupRank = idx + 1;
-        if (t.groupRank > 2) {
+        const gRank = idx + 1;
+        const tKey = normalizeKey(t.teamName);
+        teamGroupRanks.set(tKey, gRank);
+
+        if (gRank <= 2) {
+          qualifiedTopGroup.add(tKey);
+        } else {
           wildcardCandidates.push(t);
         }
       });
     });
 
-    // Urutkan kandidat Wildcard (hanya tim dari Rank 3 ke bawah)
+    // Urutkan sisa tim (exclude Top 2) di pool Wildcard secara global
     wildcardCandidates.sort((a, b) => {
       if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
       const diffA = Number(String(a.roundDifference ?? a.pointsDifference ?? 0).replace(/^\+/, ""));
@@ -226,11 +243,12 @@ export function PowerRankingView({
       return scoredB - scoredA;
     });
 
+    const wildcardRankMap = new Map<string, number>();
     wildcardCandidates.forEach((t, idx) => {
-      t.wildcardRank = idx + 1;
+      wildcardRankMap.set(normalizeKey(t.teamName), idx + 1);
     });
 
-    // Temukan tim yang sedang dipilih (diketik dengan assertion any agar lolos type-checker)
+    // Cari tim yang sedang dipilih
     const targetTeam: any = standings.find((s: any) => {
       const nName = normalizeKey(s.teamName);
       const nSlug = s.teamSlug ? normalizeKey(s.teamSlug) : "";
@@ -239,19 +257,22 @@ export function PowerRankingView({
 
     if (!targetTeam) return undefined;
 
-    const groupRank = Number(targetTeam.groupRank ?? targetTeam.rank ?? 1);
-    const wildcardRank = Number(targetTeam.wildcardRank ?? 1);
+    const targetKey = normalizeKey(targetTeam.teamName);
+    const groupRank = teamGroupRanks.get(targetKey) || 1;
+    const isTop2Group = qualifiedTopGroup.has(targetKey);
 
     let rankLabel = `#${groupRank} Group`;
     let stageLabel = "TERELIMINASI";
     let isQualified = false;
 
-    if (groupRank <= 2) {
+    if (isTop2Group) {
       rankLabel = `#${groupRank} Group`;
       stageLabel = "QUARTER FINALS";
       isQualified = true;
     } else {
+      const wildcardRank = wildcardRankMap.get(targetKey) || 1;
       rankLabel = `#${wildcardRank} Wildcard`;
+
       if (wildcardRank <= 8) {
         stageLabel = "PLAY-INS";
         isQualified = true;
@@ -343,9 +364,8 @@ export function PowerRankingView({
         isTeamView={isTeamView}
         grandTotal={grandTotal}
         teamLogoMap={teamLogoMap}
-        standing={selectedTeamStanding}
       />
     </div>
   );
-            }
-                                       
+        }
+        
