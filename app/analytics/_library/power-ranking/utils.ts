@@ -33,18 +33,22 @@ export function getJoinedWeekFromDate(
 ): number {
   if (!transferDateStr) return 1;
 
-  const formattedDate = transferDateStr.includes("T")
-    ? transferDateStr
-    : `${transferDateStr}T00:00:00+07:00`;
+  // Ambil murni format YYYY-MM-DD dari string input dan baseline
+  const tStr = transferDateStr.slice(0, 10);
+  const bStr = baselineDateStr.slice(0, 10);
 
-  const startMs = new Date(baselineDateStr).getTime();
-  const transferMs = new Date(formattedDate).getTime();
+  const [tY, tM, tD] = tStr.split("-").map(Number);
+  const [bY, bM, bD] = bStr.split("-").map(Number);
 
-  if (transferMs <= startMs) return 1;
+  // Normalisasi ke tanggal kalender murni (00:00:00 UTC)
+  const targetDayMs = Date.UTC(tY, tM - 1, tD);
+  const baselineDayMs = Date.UTC(bY, bM - 1, bD);
 
-  const diffMs = transferMs - startMs;
-  const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+  if (targetDayMs <= baselineDayMs) return 1;
 
-  return Math.floor(diffMs / oneWeekMs) + 1;
+  const diffDays = Math.floor((targetDayMs - baselineDayMs) / (1000 * 60 * 60 * 24));
+
+  // 0 - 6 hari = Week 1
+  // 7 - 13 hari (+7 hari) = Week 2, dst.
+  return Math.floor(diffDays / 7) + 1;
 }
-  
