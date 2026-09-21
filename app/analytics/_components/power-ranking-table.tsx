@@ -2,7 +2,10 @@
 
 import Image from "next/image";
 import { PowerRankingPlayer, PowerRankingGrandTotal } from "../_library/power-ranking";
-import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
+import {
+  ExtendedStandingItem,
+  TeamComparisonStats,
+} from "@/app/tournament/_library/calculator";
 
 export interface RankedPlayerWithDiff extends PowerRankingPlayer {
   rankDiff: number;
@@ -16,7 +19,7 @@ interface PowerRankingTableProps {
   isTeamView: boolean;
   grandTotal?: PowerRankingGrandTotal;
   teamLogoMap: Map<string, string>;
-  standing?: ExtendedStandingItem;
+  standing?: ExtendedStandingItem | TeamComparisonStats | any;
 }
 
 export function PowerRankingTable({
@@ -217,4 +220,4 @@ export function PowerRankingTable({
       )}
     </div>
   );
-                                    }
+                        }
