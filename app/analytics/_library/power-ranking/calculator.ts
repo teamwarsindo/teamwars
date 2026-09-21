@@ -15,9 +15,9 @@ export function normalizeKey(str?: string | null): string {
 }
 
 /**
- * Membangun Power Ranking individu maupun per tim
+ * Kalkulasi Power Ranking Pemain & Roster Tim
  */
-export function buildPowerRankingData(
+export function calculatePowerRanking(
   reports: RawMatchReport[],
   teams: TeamRosterData[],
   selectedTeamSlug?: string,
@@ -130,7 +130,7 @@ export function buildPowerRankingData(
       );
 
       if (!existing) {
-        // Pemain yang belum pernah bertanding sama sekali (0 play)
+        // Pemain yang belum pernah main sama sekali (0 play)
         playerStatsMap.set(key, {
           name: ign,
           teamSlug: t.slug || normalizeKey(t.name),
@@ -150,7 +150,7 @@ export function buildPowerRankingData(
     });
   });
 
-  // 4. Deteksi Transfer Out (Pemain yang punya match report di tim ini tapi sudah tidak ada di roster aktif tim)
+  // 4. Deteksi Transfer Out (Pemain yang punya record game di tim ini tapi sudah keluar dari roster)
   playerStatsMap.forEach((p, key) => {
     const teamObj = teams.find((t) => (t.slug || normalizeKey(t.name)) === p.teamSlug);
     if (teamObj) {
@@ -167,7 +167,7 @@ export function buildPowerRankingData(
     }
   });
 
-  // 5. Filter jika tampilan spesifik per tim dipilih
+  // 5. Filter jika memilih tim tertentu
   let playerList = Array.from(playerStatsMap.values());
   if (selectedTeamSlug && selectedTeamSlug !== "all") {
     playerList = playerList.filter(
@@ -175,16 +175,16 @@ export function buildPowerRankingData(
     );
   }
 
-  // 6. ATURAN SORTIR: Pemain belum main (played === 0) WAJIB di paling bawah
+  // 6. ATURAN SORTIR: Pemain belum pernah main (played === 0) WAJIB DI PALING BAWAH
   playerList.sort((a, b) => {
-    // a. Pemain aktif (played > 0) selalu di atas yang belum main (played === 0)
+    // a. Pemain yang sudah main selalu di atas pemain yang belum pernah main
     const aPlayed = a.played > 0 ? 1 : 0;
     const bPlayed = b.played > 0 ? 1 : 0;
     if (bPlayed !== aPlayed) {
       return bPlayed - aPlayed;
     }
 
-    // b. Jika sama-sama sudah main, urutkan berdasarkan Win, WPM, AGG, lalu Play
+    // b. Jika sama-sama sudah main, sortir berdasarkan WIN, WPM, AGG, lalu PLAY
     if (b.won !== a.won) return b.won - a.won;
 
     const wpmA = a.played > 0 ? a.won / a.played : 0;
@@ -194,11 +194,11 @@ export function buildPowerRankingData(
     if (b.agg !== a.agg) return b.agg - a.agg;
     if (b.played !== a.played) return b.played - a.played;
 
-    // c. Jika sama-sama belum pernah main (0 semua), urutkan nama secara alfabetis
+    // c. Jika sama-sama belum pernah main (0 semua), sortir secara alfabetis nama
     return a.name.localeCompare(b.name);
   });
 
-  // 7. Berikan nomor peringkat (Rank) dan WPM
+  // 7. Berikan peringkat (Rank) & format WPM
   const rankedPlayers: PowerRankingPlayer[] = playerList.map((p, idx) => ({
     rank: idx + 1,
     name: p.name,
@@ -215,7 +215,7 @@ export function buildPowerRankingData(
     isAdded: p.isAdded,
   }));
 
-  // 8. Hitung Grand Total jika dalam Team View
+  // 8. Hitung Grand Total Roster jika tampilan per tim
   let grandTotal: PowerRankingGrandTotal | undefined = undefined;
   if (selectedTeamSlug && selectedTeamSlug !== "all") {
     const totPlayed = rankedPlayers.reduce((acc, p) => acc + p.played, 0);
@@ -237,4 +237,8 @@ export function buildPowerRankingData(
     players: rankedPlayers,
     grandTotal,
   };
-    }
+}
+
+// Alias agar kedua nama ekspor valid
+export const buildPowerRankingData = calculatePowerRanking;
+        
