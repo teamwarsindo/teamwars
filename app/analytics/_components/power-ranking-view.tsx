@@ -79,36 +79,7 @@ export function PowerRankingView({
 
   const targetWeek = typeof selectedWeek === "number" ? selectedWeek : maxActiveWeek;
 
-  // 1. Data Standing Tim Resmi & Kualifikasi (Single Source of Truth dari Tournament Calculator)
-  const selectedTeamStanding = useMemo(() => {
-    if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
-      return undefined;
-    }
-
-    const filteredSchedules = schedules.filter((s: any) => {
-      const matchWeek = Number(s.weekNumber || s.week || s.matchWeek || 1);
-      return matchWeek <= targetWeek;
-    });
-
-    const standings = calculateStandings(filteredSchedules as any, teams as any);
-    const stats = getTeamStatsFromStandings(selectedTeam, standings, undefined, filteredSchedules as any);
-
-    if (!stats) return undefined;
-
-    // Normalisasi form / streak agar box MATCH FORM terisi
-    const streakList = stats.streak || stats.form || [];
-
-    return {
-      ...stats,
-      streak: streakList,
-      form: streakList,
-      rawDiff: Number(
-        String(stats.rawDiff ?? stats.roundDifference ?? 0).replace(/^\+/, "")        
-      ),
-    };
-  }, [selectedTeam, schedules, teams, targetWeek]);
-
-  // 2. Ranking Pekan Aktif
+  // 1. Ranking Pekan Aktif
   const { players: currentPlayers, grandTotal } = useMemo(() => {
     const res = calculatePowerRanking({
       reports,
@@ -122,24 +93,10 @@ export function PowerRankingView({
     const sorted = sortPowerRankings(res.players);
     const reindexed = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
 
-    // Di Team View, PLAY Grand Total disesuaikan dengan total Match tim (W + L)
-    let adjustedGrandTotal = res.grandTotal;
-    if (adjustedGrandTotal && filterScope === "TEAM" && selectedTeamStanding) {
-      const teamPlayedMatches =
-        (selectedTeamStanding.matchWins ?? 0) + (selectedTeamStanding.matchLosses ?? 0);
+    return { players: reindexed, grandTotal: res.grandTotal };
+  }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug]);
 
-      const actualPlayed = teamPlayedMatches > 0 ? teamPlayedMatches : adjustedGrandTotal.played;
-      adjustedGrandTotal = {
-        ...adjustedGrandTotal,
-        played: actualPlayed,
-        wpm: actualPlayed > 0 ? Number((adjustedGrandTotal.won / actualPlayed).toFixed(1)) : 0,
-      };
-    }
-
-    return { players: reindexed, grandTotal: adjustedGrandTotal };
-  }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug, selectedTeamStanding]);
-
-  // 3. Ranking Pekan Sebelumnya (Delta +/-)
+  // 2. Ranking Pekan Sebelumnya (Delta +/-)
   const prevPlayers = useMemo(() => {
     if (targetWeek <= 1) return [];
     const res = calculatePowerRanking({
@@ -202,7 +159,7 @@ export function PowerRankingView({
     return { teamLogoMap: lMap, teamColorMap: cMap };
   }, [teams, schedules]);
 
-  // 4. Gabungkan diff rank
+  // 3. Gabungkan diff rank
   const playersWithDiff: RankedPlayerWithDiff[] = useMemo(() => {
     const prevRankMap = new Map<string, number>();
     prevPlayers.forEach((p) => {
@@ -223,6 +180,27 @@ export function PowerRankingView({
       };
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
+
+  // 4. Hitung Standing Tim Resmi & Kualifikasi Playoff Akurat (Persis seperti Team Profile Modal)
+  const selectedTeamStanding = useMemo(() => {
+    if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
+      return undefined;
+    }
+
+    const standings = calculateStandings(schedules as any, teams as any, targetWeek);
+    const stats = getTeamStatsFromStandings(selectedTeam, standings, undefined, schedules as any);
+
+    if (!stats) return undefined;
+
+    const streakList = stats.streak || stats.form || [];
+
+    return {
+      ...stats,
+      streak: streakList,
+      form: streakList,
+      rawDiff: stats.rawDiff ?? (typeof stats.roundDifference === "number" ? stats.roundDifference : 0),
+    };
+  }, [selectedTeam, schedules, teams, targetWeek]);
 
   const isTeamView = filterScope === "TEAM";
   const isSearching = searchQuery.trim().length > 0;
@@ -298,3 +276,4 @@ export function PowerRankingView({
     </div>
   );
       }
+        
