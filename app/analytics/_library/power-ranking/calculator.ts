@@ -106,7 +106,14 @@ export function calculatePowerRanking({
         }
       }
     } else {
-      const processLineup = (lineup: LineupPlayer[] = [], slug: string, normSlug: string, tName: string, logo?: string, group?: string) => {
+      const processLineup = (
+        lineup: LineupPlayer[] = [],
+        slug: string,
+        normSlug: string,
+        tName: string,
+        logo?: string,
+        group?: string
+      ) => {
         for (const p of lineup) {
           if (!p.ign) continue;
           const wins = Number(p.totalWins || 0);
@@ -166,15 +173,28 @@ export function calculatePowerRanking({
       (t) => normalizeKey(t.slug) === targetNorm || normalizeKey(t.name) === targetNorm
     );
 
-    const rawRoster = selectedTeam?.players || selectedTeam?.members || [];
-    const activeMemberMap = new Map<string, { ign: string; isAdded: boolean }>();
+    // Antisipasi format players berupa string JSON atau array objek
+    let rawRoster = selectedTeam?.players || (selectedTeam as any)?.members || [];
+    if (typeof rawRoster === "string") {
+      try {
+        rawRoster = JSON.parse(rawRoster);
+      } catch {
+        rawRoster = [];
+      }
+    }
+
+    const activeMemberMap = new Map<string, { ign: string; isTransfer: boolean }>();
 
     for (const item of rawRoster) {
       const ign = typeof item === "string" ? item : item.ign || item.name || "";
       if (!ign) continue;
+
+      // Cek apakah ada riwayat transfer (teamsJoinedCount >= 1)
       const count = typeof item === "object" ? Number(item.teamsJoinedCount || 0) : 0;
-      const addedFlag = typeof item === "object" ? Boolean(item.isAdded || item.isTransfer) : false;
-      activeMemberMap.set(normalizeKey(ign), { ign, isAdded: addedFlag || count >= 1 });
+      const explicitTransfer = typeof item === "object" ? Boolean(item.isTransfer || item.isAdded) : false;
+      const isTransfer = explicitTransfer || count >= 1;
+
+      activeMemberMap.set(normalizeKey(ign), { ign, isTransfer });
     }
 
     const teamReportPlayers = playerList.filter(
@@ -182,16 +202,26 @@ export function calculatePowerRanking({
     );
     const recordedMemberKeys = new Set<string>();
 
+    // 1. Pemain dari report yang dipetakan ke roster tim aktif
     const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map((p) => {
       const normPName = normalizeKey(p.name);
       const memberInfo = activeMemberMap.get(normPName);
+
+      // Jika roster resmi ada isinya tapi pemain ini tidak ditemukan -> Ex Player (Merah)
       const isEx = activeMemberMap.size > 0 && !memberInfo;
-      const isAdd = !isEx && Boolean(memberInfo?.isAdded);
+      // Jika terdaftar dan teamsJoinedCount >= 1 -> Transfer (Biru)
+      const isAdd = !isEx && Boolean(memberInfo?.isTransfer);
+
       recordedMemberKeys.add(normPName);
 
-      return { ...p, isExPlayer: isEx, isAdded: isAdd };
+      return {
+        ...p,
+        isExPlayer: isEx,
+        isAdded: isAdd,
+      };
     });
 
+    // 2. Pemain yang terdaftar di roster tim aktif tapi belum pernah main di report
     for (const [normM, memberInfo] of Array.from(activeMemberMap.entries())) {
       if (!recordedMemberKeys.has(normM)) {
         processedTeamPlayers.push({
@@ -207,7 +237,7 @@ export function calculatePowerRanking({
           wpm: 0,
           agg: 0,
           isExPlayer: false,
-          isAdded: memberInfo.isAdded,
+          isAdded: memberInfo.isTransfer,
           bestDeck: "-",
         });
       }
@@ -243,4 +273,5 @@ export function calculatePowerRanking({
   playerList = playerList.map((p, idx) => ({ ...p, rank: idx + 1 }));
 
   return { players: playerList, grandTotal };
-      }
+    }
+  
