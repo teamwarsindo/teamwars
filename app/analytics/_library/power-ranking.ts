@@ -53,13 +53,21 @@ export interface RawMatchReport {
 
 export type MatchReportData = RawMatchReport;
 
+export interface TeamMemberItem {
+  ign?: string;
+  name?: string;
+  teamsJoinedCount?: number;
+  isAdded?: boolean;
+  [key: string]: any;
+}
+
 export interface TeamRosterData {
   slug: string;
   name: string;
   logo?: string;
   color?: string;
   groupName?: string;
-  members: string[];
+  members: (string | TeamMemberItem)[];
 }
 
 export interface PowerRankingPlayer {
@@ -75,6 +83,8 @@ export interface PowerRankingPlayer {
   wpm: number;
   agg: number;
   isExPlayer?: boolean;
+  isAdded?: boolean;
+  teamsJoinedCount?: number;
   bestDeck?: string;
 }
 
@@ -346,9 +356,15 @@ export function calculatePowerRanking({
         normalizeKey(t.name) === targetNorm
     );
 
-    const activeMembers = new Set(
-      (selectedTeam?.members || []).map((m) => normalizeKey(m))
-    );
+    // Map roster aktif beserta metadata transfer
+    const activeMemberMap = new Map<string, { ign: string; teamsJoinedCount?: number; isAdded?: boolean }>();
+    for (const m of selectedTeam?.members || []) {
+      const ign = typeof m === "string" ? m : m.ign || m.name || "";
+      if (!ign) continue;
+      const teamsJoinedCount = typeof m === "object" ? m.teamsJoinedCount : undefined;
+      const isAdded = typeof m === "object" ? Boolean(m.isAdded || (m.teamsJoinedCount && m.teamsJoinedCount >= 1)) : false;
+      activeMemberMap.set(normalizeKey(ign), { ign, teamsJoinedCount, isAdded });
+    }
 
     const teamReportPlayers = playerList.filter(
       (p) =>
@@ -361,18 +377,27 @@ export function calculatePowerRanking({
     const processedTeamPlayers: PowerRankingPlayer[] = teamReportPlayers.map(
       (p) => {
         const normPName = normalizeKey(p.name);
-        const isEx = activeMembers.size > 0 && !activeMembers.has(normPName);
+        const memberInfo = activeMemberMap.get(normPName);
+        const isEx = activeMemberMap.size > 0 && !memberInfo;
+        const isAdd = !isEx && Boolean(memberInfo?.isAdded || ((memberInfo?.teamsJoinedCount ?? 0) >= 1));
+
         recordedMemberKeys.add(normPName);
-        return { ...p, isExPlayer: isEx };
+        return {
+          ...p,
+          isExPlayer: isEx,
+          isAdded: isAdd,
+          teamsJoinedCount: memberInfo?.teamsJoinedCount,
+        };
       }
     );
 
-    for (const memberName of selectedTeam?.members || []) {
-      const normM = normalizeKey(memberName);
+    // Pemain yang terdaftar di tim tapi belum pernah bermain sama sekali
+    for (const [normM, memberInfo] of Array.from(activeMemberMap.entries())) {
       if (!recordedMemberKeys.has(normM)) {
+        const isAdd = Boolean(memberInfo.isAdded || ((memberInfo.teamsJoinedCount ?? 0) >= 1));
         processedTeamPlayers.push({
           rank: 0,
-          name: memberName.trim(),
+          name: memberInfo.ign.trim(),
           teamSlug: selectedTeam?.slug || selectedTeamSlug,
           teamName: selectedTeam?.name || selectedTeamSlug,
           teamLogo: selectedTeam?.logo,
@@ -383,6 +408,8 @@ export function calculatePowerRanking({
           wpm: 0,
           agg: 0,
           isExPlayer: false,
+          isAdded: isAdd,
+          teamsJoinedCount: memberInfo.teamsJoinedCount,
           bestDeck: "-",
         });
       }
@@ -414,6 +441,7 @@ export function calculatePowerRanking({
     }
   }
 
+  // Sortir universal berdasarkan performa
   playerList.sort((a, b) => {
     if (b.won !== a.won) return b.won - a.won;
     if (b.wpm !== a.wpm) return b.wpm - a.wpm;
@@ -430,4 +458,5 @@ export function calculatePowerRanking({
     players: playerList,
     grandTotal,
   };
-}
+      }
+            
