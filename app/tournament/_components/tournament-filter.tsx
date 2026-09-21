@@ -80,7 +80,7 @@ export function TournamentFilter({
           type="button"
           onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_A)}
           className={`py-2 px-3 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer text-center truncate ${
-            selectedGroup === DIVISION_MAP.GROUP_A
+            selectedGroup === DIVISION_MAP.GROUP_A && !isWildcardActive
               ? "bg-sky-500 text-white shadow-xs"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
@@ -91,7 +91,7 @@ export function TournamentFilter({
           type="button"
           onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_B)}
           className={`py-2 px-3 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer text-center truncate ${
-            selectedGroup === DIVISION_MAP.GROUP_B
+            selectedGroup === DIVISION_MAP.GROUP_B && !isWildcardActive
               ? "bg-amber-500 text-slate-950 shadow-xs"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
@@ -188,6 +188,7 @@ export function TournamentFilter({
 
             {isWeekOpen && (
               <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
+                {/* Opsi 'Semua Week' HANYA muncul pada mode schedule */}
                 {mode === "schedule" && (
                   <button
                     type="button"
@@ -254,4 +255,4 @@ export function TournamentFilter({
       )}
     </div>
   );
-}
+      }
