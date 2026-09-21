@@ -9,7 +9,9 @@ import {
   PowerRankingPlayer,
   FreeDuelistRecord,
 } from "../_library/power-ranking";
+import { calculateStandings } from "@/app/tournament/_library/calculator";
 import { PowerRankingPodium } from "./power-ranking-podium";
+import { PowerRankingTeamCard } from "./power-ranking-team-card";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
 import { ScheduleItem } from "./match-reports-view";
 
@@ -178,6 +180,21 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
+  // 4. Hitung Standing Tim untuk Team Record Card
+  const selectedTeamStanding = useMemo(() => {
+    if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
+      return undefined;
+    }
+    const standings = calculateStandings(schedules as any, teams as any);
+    const normTarget = normalize(selectedTeam);
+
+    return standings.find(
+      (s) =>
+        normalize(s.teamName) === normTarget ||
+        (s.teamSlug && normalize(s.teamSlug) === normTarget)
+    );
+  }, [selectedTeam, schedules, teams]);
+
   const isTeamView = filterScope === "TEAM";
   const isSearching = searchQuery.trim().length > 0;
 
@@ -199,12 +216,23 @@ export function PowerRankingView({
 
   return (
     <div className="w-full space-y-3">
-      {/* MVP #1 CARD */}
+      {/* MVP #1 CARD (Tampil saat mode Semua Tim / Global) */}
       {showMvpCard && (
         <PowerRankingPodium
           top1={top1}
           teamLogoMap={teamLogoMap}
           teamColorMap={teamColorMap}
+        />
+      )}
+
+      {/* TEAM RECORD CARD (Tampil saat Tim tertentu dipilih & tidak sedang search) */}
+      {isTeamView && !isSearching && (
+        <PowerRankingTeamCard
+          teamName={selectedTeam}
+          standing={selectedTeamStanding}
+          teamLogoMap={teamLogoMap}
+          teamColorMap={teamColorMap}
+          totalRosterCount={currentPlayers.length}
         />
       )}
 
@@ -238,4 +266,4 @@ export function PowerRankingView({
       />
     </div>
   );
-          }
+    }
