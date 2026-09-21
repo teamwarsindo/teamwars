@@ -181,7 +181,7 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
-  // 4. Hitung Standing Tim Resmi & Kualifikasi Playoff Akurat (Persis seperti Team Profile Modal)
+  // 4. Hitung Statistik Tim Resmi Murni (Match, Point, Form)
   const selectedTeamStanding = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
       return undefined;
@@ -240,7 +240,6 @@ export function PowerRankingView({
           teamLogoMap={teamLogoMap}
           teamColorMap={teamColorMap}
           totalRosterCount={currentPlayers.length}
-          currentWeek={targetWeek}
         />
       )}
 
@@ -275,5 +274,4 @@ export function PowerRankingView({
       />
     </div>
   );
-      }
-        
+}
