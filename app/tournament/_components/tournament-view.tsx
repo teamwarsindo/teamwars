@@ -41,7 +41,6 @@ export function TournamentView({
       ? "PLAYOFF"
       : "SCHEDULE";
 
-  // Tab switcher dengan sharing state query params (group & week tetap dipertahankan)
   const handleTabChange = (tabKey: "SCHEDULE" | "STANDINGS" | "PLAYOFF") => {
     const params = new URLSearchParams(searchParams.toString());
 
@@ -49,7 +48,6 @@ export function TournamentView({
       params.set("tab", "schedule");
     } else if (tabKey === "STANDINGS") {
       params.set("tab", "standings");
-      // Hapus view legacy agar default masuk ke Standing Global
       params.delete("view");
     } else {
       params.set("tab", "playoff");
@@ -61,6 +59,7 @@ export function TournamentView({
   const [schedules, setSchedules] = useState<MatchScheduleItem[]>([]);
   const [standings, setStandings] = useState<TeamStandingItem[]>([]);
   const [masterTeams, setMasterTeams] = useState<any[]>([]);
+  const [playoffData, setPlayoffData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
 
@@ -75,6 +74,7 @@ export function TournamentView({
         setSchedules(data.schedules || []);
         setStandings(data.standings || []);
         setMasterTeams(data.masterTeams || []);
+        setPlayoffData(data.playoffData || null);
 
         if (activeReportMatch) {
           const updatedActive = (data.schedules || []).find((m: MatchScheduleItem) => m.id === activeReportMatch.id);
@@ -124,6 +124,57 @@ export function TournamentView({
     }
   };
 
+  // Handler Khusus Admin: Kunci & Generate Jadwal Playoff
+  const handleLockPlayoff = async () => {
+    if (!isAdmin) {
+      Swal.fire("Akses Ditolak", "Anda harus login sebagai admin untuk mengunci playoff.", "error");
+      return;
+    }
+
+    const regularMatches = schedules.filter((m) => !m.id.startsWith("match-po-"));
+    const unfinished = regularMatches.filter((m) => !m.isFinished);
+
+    if (regularMatches.length === 0 || unfinished.length > 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Pertandingan Belum Selesai",
+        text: `Masih ada ${unfinished.length} match babak reguler yang belum selesai (isFinished: false).`,
+        confirmButtonColor: "#ef4444",
+      });
+      return;
+    }
+
+    const confirm = await Swal.fire({
+      title: "Kunci Tim & Buat Jadwal Playoff?",
+      text: "12 Tim reguler akan dikunci dari hash teams:<slug> dan 11 jadwal match playoff resmi akan dibuat.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Ya, Eksekusi",
+      cancelButtonText: "Batal",
+      confirmButtonColor: "#10b981",
+    });
+
+    if (!confirm.isConfirmed) return;
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/tournament/playoff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "LOCK_AND_GENERATE" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Gagal memproses playoff");
+
+      await fetchTournamentData();
+      Swal.fire("Berhasil!", "Data playoff resmi telah dikunci dan jadwal berhasil dibuat.", "success");
+    } catch (err: any) {
+      Swal.fire("Gagal!", err.message || "Terjadi kesalahan sistem.", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-8 text-center text-xs font-bold text-primary animate-pulse">
@@ -139,7 +190,7 @@ export function TournamentView({
 
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-4">
-      {/* 3 TAB NAVIGASI UTAMA (UKURAN PRESISI & STANDAR LABEL STANDING) */}
+      {/* 3 TAB NAVIGASI UTAMA */}
       <div className="grid grid-cols-3 gap-2 w-full max-w-xl mx-auto">
         {[
           { key: "SCHEDULE", label: "Schedule" },
@@ -182,9 +233,9 @@ export function TournamentView({
       {activeMainTab === "PLAYOFF" && (
         <PlayoffTab
           schedules={isAdmin || isPlayoffWeek ? schedules : []}
-          masterTeams={isAdmin || isPlayoffWeek ? masterTeams : []}
-          groupAName={DIVISION_MAP.GROUP_A}
-          groupBName={DIVISION_MAP.GROUP_B}
+          playoffData={playoffData}
+          isAdmin={isAdmin}
+          onLockPlayoff={handleLockPlayoff}
         />
       )}
 
@@ -198,4 +249,4 @@ export function TournamentView({
       )}
     </div>
   );
-}
+                       }
