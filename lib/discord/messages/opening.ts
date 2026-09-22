@@ -1,9 +1,10 @@
 import {
   TOURNAMENT_RULES,
-  formatWibDateTime,
+  formatDateTimeWIB,
   getMatchWeekNumber,
 } from '@/app/tournament/_library';
 import { getCheckMatchesComponent } from '../buttons/check-matches';
+import { discordAPI } from '../utils';
 
 export interface OpeningEmbedParams {
   matchId: string;
@@ -16,6 +17,9 @@ export interface OpeningEmbedParams {
   weekName?: string;
   refereeName?: string;
   isRescheduled?: boolean;
+  channelId?: string;
+  existingMessageId?: string | null;
+  [key: string]: any;
 }
 
 export function createOpeningMessagePayload(params: OpeningEmbedParams) {
@@ -50,7 +54,7 @@ export function createOpeningMessagePayload(params: OpeningEmbedParams) {
     },
     {
       name: '📅 Waktu Pertandingan',
-      value: `${formatWibDateTime(params.matchDate)} WIB`,
+      value: `${formatDateTimeWIB(params.matchDate)} WIB`,
       inline: true,
     },
     {
@@ -122,4 +126,25 @@ export function createOpeningMessagePayload(params: OpeningEmbedParams) {
     embeds: [embed],
     components,
   };
+}
+
+/**
+ * Fungsi kirim atau edit pesan embed opening di Discord
+ */
+export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams & { channelId: string; existingMessageId?: string | null }) {
+  const payload = createOpeningMessagePayload(params);
+
+  if (params.existingMessageId) {
+    return await discordAPI(
+      `/channels/${params.channelId}/messages/${params.existingMessageId}`,
+      'PATCH',
+      payload
+    );
   }
+
+  return await discordAPI(
+    `/channels/${params.channelId}/messages`,
+    'POST',
+    payload
+  );
+}
