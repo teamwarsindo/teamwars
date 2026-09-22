@@ -41,15 +41,36 @@ export function ScheduleCard({
 }: ScheduleCardProps) {
   const gName = (match.groupName || "").toLowerCase().trim();
   const cleanA = groupAName.toLowerCase().trim();
+  const cleanB = groupBName.toLowerCase().trim();
 
+  // 1. Deteksi apakah laga ini Playoff
+  const isPlayoff =
+    match.id.startsWith("match-po-") ||
+    (Boolean(match.stage) && match.stage !== "GROUP_STAGE") ||
+    gName.includes("play-in") ||
+    gName.includes("quarter") ||
+    gName.includes("semi") ||
+    gName.includes("grand") ||
+    gName.includes("final");
+
+  // 2. Deteksi grup babak reguler
   const isGroupA =
-    gName === "group a" ||
-    gName === "divisi a" ||
-    gName === cleanA ||
-    gName.includes(cleanA);
+    !isPlayoff &&
+    (gName === "group a" || gName === "divisi a" || gName === cleanA || gName.includes(cleanA));
 
-  const rawGroupName = isGroupA ? groupAName : groupBName;
-  const groupDisplayName = rawGroupName.replace(/^Div(isi|\.)\s*/i, "").toUpperCase();
+  const isGroupB =
+    !isPlayoff &&
+    (gName === "group b" || gName === "divisi b" || gName === cleanB || gName.includes(cleanB));
+
+  // 3. Tentukan nama label badge
+  let groupDisplayName = match.groupName || "PLAYOFF";
+  if (isGroupA) {
+    groupDisplayName = groupAName.replace(/^Div(isi|\.)\s*/i, "").toUpperCase();
+  } else if (isGroupB) {
+    groupDisplayName = groupBName.replace(/^Div(isi|\.)\s*/i, "").toUpperCase();
+  } else {
+    groupDisplayName = (match.groupName || "PLAYOFF ROUND").toUpperCase();
+  }
 
   const isLive = Boolean(match.streamLink) && !match.isFinished;
   const isPlayed = Boolean(match.isFinished) || (Number(match.scoreA) || 0) + (Number(match.scoreB) || 0) > 0;
@@ -69,23 +90,28 @@ export function ScheduleCard({
     }
   };
 
+  // Skema warna kartu dan badge
+  const cardBorderClass = isPlayoff
+    ? "border-emerald-500/30 hover:border-emerald-500/60"
+    : isGroupA
+    ? "border-sky-500/30 hover:border-sky-500/60"
+    : "border-amber-500/30 hover:border-amber-500/60";
+
+  const badgeThemeClass = isPlayoff
+    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+    : isGroupA
+    ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/20"
+    : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20";
+
   return (
     <div
       onClick={handleCardClick}
-      className={`rounded-2xl border bg-card p-3 sm:p-4 shadow-xs transition duration-200 hover:shadow-md cursor-pointer space-y-2 relative active:scale-[0.99] ${
-        isGroupA
-          ? "border-sky-500/30 hover:border-sky-500/60"
-          : "border-amber-500/30 hover:border-amber-500/60"
-      }`}
+      className={`rounded-2xl border bg-card p-3 sm:p-4 shadow-xs transition duration-200 hover:shadow-md cursor-pointer space-y-2 relative active:scale-[0.99] ${cardBorderClass}`}
     >
-      {/* 1. HEADER (NAMA DIVISI BERSIH & JADWAL) */}
+      {/* 1. HEADER (BADGE KATEGORI & JADWAL) */}
       <div className="flex items-center justify-between text-[10px] md:text-xs">
         <span
-          className={`font-black uppercase tracking-wider text-[9px] md:text-[10px] px-2 py-0.5 rounded-md truncate max-w-[170px] sm:max-w-[220px] ${
-            isGroupA
-              ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/20"
-              : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-          }`}
+          className={`font-black uppercase tracking-wider text-[9px] md:text-[10px] px-2 py-0.5 rounded-md truncate max-w-[170px] sm:max-w-[220px] border ${badgeThemeClass}`}
         >
           {groupDisplayName}
         </span>
@@ -192,4 +218,4 @@ export function ScheduleCard({
       </div>
     </div>
   );
-        }
+              }
