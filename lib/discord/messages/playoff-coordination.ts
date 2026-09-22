@@ -3,7 +3,32 @@ import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 export interface PlayoffCoordinationMessageParams {
   stageTitle: string;
-  teams: { name: string; roleId?: string }[];
+  teams: {
+    name: string;
+    kodeTim?: string;
+    emojiId?: string;
+    teamEmoji?: string;
+  }[];
+}
+
+function resolveTeamEmoji(team: { name: string; kodeTim?: string; emojiId?: string; teamEmoji?: string }): string {
+  // 1. Prioritas string emoji utuh jika sudah ada (misal: Unicode 👑 atau custom string)
+  if (team.teamEmoji && team.teamEmoji.trim()) {
+    return `${team.teamEmoji.trim()} `;
+  }
+
+  // 2. Format custom emoji Discord via Snowflake ID (seperti di opening.ts)
+  if (team.emojiId && /^\d{17,20}$/.test(team.emojiId.trim())) {
+    const rawTag = (team.kodeTim || team.name || 'team')
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '')
+      .slice(0, 32);
+
+    const safeTag = rawTag.length >= 2 ? rawTag : `${rawTag || 't'}_`;
+    return `<:${safeTag}:${team.emojiId.trim()}> `;
+  }
+
+  return '⚔️ ';
 }
 
 export function getPlayoffCoordinationMessagePayload({
@@ -13,14 +38,12 @@ export function getPlayoffCoordinationMessagePayload({
   const teamListText =
     teams.length > 0
       ? teams
-          .map((t) => (t.roleId ? `• <@&${t.roleId}> (**${t.name}**)` : `• **${t.name}**`))
+          .map((t) => {
+            const emojiPrefix = resolveTeamEmoji(t);
+            return `• ${emojiPrefix}**${t.name}**`;
+          })
           .join('\n')
       : '-';
-
-  const mentionContent = teams
-    .filter((t) => !!t.roleId)
-    .map((t) => `<@&${t.roleId}>`)
-    .join(' ');
 
   const embed = {
     title: `🤝 Room Koordinasi Playoff — ${stageTitle}`,
@@ -38,7 +61,7 @@ export function getPlayoffCoordinationMessagePayload({
   };
 
   return {
-    content: mentionContent || (DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : undefined),
+    content: DISCORD_CONFIG.ROLE_DUELIST ? `<@&${DISCORD_CONFIG.ROLE_DUELIST}>` : undefined,
     embeds: [embed],
   };
 }
