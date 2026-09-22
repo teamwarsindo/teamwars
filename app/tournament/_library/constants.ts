@@ -12,10 +12,12 @@ export type DivisionGroupType = (typeof DIVISION_MAP)[keyof typeof DIVISION_MAP]
 
 // 3. REGULASI, KUOTA KUALIFIKASI & SISTEM POIN
 export const TOURNAMENT_RULES = {
-  TOP_DIV_QUOTA_PER_GROUP: 2,   // Top 1 & 2 Divisi otomatis lolos Playoff
-  GLOBAL_PLAYOFF_QUOTA: 8,      // Rank 1 s/d 8 Global (Wildcard Playoff)
-  PLAYOFF_START_WEEK: 8,        // Week 8 ke atas masuk fase Playoff
-  TOTAL_TEAMS_PER_GROUP: 8,     // 8 tim per divisi
+  TOP_DIV_QUOTA_PER_GROUP: 2,       // Top 1 & 2 Divisi otomatis lolos Playoff
+  GLOBAL_PLAYOFF_QUOTA: 8,          // Rank 1 s/d 8 Global (Wildcard Playoff)
+  PLAYOFF_START_WEEK: 8,            // Week 8 ke atas masuk fase Playoff
+  TOTAL_TEAMS_PER_GROUP: 8,         // 8 tim per divisi
+  MAX_MATCHES_PER_DAY_REGULAR: 3,   // Maksimal match per hari di Regular Season
+  MAX_MATCHES_PER_DAY_PLAYOFF: 1,   // Maksimal match per hari di Playoff
   POINTS_WIN: 10,
   POINTS_LOSE: 0,
 } as const;
