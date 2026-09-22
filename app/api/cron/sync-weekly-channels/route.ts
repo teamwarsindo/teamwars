@@ -5,12 +5,14 @@ import { getTournamentWeekNumber } from "@/app/tournament/_library/calculator";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const isForce = searchParams.get("force") === "true"; // Bypass lock jika butuh paksa jalan
+    const isForce = searchParams.get("force") === "true";
 
-    // 🟢 1. Hitung minggu saat ini via utils resmi library
+    // 🟢 1. Hitung minggu aktif
     const currentWeekNum = getTournamentWeekNumber();
-    const targetWeek = `Week ${currentWeekNum}`;
-    const kvLockKey = `cron:sync_channel_lock:week_${currentWeekNum}`;
+    
+    // Sesuaikan format targetWeek (misal Week 8 untuk Play-Ins)
+    const targetWeek = searchParams.get("week") || `Week ${currentWeekNum}`;
+    const kvLockKey = `cron:sync_channel_lock:${targetWeek.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
 
     // 🔒 2. Proteksi eksekusi: Maksimal 1x per minggu
     if (!isForce) {
@@ -33,11 +35,13 @@ export async function GET(req: NextRequest) {
     const protocol = process.env.NODE_ENV === "development" ? "http" : "https";
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`;
 
-    // ⚡ 3. Teruskan ke endpoint sinkronisasi channel Discord
+    // ⚡ 3. Panggil endpoint sinkronisasi channel Discord
     const response = await fetch(`${baseUrl}/api/tournament/sync-match`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        // Sertakan internal secret jika sync-match membutuhkan proteksi
+        ...(process.env.CRON_SECRET ? { "x-cron-secret": process.env.CRON_SECRET } : {}),
       },
       body: JSON.stringify({
         action: "WEEK",
