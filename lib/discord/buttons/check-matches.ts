@@ -54,8 +54,10 @@ export async function handleBtCheckMatches(body: any) {
       Boolean((match as any).weekName?.toLowerCase().includes('play')) ||
       matchWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-    // Kuota harian: 1 match per hari saat Playoff, 3 match per hari saat babak reguler
-    const maxDailyQuota = isPlayoffStage ? 1 : 3;
+    // Kuota harian membaca langsung dari konstanta resmi turnamen
+    const maxDailyQuota = isPlayoffStage
+      ? TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_PLAYOFF
+      : TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_REGULAR;
 
     const matchCountByDate = new Map<string, number>();
     weekMatches.forEach((m) => {
@@ -166,4 +168,5 @@ export async function handleBtCheckMatches(body: any) {
       data: { content: '❌ Terjadi kesalahan saat memeriksa ketersediaan match.', flags: 64 },
     });
   }
-}
+                            }
+        
