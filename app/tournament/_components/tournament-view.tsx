@@ -68,18 +68,31 @@ export function TournamentView({
 
   const fetchTournamentData = async () => {
     try {
-      const res = await fetch("/api/tournament");
-      const data = await res.json();
+      // Ambil data turnamen & data playoff secara bersamaan
+      const [resTourney, resPlayoff] = await Promise.all([
+        fetch("/api/tournament"),
+        fetch("/api/tournament/playoff"),
+      ]);
+
+      const data = await resTourney.json();
+      const playoffRes = await resPlayoff.json();
+
       if (data) {
         setSchedules(data.schedules || []);
         setStandings(data.standings || []);
         setMasterTeams(data.masterTeams || []);
-        setPlayoffData(data.playoffData || null);
 
         if (activeReportMatch) {
           const updatedActive = (data.schedules || []).find((m: MatchScheduleItem) => m.id === activeReportMatch.id);
           if (updatedActive) setActiveReportMatch(updatedActive);
         }
+      }
+
+      // Pastikan playoffData terisi dari endpoint playoff
+      if (playoffRes && playoffRes.success) {
+        setPlayoffData(playoffRes.playoffData || null);
+      } else if (data?.playoffData) {
+        setPlayoffData(data.playoffData);
       }
     } catch (err) {
       console.error("Error fetching tournament:", err);
@@ -131,7 +144,9 @@ export function TournamentView({
       return;
     }
 
-    const regularMatches = schedules.filter((m) => !m.id.startsWith("match-po-"));
+    const regularMatches = schedules.filter(
+      (m: any) => !m.id.startsWith("match-po-") && Number(m.weekNumber || 1) < 8
+    );
     const unfinished = regularMatches.filter((m) => !m.isFinished);
 
     if (regularMatches.length === 0 || unfinished.length > 0) {
@@ -165,6 +180,14 @@ export function TournamentView({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal memproses playoff");
+
+      // Perbarui state seketika
+      if (json.playoffData || json.data) {
+        setPlayoffData(json.playoffData || json.data);
+      }
+      if (json.schedules) {
+        setSchedules(json.schedules);
+      }
 
       await fetchTournamentData();
       Swal.fire("Berhasil!", "Data playoff resmi telah dikunci dan jadwal berhasil dibuat.", "success");
@@ -249,4 +272,5 @@ export function TournamentView({
       )}
     </div>
   );
-                       }
+    }
+      
