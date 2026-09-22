@@ -29,7 +29,6 @@ export interface OpeningEmbedParams {
   scoreA?: number;
   scoreB?: number;
   isRescheduled?: boolean;
-  // Flag saat ada penugasan staf baru via /assign atau swap
   assignedRole?: 'REFEREE' | 'STREAMER';
   newStaffDiscordId?: string;
 }
@@ -46,7 +45,6 @@ function cleanStaffName(name?: string): string {
 export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Promise<string | null> {
   if (!params.channelId) return null;
 
-  // 🛡️ Proteksi Mandiri: Cek data match dari KV jika existingMsgId atau isRescheduled tidak dikirim
   let targetExistingMsgId = params.existingMsgId;
   let targetIsRescheduled = params.isRescheduled;
 
@@ -68,8 +66,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const isFirstOpening = !targetExistingMsgId;
   const isRescheduled = Boolean(targetIsRescheduled);
 
-  // 🔒 DETEKSI STATUS JADWAL TERKUNCI:
-  // Jadwal terkunci jika: Sudah di-reschedule ATAU wasit sudah ditugaskan ATAU sudah memasuki hari-H tanding (WIB)
   const hasReferee = Boolean(
     (params.refereeName && cleanStaffName(params.refereeName) !== 'Belum ditentukan') ||
     params.refereeDiscordId
@@ -77,14 +73,17 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   let isTodayMatch = false;
   if (params.matchDateIso) {
-    const todayWib = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }); // YYYY-MM-DD
+    const todayWib = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
     const matchWib = new Date(params.matchDateIso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
     isTodayMatch = todayWib === matchWib;
   }
 
-  const isScheduleLocked = isRescheduled || hasReferee || isTodayMatch;
+  // Deteksi babak fixed (Semifinal & Grand Final tidak bisa di-reschedule)
+  const rawStageName = `${params.groupName || ''} ${params.weekName || ''}`.toLowerCase();
+  const isFixedStage = rawStageName.includes('semi') || rawStageName.includes('final');
 
-  // Deteksi fase Playoff untuk kuota harian
+  const isScheduleLocked = isRescheduled || hasReferee || isTodayMatch || isFixedStage;
+
   const matchWeek = params.matchDateIso ? getMatchWeekNumber(params.matchDateIso) : 1;
   const isPlayoffStage =
     Boolean(params.groupName?.toLowerCase().includes('play')) ||
@@ -123,11 +122,12 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     });
   }
 
-  // 🔄 FIELD STATUS / PETUNJUK RESCHEDULE
   if (isScheduleLocked) {
     let statusText = '• Jadwal telah dikunci dan disahkan Admin.';
 
-    if (isRescheduled) {
+    if (isFixedStage) {
+      statusText = '• Jadwal telah dikunci (Babak Fixed resmi panitia).';
+    } else if (isRescheduled) {
       statusText = '• Jadwal telah disepakati kedua tim & disahkan Admin.';
     } else if (hasReferee) {
       statusText = '• Jadwal telah dikunci dan Referee telah ditugaskan.';
@@ -182,7 +182,6 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
 
   const postPayload: any = {
     embeds: [embedData],
-    // 🔘 Tombol otomatis dicabut jika jadwal terkunci (reschedule / referee assign / hari-H)
     components: isScheduleLocked ? [] : getCheckMatchesComponent(params.matchId),
     allowed_mentions: {
       parse: ['users', 'roles'],
