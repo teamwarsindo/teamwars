@@ -16,7 +16,6 @@ import {
 
 export const KV_KEY_PLAYOFF_TEAMS = "twi:playoff_teams";
 
-// Helper ambil profil resmi langsung dari HASH teams:<slug>
 export async function getTeamDetailFromHash(teamName: string, fallbackLogo: string = "/logo.webp") {
   const teamId = getTeamSlug(teamName);
   try {
@@ -37,13 +36,14 @@ export async function getTeamDetailFromHash(teamName: string, fallbackLogo: stri
   }
 }
 
-// 🟢 1. FUNGSI KUNCI TIM PLAYOFF
+// 🟢 1. Kunci tim peserta Playoff
 export async function lockPlayoffTeamsFromStandings(
   schedules: MatchScheduleItem[],
   masterTeams: any[]
 ) {
-  // Hanya ambil match reguler (bukan match playoff) untuk perhitungan standing
-  const regularSchedules = schedules.filter((m) => !m.id.startsWith("match-po-"));
+  const regularSchedules = schedules.filter(
+    (m: any) => !m.id.startsWith("match-po-") && Number(m.weekNumber || 1) < 8
+  );
   const standings = calculateStandings(regularSchedules, masterTeams);
   const groupAStandings = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_A);
   const groupBStandings = standings.filter((s) => s.groupName === DIVISION_MAP.GROUP_B);
@@ -84,10 +84,9 @@ export async function lockPlayoffTeamsFromStandings(
   return payload;
 }
 
-// Helper mencari tanggal Kamis pada minggu ke-N turnamen
+// Helper mencari tanggal Kamis pekan Week N
 function getWeekThursdayDate(weekNumber: number): Date {
   const startDate = new Date(TWI_START_DATETIME);
-  // Geser ke minggu target (weekNumber 8 = +7 minggu)
   startDate.setDate(startDate.getDate() + (weekNumber - 1) * 7);
 
   // Setel ke hari Kamis (4) pada pekan tersebut
@@ -95,12 +94,12 @@ function getWeekThursdayDate(weekNumber: number): Date {
   const diffToThursday = (4 - day + 7) % 7;
   startDate.setDate(startDate.getDate() + diffToThursday);
 
-  // Set waktu default 20:00 WIB (13:00 UTC)
+  // Jam 20:00 WIB = 13:00 UTC
   startDate.setUTCHours(13, 0, 0, 0);
   return startDate;
 }
 
-// 🟢 2. FUNGSI GENERATE 11 MATCH PLAYOFF DENGAN JADWAL TERACAK (KAMIS - MINGGU)
+// 🟢 2. Generate 11 match playoff (Hari Play-Ins diacak Kamis s/d Minggu)
 export function generatePlayoffSchedules(
   directQF: any[],
   wildcardSeeds: any[]
@@ -127,29 +126,27 @@ export function generatePlayoffSchedules(
     teamB: any,
     placeholderA: string,
     placeholderB: string
-  ): MatchScheduleItem => {
-    return {
-      id,
-      matchDate: matchDate.toISOString(),
-      stage,
-      groupName,
-      weekNumber,
-      teamAId: teamA?.teamId || teamA?.teamName || placeholderA,
-      teamAName: teamA?.teamName || placeholderA,
-      teamALogo: teamA?.teamLogo || "/logo.webp",
-      teamBId: teamB?.teamId || teamB?.teamName || placeholderB,
-      teamBName: teamB?.teamName || placeholderB,
-      teamBLogo: teamB?.teamLogo || "/logo.webp",
-      scoreA: 0,
-      scoreB: 0,
-      isFinished: false,
-      referee: "",
-      refereeToken: `REF-${id.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
-      streamer: "",
-    };
-  };
+  ): MatchScheduleItem => ({
+    id,
+    matchDate: matchDate.toISOString(),
+    stage,
+    groupName,
+    weekNumber,
+    teamAId: teamA?.teamId || teamA?.teamName || placeholderA,
+    teamAName: teamA?.teamName || placeholderA,
+    teamALogo: teamA?.teamLogo || "/logo.webp",
+    teamBId: teamB?.teamId || teamB?.teamName || placeholderB,
+    teamBName: teamB?.teamName || placeholderB,
+    teamBLogo: teamB?.teamLogo || "/logo.webp",
+    scoreA: 0,
+    scoreB: 0,
+    isFinished: false,
+    referee: "",
+    refereeToken: `REF-${id.toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+    streamer: "",
+  });
 
-  // 1. Tentukan 4 Hari Play-Ins (Kamis=0, Jumat=1, Sabtu=2, Minggu=3)
+  // 1. Tentukan 4 Hari: Kamis (+0), Jumat (+1), Sabtu (+2), Minggu (+3)
   const week8Thursday = getWeekThursdayDate(8);
   const playInDates = [0, 1, 2, 3].map((offset) => {
     const d = new Date(week8Thursday);
@@ -160,7 +157,7 @@ export function generatePlayoffSchedules(
   // 2. ACAK HANYA HARI TANDINGNYA (Bagan lawan tetap!)
   const shuffledDates = [...playInDates].sort(() => Math.random() - 0.5);
 
-  // 3. Pasangan Play-Ins Tetap Sesuai Seed Resmi
+  // 3. Bagan Lawan Baku Sesuai Regulasi
   const playIns = [
     { id: "match-po-1", name: "Play-Ins #1", tA: s(1), tB: s(8), pA: "Wildcard Seed 1", pB: "Wildcard Seed 8" },
     { id: "match-po-2", name: "Play-Ins #2", tA: s(4), tB: s(5), pA: "Wildcard Seed 4", pB: "Wildcard Seed 5" },
@@ -175,7 +172,7 @@ export function generatePlayoffSchedules(
         "PLAY_INS",
         match.name,
         8,
-        shuffledDates[idx], // Hari acak Kamis - Minggu
+        shuffledDates[idx], // Teracak di Kamis / Jumat / Sabtu / Minggu
         match.tA,
         match.tB,
         match.pA,
@@ -184,7 +181,7 @@ export function generatePlayoffSchedules(
     );
   });
 
-  // Quarter-Finals (Week 9: Kamis - Minggu)
+  // Quarter-Finals (Week 9: Kamis s/d Minggu)
   const week9Thursday = getWeekThursdayDate(9);
   const qfDate = (offset: number) => {
     const d = new Date(week9Thursday);
@@ -222,4 +219,4 @@ export function generatePlayoffSchedules(
   );
 
   return playoffSchedules;
-    }
+}
