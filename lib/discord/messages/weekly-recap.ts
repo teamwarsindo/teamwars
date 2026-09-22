@@ -48,50 +48,51 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     return { recapMsgId: null, groupAMsgId: null, groupBMsgId: null };
   }
 
-  const isPlayoffMode = params.weekName.toUpperCase().includes('PLAYOFF') ||
-    params.weekName.toUpperCase().includes('PLAY-IN') ||
-    params.weekName.toUpperCase().includes('QUARTER') ||
-    params.weekName.toUpperCase().includes('SEMI') ||
-    params.weekName.toUpperCase().includes('FINAL');
-
+  // Format baris match: 100% IDENTIK dengan Week 7 (Tanpa bracket tag, rapi emoji + tanggal)
   const buildGroupDescription = (schedules: Array<ScheduleMatch>): string => {
-    let desc = isPlayoffMode
-      ? 'Jadwal resmi babak playoff fase gugur\n\n'
-      : 'Penyesuaian jadwal setelah permintaan reschedule\n\n';
+    let desc = 'Penyesuaian jadwal setelah permintaan reschedule\n\n';
 
     if (!schedules || schedules.length === 0) {
       desc += '_Belum ada jadwal terkonfirmasi._';
       return desc;
     }
 
-    const sorted = [...schedules].sort((a, b) => new Date(a.matchDateIso).getTime() - new Date(b.matchDateIso).getTime());
+    const sorted = [...schedules].sort(
+      (a, b) => new Date(a.matchDateIso).getTime() - new Date(b.matchDateIso).getTime()
+    );
 
     const matchLines = sorted.map((m) => {
       const e1 = m.team1Emoji ? `${m.team1Emoji} ` : '';
       const e2 = m.team2Emoji ? `${m.team2Emoji} ` : '';
-      const matchLabel = m.label ? `\`[${m.label}]\`\n` : '';
-      return `${matchLabel}${e1}**${m.team1Name}** vs ${e2}**${m.team2Name}**\n${m.dateStr} at ${m.timeStr}`;
+      return `${e1}**${m.team1Name}** vs ${e2}**${m.team2Name}**\n${m.dateStr} at ${m.timeStr}`;
     });
 
     return desc + matchLines.join('\n\n');
   };
 
-  // Header Content Discord
-  const mainHeaderContent = isPlayoffMode
-    ? `# 🏆 ${params.weekName}\n@everyone`
+  const isPlayoff =
+    params.weekName.toUpperCase().includes('PLAYOFF') ||
+    params.weekName.toUpperCase().includes('PLAY-IN') ||
+    params.weekName.toUpperCase().includes('QUARTER') ||
+    params.weekName.toUpperCase().includes('SEMI') ||
+    params.weekName.toUpperCase().includes('FINAL');
+
+  // Header Title satu baris rapi seperti Week 7
+  const headerTitle = isPlayoff
+    ? `# ⚔️ Playoff Stage - ${params.weekName.replace(/•\s*/g, '')}\n@everyone`
     : `# ⚔️ Group Stage - ${params.weekName}\n@everyone`;
 
-  // Payload Embed 1 (Group A / Playoff Part 1)
-  const groupATitle = isPlayoffMode
-    ? (params.groupBSchedules && params.groupBSchedules.length > 0 ? `📊 Playoff Schedule (Part 1)` : `📊 Playoff Schedule`)
+  // Embed 1 Title
+  const titleA = isPlayoff
+    ? (params.groupBSchedules?.length > 0 ? `📊 Playoff Schedule (Part 1)` : `📊 Playoff Schedule`)
     : `📊 Schedule ${DIVISION_MAP.GROUP_A}`;
 
   const groupAPayload = {
-    content: mainHeaderContent,
+    content: headerTitle,
     embeds: [
       {
-        title: groupATitle,
-        color: isPlayoffMode ? 0xf59e0b : 0x3498db,
+        title: titleA,
+        color: 0x3498db, // Tetap Biru konsisten seperti Week 7
         description: buildGroupDescription(params.groupASchedules),
         footer: { text: getEmbedFooterText() },
       },
@@ -102,7 +103,7 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
   let groupBMsgId = params.existingMsgIds?.groupBMsgId || null;
   let recapMsgId = params.existingMsgIds?.recapMsgId || null;
 
-  // 1. EMBED 1 (Group A): PATCH / POST
+  // 1. Kirim / Edit Embed 1
   if (groupAMsgId) {
     const patchRes = await discordAPI(`/channels/${params.channelId}/messages/${groupAMsgId}`, 'PATCH', groupAPayload).catch(() => null);
     if (!patchRes) {
@@ -114,19 +115,14 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupAMsgId = postRes?.id || null;
   }
 
-  // 2. EMBED 2 (Group B / Playoff Part 2)
-  const hasGroupB = params.groupBSchedules && params.groupBSchedules.length > 0;
-
-  if (hasGroupB) {
-    const groupBTitle = isPlayoffMode
-      ? `📊 Playoff Schedule (Part 2)`
-      : `📊 Schedule ${DIVISION_MAP.GROUP_B}`;
-
+  // 2. Kirim / Edit Embed 2 (Jika ada)
+  if (params.groupBSchedules && params.groupBSchedules.length > 0) {
+    const titleB = isPlayoff ? `📊 Playoff Schedule (Part 2)` : `📊 Schedule ${DIVISION_MAP.GROUP_B}`;
     const groupBPayload = {
       embeds: [
         {
-          title: groupBTitle,
-          color: isPlayoffMode ? 0xf59e0b : 0xe74c3c,
+          title: titleB,
+          color: 0xe74c3c, // Merah seperti Week 7
           description: buildGroupDescription(params.groupBSchedules),
           footer: { text: getEmbedFooterText() },
         },
@@ -144,12 +140,11 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
       groupBMsgId = postRes?.id || null;
     }
   } else if (groupBMsgId) {
-    // Bersihkan pesan Group B jika babak playoff hanya butuh 1 embed
     await discordAPI(`/channels/${params.channelId}/messages/${groupBMsgId}`, 'DELETE').catch(() => null);
     groupBMsgId = null;
   }
 
-  // 3. Bersihkan sisa pesan recap lama jika ada
+  // 3. Bersihkan pesan recap lama jika ada
   if (recapMsgId) {
     await discordAPI(`/channels/${params.channelId}/messages/${recapMsgId}`, 'DELETE').catch(() => null);
   }
@@ -162,4 +157,5 @@ export async function sendOrUpdateWeeklyScheduleAndRecap(params: {
     groupBMsgId,
     recapMsgId: null,
   };
-    }
+}
+  
