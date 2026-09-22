@@ -146,7 +146,7 @@ export function TournamentView({
 
     const confirm = await Swal.fire({
       title: "Kunci Tim & Buat Jadwal Playoff?",
-      text: "12 Tim reguler akan dikunci dari hash teams:<slug> dan 11 jadwal match playoff resmi akan dibuat.",
+      text: "Daftar tim yang lolos akan dikunci secara resmi dan jadwal babak playoff akan otomatis dibuat ke sistem.",
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Ya, Eksekusi",
