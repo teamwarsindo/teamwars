@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem, getWibDateKey, getMatchWeekNumber } from '@/app/tournament/_library';
+import {
+  MatchScheduleItem,
+  getWibDateKey,
+  getMatchWeekNumber,
+  TOURNAMENT_RULES,
+} from '@/app/tournament/_library';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI } from '@/lib/discord/utils';
 
@@ -43,6 +48,15 @@ export async function handleBtCheckMatches(body: any) {
       (m) => (m.weekNumber || getMatchWeekNumber(m.matchDate)) === matchWeek
     );
 
+    // Deteksi fase Playoff menggunakan konstanta resmi TOURNAMENT_RULES.PLAYOFF_START_WEEK
+    const isPlayoffStage =
+      Boolean((match as any).groupName?.toLowerCase().includes('play')) ||
+      Boolean((match as any).weekName?.toLowerCase().includes('play')) ||
+      matchWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+
+    // Kuota harian: 1 match per hari saat Playoff, 3 match per hari saat babak reguler
+    const maxDailyQuota = isPlayoffStage ? 1 : 3;
+
     const matchCountByDate = new Map<string, number>();
     weekMatches.forEach((m) => {
       if (!m.matchDate) return;
@@ -72,7 +86,7 @@ export async function handleBtCheckMatches(body: any) {
       }
 
       const count = matchCountByDate.get(dateKey) || 0;
-      const sisa = Math.max(0, 3 - count);
+      const sisa = Math.max(0, maxDailyQuota - count);
 
       const dayLabel = checkDay.toLocaleDateString('id-ID', {
         weekday: 'short',
@@ -82,11 +96,11 @@ export async function handleBtCheckMatches(body: any) {
       });
 
       let statusDot = '🟢';
-      let statusText = `${count}/3 Match (Sisa ${sisa})`;
-      if (count >= 3) {
+      let statusText = `${count}/${maxDailyQuota} Match (Sisa ${sisa})`;
+      if (count >= maxDailyQuota) {
         statusDot = '🔴';
-        statusText = '3/3 Match (Penuh)';
-      } else if (count === 2) {
+        statusText = `${count}/${maxDailyQuota} Match (Penuh)`;
+      } else if (maxDailyQuota > 1 && count === maxDailyQuota - 1) {
         statusDot = '🟡';
       }
 
@@ -109,8 +123,10 @@ export async function handleBtCheckMatches(body: any) {
         ? `Ketersediaan match per hari sebagai acuan reschedule (H+1 s/d Minggu).\n\n${lines.join('\n\n')}`
         : '⚠️ Tidak ada slot reschedule yang tersisa untuk pekan ini (sudah melewati batas akhir hari Minggu).';
 
+    const weekTitleLabel = isPlayoffStage ? (match as any).weekName || 'Playoff' : `Week ${matchWeek}`;
+
     const embed = {
-      title: `📊 Schedule Recap - Week ${matchWeek}`,
+      title: `📊 Schedule Recap - ${weekTitleLabel}`,
       description: descriptionContent,
       color: 0x5865f2,
       footer: { text: `Last Updated: ${updatedTime} WIB` },
