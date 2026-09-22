@@ -37,14 +37,18 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Data jadwal atau tim belum lengkap" }, { status: 400 });
       }
 
-      // 1. Kunci tim dari hash teams:<slug>
+      // 1. Kunci tim dari hash teams:<slug> & simpan ke KV_KEY_PLAYOFF_TEAMS
       const lockedData = await lockPlayoffTeamsFromStandings(schedules, masterTeams);
 
-      // 2. Bersihkan playoff matches lama (jika ada) lalu buat 11 match playoff baru
-      const regularSchedules = schedules.filter((m) => !m.id.startsWith("match-po-"));
+      // 2. Buat 11 match playoff baru (Hari Play-Ins diacak Kamis - Minggu)
       const newPlayoffSchedules = generatePlayoffSchedules(
         lockedData.directQuarterFinals,
         lockedData.wildcardSeeds
+      );
+
+      // 3. Bersihkan SEMUA match-po DAN semua jadwal grup lama yang ada di Week >= 8
+      const regularSchedules = schedules.filter(
+        (m: any) => !m.id.startsWith("match-po-") && Number(m.weekNumber || m.week || 1) < 8
       );
 
       const combinedSchedules = [...regularSchedules, ...newPlayoffSchedules];
@@ -53,14 +57,15 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         message: "Playoff berhasil dikunci dan 11 jadwal resmi telah dibuat!",
+        playoffData: lockedData, // Pastikan key bernama playoffData
         data: lockedData,
-        playoffSchedules: newPlayoffSchedules,
+        schedules: combinedSchedules,
       });
     }
 
     if (action === "LOCK_PLAYOFF_TEAMS") {
       const lockedData = await lockPlayoffTeamsFromStandings(schedules, masterTeams);
-      return NextResponse.json({ success: true, data: lockedData });
+      return NextResponse.json({ success: true, playoffData: lockedData, data: lockedData });
     }
 
     if (action === "GENERATE_PLAYOFF_SCHEDULES") {
@@ -68,13 +73,16 @@ export async function POST(req: Request) {
       if (!playoffData?.directQuarterFinals || !playoffData?.wildcardSeeds) {
         return NextResponse.json({ error: "Data playoff belum dikunci" }, { status: 400 });
       }
-      const regularSchedules = schedules.filter((m) => !m.id.startsWith("match-po-"));
+      const regularSchedules = schedules.filter(
+        (m: any) => !m.id.startsWith("match-po-") && Number(m.weekNumber || m.week || 1) < 8
+      );
       const newPlayoffSchedules = generatePlayoffSchedules(
         playoffData.directQuarterFinals,
         playoffData.wildcardSeeds
       );
-      await kv.set(KV_KEY_SCHEDULES, [...regularSchedules, ...newPlayoffSchedules]);
-      return NextResponse.json({ success: true, playoffSchedules: newPlayoffSchedules });
+      const combined = [...regularSchedules, ...newPlayoffSchedules];
+      await kv.set(KV_KEY_SCHEDULES, combined);
+      return NextResponse.json({ success: true, schedules: combined, playoffSchedules: newPlayoffSchedules });
     }
 
     return NextResponse.json({ error: "Action tidak dikenal" }, { status: 400 });
@@ -82,4 +90,4 @@ export async function POST(req: Request) {
     console.error("Error Playoff Action:", err);
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
   }
-  }
+}
