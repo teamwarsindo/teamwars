@@ -1,113 +1,69 @@
-import { kv } from '@vercel/kv';
-import { discordAPI, formatWIBDate, getEmbedFooterText } from '../utils';
-import { DIVISION_MAP } from '@/app/tournament/_library';
-import { getCheckMatchesComponent } from '@/lib/discord/buttons/check-matches';
+import {
+  TOURNAMENT_RULES,
+  formatWibDateTime,
+  getMatchWeekNumber,
+} from '@/app/tournament/_library';
+import { getCheckMatchesComponent } from '../buttons/check-matches';
 
 export interface OpeningEmbedParams {
-  channelId: string;
   matchId: string;
-  groupName?: string;
-  weekName?: string;
+  matchDate: string;
   teamAName: string;
   teamBName: string;
-  teamAEmoji?: string;
-  teamBEmoji?: string;
-  kodeTimA?: string;
-  kodeTimB?: string;
-  emojiAId?: string;
-  emojiBId?: string;
-  roleAId?: string;
-  roleBId?: string;
-  matchDateIso?: string;
+  teamARoleId?: string;
+  teamBRoleId?: string;
+  groupName?: string;
+  weekName?: string;
   refereeName?: string;
-  refereeDiscordId?: string;
-  streamerName?: string;
-  streamerDiscordId?: string;
-  streamLink?: string;
-  existingMsgId?: string | null;
-  isFinished?: boolean;
-  scoreA?: number;
-  scoreB?: number;
   isRescheduled?: boolean;
-  // Flag saat ada penugasan staf baru via /assign atau swap
-  assignedRole?: 'REFEREE' | 'STREAMER';
-  newStaffDiscordId?: string;
 }
 
-function cleanStaffName(name?: string): string {
-  if (!name) return 'Belum ditentukan';
-  const clean = name.replace(/^@/, '').trim();
-  if (!clean || clean === 'Belum tersedia' || clean === '-' || clean === 'Belum ditentukan') {
-    return 'Belum ditentukan';
-  }
-  return clean;
-}
+export function createOpeningMessagePayload(params: OpeningEmbedParams) {
+  const matchWeek = getMatchWeekNumber(params.matchDate);
 
-export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Promise<string | null> {
-  if (!params.channelId) return null;
+  // Deteksi Playoff menggunakan konstanta resmi TOURNAMENT_RULES
+  const isPlayoffStage =
+    Boolean(params.groupName?.toLowerCase().includes('play')) ||
+    Boolean(params.weekName?.toLowerCase().includes('play')) ||
+    matchWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-  // 🛡️ Proteksi Mandiri: Cek data match dari KV jika existingMsgId atau isRescheduled tidak dikirim
-  let targetExistingMsgId = params.existingMsgId;
-  let targetIsRescheduled = params.isRescheduled;
+  // Kuota harian dari TOURNAMENT_RULES
+  const maxDailyQuota = isPlayoffStage
+    ? TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_PLAYOFF
+    : TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_REGULAR;
 
-  if (targetExistingMsgId === undefined || targetIsRescheduled === undefined) {
-    try {
-      const schedules = (await kv.get<any[]>('twi:schedules')) || [];
-      const currentMatch = schedules.find(
-        (m) => m.id === params.matchId || m.discordChannelId === params.channelId
-      );
-      if (currentMatch) {
-        if (targetExistingMsgId === undefined) targetExistingMsgId = currentMatch.openingMsgId || null;
-        if (targetIsRescheduled === undefined) targetIsRescheduled = Boolean(currentMatch.isRescheduled);
-      }
-    } catch {
-      // Fallback diam
-    }
-  }
+  const matchDateObj = new Date(params.matchDate);
+  const now = new Date();
 
-  const isFirstOpening = !targetExistingMsgId;
-  const isRescheduled = Boolean(targetIsRescheduled);
+  const isTodayMatch = matchDateObj.toDateString() === now.toDateString();
+  const hasReferee = Boolean(params.refereeName && params.refereeName.trim() !== '');
+  const isRescheduled = Boolean(params.isRescheduled);
 
-  // 🔒 DETEKSI STATUS JADWAL TERKUNCI (FIX):
-  // Jadwal terkunci jika: Sudah di-reschedule ATAU wasit sudah ditugaskan ATAU sudah memasuki hari-H tanding (WIB)
-  const hasReferee = Boolean(
-    (params.refereeName && cleanStaffName(params.refereeName) !== 'Belum ditentukan') ||
-    params.refereeDiscordId
-  );
-
-  let isTodayMatch = false;
-  if (params.matchDateIso) {
-    const todayWib = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }); // YYYY-MM-DD
-    const matchWib = new Date(params.matchDateIso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-    isTodayMatch = todayWib === matchWib;
-  }
-
+  // Jadwal terkunci jika sudah di-reschedule, ada wasit, atau sudah hari-H pertandingan
   const isScheduleLocked = isRescheduled || hasReferee || isTodayMatch;
 
-  const emojiA =
-    params.teamAEmoji ||
-    (params.emojiAId ? `<:${(params.kodeTimA || 'team').replace(/\s+/g, '')}:${params.emojiAId}>` : '');
-
-  const emojiB =
-    params.teamBEmoji ||
-    (params.emojiBId ? `<:${(params.kodeTimB || 'team').replace(/\s+/g, '')}:${params.emojiBId}>` : '');
-
-  const refText = cleanStaffName(params.refereeName);
-  const strmText = cleanStaffName(params.streamerName);
-  const liveStreamText = params.streamLink || 'Belum tersedia';
-  const isFinished = params.isFinished || false;
-
-  const fields: any[] = [
-    { name: '📅 Jadwal Pertandingan', value: formatWIBDate(params.matchDateIso), inline: false },
-    { name: '⚖️ Referee', value: refText, inline: true },
-    { name: '🎥 Streamer', value: strmText, inline: true },
-    { name: '📺 Live Stream', value: liveStreamText, inline: false },
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    {
+      name: '⚔️ Pertandingan',
+      value: `**${params.teamAName}** vs **${params.teamBName}**`,
+      inline: false,
+    },
+    {
+      name: '📅 Waktu Pertandingan',
+      value: `${formatWibDateTime(params.matchDate)} WIB`,
+      inline: true,
+    },
+    {
+      name: '🏆 Divisi / Fase',
+      value: params.groupName || (isPlayoffStage ? 'Playoff Stage' : 'Regular Season'),
+      inline: true,
+    },
   ];
 
-  if (isFinished) {
+  if (hasReferee) {
     fields.push({
-      name: '🏆 Hasil Pertandingan',
-      value: `**${params.teamAName}** [ ${params.scoreA ?? 0} - ${params.scoreB ?? 0} ] **${params.teamBName}**`,
+      name: '⚖️ Referee Bertugas',
+      value: `**${params.refereeName}**`,
       inline: false,
     });
   }
@@ -135,59 +91,35 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
       value:
         '• **Persetujuan:** Kedua tim wajib setuju.\n' +
         '• **Hari Tanding:** Rabu s.d. Minggu.\n' +
-        '• **Batas Harian:** Maksimal 3 match per hari.\n' +
+        `• **Batas Harian:** Maksimal ${maxDailyQuota} match per hari.\n` +
         '• **Cek Kuota:** Tekan tombol **📊 Cek Sisa Match Harian** di bawah.\n' +
         '• **Konfirmasi:** Wajib lapor ke **Admin Discord**.',
       inline: false,
     });
   }
 
-  const teamADisplay = `${emojiA ? emojiA + ' ' : ''}**${params.teamAName}**`;
-  const teamBDisplay = `${emojiB ? emojiB + ' ' : ''}**${params.teamBName}**`;
+  const roleMentions = [
+    params.teamARoleId ? `<@&${params.teamARoleId}>` : `**${params.teamAName}**`,
+    params.teamBRoleId ? `<@&${params.teamBRoleId}>` : `**${params.teamBName}**`,
+  ].join(' vs ');
 
-  let groupDisplayName = params.groupName || 'Group Stage';
-  if (groupDisplayName === 'Group A') groupDisplayName = DIVISION_MAP.GROUP_A;
-  else if (groupDisplayName === 'Group B') groupDisplayName = DIVISION_MAP.GROUP_B;
-
-  const weekDisplayName = params.weekName || 'Week 1';
-
-  const embedData = {
-    title: `🏆 ${groupDisplayName} - ${weekDisplayName}`,
-    description: `${teamADisplay} **VS** ${teamBDisplay}`,
-    color: isFinished ? 0x2ecc71 : 0x00a8fc,
+  const embed = {
+    title: `📢 Match Announcement - ${params.weekName || `Week ${matchWeek}`}`,
+    description: `Room koordinasi resmi antara ${roleMentions}.\nSilakan gunakan room ini untuk konfirmasi lineup dan koordinasi jadwal pertandingan.`,
+    color: 0x5865f2,
     fields,
-    footer: { text: getEmbedFooterText() },
-  };
-
-  if (targetExistingMsgId) {
-    await discordAPI(
-      `/channels/${params.channelId}/messages/${targetExistingMsgId}`,
-      'DELETE'
-    ).catch(() => null);
-  }
-
-  const roleAMention = params.roleAId ? `<@&${params.roleAId}>` : `**${params.teamAName}**`;
-  const roleBMention = params.roleBId ? `<@&${params.roleBId}>` : `**${params.teamBName}**`;
-
-  const postPayload: any = {
-    embeds: [embedData],
-    // 🔘 Tombol otomatis dicabut jika jadwal terkunci (reschedule / referee assign / hari-H)
-    components: isScheduleLocked ? [] : getCheckMatchesComponent(params.matchId),
-    allowed_mentions: {
-      parse: ['users', 'roles'],
+    footer: {
+      text: 'Team Wars Indonesia • Season 7',
     },
+    timestamp: new Date().toISOString(),
   };
 
-  if (isFirstOpening) {
-    postPayload.content = `Silakan konfirmasi jadwal dan siapkan performa kalian untuk pertandingan ini ${roleAMention} ${roleBMention}`;
-  } else if (params.assignedRole && params.newStaffDiscordId) {
-    if (params.assignedRole === 'REFEREE') {
-      postPayload.content = `⚖️ <@${params.newStaffDiscordId}> telah ditugaskan sebagai **Referee** untuk memimpin pertandingan ini!`;
-    } else {
-      postPayload.content = `🎥 <@${params.newStaffDiscordId}> telah ditugaskan sebagai **Streamer** untuk menyiarkan pertandingan ini!`;
-    }
-  }
+  // Tombol cek match harian hanya dimunculkan jika jadwal belum dikunci
+  const components = !isScheduleLocked ? getCheckMatchesComponent(params.matchId) : [];
 
-  const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', postPayload).catch(() => null);
-  return res?.id || null;
-                                          }
+  return {
+    content: roleMentions,
+    embeds: [embed],
+    components,
+  };
+  }
