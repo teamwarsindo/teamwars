@@ -164,8 +164,8 @@ export async function POST(req: Request) {
         }
 
         // Tentukan nama grup atau label stage babak
-        const groupOrStage = (match as any).stage || match.groupName || 'Playoff';
-
+        const groupOrStage = match.groupName || (match as any).stage || 'Playoff';
+        
         // Buat channel match Discord
         const res = await createMatchDiscordChannel({
           matchId: match.id,
@@ -301,8 +301,8 @@ export async function POST(req: Request) {
 
     const computedWeekNum = match.weekNumber || getMatchWeekNumber(match.matchDate);
     const weekStr = (match as any).weekName || `Week ${computedWeekNum}`;
-    const groupOrStage = (match as any).stage || match.groupName || 'Playoff';
-
+    const groupOrStage = match.groupName || (match as any).stage || 'Playoff';
+    
     const res = await createMatchDiscordChannel({
       matchId: match.id,
       groupName: groupOrStage,
