@@ -126,7 +126,6 @@ export async function createMatchDiscordChannel(params: {
     return { channelId: null, openingMsgId: null };
   }
 
-  // Cek apakah channel/opening baru pertama kali dibuat
   const isFirstOpening = !params.openingMsgId;
 
   const abbrA = getTeamAbbreviation(params.teamAName, params.kodeTimA);
@@ -280,6 +279,67 @@ export async function createMatchDiscordChannel(params: {
   };
 }
 
+// CREATE / RECREATE PLAYOFF COORDINATION TEXT CHANNEL
+export async function syncPlayoffCoordinationDiscordChannel(params: {
+  channelName: string;
+  involvedRoleIds: string[];
+  parentCategoryId?: string;
+}): Promise<string | null> {
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+  const parentCategoryId = params.parentCategoryId || DISCORD_CONFIG.CT_MATCH_ID;
+
+  if (!guildId) return null;
+
+  // VIEW_CHANNEL (1024) | SEND_MESSAGES (2048) | READ_MESSAGE_HISTORY (65536) | MENTION_EVERYONE (131072) | EMBED_LINKS (16384) | ATTACH_FILES (32768)
+  const ALLOW_PERMISSIONS = String(1024 | 2048 | 65536 | 131072 | 16384 | 32768);
+
+  const permission_overwrites: any[] = [
+    {
+      id: guildId, // @everyone
+      type: 0,
+      allow: '0',
+      deny: '1024',
+    },
+  ];
+
+  if (isValidSnowflake(DISCORD_CONFIG.BOT_ROLE_ID)) {
+    permission_overwrites.push({
+      id: DISCORD_CONFIG.BOT_ROLE_ID,
+      type: 0,
+      allow: '1049616',
+    });
+  }
+
+  if (isValidSnowflake(DISCORD_CONFIG.ROLE_REFEREE)) {
+    permission_overwrites.push({
+      id: DISCORD_CONFIG.ROLE_REFEREE,
+      type: 0,
+      allow: ALLOW_PERMISSIONS,
+      deny: '0',
+    });
+  }
+
+  params.involvedRoleIds.forEach((roleId) => {
+    if (isValidSnowflake(roleId)) {
+      permission_overwrites.push({
+        id: roleId,
+        type: 0,
+        allow: ALLOW_PERMISSIONS,
+        deny: '0',
+      });
+    }
+  });
+
+  const createdChannel = await discordAPI(`/guilds/${guildId}/channels`, 'POST', {
+    name: params.channelName,
+    type: 0,
+    parent_id: parentCategoryId,
+    permission_overwrites,
+  });
+
+  return createdChannel?.id || null;
+}
+
 // DELETE MATCH DISCORD CHANNEL & REVOKE WASIT ROLES
 export async function deleteMatchDiscordChannel(params: {
   matchId: string;
@@ -325,4 +385,5 @@ export async function deleteMatchDiscordChannel(params: {
   }
 
   return true;
-      }
+             }
+                                   
