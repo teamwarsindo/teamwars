@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/app/tournament/_library';
-import { createMatchDiscordChannel } from '@/lib/discord/channels';
+import { MatchScheduleItem, TOURNAMENT_RULES } from '@/app/tournament/_library';
+import {
+  createMatchDiscordChannel,
+  syncPlayoffCoordinationDiscordChannel,
+} from '@/lib/discord/channels';
+import { getPlayoffCoordinationMessagePayload } from '@/lib/discord/messages/playoff-coordination';
 import { executeAssignStaff } from '@/lib/discord/commands/assign/execute';
 import { executeUnassignStaff } from '@/lib/discord/commands/assign/unassign-runner';
+import { discordAPI } from '@/lib/discord/utils';
+
+const KV_PLAYOFF_COORD_KEY = 'twi:playoff_coordination_channel';
 
 // Helper slug nama tim
 function getTeamSlug(teamName: string) {
@@ -127,6 +134,9 @@ export async function POST(req: Request) {
       const updatedMatches: MatchScheduleItem[] = [...schedules];
       const syncedChannelMap: Record<string, string> = {};
 
+      const involvedPlayoffRoles = new Set<string>();
+      const involvedPlayoffTeams: { name: string; roleId?: string }[] = [];
+
       for (const match of weekMatches) {
         const idx = updatedMatches.findIndex((m) => m.id === match.id);
         if (idx === -1) continue;
@@ -138,6 +148,20 @@ export async function POST(req: Request) {
           kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
           kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
         ]);
+
+        const roleA = teamA?.discordRoleId || teamA?.roleId;
+        const roleB = teamB?.discordRoleId || teamB?.roleId;
+
+        // Kumpulkan tim & role untuk Room Koordinasi Playoff
+        if (roleA) involvedPlayoffRoles.add(roleA);
+        if (roleB) involvedPlayoffRoles.add(roleB);
+
+        if (match.teamAName && !involvedPlayoffTeams.some((t) => t.name.toLowerCase() === match.teamAName.toLowerCase())) {
+          involvedPlayoffTeams.push({ name: match.teamAName, roleId: roleA });
+        }
+        if (match.teamBName && !involvedPlayoffTeams.some((t) => t.name.toLowerCase() === match.teamBName.toLowerCase())) {
+          involvedPlayoffTeams.push({ name: match.teamBName, roleId: roleB });
+        }
 
         // Tentukan nama grup atau label stage babak
         const groupOrStage = (match as any).stage || match.groupName || 'Playoff';
@@ -152,8 +176,8 @@ export async function POST(req: Request) {
           kodeTimB: teamB?.kodeTim,
           emojiAId: teamA?.emojiId,
           emojiBId: teamB?.emojiId,
-          roleAId: teamA?.discordRoleId || teamA?.roleId,
-          roleBId: teamB?.discordRoleId || teamB?.roleId,
+          roleAId: roleA,
+          roleBId: roleB,
           weekName: targetWeek,
           matchDateIso: match.matchDate,
           refereeName: match.referee,
@@ -180,6 +204,48 @@ export async function POST(req: Request) {
       }
 
       await kv.set('twi:schedules', updatedMatches);
+
+      // =========================================================================
+      // 🤝 SINKRONISASI ROOM KOORDINASI KHUSUS PLAYOFF (WEEK 8 & 9)
+      // =========================================================================
+      const playInsWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK; // 8
+      const quarterWeek = playInsWeek + 1; // 9
+
+      const existingCoordChannelId = await kv.get<string>(KV_PLAYOFF_COORD_KEY);
+
+      if (weekNumber > quarterWeek) {
+        // Week Semifinal ke atas: Bersihkan channel koordinasi lama jika masih tersisa
+        if (existingCoordChannelId) {
+          await discordAPI(`/channels/${existingCoordChannelId}`, 'DELETE').catch(() => null);
+          await kv.del(KV_PLAYOFF_COORD_KEY);
+        }
+      } else if (weekNumber === playInsWeek || weekNumber === quarterWeek) {
+        // Hapus channel koordinasi pekan sebelumnya
+        if (existingCoordChannelId) {
+          await discordAPI(`/channels/${existingCoordChannelId}`, 'DELETE').catch(() => null);
+          await kv.del(KV_PLAYOFF_COORD_KEY);
+        }
+
+        const isPlayIns = weekNumber === playInsWeek;
+        const stageTitle = isPlayIns ? 'Play-Ins' : 'Quarter Finals';
+        const channelName = isPlayIns ? '🤝-koordinasi-playins' : '🤝-koordinasi-quarter';
+
+        const createdCoordChannelId = await syncPlayoffCoordinationDiscordChannel({
+          channelName,
+          involvedRoleIds: Array.from(involvedPlayoffRoles),
+        });
+
+        if (createdCoordChannelId) {
+          await kv.set(KV_PLAYOFF_COORD_KEY, createdCoordChannelId);
+
+          const payload = getPlayoffCoordinationMessagePayload({
+            stageTitle,
+            teams: involvedPlayoffTeams,
+          });
+
+          await discordAPI(`/channels/${createdCoordChannelId}/messages`, 'POST', payload).catch(() => null);
+        }
+      }
 
       return NextResponse.json({
         success: true,
