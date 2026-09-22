@@ -83,6 +83,12 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function POST(req: Request) {
   try {
+    // 🔒 0. Otorisasi Cron Internal
+    const cronSecret = req.headers.get('x-cron-secret');
+    if (process.env.CRON_SECRET && cronSecret && cronSecret !== process.env.CRON_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized: Invalid Cron Secret' }, { status: 401 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const { matchId, action, targetWeek, unassignType, assignType, targetStaffId } = body;
 
@@ -94,17 +100,24 @@ export async function POST(req: Request) {
     if (action === 'WEEK' || targetWeek) {
       if (!targetWeek || targetWeek === 'ALL') {
         return NextResponse.json(
-          { error: 'Silakan pilih minggu spesifik (misal: "Week 1") untuk sync per minggu.' },
+          { error: 'Silakan tentukan minggu atau babak spesifik untuk disinkronkan.' },
           { status: 400 }
         );
       }
 
-      const weekNumber = parseInt(targetWeek.replace('Week ', ''), 10);
-      
-      // Filter presisi berbasis tanggal pertandingan
-      const weekMatches = schedules.filter((m) => {
+      // Ekstraksi angka pekan dengan regex (mendukung "Week 8", "Week 8 • PLAY-INS", atau hanya angka)
+      const weekMatch = String(targetWeek).match(/\d+/);
+      const weekNumber = weekMatch ? parseInt(weekMatch[0], 10) : getTournamentWeekNumberSafe();
+      const normTarget = String(targetWeek).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      // Filter presisi: cocokkan nomor pekan, computed week, atau label nama babak (Playoff/Play-Ins)
+      const weekMatches = schedules.filter((m: any) => {
         const computedWeek = m.weekNumber || getMatchWeekNumber(m.matchDate);
-        return computedWeek === weekNumber;
+        if (computedWeek === weekNumber) return true;
+
+        const mWeekName = String(m.weekName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const mStage = String(m.stage || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return (mWeekName && mWeekName.includes(normTarget)) || (mStage && mStage.includes(normTarget));
       });
 
       if (weekMatches.length === 0) {
@@ -126,10 +139,13 @@ export async function POST(req: Request) {
           kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
         ]);
 
+        // Tentukan nama grup atau label stage babak
+        const groupOrStage = (match as any).stage || match.groupName || 'Playoff';
+
         // Buat channel match Discord
         const res = await createMatchDiscordChannel({
           matchId: match.id,
-          groupName: match.groupName,
+          groupName: groupOrStage,
           teamAName: match.teamAName,
           teamBName: match.teamBName,
           kodeTimA: teamA?.kodeTim,
@@ -219,10 +235,11 @@ export async function POST(req: Request) {
 
     const computedWeekNum = match.weekNumber || getMatchWeekNumber(match.matchDate);
     const weekStr = (match as any).weekName || `Week ${computedWeekNum}`;
+    const groupOrStage = (match as any).stage || match.groupName || 'Playoff';
 
     const res = await createMatchDiscordChannel({
       matchId: match.id,
-      groupName: match.groupName,
+      groupName: groupOrStage,
       teamAName: match.teamAName,
       teamBName: match.teamBName,
       kodeTimA: teamA?.kodeTim,
@@ -264,4 +281,9 @@ export async function POST(req: Request) {
     console.error('Error Syncing Match:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
-        }
+}
+
+// Fallback helper untuk week number default
+function getTournamentWeekNumberSafe(): number {
+  return getMatchWeekNumber(new Date().toISOString());
+}
