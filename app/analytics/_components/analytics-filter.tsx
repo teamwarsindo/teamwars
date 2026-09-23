@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { ChevronDown, Check, RotateCcw } from "lucide-react";
+import Image from "next/image";
 import { DIVISION_MAP } from "@/app/tournament/_library";
 
 export interface AnalyticsFilterMatchItem {
@@ -19,6 +19,7 @@ export interface FilterTeamItem {
   name: string;
   slug: string;
   groupName?: string;
+  logo?: string;
 }
 
 interface AnalyticsFilterProps {
@@ -28,9 +29,10 @@ interface AnalyticsFilterProps {
   selectedTeam: string;
   onTeamChange: (team: string) => void;
   teams: FilterTeamItem[];
-  selectedWeek: number | "" | "ALL";
-  onWeekChange: (week: number | "ALL") => void;
+  selectedWeek: number | "";
+  onWeekChange: (week: number) => void;
   availableWeeks: number[];
+  maxActiveWeek?: number;
   selectedMatchId?: string;
   onMatchChange?: (matchId: string) => void;
   matchesInView?: AnalyticsFilterMatchItem[];
@@ -57,7 +59,6 @@ export function AnalyticsFilter({
   const [openDropdown, setOpenDropdown] = useState<"team" | "week" | "match" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Tutup dropdown jika klik di luar
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -68,80 +69,26 @@ export function AnalyticsFilter({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
-  const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
-
-  const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
-  const selectedTeamObj = teams.find((t) => t.name === selectedTeam);
-
-  // 1. Tentukan Grup yang Terkunci Berdasarkan Match atau Tim Terpilih
-  const lockedGroup = useMemo(() => {
-    if (activeMatch?.groupName) return activeMatch.groupName;
-    if (selectedTeamObj?.groupName) return selectedTeamObj.groupName;
-    return null;
-  }, [activeMatch, selectedTeamObj]);
-
-  const effectiveGroup = lockedGroup || selectedGroup;
-
-  // 2. Daftar Tim Dinamis
+  // Filter dan urutkan tim dari A ke Z
   const filteredTeams = useMemo(() => {
-    // Jika match dipilih, pilihan tim hanya berisi 2 tim yang bertanding
-    if (activeMatch && activeMatch.teamAName && activeMatch.teamBName) {
-      return teams.filter(
-        (t) => t.name === activeMatch.teamAName || t.name === activeMatch.teamBName
-      );
-    }
-
-    // Jika filter grup aktif
     const list =
-      effectiveGroup === "ALL"
+      selectedGroup === "ALL"
         ? [...teams]
-        : teams.filter((t) => !t.groupName || t.groupName === effectiveGroup);
+        : teams.filter((t) => !t.groupName || t.groupName === selectedGroup);
 
     return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  }, [teams, effectiveGroup, activeMatch]);
+  }, [teams, selectedGroup]);
 
-  // Handler Ganti Tim
   const handleSelectTeam = (teamName: string) => {
     if (!teamName || teamName === "ALL") {
       onTeamChange("");
     } else {
       onTeamChange(teamName);
-      // Auto-set grup sesuai tim yang dipilih
-      const targetTeam = teams.find((t) => t.name === teamName);
-      if (targetTeam?.groupName) {
-        onGroupChange(targetTeam.groupName as any);
-      }
     }
     setOpenDropdown(null);
   };
 
-  // Handler Ganti Match
-  const handleSelectMatch = (matchId: string) => {
-    if (!matchId || matchId === "ALL") {
-      onMatchChange?.("");
-    } else {
-      onMatchChange?.(matchId);
-      const match = matchesInView.find((m) => m.id === matchId);
-      if (match?.groupName) {
-        onGroupChange(match.groupName as any);
-      }
-      // Reset pilihan tim jika tim sebelumnya tidak ada di match ini
-      if (
-        selectedTeam &&
-        match &&
-        selectedTeam !== match.teamAName &&
-        selectedTeam !== match.teamBName
-      ) {
-        onTeamChange("");
-      }
-    }
-    setOpenDropdown(null);
-  };
-
-  // Handler Klik Toggle Grup
   const handleToggleGroup = (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
-    if (lockedGroup) return; // Tidak bisa diganti jika match/tim mengunci grup
     if (selectedGroup === group) {
       onGroupChange("ALL");
     } else {
@@ -155,7 +102,11 @@ export function AnalyticsFilter({
     }
   };
 
-  // Format Badge Skor Sederhana
+  const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
+  const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
+  const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
+  const selectedTeamObj = teams.find((t) => t.name === selectedTeam);
+
   const renderScore = (sA?: number, sB?: number) => {
     if (sA === undefined || sB === undefined) return null;
     const aWin = sA >= 10;
@@ -174,23 +125,17 @@ export function AnalyticsFilter({
     );
   };
 
-  const isGroupADisabled = Boolean(lockedGroup && lockedGroup !== DIVISION_MAP.GROUP_A);
-  const isGroupBDisabled = Boolean(lockedGroup && lockedGroup !== DIVISION_MAP.GROUP_B);
-
   return (
     <div ref={containerRef} className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2.5">
       {/* BARIS 1: TOGGLE DUA DIVISI */}
       <div className="grid grid-cols-2 gap-2 w-full">
         <button
           type="button"
-          disabled={isGroupADisabled}
           onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_A)}
-          className={`py-2 px-3 rounded-xl text-xs font-bold transition text-center truncate ${
-            isGroupADisabled
-              ? "opacity-35 cursor-not-allowed bg-muted/20 text-muted-foreground border border-border/20"
-              : effectiveGroup === DIVISION_MAP.GROUP_A
-              ? "bg-sky-500 text-white shadow-xs cursor-pointer"
-              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
+          className={`py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer text-center truncate ${
+            selectedGroup === DIVISION_MAP.GROUP_A
+              ? "bg-sky-500 text-white shadow-xs"
+              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
         >
           {cleanNameA}
@@ -198,14 +143,11 @@ export function AnalyticsFilter({
 
         <button
           type="button"
-          disabled={isGroupBDisabled}
           onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_B)}
-          className={`py-2 px-3 rounded-xl text-xs font-bold transition text-center truncate ${
-            isGroupBDisabled
-              ? "opacity-35 cursor-not-allowed bg-muted/20 text-muted-foreground border border-border/20"
-              : effectiveGroup === DIVISION_MAP.GROUP_B
-              ? "bg-amber-500 text-slate-950 shadow-xs cursor-pointer"
-              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
+          className={`py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer text-center truncate ${
+            selectedGroup === DIVISION_MAP.GROUP_B
+              ? "bg-amber-500 text-slate-950 shadow-xs"
+              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
           }`}
         >
           {cleanNameB}
@@ -221,8 +163,24 @@ export function AnalyticsFilter({
             onClick={() => setOpenDropdown(openDropdown === "team" ? null : "team")}
             className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
           >
-            <span className="truncate">{selectedTeam || "Semua Tim"}</span>
-            <ChevronDown className={`h-3.5 w-3.5 text-primary transition-transform ml-1 shrink-0 ${openDropdown === "team" ? "rotate-180" : ""}`} />
+            <div className="flex items-center gap-1.5 truncate">
+              {selectedTeamObj?.logo && (
+                <div className="h-3.5 w-3.5 rounded-full overflow-hidden shrink-0 border border-border/60">
+                  <Image
+                    src={selectedTeamObj.logo}
+                    alt={selectedTeamObj.name}
+                    width={14}
+                    height={14}
+                    className="h-full w-full object-cover rounded-full"
+                    unoptimized
+                  />
+                </div>
+              )}
+              <span className="truncate">{selectedTeam || "Semua Tim"}</span>
+            </div>
+            <span className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${openDropdown === "team" ? "rotate-180" : ""}`}>
+              ▼
+            </span>
           </button>
 
           {openDropdown === "team" && (
@@ -234,14 +192,8 @@ export function AnalyticsFilter({
                   !selectedTeam ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
                 }`}
               >
-                <span>
-                  {effectiveGroup === DIVISION_MAP.GROUP_A
-                    ? `Semua Tim (${cleanNameA})`
-                    : effectiveGroup === DIVISION_MAP.GROUP_B
-                    ? `Semua Tim (${cleanNameB})`
-                    : "Semua Tim"}
-                </span>
-                {!selectedTeam && <Check className="h-3.5 w-3.5" />}
+                <span>Semua Tim</span>
+                {!selectedTeam && <span>✓</span>}
               </button>
 
               {filteredTeams.map((t) => {
@@ -255,8 +207,22 @@ export function AnalyticsFilter({
                       isSelected ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
                     }`}
                   >
-                    <span className="truncate">{t.name}</span>
-                    {isSelected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                    <div className="flex items-center gap-2 truncate">
+                      {t.logo && (
+                        <div className="h-4 w-4 rounded-full overflow-hidden shrink-0 border border-border/60">
+                          <Image
+                            src={t.logo}
+                            alt={t.name}
+                            width={16}
+                            height={16}
+                            className="h-full w-full object-cover rounded-full"
+                            unoptimized
+                          />
+                        </div>
+                      )}
+                      <span className="truncate">{t.name}</span>
+                    </div>
+                    {isSelected && <span className="ml-1 shrink-0">✓</span>}
                   </button>
                 );
               })}
@@ -273,28 +239,15 @@ export function AnalyticsFilter({
               className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
             >
               <span className="truncate">
-                {!selectedWeek || selectedWeek === "ALL" ? "Semua Week" : `Week ${selectedWeek}`}
+                {selectedWeek ? `Week ${selectedWeek}` : (availableWeeks[0] ? `Week ${availableWeeks[0]}` : "Pilih Week")}
               </span>
-              <ChevronDown className={`h-3.5 w-3.5 text-primary transition-transform ml-1 shrink-0 ${openDropdown === "week" ? "rotate-180" : ""}`} />
+              <span className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${openDropdown === "week" ? "rotate-180" : ""}`}>
+                ▼
+              </span>
             </button>
 
             {openDropdown === "week" && (
               <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl space-y-0.5">
-                {/* Opsi Default: Semua Week */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onWeekChange("ALL");
-                    setOpenDropdown(null);
-                  }}
-                  className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
-                    !selectedWeek || selectedWeek === "ALL" ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
-                  }`}
-                >
-                  <span>Semua Week</span>
-                  {(!selectedWeek || selectedWeek === "ALL") && <Check className="h-3.5 w-3.5" />}
-                </button>
-
                 {availableWeeks.map((w) => (
                   <button
                     key={w}
@@ -308,7 +261,7 @@ export function AnalyticsFilter({
                     }`}
                   >
                     <span>Week {w}</span>
-                    {selectedWeek === w && <Check className="h-3.5 w-3.5" />}
+                    {selectedWeek === w && <span>✓</span>}
                   </button>
                 ))}
               </div>
@@ -324,7 +277,9 @@ export function AnalyticsFilter({
               !isFilterActive ? "opacity-35 cursor-not-allowed" : "hover:bg-rose-600 active:scale-95"
             }`}
           >
-            <RotateCcw className="w-4 h-4" />
+            <svg className="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
           </button>
         </div>
       </div>
@@ -351,32 +306,26 @@ export function AnalyticsFilter({
               ) : matchesInView.length === 0 ? (
                 "Tidak ada jadwal yang cocok"
               ) : (
-                "-- Semua Pertandingan --"
+                "-- Pilih Pertandingan --"
               )}
             </span>
-            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ml-1 shrink-0 ${openDropdown === "match" ? "rotate-180" : ""}`} />
+            <span className={`text-[10px] text-muted-foreground transition-transform ml-1 shrink-0 ${openDropdown === "match" ? "rotate-180" : ""}`}>
+              ▼
+            </span>
           </button>
 
           {openDropdown === "match" && matchesInView.length > 0 && (
             <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl space-y-0.5">
-              <button
-                type="button"
-                onClick={() => handleSelectMatch("ALL")}
-                className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
-                  !selectedMatchId ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
-                }`}
-              >
-                <span>-- Semua Pertandingan --</span>
-                {!selectedMatchId && <Check className="h-3.5 w-3.5" />}
-              </button>
-
               {matchesInView.map((m) => {
                 const isSelected = m.id === selectedMatchId;
                 return (
                   <button
                     key={m.id}
                     type="button"
-                    onClick={() => handleSelectMatch(m.id)}
+                    onClick={() => {
+                      onMatchChange(m.id);
+                      setOpenDropdown(null);
+                    }}
                     className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
                       isSelected ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
                     }`}
@@ -391,7 +340,7 @@ export function AnalyticsFilter({
 
                     <div className="flex items-center gap-2 shrink-0">
                       {m.isFinished && renderScore(m.scoreA, m.scoreB)}
-                      {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                      {isSelected && <span className="text-primary font-bold">✓</span>}
                     </div>
                   </button>
                 );
@@ -402,4 +351,4 @@ export function AnalyticsFilter({
       )}
     </div>
   );
-              }
+}
