@@ -7,7 +7,6 @@ import {
   TOURNAMENT_RULES,
 } from '@/app/tournament/_library';
 import { discordAPI } from '@/lib/discord/utils';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 export function getCheckMatchesComponent(matchId: string) {
   return [
@@ -30,8 +29,6 @@ export async function handleBtCheckMatches(body: any) {
     const customId: string = body.data?.custom_id || '';
     const rawMatchId = customId.replace('check_matches_', '').trim();
     const channelId = body.channel_id;
-    const interactionToken = body.token;
-    const appId = DISCORD_CONFIG.APP_ID;
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
@@ -54,7 +51,6 @@ export async function handleBtCheckMatches(body: any) {
       (m: any) => (m.weekNumber || getMatchWeekNumber(m.matchDate || m.date)) === matchWeek
     );
 
-    // Deteksi fase Playoff menggunakan konstanta resmi TOURNAMENT_RULES.PLAYOFF_START_WEEK
     const isPlayoffStage =
       Boolean((match as any).groupName?.toLowerCase().includes('play')) ||
       Boolean((match as any).weekName?.toLowerCase().includes('play')) ||
@@ -64,7 +60,7 @@ export async function handleBtCheckMatches(body: any) {
       ? TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_PLAYOFF
       : TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_REGULAR;
 
-    // Filter jadwal lain (jadwal channel ini sendiri dikeluarkan)
+    // Filter jadwal lain (jadwal match channel ini sendiri dikeluarkan)
     const otherMatches = weekMatches.filter((m: any) => m.id !== match.id);
 
     const matchesByDate = new Map<string, MatchScheduleItem[]>();
@@ -88,18 +84,14 @@ export async function handleBtCheckMatches(body: any) {
 
     const lines: string[] = [];
     const now = new Date();
-    // Titik awal: Mulai besok (H+1)
     let checkDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     while (true) {
       const dateKey = getWibDateKey(checkDay);
 
-      // Berhenti jika sudah lewat hari Minggu
-      if (dateKey > sundayKey) {
-        break;
-      }
+      if (dateKey > sundayKey) break;
 
-      // KECUALIKAN HARI MATCH MEREKA SENDIRI DARI TAMPILAN BUTTON
+      // Skip tanggal match mereka sendiri
       if (dateKey === currentMatchDateKey) {
         checkDay.setDate(checkDay.getDate() + 1);
         continue;
@@ -168,12 +160,11 @@ export async function handleBtCheckMatches(body: any) {
       footer: { text: `Last Updated: ${updatedTime} WIB` },
     };
 
-    // Jalankan DELETE, POST, dan update interaction response via background task
+    // Jalankan operasi kirim embed ke channel di background tanpa menahan respon Discord
+    const recapKvKey = `twi:match_recap_msg:${match.id}`;
     (async () => {
       try {
-        const recapKvKey = `twi:match_recap_msg:${match.id}`;
         const oldMsgId = await kv.get<string>(recapKvKey);
-
         if (oldMsgId) {
           await discordAPI(`/channels/${channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
           await kv.del(recapKvKey);
@@ -186,22 +177,14 @@ export async function handleBtCheckMatches(body: any) {
         if (sentMsg?.id) {
           await kv.set(recapKvKey, sentMsg.id);
         }
-
-        // Perbarui pesan thinking interaction awal
-        if (appId && interactionToken) {
-          await discordAPI(`/webhooks/${appId}/${interactionToken}/messages/@original`, 'PATCH', {
-            content: '✅ Rekap ketersediaan match berhasil diperbarui di channel.',
-          }).catch(() => null);
-        }
-      } catch (bgErr) {
-        console.error('Error background recap dispatch:', bgErr);
+      } catch (err) {
+        console.error('Error background recap send:', err);
       }
     })();
 
-    // RESPON TIPE 5 (DEFERRED INTERACTION DENGAN EPHEMERAL)
+    // Respon ACK type 6 (update interaksi tanpa membuka popup atau error thinking)
     return NextResponse.json({
-      type: 5,
-      data: { flags: 64 },
+      type: 6,
     });
   } catch (error: any) {
     console.error('Error handling check matches button:', error);
@@ -210,4 +193,4 @@ export async function handleBtCheckMatches(body: any) {
       data: { content: '❌ Terjadi kesalahan saat memeriksa ketersediaan match.', flags: 64 },
     });
   }
-      }
+}
