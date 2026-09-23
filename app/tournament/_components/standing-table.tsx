@@ -14,6 +14,7 @@ export interface StandingRowItem extends ExtendedStandingItem {
 interface StandingTableRowProps {
   item: StandingRowItem;
   activeView: "ALL_GLOBAL" | DivisionFilterType | "WILDCARD";
+  selectedWeek?: number;
 }
 
 function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
@@ -49,21 +50,40 @@ function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
   );
 }
 
-export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
+export function StandingTableRow({ item, activeView, selectedWeek }: StandingTableRowProps) {
   const isGroupA = item.groupName === DIVISION_MAP.GROUP_A;
+  const maxRegularWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1;
+  const isFinalRegularWeek = typeof selectedWeek === "number" && selectedWeek >= maxRegularWeek;
 
-  const rowBorder =
-    activeView === "ALL_GLOBAL"
-      ? ""
-      : activeView === "WILDCARD"
-      ? item.computedRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
+  let rowBorder = "";
+
+  if (activeView === "ALL_GLOBAL") {
+    // Jika sudah di pekan terakhir grup / playoff, warnai seluruh baris Global sesuai status kualifikasi
+    if (isFinalRegularWeek) {
+      if (item.isTopGroup) {
+        rowBorder = isGroupA
+          ? "bg-sky-500/10 border-l-4 border-l-sky-500" // Top 2 Divisi A (Lolos Quarter)
+          : "bg-amber-500/10 border-l-4 border-l-amber-500"; // Top 2 Divisi B (Lolos Quarter)
+      } else if (item.isPlayoffQualified) {
+        rowBorder = "bg-emerald-500/10 border-l-4 border-l-emerald-500"; // Rank 1-4 Wildcard (Play-Ins)
+      } else {
+        rowBorder = "bg-rose-500/5 border-l-4 border-l-rose-500/60"; // Sisanya Tereliminasi
+      }
+    }
+  } else if (activeView === "WILDCARD") {
+    rowBorder =
+      item.computedRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
         ? "bg-emerald-500/10 border-l-4 border-l-emerald-500"
-        : "bg-rose-500/5 border-l-4 border-l-rose-500/60"
-      : item.computedRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP
-      ? isGroupA
-        ? "bg-sky-500/10 border-l-4 border-l-sky-500"
-        : "bg-amber-500/10 border-l-4 border-l-amber-500"
-      : "";
+        : "bg-rose-500/5 border-l-4 border-l-rose-500/60";
+  } else {
+    // Tampilan Divisi Group A atau Group B
+    rowBorder =
+      item.computedRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP
+        ? isGroupA
+          ? "bg-sky-500/10 border-l-4 border-l-sky-500"
+          : "bg-amber-500/10 border-l-4 border-l-amber-500"
+        : "";
+  }
 
   return (
     <tr className={`hover:bg-muted/20 transition ${rowBorder}`}>
@@ -128,4 +148,4 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       </td>
     </tr>
   );
-          }
+      }
