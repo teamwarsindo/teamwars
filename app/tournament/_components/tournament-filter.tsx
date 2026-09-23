@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { ChevronDown, Check, RotateCcw, Globe } from "lucide-react";
-import { DIVISION_MAP } from "@/app/tournament/_library";
+import { DIVISION_MAP, TOURNAMENT_RULES } from "@/app/tournament/_library";
 
 export type DivisionFilterType = "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B;
 
@@ -61,7 +61,23 @@ export function TournamentFilter({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Batas pekan reguler dari konstanta turnamen
+  const regularLimit =
+    (TOURNAMENT_RULES as any).TOTAL_REGULAR_WEEKS ??
+    (TOURNAMENT_RULES as any).REGULAR_SEASON_WEEKS ??
+    7;
+
+  // Filter daftar week: Standing hanya sampai batas babak grup
+  const filteredAvailableWeeks =
+    mode === "standing"
+      ? availableWeeks.filter((w) => w <= regularLimit)
+      : availableWeeks;
+
+  // Nonaktifkan tombol grup jika sedang berada di week Playoff
+  const isPlayoffWeek = typeof selectedWeek === "number" && selectedWeek > regularLimit;
+
   const handleToggleGroup = (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
+    if (isPlayoffWeek) return;
     if (selectedGroup === group) {
       onGroupChange("ALL");
     } else {
@@ -74,33 +90,39 @@ export function TournamentFilter({
 
   return (
     <div className="bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-2.5">
-      {/* 1. BARIS 1: TOGGLE DUA DIVISI (50:50) */}
+      {/* 1. BARIS 1: TOGGLE DUA DIVISI (WARNA BIRU SERAGAM & DISABLE PADA PLAYOFF) */}
       <div className="grid grid-cols-2 gap-2 w-full">
         <button
           type="button"
+          disabled={isPlayoffWeek}
           onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_A)}
-          className={`py-2 px-3 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer text-center truncate ${
-            selectedGroup === DIVISION_MAP.GROUP_A && !isWildcardActive
-              ? "bg-sky-500 text-white shadow-xs"
-              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
+          className={`py-2 px-3 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition text-center truncate ${
+            isPlayoffWeek
+              ? "bg-muted/10 text-muted-foreground/30 border border-border/20 cursor-not-allowed"
+              : selectedGroup === DIVISION_MAP.GROUP_A && !isWildcardActive
+              ? "bg-sky-500 text-white shadow-xs cursor-pointer"
+              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
           }`}
         >
           {cleanNameA}
         </button>
         <button
           type="button"
+          disabled={isPlayoffWeek}
           onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_B)}
-          className={`py-2 px-3 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition cursor-pointer text-center truncate ${
-            selectedGroup === DIVISION_MAP.GROUP_B && !isWildcardActive
-              ? "bg-amber-500 text-slate-950 shadow-xs"
-              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
+          className={`py-2 px-3 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition text-center truncate ${
+            isPlayoffWeek
+              ? "bg-muted/10 text-muted-foreground/30 border border-border/20 cursor-not-allowed"
+              : selectedGroup === DIVISION_MAP.GROUP_B && !isWildcardActive
+              ? "bg-sky-500 text-white shadow-xs cursor-pointer"
+              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
           }`}
         >
           {cleanNameB}
         </button>
       </div>
 
-      {/* 2. BARIS 2: DINAMIS SESUAI MODE (50:50 SIMETRIS) */}
+      {/* 2. BARIS 2: DINAMIS SESUAI MODE */}
       <div className="grid grid-cols-2 gap-2 items-center">
         {/* KOLOM KIRI: TEAM DROPDOWN (SCHEDULE) / WILDCARD BUTTON (STANDING) */}
         {mode === "schedule" ? (
@@ -188,7 +210,6 @@ export function TournamentFilter({
 
             {isWeekOpen && (
               <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
-                {/* Opsi 'Semua Week' HANYA muncul pada mode schedule */}
                 {mode === "schedule" && (
                   <button
                     type="button"
@@ -205,7 +226,7 @@ export function TournamentFilter({
                   </button>
                 )}
 
-                {availableWeeks.map((w) => (
+                {filteredAvailableWeeks.map((w) => (
                   <button
                     key={w}
                     type="button"
@@ -255,4 +276,4 @@ export function TournamentFilter({
       )}
     </div>
   );
-      }
+}
