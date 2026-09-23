@@ -27,11 +27,18 @@ export function getCheckMatchesComponent(matchId: string) {
 export async function handleBtCheckMatches(body: any) {
   try {
     const customId: string = body.data?.custom_id || '';
-    const matchId = customId.replace('check_matches_', '');
+    const rawMatchId = customId.replace('check_matches_', '').trim();
     const channelId = body.channel_id;
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const match = schedules.find((m) => m.id === matchId || (m as any).discordChannelId === channelId);
+
+    // Cara ambil match disamakan persis seperti di autocomplete /reschedule:
+    // Cek berdasarkan discordChannelId, kecocokan ID langsung, atau ID yang terkandung di parameter/channel
+    const match = schedules.find((m: any) => {
+      if (m.discordChannelId && m.discordChannelId === channelId) return true;
+      if (rawMatchId && (m.id === rawMatchId || String(m.id).toLowerCase() === rawMatchId.toLowerCase())) return true;
+      return false;
+    });
 
     if (!match) {
       return NextResponse.json({
@@ -40,34 +47,40 @@ export async function handleBtCheckMatches(body: any) {
       });
     }
 
-    const matchWeek = match.weekNumber || getMatchWeekNumber(match.matchDate);
+    const currentMatchRawDate = match.matchDate || (match as any).date;
+    const matchWeek = match.weekNumber || getMatchWeekNumber(currentMatchRawDate);
     const weekMatches = schedules.filter(
-      (m) => (m.weekNumber || getMatchWeekNumber(m.matchDate)) === matchWeek
+      (m: any) => (m.weekNumber || getMatchWeekNumber(m.matchDate || m.date)) === matchWeek
     );
 
-    // Deteksi fase Playoff menggunakan konstanta resmi TOURNAMENT_RULES.PLAYOFF_START_WEEK
+    // Deteksi fase Playoff
     const isPlayoffStage =
       Boolean((match as any).groupName?.toLowerCase().includes('play')) ||
       Boolean((match as any).weekName?.toLowerCase().includes('play')) ||
       matchWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-    // Kuota harian membaca langsung dari konstanta resmi turnamen
     const maxDailyQuota = isPlayoffStage
       ? TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_PLAYOFF
       : TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_REGULAR;
 
-    // Simpan daftar match per tanggal untuk menampilkan detail laga pada fase playoff
+    // Filter jadwal lain (jadwal channel ini sendiri dikeluarkan)
+    const otherMatches = weekMatches.filter((m: any) => m.id !== match.id);
+
     const matchesByDate = new Map<string, MatchScheduleItem[]>();
-    weekMatches.forEach((m) => {
-      if (!m.matchDate) return;
-      const key = getWibDateKey(new Date(m.matchDate));
+    otherMatches.forEach((m: any) => {
+      const rawDate = m.matchDate || m.date;
+      if (!rawDate) return;
+      const key = getWibDateKey(new Date(rawDate));
       const list = matchesByDate.get(key) || [];
       list.push(m);
       matchesByDate.set(key, list);
     });
 
-    // Batas akhir: Hari Minggu pekan match tersebut
-    const targetMatchDate = new Date(match.matchDate);
+    // Tanggal match target saat ini
+    const targetMatchDate = new Date(currentMatchRawDate);
+    const currentMatchDateKey = getWibDateKey(targetMatchDate);
+
+    // Batas hari Minggu pekan berjalan
     const dayOfWeek = targetMatchDate.getDay();
     const diffToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
     const sundayDate = new Date(targetMatchDate);
@@ -82,9 +95,15 @@ export async function handleBtCheckMatches(body: any) {
     while (true) {
       const dateKey = getWibDateKey(checkDay);
 
-      // Berhenti jika sudah lewat hari Minggu
+      // Berhenti jika melewati hari Minggu
       if (dateKey > sundayKey) {
         break;
+      }
+
+      // 🛑 HARI MATCH MEREKA SENDIRI DI-SKIP
+      if (dateKey === currentMatchDateKey) {
+        checkDay.setDate(checkDay.getDate() + 1);
+        continue;
       }
 
       const dayMatches = matchesByDate.get(dateKey) || [];
@@ -150,8 +169,8 @@ export async function handleBtCheckMatches(body: any) {
       footer: { text: `Last Updated: ${updatedTime} WIB` },
     };
 
-    // Selalu hapus pesan lama dan kirim pesan embed baru ke channel
-    const recapKvKey = `twi:match_recap_msg:${matchId}`;
+    // Selalu hapus pesan recap lama dan kirim pesan baru
+    const recapKvKey = `twi:match_recap_msg:${match.id}`;
     const oldMsgId = await kv.get<string>(recapKvKey);
 
     if (oldMsgId) {
@@ -178,4 +197,4 @@ export async function handleBtCheckMatches(body: any) {
       data: { content: '❌ Terjadi kesalahan saat memeriksa ketersediaan match.', flags: 64 },
     });
   }
-        }
+  }
