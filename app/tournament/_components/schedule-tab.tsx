@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
 import { TournamentFilter, DivisionFilterType } from "./tournament-filter";
@@ -48,6 +48,8 @@ export function ScheduleTab({
 
   const selectedTeamFilter = searchParams.get("team") || "ALL";
 
+  const maxVisibleWeek = typeof defaultWeek === "number" && defaultWeek > 0 ? defaultWeek : 1;
+
   const availableWeeks = useMemo(() => {
     const allWeekNumbers = Array.from(
       new Set([...schedules.map((s) => s.weekNumber || 1), ...allWeeks])
@@ -55,10 +57,9 @@ export function ScheduleTab({
 
     if (isAdmin) return allWeekNumbers.length > 0 ? allWeekNumbers : [1];
 
-    const activeWeekNum = typeof defaultWeek === "number" && defaultWeek > 0 ? defaultWeek : 1;
-    const restrictedWeeks = allWeekNumbers.filter((w) => w <= activeWeekNum);
+    const restrictedWeeks = allWeekNumbers.filter((w) => w <= maxVisibleWeek);
     return restrictedWeeks.length > 0 ? restrictedWeeks : [1];
-  }, [schedules, allWeeks, defaultWeek, isAdmin]);
+  }, [schedules, allWeeks, maxVisibleWeek, isAdmin]);
 
   const updateURL = (newGroup: DivisionFilterType, newWeek: number | "ALL", newTeam: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -117,6 +118,11 @@ export function ScheduleTab({
         if (!m) return false;
         const mWeek = m.weekNumber || 1;
 
+        // Cegah match pekan masa depan bocor ketika user biasa memilih "Semua Week"
+        if (!isAdmin && mWeek > maxVisibleWeek) {
+          return false;
+        }
+
         if (selectedWeekFilter !== "ALL" && mWeek !== selectedWeekFilter) {
           return false;
         }
@@ -143,7 +149,7 @@ export function ScheduleTab({
         const timeB = b.matchDate ? new Date(b.matchDate).getTime() : 0;
         return timeA - timeB;
       });
-  }, [schedules, selectedWeekFilter, selectedGroup, selectedTeamFilter]);
+  }, [schedules, selectedWeekFilter, selectedGroup, selectedTeamFilter, isAdmin, maxVisibleWeek]);
 
   const groupedByWeek = useMemo(() => {
     const map = new Map<number, MatchScheduleItem[]>();
@@ -205,4 +211,4 @@ export function ScheduleTab({
       )}
     </div>
   );
-}
+    }
