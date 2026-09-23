@@ -14,7 +14,6 @@ export interface StandingRowItem extends ExtendedStandingItem {
 interface StandingTableRowProps {
   item: StandingRowItem;
   activeView: "ALL_GLOBAL" | DivisionFilterType | "WILDCARD";
-  selectedWeek?: number;
 }
 
 function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
@@ -52,38 +51,41 @@ function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
 export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
   const isGroupA = item.groupName === DIVISION_MAP.GROUP_A;
 
+  // Batas total tim lolos Playoff di tabel global
+  const totalPlayoffCutoff =
+    TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP * TOURNAMENT_RULES.TOTAL_GROUP +
+    TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA;
+
   const getRowHighlight = () => {
-    // 1. Tampilan Tab Divisi Grup A / Grup B
+    // 1. Tab Divisi Grup A / Grup B
     if (activeView === DIVISION_MAP.GROUP_A || activeView === DIVISION_MAP.GROUP_B) {
       if (item.computedRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP) {
         return isGroupA
-          ? "bg-sky-500/15 border-l-4 border-l-sky-500"
-          : "bg-amber-500/15 border-l-4 border-l-amber-500";
+          ? "bg-sky-500/10 border-l-4 border-l-sky-500"
+          : "bg-amber-500/10 border-l-4 border-l-amber-500";
       }
       return "";
     }
 
-    // 2. Tampilan Tab Global Wildcard
+    // 2. Tab Global Wildcard
     if (activeView === "WILDCARD") {
       return item.computedRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
-        ? "bg-emerald-500/15 border-l-4 border-l-emerald-500"
-        : "bg-rose-500/10 border-l-4 border-l-rose-500";
+        ? "bg-emerald-500/10 border-l-4 border-l-emerald-500"
+        : "bg-rose-500/5 border-l-4 border-l-rose-500/60";
     }
 
-    // 3. Tampilan Standing Global (1–16 Murni)
-    // Beri highlight Biru/Kuning pada Top 2 masing-masing grup di mana pun posisinya
+    // 3. Tab Standing Global
     if (item.isTopGroup) {
       return isGroupA
-        ? "bg-sky-500/15 border-l-4 border-l-sky-500"       // Top 2 Grup A (Biru)
-        : "bg-amber-500/15 border-l-4 border-l-amber-500";   // Top 2 Grup B (Kuning)
+        ? "bg-sky-500/10 border-l-4 border-l-sky-500"
+        : "bg-amber-500/10 border-l-4 border-l-amber-500";
     }
 
-    // Sisa tim non-Top Group: 8 tim berhak ke Play-Ins (Hijau), 4 terbawah Gugur (Merah)
-    if (item.computedRank <= 12) {
-      return "bg-emerald-500/15 border-l-4 border-l-emerald-500"; // Play-Ins Wildcard
+    if (item.computedRank <= totalPlayoffCutoff) {
+      return "bg-emerald-500/10 border-l-4 border-l-emerald-500";
     }
 
-    return "bg-rose-500/10 border-l-4 border-l-rose-500";         // Zona Eliminasi
+    return "bg-rose-500/5 border-l-4 border-l-rose-500/60";
   };
 
   const rowBorder = getRowHighlight();
@@ -151,4 +153,4 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       </td>
     </tr>
   );
-}
+      }
