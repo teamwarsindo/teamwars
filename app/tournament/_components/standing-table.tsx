@@ -55,19 +55,23 @@ export function StandingTableRow({ item, activeView, selectedWeek }: StandingTab
   const maxRegularWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1;
   const isFinalRegularWeek = typeof selectedWeek === "number" && selectedWeek >= maxRegularWeek;
 
+  // Total tim yang berhak masuk playoff (Direct Quarter Finals + Play-Ins Wildcard)
+  const totalPlayoffCutoff =
+    TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP * 2 + TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA;
+
   let rowBorder = "";
 
   if (activeView === "ALL_GLOBAL") {
-    // Jika sudah di pekan terakhir grup / playoff, warnai seluruh baris Global sesuai status kualifikasi
+    // Pada pekan terakhir babak reguler / playoff, warnai seluruh baris Global sesuai ketentuan
     if (isFinalRegularWeek) {
       if (item.isTopGroup) {
         rowBorder = isGroupA
-          ? "bg-sky-500/10 border-l-4 border-l-sky-500" // Top 2 Divisi A (Lolos Quarter)
-          : "bg-amber-500/10 border-l-4 border-l-amber-500"; // Top 2 Divisi B (Lolos Quarter)
-      } else if (item.isPlayoffQualified) {
-        rowBorder = "bg-emerald-500/10 border-l-4 border-l-emerald-500"; // Rank 1-4 Wildcard (Play-Ins)
+          ? "bg-sky-500/10 border-l-4 border-l-sky-500" // Top 2 Divisi A (Lolos Quarter Finals)
+          : "bg-amber-500/10 border-l-4 border-l-amber-500"; // Top 2 Divisi B (Lolos Quarter Finals)
+      } else if (item.computedRank <= totalPlayoffCutoff) {
+        rowBorder = "bg-emerald-500/10 border-l-4 border-l-emerald-500"; // Lolos Play-Ins (Wildcard)
       } else {
-        rowBorder = "bg-rose-500/5 border-l-4 border-l-rose-500/60"; // Sisanya Tereliminasi
+        rowBorder = "bg-rose-500/5 border-l-4 border-l-rose-500/60"; // Tereliminasi
       }
     }
   } else if (activeView === "WILDCARD") {
@@ -148,4 +152,4 @@ export function StandingTableRow({ item, activeView, selectedWeek }: StandingTab
       </td>
     </tr>
   );
-      }
+}
