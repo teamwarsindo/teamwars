@@ -28,6 +28,17 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const searchParams = useSearchParams();
 
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
+  // Batas maksimal pekan untuk standing (pekan terakhir babak reguler)
+  const maxRegularWeek = useMemo(
+    () => TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1,
+    []
+  );
+
+  // Baseline pekan default standing: jika turnamen sudah masuk playoff, default standing mentok di babak reguler
+  const defaultStandingWeek = useMemo(
+    () => Math.min(currentWeek, maxRegularWeek),
+    [currentWeek, maxRegularWeek]
+  );
 
   // Membaca state shared filter dari URL
   const rawGroupParam = searchParams.get("group");
@@ -40,14 +51,19 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
 
   const isWildcardActive = searchParams.get("wildcard") === "true";
   const rawWeekParam = searchParams.get("week");
-  const selectedWeek = rawWeekParam && rawWeekParam !== "ALL" ? Number(rawWeekParam) : currentWeek;
+
+  // Jika parameter URL ada dan valid angka, gunakan; jika tidak, gunakan defaultStandingWeek
+  const selectedWeek =
+    rawWeekParam && rawWeekParam !== "ALL"
+      ? Math.min(Number(rawWeekParam), maxRegularWeek)
+      : defaultStandingWeek;
 
   const weeksList = useMemo(() => {
     const fromSched = schedules.map((s: any) => s.weekNumber || s.week || s.matchWeek || 1);
-    return Array.from(new Set([...fromSched, ...Array.from({ length: currentWeek }, (_, i) => i + 1)]))
-      .filter((w) => w <= currentWeek)
+    return Array.from(new Set([...fromSched, ...Array.from({ length: defaultStandingWeek }, (_, i) => i + 1)]))
+      .filter((w) => w <= maxRegularWeek)
       .sort((a, b) => a - b);
-  }, [schedules, currentWeek]);
+  }, [schedules, defaultStandingWeek, maxRegularWeek]);
 
   const updateURL = (group: DivisionFilterType, wildcard: boolean, week: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -63,7 +79,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       else params.delete("group");
     }
 
-    if (week !== currentWeek) params.set("week", week.toString());
+    if (week !== defaultStandingWeek) params.set("week", week.toString());
     else params.delete("week");
 
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -78,7 +94,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   };
 
   const handleWeekChange = (week: number | "ALL") => {
-    const targetWeek = typeof week === "number" ? week : currentWeek;
+    const targetWeek = typeof week === "number" ? Math.min(week, maxRegularWeek) : defaultStandingWeek;
     updateURL(selectedGroup, isWildcardActive, targetWeek);
   };
 
@@ -92,7 +108,11 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  const isFilterActive = selectedGroup !== "ALL" || isWildcardActive || selectedWeek !== currentWeek;
+  // Indikator aktif membandingkan dengan defaultStandingWeek
+  const isFilterActive =
+    selectedGroup !== "ALL" ||
+    isWildcardActive ||
+    selectedWeek !== defaultStandingWeek;
 
   const activeView = isWildcardActive
     ? "WILDCARD"
@@ -244,4 +264,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       </div>
     </div>
   );
-    }
+        }
