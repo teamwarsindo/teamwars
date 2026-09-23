@@ -101,7 +101,11 @@ export async function handleBtCheckMatches(body: any) {
       if (isPlayoffStage) {
         if (dayMatches.length > 0) {
           const matchLines = dayMatches
-            .map((m) => `🔴 **${m.team1}** vs **${m.team2}**`)
+            .map((m: any) => {
+              const teamA = m.teamAName || m.team1 || 'Tim A';
+              const teamB = m.teamBName || m.team2 || 'Tim B';
+              return `🔴 **${teamA}** vs **${teamB}**`;
+            })
             .join('\n');
           lines.push(`📅 **${dayLabel}**\n${matchLines}`);
         } else {
@@ -174,4 +178,4 @@ export async function handleBtCheckMatches(body: any) {
       data: { content: '❌ Terjadi kesalahan saat memeriksa ketersediaan match.', flags: 64 },
     });
   }
-            }
+        }
