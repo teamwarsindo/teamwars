@@ -1,27 +1,61 @@
 "use client";
 
+import { useMemo } from "react";
+import { TOURNAMENT_RULES } from "@/app/tournament/_library";
+
 interface PhaseTimelineProps {
   currentWeek: number;
 }
 
 export function PhaseTimeline({ currentWeek }: PhaseTimelineProps) {
-  const getPhaseStatus = () => {
-    if (currentWeek < 1) return { phaseKey: "REG", label: "Registration" };
-    if (currentWeek <= 7) return { phaseKey: "GS", label: `Group Stage — Week ${currentWeek} of 7` };
-    if (currentWeek === 8) return { phaseKey: "PLAY_INS", label: "Play-Ins (Wildcard Round)" };
-    if (currentWeek === 9) return { phaseKey: "PLAYOFF", label: "Play-Off (Quarter & Semi Finals)" };
-    return { phaseKey: "GF", label: "Grand Final" };
-  };
+  // Hitung pekan tiap fase secara dinamis dari TOURNAMENT_RULES
+  const groupStageEndWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1; // Week 7
+  const playInsWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK;            // Week 8
+  const playoffWeek = playInsWeek + 1;                               // Week 9
+  const grandFinalWeek = playoffWeek + 1;                            // Week 10
 
-  const { label: activePhaseLabel } = getPhaseStatus();
+  const phases = useMemo(
+    () => [
+      {
+        key: "REG",
+        name: "Registration",
+        fullLabel: "Registration",
+        isPast: currentWeek >= 1,
+        isCurrent: currentWeek < 1,
+      },
+      {
+        key: "GS",
+        name: "Group Stage",
+        fullLabel: `Group Stage — Week ${Math.max(1, currentWeek)} of ${groupStageEndWeek}`,
+        isPast: currentWeek > groupStageEndWeek,
+        isCurrent: currentWeek >= 1 && currentWeek <= groupStageEndWeek,
+      },
+      {
+        key: "PLAY_INS",
+        name: "Play-Ins",
+        fullLabel: "Play-Ins (Wildcard Round)",
+        isPast: currentWeek > playInsWeek,
+        isCurrent: currentWeek === playInsWeek,
+      },
+      {
+        key: "PLAYOFF",
+        name: "Play-Off",
+        fullLabel: "Play-Off (Quarter & Semi Finals)",
+        isPast: currentWeek > playoffWeek,
+        isCurrent: currentWeek === playoffWeek,
+      },
+      {
+        key: "GF",
+        name: "Grand Final",
+        fullLabel: "Grand Final",
+        isPast: false,
+        isCurrent: currentWeek >= grandFinalWeek,
+      },
+    ],
+    [currentWeek, groupStageEndWeek, playInsWeek, playoffWeek, grandFinalWeek]
+  );
 
-  const phases = [
-    { key: "REG", name: "Registration", isPast: currentWeek >= 1, isCurrent: currentWeek < 1 },
-    { key: "GS", name: "Group Stage", isPast: currentWeek > 7, isCurrent: currentWeek >= 1 && currentWeek <= 7 },
-    { key: "PLAY_INS", name: "Play-Ins", isPast: currentWeek > 8, isCurrent: currentWeek === 8 },
-    { key: "PLAYOFF", name: "Play-Off", isPast: currentWeek > 9, isCurrent: currentWeek === 9 },
-    { key: "GF", name: "Grand Final", isPast: false, isCurrent: currentWeek >= 10 },
-  ];
+  const activePhase = phases.find((p) => p.isCurrent) || phases[phases.length - 1];
 
   return (
     <div className="rounded-2xl border border-border bg-card p-3 sm:p-3.5 md:p-4 shadow-xs space-y-2.5">
@@ -30,7 +64,7 @@ export function PhaseTimeline({ currentWeek }: PhaseTimelineProps) {
           Fase Turnamen:
         </span>
         <span className="text-sky-400 font-black text-xs sm:text-sm">
-          {activePhaseLabel}
+          {activePhase.fullLabel}
         </span>
       </div>
 
