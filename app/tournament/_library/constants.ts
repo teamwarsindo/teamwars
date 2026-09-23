@@ -12,6 +12,7 @@ export type DivisionGroupType = (typeof DIVISION_MAP)[keyof typeof DIVISION_MAP]
 
 // 3. REGULASI, KUOTA KUALIFIKASI & SISTEM POIN
 export const TOURNAMENT_RULES = {
+  TOTAL_GROUP: 2,
   TOP_DIV_QUOTA_PER_GROUP: 2,       // Top 1 & 2 Divisi otomatis lolos Playoff
   GLOBAL_PLAYOFF_QUOTA: 8,          // Rank 1 s/d 8 Global (Wildcard Playoff)
   PLAYOFF_START_WEEK: 8,            // Week 8 ke atas masuk fase Playoff
