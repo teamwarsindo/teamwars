@@ -213,8 +213,9 @@ export function getTeamStatsFromStandings(
   const groupName = standingItem?.groupName || teamInput?.groupName || DIVISION_MAP.GROUP_A;
 
   const historyMap = getTeamHistoryMap(teamName, allSchedules);
-  const history = Array.from(historyMap.values()).sort((a, b) => b.week - a.week);
-  const streak = [...history].slice(0, 5).reverse().map((h) => (h.isWin ? ("W" as const) : ("L" as const)));
+  // Diurutkan secara kronologis (Week 1 -> seterusnya) tanpa memotong jumlah match
+  const history = Array.from(historyMap.values()).sort((a, b) => a.week - b.week);
+  const streak = history.map((h) => (h.isWin ? ("W" as const) : ("L" as const)));
 
   return {
     teamName,
@@ -235,7 +236,7 @@ export function getTeamStatsFromStandings(
     ptsDiffRate,
     ptsDiffRateLabel: ptsDiffRate > 0 ? `+${ptsDiffRate}` : `${ptsDiffRate}`,
     winRate,
-    form: standingItem?.form || [],
+    form: standingItem?.form?.length ? standingItem.form : streak,
     streak,
     history,
   };
@@ -286,16 +287,12 @@ export function calculateMatchPrediction(
     return { probA: 50, probB: 50, predScoreA: 10, predScoreB: 9 };
   }
 
-  // 1. Base Win Rate (Skala 0 - 100)
   const baseRateA = statsA.matchPlayed > 0 ? (statsA.matchWins / statsA.matchPlayed) * 100 : 50;
   const baseRateB = statsB.matchPlayed > 0 ? (statsB.matchWins / statsB.matchPlayed) * 100 : 50;
 
-  // 2. Margin Dominasi / Pts Diff Rate (Skala netral 50, +/- hingga 100)
-  // Rentang ptsDiffRate umumnya -10 s/d +10, kita normalisasi ke skala 0 - 100
   const diffScoreA = Math.max(0, Math.min(100, 50 + statsA.ptsDiffRate * 5));
   const diffScoreB = Math.max(0, Math.min(100, 50 + statsB.ptsDiffRate * 5));
 
-  // 3. Form Momentum (4 Laga Terakhir)
   const computeFormScore = (form: ("W" | "L")[]) => {
     if (!form.length) return 50;
     const recent = form.slice(-4);
@@ -312,7 +309,6 @@ export function calculateMatchPrediction(
   const formScoreA = computeFormScore(statsA.form);
   const formScoreB = computeFormScore(statsB.form);
 
-  // 4. Strength of Schedule (SoS)
   const computeSoS = (teamName: string) => {
     if (!allSchedules.length) return 50;
     const clean = teamName.toLowerCase().trim();
@@ -334,7 +330,6 @@ export function calculateMatchPrediction(
   const sosA = computeSoS(statsA.teamName);
   const sosB = computeSoS(statsB.teamName);
 
-  // 5. Direct H2H Rekor
   const directMatches = allSchedules.filter(
     (m) =>
       m.isFinished &&
@@ -355,8 +350,6 @@ export function calculateMatchPrediction(
     h2hWinRateA = (winsA / directMatches.length) * 100;
   }
 
-  // 6. Pembobotan Berimbang
-  // Win Rate (40%) + Pts Diff Margin (25%) + Form (20%) + SoS (15%)
   const wWinRate = 0.40;
   const wDiff = 0.25;
   const wForm = 0.20;
@@ -371,13 +364,11 @@ export function calculateMatchPrediction(
   const probA = Math.max(15, Math.min(85, rawProbA));
   const probB = 100 - probA;
 
-  // 7. Estimasi Skor Dinamis Berdasarkan Margin Probabilitas & Pts Rata-Rata
   let predScoreA = 10;
   let predScoreB = 10;
 
   const probDiff = Math.abs(probA - probB);
 
-  // Estimasi skor tim yang kalah: makin lebar beda probabilitas, makin rendah skor tim yang kalah (skor 10-0 s/d 10-9)
   let loserScore = 9;
   if (probDiff >= 40) {
     loserScore = Math.max(1, Math.min(4, Math.round(9 - (probDiff / 50) * 7)));
@@ -386,7 +377,7 @@ export function calculateMatchPrediction(
   } else if (probDiff >= 8) {
     loserScore = 8;
   } else {
-    loserScore = 9; // Laga sangat ketat
+    loserScore = 9;
   }
 
   if (probA >= probB) {
