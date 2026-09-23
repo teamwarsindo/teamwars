@@ -153,16 +153,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       ? calculateStandings(filteredPrevSchedules as any, masterTeams)
       : [];
 
-    const sortFn = (list: ExtendedStandingItem[]) =>
-      [...list].sort(
-        (a, b) =>
-          b.points - a.points ||
-          b.matchWins - a.matchWins ||
-          b.roundDifference - a.roundDifference ||
-          b.setWins - a.setWins ||
-          a.teamName.localeCompare(b.teamName)
-      );
-
     if (isWildcardActive) {
       const currWild = buildGlobalStandings(currRaw).filter((t) => !t.isTopGroup);
       const prevWild = prevRaw.length ? buildGlobalStandings(prevRaw).filter((t) => !t.isTopGroup) : [];
@@ -176,7 +166,11 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       );
     }
 
-    return getListWithTrend(sortFn(currRaw), prevRaw.length ? sortFn(prevRaw) : []);
+    // Default: Standing Global dihitung lewat buildGlobalStandings agar data kualifikasi terbentuk lengkap
+    return getListWithTrend(
+      buildGlobalStandings(currRaw),
+      prevRaw.length ? buildGlobalStandings(prevRaw) : []
+    );
   }, [isWildcardActive, selectedGroup, schedules, masterTeams, selectedWeek]);
 
   const cleanA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
@@ -256,6 +250,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   key={item.teamId || item.teamName}
                   item={item}
                   activeView={activeView}
+                  selectedWeek={selectedWeek}
                 />
               ))}
             </tbody>
@@ -264,4 +259,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       </div>
     </div>
   );
-        }
+}
