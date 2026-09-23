@@ -267,6 +267,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   key={item.teamId || item.teamName}
                   item={item}
                   activeView={activeView}
+                  selectedWeek={selectedWeek}
                 />
               ))}
             </tbody>
