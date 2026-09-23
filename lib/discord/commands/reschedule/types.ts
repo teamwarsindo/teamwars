@@ -35,13 +35,14 @@ export function getAvailableRescheduleSlots(
     return w === targetWeek;
   });
 
-  // Hitung jumlah match per tanggal (kecuali match itu sendiri)
-  const matchCountByDate = new Map<string, number>();
+  // Petakan daftar match per tanggal (WIB)
+  const matchesByDate = new Map<string, MatchScheduleItem[]>();
   weekMatches.forEach((m) => {
-    if (m.id && targetMatch.id && m.id === targetMatch.id) return;
     if (!m.matchDate) return;
     const key = getWibDateKey(new Date(m.matchDate));
-    matchCountByDate.set(key, (matchCountByDate.get(key) || 0) + 1);
+    const list = matchesByDate.get(key) || [];
+    list.push(m);
+    matchesByDate.set(key, list);
   });
 
   // 4. Batas akhir: Hari Minggu di pekan target match
@@ -68,23 +69,43 @@ export function getAvailableRescheduleSlots(
 
     // Lewati jika sama dengan tanggal jadwal match saat ini
     if (dateKey !== currentMatchDateKey) {
-      const count = matchCountByDate.get(dateKey) || 0;
-      const remainingSlots = Math.max(0, maxDailyQuota - count);
+      const dayMatches = matchesByDate.get(dateKey) || [];
+      const otherMatches = dayMatches.filter((m) => m.id !== targetMatch.id);
+      const remainingSlots = Math.max(0, maxDailyQuota - otherMatches.length);
 
-      // Hanya tampilkan jika kuota masih ada
-      if (remainingSlots > 0) {
-        const formattedDay = checkDay.toLocaleDateString('id-ID', {
-          weekday: 'short',
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-          timeZone: 'Asia/Jakarta',
-        });
+      const formattedDay = checkDay.toLocaleDateString('id-ID', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Jakarta',
+      });
 
-        slots.push({
-          name: `${formattedDay} (Sisa ${remainingSlots} Match)`,
-          value: dateKey,
-        });
+      if (isPlayoffStage) {
+        if (remainingSlots > 0) {
+          // Jika kuota playoff hari itu masih kosong
+          slots.push({
+            name: `${formattedDay} (Sisa ${remainingSlots} Match)`,
+            value: dateKey,
+          });
+        } else {
+          // Jika sudah ada match, pastikan match tersebut belum selesai agar valid untuk di-swap
+          const opponentMatch = otherMatches[0];
+          if (opponentMatch && !opponentMatch.isFinished) {
+            slots.push({
+              name: `${formattedDay} (Swap Jadwal)`,
+              value: dateKey,
+            });
+          }
+        }
+      } else {
+        // Babak reguler biasa
+        if (remainingSlots > 0) {
+          slots.push({
+            name: `${formattedDay} (Sisa ${remainingSlots} Match)`,
+            value: dateKey,
+          });
+        }
       }
     }
 
