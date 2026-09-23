@@ -7,6 +7,7 @@ import {
   TOURNAMENT_RULES,
 } from '@/app/tournament/_library';
 import { discordAPI } from '@/lib/discord/utils';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 
 export function getCheckMatchesComponent(matchId: string) {
   return [
@@ -29,11 +30,11 @@ export async function handleBtCheckMatches(body: any) {
     const customId: string = body.data?.custom_id || '';
     const rawMatchId = customId.replace('check_matches_', '').trim();
     const channelId = body.channel_id;
+    const interactionToken = body.token;
+    const appId = DISCORD_CONFIG.APP_ID;
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
-    // Cara ambil match disamakan persis seperti di autocomplete /reschedule:
-    // Cek berdasarkan discordChannelId, kecocokan ID langsung, atau ID yang terkandung di parameter/channel
     const match = schedules.find((m: any) => {
       if (m.discordChannelId && m.discordChannelId === channelId) return true;
       if (rawMatchId && (m.id === rawMatchId || String(m.id).toLowerCase() === rawMatchId.toLowerCase())) return true;
@@ -53,7 +54,7 @@ export async function handleBtCheckMatches(body: any) {
       (m: any) => (m.weekNumber || getMatchWeekNumber(m.matchDate || m.date)) === matchWeek
     );
 
-    // Deteksi fase Playoff
+    // Deteksi fase Playoff menggunakan konstanta resmi TOURNAMENT_RULES.PLAYOFF_START_WEEK
     const isPlayoffStage =
       Boolean((match as any).groupName?.toLowerCase().includes('play')) ||
       Boolean((match as any).weekName?.toLowerCase().includes('play')) ||
@@ -76,11 +77,9 @@ export async function handleBtCheckMatches(body: any) {
       matchesByDate.set(key, list);
     });
 
-    // Tanggal match target saat ini
     const targetMatchDate = new Date(currentMatchRawDate);
     const currentMatchDateKey = getWibDateKey(targetMatchDate);
 
-    // Batas hari Minggu pekan berjalan
     const dayOfWeek = targetMatchDate.getDay();
     const diffToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
     const sundayDate = new Date(targetMatchDate);
@@ -95,12 +94,12 @@ export async function handleBtCheckMatches(body: any) {
     while (true) {
       const dateKey = getWibDateKey(checkDay);
 
-      // Berhenti jika melewati hari Minggu
+      // Berhenti jika sudah lewat hari Minggu
       if (dateKey > sundayKey) {
         break;
       }
 
-      // 🛑 HARI MATCH MEREKA SENDIRI DI-SKIP
+      // KECUALIKAN HARI MATCH MEREKA SENDIRI DARI TAMPILAN BUTTON
       if (dateKey === currentMatchDateKey) {
         checkDay.setDate(checkDay.getDate() + 1);
         continue;
@@ -169,26 +168,40 @@ export async function handleBtCheckMatches(body: any) {
       footer: { text: `Last Updated: ${updatedTime} WIB` },
     };
 
-    // Selalu hapus pesan recap lama dan kirim pesan baru
-    const recapKvKey = `twi:match_recap_msg:${match.id}`;
-    const oldMsgId = await kv.get<string>(recapKvKey);
+    // Jalankan DELETE, POST, dan update interaction response via background task
+    (async () => {
+      try {
+        const recapKvKey = `twi:match_recap_msg:${match.id}`;
+        const oldMsgId = await kv.get<string>(recapKvKey);
 
-    if (oldMsgId) {
-      await discordAPI(`/channels/${channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
-      await kv.del(recapKvKey);
-    }
+        if (oldMsgId) {
+          await discordAPI(`/channels/${channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
+          await kv.del(recapKvKey);
+        }
 
-    const sentMsg = await discordAPI(`/channels/${channelId}/messages`, 'POST', {
-      embeds: [embed],
-    }).catch(() => null);
+        const sentMsg = await discordAPI(`/channels/${channelId}/messages`, 'POST', {
+          embeds: [embed],
+        }).catch(() => null);
 
-    if (sentMsg?.id) {
-      await kv.set(recapKvKey, sentMsg.id);
-    }
+        if (sentMsg?.id) {
+          await kv.set(recapKvKey, sentMsg.id);
+        }
 
+        // Perbarui pesan thinking interaction awal
+        if (appId && interactionToken) {
+          await discordAPI(`/webhooks/${appId}/${interactionToken}/messages/@original`, 'PATCH', {
+            content: '✅ Rekap ketersediaan match berhasil diperbarui di channel.',
+          }).catch(() => null);
+        }
+      } catch (bgErr) {
+        console.error('Error background recap dispatch:', bgErr);
+      }
+    })();
+
+    // RESPON TIPE 5 (DEFERRED INTERACTION DENGAN EPHEMERAL)
     return NextResponse.json({
-      type: 4,
-      data: { content: '✅ Rekap ketersediaan match berhasil diperbarui di channel.', flags: 64 },
+      type: 5,
+      data: { flags: 64 },
     });
   } catch (error: any) {
     console.error('Error handling check matches button:', error);
@@ -197,4 +210,4 @@ export async function handleBtCheckMatches(body: any) {
       data: { content: '❌ Terjadi kesalahan saat memeriksa ketersediaan match.', flags: 64 },
     });
   }
-  }
+      }
