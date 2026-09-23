@@ -54,22 +54,12 @@ export function StandingTableRow({ item, activeView, selectedWeek }: StandingTab
   const isFinalRegularWeek =
     Number(selectedWeek) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1;
 
-  // 🎯 Logika terpadu (kombinasi ketentuan masing-masing tombol):
-  // 1. Cek status Top Grup (Logika Tombol Grup A & Grup B)
-  const isTopGroup =
-    Boolean(item.isTopGroup) ||
-    (typeof item.groupRank === "number" &&
-      item.groupRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP);
-
-  // 2. Cek status Wildcard (Logika Tombol Global Wildcard)
-  const isWildcardQualified =
-    !isTopGroup &&
-    (Boolean(item.isPlayoffQualified) ||
-      (typeof item.wildcardRank === "number" &&
-        item.wildcardRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA));
+  // Batas total tim lolos Playoff di Standing Global (Top Grup A + Top Grup B + Slot Play-Ins Wildcard)
+  const totalPlayoffCutoff =
+    TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP * 2 + TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA;
 
   const getRowHighlight = () => {
-    // Mode Khusus: Tombol Tombol Divisi Terpilih
+    // 1. Logika Tombol Divisi Grup (Grup A / Grup B)
     if (activeView === DIVISION_MAP.GROUP_A || activeView === DIVISION_MAP.GROUP_B) {
       if (item.computedRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP) {
         return isGroupA
@@ -79,21 +69,21 @@ export function StandingTableRow({ item, activeView, selectedWeek }: StandingTab
       return "";
     }
 
-    // Mode Khusus: Tombol Global Wildcard Terpilih
+    // 2. Logika Tombol Global Wildcard
     if (activeView === "WILDCARD") {
       return item.computedRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
         ? "bg-emerald-500/10 border-l-4 border-l-emerald-500"
         : "bg-rose-500/5 border-l-4 border-l-rose-500/60";
     }
 
-    // Mode Standing Global (ALL_GLOBAL): Aktif penuh di pekan penentuan
+    // 3. Logika Standing Global (Menggabungkan logika tombol di atas, hanya aktif di week terakhir grup)
     if (isFinalRegularWeek) {
-      if (isTopGroup) {
+      if (item.isTopGroup) {
         return isGroupA
           ? "bg-sky-500/10 border-l-4 border-l-sky-500"
           : "bg-amber-500/10 border-l-4 border-l-amber-500";
       }
-      if (isWildcardQualified) {
+      if (item.computedRank <= totalPlayoffCutoff) {
         return "bg-emerald-500/10 border-l-4 border-l-emerald-500";
       }
       return "bg-rose-500/5 border-l-4 border-l-rose-500/60";
@@ -167,4 +157,4 @@ export function StandingTableRow({ item, activeView, selectedWeek }: StandingTab
       </td>
     </tr>
   );
-      }
+}
