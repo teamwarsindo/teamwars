@@ -106,6 +106,7 @@ export function TournamentFilter({
     <div className="bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-2.5">
       {/* 1. BARIS 1: TOGGLE DUA DIVISI */}
       <div className="grid grid-cols-2 gap-2 w-full">
+        {/* GROUP A (ANDA YAKIN?): SKY BLUE */}
         <button
           type="button"
           disabled={isPlayoffWeek}
@@ -120,6 +121,8 @@ export function TournamentFilter({
         >
           {cleanNameA}
         </button>
+
+        {/* GROUP B (SAKURASAWA FIGHTERS): AMBER / GOLD ORANGE */}
         <button
           type="button"
           disabled={isPlayoffWeek}
@@ -128,7 +131,7 @@ export function TournamentFilter({
             isPlayoffWeek
               ? "bg-muted/10 text-muted-foreground/30 border border-border/20 cursor-not-allowed"
               : selectedGroup === DIVISION_MAP.GROUP_B && !isWildcardActive
-              ? "bg-sky-500 text-white shadow-xs cursor-pointer"
+              ? "bg-amber-500 text-white shadow-xs cursor-pointer"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
           }`}
         >
@@ -224,7 +227,6 @@ export function TournamentFilter({
 
             {isWeekOpen && (
               <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
-                {/* Opsi 'Semua Week' HANYA muncul pada mode schedule */}
                 {mode === "schedule" && (
                   <button
                     type="button"
@@ -291,4 +293,5 @@ export function TournamentFilter({
       )}
     </div>
   );
-      }
+            }
+        
