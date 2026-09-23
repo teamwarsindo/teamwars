@@ -28,13 +28,13 @@ function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-1 w-full">
+    <div className="flex flex-col items-center justify-center gap-0.5 w-fit mx-auto">
       {rows.map((row, rowIdx) => (
-        <div key={rowIdx} className="flex items-center justify-center gap-1">
+        <div key={rowIdx} className="flex items-center justify-center gap-0.5">
           {row.map((res, colIdx) => (
             <span
               key={colIdx}
-              className={`flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black leading-none ${
+              className={`flex h-3.5 w-3.5 items-center justify-center rounded-[3px] text-[7.5px] font-black leading-none shrink-0 ${
                 res === "W"
                   ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
                   : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
@@ -123,9 +123,9 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       </td>
 
       {/* MATCH FORM (17%) */}
-      <td className="py-2 pl-0.5 pr-1 text-center">
+      <td className="py-1 px-0.5 text-center">
         <MatchFormGrid form={item.form} />
       </td>
     </tr>
   );
-          }
+      }
