@@ -1,4 +1,9 @@
-import { MatchScheduleItem, getWibDateKey, getMatchWeekNumber } from '@/app/tournament/_library';
+import {
+  MatchScheduleItem,
+  getWibDateKey,
+  getMatchWeekNumber,
+  TOURNAMENT_RULES,
+} from '@/app/tournament/_library';
 
 export interface RescheduleSlotChoice {
   name: string;
@@ -14,7 +19,17 @@ export function getAvailableRescheduleSlots(
   // 1. Tentukan Pekan Target Match
   const targetWeek = Number(targetMatch.weekNumber || getMatchWeekNumber(targetMatch.matchDate) || 1);
 
-  // 2. Kumpulkan seluruh match di pekan yang sama
+  // 2. Deteksi Babak Playoff & Kuota Harian via TOURNAMENT_RULES dari constants.ts
+  const isPlayoffStage =
+    Boolean(targetMatch.stage && targetMatch.stage !== 'GROUP_STAGE') ||
+    Boolean(targetMatch.id && targetMatch.id.startsWith('match-po-')) ||
+    targetWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+
+  const maxDailyQuota = isPlayoffStage
+    ? ((TOURNAMENT_RULES as any).MAX_MATCHES_PER_DAY_PLAYOFF ?? 1)
+    : ((TOURNAMENT_RULES as any).MAX_MATCHES_PER_DAY ?? 3);
+
+  // 3. Kumpulkan seluruh match di pekan yang sama
   const weekMatches = schedules.filter((m) => {
     const w = Number(m.weekNumber || getMatchWeekNumber(m.matchDate));
     return w === targetWeek;
@@ -29,7 +44,7 @@ export function getAvailableRescheduleSlots(
     matchCountByDate.set(key, (matchCountByDate.get(key) || 0) + 1);
   });
 
-  // 3. Batas akhir: Hari Minggu di pekan target match
+  // 4. Batas akhir: Hari Minggu di pekan target match
   const targetMatchDate = new Date(targetMatch.matchDate);
   const dayOfWeek = targetMatchDate.getDay(); // 0 = Min, 1 = Sen, dst.
   const diffToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
@@ -40,21 +55,21 @@ export function getAvailableRescheduleSlots(
   const currentMatchDateKey = getWibDateKey(targetMatchDate);
   const slots: RescheduleSlotChoice[] = [];
 
-  // 4. Titik awal: Mulai besok (H+1) sampai Minggu
+  // 5. Titik awal: Mulai besok (H+1) sampai Minggu
   let checkDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
   while (true) {
     const dateKey = getWibDateKey(checkDay);
 
-    // Berhenti jika sudah lewat hari Minggu (misal diakses hari Minggu -> stop)
+    // Berhenti jika sudah lewat hari Minggu
     if (dateKey > sundayKey) {
       break;
     }
 
-    // Tetap lewati jika sama dengan jadwal match saat ini
+    // Lewati jika sama dengan tanggal jadwal match saat ini
     if (dateKey !== currentMatchDateKey) {
       const count = matchCountByDate.get(dateKey) || 0;
-      const remainingSlots = Math.max(0, 3 - count);
+      const remainingSlots = Math.max(0, maxDailyQuota - count);
 
       // Hanya tampilkan jika kuota masih ada
       if (remainingSlots > 0) {
