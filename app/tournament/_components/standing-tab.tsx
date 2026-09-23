@@ -125,32 +125,7 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     });
   };
 
-  // Helper menandai status isTopGroup tanpa merusak urutan murni tie-breaker
-  const attachTopGroupStatus = (items: ExtendedStandingItem[]): ExtendedStandingItem[] => {
-    const topA = new Set(
-      items
-        .filter((t) => t.groupName === DIVISION_MAP.GROUP_A)
-        .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP)
-        .map((t) => t.teamName.toLowerCase())
-    );
-    const topB = new Set(
-      items
-        .filter((t) => t.groupName === DIVISION_MAP.GROUP_B)
-        .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP)
-        .map((t) => t.teamName.toLowerCase())
-    );
-
-    return items.map((t) => {
-      const clean = t.teamName.toLowerCase();
-      return {
-        ...t,
-        isTopGroup: topA.has(clean) || topB.has(clean),
-      };
-    });
-  };
-
   const displayedData = useMemo(() => {
-    // 1. Saring jadwal hingga pekan yang dipilih
     const filteredCurrSchedules = schedules.filter((s: any) => {
       const matchWeek = Number(s.weekNumber || s.week || s.matchWeek || 1);
       return matchWeek <= selectedWeek;
@@ -164,29 +139,55 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
           })
         : [];
 
-    // Hitung klasemen murni berdasar tie-breaker
-    const currRaw = attachTopGroupStatus(calculateStandings(filteredCurrSchedules as any, masterTeams));
+    const currRaw = calculateStandings(filteredCurrSchedules as any, masterTeams);
     const prevRaw = filteredPrevSchedules.length
-      ? attachTopGroupStatus(calculateStandings(filteredPrevSchedules as any, masterTeams))
+      ? calculateStandings(filteredPrevSchedules as any, masterTeams)
       : [];
 
-    // Filter Wildcard (seluruh tim non-Top Group)
+    const sortFn = (list: ExtendedStandingItem[]) =>
+      [...list].sort(
+        (a, b) =>
+          b.points - a.points ||
+          b.matchWins - a.matchWins ||
+          b.roundDifference - a.roundDifference ||
+          b.setWins - a.setWins ||
+          a.teamName.localeCompare(b.teamName)
+      );
+
+    // Tandai status Top Group berdasarkan hasil sortir grup masing-masing
+    const attachTopGroup = (items: ExtendedStandingItem[]) => {
+      const sortedGroupA = sortFn(items.filter((t) => t.groupName === DIVISION_MAP.GROUP_A));
+      const sortedGroupB = sortFn(items.filter((t) => t.groupName === DIVISION_MAP.GROUP_B));
+
+      const topGroupNames = new Set([
+        ...sortedGroupA.slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP).map((t) => t.teamName.toLowerCase()),
+        ...sortedGroupB.slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP).map((t) => t.teamName.toLowerCase()),
+      ]);
+
+      return items.map((t) => ({
+        ...t,
+        isTopGroup: topGroupNames.has(t.teamName.toLowerCase()),
+      }));
+    };
+
+    const currWithTop = attachTopGroup(currRaw);
+    const prevWithTop = prevRaw.length ? attachTopGroup(prevRaw) : [];
+
     if (isWildcardActive) {
-      const currWild = currRaw.filter((t) => !t.isTopGroup);
-      const prevWild = prevRaw.filter((t) => !t.isTopGroup);
+      const currWild = sortFn(currWithTop.filter((t) => !t.isTopGroup));
+      const prevWild = prevWithTop.length ? sortFn(prevWithTop.filter((t) => !t.isTopGroup)) : [];
       return getListWithTrend(currWild, prevWild);
     }
 
-    // Filter Divisi Grup A / B
     if (selectedGroup === DIVISION_MAP.GROUP_A || selectedGroup === DIVISION_MAP.GROUP_B) {
       return getListWithTrend(
-        currRaw.filter((s) => s.groupName === selectedGroup),
-        prevRaw.filter((s) => s.groupName === selectedGroup)
+        currWithTop.filter((s) => s.groupName === selectedGroup),
+        prevWithTop.filter((s) => s.groupName === selectedGroup)
       );
     }
 
-    // Standing Global: Urutan murni 1-16 sesuai tie-breaker calculateStandings
-    return getListWithTrend(currRaw, prevRaw);
+    // Urutan murni tie-breaker 1-16 untuk Standing Global
+    return getListWithTrend(sortFn(currWithTop), prevWithTop.length ? sortFn(prevWithTop) : []);
   }, [isWildcardActive, selectedGroup, schedules, masterTeams, selectedWeek]);
 
   const cleanA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
@@ -266,7 +267,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
                   key={item.teamId || item.teamName}
                   item={item}
                   activeView={activeView}
-                  selectedWeek={selectedWeek}
                 />
               ))}
             </tbody>
@@ -275,4 +275,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       </div>
     </div>
   );
-      }
+      }                          
