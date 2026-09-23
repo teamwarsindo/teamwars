@@ -6,7 +6,6 @@ import {
   getMatchWeekNumber,
   TOURNAMENT_RULES,
 } from '@/app/tournament/_library';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI } from '@/lib/discord/utils';
 
 export function getCheckMatchesComponent(matchId: string) {
@@ -30,8 +29,6 @@ export async function handleBtCheckMatches(body: any) {
     const customId: string = body.data?.custom_id || '';
     const matchId = customId.replace('check_matches_', '');
     const channelId = body.channel_id;
-    const userRoles: string[] = body.member?.roles || [];
-    const isAdmin = userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
 
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const match = schedules.find((m) => m.id === matchId || (m as any).discordChannelId === channelId);
@@ -59,11 +56,14 @@ export async function handleBtCheckMatches(body: any) {
       ? TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_PLAYOFF
       : TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_REGULAR;
 
-    const matchCountByDate = new Map<string, number>();
+    // Simpan daftar match per tanggal untuk menampilkan detail laga pada fase playoff
+    const matchesByDate = new Map<string, MatchScheduleItem[]>();
     weekMatches.forEach((m) => {
       if (!m.matchDate) return;
       const key = getWibDateKey(new Date(m.matchDate));
-      matchCountByDate.set(key, (matchCountByDate.get(key) || 0) + 1);
+      const list = matchesByDate.get(key) || [];
+      list.push(m);
+      matchesByDate.set(key, list);
     });
 
     // Batas akhir: Hari Minggu pekan match tersebut
@@ -87,7 +87,8 @@ export async function handleBtCheckMatches(body: any) {
         break;
       }
 
-      const count = matchCountByDate.get(dateKey) || 0;
+      const dayMatches = matchesByDate.get(dateKey) || [];
+      const count = dayMatches.length;
       const sisa = Math.max(0, maxDailyQuota - count);
 
       const dayLabel = checkDay.toLocaleDateString('id-ID', {
@@ -97,16 +98,27 @@ export async function handleBtCheckMatches(body: any) {
         timeZone: 'Asia/Jakarta',
       });
 
-      let statusDot = '🟢';
-      let statusText = `${count}/${maxDailyQuota} Match (Sisa ${sisa})`;
-      if (count >= maxDailyQuota) {
-        statusDot = '🔴';
-        statusText = `${count}/${maxDailyQuota} Match (Penuh)`;
-      } else if (maxDailyQuota > 1 && count === maxDailyQuota - 1) {
-        statusDot = '🟡';
-      }
+      if (isPlayoffStage) {
+        if (dayMatches.length > 0) {
+          const matchLines = dayMatches
+            .map((m) => `🔴 **${m.team1}** vs **${m.team2}**`)
+            .join('\n');
+          lines.push(`📅 **${dayLabel}**\n${matchLines}`);
+        } else {
+          lines.push(`📅 **${dayLabel}**\n🟢 **Tersedia untuk reschedule**`);
+        }
+      } else {
+        let statusDot = '🟢';
+        let statusText = `${count}/${maxDailyQuota} Match (Sisa ${sisa})`;
+        if (count >= maxDailyQuota) {
+          statusDot = '🔴';
+          statusText = `${count}/${maxDailyQuota} Match (Penuh)`;
+        } else if (maxDailyQuota > 1 && count === maxDailyQuota - 1) {
+          statusDot = '🟡';
+        }
 
-      lines.push(`📅 **${dayLabel}**\n${statusDot} ${statusText}`);
+        lines.push(`📅 **${dayLabel}**\n${statusDot} ${statusText}`);
+      }
 
       checkDay.setDate(checkDay.getDate() + 1);
     }
@@ -134,13 +146,7 @@ export async function handleBtCheckMatches(body: any) {
       footer: { text: `Last Updated: ${updatedTime} WIB` },
     };
 
-    if (!isAdmin) {
-      return NextResponse.json({
-        type: 4,
-        data: { embeds: [embed], flags: 64 },
-      });
-    }
-
+    // Selalu hapus pesan lama dan kirim pesan embed baru ke channel
     const recapKvKey = `twi:match_recap_msg:${matchId}`;
     const oldMsgId = await kv.get<string>(recapKvKey);
 
@@ -168,5 +174,4 @@ export async function handleBtCheckMatches(body: any) {
       data: { content: '❌ Terjadi kesalahan saat memeriksa ketersediaan match.', flags: 64 },
     });
   }
-                            }
-        
+            }
