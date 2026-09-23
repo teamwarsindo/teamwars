@@ -14,6 +14,7 @@ export interface StandingRowItem extends ExtendedStandingItem {
 interface StandingTableRowProps {
   item: StandingRowItem;
   activeView: "ALL_GLOBAL" | DivisionFilterType | "WILDCARD";
+  selectedWeek?: number;
 }
 
 function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
@@ -48,16 +49,20 @@ function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
   );
 }
 
-export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
+export function StandingTableRow({ item, activeView, selectedWeek }: StandingTableRowProps) {
   const isGroupA = item.groupName === DIVISION_MAP.GROUP_A;
 
-  // Batas total tim lolos Playoff di tabel global
+  // Batas akhir fase grup (misal: Playoff Week 8, maka akhir fase grup = Week 7)
+  const isFinalGroupStageWeek =
+    Number(selectedWeek) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1;
+
+  // Kuota total tim lolos Playoff di Standing Global (Top Grup A/B + Play-Ins)
   const totalPlayoffCutoff =
     TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP * TOURNAMENT_RULES.TOTAL_GROUP +
     TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA;
 
   const getRowHighlight = () => {
-    // 1. Tab Divisi Grup A / Grup B
+    // 1. Tab Divisi Grup A / Grup B (Selalu ada highlight Top 2 per grup)
     if (activeView === DIVISION_MAP.GROUP_A || activeView === DIVISION_MAP.GROUP_B) {
       if (item.computedRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP) {
         return isGroupA
@@ -67,25 +72,29 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       return "";
     }
 
-    // 2. Tab Global Wildcard
+    // 2. Tab Global Wildcard (Selalu ada highlight Play-Ins & Eliminasi)
     if (activeView === "WILDCARD") {
       return item.computedRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
         ? "bg-emerald-500/10 border-l-4 border-l-emerald-500"
         : "bg-rose-500/5 border-l-4 border-l-rose-500/60";
     }
 
-    // 3. Tab Standing Global
-    if (item.isTopGroup) {
-      return isGroupA
-        ? "bg-sky-500/10 border-l-4 border-l-sky-500"
-        : "bg-amber-500/10 border-l-4 border-l-amber-500";
+    // 3. Tab Standing Global: Warna HANYA aktif jika sudah di pekan terakhir fase grup
+    if (isFinalGroupStageWeek) {
+      if (item.isTopGroup) {
+        return isGroupA
+          ? "bg-sky-500/10 border-l-4 border-l-sky-500"
+          : "bg-amber-500/10 border-l-4 border-l-amber-500";
+      }
+
+      if (item.computedRank <= totalPlayoffCutoff) {
+        return "bg-emerald-500/10 border-l-4 border-l-emerald-500";
+      }
+
+      return "bg-rose-500/5 border-l-4 border-l-rose-500/60";
     }
 
-    if (item.computedRank <= totalPlayoffCutoff) {
-      return "bg-emerald-500/10 border-l-4 border-l-emerald-500";
-    }
-
-    return "bg-rose-500/5 border-l-4 border-l-rose-500/60";
+    return "";
   };
 
   const rowBorder = getRowHighlight();
@@ -153,4 +162,4 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       </td>
     </tr>
   );
-      }
+          }
