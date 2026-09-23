@@ -10,7 +10,6 @@ import {
 } from "@/app/tournament/_library";
 import {
   calculateStandings,
-  buildGlobalStandings,
   ExtendedStandingItem,
 } from "@/app/tournament/_library/calculator";
 import { Trophy } from "lucide-react";
@@ -28,19 +27,16 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const searchParams = useSearchParams();
 
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
-  // Batas maksimal pekan untuk standing (pekan terakhir babak reguler)
   const maxRegularWeek = useMemo(
     () => TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1,
     []
   );
 
-  // Baseline pekan default standing: jika turnamen sudah masuk playoff, default standing mentok di babak reguler
   const defaultStandingWeek = useMemo(
     () => Math.min(currentWeek, maxRegularWeek),
     [currentWeek, maxRegularWeek]
   );
 
-  // Membaca state shared filter dari URL
   const rawGroupParam = searchParams.get("group");
   const selectedGroup: DivisionFilterType =
     rawGroupParam === "group_a"
@@ -52,7 +48,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
   const isWildcardActive = searchParams.get("wildcard") === "true";
   const rawWeekParam = searchParams.get("week");
 
-  // Jika parameter URL ada dan valid angka, gunakan; jika tidak, gunakan defaultStandingWeek
   const selectedWeek =
     rawWeekParam && rawWeekParam !== "ALL"
       ? Math.min(Number(rawWeekParam), maxRegularWeek)
@@ -108,7 +103,6 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  // Indikator aktif membandingkan dengan defaultStandingWeek
   const isFilterActive =
     selectedGroup !== "ALL" ||
     isWildcardActive ||
@@ -131,15 +125,37 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
     });
   };
 
-  // Filter jadwal sesuai batas pekan yang dipilih
+  // Helper menandai status isTopGroup tanpa merusak urutan murni tie-breaker
+  const attachTopGroupStatus = (items: ExtendedStandingItem[]): ExtendedStandingItem[] => {
+    const topA = new Set(
+      items
+        .filter((t) => t.groupName === DIVISION_MAP.GROUP_A)
+        .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP)
+        .map((t) => t.teamName.toLowerCase())
+    );
+    const topB = new Set(
+      items
+        .filter((t) => t.groupName === DIVISION_MAP.GROUP_B)
+        .slice(0, TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP)
+        .map((t) => t.teamName.toLowerCase())
+    );
+
+    return items.map((t) => {
+      const clean = t.teamName.toLowerCase();
+      return {
+        ...t,
+        isTopGroup: topA.has(clean) || topB.has(clean),
+      };
+    });
+  };
+
   const displayedData = useMemo(() => {
-    // 1. Saring jadwal hingga selectedWeek
+    // 1. Saring jadwal hingga pekan yang dipilih
     const filteredCurrSchedules = schedules.filter((s: any) => {
       const matchWeek = Number(s.weekNumber || s.week || s.matchWeek || 1);
       return matchWeek <= selectedWeek;
     });
 
-    // 2. Saring jadwal untuk pekan sebelumnya (untuk indikator tren naik/turun)
     const filteredPrevSchedules =
       selectedWeek > 1
         ? schedules.filter((s: any) => {
@@ -148,17 +164,20 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
           })
         : [];
 
-    const currRaw = calculateStandings(filteredCurrSchedules as any, masterTeams);
+    // Hitung klasemen murni berdasar tie-breaker
+    const currRaw = attachTopGroupStatus(calculateStandings(filteredCurrSchedules as any, masterTeams));
     const prevRaw = filteredPrevSchedules.length
-      ? calculateStandings(filteredPrevSchedules as any, masterTeams)
+      ? attachTopGroupStatus(calculateStandings(filteredPrevSchedules as any, masterTeams))
       : [];
 
+    // Filter Wildcard (seluruh tim non-Top Group)
     if (isWildcardActive) {
-      const currWild = buildGlobalStandings(currRaw).filter((t) => !t.isTopGroup);
-      const prevWild = prevRaw.length ? buildGlobalStandings(prevRaw).filter((t) => !t.isTopGroup) : [];
+      const currWild = currRaw.filter((t) => !t.isTopGroup);
+      const prevWild = prevRaw.filter((t) => !t.isTopGroup);
       return getListWithTrend(currWild, prevWild);
     }
 
+    // Filter Divisi Grup A / B
     if (selectedGroup === DIVISION_MAP.GROUP_A || selectedGroup === DIVISION_MAP.GROUP_B) {
       return getListWithTrend(
         currRaw.filter((s) => s.groupName === selectedGroup),
@@ -166,11 +185,8 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       );
     }
 
-    // Default: Standing Global dihitung lewat buildGlobalStandings agar data kualifikasi terbentuk lengkap
-    return getListWithTrend(
-      buildGlobalStandings(currRaw),
-      prevRaw.length ? buildGlobalStandings(prevRaw) : []
-    );
+    // Standing Global: Urutan murni 1-16 sesuai tie-breaker calculateStandings
+    return getListWithTrend(currRaw, prevRaw);
   }, [isWildcardActive, selectedGroup, schedules, masterTeams, selectedWeek]);
 
   const cleanA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
@@ -259,4 +275,4 @@ export function StandingTab({ schedules = [], masterTeams = [] }: StandingTabPro
       </div>
     </div>
   );
-}
+      }
