@@ -5,7 +5,6 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   MatchScheduleItem,
   TeamStandingItem,
-  DIVISION_MAP,
   getCurrentServerWeek,
   TOURNAMENT_RULES,
 } from "@/app/tournament/_library";
@@ -64,11 +63,13 @@ export function TournamentView({
   const [activeReportMatch, setActiveReportMatch] = useState<MatchScheduleItem | null>(null);
 
   const currentWeek = useMemo(() => getCurrentServerWeek(), []);
-  const isPlayoffWeek = useMemo(() => currentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK, [currentWeek]);
+  const isPlayoffWeek = useMemo(
+    () => currentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK,
+    [currentWeek]
+  );
 
   const fetchTournamentData = async () => {
     try {
-      // Ambil data turnamen & data playoff secara bersamaan
       const [resTourney, resPlayoff] = await Promise.all([
         fetch("/api/tournament"),
         fetch("/api/tournament/playoff"),
@@ -83,12 +84,13 @@ export function TournamentView({
         setMasterTeams(data.masterTeams || []);
 
         if (activeReportMatch) {
-          const updatedActive = (data.schedules || []).find((m: MatchScheduleItem) => m.id === activeReportMatch.id);
+          const updatedActive = (data.schedules || []).find(
+            (m: MatchScheduleItem) => m.id === activeReportMatch.id
+          );
           if (updatedActive) setActiveReportMatch(updatedActive);
         }
       }
 
-      // Pastikan playoffData terisi dari endpoint playoff
       if (playoffRes && playoffRes.success) {
         setPlayoffData(playoffRes.playoffData || null);
       } else if (data?.playoffData) {
@@ -137,7 +139,6 @@ export function TournamentView({
     }
   };
 
-  // Handler Khusus Admin: Kunci & Generate Jadwal Playoff
   const handleLockPlayoff = async () => {
     if (!isAdmin) {
       Swal.fire("Akses Ditolak", "Anda harus login sebagai admin untuk mengunci playoff.", "error");
@@ -145,7 +146,9 @@ export function TournamentView({
     }
 
     const regularMatches = schedules.filter(
-      (m: any) => !m.id.startsWith("match-po-") && Number(m.weekNumber || 1) < 8
+      (m: any) =>
+        !m.id.startsWith("match-po-") &&
+        Number(m.weekNumber || 1) < TOURNAMENT_RULES.PLAYOFF_START_WEEK
     );
     const unfinished = regularMatches.filter((m) => !m.isFinished);
 
@@ -181,7 +184,6 @@ export function TournamentView({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal memproses playoff");
 
-      // Perbarui state seketika
       if (json.playoffData || json.data) {
         setPlayoffData(json.playoffData || json.data);
       }
@@ -207,9 +209,13 @@ export function TournamentView({
   }
 
   const allTeamNames = Array.from(new Set(standings.map((s) => s.teamName)));
+
+  // Filter week agar tidak membocorkan match pekan masa depan bagi user biasa
   const allWeeks = Array.from(
     new Set([...schedules.map((m) => m.weekNumber || 1), currentWeek])
-  ).sort((a, b) => a - b);
+  )
+    .filter((w) => (isAdmin ? true : w <= currentWeek))
+    .sort((a, b) => a - b);
 
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-4">
@@ -272,5 +278,4 @@ export function TournamentView({
       )}
     </div>
   );
-    }
-      
+}
