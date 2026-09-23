@@ -17,30 +17,34 @@ interface StandingTableRowProps {
 }
 
 function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
-  const slots = Array.from({ length: 7 }, (_, i) => form[i] || null);
+  if (!form || form.length === 0) {
+    return <span className="text-[10px] text-muted-foreground/50 font-bold">-</span>;
+  }
+
+  // Pecah per 4 item per baris
+  const rows: ("W" | "L")[][] = [];
+  for (let i = 0; i < form.length; i += 4) {
+    rows.push(form.slice(i, i + 4));
+  }
 
   return (
-    <div className="grid grid-cols-4 gap-1 w-fit mx-auto justify-items-center">
-      {slots.map((res, idx) => {
-        const isFirstOfSecondRow = idx === 4;
-
-        return (
-          <span
-            key={idx}
-            className={`flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black ${
-              isFirstOfSecondRow ? "translate-x-[calc(50%+0.125rem)]" : idx > 4 ? "translate-x-[calc(50%+0.125rem)]" : ""
-            } ${
-              !res
-                ? "bg-muted/30 text-muted-foreground/30 border border-dashed border-border/40"
-                : res === "W"
-                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
-                : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
-            }`}
-          >
-            {res || "-"}
-          </span>
-        );
-      })}
+    <div className="flex flex-col items-center justify-center gap-1 w-full">
+      {rows.map((row, rowIdx) => (
+        <div key={rowIdx} className="flex items-center justify-center gap-1">
+          {row.map((res, colIdx) => (
+            <span
+              key={colIdx}
+              className={`flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black leading-none ${
+                res === "W"
+                  ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
+                  : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
+              }`}
+            >
+              {res}
+            </span>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -124,4 +128,4 @@ export function StandingTableRow({ item, activeView }: StandingTableRowProps) {
       </td>
     </tr>
   );
-}
+          }
