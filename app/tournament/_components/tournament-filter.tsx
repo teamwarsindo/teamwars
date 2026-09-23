@@ -61,20 +61,27 @@ export function TournamentFilter({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Batas pekan reguler dari konstanta turnamen
-  const regularLimit =
-    (TOURNAMENT_RULES as any).TOTAL_REGULAR_WEEKS ??
-    (TOURNAMENT_RULES as any).REGULAR_SEASON_WEEKS ??
-    7;
+  // Batas pekan reguler dari konstanta turnamen (Playoff Start Week - 1)
+  const maxRegularWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1;
 
-  // Filter daftar week: Standing hanya sampai batas babak grup
+  // Daftar week khusus mode standing hanya sampai babak reguler
   const filteredAvailableWeeks =
     mode === "standing"
-      ? availableWeeks.filter((w) => w <= regularLimit)
+      ? availableWeeks.filter((w) => w <= maxRegularWeek)
       : availableWeeks;
 
-  // Nonaktifkan tombol grup jika sedang berada di week Playoff
-  const isPlayoffWeek = typeof selectedWeek === "number" && selectedWeek > regularLimit;
+  // Proteksi mode standing: tidak ada opsi "ALL" dan tidak boleh masuk week Playoff
+  useEffect(() => {
+    if (mode === "standing") {
+      if (selectedWeek === "ALL" || (typeof selectedWeek === "number" && selectedWeek > maxRegularWeek)) {
+        onWeekChange(maxRegularWeek);
+      }
+    }
+  }, [mode, selectedWeek, maxRegularWeek, onWeekChange]);
+
+  // Tombol grup di-disable saat masuk fase Playoff
+  const isPlayoffWeek =
+    typeof selectedWeek === "number" && selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
   const handleToggleGroup = (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
     if (isPlayoffWeek) return;
@@ -85,12 +92,19 @@ export function TournamentFilter({
     }
   };
 
+  const handleReset = () => {
+    onReset();
+    if (mode === "standing") {
+      onWeekChange(maxRegularWeek);
+    }
+  };
+
   const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
   const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
 
   return (
     <div className="bg-card border border-border p-3 sm:p-4 rounded-2xl shadow-xs space-y-2.5">
-      {/* 1. BARIS 1: TOGGLE DUA DIVISI (WARNA BIRU SERAGAM & DISABLE PADA PLAYOFF) */}
+      {/* 1. BARIS 1: TOGGLE DUA DIVISI */}
       <div className="grid grid-cols-2 gap-2 w-full">
         <button
           type="button"
@@ -124,7 +138,7 @@ export function TournamentFilter({
 
       {/* 2. BARIS 2: DINAMIS SESUAI MODE */}
       <div className="grid grid-cols-2 gap-2 items-center">
-        {/* KOLOM KIRI: TEAM DROPDOWN (SCHEDULE) / WILDCARD BUTTON (STANDING) */}
+        {/* KOLOM KIRI */}
         {mode === "schedule" ? (
           <div className="relative w-full" ref={teamRef}>
             <button
@@ -191,7 +205,7 @@ export function TournamentFilter({
           </button>
         )}
 
-        {/* KOLOM KANAN: DROPDOWN WEEK + RESET BUTTON */}
+        {/* KOLOM KANAN: DROPDOWN WEEK */}
         <div className="flex items-center gap-1.5 w-full">
           <div className="relative flex-1 min-w-0" ref={weekRef}>
             <button
@@ -210,6 +224,7 @@ export function TournamentFilter({
 
             {isWeekOpen && (
               <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-60 overflow-y-auto rounded-xl border border-border bg-popover/95 p-1 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
+                {/* Opsi 'Semua Week' HANYA muncul pada mode schedule */}
                 {mode === "schedule" && (
                   <button
                     type="button"
@@ -248,7 +263,7 @@ export function TournamentFilter({
 
           <button
             type="button"
-            onClick={onReset}
+            onClick={handleReset}
             disabled={!isFilterActive}
             title="Reset Filter"
             className={`h-9 w-9 md:h-10 md:w-10 shrink-0 rounded-xl transition flex items-center justify-center ${
@@ -276,4 +291,4 @@ export function TournamentFilter({
       )}
     </div>
   );
-}
+      }
