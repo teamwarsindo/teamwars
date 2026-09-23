@@ -22,7 +22,6 @@ function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
     return <span className="text-[10px] text-muted-foreground/50 font-bold">-</span>;
   }
 
-  // Pecah per 4 item per baris
   const rows: ("W" | "L")[][] = [];
   for (let i = 0; i < form.length; i += 4) {
     rows.push(form.slice(i, i + 4));
@@ -52,42 +51,58 @@ function MatchFormGrid({ form = [] }: { form?: ("W" | "L")[] }) {
 
 export function StandingTableRow({ item, activeView, selectedWeek }: StandingTableRowProps) {
   const isGroupA = item.groupName === DIVISION_MAP.GROUP_A;
-  const maxRegularWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1;
-  const isFinalRegularWeek = typeof selectedWeek === "number" && selectedWeek >= maxRegularWeek;
+  const isFinalRegularWeek =
+    Number(selectedWeek) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1;
 
-  // Total tim yang berhak masuk playoff (Direct Quarter Finals + Play-Ins Wildcard)
-  const totalPlayoffCutoff =
-    TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP * 2 + TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA;
+  // 🎯 Logika terpadu (kombinasi ketentuan masing-masing tombol):
+  // 1. Cek status Top Grup (Logika Tombol Grup A & Grup B)
+  const isTopGroup =
+    Boolean(item.isTopGroup) ||
+    (typeof item.groupRank === "number" &&
+      item.groupRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP);
 
-  let rowBorder = "";
+  // 2. Cek status Wildcard (Logika Tombol Global Wildcard)
+  const isWildcardQualified =
+    !isTopGroup &&
+    (Boolean(item.isPlayoffQualified) ||
+      (typeof item.wildcardRank === "number" &&
+        item.wildcardRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA));
 
-  if (activeView === "ALL_GLOBAL") {
-    // Pada pekan terakhir babak reguler / playoff, warnai seluruh baris Global sesuai ketentuan
-    if (isFinalRegularWeek) {
-      if (item.isTopGroup) {
-        rowBorder = isGroupA
-          ? "bg-sky-500/10 border-l-4 border-l-sky-500" // Top 2 Divisi A (Lolos Quarter Finals)
-          : "bg-amber-500/10 border-l-4 border-l-amber-500"; // Top 2 Divisi B (Lolos Quarter Finals)
-      } else if (item.computedRank <= totalPlayoffCutoff) {
-        rowBorder = "bg-emerald-500/10 border-l-4 border-l-emerald-500"; // Lolos Play-Ins (Wildcard)
-      } else {
-        rowBorder = "bg-rose-500/5 border-l-4 border-l-rose-500/60"; // Tereliminasi
+  const getRowHighlight = () => {
+    // Mode Khusus: Tombol Tombol Divisi Terpilih
+    if (activeView === DIVISION_MAP.GROUP_A || activeView === DIVISION_MAP.GROUP_B) {
+      if (item.computedRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP) {
+        return isGroupA
+          ? "bg-sky-500/10 border-l-4 border-l-sky-500"
+          : "bg-amber-500/10 border-l-4 border-l-amber-500";
       }
+      return "";
     }
-  } else if (activeView === "WILDCARD") {
-    rowBorder =
-      item.computedRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
+
+    // Mode Khusus: Tombol Global Wildcard Terpilih
+    if (activeView === "WILDCARD") {
+      return item.computedRank <= TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA
         ? "bg-emerald-500/10 border-l-4 border-l-emerald-500"
         : "bg-rose-500/5 border-l-4 border-l-rose-500/60";
-  } else {
-    // Tampilan Divisi Group A atau Group B
-    rowBorder =
-      item.computedRank <= TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP
-        ? isGroupA
+    }
+
+    // Mode Standing Global (ALL_GLOBAL): Aktif penuh di pekan penentuan
+    if (isFinalRegularWeek) {
+      if (isTopGroup) {
+        return isGroupA
           ? "bg-sky-500/10 border-l-4 border-l-sky-500"
-          : "bg-amber-500/10 border-l-4 border-l-amber-500"
-        : "";
-  }
+          : "bg-amber-500/10 border-l-4 border-l-amber-500";
+      }
+      if (isWildcardQualified) {
+        return "bg-emerald-500/10 border-l-4 border-l-emerald-500";
+      }
+      return "bg-rose-500/5 border-l-4 border-l-rose-500/60";
+    }
+
+    return "";
+  };
+
+  const rowBorder = getRowHighlight();
 
   return (
     <tr className={`hover:bg-muted/20 transition ${rowBorder}`}>
@@ -152,4 +167,4 @@ export function StandingTableRow({ item, activeView, selectedWeek }: StandingTab
       </td>
     </tr>
   );
-}
+      }
