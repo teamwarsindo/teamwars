@@ -2,6 +2,7 @@ import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, isValidSnowflake } from '@/lib/discord/utils';
 import { createCampSuccessEmbed } from '@/lib/discord/messages/transfer-log';
+import { getCurrentServerWeek, TOURNAMENT_RULES } from '@/app/tournament/_library';
 import {
   TransferContext,
   PlayerItem,
@@ -74,14 +75,27 @@ export async function handleSubcommandAdd(ctx: TransferContext) {
     detectedOldKey = freeDiscordIdByDl;
   }
 
-  const isOldPlayer = hasDuelistRole || !!oldRecord;
-  const isPlayoffs = process.env.NEXT_PUBLIC_IS_PLAYOFFS === 'true';
+  // Cek apakah pemain pernah terdaftar di history mutasi keluar tim (jika role dicabut tapi data di KV terhapus)
+  const formerTeamHistory = await kv.hget<string>('global:released_players', resolvedDiscordId);
+
+  const isOldPlayer = hasDuelistRole || Boolean(oldRecord) || Boolean(formerTeamHistory);
+
+  // Cek status Playoff secara otomatis via Constanta & Server Week
+  const currentWeek = getCurrentServerWeek();
+  const isPlayoffs =
+    currentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK ||
+    process.env.NEXT_PUBLIC_IS_PLAYOFFS === 'true';
+
   let currentQuota = Number(teamData.transferQuotaUsed || 0);
   let teamsJoined = 1;
 
   // 3. Aturan Kuota Transfer
   if (isOldPlayer) {
-    if (isPlayoffs) throw new Error('Transfer antar tim dikunci saat Playoffs. Hanya Free Agent murni yang diizinkan.');
+    if (isPlayoffs) {
+      throw new Error(
+        '⛔ Transfer antar tim dikunci saat Playoffs. Pemain yang pernah bermain atau dikeluarkan dari tim lain tidak dapat didaftarkan (Hanya Free Agent murni yang diizinkan).'
+      );
+    }
     const currentTeamsCount = oldRecord ? Number(oldRecord.teamsJoinedCount || 1) : 1;
     if (currentTeamsCount >= 2) throw new Error('Pemain ini sudah mencapai batas maksimal membela 2 tim berbeda musim ini.');
     if (currentQuota >= 2) throw new Error('Kuota transfer tim Anda sudah habis (Maksimal 2/2 Kuota Transfer).');
