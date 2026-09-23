@@ -56,7 +56,7 @@ export function StandingTableRow({ item, activeView, selectedWeek }: StandingTab
 
   // Batas total tim lolos Playoff di Standing Global memakai konstanta grup resmi
   const totalPlayoffCutoff =
-    TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP * TOURNAMENT_RULES.TOTAL_GROUPS +
+    TOURNAMENT_RULES.TOP_DIV_QUOTA_PER_GROUP * TOURNAMENT_RULES.TOTAL_GROUP +
     TOURNAMENT_RULES.GLOBAL_PLAYOFF_QUOTA;
 
   const getRowHighlight = () => {
