@@ -24,7 +24,8 @@ export function useAnalyticsFilters({
   const router = useRouter();
   const pathname = usePathname();
 
-  const currentTab = searchParams.get("tab") === "power-ranking" ? "power-ranking" : "reports";
+  const currentTab: "reports" | "power-ranking" =
+    searchParams.get("tab") === "power-ranking" ? "power-ranking" : "reports";
   const stageParam = searchParams.get("stage");
   const selectedMatchId = searchParams.get("match") || "";
   const teamParam = searchParams.get("team") || "";
