@@ -85,26 +85,63 @@ export function AnalyticsFilter({
     typeof selectedWeek === "number" &&
     selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-  // Filter daftar tim menyesuaikan scope & week
+  // 1. Sesuaikan Opsi Week yang muncul di Dropdown berdasarkan Stage
+  const dynamicWeeks = useMemo(() => {
+    if (mode === "power-ranking") {
+      if (stageScope === "PLAYOFF_ONLY") {
+        return availableWeeks.filter((w) => w >= TOURNAMENT_RULES.PLAYOFF_START_WEEK);
+      }
+      if (stageScope === "GROUP_ONLY") {
+        return availableWeeks.filter((w) => w < TOURNAMENT_RULES.PLAYOFF_START_WEEK);
+      }
+    }
+    return availableWeeks;
+  }, [mode, stageScope, availableWeeks]);
+
+  // 2. Filter Tim yang Valid & Tidak Pernah Kosong
   const filteredTeams = useMemo(() => {
     let list = [...teams];
 
     if (mode === "power-ranking") {
       if (stageScope === "PLAYOFF_ONLY") {
-        // Ambil hanya tim yang ada di jadwal pekan Playoff
-        const playoffTeams = new Set<string>();
+        const playoffTeamNames = new Set<string>();
         allSchedules.forEach((m) => {
           if (Number(m.weekNumber) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK) {
-            if (m.teamAName) playoffTeams.add(m.teamAName.toLowerCase());
-            if (m.teamBName) playoffTeams.add(m.teamBName.toLowerCase());
+            if (m.teamAName) playoffTeamNames.add(m.teamAName.toLowerCase());
+            if (m.teamBName) playoffTeamNames.add(m.teamBName.toLowerCase());
           }
         });
-        if (playoffTeams.size > 0) {
-          list = list.filter((t) => playoffTeams.has(t.name.toLowerCase()));
+
+        if (playoffTeamNames.size > 0) {
+          list = list.filter((t) => playoffTeamNames.has(t.name.toLowerCase()));
         }
       } else if (stageScope === "GROUP_ONLY") {
-        // Ambil hanya tim yang memiliki asosiasi grup
-        list = list.filter((t) => Boolean(t.groupName));
+        const groupTeamNames = new Set<string>();
+        allSchedules.forEach((m) => {
+          if (Number(m.weekNumber) < TOURNAMENT_RULES.PLAYOFF_START_WEEK) {
+            if (m.teamAName) groupTeamNames.add(m.teamAName.toLowerCase());
+            if (m.teamBName) groupTeamNames.add(m.teamBName.toLowerCase());
+          }
+        });
+
+        // Ambil tim dari jadwal grup atau fallback ke atribut grup tim
+        list = list.filter(
+          (t) => groupTeamNames.has(t.name.toLowerCase()) || Boolean(t.groupName)
+        );
+      }
+
+      // Jika user memilih pekan tertentu dalam power ranking
+      if (selectedWeek !== "ALL") {
+        const weekTeamNames = new Set<string>();
+        allSchedules.forEach((m) => {
+          if (Number(m.weekNumber) === Number(selectedWeek)) {
+            if (m.teamAName) weekTeamNames.add(m.teamAName.toLowerCase());
+            if (m.teamBName) weekTeamNames.add(m.teamBName.toLowerCase());
+          }
+        });
+        if (weekTeamNames.size > 0) {
+          list = list.filter((t) => weekTeamNames.has(t.name.toLowerCase()));
+        }
       }
     } else {
       // Mode Reports
@@ -130,7 +167,7 @@ export function AnalyticsFilter({
     return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   }, [teams, mode, stageScope, selectedGroup, selectedWeek, isPlayoffWeek, allSchedules]);
 
-  // Sinkronisasi otomatis jika tim terpilih tidak ada di filter yang aktif
+  // Reset otomatis jika tim terpilih tidak ada di list aktif
   useEffect(() => {
     if (selectedTeam && filteredTeams.length > 0) {
       const exists = filteredTeams.some(
@@ -167,7 +204,6 @@ export function AnalyticsFilter({
     if (!isTournamentInPlayoff && targetScope === "GROUP_ONLY") return;
 
     if (stageScope === targetScope) {
-      // Toggle off -> kembali ke all (awal sampai sekarang)
       onStageScopeChange("ALL");
     } else {
       onStageScopeChange(targetScope);
@@ -182,6 +218,7 @@ export function AnalyticsFilter({
         selectedGroup={selectedGroup}
         stageScope={stageScope}
         currentTournamentWeek={maxActiveWeek}
+        selectedWeek={selectedWeek}
         isPlayoffWeek={isPlayoffWeek}
         onToggleGroup={handleToggleGroup}
         onToggleStageScope={handleToggleStageScope}
@@ -207,13 +244,13 @@ export function AnalyticsFilter({
             onWeekChange(w);
             setOpenDropdown(null);
           }}
-          availableWeeks={availableWeeks}
+          availableWeeks={dynamicWeeks}
           isFilterActive={isFilterActive}
           onReset={onReset}
         />
       </div>
 
-      {/* 3. Baris Match Dropdown (Khusus Mode Reports) */}
+      {/* 3. Baris Match Dropdown (Mode Reports) */}
       {mode === "reports" && onMatchChange && (
         <FilterMatchDropdown
           isOpen={openDropdown === "match"}
