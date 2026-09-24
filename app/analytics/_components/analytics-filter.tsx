@@ -2,15 +2,31 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { DIVISION_MAP, TOURNAMENT_RULES } from "@/app/tournament/_library";
-import { AnalyticsFilterMatchItem, FilterTeamItem } from "./types";
 import { FilterGroupToggle } from "./filter-group-toggle";
 import { FilterTeamDropdown } from "./filter-team-dropdown";
 import { FilterWeekDropdown } from "./filter-week-dropdown";
 import { FilterMatchDropdown } from "./filter-match-dropdown";
 
-export * from "./types";
+// TIPE TERPADU
+export interface AnalyticsFilterMatchItem {
+  id: string;
+  weekNumber: number | string;
+  groupName?: string;
+  teamAName?: string;
+  teamBName?: string;
+  isFinished?: boolean;
+  scoreA?: number;
+  scoreB?: number;
+}
 
-interface AnalyticsFilterProps {
+export interface FilterTeamItem {
+  name: string;
+  slug: string;
+  groupName?: string;
+  logo?: string;
+}
+
+export interface AnalyticsFilterProps {
   mode: "reports" | "power-ranking";
   selectedGroup: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B;
   onGroupChange: (group: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => void;
