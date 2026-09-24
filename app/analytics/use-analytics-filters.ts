@@ -33,7 +33,7 @@ export function useAnalyticsFilters({
 
   const maxRegularWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1;
 
-  // Normalisasi & Deduplikasi Daftar Tim
+  // 1. Ekstraksi Tim Master Lengkap & Deduplikasi
   const allTeamsList = useMemo(() => {
     const map = new Map<string, { name: string; slug: string; groupName: string; logo?: string }>();
 
@@ -80,12 +80,6 @@ export function useAnalyticsFilters({
     return found ? found.name : teamParam;
   }, [teamParam, allTeamsList]);
 
-  const initialStageScope: StageScopeType = useMemo(() => {
-    if (stageParam === "playoff") return "PLAYOFF_ONLY";
-    if (stageParam === "group") return "GROUP_ONLY";
-    return "ALL";
-  }, [stageParam]);
-
   const initialWeek: number | "ALL" = useMemo(() => {
     if (weekParam === "ALL" && currentTab === "reports") return "ALL";
     if (weekParam && !isNaN(Number(weekParam))) {
@@ -97,16 +91,71 @@ export function useAnalyticsFilters({
   const [selectedGroup, setSelectedGroup] = useState<
     "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B
   >("ALL");
-  const [stageScope, setStageScope] = useState<StageScopeType>(initialStageScope);
   const [selectedTeam, setSelectedTeam] = useState<string>(initialTeamName);
   const [selectedWeek, setSelectedWeek] = useState<number | "ALL">(initialWeek);
 
-  // Sync state dari URL search params
+  // Deteksi apakah tim yang aktif ikut serta dalam babak playoff
+  const isCurrentTeamInPlayoff = useMemo(() => {
+    if (!selectedTeam) return true;
+    const clean = selectedTeam.toLowerCase().trim();
+    return schedules.some(
+      (m) =>
+        Number(m.weekNumber) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK &&
+        ((m.teamAName || "").toLowerCase().trim() === clean ||
+          (m.teamBName || "").toLowerCase().trim() === clean)
+    );
+  }, [schedules, selectedTeam]);
+
+  // Evaluasi apakah week yang dipilih berada di babak grup
+  const isSelectedWeekGroup =
+    typeof selectedWeek === "number" && selectedWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+
+  const initialStageScope: StageScopeType = useMemo(() => {
+    if (initialTeamName && !isCurrentTeamInPlayoff) return "GROUP_ONLY";
+    if (isSelectedWeekGroup) return "GROUP_ONLY";
+    if (stageParam === "playoff") return "PLAYOFF_ONLY";
+    if (stageParam === "group") return "GROUP_ONLY";
+    return "ALL";
+  }, [stageParam, isSelectedWeekGroup, initialTeamName, isCurrentTeamInPlayoff]);
+
+  const [stageScope, setStageScope] = useState<StageScopeType>(initialStageScope);
+
+  const updateUrlParams = (updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === "") params.delete(key);
+      else params.set(key, value);
+    });
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  };
+
+  // Efek pelindung: jika tim bukan tim playoff, kunci ke GROUP_ONLY dan mundurkan week jika sedang di playoff
   useEffect(() => {
-    if (stageParam === "playoff") setStageScope("PLAYOFF_ONLY");
-    else if (stageParam === "group") setStageScope("GROUP_ONLY");
-    else setStageScope("ALL");
-  }, [stageParam]);
+    if (selectedTeam && !isCurrentTeamInPlayoff) {
+      setStageScope("GROUP_ONLY");
+      if (typeof selectedWeek === "number" && selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK) {
+        setSelectedWeek(maxRegularWeek);
+        updateUrlParams({
+          stage: "group",
+          week: String(maxRegularWeek),
+        });
+      }
+    }
+  }, [selectedTeam, isCurrentTeamInPlayoff, selectedWeek, maxRegularWeek]);
+
+  // Sync saat pekan grup aktif atau stageParam berubah
+  useEffect(() => {
+    if (selectedTeam && !isCurrentTeamInPlayoff) {
+      setStageScope("GROUP_ONLY");
+    } else if (isSelectedWeekGroup) {
+      setStageScope("GROUP_ONLY");
+    } else {
+      if (stageParam === "playoff") setStageScope("PLAYOFF_ONLY");
+      else if (stageParam === "group") setStageScope("GROUP_ONLY");
+      else setStageScope("ALL");
+    }
+  }, [isSelectedWeekGroup, stageParam, selectedTeam, isCurrentTeamInPlayoff]);
 
   useEffect(() => {
     if (currentTab === "power-ranking" && selectedWeek === "ALL") {
@@ -131,22 +180,17 @@ export function useAnalyticsFilters({
     return Array.from({ length: maxActiveWeek }, (_, i) => i + 1);
   }, [maxActiveWeek]);
 
-  const updateUrlParams = (updates: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === null || value === "") params.delete(key);
-      else params.set(key, value);
-    });
-    const qs = params.toString();
-    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
-  };
-
   const handleGroupChange = (g: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
     setSelectedGroup(g);
     updateUrlParams({ match: null });
   };
 
   const handleStageScopeChange = (nextScope: StageScopeType) => {
+    // Dilarang melepas GROUP_ONLY jika di week grup atau jika tim bukan tim playoff
+    if ((isSelectedWeekGroup || (selectedTeam && !isCurrentTeamInPlayoff)) && nextScope === "ALL") {
+      return;
+    }
+
     setStageScope(nextScope);
 
     let adjustedWeek = selectedWeek;
@@ -162,7 +206,7 @@ export function useAnalyticsFilters({
         setSelectedWeek(adjustedWeek);
       }
     } else {
-      // Saat toggle dilepas (ALL), kembalikan week ke pekan aktif default turnamen
+      // Saat toggle dilepas, kembali ke pekan aktif default turnamen
       adjustedWeek = maxActiveWeek;
       setSelectedWeek(maxActiveWeek);
     }
@@ -172,7 +216,6 @@ export function useAnalyticsFilters({
 
     updateUrlParams({
       stage: stageVal,
-      team: null,
       week: adjustedWeek === maxActiveWeek ? null : String(adjustedWeek),
     });
   };
@@ -192,10 +235,13 @@ export function useAnalyticsFilters({
     setSelectedWeek(w);
     let updatedStageScope = stageScope;
 
-    if (currentTab === "power-ranking" && typeof w === "number") {
-      if (w < TOURNAMENT_RULES.PLAYOFF_START_WEEK && stageScope === "PLAYOFF_ONLY") {
-        updatedStageScope = "ALL";
-        setStageScope("ALL");
+    if (typeof w === "number") {
+      if (w < TOURNAMENT_RULES.PLAYOFF_START_WEEK) {
+        updatedStageScope = "GROUP_ONLY";
+        setStageScope("GROUP_ONLY");
+      } else if (stageScope === "GROUP_ONLY" && (!selectedTeam || isCurrentTeamInPlayoff)) {
+        updatedStageScope = "PLAYOFF_ONLY";
+        setStageScope("PLAYOFF_ONLY");
       }
     }
 
@@ -239,7 +285,7 @@ export function useAnalyticsFilters({
 
   const isFilterActive =
     (currentTab === "reports" && selectedGroup !== "ALL") ||
-    (currentTab === "power-ranking" && stageScope !== "ALL") ||
+    (currentTab === "power-ranking" && !isSelectedWeekGroup && stageScope !== "ALL") ||
     selectedTeam !== "" ||
     selectedWeek !== maxActiveWeek ||
     Boolean(selectedMatchId) ||
@@ -247,9 +293,11 @@ export function useAnalyticsFilters({
 
   const handleReset = () => {
     setSelectedGroup("ALL");
-    setStageScope("ALL");
     setSelectedTeam("");
     setSelectedWeek(maxActiveWeek);
+    const defaultScope = maxActiveWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK ? "GROUP_ONLY" : "ALL";
+    setStageScope(defaultScope);
+
     updateUrlParams({
       team: null,
       week: null,
