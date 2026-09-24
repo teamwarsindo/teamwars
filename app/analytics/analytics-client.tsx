@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { DIVISION_MAP } from "@/app/tournament/_library";
+import { DIVISION_MAP, TOURNAMENT_RULES } from "@/app/tournament/_library";
 import { MatchReportsView, ScheduleItem } from "./_components/match-reports-view";
 import { PowerRankingView } from "./_components/power-ranking-view";
 import { AnalyticsFilter, AnalyticsFilterMatchItem } from "./_components/analytics-filter";
@@ -30,8 +30,9 @@ export default function AnalyticsClientContent({
   const currentTab = searchParams.get("tab") === "power-ranking" ? "power-ranking" : "reports";
   const selectedMatchId = searchParams.get("match") || "";
   const teamParam = searchParams.get("team") || "";
+  const weekParam = searchParams.get("week");
 
-  // Ekstraksi Tim Terpadu: Sertakan Logo Tim & Slug Resmi
+  // Ekstraksi Tim Terpadu
   const allTeamsList = useMemo(() => {
     const map = new Map<string, { name: string; slug: string; groupName: string; logo?: string }>();
 
@@ -68,7 +69,7 @@ export default function AnalyticsClientContent({
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [schedules, teams]);
 
-  // Resolusi nama tim awal dari query parameter ?team=[slug-atau-nama]
+  // Resolusi nama tim awal
   const initialTeamName = useMemo(() => {
     if (!teamParam) return "";
     const found = allTeamsList.find(
@@ -84,9 +85,25 @@ export default function AnalyticsClientContent({
     "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B
   >("ALL");
   const [selectedTeam, setSelectedTeam] = useState<string>(initialTeamName);
-  const [selectedWeek, setSelectedWeek] = useState<number | "">(maxActiveWeek);
 
-  // Sinkronisasi state saat tombol Back / Forward browser ditekan
+  const initialWeek: number | "ALL" = useMemo(() => {
+    if (weekParam === "ALL" && currentTab === "reports") return "ALL";
+    if (weekParam && !isNaN(Number(weekParam))) {
+      return Math.min(Number(weekParam), maxActiveWeek);
+    }
+    return maxActiveWeek;
+  }, [weekParam, maxActiveWeek, currentTab]);
+
+  const [selectedWeek, setSelectedWeek] = useState<number | "ALL">(initialWeek);
+
+  // Proteksi pekan: Power Ranking tidak boleh memilih "ALL"
+  useEffect(() => {
+    if (currentTab === "power-ranking" && selectedWeek === "ALL") {
+      setSelectedWeek(maxActiveWeek);
+    }
+  }, [currentTab, selectedWeek, maxActiveWeek]);
+
+  // Sinkronisasi state saat navigasi URL berubah
   useEffect(() => {
     if (teamParam) {
       const found = allTeamsList.find(
@@ -100,6 +117,7 @@ export default function AnalyticsClientContent({
     }
   }, [teamParam, allTeamsList]);
 
+  // Pekan hanya dibatasi sampai pekan turnamen saat ini
   const availableWeeks = useMemo(() => {
     return Array.from({ length: maxActiveWeek }, (_, i) => i + 1);
   }, [maxActiveWeek]);
@@ -125,28 +143,32 @@ export default function AnalyticsClientContent({
 
   const handleTeamChange = (teamName: string) => {
     setSelectedTeam(teamName);
-
-    // Cari slug dari tim yang dipilih
     const targetTeam = allTeamsList.find(
       (t) => t.name.toLowerCase() === teamName.toLowerCase()
     );
     const teamSlug = targetTeam?.slug || (teamName ? teamName.toLowerCase().replace(/\s+/g, "-") : null);
 
-    // Simpan parameter team=slug ke URL dan bersihkan match param lama
     updateUrlParams({
       team: teamSlug,
       match: null,
     });
   };
 
-  const handleWeekChange = (w: number | "") => {
+  const handleWeekChange = (w: number | "ALL") => {
     setSelectedWeek(w);
-    updateUrlParams({ match: null });
+    updateUrlParams({
+      week: w === maxActiveWeek ? null : String(w),
+      match: null,
+    });
   };
 
   const handleTabChange = (tabKey: "reports" | "power-ranking") => {
+    const nextWeek = tabKey === "power-ranking" && selectedWeek === "ALL" ? maxActiveWeek : selectedWeek;
+    if (nextWeek !== selectedWeek) setSelectedWeek(nextWeek);
+
     updateUrlParams({
       tab: tabKey,
+      week: nextWeek === maxActiveWeek ? null : String(nextWeek),
       match: tabKey !== "reports" ? null : selectedMatchId || null,
     });
   };
@@ -171,15 +193,20 @@ export default function AnalyticsClientContent({
     setSelectedWeek(maxActiveWeek);
     updateUrlParams({
       team: null,
+      week: null,
       match: null,
     });
   };
 
   // Filter daftar jadwal untuk Match Reports
   const matchesInView: AnalyticsFilterMatchItem[] = useMemo(() => {
+    const isPlayoff =
+      typeof selectedWeek === "number" &&
+      selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+
     return schedules.filter((s) => {
-      if (selectedGroup !== "ALL" && s.groupName !== selectedGroup) return false;
-      if (selectedWeek !== "" && Number(s.weekNumber) !== Number(selectedWeek)) return false;
+      if (!isPlayoff && selectedGroup !== "ALL" && s.groupName !== selectedGroup) return false;
+      if (selectedWeek !== "ALL" && Number(s.weekNumber) !== Number(selectedWeek)) return false;
       if (selectedTeam !== "") {
         if (s.teamAName !== selectedTeam && s.teamBName !== selectedTeam) return false;
       }
@@ -238,6 +265,7 @@ export default function AnalyticsClientContent({
         selectedMatchId={selectedMatchId}
         onMatchChange={handleMatchChange}
         matchesInView={matchesInView}
+        allSchedules={schedules}
         isFilterActive={isFilterActive}
         onReset={handleReset}
       />
@@ -257,10 +285,9 @@ export default function AnalyticsClientContent({
           maxActiveWeek={maxActiveWeek}
           selectedGroup={selectedGroup}
           selectedTeam={selectedTeam}
-          selectedWeek={selectedWeek}
+          selectedWeek={selectedWeek === "ALL" ? maxActiveWeek : selectedWeek}
         />
       )}
     </div>
   );
-          }
-                                 
+}
