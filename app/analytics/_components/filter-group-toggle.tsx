@@ -11,6 +11,8 @@ interface FilterGroupToggleProps {
   currentTournamentWeek: number;
   selectedWeek: number | "ALL";
   isPlayoffWeek: boolean;
+  selectedTeam?: string;
+  selectedTeamHasPlayoff?: boolean;
   onToggleGroup: (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => void;
   onToggleStageScope: (scope: "GROUP_ONLY" | "PLAYOFF_ONLY") => void;
 }
@@ -22,25 +24,38 @@ export function FilterGroupToggle({
   currentTournamentWeek,
   selectedWeek,
   isPlayoffWeek,
+  selectedTeam,
+  selectedTeamHasPlayoff = true,
   onToggleGroup,
   onToggleStageScope,
 }: FilterGroupToggleProps) {
   if (mode === "power-ranking") {
-    // Week aktif yang dijadikan patokan: jika user pilih week tertentu gunakan itu, jika "ALL" gunakan pekan berjalan turnamen
+    const isEvaluatingGroupWeek =
+      typeof selectedWeek === "number" && selectedWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+
     const evaluatedWeek = typeof selectedWeek === "number" ? selectedWeek : currentTournamentWeek;
-    
-    // Playoff hanya mungkin ada datanya jika pekan yang dievaluasi sudah masuk fase playoff
     const canAccessPlayoff = evaluatedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-    const isGroupActive = stageScope === "GROUP_ONLY";
-    const isPlayoffActive = stageScope === "PLAYOFF_ONLY";
+    // DETEKSI: Jika sedang memilih tim dan tim tersebut BUKAN tim playoff
+    const isNonPlayoffTeam = Boolean(selectedTeam) && !selectedTeamHasPlayoff;
 
-    // Aturan Disable:
-    // - Group Only HANYA disable ketika Playoff Only sedang dipilih
-    const isGroupDisabled = isPlayoffActive;
+    // Group aktif jika:
+    // 1. scope memang GROUP_ONLY, ATAU
+    // 2. sedang di week grup, ATAU
+    // 3. tim terpilih bukan tim playoff
+    const isGroupActive = stageScope === "GROUP_ONLY" || isEvaluatingGroupWeek || isNonPlayoffTeam;
+    const isPlayoffActive = !isNonPlayoffTeam && stageScope === "PLAYOFF_ONLY";
 
-    // - Playoff Only disable jika sedang di week babak grup ATAU jika Group Only sedang aktif
-    const isPlayoffDisabled = !canAccessPlayoff || isGroupActive;
+    // Tombol Group Terkunci (tidak bisa dimatikan):
+    // Jika di pekan grup ATAU tim terpilih bukan tim playoff
+    const isGroupLocked = isEvaluatingGroupWeek || isNonPlayoffTeam;
+    const isGroupDisabled = isPlayoffActive || isGroupLocked;
+
+    // Tombol Playoff Mati Total jika:
+    // 1. Turnamen/pekan belum masuk playoff, ATAU
+    // 2. Group Only sedang aktif, ATAU
+    // 3. Tim terpilih bukan tim playoff
+    const isPlayoffDisabled = !canAccessPlayoff || isGroupActive || isNonPlayoffTeam;
 
     return (
       <div className="grid grid-cols-2 gap-2 w-full">
@@ -49,10 +64,10 @@ export function FilterGroupToggle({
           disabled={isGroupDisabled}
           onClick={() => onToggleStageScope("GROUP_ONLY")}
           className={`py-2 px-3 rounded-xl text-xs font-bold transition text-center truncate ${
-            isGroupDisabled
+            isGroupActive
+              ? "bg-sky-500 text-white shadow-xs cursor-default"
+              : isGroupDisabled
               ? "bg-muted/10 text-muted-foreground/30 border border-border/20 cursor-not-allowed"
-              : isGroupActive
-              ? "bg-sky-500 text-white shadow-xs cursor-pointer"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
           }`}
         >
@@ -77,7 +92,7 @@ export function FilterGroupToggle({
     );
   }
 
-  // Mode Reports (Jadwal & Laporan Divisi Reguler)
+  // Mode Reports
   const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
   const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
 
