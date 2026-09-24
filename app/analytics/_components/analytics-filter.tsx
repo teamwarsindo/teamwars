@@ -85,9 +85,25 @@ export function AnalyticsFilter({
     typeof selectedWeek === "number" &&
     selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-  // 1. Opsi Week yang muncul di Dropdown
+  // DETEKSI OTOMATIS: Apakah tim yang sedang dipilih berpartisipasi di babak Playoff?
+  const selectedTeamHasPlayoff = useMemo(() => {
+    if (!selectedTeam) return true;
+    const clean = selectedTeam.toLowerCase().trim();
+    return allSchedules.some(
+      (m) =>
+        Number(m.weekNumber) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK &&
+        ((m.teamAName || "").toLowerCase().trim() === clean ||
+          (m.teamBName || "").toLowerCase().trim() === clean)
+    );
+  }, [allSchedules, selectedTeam]);
+
+  // 1. Opsi Week di Dropdown
   const dynamicWeeks = useMemo(() => {
     if (mode === "power-ranking") {
+      // Jika tim bukan tim playoff, opsi week hanya muncul pekan babak grup
+      if (selectedTeam && !selectedTeamHasPlayoff) {
+        return availableWeeks.filter((w) => w < TOURNAMENT_RULES.PLAYOFF_START_WEEK);
+      }
       if (stageScope === "PLAYOFF_ONLY") {
         return availableWeeks.filter((w) => w >= TOURNAMENT_RULES.PLAYOFF_START_WEEK);
       }
@@ -96,9 +112,9 @@ export function AnalyticsFilter({
       }
     }
     return availableWeeks;
-  }, [mode, stageScope, availableWeeks]);
+  }, [mode, stageScope, availableWeeks, selectedTeam, selectedTeamHasPlayoff]);
 
-  // 2. Daftar Tim (Lengkap jika default, terfilter jika tombol scope aktif)
+  // 2. Daftar Tim
   const filteredTeams = useMemo(() => {
     let list = [...teams];
 
@@ -126,26 +142,11 @@ export function AnalyticsFilter({
           (t) => groupTeamNames.has(t.name.toLowerCase()) || Boolean(t.groupName)
         );
       }
-
-      // Filter tim berdasarkan pekan spesifik yang dipilih jika ada
-      if (selectedWeek !== "ALL") {
-        const weekTeamNames = new Set<string>();
-        allSchedules.forEach((m) => {
-          if (Number(m.weekNumber) === Number(selectedWeek)) {
-            if (m.teamAName) weekTeamNames.add(m.teamAName.toLowerCase());
-            if (m.teamBName) weekTeamNames.add(m.teamBName.toLowerCase());
-          }
-        });
-        if (weekTeamNames.size > 0) {
-          list = list.filter((t) => weekTeamNames.has(t.name.toLowerCase()));
-        }
-      }
     } else {
       // Mode Reports
       if (!isPlayoffWeek && selectedGroup !== "ALL") {
         list = list.filter((t) => !t.groupName || t.groupName === selectedGroup);
       }
-
       if (selectedWeek !== "ALL") {
         const activeTeamNames = new Set<string>();
         allSchedules.forEach((m) => {
@@ -154,7 +155,6 @@ export function AnalyticsFilter({
             if (m.teamBName) activeTeamNames.add(m.teamBName.toLowerCase());
           }
         });
-
         if (activeTeamNames.size > 0) {
           list = list.filter((t) => activeTeamNames.has(t.name.toLowerCase()));
         }
@@ -163,18 +163,6 @@ export function AnalyticsFilter({
 
     return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   }, [teams, mode, stageScope, selectedGroup, selectedWeek, isPlayoffWeek, allSchedules]);
-
-  // Reset tim jika tidak ada dalam daftar yang valid
-  useEffect(() => {
-    if (selectedTeam && filteredTeams.length > 0) {
-      const exists = filteredTeams.some(
-        (t) => t.name.toLowerCase() === selectedTeam.toLowerCase()
-      );
-      if (!exists) {
-        onTeamChange("");
-      }
-    }
-  }, [filteredTeams, selectedTeam, onTeamChange]);
 
   const handleSelectTeam = (teamName: string) => {
     onTeamChange(!teamName || teamName === "ALL" ? "" : teamName);
@@ -197,7 +185,6 @@ export function AnalyticsFilter({
   };
 
   const handleToggleStageScope = (targetScope: "GROUP_ONLY" | "PLAYOFF_ONLY") => {
-    // Jika tombol yang sama ditekan lagi -> toggle off (kembali ke ALL / hitung awal sampai sekarang)
     if (stageScope === targetScope) {
       onStageScopeChange("ALL");
     } else {
@@ -215,6 +202,8 @@ export function AnalyticsFilter({
         currentTournamentWeek={maxActiveWeek}
         selectedWeek={selectedWeek}
         isPlayoffWeek={isPlayoffWeek}
+        selectedTeam={selectedTeam}
+        selectedTeamHasPlayoff={selectedTeamHasPlayoff}
         onToggleGroup={handleToggleGroup}
         onToggleStageScope={handleToggleStageScope}
       />
@@ -245,7 +234,7 @@ export function AnalyticsFilter({
         />
       </div>
 
-      {/* 3. Baris Match Dropdown (Khusus Mode Reports) */}
+      {/* 3. Baris Match Dropdown (Mode Reports) */}
       {mode === "reports" && onMatchChange && (
         <FilterMatchDropdown
           isOpen={openDropdown === "match"}
