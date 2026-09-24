@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { DIVISION_MAP, TOURNAMENT_RULES } from "@/app/tournament/_library";
-import { FilterGroupToggle } from "./filter-group-toggle";
+import { FilterGroupToggle, StageScopeType } from "./filter-group-toggle";
 import { FilterTeamDropdown } from "./filter-team-dropdown";
 import { FilterWeekDropdown } from "./filter-week-dropdown";
 import { FilterMatchDropdown } from "./filter-match-dropdown";
 
-// TIPE TERPADU
+export * from "./filter-group-toggle";
+
 export interface AnalyticsFilterMatchItem {
   id: string;
   weekNumber: number | string;
@@ -30,6 +31,8 @@ export interface AnalyticsFilterProps {
   mode: "reports" | "power-ranking";
   selectedGroup: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B;
   onGroupChange: (group: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => void;
+  stageScope: StageScopeType;
+  onStageScopeChange: (scope: StageScopeType) => void;
   selectedTeam: string;
   onTeamChange: (team: string) => void;
   teams: FilterTeamItem[];
@@ -49,12 +52,15 @@ export function AnalyticsFilter({
   mode,
   selectedGroup,
   onGroupChange,
+  stageScope,
+  onStageScopeChange,
   selectedTeam,
   onTeamChange,
   teams = [],
   selectedWeek,
   onWeekChange,
   availableWeeks = [],
+  maxActiveWeek = 1,
   selectedMatchId = "",
   onMatchChange,
   matchesInView = [],
@@ -79,30 +85,52 @@ export function AnalyticsFilter({
     typeof selectedWeek === "number" &&
     selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
+  // Filter daftar tim menyesuaikan scope & week
   const filteredTeams = useMemo(() => {
     let list = [...teams];
 
-    if (!isPlayoffWeek && selectedGroup !== "ALL") {
-      list = list.filter((t) => !t.groupName || t.groupName === selectedGroup);
-    }
-
-    if (selectedWeek !== "ALL") {
-      const activeTeamNames = new Set<string>();
-      allSchedules.forEach((m) => {
-        if (Number(m.weekNumber) === Number(selectedWeek)) {
-          if (m.teamAName) activeTeamNames.add(m.teamAName.toLowerCase());
-          if (m.teamBName) activeTeamNames.add(m.teamBName.toLowerCase());
+    if (mode === "power-ranking") {
+      if (stageScope === "PLAYOFF_ONLY") {
+        // Ambil hanya tim yang ada di jadwal pekan Playoff
+        const playoffTeams = new Set<string>();
+        allSchedules.forEach((m) => {
+          if (Number(m.weekNumber) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK) {
+            if (m.teamAName) playoffTeams.add(m.teamAName.toLowerCase());
+            if (m.teamBName) playoffTeams.add(m.teamBName.toLowerCase());
+          }
+        });
+        if (playoffTeams.size > 0) {
+          list = list.filter((t) => playoffTeams.has(t.name.toLowerCase()));
         }
-      });
+      } else if (stageScope === "GROUP_ONLY") {
+        // Ambil hanya tim yang memiliki asosiasi grup
+        list = list.filter((t) => Boolean(t.groupName));
+      }
+    } else {
+      // Mode Reports
+      if (!isPlayoffWeek && selectedGroup !== "ALL") {
+        list = list.filter((t) => !t.groupName || t.groupName === selectedGroup);
+      }
 
-      if (activeTeamNames.size > 0) {
-        list = list.filter((t) => activeTeamNames.has(t.name.toLowerCase()));
+      if (selectedWeek !== "ALL") {
+        const activeTeamNames = new Set<string>();
+        allSchedules.forEach((m) => {
+          if (Number(m.weekNumber) === Number(selectedWeek)) {
+            if (m.teamAName) activeTeamNames.add(m.teamAName.toLowerCase());
+            if (m.teamBName) activeTeamNames.add(m.teamBName.toLowerCase());
+          }
+        });
+
+        if (activeTeamNames.size > 0) {
+          list = list.filter((t) => activeTeamNames.has(t.name.toLowerCase()));
+        }
       }
     }
 
     return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  }, [teams, selectedGroup, selectedWeek, isPlayoffWeek, allSchedules]);
+  }, [teams, mode, stageScope, selectedGroup, selectedWeek, isPlayoffWeek, allSchedules]);
 
+  // Sinkronisasi otomatis jika tim terpilih tidak ada di filter yang aktif
   useEffect(() => {
     if (selectedTeam && filteredTeams.length > 0) {
       const exists = filteredTeams.some(
@@ -134,13 +162,29 @@ export function AnalyticsFilter({
     }
   };
 
+  const handleToggleStageScope = (targetScope: "GROUP_ONLY" | "PLAYOFF_ONLY") => {
+    const isTournamentInPlayoff = maxActiveWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+    if (!isTournamentInPlayoff && targetScope === "GROUP_ONLY") return;
+
+    if (stageScope === targetScope) {
+      // Toggle off -> kembali ke all (awal sampai sekarang)
+      onStageScopeChange("ALL");
+    } else {
+      onStageScopeChange(targetScope);
+    }
+  };
+
   return (
     <div ref={containerRef} className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2.5">
-      {/* 1. Baris Grup Toggle */}
+      {/* 1. Baris Toggle */}
       <FilterGroupToggle
+        mode={mode}
         selectedGroup={selectedGroup}
+        stageScope={stageScope}
+        currentTournamentWeek={maxActiveWeek}
         isPlayoffWeek={isPlayoffWeek}
         onToggleGroup={handleToggleGroup}
+        onToggleStageScope={handleToggleStageScope}
       />
 
       {/* 2. Baris Tim & Week Dropdown + Reset */}
@@ -169,7 +213,7 @@ export function AnalyticsFilter({
         />
       </div>
 
-      {/* 3. Baris Match Dropdown (Mode Reports) */}
+      {/* 3. Baris Match Dropdown (Khusus Mode Reports) */}
       {mode === "reports" && onMatchChange && (
         <FilterMatchDropdown
           isOpen={openDropdown === "match"}
