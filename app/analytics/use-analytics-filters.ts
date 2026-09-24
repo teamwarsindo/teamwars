@@ -150,6 +150,7 @@ export function useAnalyticsFilters({
     setStageScope(nextScope);
 
     let adjustedWeek = selectedWeek;
+
     if (nextScope === "PLAYOFF_ONLY") {
       if (typeof selectedWeek === "number" && selectedWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK) {
         adjustedWeek = Math.max(TOURNAMENT_RULES.PLAYOFF_START_WEEK, maxActiveWeek);
@@ -160,6 +161,10 @@ export function useAnalyticsFilters({
         adjustedWeek = maxRegularWeek;
         setSelectedWeek(adjustedWeek);
       }
+    } else {
+      // Saat toggle dilepas (ALL), kembalikan week ke pekan aktif default turnamen
+      adjustedWeek = maxActiveWeek;
+      setSelectedWeek(maxActiveWeek);
     }
 
     const stageVal =
