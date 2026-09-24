@@ -52,6 +52,8 @@ function MatchReportContent() {
               mode="reports"
               selectedGroup={selectedGroup}
               onGroupChange={(g) => { setSelectedGroup(g); setSelectedMatchId(''); }}
+              stageScope="GROUP_ONLY"
+              onStageScopeChange={() => {}}
               selectedTeam={selectedTeam}
               onTeamChange={(t) => { setSelectedTeam(t); setSelectedMatchId(''); }}
               teams={teams}
@@ -174,4 +176,4 @@ export default function AdminInteractiveMatchReport() {
       <MatchReportContent />
     </Suspense>
   );
-    }
+}
