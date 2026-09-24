@@ -105,8 +105,22 @@ export function TournamentHub() {
   }, [currentWeekSchedules, todayDateStrWIB]);
 
   const upcomingMatches = useMemo(() => {
+    const isPlayoffStage = currentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+
+    if (isPlayoffStage) {
+      return currentWeekSchedules
+        .filter(
+          (m) =>
+            !m.isFinished &&
+            !m.streamLink &&
+            Boolean(m.matchDate) &&
+            getWibDateKey(new Date(m.matchDate)) > todayDateStrWIB
+        )
+        .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+    }
+
     return getNextDateMatches(currentWeekSchedules, todayDateStrWIB);
-  }, [currentWeekSchedules, todayDateStrWIB]);
+  }, [currentWeekSchedules, todayDateStrWIB, currentWeek]);
 
   const recentResults = useMemo(() => {
     return currentWeekSchedules
