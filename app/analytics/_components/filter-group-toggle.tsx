@@ -9,6 +9,7 @@ interface FilterGroupToggleProps {
   selectedGroup: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B;
   stageScope: StageScopeType;
   currentTournamentWeek: number;
+  selectedWeek: number | "ALL";
   isPlayoffWeek: boolean;
   onToggleGroup: (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => void;
   onToggleStageScope: (scope: "GROUP_ONLY" | "PLAYOFF_ONLY") => void;
@@ -19,38 +20,47 @@ export function FilterGroupToggle({
   selectedGroup,
   stageScope,
   currentTournamentWeek,
+  selectedWeek,
   isPlayoffWeek,
   onToggleGroup,
   onToggleStageScope,
 }: FilterGroupToggleProps) {
-  // Mode Power Ranking: Toggle Scope Stage (Group Only vs Playoff Only)
   if (mode === "power-ranking") {
     const isTournamentInPlayoff = currentTournamentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
-    const isGroupAlwaysActive = !isTournamentInPlayoff;
-    const isGroupSelected = isGroupAlwaysActive || stageScope === "GROUP_ONLY";
+    
+    // Validasi apakah stage terkunci oleh pilihan week spesifik
+    const isSpecificGroupWeek = typeof selectedWeek === "number" && selectedWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+    const isSpecificPlayoffWeek = typeof selectedWeek === "number" && selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+
+    const isGroupDisabled = isSpecificPlayoffWeek;
+    const isPlayoffDisabled = !isTournamentInPlayoff || isSpecificGroupWeek;
+
+    const isGroupSelected = stageScope === "GROUP_ONLY" || (!isTournamentInPlayoff && stageScope !== "PLAYOFF_ONLY");
     const isPlayoffSelected = stageScope === "PLAYOFF_ONLY";
 
     return (
       <div className="grid grid-cols-2 gap-2 w-full">
         <button
           type="button"
+          disabled={isGroupDisabled}
           onClick={() => onToggleStageScope("GROUP_ONLY")}
-          disabled={isGroupAlwaysActive}
           className={`py-2 px-3 rounded-xl text-xs font-bold transition text-center truncate ${
-            isGroupSelected
-              ? "bg-sky-500 text-white shadow-xs"
+            isGroupDisabled
+              ? "bg-muted/10 text-muted-foreground/30 border border-border/20 cursor-not-allowed"
+              : isGroupSelected
+              ? "bg-sky-500 text-white shadow-xs cursor-pointer"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
-          } ${isGroupAlwaysActive ? "cursor-default opacity-95" : "cursor-pointer"}`}
+          }`}
         >
           Group Only
         </button>
 
         <button
           type="button"
-          disabled={!isTournamentInPlayoff}
+          disabled={isPlayoffDisabled}
           onClick={() => onToggleStageScope("PLAYOFF_ONLY")}
           className={`py-2 px-3 rounded-xl text-xs font-bold transition text-center truncate ${
-            !isTournamentInPlayoff
+            isPlayoffDisabled
               ? "bg-muted/10 text-muted-foreground/30 border border-border/20 cursor-not-allowed"
               : isPlayoffSelected
               ? "bg-emerald-500 text-white shadow-xs cursor-pointer"
@@ -63,7 +73,7 @@ export function FilterGroupToggle({
     );
   }
 
-  // Mode Reports: Toggle Divisi Reguler
+  // Mode Reports
   const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
   const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
 
