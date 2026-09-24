@@ -30,44 +30,37 @@ export function FilterGroupToggle({
   onToggleStageScope,
 }: FilterGroupToggleProps) {
   if (mode === "power-ranking") {
-    const isEvaluatingGroupWeek =
+    // KUNCI HANYA JIKA: User sedang melihat pekan babak grup (Week 1 - 7)
+    const isExplicitGroupWeek =
       typeof selectedWeek === "number" && selectedWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
     const evaluatedWeek = typeof selectedWeek === "number" ? selectedWeek : currentTournamentWeek;
     const canAccessPlayoff = evaluatedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-    // DETEKSI: Jika sedang memilih tim dan tim tersebut BUKAN tim playoff
+    // Tim yang tidak main di playoff
     const isNonPlayoffTeam = Boolean(selectedTeam) && !selectedTeamHasPlayoff;
 
-    // Group aktif jika:
-    // 1. scope memang GROUP_ONLY, ATAU
-    // 2. sedang di week grup, ATAU
-    // 3. tim terpilih bukan tim playoff
-    const isGroupActive = stageScope === "GROUP_ONLY" || isEvaluatingGroupWeek || isNonPlayoffTeam;
-    const isPlayoffActive = !isNonPlayoffTeam && stageScope === "PLAYOFF_ONLY";
+    // Status aktif
+    const isGroupActive = stageScope === "GROUP_ONLY" || isExplicitGroupWeek;
+    const isPlayoffActive = stageScope === "PLAYOFF_ONLY";
 
-    // Tombol Group Terkunci (tidak bisa dimatikan):
-    // Jika di pekan grup ATAU tim terpilih bukan tim playoff
-    const isGroupLocked = isEvaluatingGroupWeek || isNonPlayoffTeam;
-    const isGroupDisabled = isPlayoffActive || isGroupLocked;
+    // Tombol Group Terkunci HANYA jika week memang berada di babak grup
+    const isGroupLocked = isExplicitGroupWeek;
 
-    // Tombol Playoff Mati Total jika:
-    // 1. Turnamen/pekan belum masuk playoff, ATAU
-    // 2. Group Only sedang aktif, ATAU
-    // 3. Tim terpilih bukan tim playoff
-    const isPlayoffDisabled = !canAccessPlayoff || isGroupActive || isNonPlayoffTeam;
+    // Tombol Playoff Mati jika: belum masuk week playoff ATAU tim terpilih bukan tim playoff
+    const isPlayoffDisabled = !canAccessPlayoff || isNonPlayoffTeam;
 
     return (
       <div className="grid grid-cols-2 gap-2 w-full">
         <button
           type="button"
-          disabled={isGroupDisabled}
+          disabled={isGroupLocked}
           onClick={() => onToggleStageScope("GROUP_ONLY")}
           className={`py-2 px-3 rounded-xl text-xs font-bold transition text-center truncate ${
             isGroupActive
-              ? "bg-sky-500 text-white shadow-xs cursor-default"
-              : isGroupDisabled
-              ? "bg-muted/10 text-muted-foreground/30 border border-border/20 cursor-not-allowed"
+              ? isGroupLocked
+                ? "bg-sky-500 text-white shadow-xs cursor-default"
+                : "bg-sky-500 text-white shadow-xs cursor-pointer"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
           }`}
         >
