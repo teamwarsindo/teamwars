@@ -55,8 +55,11 @@ function MatchReportContent() {
               selectedTeam={selectedTeam}
               onTeamChange={(t) => { setSelectedTeam(t); setSelectedMatchId(''); }}
               teams={teams}
-              selectedWeek={selectedWeek}
-              onWeekChange={(w) => { setSelectedWeek(w); setSelectedMatchId(''); }}
+              selectedWeek={selectedWeek === '' ? 'ALL' : selectedWeek}
+              onWeekChange={(w) => {
+                setSelectedWeek(w === 'ALL' ? '' : (w as any));
+                setSelectedMatchId('');
+              }}
               availableWeeks={[1, 2, 3, 4, 5, 6, 7]}
               selectedMatchId={selectedMatchId}
               onMatchChange={setSelectedMatchId}
@@ -171,4 +174,4 @@ export default function AdminInteractiveMatchReport() {
       <MatchReportContent />
     </Suspense>
   );
-}
+    }
