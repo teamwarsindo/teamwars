@@ -3,6 +3,7 @@ import { kv } from "@vercel/kv";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import AnalyticsClientContent from "./analytics-client";
 import { RawMatchReport, TeamRosterData } from "./_library/power-ranking";
+import { getCurrentServerWeek } from "@/app/tournament/_library";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -69,16 +70,21 @@ export default async function AnalyticsLandingPage() {
     (item): item is TeamRosterData => item !== null
   );
 
-  // 4. Cari pekan aktif tertinggi: hitung jika sudah selesai ATAU sudah memiliki laporan/games berjalan
-  const maxActiveWeek: number = rawSchedules.reduce((max: number, m: any) => {
-    const w = Number(m.weekNumber || 1);
-    const rep = rawReportsHash[m.id];
-    const hasLiveGames = Boolean(rep && Array.isArray(rep.games) && rep.games.length > 0);
-    const isOngoingOrFinished = Boolean(m.isFinished) || hasLiveGames;
+  // 4. Hitung pekan saat ini secara dinamis dari jadwal dan server time
+  const currentWeek = getCurrentServerWeek();
+  const maxActiveWeek: number = Math.max(
+    currentWeek,
+    rawSchedules.reduce((max: number, m: any) => {
+      const w = Number(m.weekNumber || 1);
+      const rep = rawReportsHash[m.id];
+      const hasLiveGames = Boolean(rep && Array.isArray(rep.games) && rep.games.length > 0);
+      const isOngoingOrFinished = Boolean(m.isFinished) || hasLiveGames;
 
-    return isOngoingOrFinished && w > max ? w : max;
-  }, 1);
+      return isOngoingOrFinished && w > max ? w : max;
+    }, 1)
+  );
 
+  // Batasi jadwal yang ditampilkan sampai dengan pekan saat ini (tidak membuang match yang sedang/akan tanding di pekan ini)
   const scheduleList = rawSchedules
     .filter((m: any) => Number(m.weekNumber || 1) <= maxActiveWeek)
     .map((m: any) => {
