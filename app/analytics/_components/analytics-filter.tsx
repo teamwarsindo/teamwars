@@ -85,7 +85,7 @@ export function AnalyticsFilter({
     typeof selectedWeek === "number" &&
     selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-  // DETEKSI OTOMATIS: Apakah tim yang sedang dipilih berpartisipasi di babak Playoff?
+  // Cek apakah tim yang dipilih memiliki jadwal/pernah main di babak playoff
   const selectedTeamHasPlayoff = useMemo(() => {
     if (!selectedTeam) return true;
     const clean = selectedTeam.toLowerCase().trim();
@@ -97,24 +97,25 @@ export function AnalyticsFilter({
     );
   }, [allSchedules, selectedTeam]);
 
-  // 1. Opsi Week di Dropdown
+  // 1. OPSI WEEK DI DROPDOWN: DIBUKA SEMUA (ALL WEEKS)
+  // Tidak membatasi opsi pekan saat Group Only aktif, sehingga user bebas memilih week manapun
   const dynamicWeeks = useMemo(() => {
     if (mode === "power-ranking") {
-      // Jika tim bukan tim playoff, opsi week hanya muncul pekan babak grup
+      // HANYA jika filter tim aktif DAN tim tersebut bukan tim playoff, batasi week ke babak grup
       if (selectedTeam && !selectedTeamHasPlayoff) {
         return availableWeeks.filter((w) => w < TOURNAMENT_RULES.PLAYOFF_START_WEEK);
       }
+      // HANYA jika tombol PLAYOFF_ONLY aktif, batasi opsi ke pekan playoff
       if (stageScope === "PLAYOFF_ONLY") {
         return availableWeeks.filter((w) => w >= TOURNAMENT_RULES.PLAYOFF_START_WEEK);
       }
-      if (stageScope === "GROUP_ONLY") {
-        return availableWeeks.filter((w) => w < TOURNAMENT_RULES.PLAYOFF_START_WEEK);
-      }
+      // Untuk GROUP_ONLY atau ALL: TAMPILKAN SEMUA WEEK TANPA DIBATASI!
+      return availableWeeks;
     }
     return availableWeeks;
   }, [mode, stageScope, availableWeeks, selectedTeam, selectedTeamHasPlayoff]);
 
-  // 2. Daftar Tim
+  // 2. DAFTAR TIM: HANYA DIBATASI JIKA TOMBOL AKTIF
   const filteredTeams = useMemo(() => {
     let list = [...teams];
 
@@ -142,6 +143,7 @@ export function AnalyticsFilter({
           (t) => groupTeamNames.has(t.name.toLowerCase()) || Boolean(t.groupName)
         );
       }
+      // Jika stageScope === "ALL", tampilkan semua tim lengkap tanpa terpotong
     } else {
       // Mode Reports
       if (!isPlayoffWeek && selectedGroup !== "ALL") {
