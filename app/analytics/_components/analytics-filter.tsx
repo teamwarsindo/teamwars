@@ -85,7 +85,7 @@ export function AnalyticsFilter({
     typeof selectedWeek === "number" &&
     selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-  // 1. Sesuaikan Opsi Week yang muncul di Dropdown berdasarkan Stage
+  // 1. Opsi Week yang muncul di Dropdown
   const dynamicWeeks = useMemo(() => {
     if (mode === "power-ranking") {
       if (stageScope === "PLAYOFF_ONLY") {
@@ -98,7 +98,7 @@ export function AnalyticsFilter({
     return availableWeeks;
   }, [mode, stageScope, availableWeeks]);
 
-  // 2. Filter Tim yang Valid & Tidak Pernah Kosong
+  // 2. Daftar Tim (Lengkap jika default, terfilter jika tombol scope aktif)
   const filteredTeams = useMemo(() => {
     let list = [...teams];
 
@@ -111,7 +111,6 @@ export function AnalyticsFilter({
             if (m.teamBName) playoffTeamNames.add(m.teamBName.toLowerCase());
           }
         });
-
         if (playoffTeamNames.size > 0) {
           list = list.filter((t) => playoffTeamNames.has(t.name.toLowerCase()));
         }
@@ -123,14 +122,12 @@ export function AnalyticsFilter({
             if (m.teamBName) groupTeamNames.add(m.teamBName.toLowerCase());
           }
         });
-
-        // Ambil tim dari jadwal grup atau fallback ke atribut grup tim
         list = list.filter(
           (t) => groupTeamNames.has(t.name.toLowerCase()) || Boolean(t.groupName)
         );
       }
 
-      // Jika user memilih pekan tertentu dalam power ranking
+      // Filter tim berdasarkan pekan spesifik yang dipilih jika ada
       if (selectedWeek !== "ALL") {
         const weekTeamNames = new Set<string>();
         allSchedules.forEach((m) => {
@@ -167,7 +164,7 @@ export function AnalyticsFilter({
     return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   }, [teams, mode, stageScope, selectedGroup, selectedWeek, isPlayoffWeek, allSchedules]);
 
-  // Reset otomatis jika tim terpilih tidak ada di list aktif
+  // Reset tim jika tidak ada dalam daftar yang valid
   useEffect(() => {
     if (selectedTeam && filteredTeams.length > 0) {
       const exists = filteredTeams.some(
@@ -200,9 +197,7 @@ export function AnalyticsFilter({
   };
 
   const handleToggleStageScope = (targetScope: "GROUP_ONLY" | "PLAYOFF_ONLY") => {
-    const isTournamentInPlayoff = maxActiveWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
-    if (!isTournamentInPlayoff && targetScope === "GROUP_ONLY") return;
-
+    // Jika tombol yang sama ditekan lagi -> toggle off (kembali ke ALL / hitung awal sampai sekarang)
     if (stageScope === targetScope) {
       onStageScopeChange("ALL");
     } else {
@@ -250,7 +245,7 @@ export function AnalyticsFilter({
         />
       </div>
 
-      {/* 3. Baris Match Dropdown (Mode Reports) */}
+      {/* 3. Baris Match Dropdown (Khusus Mode Reports) */}
       {mode === "reports" && onMatchChange && (
         <FilterMatchDropdown
           isOpen={openDropdown === "match"}
