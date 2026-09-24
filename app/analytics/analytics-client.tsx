@@ -34,6 +34,7 @@ export default function AnalyticsClientContent({
   const weekParam = searchParams.get("week");
 
   const isTournamentInPlayoff = maxActiveWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+  const maxRegularWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK - 1;
 
   // Ekstraksi Tim
   const allTeamsList = useMemo(() => {
@@ -82,7 +83,6 @@ export default function AnalyticsClientContent({
     return found ? found.name : teamParam;
   }, [teamParam, allTeamsList]);
 
-  // Initial stage scope dari URL
   const initialStageScope: StageScopeType = useMemo(() => {
     if (!isTournamentInPlayoff) return "GROUP_ONLY";
     if (stageParam === "playoff") return "PLAYOFF_ONLY";
@@ -106,7 +106,6 @@ export default function AnalyticsClientContent({
 
   const [selectedWeek, setSelectedWeek] = useState<number | "ALL">(initialWeek);
 
-  // Sync stageScope jika stageParam berubah di URL
   useEffect(() => {
     if (!isTournamentInPlayoff) {
       setStageScope("GROUP_ONLY");
@@ -119,7 +118,6 @@ export default function AnalyticsClientContent({
     }
   }, [stageParam, isTournamentInPlayoff]);
 
-  // Proteksi tab power-ranking: tidak boleh "ALL"
   useEffect(() => {
     if (currentTab === "power-ranking" && selectedWeek === "ALL") {
       setSelectedWeek(maxActiveWeek);
@@ -161,8 +159,23 @@ export default function AnalyticsClientContent({
     updateUrlParams({ match: null });
   };
 
+  // Logika Penggantian Stage -> Menyelaraskan Week
   const handleStageScopeChange = (nextScope: StageScopeType) => {
     setStageScope(nextScope);
+
+    let adjustedWeek = selectedWeek;
+    if (nextScope === "PLAYOFF_ONLY") {
+      if (typeof selectedWeek === "number" && selectedWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK) {
+        adjustedWeek = Math.max(TOURNAMENT_RULES.PLAYOFF_START_WEEK, maxActiveWeek);
+        setSelectedWeek(adjustedWeek);
+      }
+    } else if (nextScope === "GROUP_ONLY") {
+      if (typeof selectedWeek === "number" && selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK) {
+        adjustedWeek = maxRegularWeek;
+        setSelectedWeek(adjustedWeek);
+      }
+    }
+
     const stageVal =
       nextScope === "PLAYOFF_ONLY"
         ? "playoff"
@@ -175,6 +188,7 @@ export default function AnalyticsClientContent({
     updateUrlParams({
       stage: stageVal,
       team: null,
+      week: adjustedWeek === maxActiveWeek ? null : String(adjustedWeek),
     });
   };
 
@@ -191,10 +205,33 @@ export default function AnalyticsClientContent({
     });
   };
 
+  // Logika Penggantian Week -> Menyelaraskan Stage
   const handleWeekChange = (w: number | "ALL") => {
     setSelectedWeek(w);
+    let updatedStageScope = stageScope;
+
+    if (currentTab === "power-ranking" && typeof w === "number") {
+      if (w < TOURNAMENT_RULES.PLAYOFF_START_WEEK && stageScope === "PLAYOFF_ONLY") {
+        updatedStageScope = "GROUP_ONLY";
+        setStageScope("GROUP_ONLY");
+      } else if (w >= TOURNAMENT_RULES.PLAYOFF_START_WEEK && stageScope === "GROUP_ONLY") {
+        updatedStageScope = "PLAYOFF_ONLY";
+        setStageScope("PLAYOFF_ONLY");
+      }
+    }
+
+    const stageVal =
+      updatedStageScope === "PLAYOFF_ONLY"
+        ? "playoff"
+        : updatedStageScope === "GROUP_ONLY"
+        ? isTournamentInPlayoff
+          ? "group"
+          : null
+        : null;
+
     updateUrlParams({
       week: w === maxActiveWeek ? null : String(w),
+      stage: stageVal,
       match: null,
     });
   };
@@ -262,7 +299,6 @@ export default function AnalyticsClientContent({
     }
   }, [matchesInView, selectedMatchId, currentTab]);
 
-  // Filter reports untuk Power Ranking sesuai Stage Scope
   const filteredReportsForPowerRanking = useMemo(() => {
     if (stageScope === "GROUP_ONLY") {
       return reports.filter((r) => Number(r.week) < TOURNAMENT_RULES.PLAYOFF_START_WEEK);
