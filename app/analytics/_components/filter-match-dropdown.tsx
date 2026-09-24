@@ -1,6 +1,6 @@
 "use client";
 
-import { AnalyticsFilterMatchItem } from "./types";
+import { AnalyticsFilterMatchItem } from "./analytics-filter";
 
 interface FilterMatchDropdownProps {
   isOpen: boolean;
