@@ -1,26 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import Image from "next/image";
-import { DIVISION_MAP } from "@/app/tournament/_library";
+import { DIVISION_MAP, TOURNAMENT_RULES } from "@/app/tournament/_library";
+import { AnalyticsFilterMatchItem, FilterTeamItem } from "./types";
+import { FilterGroupToggle } from "./filter-group-toggle";
+import { FilterTeamDropdown } from "./filter-team-dropdown";
+import { FilterWeekDropdown } from "./filter-week-dropdown";
+import { FilterMatchDropdown } from "./filter-match-dropdown";
 
-export interface AnalyticsFilterMatchItem {
-  id: string;
-  weekNumber: number | string;
-  groupName?: string;
-  teamAName?: string;
-  teamBName?: string;
-  isFinished?: boolean;
-  scoreA?: number;
-  scoreB?: number;
-}
-
-export interface FilterTeamItem {
-  name: string;
-  slug: string;
-  groupName?: string;
-  logo?: string;
-}
+export * from "./types";
 
 interface AnalyticsFilterProps {
   mode: "reports" | "power-ranking";
@@ -29,13 +17,14 @@ interface AnalyticsFilterProps {
   selectedTeam: string;
   onTeamChange: (team: string) => void;
   teams: FilterTeamItem[];
-  selectedWeek: number | "";
-  onWeekChange: (week: number) => void;
+  selectedWeek: number | "ALL";
+  onWeekChange: (week: number | "ALL") => void;
   availableWeeks: number[];
   maxActiveWeek?: number;
   selectedMatchId?: string;
   onMatchChange?: (matchId: string) => void;
   matchesInView?: AnalyticsFilterMatchItem[];
+  allSchedules?: AnalyticsFilterMatchItem[];
   isFilterActive: boolean;
   onReset: () => void;
 }
@@ -53,6 +42,7 @@ export function AnalyticsFilter({
   selectedMatchId = "",
   onMatchChange,
   matchesInView = [],
+  allSchedules = [],
   isFilterActive,
   onReset,
 }: AnalyticsFilterProps) {
@@ -69,26 +59,52 @@ export function AnalyticsFilter({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter dan urutkan tim dari A ke Z
+  const isPlayoffWeek =
+    typeof selectedWeek === "number" &&
+    selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+
   const filteredTeams = useMemo(() => {
-    const list =
-      selectedGroup === "ALL"
-        ? [...teams]
-        : teams.filter((t) => !t.groupName || t.groupName === selectedGroup);
+    let list = [...teams];
+
+    if (!isPlayoffWeek && selectedGroup !== "ALL") {
+      list = list.filter((t) => !t.groupName || t.groupName === selectedGroup);
+    }
+
+    if (selectedWeek !== "ALL") {
+      const activeTeamNames = new Set<string>();
+      allSchedules.forEach((m) => {
+        if (Number(m.weekNumber) === Number(selectedWeek)) {
+          if (m.teamAName) activeTeamNames.add(m.teamAName.toLowerCase());
+          if (m.teamBName) activeTeamNames.add(m.teamBName.toLowerCase());
+        }
+      });
+
+      if (activeTeamNames.size > 0) {
+        list = list.filter((t) => activeTeamNames.has(t.name.toLowerCase()));
+      }
+    }
 
     return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  }, [teams, selectedGroup]);
+  }, [teams, selectedGroup, selectedWeek, isPlayoffWeek, allSchedules]);
+
+  useEffect(() => {
+    if (selectedTeam && filteredTeams.length > 0) {
+      const exists = filteredTeams.some(
+        (t) => t.name.toLowerCase() === selectedTeam.toLowerCase()
+      );
+      if (!exists) {
+        onTeamChange("");
+      }
+    }
+  }, [filteredTeams, selectedTeam, onTeamChange]);
 
   const handleSelectTeam = (teamName: string) => {
-    if (!teamName || teamName === "ALL") {
-      onTeamChange("");
-    } else {
-      onTeamChange(teamName);
-    }
+    onTeamChange(!teamName || teamName === "ALL" ? "" : teamName);
     setOpenDropdown(null);
   };
 
   const handleToggleGroup = (group: typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
+    if (isPlayoffWeek) return;
     if (selectedGroup === group) {
       onGroupChange("ALL");
     } else {
@@ -102,252 +118,53 @@ export function AnalyticsFilter({
     }
   };
 
-  const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
-  const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
-  const activeMatch = matchesInView.find((m) => m.id === selectedMatchId);
-  const selectedTeamObj = teams.find((t) => t.name === selectedTeam);
-
-  const renderScore = (sA?: number, sB?: number) => {
-    if (sA === undefined || sB === undefined) return null;
-    const aWin = sA >= 10;
-    const bWin = sB >= 10;
-
-    return (
-      <span className="font-mono text-[10px] bg-muted/70 px-1.5 py-0.5 rounded-md border border-border/60 shrink-0">
-        <span className={aWin ? "text-emerald-500 font-bold" : bWin ? "text-rose-500 font-bold" : "text-foreground/80 font-medium"}>
-          {sA}
-        </span>
-        <span className="mx-0.5 text-muted-foreground/40">-</span>
-        <span className={bWin ? "text-emerald-500 font-bold" : aWin ? "text-rose-500 font-bold" : "text-foreground/80 font-medium"}>
-          {sB}
-        </span>
-      </span>
-    );
-  };
-
   return (
     <div ref={containerRef} className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2.5">
-      {/* BARIS 1: TOGGLE DUA DIVISI */}
-      <div className="grid grid-cols-2 gap-2 w-full">
-        <button
-          type="button"
-          onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_A)}
-          className={`py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer text-center truncate ${
-            selectedGroup === DIVISION_MAP.GROUP_A
-              ? "bg-sky-500 text-white shadow-xs"
-              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
-          }`}
-        >
-          {cleanNameA}
-        </button>
+      {/* 1. Baris Grup Toggle */}
+      <FilterGroupToggle
+        selectedGroup={selectedGroup}
+        isPlayoffWeek={isPlayoffWeek}
+        onToggleGroup={handleToggleGroup}
+      />
 
-        <button
-          type="button"
-          onClick={() => handleToggleGroup(DIVISION_MAP.GROUP_B)}
-          className={`py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer text-center truncate ${
-            selectedGroup === DIVISION_MAP.GROUP_B
-              ? "bg-amber-500 text-slate-950 shadow-xs"
-              : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30"
-          }`}
-        >
-          {cleanNameB}
-        </button>
-      </div>
-
-      {/* BARIS 2: TIM & WEEK + RESET */}
+      {/* 2. Baris Tim & Week Dropdown + Reset */}
       <div className="grid grid-cols-2 gap-2 items-center">
-        {/* Dropdown Tim */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setOpenDropdown(openDropdown === "team" ? null : "team")}
-            className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
-          >
-            <div className="flex items-center gap-1.5 truncate">
-              {selectedTeamObj?.logo && (
-                <div className="h-3.5 w-3.5 rounded-full overflow-hidden shrink-0 border border-border/60">
-                  <Image
-                    src={selectedTeamObj.logo}
-                    alt={selectedTeamObj.name}
-                    width={14}
-                    height={14}
-                    className="h-full w-full object-cover rounded-full"
-                    unoptimized
-                  />
-                </div>
-              )}
-              <span className="truncate">{selectedTeam || "Semua Tim"}</span>
-            </div>
-            <span className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${openDropdown === "team" ? "rotate-180" : ""}`}>
-              ▼
-            </span>
-          </button>
+        <FilterTeamDropdown
+          isOpen={openDropdown === "team"}
+          onToggle={() => setOpenDropdown(openDropdown === "team" ? null : "team")}
+          selectedTeam={selectedTeam}
+          onSelectTeam={handleSelectTeam}
+          filteredTeams={filteredTeams}
+          allTeams={teams}
+        />
 
-          {openDropdown === "team" && (
-            <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl space-y-0.5">
-              <button
-                type="button"
-                onClick={() => handleSelectTeam("ALL")}
-                className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
-                  !selectedTeam ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
-                }`}
-              >
-                <span>Semua Tim</span>
-                {!selectedTeam && <span>✓</span>}
-              </button>
-
-              {filteredTeams.map((t) => {
-                const isSelected = selectedTeam === t.name;
-                return (
-                  <button
-                    key={t.name}
-                    type="button"
-                    onClick={() => handleSelectTeam(t.name)}
-                    className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
-                      isSelected ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      {t.logo && (
-                        <div className="h-4 w-4 rounded-full overflow-hidden shrink-0 border border-border/60">
-                          <Image
-                            src={t.logo}
-                            alt={t.name}
-                            width={16}
-                            height={16}
-                            className="h-full w-full object-cover rounded-full"
-                            unoptimized
-                          />
-                        </div>
-                      )}
-                      <span className="truncate">{t.name}</span>
-                    </div>
-                    {isSelected && <span className="ml-1 shrink-0">✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Dropdown Week + Reset */}
-        <div className="flex items-center gap-1.5 w-full">
-          <div className="relative flex-1 min-w-0">
-            <button
-              type="button"
-              onClick={() => setOpenDropdown(openDropdown === "week" ? null : "week")}
-              className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition focus:outline-none cursor-pointer"
-            >
-              <span className="truncate">
-                {selectedWeek ? `Week ${selectedWeek}` : (availableWeeks[0] ? `Week ${availableWeeks[0]}` : "Pilih Week")}
-              </span>
-              <span className={`text-[10px] text-primary transition-transform ml-1 shrink-0 ${openDropdown === "week" ? "rotate-180" : ""}`}>
-                ▼
-              </span>
-            </button>
-
-            {openDropdown === "week" && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl space-y-0.5">
-                {availableWeeks.map((w) => (
-                  <button
-                    key={w}
-                    type="button"
-                    onClick={() => {
-                      onWeekChange(w);
-                      setOpenDropdown(null);
-                    }}
-                    className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
-                      selectedWeek === w ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
-                    }`}
-                  >
-                    <span>Week {w}</span>
-                    {selectedWeek === w && <span>✓</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={onReset}
-            disabled={!isFilterActive}
-            title="Reset Filter"
-            className={`h-9 w-9 rounded-xl flex items-center justify-center bg-rose-500 text-white shadow-xs transition shrink-0 cursor-pointer ${
-              !isFilterActive ? "opacity-35 cursor-not-allowed" : "hover:bg-rose-600 active:scale-95"
-            }`}
-          >
-            <svg className="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
-        </div>
+        <FilterWeekDropdown
+          mode={mode}
+          isOpen={openDropdown === "week"}
+          onToggle={() => setOpenDropdown(openDropdown === "week" ? null : "week")}
+          selectedWeek={selectedWeek}
+          onSelectWeek={(w) => {
+            onWeekChange(w);
+            setOpenDropdown(null);
+          }}
+          availableWeeks={availableWeeks}
+          isFilterActive={isFilterActive}
+          onReset={onReset}
+        />
       </div>
 
-      {/* BARIS 3: MATCH SPESIFIK */}
+      {/* 3. Baris Match Dropdown (Mode Reports) */}
       {mode === "reports" && onMatchChange && (
-        <div className="relative w-full">
-          <button
-            type="button"
-            onClick={() => setOpenDropdown(openDropdown === "match" ? null : "match")}
-            disabled={matchesInView.length === 0}
-            className={`w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold transition focus:outline-none cursor-pointer ${
-              matchesInView.length === 0 ? "opacity-50 cursor-not-allowed text-muted-foreground" : "text-foreground"
-            }`}
-          >
-            <span className="truncate flex items-center gap-1.5">
-              {activeMatch ? (
-                <>
-                  <span className="truncate">
-                    {activeMatch.teamAName} vs {activeMatch.teamBName}
-                  </span>
-                  {activeMatch.isFinished && renderScore(activeMatch.scoreA, activeMatch.scoreB)}
-                </>
-              ) : matchesInView.length === 0 ? (
-                "Tidak ada jadwal yang cocok"
-              ) : (
-                "-- Pilih Pertandingan --"
-              )}
-            </span>
-            <span className={`text-[10px] text-muted-foreground transition-transform ml-1 shrink-0 ${openDropdown === "match" ? "rotate-180" : ""}`}>
-              ▼
-            </span>
-          </button>
-
-          {openDropdown === "match" && matchesInView.length > 0 && (
-            <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl space-y-0.5">
-              {matchesInView.map((m) => {
-                const isSelected = m.id === selectedMatchId;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => {
-                      onMatchChange(m.id);
-                      setOpenDropdown(null);
-                    }}
-                    className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition cursor-pointer ${
-                      isSelected ? "bg-primary/10 font-bold text-primary" : "hover:bg-muted/60 text-foreground"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 truncate pr-2">
-                      <span className="truncate">
-                        <span className="font-medium text-foreground">{m.teamAName}</span>
-                        <span className="text-muted-foreground text-[10px] mx-1">vs</span>
-                        <span className="font-medium text-foreground">{m.teamBName}</span>
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {m.isFinished && renderScore(m.scoreA, m.scoreB)}
-                      {isSelected && <span className="text-primary font-bold">✓</span>}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <FilterMatchDropdown
+          isOpen={openDropdown === "match"}
+          onToggle={() => setOpenDropdown(openDropdown === "match" ? null : "match")}
+          matchesInView={matchesInView}
+          selectedMatchId={selectedMatchId}
+          onSelectMatch={(id) => {
+            onMatchChange(id);
+            setOpenDropdown(null);
+          }}
+        />
       )}
     </div>
   );
