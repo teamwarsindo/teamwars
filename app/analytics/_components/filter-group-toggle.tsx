@@ -26,17 +26,21 @@ export function FilterGroupToggle({
   onToggleStageScope,
 }: FilterGroupToggleProps) {
   if (mode === "power-ranking") {
-    const isTournamentInPlayoff = currentTournamentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+    // Week aktif yang dijadikan patokan: jika user pilih week tertentu gunakan itu, jika "ALL" gunakan pekan berjalan turnamen
+    const evaluatedWeek = typeof selectedWeek === "number" ? selectedWeek : currentTournamentWeek;
     
-    // Validasi apakah stage terkunci oleh pilihan week spesifik
-    const isSpecificGroupWeek = typeof selectedWeek === "number" && selectedWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK;
-    const isSpecificPlayoffWeek = typeof selectedWeek === "number" && selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+    // Playoff hanya mungkin ada datanya jika pekan yang dievaluasi sudah masuk fase playoff
+    const canAccessPlayoff = evaluatedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-    const isGroupDisabled = isSpecificPlayoffWeek;
-    const isPlayoffDisabled = !isTournamentInPlayoff || isSpecificGroupWeek;
+    const isGroupActive = stageScope === "GROUP_ONLY";
+    const isPlayoffActive = stageScope === "PLAYOFF_ONLY";
 
-    const isGroupSelected = stageScope === "GROUP_ONLY" || (!isTournamentInPlayoff && stageScope !== "PLAYOFF_ONLY");
-    const isPlayoffSelected = stageScope === "PLAYOFF_ONLY";
+    // Aturan Disable:
+    // - Group Only HANYA disable ketika Playoff Only sedang dipilih
+    const isGroupDisabled = isPlayoffActive;
+
+    // - Playoff Only disable jika sedang di week babak grup ATAU jika Group Only sedang aktif
+    const isPlayoffDisabled = !canAccessPlayoff || isGroupActive;
 
     return (
       <div className="grid grid-cols-2 gap-2 w-full">
@@ -47,7 +51,7 @@ export function FilterGroupToggle({
           className={`py-2 px-3 rounded-xl text-xs font-bold transition text-center truncate ${
             isGroupDisabled
               ? "bg-muted/10 text-muted-foreground/30 border border-border/20 cursor-not-allowed"
-              : isGroupSelected
+              : isGroupActive
               ? "bg-sky-500 text-white shadow-xs cursor-pointer"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
           }`}
@@ -62,7 +66,7 @@ export function FilterGroupToggle({
           className={`py-2 px-3 rounded-xl text-xs font-bold transition text-center truncate ${
             isPlayoffDisabled
               ? "bg-muted/10 text-muted-foreground/30 border border-border/20 cursor-not-allowed"
-              : isPlayoffSelected
+              : isPlayoffActive
               ? "bg-emerald-500 text-white shadow-xs cursor-pointer"
               : "bg-muted/20 text-muted-foreground hover:text-foreground border border-border/40 hover:bg-muted/30 cursor-pointer"
           }`}
@@ -73,7 +77,7 @@ export function FilterGroupToggle({
     );
   }
 
-  // Mode Reports
+  // Mode Reports (Jadwal & Laporan Divisi Reguler)
   const cleanNameA = DIVISION_MAP.GROUP_A.replace(/^Div(isi|\.)\s*/i, "");
   const cleanNameB = DIVISION_MAP.GROUP_B.replace(/^Div(isi|\.)\s*/i, "");
 
