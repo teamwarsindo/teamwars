@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem, getMatchWeekNumber, getTeamSlug } from '@/app/tournament/_library';
+import { MatchScheduleItem, getMatchWeekNumber, getTeamSlug, getWibDateKey } from '@/app/tournament/_library';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { isValidSnowflake } from '@/lib/discord/utils';
 import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
@@ -146,7 +146,6 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
-  // 6. PATCH DUTY TRACKER: Hanya patch channel yang perannya di-assign
   if ((match as any).isRescheduled) {
     try {
       const targetWeek = Number(match.weekNumber || getMatchWeekNumber(match.matchDate) || 1);
@@ -207,12 +206,28 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
         })
       );
 
-      // KUNCI: patchReferee aktif HANYA jika isRef, patchStreamer aktif HANYA jika !isRef
+      // Cek apakah match yang di-assign bukan jadwal hari ini
+      const todayKey = getWibDateKey(new Date());
+      const assignedMatchKey = getWibDateKey(new Date(match.matchDate));
+      const isNotTodayMatch = assignedMatchKey !== todayKey;
+
+      // Cek apakah masih ada match lain hari ini yang belum terisi perannya
+      const hasUnassignedTodayDuty = dutyMatches.some((m) => {
+        const isToday = getWibDateKey(new Date(m.matchDateIso)) === todayKey;
+        const isDutyMissing = isRef
+          ? !m.referee || m.referee.trim() === '' || m.referee === '-' || m.referee.toLowerCase() === 'tbd'
+          : !m.streamer || m.streamer.trim() === '' || m.streamer === '-' || m.streamer.toLowerCase() === 'tbd';
+        return isToday && isDutyMissing;
+      });
+
+      // Repost (isPatch: false) hanya jika match yang di-assign bukan hari ini DAN masih ada match hari ini yang kosong
+      const shouldPatch = !(isNotTodayMatch && hasUnassignedTodayDuty);
+
       await sendOrUpdateDutyRescheduleSchedule({
         weekName,
         matches: dutyMatches,
-        patchReferee: isRef,
-        patchStreamer: !isRef,
+        targetRole: assignType,
+        isPatch: shouldPatch,
       });
     } catch (dutyErr) {
       console.warn('Gagal sinkron duty reschedule setelah assign:', dutyErr);
@@ -220,5 +235,4 @@ export async function executeAssignStaff(params: ExecuteAssignParams): Promise<E
   }
 
   return { match, staffName, replacedStaffName };
-}
-  
+      }
