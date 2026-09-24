@@ -5,7 +5,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { DIVISION_MAP, TOURNAMENT_RULES } from "@/app/tournament/_library";
 import { MatchReportsView, ScheduleItem } from "./_components/match-reports-view";
 import { PowerRankingView } from "./_components/power-ranking-view";
-import { AnalyticsFilter, AnalyticsFilterMatchItem } from "./_components/analytics-filter";
+import { AnalyticsFilter, AnalyticsFilterMatchItem, StageScopeType } from "./_components/analytics-filter";
 import { MatchReportData, TeamRosterData, FreeDuelistRecord } from "./_library/power-ranking";
 
 interface AnalyticsClientContentProps {
@@ -28,11 +28,14 @@ export default function AnalyticsClientContent({
   const pathname = usePathname();
 
   const currentTab = searchParams.get("tab") === "power-ranking" ? "power-ranking" : "reports";
+  const stageParam = searchParams.get("stage");
   const selectedMatchId = searchParams.get("match") || "";
   const teamParam = searchParams.get("team") || "";
   const weekParam = searchParams.get("week");
 
-  // Ekstraksi Tim Terpadu
+  const isTournamentInPlayoff = maxActiveWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+
+  // Ekstraksi Tim
   const allTeamsList = useMemo(() => {
     const map = new Map<string, { name: string; slug: string; groupName: string; logo?: string }>();
 
@@ -69,7 +72,6 @@ export default function AnalyticsClientContent({
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [schedules, teams]);
 
-  // Resolusi nama tim awal
   const initialTeamName = useMemo(() => {
     if (!teamParam) return "";
     const found = allTeamsList.find(
@@ -80,10 +82,18 @@ export default function AnalyticsClientContent({
     return found ? found.name : teamParam;
   }, [teamParam, allTeamsList]);
 
-  // Filter State
+  // Initial stage scope dari URL
+  const initialStageScope: StageScopeType = useMemo(() => {
+    if (!isTournamentInPlayoff) return "GROUP_ONLY";
+    if (stageParam === "playoff") return "PLAYOFF_ONLY";
+    if (stageParam === "group") return "GROUP_ONLY";
+    return "ALL";
+  }, [isTournamentInPlayoff, stageParam]);
+
   const [selectedGroup, setSelectedGroup] = useState<
     "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B
   >("ALL");
+  const [stageScope, setStageScope] = useState<StageScopeType>(initialStageScope);
   const [selectedTeam, setSelectedTeam] = useState<string>(initialTeamName);
 
   const initialWeek: number | "ALL" = useMemo(() => {
@@ -96,14 +106,26 @@ export default function AnalyticsClientContent({
 
   const [selectedWeek, setSelectedWeek] = useState<number | "ALL">(initialWeek);
 
-  // Proteksi pekan: Power Ranking tidak boleh memilih "ALL"
+  // Sync stageScope jika stageParam berubah di URL
+  useEffect(() => {
+    if (!isTournamentInPlayoff) {
+      setStageScope("GROUP_ONLY");
+    } else if (stageParam === "playoff") {
+      setStageScope("PLAYOFF_ONLY");
+    } else if (stageParam === "group") {
+      setStageScope("GROUP_ONLY");
+    } else {
+      setStageScope("ALL");
+    }
+  }, [stageParam, isTournamentInPlayoff]);
+
+  // Proteksi tab power-ranking: tidak boleh "ALL"
   useEffect(() => {
     if (currentTab === "power-ranking" && selectedWeek === "ALL") {
       setSelectedWeek(maxActiveWeek);
     }
   }, [currentTab, selectedWeek, maxActiveWeek]);
 
-  // Sinkronisasi state saat navigasi URL berubah
   useEffect(() => {
     if (teamParam) {
       const found = allTeamsList.find(
@@ -117,12 +139,10 @@ export default function AnalyticsClientContent({
     }
   }, [teamParam, allTeamsList]);
 
-  // Pekan hanya dibatasi sampai pekan turnamen saat ini
   const availableWeeks = useMemo(() => {
     return Array.from({ length: maxActiveWeek }, (_, i) => i + 1);
   }, [maxActiveWeek]);
 
-  // Helper pembaruan URL query param
   const updateUrlParams = (updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     Object.entries(updates).forEach(([key, value]) => {
@@ -139,6 +159,23 @@ export default function AnalyticsClientContent({
   const handleGroupChange = (g: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
     setSelectedGroup(g);
     updateUrlParams({ match: null });
+  };
+
+  const handleStageScopeChange = (nextScope: StageScopeType) => {
+    setStageScope(nextScope);
+    const stageVal =
+      nextScope === "PLAYOFF_ONLY"
+        ? "playoff"
+        : nextScope === "GROUP_ONLY"
+        ? isTournamentInPlayoff
+          ? "group"
+          : null
+        : null;
+
+    updateUrlParams({
+      stage: stageVal,
+      team: null,
+    });
   };
 
   const handleTeamChange = (teamName: string) => {
@@ -170,6 +207,9 @@ export default function AnalyticsClientContent({
       tab: tabKey,
       week: nextWeek === maxActiveWeek ? null : String(nextWeek),
       match: tabKey !== "reports" ? null : selectedMatchId || null,
+      stage: tabKey === "power-ranking" && isTournamentInPlayoff && stageScope !== "ALL"
+        ? stageScope === "PLAYOFF_ONLY" ? "playoff" : "group"
+        : null,
     });
   };
 
@@ -181,7 +221,8 @@ export default function AnalyticsClientContent({
   };
 
   const isFilterActive =
-    selectedGroup !== "ALL" ||
+    (currentTab === "reports" && selectedGroup !== "ALL") ||
+    (currentTab === "power-ranking" && isTournamentInPlayoff && stageScope !== "ALL") ||
     selectedTeam !== "" ||
     selectedWeek !== maxActiveWeek ||
     Boolean(selectedMatchId) ||
@@ -189,16 +230,17 @@ export default function AnalyticsClientContent({
 
   const handleReset = () => {
     setSelectedGroup("ALL");
+    setStageScope(isTournamentInPlayoff ? "ALL" : "GROUP_ONLY");
     setSelectedTeam("");
     setSelectedWeek(maxActiveWeek);
     updateUrlParams({
       team: null,
       week: null,
       match: null,
+      stage: null,
     });
   };
 
-  // Filter daftar jadwal untuk Match Reports
   const matchesInView: AnalyticsFilterMatchItem[] = useMemo(() => {
     const isPlayoff =
       typeof selectedWeek === "number" &&
@@ -214,16 +256,26 @@ export default function AnalyticsClientContent({
     });
   }, [schedules, selectedGroup, selectedWeek, selectedTeam]);
 
-  // Otomatis pilih laga jika hasil filter menyisakan 1 opsi (di tab Match Reports)
   useEffect(() => {
     if (currentTab === "reports" && matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
       handleMatchChange(matchesInView[0].id);
     }
   }, [matchesInView, selectedMatchId, currentTab]);
 
+  // Filter reports untuk Power Ranking sesuai Stage Scope
+  const filteredReportsForPowerRanking = useMemo(() => {
+    if (stageScope === "GROUP_ONLY") {
+      return reports.filter((r) => Number(r.week) < TOURNAMENT_RULES.PLAYOFF_START_WEEK);
+    }
+    if (stageScope === "PLAYOFF_ONLY") {
+      return reports.filter((r) => Number(r.week) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK);
+    }
+    return reports;
+  }, [reports, stageScope]);
+
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      {/* 1. Tab Switcher */}
+      {/* Tab Switcher */}
       <div className="flex items-center justify-center gap-2 border-b border-border/60 pb-3">
         <button
           type="button"
@@ -250,11 +302,13 @@ export default function AnalyticsClientContent({
         </button>
       </div>
 
-      {/* 2. Filter Bar Terpadu */}
+      {/* Filter Terpadu */}
       <AnalyticsFilter
         mode={currentTab}
         selectedGroup={selectedGroup}
         onGroupChange={handleGroupChange}
+        stageScope={stageScope}
+        onStageScopeChange={handleStageScopeChange}
         selectedTeam={selectedTeam}
         onTeamChange={handleTeamChange}
         teams={allTeamsList}
@@ -270,7 +324,7 @@ export default function AnalyticsClientContent({
         onReset={handleReset}
       />
 
-      {/* 3. Konten View Sesuai Tab */}
+      {/* Content View */}
       {currentTab === "reports" ? (
         <MatchReportsView
           schedules={schedules}
@@ -278,7 +332,7 @@ export default function AnalyticsClientContent({
         />
       ) : (
         <PowerRankingView
-          reports={reports}
+          reports={filteredReportsForPowerRanking}
           teams={teams}
           schedules={schedules}
           freeDuelists={freeDuelists}
