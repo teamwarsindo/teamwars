@@ -51,9 +51,39 @@ export async function handleSubmitCommand(interaction: any) {
   waitUntil(
     (async () => {
       try {
-        const activeCamp = await kv.hget<any>('twi:active_camp_channels', channelId);
+        // Ambil data jadwal pertandingan dari hash discord:match_messages
+        const allMatchMessages =
+          (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
 
-        if (!activeCamp?.matchId || !activeCamp?.teamKey) {
+        let targetMatchData: any = null;
+        let detectedTeamKey: 'teamA' | 'teamB' | null = null;
+        let activeCamp: any = null;
+
+        for (const matchId in allMatchMessages) {
+          let item = allMatchMessages[matchId];
+          if (typeof item === 'string') {
+            try {
+              item = JSON.parse(item);
+            } catch {
+              continue;
+            }
+          }
+
+          if (item?.campA?.channelId === channelId) {
+            targetMatchData = item;
+            detectedTeamKey = 'teamA';
+            activeCamp = item.campA;
+            break;
+          }
+          if (item?.campB?.channelId === channelId) {
+            targetMatchData = item;
+            detectedTeamKey = 'teamB';
+            activeCamp = item.campB;
+            break;
+          }
+        }
+
+        if (!targetMatchData || !detectedTeamKey || !activeCamp) {
           if (appId && token) {
             await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
               content: '❌ Command ini hanya dapat digunakan di dalam **Channel Camp Tim** yang terdaftar!',
@@ -62,9 +92,11 @@ export async function handleSubmitCommand(interaction: any) {
           return;
         }
 
+        const matchId = targetMatchData.matchId;
+        const matchDate = targetMatchData.matchDate;
         const userIsAdmin = isAdminOrChief(interaction);
-        const matchIsToday = isToday(activeCamp.matchDate);
-        const isWithinGracePeriod = isWithinAdminGracePeriod(activeCamp.matchDate);
+        const matchIsToday = isToday(matchDate);
+        const isWithinGracePeriod = isWithinAdminGracePeriod(matchDate);
 
         // Proteksi Waktu: Referee hanya hari H, Admin kebal s/d Selasa 23:59 WIB pekan berikutnya
         if (!matchIsToday) {
@@ -82,41 +114,47 @@ export async function handleSubmitCommand(interaction: any) {
           }
         }
 
-        const { matchId, teamKey } = activeCamp;
         const rawOptions = interaction.data?.options || [];
         const subCommandObj = rawOptions[0]?.type === 1 ? rawOptions[0] : null;
         const subCommandName = subCommandObj?.name || 'add';
         const subOptions = subCommandObj ? subCommandObj.options || [] : rawOptions;
         const optMap = getOptionMap(subOptions);
 
-        const teamData = await kv.hgetall<any>(`teams:${activeCamp.slug}`);
-        const teamRoster: PlayerItem[] = teamData?.players ? parsePlayers(teamData.players) : [];
+        // Ambil data tim master murni dari KV Hash teams:${slug}
+        const teamData = await kv.hgetall<Record<string, any>>(`teams:${activeCamp.slug}`);
+        let rawPlayers = teamData?.players;
+        if (typeof rawPlayers === 'string') {
+          try {
+            rawPlayers = JSON.parse(rawPlayers);
+          } catch {
+            rawPlayers = [];
+          }
+        }
+        const teamRoster: PlayerItem[] = rawPlayers ? parsePlayers(rawPlayers) : [];
 
         let reportData = await kv.hget<any>('twi:match_reports', matchId);
         if (!reportData) {
           reportData = {
             matchId,
-            week: activeCamp.week || 1,
+            week: targetMatchData.week || 1,
             metadata: {
-              date: activeCamp.matchDate
-                ? activeCamp.matchDate.split('T')[0]
-                : new Date().toISOString().split('T')[0],
+              date: matchDate ? matchDate.split('T')[0] : new Date().toISOString().split('T')[0],
               streamPlatform: 'YouTube',
               streamer: '',
               referee: '',
               streamUrl: '',
             },
             teamA: {
-              name: teamKey === 'teamA' ? activeCamp.name : '',
-              slug: teamKey === 'teamA' ? activeCamp.slug : '',
+              name: targetMatchData.campA?.name || '',
+              slug: targetMatchData.campA?.slug || '',
               score: 0,
               repeatsUsed: 0,
               warningsUsed: 0,
               lineup: [],
             },
             teamB: {
-              name: teamKey === 'teamB' ? activeCamp.name : '',
-              slug: teamKey === 'teamB' ? activeCamp.slug : '',
+              name: targetMatchData.campB?.name || '',
+              slug: targetMatchData.campB?.slug || '',
               score: 0,
               repeatsUsed: 0,
               warningsUsed: 0,
@@ -142,8 +180,14 @@ export async function handleSubmitCommand(interaction: any) {
           interaction,
           channelId,
           matchId,
-          teamKey,
-          campData: activeCamp,
+          teamKey: detectedTeamKey,
+          campData: {
+            ...activeCamp,
+            matchId,
+            teamKey: detectedTeamKey,
+            matchDate,
+            week: targetMatchData.week,
+          },
           reportData,
           teamRoster,
           optMap,
@@ -168,7 +212,7 @@ export async function handleSubmitCommand(interaction: any) {
           return;
         }
 
-        const targetLineup = reportData[teamKey].lineup || [];
+        const targetLineup = reportData[detectedTeamKey].lineup || [];
         const isFullyComplete = checkIsLineupFullyCompleted(targetLineup);
 
         // Parsing publish: aman terhadap boolean true maupun string "true"
@@ -186,18 +230,24 @@ export async function handleSubmitCommand(interaction: any) {
           deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
         }));
 
+        // Ambil ID tracker yang sedang aktif di camp
+        const existingTrackerMsgId = activeCamp.activeMsgId || activeCamp.submitMsgId || null;
+
         // Delegasikan proses PATCH atau REPOST ke helper
         const newSubmitMsgId = await sendOrUpdateLiveTracker({
           channelId,
-          matchDateIso: activeCamp.matchDate || new Date().toISOString(),
+          matchDateIso: matchDate || new Date().toISOString(),
           week: reportData.week,
           submittedPlayers: trackerPlayers,
-          existingMsgId: activeCamp.submitMsgId,
+          existingMsgId: existingTrackerMsgId,
           shouldRepost,
         });
 
-        activeCamp.submitMsgId = newSubmitMsgId;
-        await kv.hset('twi:active_camp_channels', { [channelId]: activeCamp });
+        // Simpan referensi ID pesan terbaru ke dalam match data
+        activeCamp.activeMsgId = newSubmitMsgId;
+        targetMatchData[detectedTeamKey] = activeCamp;
+
+        await kv.hset('discord:match_messages', { [matchId]: targetMatchData });
         await kv.hset('twi:match_reports', { [matchId]: reportData });
 
         let publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
