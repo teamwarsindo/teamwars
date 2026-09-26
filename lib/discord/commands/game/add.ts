@@ -1,47 +1,46 @@
+import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import {
-  discordAPI,
-  respondInteraction,
-  respondInteractionWithComponents,
-} from '@/lib/discord/utils';
-import {
-  MatchScheduleItem,
-  hasPlayerPhysicalWin,
-  getMatchData,
-} from './types';
+import { getOptionMap } from './types';
 import {
   buildMatchReportEmbed,
   publishMatchReport,
   saveAndSyncMatchState,
   buildDecklossClaimMenu,
   computeNextInstructions,
+  hasPlayerPhysicalWin,
 } from './renderer';
 
 export async function handleGameAdd(interaction: any) {
   const channelId = interaction.channel_id;
-  const match = await getMatchData(channelId);
+
+  const schedules = await kv.get<any[]>('twi:schedules');
+  const match = (schedules || []).find(
+    (s) => s.channelId === channelId || s.matchChannelId === channelId
+  );
 
   if (!match) {
-    return respondInteraction('Channel ini tidak terdaftar untuk pertandingan aktif.');
+    return NextResponse.json({
+      type: 4,
+      data: { content: '❌ Channel ini tidak terdaftar untuk pertandingan aktif.', flags: 64 },
+    });
   }
 
   const reportData = await kv.hget<any>('twi:match_reports', match.id);
   if (!reportData) {
-    return respondInteraction('Laporan pertandingan belum dibuat atau tidak ditemukan.');
+    return NextResponse.json({
+      type: 4,
+      data: { content: '❌ Laporan pertandingan belum dibuat atau tidak ditemukan.', flags: 64 },
+    });
   }
 
   if (reportData.isFinished) {
-    return respondInteraction('Pertandingan ini sudah selesai.');
+    return NextResponse.json({
+      type: 4,
+      data: { content: '⚠️ Pertandingan ini sudah selesai.', flags: 64 },
+    });
   }
 
-  const rawOptions = interaction.data?.options || [];
-  const subCommand = rawOptions[0]?.type === 1 ? rawOptions[0] : null;
-  const options = subCommand ? subCommand.options || [] : rawOptions;
-
-  const optMap: Record<string, any> = {};
-  for (const opt of options) {
-    optMap[opt.name] = opt.value;
-  }
+  const optMap = getOptionMap(interaction.data?.options || []);
 
   const pemainA = String(optMap.pemain_a || '').trim();
   const deckA = String(optMap.deck_a || '').trim();
@@ -49,13 +48,16 @@ export async function handleGameAdd(interaction: any) {
   const deckB = String(optMap.deck_b || '').trim();
   const winnerOpt = String(optMap.pemenang || '').toUpperCase() as 'A' | 'B';
   const tipeGame = String(optMap.tipe_game || 'NORMAL').toUpperCase();
-  const notes = String(optMap.catatan || '').trim();
+  const notes = optMap.catatan ? String(optMap.catatan).trim() : '';
 
-  // Fleksibel: mencakup DECKLOSS umum maupun DECKLOSS_TIMER lama
+  // Deckloss berlaku umum (mencakup DECKLOSS regulasi apapun)
   const isDecklossOpt = tipeGame.startsWith('DECKLOSS');
 
   if (!pemainA || !deckA || !pemainB || !deckB || !winnerOpt) {
-    return respondInteraction('Semua field pertandingan (pemain, deck, pemenang) wajib diisi.');
+    return NextResponse.json({
+      type: 4,
+      data: { content: '❌ Semua parameter pertandingan wajib diisi lengkap.', flags: 64 },
+    });
   }
 
   const lineupA: any[] = reportData.teamA?.lineup || [];
@@ -65,7 +67,10 @@ export async function handleGameAdd(interaction: any) {
   const pB = lineupB.find((p) => p.ign.toLowerCase() === pemainB.toLowerCase());
 
   if (!pA || !pB) {
-    return respondInteraction('Pemain A atau Pemain B tidak terdaftar di roster pertandingan.');
+    return NextResponse.json({
+      type: 4,
+      data: { content: '❌ Pemain A atau Pemain B tidak terdaftar di roster pertandingan.', flags: 64 },
+    });
   }
 
   const isARepeat = deckA.startsWith('REPEAT:');
@@ -80,7 +85,6 @@ export async function handleGameAdd(interaction: any) {
     (d) => d && d.archetype.toLowerCase() === cleanDeckB.toLowerCase()
   );
 
-  // Proses repeat kuota
   if (isARepeat && targetDeckA) {
     targetDeckA.isRepeatUsed = true;
     targetDeckA.isDead = false;
@@ -95,11 +99,8 @@ export async function handleGameAdd(interaction: any) {
   const games: any[] = reportData.games || [];
   const gameNumber = games.length + 1;
 
-  // Sanksi Deckloss: tim yang kalah di input adalah penerima sanksi TL
   const penaltyTeamKey = isDecklossOpt ? (winnerOpt === 'A' ? 'teamB' : 'teamA') : null;
-  const innocentTeamKey = isDecklossOpt ? (winnerOpt === 'A' ? 'teamA' : 'teamB') : null;
 
-  // Update status deck & nyawa pemain yang kalah
   if (winnerOpt === 'A') {
     reportData.teamA.score = (reportData.teamA.score || 0) + 1;
     if (targetDeckB) targetDeckB.isDead = true;
@@ -116,7 +117,7 @@ export async function handleGameAdd(interaction: any) {
     (reportData.teamA.score || 0) >= 10 || (reportData.teamB.score || 0) >= 10;
   reportData.isFinished = isMatchFinished;
 
-  // Catatan game dinamis dari input wasit
+  // Catatan Deckloss umum mengikuti input wasit secara dinamis
   const defaultDecklossNote = 'Sanksi Deckloss';
   const gameNotes = isDecklossOpt ? (notes || defaultDecklossNote) : notes;
 
@@ -141,7 +142,7 @@ export async function handleGameAdd(interaction: any) {
   games.push(gameRecord);
   reportData.games = games;
 
-  // Penanganan instruksi berikutnya
+  // Instruksi deckloss umum tanpa hardcode timer 3 menit
   if (isDecklossOpt && !reportData.isFinished) {
     const penaltyTeam = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
     const penaltyPlayer = winnerOpt === 'A' ? pB : pA;
@@ -170,7 +171,6 @@ export async function handleGameAdd(interaction: any) {
     computeNextInstructions(reportData, winnerOpt, pA, pB);
   }
 
-  // Cek akumulasi warning SS Hand (2x Warning memicu menu klaim TW)
   const isTeamAPenalty = (reportData.teamA?.warningsUsed || 0) >= 2;
   const isTeamBPenalty = (reportData.teamB?.warningsUsed || 0) >= 2;
 
@@ -189,12 +189,20 @@ export async function handleGameAdd(interaction: any) {
     );
 
     if (claimMenuComponents) {
-      return respondInteractionWithComponents(
-        `⚠️ **PERHATIAN:** Tim **${isTeamAPenalty ? reportData.teamA.name : reportData.teamB.name}** telah mengumpulkan 2x Warning SS Hand. Silakan tentukan penerima Technical Win:`,
-        claimMenuComponents
-      );
+      return NextResponse.json({
+        type: 4,
+        data: {
+          content: `⚠️ **PERHATIAN:** Tim **${isTeamAPenalty ? reportData.teamA.name : reportData.teamB.name}** telah mengumpulkan 2x Warning SS Hand. Silakan tentukan penerima Technical Win:`,
+          components: claimMenuComponents,
+        },
+      });
     }
   }
 
-  return respondInteraction(`✅ **Game #${gameNumber} berhasil dicatat.**`);
+  return NextResponse.json({
+    type: 4,
+    data: {
+      content: `✅ **Game #${gameNumber} berhasil dicatat.**`,
+    },
+  });
 }
