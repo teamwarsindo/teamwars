@@ -1,39 +1,51 @@
+import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import {
-  respondInteraction,
-} from '@/lib/discord/utils';
-import {
-  getMatchData,
-  hasPlayerPhysicalWin,
-} from './types';
+import { getOptionMap } from './types';
 import {
   buildMatchReportEmbed,
   publishMatchReport,
   saveAndSyncMatchState,
+  hasPlayerPhysicalWin,
 } from './renderer';
 
 export async function handleDecklossClaimSelect(interaction: any) {
   const channelId = interaction.channel_id;
-  const match = await getMatchData(channelId);
+
+  const schedules = await kv.get<any[]>('twi:schedules');
+  const match = (schedules || []).find(
+    (s) => s.channelId === channelId || s.matchChannelId === channelId
+  );
 
   if (!match) {
-    return respondInteraction('Pertandingan tidak ditemukan untuk channel ini.');
+    return NextResponse.json({
+      type: 4,
+      data: { content: '❌ Pertandingan tidak ditemukan untuk channel ini.', flags: 64 },
+    });
   }
 
   const reportData = await kv.hget<any>('twi:match_reports', match.id);
   if (!reportData) {
-    return respondInteraction('Laporan pertandingan tidak ditemukan.');
+    return NextResponse.json({
+      type: 4,
+      data: { content: '❌ Laporan pertandingan tidak ditemukan.', flags: 64 },
+    });
   }
 
   if (reportData.isFinished) {
-    return respondInteraction('Pertandingan ini sudah selesai.');
+    return NextResponse.json({
+      type: 4,
+      data: { content: '⚠️ Pertandingan ini sudah selesai.', flags: 64 },
+    });
   }
 
   const selectedVal: string = interaction.data?.values?.[0] || '';
   const [innocentTeamKey, targetPlayerIgn, targetArchetype, reasonType] = selectedVal.split('::');
 
   if (!innocentTeamKey || !targetPlayerIgn || !targetArchetype) {
-    return respondInteraction('Data seleksi klaim tidak valid.');
+    return NextResponse.json({
+      type: 4,
+      data: { content: '❌ Data seleksi klaim tidak valid.', flags: 64 },
+    });
   }
 
   const penaltyTeamKey = innocentTeamKey === 'teamA' ? 'teamB' : 'teamA';
@@ -43,15 +55,12 @@ export async function handleDecklossClaimSelect(interaction: any) {
   const games: any[] = reportData.games || [];
   const gameNumber = games.length + 1;
 
-  // Tambah poin untuk tim yang diuntungkan klaim
   innocentTeam.score = (innocentTeam.score || 0) + 1;
 
-  // Reset kuota warning jika klaim bersumber dari akumulasi warning SS Hand
   if (reasonType === 'warning') {
     penaltyTeam.warningsUsed = 0;
   }
 
-  // Cari pemain dan deck di tim yang melanggar pada game terakhir
   const lastGame = games[games.length - 1];
   const penaltyPlayerObj = (penaltyTeam.lineup || []).find((p: any) => {
     if (!lastGame) return false;
@@ -62,8 +71,7 @@ export async function handleDecklossClaimSelect(interaction: any) {
   if (penaltyPlayerObj) {
     penaltyPlayerObj.remainingLife = Math.max(0, (penaltyPlayerObj.remainingLife ?? 2) - 1);
     penaltyPlayerObj.totalLosses = (penaltyPlayerObj.totalLosses || 0) + 1;
-    
-    // Matikan deck yang sedang dipakai pemain pelanggar
+
     const lastDeckName = penaltyTeamKey === 'teamA' ? lastGame?.playerA?.archetype : lastGame?.playerB?.archetype;
     const targetDeck = [penaltyPlayerObj.deck1, penaltyPlayerObj.deck2].find(
       (d) => d && String(d.archetype || '').toLowerCase() === String(lastDeckName || '').toLowerCase()
@@ -102,7 +110,6 @@ export async function handleDecklossClaimSelect(interaction: any) {
   games.push(gameRecord);
   reportData.games = games;
 
-  // Format instruksi game berikutnya
   if (!reportData.isFinished) {
     const nextGameNumber = gameNumber + 1;
     const instructionLines: string[] = [];
@@ -129,7 +136,10 @@ export async function handleDecklossClaimSelect(interaction: any) {
   const embed = await buildMatchReportEmbed(match, reportData, innocentTeamKey === 'teamA' ? 'A' : 'B');
   await publishMatchReport(channelId, match.id, embed);
 
-  return respondInteraction(
-    `✅ Sanksi Deckloss berhasil diaplikasikan kepada **${penaltyTeam.name}**. Kemenangan teknis diberikan kepada **${targetPlayerIgn}** (${targetArchetype}).`
-  );
+  return NextResponse.json({
+    type: 4,
+    data: {
+      content: `✅ Sanksi Deckloss berhasil diaplikasikan kepada **${penaltyTeam.name}**. Kemenangan teknis diberikan kepada **${targetPlayerIgn}** (${targetArchetype}).`,
+    },
+  });
 }
