@@ -260,7 +260,7 @@ export function PlayoffTab({ schedules = [] }: PlayoffTabProps) {
         </div>
 
         {/* ROUND 4: GRAND FINAL */}
-        <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/20 p-4 xl:p-5 text-center shadow-lg flex flex-col justify-between space-y-3.5">
+        <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/20 p-4 xl:p-5 text-left shadow-lg flex flex-col justify-between space-y-3.5">
           <PhaseHeader title="GRAND FINAL" colorTheme="purple" />
           {bracket.grandFinal ? (
             <div className="my-auto">
@@ -273,7 +273,7 @@ export function PlayoffTab({ schedules = [] }: PlayoffTabProps) {
             </div>
           ) : (
             <div className="p-4 rounded-2xl border border-purple-500/40 bg-background/90 space-y-3 my-auto shadow-sm">
-              <p className="font-black text-purple-400 text-xs xl:text-sm uppercase tracking-widest flex items-center justify-center gap-1.5">
+              <p className="font-black text-purple-400 text-xs xl:text-sm uppercase tracking-widest flex items-center justify-start gap-1.5">
                 👑 CHAMPIONSHIP FINAL
               </p>
               <div className="border-t border-purple-500/30 my-2" />
