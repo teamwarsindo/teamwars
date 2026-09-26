@@ -19,6 +19,12 @@ export const TOURNAMENT_RULES = {
   TOTAL_TEAMS_PER_GROUP: 8,         // 8 tim per divisi
   MAX_MATCHES_PER_DAY_REGULAR: 3,   // Maksimal match per hari di Regular Season
   MAX_MATCHES_PER_DAY_PLAYOFF: 1,   // Maksimal match per hari di Playoff
+  
+  // Format Match & Lineup Game
+  TOTAL_DECKS_PER_TEAM: 10,         // Kuota total nyawa deck per tim (5 pemain x 2 deck)
+  MAX_REPEATS: 2,                   // Kuota maksimal repeat deck per tim
+  MAX_WARNINGS_SS: 2,               // Batas warning SS hand sebelum terkena sanksi Deckloss
+  
   POINTS_WIN: 10,
   POINTS_LOSE: 0,
 } as const;
