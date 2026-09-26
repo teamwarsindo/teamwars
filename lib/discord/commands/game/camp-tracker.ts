@@ -110,8 +110,6 @@ export async function renderCampTrackerEmbed(
 
   const thisTeamPenalty = warningsUsed >= TOURNAMENT_RULES.MAX_WARNINGS_SS;
   const opponentPenalty = (opponent?.warningsUsed || 0) >= TOURNAMENT_RULES.MAX_WARNINGS_SS;
-
-  // Catatan penalti dinamis dari wasit (tidak lagi hardcode timer)
   const penaltyTag = lastGame?.isDeckloss && lastGame?.notes ? ` — **${lastGame.notes}**` : '';
 
   let sectionTitle = '📢 **Instruksi Pertandingan:**';
@@ -191,7 +189,7 @@ export async function renderCampTrackerEmbed(
   };
 }
 
-// 1. Sinkronisasi Penuh (Hapus pesan lama & Post pesan baru — saat ronde bertambah)
+// 1. SINKRONISASI LENGKAP (Digunakan saat game bertambah / kickoff: hapus pesan lama & post pesan baru)
 export async function syncCampTrackers(
   matchId: string,
   matchWeek: number | string,
@@ -246,7 +244,7 @@ export async function syncCampTrackers(
   }
 }
 
-// 2. Patch Khusus (Update pesan tracker yang ada di camp tanpa hapus & kirim ulang — dipakai oleh edit game)
+// 2. PATCH KHUSUS (Digunakan saat edit SS Hand: update pesan tracker yang ada di camp tanpa hapus & kirim ulang)
 export async function patchCampTrackers(
   matchId: string,
   matchWeek: number | string,
@@ -255,22 +253,66 @@ export async function patchCampTrackers(
 ) {
   try {
     const rawMsg = await kv.hget<any>('discord:match_messages', matchId);
-    const msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
+    let msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
+    let isChanged = false;
 
-    if (msgData.campA?.channelId && (msgData.campA?.trackerMsgId || msgData.campA?.submitMsgId)) {
-      const msgIdA = msgData.campA.trackerMsgId || msgData.campA.submitMsgId;
+    // PATCH CAMP A
+    if (msgData.campA?.channelId) {
+      const chA = msgData.campA.channelId;
+      const targetIdA = msgData.campA.trackerMsgId || msgData.campA.submitMsgId;
       const embedA = await renderCampTrackerEmbed('teamA', reportData, match, matchWeek);
-      await discordAPI(`/channels/${msgData.campA.channelId}/messages/${msgIdA}`, 'PATCH', {
-        embeds: [embedA],
-      }).catch(() => {});
+
+      let patched = false;
+      if (targetIdA) {
+        const patchRes: any = await discordAPI(`/channels/${chA}/messages/${targetIdA}`, 'PATCH', {
+          embeds: [embedA],
+        }).catch(() => null);
+        if (patchRes?.id) patched = true;
+      }
+
+      if (!patched) {
+        const resA = await discordAPI(`/channels/${chA}/messages`, 'POST', { embeds: [embedA] }).catch(() => null);
+        if (resA?.id) {
+          msgData.campA.submitMsgId = resA.id;
+          msgData.campA.trackerMsgId = resA.id;
+          isChanged = true;
+        }
+      }
     }
 
-    if (msgData.campB?.channelId && (msgData.campB?.trackerMsgId || msgData.campB?.submitMsgId)) {
-      const msgIdB = msgData.campB.trackerMsgId || msgData.campB.submitMsgId;
+    // PATCH CAMP B
+    if (msgData.campB?.channelId) {
+      const chB = msgData.campB.channelId;
+      const targetIdB = msgData.campB.trackerMsgId || msgData.campB.submitMsgId;
       const embedB = await renderCampTrackerEmbed('teamB', reportData, match, matchWeek);
-      await discordAPI(`/channels/${msgData.campB.channelId}/messages/${msgIdB}`, 'PATCH', {
-        embeds: [embedB],
-      }).catch(() => {});
+
+      let patched = false;
+      if (targetIdB) {
+        const patchRes: any = await discordAPI(`/channels/${chB}/messages/${targetIdB}`, 'PATCH', {
+          embeds: [embedB],
+        }).catch(() => null);
+        if (patchRes?.id) patched = true;
+      }
+
+      if (!patched) {
+        const resB = await discordAPI(`/channels/${chB}/messages`, 'POST', { embeds: [embedB] }).catch(() => null);
+        if (resB?.id) {
+          msgData.campB.submitMsgId = resB.id;
+          msgData.campB.trackerMsgId = resB.id;
+          isChanged = true;
+        }
+      }
+    }
+
+    if (isChanged) {
+      const freshRaw = await kv.hget<any>('discord:match_messages', matchId);
+      let freshData: any = freshRaw ? (typeof freshRaw === 'string' ? JSON.parse(freshRaw) : freshRaw) : {};
+      freshData = {
+        ...freshData,
+        campA: { ...(freshData.campA || {}), ...(msgData.campA || {}) },
+        campB: { ...(freshData.campB || {}), ...(msgData.campB || {}) },
+      };
+      await kv.hset('discord:match_messages', { [matchId]: freshData });
     }
   } catch (err) {
     console.error('Error patching camp trackers:', err);
