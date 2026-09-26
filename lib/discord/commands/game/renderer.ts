@@ -1,12 +1,13 @@
 import { kv } from '@vercel/kv';
 import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
+import { TOURNAMENT_RULES } from '@/app/tournament/_library';
 import {
   getTeamEmojiByMatch,
   resolveStreamDisplay,
   formatMatchSchedule,
   hasPlayerPhysicalWin,
-  syncCampTrackers,
-} from './types';
+} from './helpers';
+import { syncCampTrackers, patchCampTrackers } from './camp-tracker';
 import { syncOfficialMatchReport } from './official-report';
 
 export function computeNextInstructions(reportData: any, winnerOpt?: 'A' | 'B', pA?: any, pB?: any) {
@@ -26,8 +27,8 @@ export function computeNextInstructions(reportData: any, winnerOpt?: 'A' | 'B', 
   const loserTeamObj = effectiveWinnerOpt === 'A' ? reportData.teamB : reportData.teamA;
   const loserTeamRepeatsUsed = loserTeamObj?.repeatsUsed || 0;
 
-  const isTeamAPenalty = (reportData.teamA?.warningsUsed || 0) >= 2;
-  const isTeamBPenalty = (reportData.teamB?.warningsUsed || 0) >= 2;
+  const isTeamAPenalty = (reportData.teamA?.warningsUsed || 0) >= TOURNAMENT_RULES.MAX_WARNINGS_SS;
+  const isTeamBPenalty = (reportData.teamB?.warningsUsed || 0) >= TOURNAMENT_RULES.MAX_WARNINGS_SS;
   const penaltyIsWinner = (isTeamAPenalty && effectiveWinnerOpt === 'A') || (isTeamBPenalty && effectiveWinnerOpt === 'B');
   const penaltyIsLoser = (isTeamAPenalty && effectiveWinnerOpt === 'B') || (isTeamBPenalty && effectiveWinnerOpt === 'A');
 
@@ -36,12 +37,12 @@ export function computeNextInstructions(reportData: any, winnerOpt?: 'A' | 'B', 
 
   if (isMatchEnded) {
     sectionHeader = `📢 **Status Pertandingan:**`;
-    const finalWinner = (reportData.teamA?.score || 0) >= 10 ? reportData.teamA : reportData.teamB;
-    const finalLoser = (reportData.teamA?.score || 0) >= 10 ? reportData.teamB : reportData.teamA;
+    const finalWinner = (reportData.teamA?.score || 0) >= TOURNAMENT_RULES.POINTS_WIN ? reportData.teamA : reportData.teamB;
+    const finalLoser = (reportData.teamA?.score || 0) >= TOURNAMENT_RULES.POINTS_WIN ? reportData.teamB : reportData.teamA;
     instructionLines.push(`• Selamat kepada **${finalWinner?.name}** atas kemenangannya!`);
     instructionLines.push(`• Terima kasih kepada **${finalLoser?.name}** atas partisipasinya!`);
   } else if (penaltyIsWinner) {
-    instructionLines.push(`• **${winnerTeamObj?.name}** (2x Warning SS Hand)`);
+    instructionLines.push(`• **${winnerTeamObj?.name}** (${TOURNAMENT_RULES.MAX_WARNINGS_SS}x Warning SS Hand)`);
     instructionLines.push(`  └ **${winnerPlayerIgn}** (Deckloss)`);
 
     const isWinnerOut =
@@ -52,7 +53,7 @@ export function computeNextInstructions(reportData: any, winnerOpt?: 'A' | 'B', 
       instructionLines.push(`• **${winnerTeamObj?.name}** (Next player)`);
     } else {
       const hasWinnerPhysicalWin = hasPlayerPhysicalWin(games, winnerPlayerObj?.ign);
-      const canRepeat = winnerTeamRepeatsUsed < 2 && !hasWinnerPhysicalWin;
+      const canRepeat = winnerTeamRepeatsUsed < TOURNAMENT_RULES.MAX_REPEATS && !hasWinnerPhysicalWin;
       instructionLines.push(`• **${winnerPlayerIgn}** (${canRepeat ? 'Next deck or repeat' : 'Next deck'})`);
     }
 
@@ -65,12 +66,12 @@ export function computeNextInstructions(reportData: any, winnerOpt?: 'A' | 'B', 
     instructionLines.push(`• **${winnerPlayerIgn || 'Pemenang'}** (Stay table)`);
 
     if (penaltyIsLoser) {
-      instructionLines.push(`• **${loserTeamObj?.name}** (2x Warning SS Hand)`);
+      instructionLines.push(`• **${loserTeamObj?.name}** (${TOURNAMENT_RULES.MAX_WARNINGS_SS}x Warning SS Hand)`);
       if ((loserPlayerObj?.remainingLife ?? 0) <= 0) {
         instructionLines.push(`  └ **${loserTeamObj?.name}** (Next player) (Deckloss)`);
       } else {
         const hasLoserPhysicalWin = hasPlayerPhysicalWin(games, loserPlayerObj?.ign);
-        const canRepeat = loserTeamRepeatsUsed < 2 && !hasLoserPhysicalWin;
+        const canRepeat = loserTeamRepeatsUsed < TOURNAMENT_RULES.MAX_REPEATS && !hasLoserPhysicalWin;
         instructionLines.push(`  └ **${loserPlayerObj?.ign}** (${canRepeat ? 'Next deck or repeat' : 'Next deck'}) (Deckloss)`);
       }
     } else {
@@ -78,7 +79,7 @@ export function computeNextInstructions(reportData: any, winnerOpt?: 'A' | 'B', 
         instructionLines.push(`• **${loserTeamObj?.name}** (Next player)`);
       } else {
         const hasLoserPhysicalWin = hasPlayerPhysicalWin(games, loserPlayerObj?.ign);
-        const canRepeat = loserTeamRepeatsUsed < 2 && !hasLoserPhysicalWin;
+        const canRepeat = loserTeamRepeatsUsed < TOURNAMENT_RULES.MAX_REPEATS && !hasLoserPhysicalWin;
         instructionLines.push(`• **${loserPlayerObj?.ign}** (${canRepeat ? 'Next deck or repeat' : 'Next deck'})`);
       }
     }
@@ -214,10 +215,22 @@ export async function publishMatchReport(channelId: string, matchId: string, emb
   }
 }
 
+// 1. SINKRONISASI GAME/KICKOFF: Simpan KV & lakukan sinkronisasi penuh (hapus/re-post camp)
 export async function saveAndSyncMatchState(match: any, reportData: any) {
   const matchWeek = match.weekNumber ?? reportData.week ?? 5;
   await kv.hset('twi:match_reports', { [match.id]: reportData });
   await syncCampTrackers(match.id, matchWeek, reportData, match).catch(console.error);
+
+  if (reportData.isFinished) {
+    await syncOfficialMatchReport(match, reportData).catch(console.error);
+  }
+}
+
+// 2. SINKRONISASI EDIT SS HAND: Simpan KV & lakukan PATCH ke camp (tanpa delete/re-post & tanpa sentuh match room)
+export async function saveAndPatchMatchState(match: any, reportData: any) {
+  const matchWeek = match.weekNumber ?? reportData.week ?? 5;
+  await kv.hset('twi:match_reports', { [match.id]: reportData });
+  await patchCampTrackers(match.id, matchWeek, reportData, match).catch(console.error);
 
   if (reportData.isFinished) {
     await syncOfficialMatchReport(match, reportData).catch(console.error);
@@ -267,5 +280,4 @@ export function buildDecklossClaimMenu(
       ],
     },
   ];
-}
-  
+} 
