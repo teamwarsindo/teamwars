@@ -1,16 +1,10 @@
-import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
-import { MatchScheduleItem } from '@/app/tournament/_library';
 import { GameContext } from './types';
-import {
-  computeNextInstructions,
-  buildMatchReportEmbed,
-  publishMatchReport,
-  saveAndSyncMatchState,
-} from './renderer';
+import { computeNextInstructions } from './renderer';
+import { syncAndBroadcastGameState } from '../game';
 
 export async function handleGameDel(ctx: GameContext) {
-  const { channelId, appId, token, match, reportData } = ctx;
+  const { channelId, appId, token, match, reportData, isBeforeKickoff, userIsAdmin } = ctx;
 
   const games: any[] = reportData.games || [];
   if (games.length === 0) {
@@ -19,17 +13,13 @@ export async function handleGameDel(ctx: GameContext) {
     });
   }
 
-  // 1. Ambil game terakhir
   const lastGame = games.pop();
   const deletedGameNumber = lastGame.gameNumber;
 
-  // 2. RESTORASI SNAPSHOT ATAU FALLBACK MANUAL
   if (lastGame.snapshot) {
-    // Kembalikan kondisi tim persis ke detik sebelum game ini dibuat
     reportData.teamA = lastGame.snapshot.teamA;
     reportData.teamB = lastGame.snapshot.teamB;
   } else {
-    // Fallback darurat jika game lama belum memiliki snapshot
     const isAWin = lastGame.winner === 'teamA';
     const winnerTeamKey = isAWin ? 'teamA' : 'teamB';
     reportData[winnerTeamKey].score = Math.max(0, (reportData[winnerTeamKey].score || 0) - 1);
@@ -73,7 +63,6 @@ export async function handleGameDel(ctx: GameContext) {
     }
   }
 
-  // 3. Reset Skor Akhir & Status Kemenangan Pertandingan
   const currentScoreA = reportData.teamA?.score || 0;
   const currentScoreB = reportData.teamB?.score || 0;
   reportData.finalScore = { teamA: currentScoreA, teamB: currentScoreB };
@@ -84,7 +73,6 @@ export async function handleGameDel(ctx: GameContext) {
     reportData.winnerTeam = null;
   }
 
-  // 4. Rekalkulasi Instruksi ke Ronde Sebelumnya yang Sah
   const currentLastGame = games[games.length - 1];
   const lastWinnerOpt = currentLastGame?.winner === 'teamA' ? 'A' : 'B';
   const currPA = (reportData.teamA?.lineup || []).find((p: any) => p.ign?.toLowerCase() === currentLastGame?.playerA?.ign?.toLowerCase());
@@ -92,28 +80,17 @@ export async function handleGameDel(ctx: GameContext) {
 
   computeNextInstructions(reportData, currentLastGame ? lastWinnerOpt : undefined, currPA, currPB);
 
-  // 5. Simpan KV & Update Seluruh Embed (Match Room + Camp Tracker)
-  await saveAndSyncMatchState(match, reportData);
-
-  // 🔄 6. SINKRONISASI KE twi:schedules (ROLLBACK SKOR & STATUS SELESAI)
-  try {
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const idx = schedules.findIndex((m) => m.id === match.id);
-
-    if (idx !== -1) {
-      schedules[idx].scoreA = currentScoreA;
-      schedules[idx].scoreB = currentScoreB;
-      schedules[idx].isFinished = isStillEnded;
-      await kv.set('twi:schedules', schedules);
-    }
-  } catch (err) {
-    console.error('[GAME DEL SCHEDULE SYNC ERROR]:', err);
-  }
-
-  const matchEmbed = await buildMatchReportEmbed(match, reportData, currentLastGame ? lastWinnerOpt : undefined);
-  await publishMatchReport(channelId, match.id, matchEmbed);
+  // 🔄 EKSEKUSI SINKRONISASI SATU PINTU (Rollback langsung ter-update di semua tempat)
+  await syncAndBroadcastGameState({
+    match,
+    reportData,
+    channelId,
+    winnerOpt: currentLastGame ? lastWinnerOpt : undefined,
+    isBeforeKickoff,
+    userIsAdmin,
+  });
 
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: `🗑️ **Game ${deletedGameNumber} berhasil dihapus dan kondisi match telah di-rollback secara sempurna.**`,
   });
-    }
+}
