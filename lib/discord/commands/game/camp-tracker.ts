@@ -1,5 +1,6 @@
 import { kv } from '@vercel/kv';
 import { discordAPI, getEmbedFooterText, hexToDecimal } from '@/lib/discord/utils';
+import { TOURNAMENT_RULES } from '@/app/tournament/_library';
 import { getTeamEmojiByMatch, hasPlayerPhysicalWin } from './helpers';
 
 function formatDeckHistoryTag(games: any[], playerIgn: string, archetype: string): string {
@@ -88,7 +89,7 @@ export async function renderCampTrackerEmbed(
       const violatorIgn = isViolatorA ? g.playerA?.ign : g.playerB?.ign;
       if (warningCounter === 1) {
         ssViolations.push(`• G${g.gameNumber}: ${violatorIgn} *(Warning 1)*`);
-      } else if (warningCounter >= 2) {
+      } else if (warningCounter >= TOURNAMENT_RULES.MAX_WARNINGS_SS) {
         ssViolations.push(`• G${g.gameNumber}: ${violatorIgn} *(Warning ${warningCounter} / Deckloss)*`);
       }
     }
@@ -96,7 +97,10 @@ export async function renderCampTrackerEmbed(
 
   const violationText = ssViolations.length > 0 ? ssViolations.join('\n') : '• Tidak ada';
 
-  const isMatchEnded = (reportData.teamA?.score || 0) >= 10 || (reportData.teamB?.score || 0) >= 10;
+  const isMatchEnded =
+    (reportData.teamA?.score || 0) >= TOURNAMENT_RULES.POINTS_WIN ||
+    (reportData.teamB?.score || 0) >= TOURNAMENT_RULES.POINTS_WIN;
+
   const lastGame = games.length > 0 ? games[games.length - 1] : null;
   const isWinner = lastGame ? lastGame.winner === teamKey : false;
   const lastPlayer = lastGame ? (teamKey === 'teamA' ? lastGame.playerA : lastGame.playerB) : null;
@@ -104,16 +108,18 @@ export async function renderCampTrackerEmbed(
     ? (team.lineup || []).find((x: any) => x.ign?.toLowerCase() === lastPlayer.ign?.toLowerCase())
     : null;
 
-  const thisTeamPenalty = warningsUsed >= 2;
-  const opponentPenalty = (opponent?.warningsUsed || 0) >= 2;
-  const isTimerPenalty = Boolean(lastGame?.isDeckloss && String(lastGame?.notes || '').toLowerCase().includes('timer'));
+  const thisTeamPenalty = warningsUsed >= TOURNAMENT_RULES.MAX_WARNINGS_SS;
+  const opponentPenalty = (opponent?.warningsUsed || 0) >= TOURNAMENT_RULES.MAX_WARNINGS_SS;
+
+  // Catatan penalti dinamis dari wasit (tidak lagi hardcode timer)
+  const penaltyTag = lastGame?.isDeckloss && lastGame?.notes ? ` — **${lastGame.notes}**` : '';
 
   let sectionTitle = '📢 **Instruksi Pertandingan:**';
   let instructionLines: string[] = [];
 
   if (isMatchEnded) {
     sectionTitle = '📢 **Status Pertandingan:**';
-    if ((team.score || 0) >= 10) {
+    if ((team.score || 0) >= TOURNAMENT_RULES.POINTS_WIN) {
       instructionLines.push(`• Selamat kepada **${team.name}** atas kemenangannya!`);
     } else {
       instructionLines.push(`• Seluruh sisa nyawa habis. Terima kasih kepada **${team.name}** atas perjuangannya!`);
@@ -121,7 +127,7 @@ export async function renderCampTrackerEmbed(
   } else if (!lastGame) {
     instructionLines.push(`• **${team.name}** persiapkan pemain pertama.`);
   } else if (thisTeamPenalty) {
-    instructionLines.push(`• ⚠️ **${team.name}** (2x Warning SS Hand)`);
+    instructionLines.push(`• ⚠️ **${team.name}** (${TOURNAMENT_RULES.MAX_WARNINGS_SS}x Warning SS Hand)`);
     if (lastPlayer) {
       instructionLines.push(`  └ **${lastPlayer.ign}** (Deckloss)`);
     }
@@ -134,40 +140,39 @@ export async function renderCampTrackerEmbed(
       instructionLines.push(`• **${team.name}** (Next player)`);
     } else {
       const hasWonPhysically = lastPlayerObj ? hasPlayerPhysicalWin(games, lastPlayerObj.ign) : false;
-      const canRepeat = repeatsUsed < 2 && !hasWonPhysically;
+      const canRepeat = repeatsUsed < TOURNAMENT_RULES.MAX_REPEATS && !hasWonPhysically;
       instructionLines.push(`• **${lastPlayer?.ign}** (${canRepeat ? 'Next deck or repeat' : 'Next deck'})`);
     }
     instructionLines.push(`• Menunggu keputusan/lawan dari **${opponent.name}**.`);
   } else if (opponentPenalty) {
     if (isWinner) instructionLines.push(`• **${lastPlayer?.ign}** (Stay table)`);
-    instructionLines.push(`• Lawan (**${opponent.name}**) terkena 2x Warning SS Hand (Deckloss).`);
+    instructionLines.push(`• Lawan (**${opponent.name}**) terkena ${TOURNAMENT_RULES.MAX_WARNINGS_SS}x Warning SS Hand (Deckloss).`);
     instructionLines.push(`• **${team.name}** tentukan/siapkan pemain untuk klaim Technical Win.`);
   } else if (isWinner) {
     instructionLines.push(`• **${lastPlayer?.ign}** (Stay table)`);
     instructionLines.push(`• Menunggu lawan dari **${opponent.name}**.`);
   } else {
     const isPlayerDead = (lastPlayerObj?.remainingLife ?? 0) <= 0;
-    const timerTag = isTimerPenalty ? ' — **Extra Timer 3 Menit**' : '';
 
     if (isPlayerDead) {
       instructionLines.push(`• **${lastPlayer?.ign}** telah gugur.`);
-      instructionLines.push(`• **${team.name}** tentukan pemain berikutnya${timerTag}.`);
+      instructionLines.push(`• **${team.name}** tentukan pemain berikutnya${penaltyTag}.`);
     } else {
       const hasWonPhysically = lastPlayerObj ? hasPlayerPhysicalWin(games, lastPlayerObj.ign) : false;
-      const canRepeat = repeatsUsed < 2 && !hasWonPhysically;
+      const canRepeat = repeatsUsed < TOURNAMENT_RULES.MAX_REPEATS && !hasWonPhysically;
       if (canRepeat) {
-        instructionLines.push(`• **${lastPlayer?.ign}** gunakan repeat untuk deck ${lastPlayer?.archetype} atau gunakan deck kedua${timerTag}.`);
+        instructionLines.push(`• **${lastPlayer?.ign}** gunakan repeat untuk deck ${lastPlayer?.archetype} atau gunakan deck kedua${penaltyTag}.`);
       } else {
-        instructionLines.push(`• **${lastPlayer?.ign}** silakan gunakan deck berikutnya${timerTag}.`);
+        instructionLines.push(`• **${lastPlayer?.ign}** silakan gunakan deck berikutnya${penaltyTag}.`);
       }
     }
   }
 
   const description =
     `${teamEmoji} **${String(team.name).toUpperCase()}**\n\n` +
-    `📦 Sisa Nyawa Tim: **${aliveDecksCount} / 10**\n` +
-    `🔄 Repeat: **${repeatsUsed} / 2**\n` +
-    `⚠️ Warning SS Aktif: **${warningsUsed} / 2**\n` +
+    `📦 Sisa Nyawa Tim: **${aliveDecksCount} / ${TOURNAMENT_RULES.TOTAL_DECKS_PER_TEAM}**\n` +
+    `🔄 Repeat: **${repeatsUsed} / ${TOURNAMENT_RULES.MAX_REPEATS}**\n` +
+    `⚠️ Warning SS Aktif: **${warningsUsed} / ${TOURNAMENT_RULES.MAX_WARNINGS_SS}**\n` +
     `🔗 Regulasi: [teamwars.web.id/rules](https://teamwars.web.id/rules)\n\n` +
     `${lineupSections.join('\n')}\n\n` +
     `⚠️ **Riwayat Pelanggaran SS Hand**\n` +
@@ -186,6 +191,7 @@ export async function renderCampTrackerEmbed(
   };
 }
 
+// 1. Sinkronisasi Penuh (Hapus pesan lama & Post pesan baru — saat ronde bertambah)
 export async function syncCampTrackers(
   matchId: string,
   matchWeek: number | string,
@@ -237,5 +243,36 @@ export async function syncCampTrackers(
     }
   } catch (err) {
     console.error('Error syncing camp trackers:', err);
+  }
+}
+
+// 2. Patch Khusus (Update pesan tracker yang ada di camp tanpa hapus & kirim ulang — dipakai oleh edit game)
+export async function patchCampTrackers(
+  matchId: string,
+  matchWeek: number | string,
+  reportData: any,
+  match: any
+) {
+  try {
+    const rawMsg = await kv.hget<any>('discord:match_messages', matchId);
+    const msgData: any = rawMsg ? (typeof rawMsg === 'string' ? JSON.parse(rawMsg) : rawMsg) : {};
+
+    if (msgData.campA?.channelId && (msgData.campA?.trackerMsgId || msgData.campA?.submitMsgId)) {
+      const msgIdA = msgData.campA.trackerMsgId || msgData.campA.submitMsgId;
+      const embedA = await renderCampTrackerEmbed('teamA', reportData, match, matchWeek);
+      await discordAPI(`/channels/${msgData.campA.channelId}/messages/${msgIdA}`, 'PATCH', {
+        embeds: [embedA],
+      }).catch(() => {});
+    }
+
+    if (msgData.campB?.channelId && (msgData.campB?.trackerMsgId || msgData.campB?.submitMsgId)) {
+      const msgIdB = msgData.campB.trackerMsgId || msgData.campB.submitMsgId;
+      const embedB = await renderCampTrackerEmbed('teamB', reportData, match, matchWeek);
+      await discordAPI(`/channels/${msgData.campB.channelId}/messages/${msgIdB}`, 'PATCH', {
+        embeds: [embedB],
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('Error patching camp trackers:', err);
   }
 }
