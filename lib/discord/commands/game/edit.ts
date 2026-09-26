@@ -1,15 +1,13 @@
+import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
-import { GameContext } from './types';
+import { GameContext, patchCampTrackers } from './types';
 import {
   computeNextInstructions,
-  buildMatchReportEmbed,
-  publishMatchReport,
-  saveAndSyncMatchState,
   buildDecklossClaimMenu,
 } from './renderer';
 
 export async function handleGameEdit(ctx: GameContext) {
-  const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff, userIsAdmin } = ctx;
+  const { appId, token, match, reportData, optMap, isBeforeKickoff } = ctx;
 
   if (!reportData.games || reportData.games.length === 0) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
@@ -61,7 +59,7 @@ export async function handleGameEdit(ctx: GameContext) {
     });
   }
 
-  // Terapkan perubahan jika aman atau jika targetnya adalah game terakhir
+  // Terapkan perubahan
   targetGame.ssHandA = simSsHandA;
   targetGame.ssHandB = simSsHandB;
   reportData.games[targetIndex] = targetGame;
@@ -76,18 +74,14 @@ export async function handleGameEdit(ctx: GameContext) {
 
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
 
-  // Simpan state & sync match
+  // 1. Simpan perubahan ke KV database
   if (!isBeforeKickoff) {
-    await saveAndSyncMatchState(match, reportData);
+    await kv.set(`twi:match_reports:${match.id}`, reportData);
   }
 
-  const matchEmbed = await buildMatchReportEmbed(match, reportData, winnerOpt);
-
-  if (isBeforeKickoff && userIsAdmin) {
-    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
-  }
-
-  await publishMatchReport(channelId, match.id, matchEmbed);
+  // 2. PATCH langsung tracker di Camp Tim (LEWATI update di channel match room)
+  const matchWeek = match.weekNumber || match.week || 1;
+  await patchCampTrackers(match.id, matchWeek, reportData, match);
 
   // Sanksi 2x Warning hanya diproses jika terjadi pada game terakhir
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
@@ -113,6 +107,7 @@ export async function handleGameEdit(ctx: GameContext) {
       `✅ **Status SS Hand Game ${targetGame.gameNumber} berhasil diperbarui.**\n` +
       `• SS Hand Tim A: **${targetGame.ssHandA ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
       `• SS Hand Tim B: **${targetGame.ssHandB ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
-      `• Akumulasi Warning: ${reportData.teamA.name} (${simWarningsA}/2) | ${reportData.teamB.name} (${simWarningsB}/2)`,
+      `• Akumulasi Warning: ${reportData.teamA.name} (${simWarningsA}/2) | ${reportData.teamB.name} (${simWarningsB}/2)\n` +
+      `• *Live Tracker di Camp Tim telah di-patch secara otomatis.*`,
   });
 }
