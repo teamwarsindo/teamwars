@@ -1,172 +1,164 @@
 import { kv } from '@vercel/kv';
-import { discordAPI } from '@/lib/discord/utils';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { MatchScheduleItem } from '@/app/tournament/_library';
-import { sendOfficialScoreLog } from '@/lib/discord/messages/score-log';
-import { getMatchContext } from '@/lib/discord/commands/assign/helpers';
-import { GameContext } from './types';
 import {
-  computeNextInstructions,
+  discordAPI,
+  respondInteraction,
+  respondInteractionWithComponents,
+} from '@/lib/discord/utils';
+import {
+  MatchScheduleItem,
+  hasPlayerPhysicalWin,
+  getMatchData,
+} from './types';
+import {
   buildMatchReportEmbed,
   publishMatchReport,
   saveAndSyncMatchState,
   buildDecklossClaimMenu,
+  computeNextInstructions,
 } from './renderer';
 
-export async function handleGameAdd(ctx: GameContext) {
-  const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff, userIsAdmin } = ctx;
+export async function handleGameAdd(interaction: any) {
+  const channelId = interaction.channel_id;
+  const match = await getMatchData(channelId);
 
-  const scoreA = reportData.teamA?.score || 0;
-  const scoreB = reportData.teamB?.score || 0;
-
-  if (scoreA >= 10 || scoreB >= 10) {
-    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-      content: '⚠️ **Pertandingan sudah selesai!** Skor telah mencapai batas kemenangan 10.',
-    });
+  if (!match) {
+    return respondInteraction('Channel ini tidak terdaftar untuk pertandingan aktif.');
   }
 
-  const winnerOpt = optMap.pemenang as 'A' | 'B';
-  const playerAIgn = String(optMap.pemain_a || '').trim();
-  const rawDeckA = String(optMap.deck_a || '').trim();
-  const playerBIgn = String(optMap.pemain_b || '').trim();
-  const rawDeckB = String(optMap.deck_b || '').trim();
-  const ssHandA = optMap.ss_hand_a !== undefined ? Boolean(optMap.ss_hand_a) : true;
-  const ssHandB = optMap.ss_hand_b !== undefined ? Boolean(optMap.ss_hand_b) : true;
+  const reportData = await kv.hget<any>('twi:match_reports', match.id);
+  if (!reportData) {
+    return respondInteraction('Laporan pertandingan belum dibuat atau tidak ditemukan.');
+  }
 
+  if (reportData.isFinished) {
+    return respondInteraction('Pertandingan ini sudah selesai.');
+  }
+
+  const rawOptions = interaction.data?.options || [];
+  const subCommand = rawOptions[0]?.type === 1 ? rawOptions[0] : null;
+  const options = subCommand ? subCommand.options || [] : rawOptions;
+
+  const optMap: Record<string, any> = {};
+  for (const opt of options) {
+    optMap[opt.name] = opt.value;
+  }
+
+  const pemainA = String(optMap.pemain_a || '').trim();
+  const deckA = String(optMap.deck_a || '').trim();
+  const pemainB = String(optMap.pemain_b || '').trim();
+  const deckB = String(optMap.deck_b || '').trim();
+  const winnerOpt = String(optMap.pemenang || '').toUpperCase() as 'A' | 'B';
   const tipeGame = String(optMap.tipe_game || 'NORMAL').toUpperCase();
-  const isDecklossOpt = tipeGame === 'DECKLOSS_TIMER';
-  const notes = optMap.catatan || '';
+  const notes = String(optMap.catatan || '').trim();
 
-  const isRepeatA = rawDeckA.startsWith('REPEAT:');
-  const isRepeatB = rawDeckB.startsWith('REPEAT:');
-  const deckAName = isRepeatA ? rawDeckA.replace('REPEAT:', '') : rawDeckA;
-  const deckBName = isRepeatB ? rawDeckB.replace('REPEAT:', '') : rawDeckB;
+  // Fleksibel: mencakup DECKLOSS umum maupun DECKLOSS_TIMER lama
+  const isDecklossOpt = tipeGame.startsWith('DECKLOSS');
+
+  if (!pemainA || !deckA || !pemainB || !deckB || !winnerOpt) {
+    return respondInteraction('Semua field pertandingan (pemain, deck, pemenang) wajib diisi.');
+  }
 
   const lineupA: any[] = reportData.teamA?.lineup || [];
   const lineupB: any[] = reportData.teamB?.lineup || [];
 
-  const pA = lineupA.find((p) => String(p.ign || '').toLowerCase() === playerAIgn.toLowerCase());
-  const pB = lineupB.find((p) => String(p.ign || '').toLowerCase() === playerBIgn.toLowerCase());
+  const pA = lineupA.find((p) => p.ign.toLowerCase() === pemainA.toLowerCase());
+  const pB = lineupB.find((p) => p.ign.toLowerCase() === pemainB.toLowerCase());
 
-  if (!pA) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Pemain Tim A **${playerAIgn}** tidak terdaftar!` });
-  if (!pB) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Pemain Tim B **${playerBIgn}** tidak terdaftar!` });
-
-  const dA = [pA.deck1, pA.deck2].find((d) => d && String(d.archetype || '').toLowerCase() === deckAName.toLowerCase());
-  const dB = [pB.deck1, pB.deck2].find((d) => d && String(d.archetype || '').toLowerCase() === deckBName.toLowerCase());
-
-  if (!dA) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckAName}** milik ${pA.ign} tidak valid!` });
-  if (!dB) return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { content: `❌ Deck **${deckBName}** milik ${pB.ign} tidak valid!` });
-
-  const snapshotBeforeGame = {
-    teamA: JSON.parse(JSON.stringify(reportData.teamA)),
-    teamB: JSON.parse(JSON.stringify(reportData.teamB)),
-  };
-
-  const gameNumber = (reportData.games?.length || 0) + 1;
-
-  if (!isDecklossOpt) {
-    if (isRepeatA && !dA.isRepeatUsed) {
-      dA.isRepeatUsed = true;
-      dA.isDead = false;
-      if (dA === pA.deck1 && pA.deck2) pA.deck2.isDead = true;
-      if (dA === pA.deck2 && pA.deck1) pA.deck1.isDead = true;
-      pA.remainingLife = 1;
-    }
-
-    if (isRepeatB && !dB.isRepeatUsed) {
-      dB.isRepeatUsed = true;
-      dB.isDead = false;
-      if (dB === pB.deck1 && pB.deck2) pB.deck2.isDead = true;
-      if (dB === pB.deck2 && pB.deck1) pB.deck1.isDead = true;
-      pB.remainingLife = 1;
-    }
-
-    reportData.teamA.repeatsUsed = lineupA.reduce((count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0), 0);
-    reportData.teamB.repeatsUsed = lineupB.reduce((count: number, p: any) => count + (p.deck1?.isRepeatUsed ? 1 : 0) + (p.deck2?.isRepeatUsed ? 1 : 0), 0);
+  if (!pA || !pB) {
+    return respondInteraction('Pemain A atau Pemain B tidak terdaftar di roster pertandingan.');
   }
 
-  if (winnerOpt === 'A') {
-    reportData.teamA.score = scoreA + 1;
-    dA.wins = (dA.wins || 0) + 1;
-    dA.lastGameNumber = gameNumber;
-    pA.totalWins = (pA.totalWins || 0) + 1;
+  const isARepeat = deckA.startsWith('REPEAT:');
+  const cleanDeckA = isARepeat ? deckA.replace('REPEAT:', '') : deckA;
+  const isBRepeat = deckB.startsWith('REPEAT:');
+  const cleanDeckB = isBRepeat ? deckB.replace('REPEAT:', '') : deckB;
 
-    pB.remainingLife = Math.max(0, (pB.remainingLife || 2) - 1);
-    dB.isDead = true;
-    dB.losses = (dB.losses || 0) + 1;
-    dB.lastGameNumber = gameNumber;
+  const targetDeckA = [pA.deck1, pA.deck2].find(
+    (d) => d && d.archetype.toLowerCase() === cleanDeckA.toLowerCase()
+  );
+  const targetDeckB = [pB.deck2, pB.deck1].find(
+    (d) => d && d.archetype.toLowerCase() === cleanDeckB.toLowerCase()
+  );
+
+  // Proses repeat kuota
+  if (isARepeat && targetDeckA) {
+    targetDeckA.isRepeatUsed = true;
+    targetDeckA.isDead = false;
+    reportData.teamA.repeatsUsed = (reportData.teamA.repeatsUsed || 0) + 1;
+  }
+  if (isBRepeat && targetDeckB) {
+    targetDeckB.isRepeatUsed = true;
+    targetDeckB.isDead = false;
+    reportData.teamB.repeatsUsed = (reportData.teamB.repeatsUsed || 0) + 1;
+  }
+
+  const games: any[] = reportData.games || [];
+  const gameNumber = games.length + 1;
+
+  // Sanksi Deckloss: tim yang kalah di input adalah penerima sanksi TL
+  const penaltyTeamKey = isDecklossOpt ? (winnerOpt === 'A' ? 'teamB' : 'teamA') : null;
+  const innocentTeamKey = isDecklossOpt ? (winnerOpt === 'A' ? 'teamA' : 'teamB') : null;
+
+  // Update status deck & nyawa pemain yang kalah
+  if (winnerOpt === 'A') {
+    reportData.teamA.score = (reportData.teamA.score || 0) + 1;
+    if (targetDeckB) targetDeckB.isDead = true;
+    pB.remainingLife = Math.max(0, (pB.remainingLife ?? 2) - 1);
     pB.totalLosses = (pB.totalLosses || 0) + 1;
   } else {
-    reportData.teamB.score = scoreB + 1;
-    dB.wins = (dB.wins || 0) + 1;
-    dB.lastGameNumber = gameNumber;
-    pB.totalWins = (pB.totalWins || 0) + 1;
-
-    pA.remainingLife = Math.max(0, (pA.remainingLife || 2) - 1);
-    dA.isDead = true;
-    dA.losses = (dA.losses || 0) + 1;
-    dA.lastGameNumber = gameNumber;
+    reportData.teamB.score = (reportData.teamB.score || 0) + 1;
+    if (targetDeckA) targetDeckA.isDead = true;
+    pA.remainingLife = Math.max(0, (pA.remainingLife ?? 2) - 1);
     pA.totalLosses = (pA.totalLosses || 0) + 1;
   }
 
-  if (!isDecklossOpt) {
-    if (!ssHandA) reportData.teamA.warningsUsed = (reportData.teamA.warningsUsed || 0) + 1;
-    if (!ssHandB) reportData.teamB.warningsUsed = (reportData.teamB.warningsUsed || 0) + 1;
-  }
+  const isMatchFinished =
+    (reportData.teamA.score || 0) >= 10 || (reportData.teamB.score || 0) >= 10;
+  reportData.isFinished = isMatchFinished;
 
-  const loserTeamKey = winnerOpt === 'A' ? 'teamB' : 'teamA';
+  // Catatan game dinamis dari input wasit
+  const defaultDecklossNote = 'Sanksi Deckloss';
+  const gameNotes = isDecklossOpt ? (notes || defaultDecklossNote) : notes;
 
   const gameRecord = {
     gameNumber,
-    winner: winnerOpt === 'A' ? 'teamA' : 'teamB',
     playerA: {
       ign: pA.ign,
-      idDuelLinks: pA.idDuelLinks,
-      archetype: dA.archetype,
-      skill: dA.skill,
-      isRepeat: Boolean(dA.isRepeatUsed),
+      archetype: cleanDeckA,
+      isRepeat: isARepeat,
     },
     playerB: {
       ign: pB.ign,
-      idDuelLinks: pB.idDuelLinks,
-      archetype: dB.archetype,
-      skill: dB.skill,
-      isRepeat: Boolean(dB.isRepeatUsed),
+      archetype: cleanDeckB,
+      isRepeat: isBRepeat,
     },
-    ssHandA,
-    ssHandB,
+    winner: winnerOpt === 'A' ? 'teamA' : 'teamB',
     isDeckloss: isDecklossOpt,
-    decklossTeam: isDecklossOpt ? loserTeamKey : '',
-    notes: notes || (isDecklossOpt ? 'Sanksi Deckloss (Timer Habis)' : ''),
-    timestamp: new Date().toISOString(),
-    snapshot: snapshotBeforeGame,
+    decklossTeam: penaltyTeamKey,
+    notes: gameNotes,
   };
 
-  if (!reportData.games) reportData.games = [];
-  reportData.games.push(gameRecord);
-  reportData.finalScore = { teamA: reportData.teamA.score, teamB: reportData.teamB.score };
+  games.push(gameRecord);
+  reportData.games = games;
 
-  const finalScoreA = reportData.teamA.score;
-  const finalScoreB = reportData.teamB.score;
-  const isTeamAWon = finalScoreA >= 10;
-  const isTeamBWon = finalScoreB >= 10;
-  reportData.isFinished = isTeamAWon || isTeamBWon;
-  reportData.winnerTeam = isTeamAWon ? 'teamA' : isTeamBWon ? 'teamB' : null;
-
-  const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
-
+  // Penanganan instruksi berikutnya
   if (isDecklossOpt && !reportData.isFinished) {
     const penaltyTeam = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
     const penaltyPlayer = winnerOpt === 'A' ? pB : pA;
     const innocentPlayer = winnerOpt === 'A' ? pA : pB;
     const nextGameNumber = gameNumber + 1;
 
+    const penaltyReasonText = notes ? `Sanksi Deckloss: ${notes}` : defaultDecklossNote;
+
     const instructionLines: string[] = [];
-    instructionLines.push(`• **${penaltyTeam.name}** (Sanksi Deckloss Timer)`);
+    instructionLines.push(`• **${penaltyTeam.name}** (${penaltyReasonText})`);
+
     if ((penaltyPlayer.remainingLife || 0) <= 0) {
-      instructionLines.push(`  └ **${penaltyTeam.name}** (Next player) — Extra Timer 3 Menit`);
+      instructionLines.push(`  └ **${penaltyTeam.name}** (Next player)`);
     } else {
-      instructionLines.push(`  └ **${penaltyPlayer.ign}** (Next deck) — Extra Timer 3 Menit`);
+      const hasWonPhysically = hasPlayerPhysicalWin(games, penaltyPlayer.ign);
+      const canRepeat = (penaltyTeam.repeatsUsed || 0) < 2 && !hasWonPhysically;
+      instructionLines.push(`  └ **${penaltyPlayer.ign}** (${canRepeat ? 'Next deck or repeat' : 'Next deck'})`);
     }
     instructionLines.push(`• **${innocentPlayer.ign}** (Stay table)`);
 
@@ -174,80 +166,35 @@ export async function handleGameAdd(ctx: GameContext) {
       header: `📢 **Instruksi Game #${nextGameNumber}:**`,
       lines: instructionLines,
     };
+  } else {
+    computeNextInstructions(reportData, winnerOpt, pA, pB);
   }
 
-  if (!isBeforeKickoff) {
-    await saveAndSyncMatchState(match, reportData);
-  }
+  // Cek akumulasi warning SS Hand (2x Warning memicu menu klaim TW)
+  const isTeamAPenalty = (reportData.teamA?.warningsUsed || 0) >= 2;
+  const isTeamBPenalty = (reportData.teamB?.warningsUsed || 0) >= 2;
 
-  // 🏆 KETIKA SALAH SATU TIM MENCAPAI SKOR 10
-  if (reportData.isFinished) {
-    try {
-      const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-      const idx = schedules.findIndex((m) => m.id === match.id);
-
-      if (idx !== -1) {
-        schedules[idx].scoreA = finalScoreA;
-        schedules[idx].scoreB = finalScoreB;
-        // JANGAN ubah isFinished di twi:schedules di sini (menunggu referee di-unassign)
-        await kv.set('twi:schedules', schedules);
-
-        const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
-        if (chScore) {
-          const matchCtx = await getMatchContext(schedules[idx]);
-          const isWinnerA = finalScoreA >= 10;
-          const winnerData = isWinnerA ? matchCtx.teamA : matchCtx.teamB;
-          const winnerHex = winnerData?.warna || (isWinnerA ? '#3498db' : '#e74c3c');
-
-          await sendOfficialScoreLog({
-            channelId: chScore,
-            teamAName: schedules[idx].teamAName,
-            teamBName: schedules[idx].teamBName,
-            teamAEmoji: matchCtx.teamAEmoji,
-            teamBEmoji: matchCtx.teamBEmoji,
-            scoreA: finalScoreA,
-            scoreB: finalScoreB,
-            winnerHex,
-          });
-        }
-      }
-    } catch (err) {
-      console.error('[GAME FINISH TRIGGER ERROR]:', err);
-    }
-  }
-
-  const matchEmbed = await buildMatchReportEmbed(match, reportData, winnerOpt);
-
-  if (isBeforeKickoff && userIsAdmin) {
-    return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
-  }
-
-  await publishMatchReport(channelId, match.id, matchEmbed);
+  await saveAndSyncMatchState(match, reportData);
+  const embed = await buildMatchReportEmbed(match, reportData, winnerOpt);
+  await publishMatchReport(channelId, match.id, embed);
 
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
-    const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
-    const innocentTeam = isTeamAPenalty ? reportData.teamB : reportData.teamA;
-    const innocentTeamKey = isTeamAPenalty ? 'teamB' : 'teamA';
-    const components = buildDecklossClaimMenu(match.id, innocentTeamKey, innocentTeam, 'warning');
+    const targetInnocentKey = isTeamAPenalty ? 'teamB' : 'teamA';
+    const innocentTeam = targetInnocentKey === 'teamA' ? reportData.teamA : reportData.teamB;
+    const claimMenuComponents = buildDecklossClaimMenu(
+      match.id,
+      targetInnocentKey,
+      innocentTeam,
+      'warning'
+    );
 
-    if (components) {
-      return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-        content:
-          `✅ **Game ${gameNumber} berhasil dicatat.**\n\n` +
-          `⚠️ **PERINGATAN SANKSI DECKLOSS!**\n` +
-          `• **${penaltyTeam.name}** telah mencapai **2x Warning SS Hand**.\n` +
-          `• Silakan pilih pemain dan deck dari **${innocentTeam.name}** untuk klaim **Technical Win (TW)**:`,
-        components,
-      });
+    if (claimMenuComponents) {
+      return respondInteractionWithComponents(
+        `⚠️ **PERHATIAN:** Tim **${isTeamAPenalty ? reportData.teamA.name : reportData.teamB.name}** telah mengumpulkan 2x Warning SS Hand. Silakan tentukan penerima Technical Win:`,
+        claimMenuComponents
+      );
     }
   }
 
-  const successMsg = isDecklossOpt
-    ? `⚖️ **Game ${gameNumber} berhasil dicatat sebagai Sanksi Deckloss (Timer Habis)!**`
-    : `✅ **Game ${gameNumber} berhasil dicatat.**`;
-
-  return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-    content: successMsg,
-  });
+  return respondInteraction(`✅ **Game #${gameNumber} berhasil dicatat.**`);
 }
-  
