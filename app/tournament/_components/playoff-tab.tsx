@@ -49,19 +49,6 @@ function TeamSlotDisplay({
   nextStageLabel: string;
   nextBadgeColor: "amber" | "emerald" | "purple" | "gold";
 }) {
-  if (team.isPlaceholder) {
-    return (
-      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-        <span className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-muted/60 border border-border/50 shrink-0 flex items-center justify-center text-[10px] text-muted-foreground/60 font-black">
-          ?
-        </span>
-        <span className="leading-tight text-xs xl:text-sm font-bold text-muted-foreground/70 truncate italic">
-          {team.name}
-        </span>
-      </div>
-    );
-  }
-
   const badgeColorMap = {
     amber: "bg-amber-500/15 text-amber-500 dark:text-amber-400 border-amber-500/30",
     emerald: "bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border-emerald-500/30",
@@ -69,13 +56,37 @@ function TeamSlotDisplay({
     gold: "bg-yellow-500/20 text-yellow-500 dark:text-yellow-400 border-yellow-500/40",
   };
 
+  if (team.isPlaceholder) {
+    return (
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full shrink-0 overflow-hidden bg-muted/40 p-0.5 border border-border/70 flex items-center justify-center shadow-2xs opacity-70">
+          <img
+            src="/logo-dc.png"
+            alt="TBD"
+            className="h-full w-full rounded-full object-contain"
+          />
+        </div>
+        <div className="flex flex-col min-w-0 flex-1 justify-center">
+          <span className="leading-tight text-xs sm:text-sm font-bold text-muted-foreground/70 truncate italic">
+            {team.name}
+          </span>
+          <span className="text-[9.5px] sm:text-[10px] text-muted-foreground/50 font-medium truncate leading-none mt-0.5">
+            Menunggu Hasil
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-      {/* Logo Tim Diperbesar */}
       <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full shrink-0 overflow-hidden bg-muted/30 p-0.5 border border-border/70 flex items-center justify-center shadow-2xs">
         <img
-          src={team.logo || "/logo.webp"}
-          alt=""
+          src={team.logo || "/logo-dc.png"}
+          alt={team.name}
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = "/logo-dc.png";
+          }}
           className="h-full w-full rounded-full object-contain"
         />
       </div>
@@ -89,7 +100,6 @@ function TeamSlotDisplay({
           {team.name}
         </span>
 
-        {/* Badge Status Kelolosan / Gugur */}
         <div className="flex items-center mt-1">
           {isFinished ? (
             team.isWinner ? (
@@ -146,7 +156,6 @@ function TimelineMatchCard({
         </span>
       </div>
 
-      {/* Tim A */}
       <div className="flex items-center justify-between font-bold text-xs min-w-0 gap-2">
         <TeamSlotDisplay
           team={match.teamA}
@@ -165,7 +174,6 @@ function TimelineMatchCard({
 
       <div className="border-t border-border/30" />
 
-      {/* Tim B */}
       <div className="flex items-center justify-between font-bold text-xs min-w-0 gap-2">
         <TeamSlotDisplay
           team={match.teamB}
@@ -190,7 +198,6 @@ export function PlayoffTab({ schedules = [] }: PlayoffTabProps) {
 
   return (
     <div className="w-full flex flex-col gap-6 rounded-3xl border border-border bg-card p-4 sm:p-6 xl:p-8 shadow-xl">
-      {/* Header Info */}
       <div className="flex flex-col sm:flex-row items-center justify-between border-b border-border pb-4 gap-4">
         <div className="text-center sm:text-left space-y-1">
           <h3 className="text-xs sm:text-sm md:text-base font-black uppercase text-primary tracking-wider flex items-center justify-center sm:justify-start gap-1.5">
@@ -202,9 +209,8 @@ export function PlayoffTab({ schedules = [] }: PlayoffTabProps) {
         </div>
       </div>
 
-      {/* Grid Bagan 4 Babak Playoff */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 xl:gap-6 relative w-full">
-        {/* ROUND 1 (PLAY-INS) -> Pemenang lanjut ke Quarter-Finals (Amber) */}
+        {/* ROUND 1 (PLAY-INS) */}
         <div className="rounded-2xl border-2 border-sky-500/40 bg-sky-950/10 p-3.5 xl:p-4 space-y-3.5 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="ROUND 1 (PLAY-INS)" colorTheme="sky" />
           <div className="space-y-3 flex-1 flex flex-col justify-around">
@@ -220,7 +226,7 @@ export function PlayoffTab({ schedules = [] }: PlayoffTabProps) {
           </div>
         </div>
 
-        {/* ROUND 2: QUARTER-FINAL -> Pemenang lanjut ke Semi-Finals (Emerald) */}
+        {/* ROUND 2: QUARTER-FINAL */}
         <div className="rounded-2xl border-2 border-amber-500/40 bg-amber-950/10 p-3.5 xl:p-4 space-y-3.5 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="QUARTER-FINAL" colorTheme="amber" />
           <div className="space-y-3 flex-1 flex flex-col justify-around">
@@ -237,7 +243,7 @@ export function PlayoffTab({ schedules = [] }: PlayoffTabProps) {
           </div>
         </div>
 
-        {/* ROUND 3: SEMI-FINAL -> Pemenang lanjut ke Grand Final (Purple) */}
+        {/* ROUND 3: SEMI-FINAL */}
         <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-950/10 p-3.5 xl:p-4 space-y-3.5 shadow-sm flex flex-col justify-between">
           <PhaseHeader title="SEMI-FINAL" colorTheme="emerald" />
           <div className="space-y-3 flex-1 flex flex-col justify-around my-auto">
@@ -253,7 +259,7 @@ export function PlayoffTab({ schedules = [] }: PlayoffTabProps) {
           </div>
         </div>
 
-        {/* ROUND 4: GRAND FINAL -> Pemenang berstatus Champion (Gold) */}
+        {/* ROUND 4: GRAND FINAL */}
         <div className="rounded-2xl border-2 border-purple-500/60 bg-purple-950/20 p-4 xl:p-5 text-center shadow-lg flex flex-col justify-between space-y-3.5">
           <PhaseHeader title="GRAND FINAL" colorTheme="purple" />
           {bracket.grandFinal ? (
@@ -282,4 +288,4 @@ export function PlayoffTab({ schedules = [] }: PlayoffTabProps) {
       </div>
     </div>
   );
-}            
+}
