@@ -1,9 +1,8 @@
 import { discordAPI } from '@/lib/discord/utils';
 import { GameContext } from './types';
-import { patchCampTrackers } from './camp-tracker';
 import {
   computeNextInstructions,
-  saveAndSyncMatchState,
+  saveAndPatchMatchState, // <-- Panggil dari renderer
   buildDecklossClaimMenu,
 } from './renderer';
 
@@ -75,13 +74,10 @@ export async function handleGameEdit(ctx: GameContext) {
 
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
 
-  // 1. Simpan state report ke KV database
+  // 1. Simpan state & sync PATCH live tracker lewat renderer
   if (!isBeforeKickoff) {
-    await saveAndSyncMatchState(match, reportData);
+    await saveAndPatchMatchState(match, reportData);
   }
-
-  // 2. PATCH langsung tracker di Camp Tim (Lewati update room match)
-  await patchCampTrackers(match.id, match.weekNumber, reportData, match);
 
   // Sanksi 2x Warning hanya diproses jika terjadi pada game terakhir
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
