@@ -51,8 +51,10 @@ function TeamSlotDisplay({
 }) {
   if (team.isPlaceholder) {
     return (
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <span className="h-2 w-2 rounded-full bg-muted shrink-0" />
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <span className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-muted/60 border border-border/50 shrink-0 flex items-center justify-center text-[10px] text-muted-foreground/60 font-black">
+          ?
+        </span>
         <span className="leading-tight text-xs xl:text-sm font-bold text-muted-foreground/70 truncate italic">
           {team.name}
         </span>
@@ -68,15 +70,19 @@ function TeamSlotDisplay({
   };
 
   return (
-    <div className="flex items-center gap-2 min-w-0 flex-1">
-      <img
-        src={team.logo || "/logo.webp"}
-        alt=""
-        className="h-5 w-5 xl:h-6 xl:w-6 rounded-full shrink-0 object-contain bg-muted/40 p-0.5 border border-border/60"
-      />
-      <div className="flex flex-col min-w-0 flex-1">
+    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+      {/* Logo Tim Diperbesar */}
+      <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full shrink-0 overflow-hidden bg-muted/30 p-0.5 border border-border/70 flex items-center justify-center shadow-2xs">
+        <img
+          src={team.logo || "/logo.webp"}
+          alt=""
+          className="h-full w-full rounded-full object-contain"
+        />
+      </div>
+
+      <div className="flex flex-col min-w-0 flex-1 justify-center">
         <span
-          className={`leading-tight text-xs xl:text-sm font-bold truncate ${
+          className={`leading-tight text-xs sm:text-sm font-bold truncate ${
             team.isWinner ? "text-primary font-black" : "text-foreground"
           }`}
         >
@@ -88,17 +94,17 @@ function TeamSlotDisplay({
           {isFinished ? (
             team.isWinner ? (
               <span
-                className={`text-[8.5px] xl:text-[9.5px] font-black uppercase px-1.5 py-0.5 rounded border leading-none ${badgeColorMap[nextBadgeColor]}`}
+                className={`text-[8.5px] sm:text-[9.5px] font-black uppercase px-1.5 py-0.5 rounded border leading-none ${badgeColorMap[nextBadgeColor]}`}
               >
                 Advance to {nextStageLabel}
               </span>
             ) : (
-              <span className="text-[8.5px] xl:text-[9.5px] font-black uppercase px-1.5 py-0.5 rounded border border-rose-500/30 bg-rose-500/10 text-rose-500 leading-none">
+              <span className="text-[8.5px] sm:text-[9.5px] font-black uppercase px-1.5 py-0.5 rounded border border-rose-500/30 bg-rose-500/10 text-rose-500 leading-none">
                 Eliminated
               </span>
             )
           ) : (
-            <span className="text-[9.5px] xl:text-[10px] text-muted-foreground/80 font-medium truncate leading-none">
+            <span className="text-[9.5px] sm:text-[10.5px] text-muted-foreground/80 font-medium truncate leading-none">
               {team.seedLabel}
             </span>
           )}
@@ -130,7 +136,7 @@ function TimelineMatchCard({
 
   return (
     <div
-      className={`rounded-xl border p-3 xl:p-3.5 flex flex-col gap-2 shadow-xs transition relative z-10 ${
+      className={`rounded-xl border p-3 xl:p-3.5 flex flex-col gap-2.5 shadow-xs transition relative z-10 ${
         borderThemeMap[colorTheme]
       } ${isDirect ? "bg-amber-500/5 border-amber-500/40" : ""}`}
     >
@@ -140,6 +146,7 @@ function TimelineMatchCard({
         </span>
       </div>
 
+      {/* Tim A */}
       <div className="flex items-center justify-between font-bold text-xs min-w-0 gap-2">
         <TeamSlotDisplay
           team={match.teamA}
@@ -158,6 +165,7 @@ function TimelineMatchCard({
 
       <div className="border-t border-border/30" />
 
+      {/* Tim B */}
       <div className="flex items-center justify-between font-bold text-xs min-w-0 gap-2">
         <TeamSlotDisplay
           team={match.teamB}
@@ -274,4 +282,4 @@ export function PlayoffTab({ schedules = [] }: PlayoffTabProps) {
       </div>
     </div>
   );
-}
+}            
