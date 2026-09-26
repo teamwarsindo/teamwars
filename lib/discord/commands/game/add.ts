@@ -1,17 +1,7 @@
-import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { MatchScheduleItem } from '@/app/tournament/_library';
-import { sendOfficialScoreLog } from '@/lib/discord/messages/score-log';
-import { getMatchContext } from '@/lib/discord/commands/assign/helpers';
 import { GameContext } from './types';
-import {
-  computeNextInstructions,
-  buildMatchReportEmbed,
-  publishMatchReport,
-  saveAndSyncMatchState,
-  buildDecklossClaimMenu,
-} from './renderer';
+import { computeNextInstructions, buildDecklossClaimMenu } from './renderer';
+import { syncAndBroadcastGameState } from '../game';
 
 export async function handleGameAdd(ctx: GameContext) {
   const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff, userIsAdmin } = ctx;
@@ -157,7 +147,6 @@ export async function handleGameAdd(ctx: GameContext) {
 
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
 
-  // Instruksi dinamis deckloss tanpa hardcode timer 3 menit
   if (isDecklossOpt && !reportData.isFinished) {
     const penaltyTeam = winnerOpt === 'A' ? reportData.teamB : reportData.teamA;
     const penaltyPlayer = winnerOpt === 'A' ? pB : pA;
@@ -189,52 +178,19 @@ export async function handleGameAdd(ctx: GameContext) {
     };
   }
 
-  if (!isBeforeKickoff) {
-    await saveAndSyncMatchState(match, reportData);
-  }
-
-  // 🏆 KETIKA SALAH SATU TIM MENCAPAI SKOR 10
-  if (reportData.isFinished) {
-    try {
-      const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-      const idx = schedules.findIndex((m) => m.id === match.id);
-
-      if (idx !== -1) {
-        schedules[idx].scoreA = finalScoreA;
-        schedules[idx].scoreB = finalScoreB;
-        await kv.set('twi:schedules', schedules);
-
-        const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
-        if (chScore) {
-          const matchCtx = await getMatchContext(schedules[idx]);
-          const isWinnerA = finalScoreA >= 10;
-          const winnerData = isWinnerA ? matchCtx.teamA : matchCtx.teamB;
-          const winnerHex = winnerData?.warna || (isWinnerA ? '#3498db' : '#e74c3c');
-
-          await sendOfficialScoreLog({
-            channelId: chScore,
-            teamAName: schedules[idx].teamAName,
-            teamBName: schedules[idx].teamBName,
-            teamAEmoji: matchCtx.teamAEmoji,
-            teamBEmoji: matchCtx.teamBEmoji,
-            scoreA: finalScoreA,
-            scoreB: finalScoreB,
-            winnerHex,
-          });
-        }
-      }
-    } catch (err) {
-      console.error('[GAME FINISH TRIGGER ERROR]:', err);
-    }
-  }
-
-  const matchEmbed = await buildMatchReportEmbed(match, reportData, winnerOpt);
+  // 🔄 EKSEKUSI SINKRONISASI SATU PINTU
+  const { matchEmbed } = await syncAndBroadcastGameState({
+    match,
+    reportData,
+    channelId,
+    winnerOpt,
+    isBeforeKickoff,
+    userIsAdmin,
+  });
 
   if (isBeforeKickoff && userIsAdmin) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', { embeds: [matchEmbed] });
   }
-
-  await publishMatchReport(channelId, match.id, matchEmbed);
 
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
     const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
@@ -261,4 +217,4 @@ export async function handleGameAdd(ctx: GameContext) {
   return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
     content: successMsg,
   });
-}    
+}
