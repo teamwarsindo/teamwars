@@ -1,93 +1,175 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
+import {
+  MatchScheduleItem,
+  getTeamSlug,
+  getMatchWeekNumber,
+} from '@/app/tournament/_library';
 
-export async function POST() {
+export const dynamic = 'force-dynamic';
+
+async function handleMigration() {
   try {
-    // 1. Ambil semua key tim yang sah & map verifikasi discord
-    const teamKeys = await kv.keys('teams:*');
-    const verifiedUsersData = (await kv.hgetall('global:verified_users')) || {};
-    const verifiedMap = verifiedUsersData as Record<string, string>;
+    // 1. Ambil seluruh data yang terlibat
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const oldActiveCampMap = (await kv.hgetall<Record<string, any>>('twi:active_camp_channels')) || {};
+    const existingMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
 
-    const validPlayers: any[] = [];
-    const validTeams = new Set<string>();
+    const migratedMessages: Record<string, any> = {};
+    let scheduleCleanedCount = 0;
 
-    for (const key of teamKeys) {
-      const teamData: any = await kv.hgetall(key);
-      if (teamData && teamData.players) {
-        const teamSlug = key.replace('teams:', '');
-        validTeams.add(teamSlug);
-
-        const players =
-          typeof teamData.players === 'string'
-            ? JSON.parse(teamData.players)
-            : teamData.players;
-
-        if (Array.isArray(players)) {
-          players.forEach((p: any) => {
-            validPlayers.push(p);
-          });
-        }
+    // Index pembantu dari active_camp_channels lama jika ada
+    const campInfoByMatchAndTeam: Record<string, any> = {};
+    for (const channelId in oldActiveCampMap) {
+      let campData = oldActiveCampMap[channelId];
+      if (typeof campData === 'string') {
+        try { campData = JSON.parse(campData); } catch { continue; }
+      }
+      if (campData?.matchId && campData?.teamKey) {
+        campInfoByMatchAndTeam[`${campData.matchId}_${campData.teamKey}`] = {
+          ...campData,
+          channelId,
+        };
       }
     }
 
-    // 2. NUKE: Hapus Set Global Lama
-    await kv.del('global:discord');
-    await kv.del('global:discord_ids');
-    await kv.del('global:ign');
-    await kv.del('global:duellinks');
-    await kv.del('global:teams');
-    await kv.del('global:duelId'); // Hapus key legacy jika ada
+    // 2. Iterasi dan normalisasi setiap match
+    for (const match of schedules) {
+      const matchId = match.id;
+      if (!matchId) continue;
 
-    // BASMI SELURUH KEY SPAM player:* DARI REDIS
-    const spamPlayerKeys = await kv.keys('player:*');
-    if (spamPlayerKeys.length > 0) {
-      await kv.del(...spamPlayerKeys);
-    }
+      const slugA = getTeamSlug(match.teamAName);
+      const slugB = getTeamSlug(match.teamBName);
+      const matchWeek = (match as any).weekNumber || getMatchWeekNumber(match.matchDate);
 
-    // 3. REBUILD: HANYA SET GLOBAL RESMI (Preserve Casing / Huruf Besar-Kecil)
-    for (const slug of Array.from(validTeams)) {
-      await kv.sadd('global:teams', slug);
-    }
-
-    let rebuildCount = 0;
-    for (const p of validPlayers) {
-      const originalDiscord = p.discord ? p.discord.replace(/^@/, '').trim() : '';
-      const originalIgn = p.ign ? p.ign.trim() : '';
-      const originalId = p.idDuelLinks ? p.idDuelLinks.toString().trim() : '';
-
-      if (originalDiscord) {
-        // Simpan username Discord asli ke set global:discord
-        await kv.sadd('global:discord', originalDiscord);
-
-        // Cari ID angka dari buku besar global:verified_users
-        const searchKey = originalDiscord.toLowerCase();
-        const discordId = verifiedMap[originalDiscord] || verifiedMap[searchKey];
-        if (discordId) {
-          await kv.sadd('global:discord_ids', discordId);
-        }
+      // Ambil data pesan yang sudah ada
+      let rawMsg = existingMessages[matchId];
+      let msgObj: any = {};
+      if (typeof rawMsg === 'string') {
+        try { msgObj = JSON.parse(rawMsg); } catch { msgObj = {}; }
+      } else if (typeof rawMsg === 'object' && rawMsg !== null) {
+        msgObj = rawMsg;
       }
 
-      if (originalIgn) {
-        await kv.sadd('global:ign', originalIgn);
-      }
+      // Ambil referensi dari active_camp_channels lama bila msgObj belum lengkap
+      const legacyCampA = campInfoByMatchAndTeam[`${matchId}_teamA`] || {};
+      const legacyCampB = campInfoByMatchAndTeam[`${matchId}_teamB`] || {};
 
-      if (originalId) {
-        await kv.sadd('global:duellinks', originalId);
-      }
+      // Resolusi Channel ID
+      const chA = msgObj.campA?.channelId || legacyCampA.channelId || null;
+      const chB = msgObj.campB?.channelId || legacyCampB.channelId || null;
+      const chMatch = match.discordChannelId || msgObj.matchChannel?.channelId || null;
 
-      rebuildCount++;
+      // Resolusi activeMsgId (prioritaskan activeMsgId -> trackerMsgId -> submitMsgId)
+      const activeMsgIdA =
+        msgObj.campA?.activeMsgId ||
+        msgObj.campA?.trackerMsgId ||
+        msgObj.campA?.submitMsgId ||
+        legacyCampA.submitMsgId ||
+        null;
+
+      const activeMsgIdB =
+        msgObj.campB?.activeMsgId ||
+        msgObj.campB?.trackerMsgId ||
+        msgObj.campB?.submitMsgId ||
+        legacyCampB.submitMsgId ||
+        null;
+
+      // Ambil status pengiriman
+      const campMorningSent =
+        msgObj.campMorningSent !== undefined
+          ? Boolean(msgObj.campMorningSent)
+          : Boolean((match as any).campMorningSent);
+
+      const matchBriefingSent =
+        msgObj.matchBriefingSent !== undefined
+          ? Boolean(msgObj.matchBriefingSent)
+          : Boolean((match as any).matchBriefingSent);
+
+      const briefingMsgId =
+        msgObj.matchChannel?.briefingMsgId ||
+        (match as any).briefingMsgId ||
+        null;
+
+      // Bentuk struktur terpadu 1 sumber
+      migratedMessages[matchId] = {
+        matchId,
+        week: matchWeek,
+        matchDate: match.matchDate,
+        campA: {
+          teamKey: 'teamA',
+          name: match.teamAName,
+          slug: slugA,
+          channelId: chA,
+          morningMsgId: msgObj.campA?.morningMsgId || null,
+          activeMsgId: activeMsgIdA,
+        },
+        campB: {
+          teamKey: 'teamB',
+          name: match.teamBName,
+          slug: slugB,
+          channelId: chB,
+          morningMsgId: msgObj.campB?.morningMsgId || null,
+          activeMsgId: activeMsgIdB,
+        },
+        matchChannel: {
+          channelId: chMatch,
+          briefingMsgId,
+          lastReportMsgId: msgObj.matchChannel?.lastReportMsgId || null,
+        },
+        campMorningSent,
+        matchBriefingSent,
+      };
+
+      // 3. Bersihkan sisa flag dari twi:schedules
+      let matchModified = false;
+      if ('campMorningSent' in match) {
+        delete (match as any).campMorningSent;
+        matchModified = true;
+      }
+      if ('matchBriefingSent' in match) {
+        delete (match as any).matchBriefingSent;
+        matchModified = true;
+      }
+      if ('briefingMsgId' in match) {
+        delete (match as any).briefingMsgId;
+        matchModified = true;
+      }
+      if (matchModified) {
+        scheduleCleanedCount++;
+      }
     }
+
+    // 4. Eksekusi penyimpanan ke KV
+    if (Object.keys(migratedMessages).length > 0) {
+      await kv.hset('discord:match_messages', migratedMessages);
+    }
+
+    if (scheduleCleanedCount > 0) {
+      await kv.set('twi:schedules', schedules);
+    }
+
+    await kv.del('twi:active_camp_channels');
 
     return NextResponse.json({
       success: true,
-      stats: {
-        totalTim: validTeams.size,
-        totalPemain: rebuildCount,
-        spamPlayerKeysDihapus: spamPlayerKeys.length,
+      message: 'Migrasi KV discord:match_messages berhasil diselesaikan.',
+      summary: {
+        totalMatchesMigrated: Object.keys(migratedMessages).length,
+        schedulesCleaned: scheduleCleanedCount,
+        deletedLegacyKey: 'twi:active_camp_channels',
       },
     });
   } catch (error: any) {
-    console.error('Cleanup Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('[MIGRATION ERROR]', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
+}
+
+export async function GET() {
+  return handleMigration();
+}
+
+export async function POST() {
+  return handleMigration();
         }
