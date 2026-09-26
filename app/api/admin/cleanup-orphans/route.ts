@@ -10,15 +10,35 @@ export const dynamic = 'force-dynamic';
 
 async function handleMigration() {
   try {
-    // 1. Ambil seluruh data yang terlibat
+    // 1. Ambil seluruh data sumber
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const oldActiveCampMap = (await kv.hgetall<Record<string, any>>('twi:active_camp_channels')) || {};
     const existingMessages = (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
 
     const migratedMessages: Record<string, any> = {};
+    const keysToDelete: string[] = [];
     let scheduleCleanedCount = 0;
+    let oldMatchesUpdated = 0;
 
-    // Index pembantu dari active_camp_channels lama jika ada
+    // Patokan batas waktu saat ini (WIB / UTC)
+    const now = new Date();
+
+    // Cache tim master untuk mencegah fetch KV berulang
+    const teamsCache: Record<string, any> = {};
+    async function getTeamData(slug: string) {
+      if (!slug) return null;
+      if (teamsCache[slug] !== undefined) return teamsCache[slug];
+      try {
+        const data = await kv.get<any>(`teams:${slug}`);
+        teamsCache[slug] = data || null;
+        return data;
+      } catch {
+        teamsCache[slug] = null;
+        return null;
+      }
+    }
+
+    // Index pembantu dari active_camp_channels lama bila ada
     const campInfoByMatchAndTeam: Record<string, any> = {};
     for (const channelId in oldActiveCampMap) {
       let campData = oldActiveCampMap[channelId];
@@ -33,7 +53,7 @@ async function handleMigration() {
       }
     }
 
-    // 2. Iterasi dan normalisasi setiap match
+    // 2. Iterasi setiap match dalam jadwal
     for (const match of schedules) {
       const matchId = match.id;
       if (!matchId) continue;
@@ -42,86 +62,102 @@ async function handleMigration() {
       const slugB = getTeamSlug(match.teamBName);
       const matchWeek = (match as any).weekNumber || getMatchWeekNumber(match.matchDate);
 
-      // Ambil data pesan yang sudah ada
-      let rawMsg = existingMessages[matchId];
-      let msgObj: any = {};
-      if (typeof rawMsg === 'string') {
-        try { msgObj = JSON.parse(rawMsg); } catch { msgObj = {}; }
-      } else if (typeof rawMsg === 'object' && rawMsg !== null) {
-        msgObj = rawMsg;
+      // Cek apakah match sudah lewat atau belum jalan
+      const matchTime = new Date(match.matchDate);
+      const isUpcoming = matchTime >= now && !match.isFinished;
+
+      // STRATEGI 1: Match yang BELUM JALAN -> Hapus dari KV discord:match_messages
+      if (isUpcoming) {
+        keysToDelete.push(matchId);
+      } else {
+        // STRATEGI 2: Match LAMA / SELESAI -> Pertahankan & Isi channelId dari master tim jika null
+        let rawMsg = existingMessages[matchId];
+        let msgObj: any = {};
+        if (typeof rawMsg === 'string') {
+          try { msgObj = JSON.parse(rawMsg); } catch { msgObj = {}; }
+        } else if (typeof rawMsg === 'object' && rawMsg !== null) {
+          msgObj = rawMsg;
+        }
+
+        const legacyCampA = campInfoByMatchAndTeam[`${matchId}_teamA`] || {};
+        const legacyCampB = campInfoByMatchAndTeam[`${matchId}_teamB`] || {};
+
+        let chA = msgObj.campA?.channelId || legacyCampA.channelId || null;
+        let chB = msgObj.campB?.channelId || legacyCampB.channelId || null;
+        const chMatch = match.discordChannelId || msgObj.matchChannel?.channelId || null;
+
+        // Jika channel camp masih null, ambil dari teams:[slug]
+        if (!chA && slugA) {
+          const teamA = await getTeamData(slugA);
+          chA = teamA?.channelCampId || teamA?.discordChannelId || null;
+        }
+        if (!chB && slugB) {
+          const teamB = await getTeamData(slugB);
+          chB = teamB?.channelCampId || teamB?.discordChannelId || null;
+        }
+
+        const activeMsgIdA =
+          msgObj.campA?.activeMsgId ||
+          msgObj.campA?.trackerMsgId ||
+          msgObj.campA?.submitMsgId ||
+          legacyCampA.submitMsgId ||
+          null;
+
+        const activeMsgIdB =
+          msgObj.campB?.activeMsgId ||
+          msgObj.campB?.trackerMsgId ||
+          msgObj.campB?.submitMsgId ||
+          legacyCampB.submitMsgId ||
+          null;
+
+        const campMorningSent =
+          msgObj.campMorningSent !== undefined
+            ? Boolean(msgObj.campMorningSent)
+            : Boolean((match as any).campMorningSent ?? true);
+
+        const matchBriefingSent =
+          msgObj.matchBriefingSent !== undefined
+            ? Boolean(msgObj.matchBriefingSent)
+            : Boolean((match as any).matchBriefingSent ?? true);
+
+        const briefingMsgId =
+          msgObj.matchChannel?.briefingMsgId ||
+          (match as any).briefingMsgId ||
+          null;
+
+        migratedMessages[matchId] = {
+          matchId,
+          week: matchWeek,
+          matchDate: match.matchDate,
+          campA: {
+            teamKey: 'teamA',
+            name: match.teamAName,
+            slug: slugA,
+            channelId: chA,
+            morningMsgId: msgObj.campA?.morningMsgId || null,
+            activeMsgId: activeMsgIdA,
+          },
+          campB: {
+            teamKey: 'teamB',
+            name: match.teamBName,
+            slug: slugB,
+            channelId: chB,
+            morningMsgId: msgObj.campB?.morningMsgId || null,
+            activeMsgId: activeMsgIdB,
+          },
+          matchChannel: {
+            channelId: chMatch,
+            briefingMsgId,
+            lastReportMsgId: msgObj.matchChannel?.lastReportMsgId || null,
+          },
+          campMorningSent,
+          matchBriefingSent,
+        };
+
+        oldMatchesUpdated++;
       }
 
-      // Ambil referensi dari active_camp_channels lama bila msgObj belum lengkap
-      const legacyCampA = campInfoByMatchAndTeam[`${matchId}_teamA`] || {};
-      const legacyCampB = campInfoByMatchAndTeam[`${matchId}_teamB`] || {};
-
-      // Resolusi Channel ID
-      const chA = msgObj.campA?.channelId || legacyCampA.channelId || null;
-      const chB = msgObj.campB?.channelId || legacyCampB.channelId || null;
-      const chMatch = match.discordChannelId || msgObj.matchChannel?.channelId || null;
-
-      // Resolusi activeMsgId (prioritaskan activeMsgId -> trackerMsgId -> submitMsgId)
-      const activeMsgIdA =
-        msgObj.campA?.activeMsgId ||
-        msgObj.campA?.trackerMsgId ||
-        msgObj.campA?.submitMsgId ||
-        legacyCampA.submitMsgId ||
-        null;
-
-      const activeMsgIdB =
-        msgObj.campB?.activeMsgId ||
-        msgObj.campB?.trackerMsgId ||
-        msgObj.campB?.submitMsgId ||
-        legacyCampB.submitMsgId ||
-        null;
-
-      // Ambil status pengiriman
-      const campMorningSent =
-        msgObj.campMorningSent !== undefined
-          ? Boolean(msgObj.campMorningSent)
-          : Boolean((match as any).campMorningSent);
-
-      const matchBriefingSent =
-        msgObj.matchBriefingSent !== undefined
-          ? Boolean(msgObj.matchBriefingSent)
-          : Boolean((match as any).matchBriefingSent);
-
-      const briefingMsgId =
-        msgObj.matchChannel?.briefingMsgId ||
-        (match as any).briefingMsgId ||
-        null;
-
-      // Bentuk struktur terpadu 1 sumber
-      migratedMessages[matchId] = {
-        matchId,
-        week: matchWeek,
-        matchDate: match.matchDate,
-        campA: {
-          teamKey: 'teamA',
-          name: match.teamAName,
-          slug: slugA,
-          channelId: chA,
-          morningMsgId: msgObj.campA?.morningMsgId || null,
-          activeMsgId: activeMsgIdA,
-        },
-        campB: {
-          teamKey: 'teamB',
-          name: match.teamBName,
-          slug: slugB,
-          channelId: chB,
-          morningMsgId: msgObj.campB?.morningMsgId || null,
-          activeMsgId: activeMsgIdB,
-        },
-        matchChannel: {
-          channelId: chMatch,
-          briefingMsgId,
-          lastReportMsgId: msgObj.matchChannel?.lastReportMsgId || null,
-        },
-        campMorningSent,
-        matchBriefingSent,
-      };
-
-      // 3. Bersihkan sisa flag dari twi:schedules
+      // 3. Bersihkan flag bot dari twi:schedules
       let matchModified = false;
       if ('campMorningSent' in match) {
         delete (match as any).campMorningSent;
@@ -140,22 +176,32 @@ async function handleMigration() {
       }
     }
 
-    // 4. Eksekusi penyimpanan ke KV
+    // 4. Eksekusi KV Updates
+    // A. Simpan data match lama yang channel-nya sudah diselaraskan
     if (Object.keys(migratedMessages).length > 0) {
       await kv.hset('discord:match_messages', migratedMessages);
     }
 
+    // B. Hapus key match yang belum jalan agar dibuat fresh oleh cronjob
+    if (keysToDelete.length > 0) {
+      await kv.hdel('discord:match_messages', ...keysToDelete);
+    }
+
+    // C. Simpan jadwal yang sudah bersih
     if (scheduleCleanedCount > 0) {
       await kv.set('twi:schedules', schedules);
     }
 
+    // D. Hapus key legacy
     await kv.del('twi:active_camp_channels');
 
     return NextResponse.json({
       success: true,
-      message: 'Migrasi KV discord:match_messages berhasil diselesaikan.',
+      message: 'Migrasi & pembersihan data berhasil dijalankan.',
       summary: {
-        totalMatchesMigrated: Object.keys(migratedMessages).length,
+        oldMatchesMigratedAndSynced: oldMatchesUpdated,
+        upcomingMatchesDeleted: keysToDelete.length,
+        deletedMatchIds: keysToDelete,
         schedulesCleaned: scheduleCleanedCount,
         deletedLegacyKey: 'twi:active_camp_channels',
       },
@@ -172,4 +218,4 @@ export async function GET() {
 
 export async function POST() {
   return handleMigration();
-        }
+}
