@@ -1,8 +1,9 @@
-import { kv } from '@vercel/kv';
 import { discordAPI } from '@/lib/discord/utils';
-import { GameContext, patchCampTrackers } from './types';
+import { GameContext } from './types';
+import { patchCampTrackers } from './camp-tracker';
 import {
   computeNextInstructions,
+  saveAndSyncMatchState,
   buildDecklossClaimMenu,
 } from './renderer';
 
@@ -59,7 +60,7 @@ export async function handleGameEdit(ctx: GameContext) {
     });
   }
 
-  // Terapkan perubahan
+  // Terapkan perubahan jika aman atau jika targetnya adalah game terakhir
   targetGame.ssHandA = simSsHandA;
   targetGame.ssHandB = simSsHandB;
   reportData.games[targetIndex] = targetGame;
@@ -74,14 +75,13 @@ export async function handleGameEdit(ctx: GameContext) {
 
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
 
-  // 1. Simpan perubahan ke KV database
+  // 1. Simpan state report ke KV database
   if (!isBeforeKickoff) {
-    await kv.set(`twi:match_reports:${match.id}`, reportData);
+    await saveAndSyncMatchState(match, reportData);
   }
 
-  // 2. PATCH langsung tracker di Camp Tim (LEWATI update di channel match room)
-  const matchWeek = match.weekNumber || match.week || 1;
-  await patchCampTrackers(match.id, matchWeek, reportData, match);
+  // 2. PATCH langsung tracker di Camp Tim (Lewati update room match)
+  await patchCampTrackers(match.id, match.weekNumber, reportData, match);
 
   // Sanksi 2x Warning hanya diproses jika terjadi pada game terakhir
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
@@ -108,6 +108,6 @@ export async function handleGameEdit(ctx: GameContext) {
       `• SS Hand Tim A: **${targetGame.ssHandA ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
       `• SS Hand Tim B: **${targetGame.ssHandB ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
       `• Akumulasi Warning: ${reportData.teamA.name} (${simWarningsA}/2) | ${reportData.teamB.name} (${simWarningsB}/2)\n` +
-      `• *Live Tracker di Camp Tim telah di-patch secara otomatis.*`,
+      `• *Live Tracker di Camp Tim telah di-patch.*`,
   });
 }
