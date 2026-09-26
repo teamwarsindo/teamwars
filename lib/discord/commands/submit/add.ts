@@ -33,9 +33,20 @@ export function handleSubAdd(ctx: SubmitContext): { error?: string; message?: st
     return { ign: parsed.ign, idDuelLinks: idDl, count: item.count };
   });
 
-  const newValidEntries = parsedEntries.filter(
-    (entry) => !currentLineup.some((p) => String(p.ign || '').toLowerCase() === entry.ign.toLowerCase())
-  );
+  // Perbaikan No. 2: Filter duplikasi internal (input berulang pada command yang sama)
+  // sekaligus filter terhadap nama yang sudah ada di currentLineup
+  const seenIgns = new Set<string>();
+  const newValidEntries = parsedEntries.filter((entry) => {
+    const ignLower = entry.ign.toLowerCase();
+    const isAlreadyInLineup = currentLineup.some(
+      (p) => String(p.ign || '').toLowerCase() === ignLower
+    );
+    if (isAlreadyInLineup || seenIgns.has(ignLower)) {
+      return false;
+    }
+    seenIgns.add(ignLower);
+    return true;
+  });
 
   if (newValidEntries.length === 0) {
     return { error: '⚠️ Semua pemain yang kamu masukkan sudah terdaftar di lineup!' };
@@ -67,5 +78,5 @@ export function handleSubAdd(ctx: SubmitContext): { error?: string; message?: st
   targetTeam.lineup = currentLineup;
   return {
     message: `✅ **Berhasil Mendaftarkan ${newValidEntries.length} Pemain ke Lineup!**\n${addedList.join('\n')}`,
-  };
+  };         
 }
