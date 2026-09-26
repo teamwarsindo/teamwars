@@ -1,13 +1,10 @@
 import { discordAPI } from '@/lib/discord/utils';
 import { GameContext } from './types';
-import {
-  computeNextInstructions,
-  saveAndPatchMatchState, // <-- Panggil dari renderer
-  buildDecklossClaimMenu,
-} from './renderer';
+import { computeNextInstructions, buildDecklossClaimMenu } from './renderer';
+import { syncAndBroadcastGameState } from '../game';
 
 export async function handleGameEdit(ctx: GameContext) {
-  const { appId, token, match, reportData, optMap, isBeforeKickoff } = ctx;
+  const { channelId, appId, token, match, reportData, optMap, isBeforeKickoff, userIsAdmin } = ctx;
 
   if (!reportData.games || reportData.games.length === 0) {
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
@@ -37,7 +34,6 @@ export async function handleGameEdit(ctx: GameContext) {
   const simSsHandA = optMap.ss_hand_a !== undefined ? Boolean(optMap.ss_hand_a) : (targetGame.ssHandA ?? true);
   const simSsHandB = optMap.ss_hand_b !== undefined ? Boolean(optMap.ss_hand_b) : (targetGame.ssHandB ?? true);
 
-  // Simulasi hitung total warning jika perubahan diterapkan
   let simWarningsA = 0;
   let simWarningsB = 0;
 
@@ -48,7 +44,6 @@ export async function handleGameEdit(ctx: GameContext) {
     if (!valB) simWarningsB++;
   });
 
-  // Tolak langsung jika mengedit game lampau dan memicu warning >= 2
   if (isMiddleGame && (simWarningsA >= 2 || simWarningsB >= 2)) {
     const violatedTeam = simWarningsA >= 2 ? reportData.teamA.name : reportData.teamB.name;
     return discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
@@ -59,14 +54,12 @@ export async function handleGameEdit(ctx: GameContext) {
     });
   }
 
-  // Terapkan perubahan jika aman atau jika targetnya adalah game terakhir
   targetGame.ssHandA = simSsHandA;
   targetGame.ssHandB = simSsHandB;
   reportData.games[targetIndex] = targetGame;
   reportData.teamA.warningsUsed = simWarningsA;
   reportData.teamB.warningsUsed = simWarningsB;
 
-  // Evaluasi instruksi berdasarkan game terakhir
   const latestGame = reportData.games[latestIndex];
   const winnerOpt = latestGame.winner === 'teamA' ? 'A' : 'B';
   const pA = (reportData.teamA?.lineup || []).find((p: any) => p.ign?.toLowerCase() === latestGame.playerA?.ign?.toLowerCase());
@@ -74,12 +67,16 @@ export async function handleGameEdit(ctx: GameContext) {
 
   const { isTeamAPenalty, isTeamBPenalty } = computeNextInstructions(reportData, winnerOpt, pA, pB);
 
-  // 1. Simpan state & sync PATCH live tracker lewat renderer
-  if (!isBeforeKickoff) {
-    await saveAndPatchMatchState(match, reportData);
-  }
+  // 🔄 EKSEKUSI SINKRONISASI SATU PINTU
+  await syncAndBroadcastGameState({
+    match,
+    reportData,
+    channelId,
+    winnerOpt,
+    isBeforeKickoff,
+    userIsAdmin,
+  });
 
-  // Sanksi 2x Warning hanya diproses jika terjadi pada game terakhir
   if (!reportData.isFinished && (isTeamAPenalty || isTeamBPenalty)) {
     const penaltyTeam = isTeamAPenalty ? reportData.teamA : reportData.teamB;
     const innocentTeam = isTeamAPenalty ? reportData.teamB : reportData.teamA;
@@ -104,6 +101,6 @@ export async function handleGameEdit(ctx: GameContext) {
       `• SS Hand Tim A: **${targetGame.ssHandA ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
       `• SS Hand Tim B: **${targetGame.ssHandB ? 'Terkirim' : 'Tidak Terkirim'}**\n` +
       `• Akumulasi Warning: ${reportData.teamA.name} (${simWarningsA}/2) | ${reportData.teamB.name} (${simWarningsB}/2)\n` +
-      `• *Live Tracker di Camp Tim telah di-patch.*`,
+      `• *Live Tracker di Camp Tim telah diperbarui.*`,
   });
 }
