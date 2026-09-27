@@ -1,10 +1,13 @@
-import { SubmitContext, parseIgnAndId, createEmptyDeck } from './types';
+import { SubmitContext, parseIgnAndId, createEmptyDeck, isAdminOrChief } from './types';
 import { syncCustomDeckAndSkillToMaster } from './master-sync';
 
 export async function handleSubEdit(ctx: SubmitContext): Promise<{ error?: string; message?: string }> {
-  const { teamKey, reportData, optMap } = ctx;
+  const { teamKey, reportData, optMap, interaction } = ctx;
   const targetTeam = reportData[teamKey];
   const currentLineup: any[] = targetTeam.lineup || [];
+  const games: any[] = reportData.games || [];
+  const hasGameStarted = games.length > 0;
+  const userIsAdmin = isAdminOrChief(interaction);
 
   if (currentLineup.length === 0) {
     return { error: '⚠️ **Lineup tim ini masih kosong!** Daftarkan pemain terlebih dahulu dengan `/submit add`.' };
@@ -28,15 +31,34 @@ export async function handleSubEdit(ctx: SubmitContext): Promise<{ error?: strin
     return { error: `❌ Pemain **${parsedTarget.ign}** tidak ditemukan di lineup!` };
   }
 
-  // Perbaikan No. 4: Abaikan whitespace/string kosong agar tidak menimpa data yang ada
+  // Cek apakah pemain sudah pernah bermain di duel fisik
+  const isPlayedInGames = games.some((g: any) => {
+    const pA = String(g.playerA?.ign || g.playerA || '').toLowerCase();
+    const pB = String(g.playerB?.ign || g.playerB || '').toLowerCase();
+    const target = playerObj.ign.toLowerCase();
+    return pA === target || pB === target;
+  });
+
+  if (isPlayedInGames) {
+    return {
+      error: `❌ **Akses Ditolak!** Pemain **${playerObj.ign}** sudah memiliki catatan duel pada pertandingan ini dan tidak dapat diedit.`,
+    };
+  }
+
   const rawDeck1 = optMap.deck_1?.trim() || undefined;
   const rawSkill1 = optMap.skill_1?.trim() || undefined;
   const rawDeck2 = optMap.deck_2?.trim() || undefined;
   const rawSkill2 = optMap.skill_2?.trim() || undefined;
 
-  // Validasi fleksibel: Terima bila salah satu dari keempat opsi diisi
   if (!rawDeck1 && !rawSkill1 && !rawDeck2 && !rawSkill2) {
     return { error: '⚠️ Masukkan minimal salah satu data: **Nama Deck** atau **Skill** untuk memperbarui data!' };
+  }
+
+  // Jika match sudah jalan tapi pemain belum pernah tanding: HANYA ADMIN yang boleh ganti deck/skill
+  if (hasGameStarted && !userIsAdmin) {
+    return {
+      error: `❌ Pertandingan sudah berjalan. Hanya **Admin/Chief** yang berwenang mengubah deck/skill pemain cadangan.`,
+    };
   }
 
   const updatedDecks: string[] = [];
@@ -47,7 +69,6 @@ export async function handleSubEdit(ctx: SubmitContext): Promise<{ error?: strin
   if (rawDeck1 || rawSkill1) {
     const existingDeck1 = playerObj.deck1 || createEmptyDeck();
 
-    // Perbaikan No. 1: Tolak edit jika deck 1 sudah gugur atau sudah pernah dimainkan
     if (existingDeck1.isDead || (existingDeck1.wins || 0) > 0 || (existingDeck1.losses || 0) > 0) {
       return { error: `❌ **Deck 1** milik **${playerObj.ign}** tidak dapat diedit karena sudah pernah dimainkan atau sudah gugur!` };
     }
@@ -76,7 +97,6 @@ export async function handleSubEdit(ctx: SubmitContext): Promise<{ error?: strin
   if (rawDeck2 || rawSkill2) {
     const existingDeck2 = playerObj.deck2 || createEmptyDeck();
 
-    // Perbaikan No. 1: Tolak edit jika deck 2 sudah gugur atau sudah pernah dimainkan
     if (existingDeck2.isDead || (existingDeck2.wins || 0) > 0 || (existingDeck2.losses || 0) > 0) {
       return { error: `❌ **Deck 2** milik **${playerObj.ign}** tidak dapat diedit karena sudah pernah dimainkan atau sudah gugur!` };
     }
@@ -103,4 +123,4 @@ export async function handleSubEdit(ctx: SubmitContext): Promise<{ error?: strin
   return {
     message: `📝 **Berhasil Memperbarui Data Pemain:** **${parsedTarget.ign}**\n${updatedDecks.map((d) => `• ${d}`).join('\n')}`,
   };
-}
+} 
