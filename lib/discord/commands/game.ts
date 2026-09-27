@@ -5,9 +5,10 @@ import { discordAPI } from '@/lib/discord/utils';
 import { MatchScheduleItem } from '@/app/tournament/_library';
 import { sendOfficialScoreLog } from '@/lib/discord/messages/score-log';
 import { getMatchContext } from '@/lib/discord/commands/assign/helpers';
-import { sendOrUpdateLiveTracker, TrackerPlayer } from '@/lib/discord/messages/match-briefing';
 import { resolveMatchFromChannel, getOptionMap, GameContext } from './game/types';
 import { buildMatchReportEmbed, publishMatchReport } from './game/renderer';
+import { renderCampTrackerEmbed } from './game/camp-tracker';
+import { syncOfficialMatchReport } from './game/official-report';
 import { handleGameAdd } from './game/add';
 import { handleGameEdit } from './game/edit';
 import { handleGameDel } from './game/del';
@@ -41,12 +42,8 @@ function isStaff(interaction: any): boolean {
 }
 
 /**
- * 🔄 SATU PINTU SINKRONISASI GAME STATE:
- * 1. Simpan twi:match_reports
- * 2. Update twi:schedules (skor & status selesai)
- * 3. Update & publish match report embed ke Channel Match
- * 4. Update live tracker di Camp Tim A & B (via discord:match_messages)
- * 5. Kirim Score Log publik jika match tuntas
+ * 🔄 SATU PINTU SINKRONISASI GAME STATE
+ * Menggunakan single key `activeMsgId` untuk pelacakan pesan di Camp A & B
  */
 export async function syncAndBroadcastGameState({
   match,
@@ -70,10 +67,10 @@ export async function syncAndBroadcastGameState({
   const scoreB = reportData.teamB?.score || 0;
   const isFinished = scoreA >= 10 || scoreB >= 10;
 
-  // A. SIMPAN MATCH REPORT
+  // A. SIMPAN MATCH REPORT KE KV
   await kv.hset('twi:match_reports', { [matchId]: reportData });
 
-  // B. SINKRONISASI KE TWI:SCHEDULES
+  // B. UPDATE TWI:SCHEDULES
   try {
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const idx = schedules.findIndex((m) => m.id === matchId);
@@ -87,16 +84,16 @@ export async function syncAndBroadcastGameState({
     console.error('[SYNC SCHEDULES ERROR]:', err);
   }
 
-  // C. UPDATE REPORT EMBED DI MATCH ROOM
+  // C. UPDATE REPORT EMBED DI MATCH ROOM (ROOM WASIT)
   const matchEmbed = await buildMatchReportEmbed(match, reportData, winnerOpt);
   if (!isBeforeKickoff || !userIsAdmin) {
     await publishMatchReport(channelId, matchId, matchEmbed);
   }
 
-  // D. UPDATE LIVE TRACKER DI CAMP TIM A & TIM B
+  // D. UPDATE LIVE TRACKER DI CAMP TIM A & B (FOKUS PADA activeMsgId)
   try {
     const allMatchMessages =
-      (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
+      (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};[span_1](start_span)[span_1](end_span)
     let matchMsgData: any = allMatchMessages[matchId];
 
     if (typeof matchMsgData === 'string') {
@@ -109,50 +106,45 @@ export async function syncAndBroadcastGameState({
 
     if (matchMsgData) {
       let isMsgUpdated = false;
+      const matchWeek = reportData.week || match.weekNumber || 1;
 
-      const toTrackerPlayers = (lineup: any[] = []): TrackerPlayer[] =>
-        lineup.map((p: any) => ({
-          ign: p.ign,
-          idDuelLinks: p.idDuelLinks || '',
-          deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
-          deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
-        }));
-
-      // Patch Tracker Camp A
+      // 1. UPDATE TRACKER CAMP A
       if (matchMsgData.campA?.channelId) {
-        const trackerPlayersA = toTrackerPlayers(reportData.teamA?.lineup);
-        const existingIdA = matchMsgData.campA.activeMsgId || matchMsgData.campA.submitMsgId;
-        const newMsgIdA = await sendOrUpdateLiveTracker({
-          channelId: matchMsgData.campA.channelId,
-          matchDateIso: match.matchDate || new Date().toISOString(),
-          week: reportData.week || 1,
-          submittedPlayers: trackerPlayersA,
-          existingMsgId: existingIdA,
-          shouldRepost: forceRepostCamp,
-        });
+        const campEmbedA = await renderCampTrackerEmbed('teamA', reportData, match, matchWeek);
+        const targetMsgIdA = matchMsgData.campA.activeMsgId;
 
-        if (newMsgIdA && newMsgIdA !== matchMsgData.campA.activeMsgId) {
-          matchMsgData.campA.activeMsgId = newMsgIdA;
-          isMsgUpdated = true;
+        if (targetMsgIdA && !forceRepostCamp) {
+          await discordAPI(`/channels/${matchMsgData.campA.channelId}/messages/${targetMsgIdA}`, 'PATCH', {
+            embeds: [campEmbedA],
+          }).catch(() => null);
+        } else {
+          const postRes = await discordAPI(`/channels/${matchMsgData.campA.channelId}/messages`, 'POST', {
+            embeds: [campEmbedA],
+          });
+          if (postRes?.id) {
+            matchMsgData.campA.activeMsgId = postRes.id;
+            isMsgUpdated = true;
+          }
         }
       }
 
-      // Patch Tracker Camp B
+      // 2. UPDATE TRACKER CAMP B
       if (matchMsgData.campB?.channelId) {
-        const trackerPlayersB = toTrackerPlayers(reportData.teamB?.lineup);
-        const existingIdB = matchMsgData.campB.activeMsgId || matchMsgData.campB.submitMsgId;
-        const newMsgIdB = await sendOrUpdateLiveTracker({
-          channelId: matchMsgData.campB.channelId,
-          matchDateIso: match.matchDate || new Date().toISOString(),
-          week: reportData.week || 1,
-          submittedPlayers: trackerPlayersB,
-          existingMsgId: existingIdB,
-          shouldRepost: forceRepostCamp,
-        });
+        const campEmbedB = await renderCampTrackerEmbed('teamB', reportData, match, matchWeek);
+        const targetMsgIdB = matchMsgData.campB.activeMsgId;
 
-        if (newMsgIdB && newMsgIdB !== matchMsgData.campB.activeMsgId) {
-          matchMsgData.campB.activeMsgId = newMsgIdB;
-          isMsgUpdated = true;
+        if (targetMsgIdB && !forceRepostCamp) {
+          await discordAPI(`/channels/${matchMsgData.campB.channelId}/messages/${targetMsgIdB}`, 'PATCH', {
+            embeds: [campEmbedB],
+          }).catch(() => null);
+        } else {
+          const postRes = await discordAPI(`/channels/${matchMsgData.campB.channelId}/messages`, 'POST', {
+            embeds: [campEmbedB],
+          });
+          if (postRes?.id) {
+            matchMsgData.campB.activeMsgId = postRes.id;
+            isMsgUpdated = true;
+          }
         }
       }
 
@@ -164,8 +156,12 @@ export async function syncAndBroadcastGameState({
     console.error('[CAMP LIVE TRACKER SYNC ERROR]:', err);
   }
 
-  // E. KIRIM OFFICIAL SCORE LOG JIKA MATCH SELESAI
+  // E. SINKRONISASI KE CHANNEL OFFICIAL REPORT JIKA PERTANDINGAN SELESAI
   if (isFinished) {
+    await syncOfficialMatchReport(match, reportData).catch((err) =>
+      console.error('[SYNC OFFICIAL REPORT ERROR]:', err)
+    );
+
     try {
       const chScore = DISCORD_CONFIG.CH_SCORE || DISCORD_CONFIG.CH_LOG;
       if (chScore) {
@@ -194,7 +190,6 @@ export async function syncAndBroadcastGameState({
 }
 
 export async function handleGameCommand(interaction: any) {
-  // 1. Validasi Hak Akses Cepat (<1ms)
   if (!isStaff(interaction)) {
     return {
       type: 4,
@@ -209,7 +204,6 @@ export async function handleGameCommand(interaction: any) {
   const token = interaction.token;
   const appId = interaction.application_id || process.env.DISCORD_CLIENT_ID;
 
-  // 2. Cek Match Terkait Channel
   const match = await resolveMatchFromChannel(channelId);
   if (!match) {
     return {
@@ -221,7 +215,6 @@ export async function handleGameCommand(interaction: any) {
     };
   }
 
-  // 3. ATOMIC LOCK (Cegah Tabrakan Input Admin & Wasit)
   const lockKey = `lock:match:${match.id}`;
   const acquiredLock = await kv.set(lockKey, 'LOCKED', { nx: true, ex: 5 });
 
@@ -236,7 +229,6 @@ export async function handleGameCommand(interaction: any) {
     };
   }
 
-  // 4. Background Task Eksekusi Penuh dengan waitUntil
   waitUntil(
     (async () => {
       try {
@@ -244,7 +236,6 @@ export async function handleGameCommand(interaction: any) {
         const isBeforeKickoff = kickoffTime > 0 && Date.now() < kickoffTime;
         const userIsAdmin = isAdminOrChief(interaction);
 
-        // Blocker Kickoff untuk Wasit
         if (isBeforeKickoff && !userIsAdmin) {
           const matchHourStr =
             new Date(match.matchDate)
@@ -291,7 +282,6 @@ export async function handleGameCommand(interaction: any) {
           userIsAdmin,
         };
 
-        // Routing Subcommand
         if (subCommandName === 'add') {
           await handleGameAdd(ctx);
         } else if (subCommandName === 'edit') {
@@ -316,9 +306,8 @@ export async function handleGameCommand(interaction: any) {
     })()
   );
 
-  // 5. Response Instan Type 5
   return {
     type: 5,
     data: { flags: 64 },
   };
-}        
+  }
