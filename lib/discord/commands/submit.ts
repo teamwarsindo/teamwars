@@ -14,6 +14,7 @@ import { handleSubAdd } from './submit/add';
 import { handleSubDel } from './submit/del';
 import { handleSubEdit } from './submit/edit';
 import { syncOfficialMatchReport } from './game/official-report';
+import { saveAndSyncMatchState } from './game/renderer';
 
 // Auto-publish berlaku jika minimal 4 pemain dan seluruh deck yang dialokasikan terisi
 function checkIsLineupFullyCompleted(lineup: any[]): boolean {
@@ -220,67 +221,79 @@ export async function handleSubmitCommand(interaction: any) {
         const hasGameStarted = games.length > 0;
         const isMatchFinished = Boolean(reportData.isFinished);
 
+        let publishNotice = '';
+
+        // Ambil objek jadwal resmi dari twi:schedules agar parameter match.id selalu terisi
+        const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+        const officialSchedule = schedules.find((s) => s.id === matchId) || ({
+          ...matchData,
+          id: matchId,
+        } as MatchScheduleItem);
+
         // =========================================================================
-        // REFRESH TRACKER KHUSUS DI 1 CAMP TEMPAT COMMAND DIJALANKAN (SEPERTI DI GAME.TS)
+        // KASUS 1: PERTANDINGAN SUDAH BERJALAN (GAME >= 1 ATAU SELESAI)
+        // Gunakan saveAndSyncMatchState agar tampilan LIVE TRACKER tidak kembali ke Submission!
         // =========================================================================
-        const trackerPlayers: TrackerPlayer[] = targetLineup.map((p: any) => ({
-          ign: p.ign || '*(Slot Kosong - Menunggu Pengganti)*',
-          idDuelLinks: p.idDuelLinks || '',
-          deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
-          deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
-        }));
+        if (hasGameStarted) {
+          // Simpan match report terbaru ke KV
+          await kv.hset('twi:match_reports', { [matchId]: reportData });
 
-        const existingTargetMsgId = activeCamp.activeMsgId || activeCamp.submitMsgId;
+          // Render & sinkronkan live match tracker ke camp
+          await saveAndSyncMatchState(officialSchedule, reportData);
 
-        // Jika game sudah jalan: selalu edit di tempat (shouldRepost = false)
-        const hasPublishOption = optMap.publish !== undefined;
-        const manualPublish = optMap.publish === true || optMap.publish === 'true';
-        let shouldRepost = false;
-        if (!hasGameStarted) {
-          shouldRepost = hasPublishOption ? manualPublish : isFullyComplete;
-        }
-
-        const newTargetMsgId = await sendOrUpdateLiveTracker({
-          channelId,
-          matchDateIso: activeCamp.matchDate || new Date().toISOString(),
-          week: reportData.week || matchData.week || 1,
-          submittedPlayers: trackerPlayers,
-          existingMsgId: existingTargetMsgId,
-          shouldRepost,
-        });
-
-        // Simpan message tracker ID terbaru ke camp yang bersangkutan
-        if (teamKey === 'teamA' && matchData.campA) {
-          matchData.campA.activeMsgId = newTargetMsgId;
-          matchData.campA.submitMsgId = newTargetMsgId;
-        } else if (teamKey === 'teamB' && matchData.campB) {
-          matchData.campB.activeMsgId = newTargetMsgId;
-          matchData.campB.submitMsgId = newTargetMsgId;
-        }
-
-        // Simpan state terbaru ke KV
-        await kv.hset('discord:match_messages', { [matchId]: matchData });
-        await kv.hset('twi:match_reports', { [matchId]: reportData });
-
-        // Jika match sudah selesai, sinkronkan official report agar daftar lineup terupdate
-        if (isMatchFinished) {
-          try {
-            const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-            const scheduleItem = schedules.find((s) => s.id === matchId);
-            if (scheduleItem) {
-              await syncOfficialMatchReport(scheduleItem as any, reportData);
-            }
-          } catch (syncErr) {
-            console.error('Error saat sync official match report:', syncErr);
+          // Jika pertandingan berstatus selesai, sinkronkan official report
+          if (isMatchFinished) {
+            await syncOfficialMatchReport(officialSchedule, reportData).catch(console.error);
           }
-        }
 
-        let publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
-        if (shouldRepost) {
-          if (manualPublish) {
-            publishNotice = '\n📢 *Live tracker di-publish ulang ke paling bawah channel!*';
-          } else if (isFullyComplete) {
-            publishNotice = '\n🎉 **Lineup & Deck Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
+          publishNotice = '\n📊 *Live Match Tracker diperbarui di tempat.*';
+        }
+        // =========================================================================
+        // KASUS 2: PERTANDINGAN BELUM BERJALAN (GAME = 0)
+        // Gunakan template Submission briefing awal
+        // =========================================================================
+        else {
+          const hasPublishOption = optMap.publish !== undefined;
+          const manualPublish = optMap.publish === true || optMap.publish === 'true';
+          const shouldRepost = hasPublishOption ? manualPublish : isFullyComplete;
+
+          const trackerPlayers: TrackerPlayer[] = targetLineup.map((p: any) => ({
+            ign: p.ign || '*(Slot Kosong - Menunggu Pengganti)*',
+            idDuelLinks: p.idDuelLinks || '',
+            deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
+            deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
+          }));
+
+          const existingTargetMsgId = activeCamp.activeMsgId || activeCamp.submitMsgId;
+
+          const newSubmitMsgId = await sendOrUpdateLiveTracker({
+            channelId,
+            matchDateIso: activeCamp.matchDate,
+            week: reportData.week,
+            submittedPlayers: trackerPlayers,
+            existingMsgId: existingTargetMsgId,
+            shouldRepost,
+          });
+
+          if (teamKey === 'teamA' && matchData.campA) {
+            matchData.campA.activeMsgId = newSubmitMsgId;
+            matchData.campA.submitMsgId = newSubmitMsgId;
+          } else if (teamKey === 'teamB' && matchData.campB) {
+            matchData.campB.activeMsgId = newSubmitMsgId;
+            matchData.campB.submitMsgId = newSubmitMsgId;
+          }
+
+          await kv.hset('discord:match_messages', { [matchId]: matchData });
+          await kv.hset('twi:match_reports', { [matchId]: reportData });
+
+          if (shouldRepost) {
+            if (manualPublish) {
+              publishNotice = '\n📢 *Live tracker di-publish ulang ke paling bawah channel!*';
+            } else if (isFullyComplete) {
+              publishNotice = '\n🎉 **Lineup & Deck Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
+            }
+          } else {
+            publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
           }
         }
 
@@ -305,5 +318,5 @@ export async function handleSubmitCommand(interaction: any) {
   return {
     type: 5,
     data: { flags: 64 },
-  }; 
-}
+  };
+}                                            
