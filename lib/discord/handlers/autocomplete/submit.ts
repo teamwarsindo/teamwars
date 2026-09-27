@@ -1,6 +1,7 @@
 import { kv } from '@vercel/kv';
 import { parsePlayers, PlayerItem } from '@/lib/discord/utils';
 import { filterChoices } from './types';
+import { isToday, isWithinAdminGracePeriod } from '../submit/types';
 
 const getTeamPlayers = async (slug: string): Promise<PlayerItem[]> => {
   const team = await kv.hgetall<any>(`teams:${slug}`);
@@ -38,21 +39,74 @@ const getMasterSkillsMap = async (): Promise<Record<string, string>> => {
 };
 
 async function resolveMatchCamp(channelId: string) {
-  const activeCamp = await kv.hget<any>('twi:active_camp_channels', channelId);
-  if (!activeCamp || !activeCamp.matchId || !activeCamp.teamKey) {
+  const allMatchMessages =
+    (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
+
+  const candidates: Array<{
+    matchId: string;
+    match: any;
+    teamKey: 'teamA' | 'teamB';
+    camp: any;
+  }> = [];
+
+  for (const [mId, raw] of Object.entries(allMatchMessages)) {
+    let item = typeof raw === 'string' ? null : raw;
+    if (typeof raw === 'string') {
+      try {
+        item = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+    }
+
+    if (item?.campA?.channelId === channelId) {
+      candidates.push({
+        matchId: item.matchId || mId,
+        match: item,
+        teamKey: 'teamA',
+        camp: item.campA,
+      });
+    } else if (item?.campB?.channelId === channelId) {
+      candidates.push({
+        matchId: item.matchId || mId,
+        match: item,
+        teamKey: 'teamB',
+        camp: item.campB,
+      });
+    }
+  }
+
+  if (candidates.length === 0) {
     return { matchId: null, teamKey: null, campData: null };
   }
+
+  // Prioritas pemilihan match:
+  // 1. Match hari H
+  // 2. Match dalam batas grace period (Selasa 23:59 WIB)
+  // 3. Match belum selesai
+  const todayCand = candidates.find((c) => isToday(c.match.matchDate));
+  const graceCand = candidates.find((c) => isWithinAdminGracePeriod(c.match.matchDate));
+  const unfinishedCand = candidates.find((c) => !c.match.isFinished);
+
+  const selected = todayCand || graceCand || unfinishedCand || candidates[0];
+
   return {
-    matchId: activeCamp.matchId as string,
-    teamKey: activeCamp.teamKey as 'teamA' | 'teamB',
-    campData: activeCamp,
+    matchId: selected.matchId,
+    teamKey: selected.teamKey,
+    campData: {
+      ...selected.camp,
+      matchId: selected.matchId,
+      teamKey: selected.teamKey,
+      week: selected.match.week,
+      matchDate: selected.match.matchDate,
+    },
   };
 }
 
 export async function handleSubmitAutocomplete(interaction: any) {
   try {
     const { matchId, teamKey, campData } = await resolveMatchCamp(interaction.channel_id);
-    if (!matchId || !campData?.slug) return { type: 8, data: { choices: [] } };
+    if (!matchId || !teamKey || !campData?.slug) return { type: 8, data: { choices: [] } };
 
     const [teamRoster, reportData] = await Promise.all([
       getTeamPlayers(campData.slug),
