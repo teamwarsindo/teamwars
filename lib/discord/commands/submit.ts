@@ -265,11 +265,15 @@ export async function handleSubmitCommand(interaction: any) {
         // =========================================================================
         // 2. PATCH OFFICIAL MATCH REPORT DI MATCH ROOM (JIKA ADA & HANYA PATCH)
         // =========================================================================
-        const matchRoomChannelId = matchData.matchChannel?.channelId || officialSchedule.channelId;
+        const matchRoomChannelId =
+          matchData.matchChannel?.channelId ||
+          officialSchedule.discordChannelId ||
+          (officialSchedule as any).channelId;
+
         const matchReportMsgId =
           matchData.matchChannel?.lastReportMsgId ||
           matchData.matchChannel?.briefingMsgId ||
-          officialSchedule.trackerMessageId;
+          (officialSchedule as any).trackerMessageId;
 
         if (matchRoomChannelId && matchReportMsgId) {
           try {
@@ -320,5 +324,5 @@ export async function handleSubmitCommand(interaction: any) {
   return {
     type: 5,
     data: { flags: 64 },
-  };
+  };             
 }
