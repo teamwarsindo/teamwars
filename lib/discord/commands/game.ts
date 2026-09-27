@@ -93,7 +93,7 @@ export async function syncAndBroadcastGameState({
   // D. UPDATE LIVE TRACKER DI CAMP TIM A & B (FOKUS PADA activeMsgId)
   try {
     const allMatchMessages =
-      (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};[span_1](start_span)[span_1](end_span)
+      (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
     let matchMsgData: any = allMatchMessages[matchId];
 
     if (typeof matchMsgData === 'string') {
@@ -310,4 +310,4 @@ export async function handleGameCommand(interaction: any) {
     type: 5,
     data: { flags: 64 },
   };
-  }
+}
