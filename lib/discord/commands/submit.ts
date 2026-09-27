@@ -13,6 +13,7 @@ import { handleSubAdd } from './submit/add';
 import { handleSubDel } from './submit/del';
 import { handleSubEdit } from './submit/edit';
 import { syncOfficialMatchReport } from './game/official-report';
+import { syncCampTrackers } from './game/renderer';
 
 // Auto-publish berlaku jika minimal 4 pemain dan seluruh deck yang dialokasikan terisi
 function checkIsLineupFullyCompleted(lineup: any[]): boolean {
@@ -219,54 +220,71 @@ export async function handleSubmitCommand(interaction: any) {
         const hasGameStarted = games.length > 0;
         const isMatchFinished = Boolean(reportData.isFinished);
 
-        const hasPublishOption = optMap.publish !== undefined;
-        const manualPublish = optMap.publish === true || optMap.publish === 'true';
+        let publishNotice = '';
 
-        // Jika game sudah jalan: selalu edit di tempat (shouldRepost = false) agar tidak spam camp
-        let shouldRepost = false;
-        if (!hasGameStarted) {
-          shouldRepost = hasPublishOption ? manualPublish : isFullyComplete;
-        }
+        // =========================================================================
+        // KASUS 1: PERTANDINGAN SUDAH BERJALAN (GAME >= 1 ATAU SELESAI)
+        // Update pesan dengan LIVE MATCH TRACKER asli, BUKAN Deck Submission!
+        // =========================================================================
+        if (hasGameStarted) {
+          // Sinkronkan data ke KV terlebih dahulu
+          await kv.hset('discord:match_messages', { [matchId]: matchData });
+          await kv.hset('twi:match_reports', { [matchId]: reportData });
 
-        const trackerPlayers: TrackerPlayer[] = targetLineup.map((p: any) => ({
-          ign: p.ign || '*(Slot Kosong - Menunggu Pengganti)*',
-          idDuelLinks: p.idDuelLinks || '',
-          deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
-          deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
-        }));
+          // Render ulang pesan Live Tracker di kedua camp
+          await syncCampTrackers(matchData, reportData);
 
-        const newSubmitMsgId = await sendOrUpdateLiveTracker({
-          channelId,
-          matchDateIso: activeCamp.matchDate,
-          week: reportData.week,
-          submittedPlayers: trackerPlayers,
-          existingMsgId: activeCamp.submitMsgId,
-          shouldRepost,
-        });
+          // Jika pertandingan berstatus selesai, sinkronkan official report
+          if (isMatchFinished) {
+            await syncOfficialMatchReport(matchData, reportData).catch(console.error);
+          }
 
-        // Simpan message tracker ID terbaru
-        if (teamKey === 'teamA' && matchData.campA) {
-          matchData.campA.activeMsgId = newSubmitMsgId;
-          matchData.campA.submitMsgId = newSubmitMsgId;
-        } else if (teamKey === 'teamB' && matchData.campB) {
-          matchData.campB.activeMsgId = newSubmitMsgId;
-          matchData.campB.submitMsgId = newSubmitMsgId;
-        }
+          publishNotice = '\n📊 *Live Match Tracker diperbarui di tempat.*';
+        } 
+        // =========================================================================
+        // KASUS 2: PERTANDINGAN BELUM BERJALAN (GAME = 0)
+        // Gunakan template Submission briefing awal
+        // =========================================================================
+        else {
+          const hasPublishOption = optMap.publish !== undefined;
+          const manualPublish = optMap.publish === true || optMap.publish === 'true';
+          const shouldRepost = hasPublishOption ? manualPublish : isFullyComplete;
 
-        await kv.hset('discord:match_messages', { [matchId]: matchData });
-        await kv.hset('twi:match_reports', { [matchId]: reportData });
+          const trackerPlayers: TrackerPlayer[] = targetLineup.map((p: any) => ({
+            ign: p.ign || '*(Slot Kosong - Menunggu Pengganti)*',
+            idDuelLinks: p.idDuelLinks || '',
+            deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
+            deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
+          }));
 
-        // Jika match sudah selesai, sinkronkan official report agar daftar lineup terupdate
-        if (isMatchFinished) {
-          await syncOfficialMatchReport(matchData, reportData).catch(console.error);
-        }
+          const newSubmitMsgId = await sendOrUpdateLiveTracker({
+            channelId,
+            matchDateIso: activeCamp.matchDate,
+            week: reportData.week,
+            submittedPlayers: trackerPlayers,
+            existingMsgId: activeCamp.submitMsgId,
+            shouldRepost,
+          });
 
-        let publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
-        if (shouldRepost) {
-          if (manualPublish) {
-            publishNotice = '\n📢 *Live tracker di-publish ulang ke paling bawah channel!*';
-          } else if (isFullyComplete) {
-            publishNotice = '\n🎉 **Lineup & Deck Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
+          if (teamKey === 'teamA' && matchData.campA) {
+            matchData.campA.activeMsgId = newSubmitMsgId;
+            matchData.campA.submitMsgId = newSubmitMsgId;
+          } else if (teamKey === 'teamB' && matchData.campB) {
+            matchData.campB.activeMsgId = newSubmitMsgId;
+            matchData.campB.submitMsgId = newSubmitMsgId;
+          }
+
+          await kv.hset('discord:match_messages', { [matchId]: matchData });
+          await kv.hset('twi:match_reports', { [matchId]: reportData });
+
+          if (shouldRepost) {
+            if (manualPublish) {
+              publishNotice = '\n📢 *Live tracker di-publish ulang ke paling bawah channel!*';
+            } else if (isFullyComplete) {
+              publishNotice = '\n🎉 **Lineup & Deck Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
+            }
+          } else {
+            publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
           }
         }
 
