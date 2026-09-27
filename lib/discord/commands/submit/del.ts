@@ -4,6 +4,8 @@ export async function handleSubDel(ctx: SubmitContext): Promise<{ error?: string
   const { teamKey, reportData, optMap } = ctx;
   const targetTeam = reportData[teamKey];
   const currentLineup: any[] = targetTeam.lineup || [];
+  const games: any[] = reportData.games || [];
+  const hasGameStarted = games.length > 0;
 
   if (currentLineup.length === 0) {
     return { error: '⚠️ **Lineup tim ini masih kosong!** Tidak ada pemain yang bisa dihapus.' };
@@ -38,9 +40,11 @@ export async function handleSubDel(ctx: SubmitContext): Promise<{ error?: string
 
   // 4. Validasi apakah ada pemain yang sudah pernah duel
   const playedPlayer = matchedPlayers.find((player) =>
-    (reportData.games || []).some((g: any) => {
-      const duelPlayer = teamKey === 'teamA' ? g.playerA?.ign || g.playerA : g.playerB?.ign || g.playerB;
-      return String(duelPlayer || '').toLowerCase() === String(player.ign || '').toLowerCase();
+    games.some((g: any) => {
+      const pA = String(g.playerA?.ign || g.playerA || '').toLowerCase();
+      const pB = String(g.playerB?.ign || g.playerB || '').toLowerCase();
+      const target = String(player.ign || '').toLowerCase();
+      return pA === target || pB === target;
     })
   );
 
@@ -50,7 +54,23 @@ export async function handleSubDel(ctx: SubmitContext): Promise<{ error?: string
     };
   }
 
-  // 5. Eksekusi penghapusan dari lineup (deck & attribute otomatis terhapus bersama objek pemain)
+  // 5. Eksekusi Penghapusan
+  if (hasGameStarted) {
+    // Game sudah jalan: Kosongkan nama & ID pemain, BIARKAN deck & skill stay di slot untuk pengganti
+    matchedPlayers.forEach((p) => {
+      p.ign = '';
+      p.idDuelLinks = '';
+      p.remainingLife = 2;
+      p.totalLosses = 0;
+    });
+
+    const deletedNames = matchedPlayers.map((p) => `• **${parseIgnAndId(p.ign).ign || 'Pemain'}**`).join('\n');
+    return {
+      message: `🔄 **Pemain Dikeluarkan dari Lineup:**\n${deletedNames}\n🔒 **Aturan Penggantian:** Deck dan Skill tetap dikunci di slot ini dan akan otomatis diwarisi oleh pemain pengganti saat didaftarkan via \`/submit add\`.`,
+    };
+  }
+
+  // Game belum jalan: Hapus total dari array lineup
   const remainingLineup = currentLineup.filter(
     (p) => !targetsToDelete.includes(String(p.ign || '').toLowerCase())
   );
