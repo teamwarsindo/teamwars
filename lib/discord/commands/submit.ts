@@ -278,10 +278,7 @@ export async function handleSubmitCommand(interaction: any) {
           }
 
           // 3. PATCH official report publik jika sudah diposting
-          const officialReportChannelId =
-            DISCORD_CONFIG.CH_SCORE ||
-            DISCORD_CONFIG.CH_OFFICIAL_REPORT ||
-            DISCORD_CONFIG.CH_LOG;
+          const officialReportChannelId = DISCORD_CONFIG.CH_SCORE_REPORT || DISCORD_CONFIG.CH_REPORT;
 
           const officialReportMsgId = matchData.officialReportMsgId;
 
