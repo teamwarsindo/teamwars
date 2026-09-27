@@ -43,7 +43,7 @@ function isStaff(interaction: any): boolean {
 
 /**
  * 🔄 SATU PINTU SINKRONISASI GAME STATE
- * Menggunakan single key `activeMsgId` untuk pelacakan pesan di Camp A & B
+ * Default: forceRepostCamp = true (Selalu repost embed tracker ke paling bawah channel camp)
  */
 export async function syncAndBroadcastGameState({
   match,
@@ -52,7 +52,7 @@ export async function syncAndBroadcastGameState({
   winnerOpt,
   isBeforeKickoff = false,
   userIsAdmin = false,
-  forceRepostCamp = false,
+  forceRepostCamp = true, // 👈 Default diubah ke true agar tracker selalu repost ke bawah
 }: {
   match: MatchScheduleItem;
   reportData: any;
@@ -90,7 +90,7 @@ export async function syncAndBroadcastGameState({
     await publishMatchReport(channelId, matchId, matchEmbed);
   }
 
-  // D. UPDATE LIVE TRACKER DI CAMP TIM A & B (FOKUS PADA activeMsgId)
+  // D. REPOST LIVE TRACKER DI CAMP TIM A & B
   try {
     const allMatchMessages =
       (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
@@ -108,43 +108,73 @@ export async function syncAndBroadcastGameState({
       let isMsgUpdated = false;
       const matchWeek = reportData.week || match.weekNumber || 1;
 
-      // 1. UPDATE TRACKER CAMP A
+      // 1. REPOST TRACKER CAMP A
       if (matchMsgData.campA?.channelId) {
         const campEmbedA = await renderCampTrackerEmbed('teamA', reportData, match, matchWeek);
-        const targetMsgIdA = matchMsgData.campA.activeMsgId;
+        const oldMsgIdA = matchMsgData.campA.activeMsgId;
 
-        if (targetMsgIdA && !forceRepostCamp) {
-          await discordAPI(`/channels/${matchMsgData.campA.channelId}/messages/${targetMsgIdA}`, 'PATCH', {
-            embeds: [campEmbedA],
-          }).catch(() => null);
-        } else {
-          const postRes = await discordAPI(`/channels/${matchMsgData.campA.channelId}/messages`, 'POST', {
-            embeds: [campEmbedA],
-          });
+        if (forceRepostCamp) {
+          // Hapus pesan tracker lama jika ada agar tidak menumpuk
+          if (oldMsgIdA) {
+            await discordAPI(
+              `/channels/${matchMsgData.campA.channelId}/messages/${oldMsgIdA}`,
+              'DELETE'
+            ).catch(() => null);
+          }
+
+          // Kirim pesan baru ke paling bawah
+          const postRes = await discordAPI(
+            `/channels/${matchMsgData.campA.channelId}/messages`,
+            'POST',
+            { embeds: [campEmbedA] }
+          );
+
           if (postRes?.id) {
             matchMsgData.campA.activeMsgId = postRes.id;
             isMsgUpdated = true;
           }
+        } else if (oldMsgIdA) {
+          // Edit di tempat jika tidak di-repost
+          await discordAPI(
+            `/channels/${matchMsgData.campA.channelId}/messages/${oldMsgIdA}`,
+            'PATCH',
+            { embeds: [campEmbedA] }
+          ).catch(() => null);
         }
       }
 
-      // 2. UPDATE TRACKER CAMP B
+      // 2. REPOST TRACKER CAMP B
       if (matchMsgData.campB?.channelId) {
         const campEmbedB = await renderCampTrackerEmbed('teamB', reportData, match, matchWeek);
-        const targetMsgIdB = matchMsgData.campB.activeMsgId;
+        const oldMsgIdB = matchMsgData.campB.activeMsgId;
 
-        if (targetMsgIdB && !forceRepostCamp) {
-          await discordAPI(`/channels/${matchMsgData.campB.channelId}/messages/${targetMsgIdB}`, 'PATCH', {
-            embeds: [campEmbedB],
-          }).catch(() => null);
-        } else {
-          const postRes = await discordAPI(`/channels/${matchMsgData.campB.channelId}/messages`, 'POST', {
-            embeds: [campEmbedB],
-          });
+        if (forceRepostCamp) {
+          // Hapus pesan tracker lama jika ada agar tidak menumpuk
+          if (oldMsgIdB) {
+            await discordAPI(
+              `/channels/${matchMsgData.campB.channelId}/messages/${oldMsgIdB}`,
+              'DELETE'
+            ).catch(() => null);
+          }
+
+          // Kirim pesan baru ke paling bawah
+          const postRes = await discordAPI(
+            `/channels/${matchMsgData.campB.channelId}/messages`,
+            'POST',
+            { embeds: [campEmbedB] }
+          );
+
           if (postRes?.id) {
             matchMsgData.campB.activeMsgId = postRes.id;
             isMsgUpdated = true;
           }
+        } else if (oldMsgIdB) {
+          // Edit di tempat jika tidak di-repost
+          await discordAPI(
+            `/channels/${matchMsgData.campB.channelId}/messages/${oldMsgIdB}`,
+            'PATCH',
+            { embeds: [campEmbedB] }
+          ).catch(() => null);
         }
       }
 
@@ -153,10 +183,10 @@ export async function syncAndBroadcastGameState({
       }
     }
   } catch (err) {
-    console.error('[CAMP LIVE TRACKER SYNC ERROR]:', err);
+    console.error('[CAMP LIVE TRACKER REPOST ERROR]:', err);
   }
 
-  // E. SINKRONISASI KE CHANNEL OFFICIAL REPORT JIKA PERTANDINGAN SELESAI
+  // E. SINKRONISASI KE CHANNEL OFFICIAL REPORT JIKA MATCH SELESAI
   if (isFinished) {
     await syncOfficialMatchReport(match, reportData).catch((err) =>
       console.error('[SYNC OFFICIAL REPORT ERROR]:', err)
@@ -310,4 +340,4 @@ export async function handleGameCommand(interaction: any) {
     type: 5,
     data: { flags: 64 },
   };
-}
+    }
