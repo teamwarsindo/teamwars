@@ -13,7 +13,7 @@ import { handleSubAdd } from './submit/add';
 import { handleSubDel } from './submit/del';
 import { handleSubEdit } from './submit/edit';
 import { syncOfficialMatchReport } from './game/official-report';
-import { syncCampTrackers } from './game/renderer';
+import { saveAndSyncMatchState } from './game/renderer';
 
 // Auto-publish berlaku jika minimal 4 pemain dan seluruh deck yang dialokasikan terisi
 function checkIsLineupFullyCompleted(lineup: any[]): boolean {
@@ -224,15 +224,14 @@ export async function handleSubmitCommand(interaction: any) {
 
         // =========================================================================
         // KASUS 1: PERTANDINGAN SUDAH BERJALAN (GAME >= 1 ATAU SELESAI)
-        // Update pesan dengan LIVE MATCH TRACKER asli, BUKAN Deck Submission!
+        // Gunakan saveAndSyncMatchState agar tampilan LIVE TRACKER tidak kembali ke Submission!
         // =========================================================================
         if (hasGameStarted) {
-          // Sinkronkan data ke KV terlebih dahulu
-          await kv.hset('discord:match_messages', { [matchId]: matchData });
+          // Simpan match report terbaru ke KV
           await kv.hset('twi:match_reports', { [matchId]: reportData });
 
-          // Render ulang pesan Live Tracker di kedua camp
-          await syncCampTrackers(matchData, reportData);
+          // Render & sync Live Match Tracker di kedua camp
+          await saveAndSyncMatchState(matchData, reportData);
 
           // Jika pertandingan berstatus selesai, sinkronkan official report
           if (isMatchFinished) {
