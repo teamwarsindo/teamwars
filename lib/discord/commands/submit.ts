@@ -47,20 +47,25 @@ export async function handleSubmitCommand(interaction: any) {
   const token = interaction.token;
   const appId = interaction.application_id || process.env.DISCORD_CLIENT_ID;
 
-  // 2. Eksekusi Background Worker dengan waitUntil (Mencegah "Interaction Failed" 3 detik)
+  // 2. Eksekusi Background Worker dengan waitUntil (Mencegah timeout 3 detik Discord)
   waitUntil(
     (async () => {
       try {
-        // Ambil data jadwal pertandingan dari hash discord:match_messages
+        const userIsAdmin = isAdminOrChief(interaction);
+
+        // 🔍 Resolusi channel camp dari discord:match_messages
         const allMatchMessages =
           (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
 
-        let targetMatchData: any = null;
-        let detectedTeamKey: 'teamA' | 'teamB' | null = null;
-        let activeCamp: any = null;
+        const candidates: Array<{
+          matchId: string;
+          match: any;
+          teamKey: 'teamA' | 'teamB';
+          camp: any;
+        }> = [];
 
-        for (const matchId in allMatchMessages) {
-          let item = allMatchMessages[matchId];
+        for (const mId in allMatchMessages) {
+          let item = allMatchMessages[mId];
           if (typeof item === 'string') {
             try {
               item = JSON.parse(item);
@@ -70,49 +75,60 @@ export async function handleSubmitCommand(interaction: any) {
           }
 
           if (item?.campA?.channelId === channelId) {
-            targetMatchData = item;
-            detectedTeamKey = 'teamA';
-            activeCamp = item.campA;
-            break;
-          }
-          if (item?.campB?.channelId === channelId) {
-            targetMatchData = item;
-            detectedTeamKey = 'teamB';
-            activeCamp = item.campB;
-            break;
+            candidates.push({
+              matchId: item.matchId || mId,
+              match: item,
+              teamKey: 'teamA',
+              camp: item.campA,
+            });
+          } else if (item?.campB?.channelId === channelId) {
+            candidates.push({
+              matchId: item.matchId || mId,
+              match: item,
+              teamKey: 'teamB',
+              camp: item.campB,
+            });
           }
         }
 
-        if (!targetMatchData || !detectedTeamKey || !activeCamp) {
+        if (candidates.length === 0) {
           if (appId && token) {
             await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-              content: '❌ Command ini hanya dapat digunakan di dalam **Channel Camp Tim** yang terdaftar!',
+              content: '❌ Command ini hanya dapat digunakan di dalam **Channel Camp Tim** yang terdaftar di jadwal pertandingan!',
             });
           }
           return;
         }
 
-        const matchId = targetMatchData.matchId;
-        const matchDate = targetMatchData.matchDate;
-        const userIsAdmin = isAdminOrChief(interaction);
-        const matchIsToday = isToday(matchDate);
-        const isWithinGracePeriod = isWithinAdminGracePeriod(matchDate);
+        // 🎯 Filter Kandidat Sah (Tanpa Fallback Buta):
+        // 1. Match hari H (bisa diakses Referee & Admin)
+        // 2. Match dalam grace period s/d Selasa 23:59 WIB (hanya bisa diakses Admin/Chief)
+        const todayCand = candidates.find((c) => isToday(c.match.matchDate));
+        const graceCand = candidates.find((c) => isWithinAdminGracePeriod(c.match.matchDate));
+        const selected = todayCand || (userIsAdmin ? graceCand : null);
 
-        // Proteksi Waktu: Referee hanya hari H, Admin kebal s/d Selasa 23:59 WIB pekan berikutnya
-        if (!matchIsToday) {
-          if (userIsAdmin && isWithinGracePeriod) {
-            // Bypass akses untuk Admin / Chief
-          } else {
-            if (appId && token) {
-              await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-                content: userIsAdmin
-                  ? '⚠️ Match ini sudah melewati batas rekap pekan (Selasa 23:59 WIB). Akses edit ditutup.'
-                  : '⚠️ Pertandingan di camp ini tidak dijadwalkan untuk hari ini atau sudah berakhir. (Hubungi Admin jika butuh revisi).',
-              });
-            }
-            return;
+        if (!selected) {
+          if (appId && token) {
+            await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
+              content: userIsAdmin
+                ? '⚠️ Tidak ada jadwal match di channel ini yang berada dalam masa toleransi rekap (Selasa 23:59 WIB).'
+                : '⚠️ Tidak ada jadwal pertandingan untuk hari ini di channel camp ini. (Hubungi Admin jika butuh revisi jadwal).',
+            });
           }
+          return;
         }
+
+        const matchId = selected.matchId;
+        const matchData = selected.match;
+        const teamKey = selected.teamKey;
+        const activeCamp = {
+          ...selected.camp,
+          matchId: selected.matchId,
+          teamKey: selected.teamKey,
+          week: selected.match.week,
+          matchDate: selected.match.matchDate,
+          submitMsgId: selected.camp.submitMsgId || selected.camp.activeMsgId || null,
+        };
 
         const rawOptions = interaction.data?.options || [];
         const subCommandObj = rawOptions[0]?.type === 1 ? rawOptions[0] : null;
@@ -120,41 +136,33 @@ export async function handleSubmitCommand(interaction: any) {
         const subOptions = subCommandObj ? subCommandObj.options || [] : rawOptions;
         const optMap = getOptionMap(subOptions);
 
-        // Ambil data tim master murni dari KV Hash teams:${slug}
-        const teamData = await kv.hgetall<Record<string, any>>(`teams:${activeCamp.slug}`);
-        let rawPlayers = teamData?.players;
-        if (typeof rawPlayers === 'string') {
-          try {
-            rawPlayers = JSON.parse(rawPlayers);
-          } catch {
-            rawPlayers = [];
-          }
-        }
-        const teamRoster: PlayerItem[] = rawPlayers ? parsePlayers(rawPlayers) : [];
+        const teamData = await kv.hgetall<any>(`teams:${activeCamp.slug}`);
+        const teamRoster: PlayerItem[] = teamData?.players ? parsePlayers(teamData.players) : [];
 
         let reportData = await kv.hget<any>('twi:match_reports', matchId);
         if (!reportData) {
+          const matchDateStr = activeCamp.matchDate ? activeCamp.matchDate.split('T')[0] : '';
           reportData = {
             matchId,
-            week: targetMatchData.week || 1,
+            week: matchData.week,
             metadata: {
-              date: matchDate ? matchDate.split('T')[0] : new Date().toISOString().split('T')[0],
-              streamPlatform: 'YouTube',
+              date: matchDateStr,
+              streamPlatform: '',
               streamer: '',
               referee: '',
               streamUrl: '',
             },
             teamA: {
-              name: targetMatchData.campA?.name || '',
-              slug: targetMatchData.campA?.slug || '',
+              name: matchData.campA?.name || (teamKey === 'teamA' ? activeCamp.name : ''),
+              slug: matchData.campA?.slug || (teamKey === 'teamA' ? activeCamp.slug : ''),
               score: 0,
               repeatsUsed: 0,
               warningsUsed: 0,
               lineup: [],
             },
             teamB: {
-              name: targetMatchData.campB?.name || '',
-              slug: targetMatchData.campB?.slug || '',
+              name: matchData.campB?.name || (teamKey === 'teamB' ? activeCamp.name : ''),
+              slug: matchData.campB?.slug || (teamKey === 'teamB' ? activeCamp.slug : ''),
               score: 0,
               repeatsUsed: 0,
               warningsUsed: 0,
@@ -180,14 +188,8 @@ export async function handleSubmitCommand(interaction: any) {
           interaction,
           channelId,
           matchId,
-          teamKey: detectedTeamKey,
-          campData: {
-            ...activeCamp,
-            matchId,
-            teamKey: detectedTeamKey,
-            matchDate,
-            week: targetMatchData.week,
-          },
+          teamKey,
+          campData: activeCamp,
           reportData,
           teamRoster,
           optMap,
@@ -212,15 +214,11 @@ export async function handleSubmitCommand(interaction: any) {
           return;
         }
 
-        const targetLineup = reportData[detectedTeamKey].lineup || [];
+        const targetLineup = reportData[teamKey].lineup || [];
         const isFullyComplete = checkIsLineupFullyCompleted(targetLineup);
 
-        // Parsing publish: aman terhadap boolean true maupun string "true"
         const hasPublishOption = optMap.publish !== undefined;
         const manualPublish = optMap.publish === true || optMap.publish === 'true';
-
-        // Prioritas: jika user mengisi publish eksplisit, ikuti pilihan user.
-        // Jika tidak diisi sama sekali, hanya repost jika lineup sudah lengkap semua deck-nya.
         const shouldRepost = hasPublishOption ? manualPublish : isFullyComplete;
 
         const trackerPlayers: TrackerPlayer[] = targetLineup.map((p: any) => ({
@@ -230,24 +228,26 @@ export async function handleSubmitCommand(interaction: any) {
           deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
         }));
 
-        // Ambil ID tracker yang sedang aktif di camp
-        const existingTrackerMsgId = activeCamp.activeMsgId || activeCamp.submitMsgId || null;
-
-        // Delegasikan proses PATCH atau REPOST ke helper
         const newSubmitMsgId = await sendOrUpdateLiveTracker({
           channelId,
-          matchDateIso: matchDate || new Date().toISOString(),
+          matchDateIso: activeCamp.matchDate,
           week: reportData.week,
           submittedPlayers: trackerPlayers,
-          existingMsgId: existingTrackerMsgId,
+          existingMsgId: activeCamp.submitMsgId,
           shouldRepost,
         });
 
-        // Simpan referensi ID pesan terbaru ke dalam match data
-        activeCamp.activeMsgId = newSubmitMsgId;
-        targetMatchData[detectedTeamKey] = activeCamp;
+        // Simpan message tracker ID terbaru ke camp yang sesuai di discord:match_messages
+        if (teamKey === 'teamA' && matchData.campA) {
+          matchData.campA.activeMsgId = newSubmitMsgId;
+          matchData.campA.submitMsgId = newSubmitMsgId;
+        } else if (teamKey === 'teamB' && matchData.campB) {
+          matchData.campB.activeMsgId = newSubmitMsgId;
+          matchData.campB.submitMsgId = newSubmitMsgId;
+        }
 
-        await kv.hset('discord:match_messages', { [matchId]: targetMatchData });
+        // Simpan perubahan ke database (hanya dua key resmi turnamen)
+        await kv.hset('discord:match_messages', { [matchId]: matchData });
         await kv.hset('twi:match_reports', { [matchId]: reportData });
 
         let publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
@@ -273,9 +273,9 @@ export async function handleSubmitCommand(interaction: any) {
     })()
   );
 
-  // Respon Type 5 instan ke Discord agar tidak kena batas 3 detik
+  // Respons Type 5 instan ke Discord agar tidak kena batas timeout 3 detik
   return {
     type: 5,
     data: { flags: 64 },
-  };
+  };                      
 }
