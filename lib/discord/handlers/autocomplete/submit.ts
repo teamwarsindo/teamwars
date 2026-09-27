@@ -80,10 +80,6 @@ async function resolveMatchCamp(channelId: string) {
     return { matchId: null, teamKey: null, campData: null };
   }
 
-  // Prioritas pemilihan match:
-  // 1. Match hari H
-  // 2. Match dalam batas grace period (Selasa 23:59 WIB)
-  // 3. Match belum selesai
   const todayCand = candidates.find((c) => isToday(c.match.matchDate));
   const graceCand = candidates.find((c) => isWithinAdminGracePeriod(c.match.matchDate));
   const unfinishedCand = candidates.find((c) => !c.match.isFinished);
@@ -123,6 +119,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
     const rawVal = String(focused.value || '').trim();
     const query = rawVal.toLowerCase();
     const existingLineup: any[] = reportData?.[teamKey]?.lineup || [];
+    const games: any[] = reportData?.games || [];
 
     // 1. Master Deck
     if (fName.startsWith('deck_') || fName === 'deck') {
@@ -154,7 +151,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
       return { type: 8, data: { choices: filtered.slice(0, 25) } };
     }
 
-    // 3. Lineup Pemain (Edit & Del: Menampilkan pemain yang sudah ada di lineup)
+    // 3. Lineup Pemain (Edit & Del: HANYA Menampilkan pemain yang BELUM PERNAH duel)
     if ((subName === 'edit' && fName === 'pemain') || (subName === 'del' && fName.startsWith('pemain_'))) {
       if (existingLineup.length === 0) {
         return {
@@ -165,8 +162,36 @@ export async function handleSubmitAutocomplete(interaction: any) {
         };
       }
 
+      // Kumpulkan set IGN pemain yang sudah pernah bertanding di game logs
+      const playedIgns = new Set<string>();
+      games.forEach((g: any) => {
+        const pA = String(g.playerA?.ign || g.playerA || '').toLowerCase();
+        const pB = String(g.playerB?.ign || g.playerB || '').toLowerCase();
+        if (pA) playedIgns.add(pA);
+        if (pB) playedIgns.add(pB);
+      });
+
+      // Saring: hanya pemain yang namanya terisi dan belum pernah bertanding
+      const eligiblePlayers = existingLineup.filter(
+        (p) => p.ign && p.ign.trim() && !playedIgns.has(p.ign.toLowerCase())
+      );
+
+      if (eligiblePlayers.length === 0) {
+        return {
+          type: 8,
+          data: {
+            choices: [
+              {
+                name: '⚠️ Seluruh pemain di lineup sudah pernah bertanding (terkunci).',
+                value: 'NO_ELIGIBLE_PLAYERS',
+              },
+            ],
+          },
+        };
+      }
+
       const rosterMap = new Map(teamRoster.map((p) => [(p.ign || '').toLowerCase(), p]));
-      const choices = existingLineup.map((p) => {
+      const choices = eligiblePlayers.map((p) => {
         const ign = p.ign || '';
         const dl = p.idDuelLinks || rosterMap.get(ign.toLowerCase())?.idDuelLinks || '-';
         const d1 = Boolean(p.deck1?.archetype);
@@ -187,7 +212,17 @@ export async function handleSubmitAutocomplete(interaction: any) {
 
     // 4. Roster Pemain Baru (Add: Menampilkan pemain roster yang belum masuk lineup)
     if (subName === 'add' && fName.startsWith('pemain')) {
-      if (existingLineup.length >= 5) {
+      const activeIgnList = existingLineup
+        .map((p) => String(p.ign || '').toLowerCase())
+        .filter(Boolean);
+
+      // Cek apakah ada slot kosong bertuan deck (akibat del saat game jalan)
+      const hasVacantDeckSlot = existingLineup.some(
+        (p) => (!p.ign || !p.ign.trim()) && (p.deck1 || p.deck2)
+      );
+
+      // Kuota penuh hanya jika sudah ada 5 pemain dan tidak ada slot gantung
+      if (activeIgnList.length >= 5 && !hasVacantDeckSlot) {
         return {
           type: 8,
           data: {
@@ -196,8 +231,7 @@ export async function handleSubmitAutocomplete(interaction: any) {
         };
       }
 
-      const submitted = existingLineup.map((p) => String(p.ign || '').toLowerCase());
-      const available = teamRoster.filter((p) => !submitted.includes((p.ign || '').toLowerCase()));
+      const available = teamRoster.filter((p) => !activeIgnList.includes((p.ign || '').toLowerCase()));
       return {
         type: 8,
         data: {
@@ -216,5 +250,5 @@ export async function handleSubmitAutocomplete(interaction: any) {
   } catch (error) {
     console.error('Error handleSubmitAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
-  }
+  } 
 }
