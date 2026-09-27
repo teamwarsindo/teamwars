@@ -12,12 +12,14 @@ import {
 import { handleSubAdd } from './submit/add';
 import { handleSubDel } from './submit/del';
 import { handleSubEdit } from './submit/edit';
+import { syncOfficialMatchReport } from './game/official-report';
 
-// 🔍 Auto-publish berlaku jika minimal 4 pemain dan seluruh deck yang dialokasikan terisi
+// Auto-publish berlaku jika minimal 4 pemain dan seluruh deck yang dialokasikan terisi
 function checkIsLineupFullyCompleted(lineup: any[]): boolean {
   if (!Array.isArray(lineup) || lineup.length < 4) return false;
 
   for (const p of lineup) {
+    if (!p.ign || !p.ign.trim()) return false;
     if (!p.deck1 || !p.deck1.archetype || !p.deck1.archetype.trim()) {
       return false;
     }
@@ -47,13 +49,13 @@ export async function handleSubmitCommand(interaction: any) {
   const token = interaction.token;
   const appId = interaction.application_id || process.env.DISCORD_CLIENT_ID;
 
-  // 2. Eksekusi Background Worker dengan waitUntil (Mencegah timeout 3 detik Discord)
+  // 2. Eksekusi Background Worker dengan waitUntil
   waitUntil(
     (async () => {
       try {
         const userIsAdmin = isAdminOrChief(interaction);
 
-        // 🔍 Resolusi channel camp dari discord:match_messages
+        // Resolusi channel camp dari discord:match_messages
         const allMatchMessages =
           (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
 
@@ -100,9 +102,6 @@ export async function handleSubmitCommand(interaction: any) {
           return;
         }
 
-        // 🎯 Filter Kandidat Sah (Tanpa Fallback Buta):
-        // 1. Match hari H (bisa diakses Referee & Admin)
-        // 2. Match dalam grace period s/d Selasa 23:59 WIB (hanya bisa diakses Admin/Chief)
         const todayCand = candidates.find((c) => isToday(c.match.matchDate));
         const graceCand = candidates.find((c) => isWithinAdminGracePeriod(c.match.matchDate));
         const selected = todayCand || (userIsAdmin ? graceCand : null);
@@ -216,13 +215,21 @@ export async function handleSubmitCommand(interaction: any) {
 
         const targetLineup = reportData[teamKey].lineup || [];
         const isFullyComplete = checkIsLineupFullyCompleted(targetLineup);
+        const games: any[] = reportData.games || [];
+        const hasGameStarted = games.length > 0;
+        const isMatchFinished = Boolean(reportData.isFinished);
 
         const hasPublishOption = optMap.publish !== undefined;
         const manualPublish = optMap.publish === true || optMap.publish === 'true';
-        const shouldRepost = hasPublishOption ? manualPublish : isFullyComplete;
+
+        // Jika game sudah jalan: selalu edit di tempat (shouldRepost = false) agar tidak spam camp
+        let shouldRepost = false;
+        if (!hasGameStarted) {
+          shouldRepost = hasPublishOption ? manualPublish : isFullyComplete;
+        }
 
         const trackerPlayers: TrackerPlayer[] = targetLineup.map((p: any) => ({
-          ign: p.ign,
+          ign: p.ign || '*(Slot Kosong - Menunggu Pengganti)*',
           idDuelLinks: p.idDuelLinks || '',
           deck1: p.deck1 ? { archetype: p.deck1.archetype, skill: p.deck1.skill } : null,
           deck2: p.deck2 ? { archetype: p.deck2.archetype, skill: p.deck2.skill } : null,
@@ -237,7 +244,7 @@ export async function handleSubmitCommand(interaction: any) {
           shouldRepost,
         });
 
-        // Simpan message tracker ID terbaru ke camp yang sesuai di discord:match_messages
+        // Simpan message tracker ID terbaru
         if (teamKey === 'teamA' && matchData.campA) {
           matchData.campA.activeMsgId = newSubmitMsgId;
           matchData.campA.submitMsgId = newSubmitMsgId;
@@ -246,20 +253,28 @@ export async function handleSubmitCommand(interaction: any) {
           matchData.campB.submitMsgId = newSubmitMsgId;
         }
 
-        // Simpan perubahan ke database (hanya dua key resmi turnamen)
         await kv.hset('discord:match_messages', { [matchId]: matchData });
         await kv.hset('twi:match_reports', { [matchId]: reportData });
 
-        let publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
-        if (manualPublish) {
-          publishNotice = '\n📢 *Live tracker di-publish ulang ke paling bawah channel!*';
-        } else if (isFullyComplete && !hasPublishOption) {
-          publishNotice = '\n🎉 **Lineup & Deck Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
+        // Jika match sudah selesai, sinkronkan official report agar daftar lineup terupdate
+        if (isMatchFinished) {
+          await syncOfficialMatchReport(matchData, reportData).catch(console.error);
         }
+
+        let publishNotice = '\n🔇 *Tracker diedit di tempat (tanpa repost).*';
+        if (shouldRepost) {
+          if (manualPublish) {
+            publishNotice = '\n📢 *Live tracker di-publish ulang ke paling bawah channel!*';
+          } else if (isFullyComplete) {
+            publishNotice = '\n🎉 **Lineup & Deck Lengkap!** Tracker otomatis dipublikasikan ke paling bawah!';
+          }
+        }
+
+        const registeredCount = targetLineup.filter((p: any) => p.ign && p.ign.trim()).length;
 
         if (appId && token) {
           await discordAPI(`/webhooks/${appId}/${token}/messages/@original`, 'PATCH', {
-            content: `${result.message}\n\n📊 Status Lineup: **${targetLineup.length}/5 Pemain Terdaftar**.${publishNotice}`,
+            content: `${result.message}\n\n📊 Status Lineup: **${registeredCount}/5 Pemain Terdaftar**.${publishNotice}`,
           });
         }
       } catch (error: any) {
@@ -273,9 +288,8 @@ export async function handleSubmitCommand(interaction: any) {
     })()
   );
 
-  // Respons Type 5 instan ke Discord agar tidak kena batas timeout 3 detik
   return {
     type: 5,
     data: { flags: 64 },
-  };                      
+  };
 }
