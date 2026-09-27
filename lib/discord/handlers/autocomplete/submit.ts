@@ -1,7 +1,7 @@
 import { kv } from '@vercel/kv';
 import { parsePlayers, PlayerItem } from '@/lib/discord/utils';
 import { filterChoices } from './types';
-import { isToday, isWithinAdminGracePeriod } from '../command/submit/types';
+import { isToday, isWithinAdminGracePeriod } from '@/lib/discord/commands/submit/types';
 
 const getTeamPlayers = async (slug: string): Promise<PlayerItem[]> => {
   const team = await kv.hgetall<any>(`teams:${slug}`);
