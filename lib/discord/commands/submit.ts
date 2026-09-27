@@ -1,5 +1,6 @@
 import { waitUntil } from '@vercel/functions';
 import { kv } from '@vercel/kv';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, parsePlayers, PlayerItem } from '@/lib/discord/utils';
 import { sendOrUpdateLiveTracker, TrackerPlayer } from '@/lib/discord/messages/match-briefing';
 import { MatchScheduleItem } from '@/app/tournament/_library';
@@ -231,19 +232,21 @@ export async function handleSubmitCommand(interaction: any) {
 
         // =========================================================================
         // KASUS 1: PERTANDINGAN SUDAH BERJALAN (GAME >= 1 ATAU SELESAI)
-        // MURNI PATCH DI TEMPAT PADA CAMP AKTIF & OFFICIAL REPORT (CAMP LAWAN DISKIP)
+        // MURNI PATCH DI TEMPAT: CAMP AKTIF, MATCH ROOM, DAN OFFICIAL REPORT
         // =========================================================================
         if (hasGameStarted) {
           await kv.hset('twi:match_reports', { [matchId]: reportData });
 
           // 1. PATCH live tracker di camp yang menjalankan command saja
           const targetMsgId = activeCamp.activeMsgId;
+          const matchWeek = reportData.week || matchData.week || officialSchedule.weekNumber || 1;
+
           if (targetMsgId) {
             const campEmbed = await renderCampTrackerEmbed(
               teamKey,
               reportData,
               officialSchedule,
-              reportData.week || matchData.week || 1
+              matchWeek
             );
 
             await discordAPI(`/channels/${channelId}/messages/${targetMsgId}`, 'PATCH', {
@@ -251,7 +254,10 @@ export async function handleSubmitCommand(interaction: any) {
             }).catch((err) => console.error('[PATCH CAMP ERROR]:', err));
           }
 
-          // 2. PATCH official match report di room wasit jika ada
+          // Render embed match report sekali untuk dipakai match room & official report
+          const matchEmbed = await buildMatchReportEmbed(officialSchedule, reportData);
+
+          // 2. PATCH match report di match room jika ada
           const matchRoomChannelId =
             matchData.matchChannel?.channelId ||
             officialSchedule.discordChannelId ||
@@ -264,19 +270,30 @@ export async function handleSubmitCommand(interaction: any) {
             (officialSchedule as any).trackerMessageId;
 
           if (matchRoomChannelId && matchReportMsgId) {
-            try {
-              const matchEmbed = await buildMatchReportEmbed(officialSchedule, reportData);
-              await discordAPI(
-                `/channels/${matchRoomChannelId}/messages/${matchReportMsgId}`,
-                'PATCH',
-                { embeds: [matchEmbed] }
-              );
-            } catch (err) {
-              console.error('[PATCH OFFICIAL REPORT ERROR]:', err);
-            }
+            await discordAPI(
+              `/channels/${matchRoomChannelId}/messages/${matchReportMsgId}`,
+              'PATCH',
+              { embeds: [matchEmbed] }
+            ).catch((err) => console.error('[PATCH MATCH ROOM REPORT ERROR]:', err));
           }
 
-          publishNotice = '\n📊 *Live Match Tracker diperbarui di tempat.*';
+          // 3. PATCH official report publik jika sudah diposting
+          const officialReportChannelId =
+            DISCORD_CONFIG.CH_SCORE ||
+            DISCORD_CONFIG.CH_OFFICIAL_REPORT ||
+            DISCORD_CONFIG.CH_LOG;
+
+          const officialReportMsgId = matchData.officialReportMsgId;
+
+          if (officialReportChannelId && officialReportMsgId) {
+            await discordAPI(
+              `/channels/${officialReportChannelId}/messages/${officialReportMsgId}`,
+              'PATCH',
+              { embeds: [matchEmbed] }
+            ).catch((err) => console.error('[PATCH OFFICIAL REPORT ERROR]:', err));
+          }
+
+          publishNotice = '\n📊 *Live Match Tracker & Official Report diperbarui di tempat.*';
         }
         // =========================================================================
         // KASUS 2: PERTANDINGAN BELUM BERJALAN (GAME = 0)
