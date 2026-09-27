@@ -1,6 +1,5 @@
 import { waitUntil } from '@vercel/functions';
 import { kv } from '@vercel/kv';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI, parsePlayers, PlayerItem } from '@/lib/discord/utils';
 import { sendOrUpdateLiveTracker, TrackerPlayer } from '@/lib/discord/messages/match-briefing';
 import { MatchScheduleItem } from '@/app/tournament/_library';
@@ -16,8 +15,8 @@ import { handleSubDel } from './submit/del';
 import { handleSubEdit } from './submit/edit';
 import { renderCampTrackerEmbed } from './game/camp-tracker';
 import { buildMatchReportEmbed } from './game/renderer';
+import { syncOfficialMatchReport } from './game/official-report';
 
-// Auto-publish berlaku jika minimal 4 pemain dan seluruh deck yang dialokasikan terisi
 function checkIsLineupFullyCompleted(lineup: any[]): boolean {
   if (!Array.isArray(lineup) || lineup.length < 4) return false;
 
@@ -37,7 +36,6 @@ function checkIsLineupFullyCompleted(lineup: any[]): boolean {
 }
 
 export async function handleSubmitCommand(interaction: any) {
-  // 1. Validasi Cepat Akses Staff (<1ms)
   if (!isStaff(interaction)) {
     return {
       type: 4,
@@ -52,13 +50,11 @@ export async function handleSubmitCommand(interaction: any) {
   const token = interaction.token;
   const appId = interaction.application_id || process.env.DISCORD_CLIENT_ID;
 
-  // 2. Eksekusi Background Worker dengan waitUntil
   waitUntil(
     (async () => {
       try {
         const userIsAdmin = isAdminOrChief(interaction);
 
-        // Resolusi channel camp dari discord:match_messages
         const allMatchMessages =
           (await kv.hgetall<Record<string, any>>('discord:match_messages')) || {};
 
@@ -223,7 +219,6 @@ export async function handleSubmitCommand(interaction: any) {
 
         let publishNotice = '';
 
-        // Ambil objek jadwal resmi
         const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
         const officialSchedule = schedules.find((s) => s.id === matchId) || ({
           ...matchData,
@@ -232,12 +227,11 @@ export async function handleSubmitCommand(interaction: any) {
 
         // =========================================================================
         // KASUS 1: PERTANDINGAN SUDAH BERJALAN (GAME >= 1 ATAU SELESAI)
-        // MURNI PATCH DI TEMPAT: CAMP AKTIF, MATCH ROOM, DAN OFFICIAL REPORT
         // =========================================================================
         if (hasGameStarted) {
           await kv.hset('twi:match_reports', { [matchId]: reportData });
 
-          // 1. PATCH live tracker di camp yang menjalankan command saja
+          // 1. PATCH live tracker di Camp Tim aktif
           const targetMsgId = activeCamp.activeMsgId;
           const matchWeek = reportData.week || matchData.week || officialSchedule.weekNumber || 1;
 
@@ -254,10 +248,7 @@ export async function handleSubmitCommand(interaction: any) {
             }).catch((err) => console.error('[PATCH CAMP ERROR]:', err));
           }
 
-          // Render embed match report sekali untuk dipakai match room & official report
-          const matchEmbed = await buildMatchReportEmbed(officialSchedule, reportData);
-
-          // 2. PATCH match report di match room jika ada
+          // 2. PATCH embed match khusus di Room Wasit / Match Room
           const matchRoomChannelId =
             matchData.matchChannel?.channelId ||
             officialSchedule.discordChannelId ||
@@ -270,6 +261,7 @@ export async function handleSubmitCommand(interaction: any) {
             (officialSchedule as any).trackerMessageId;
 
           if (matchRoomChannelId && matchReportMsgId) {
+            const matchEmbed = await buildMatchReportEmbed(officialSchedule, reportData);
             await discordAPI(
               `/channels/${matchRoomChannelId}/messages/${matchReportMsgId}`,
               'PATCH',
@@ -277,24 +269,15 @@ export async function handleSubmitCommand(interaction: any) {
             ).catch((err) => console.error('[PATCH MATCH ROOM REPORT ERROR]:', err));
           }
 
-          // 3. PATCH official report publik jika sudah diposting
-          const officialReportChannelId = DISCORD_CONFIG.CH_SCORE_REPORT || DISCORD_CONFIG.CH_REPORT;
-
-          const officialReportMsgId = matchData.officialReportMsgId;
-
-          if (officialReportChannelId && officialReportMsgId) {
-            await discordAPI(
-              `/channels/${officialReportChannelId}/messages/${officialReportMsgId}`,
-              'PATCH',
-              { embeds: [matchEmbed] }
-            ).catch((err) => console.error('[PATCH OFFICIAL REPORT ERROR]:', err));
-          }
+          // 3. SINKRONISASI KE CHANNEL OFFICIAL REPORT (Gunakan embed resmi)
+          await syncOfficialMatchReport(officialSchedule, reportData).catch((err) =>
+            console.error('[SYNC OFFICIAL REPORT ERROR]:', err)
+          );
 
           publishNotice = '\n📊 *Live Match Tracker & Official Report diperbarui di tempat.*';
         }
         // =========================================================================
         // KASUS 2: PERTANDINGAN BELUM BERJALAN (GAME = 0)
-        // Tetap menggunakan Deck Submission awal
         // =========================================================================
         else {
           const hasPublishOption = optMap.publish !== undefined;
@@ -363,4 +346,5 @@ export async function handleSubmitCommand(interaction: any) {
     type: 5,
     data: { flags: 64 },
   };
-}
+      }
+            
