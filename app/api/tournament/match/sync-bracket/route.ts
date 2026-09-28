@@ -5,71 +5,70 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // 1. Ambil data master schedules
     const schedules = (await kv.get<any[]>('twi:schedules')) || [];
 
-    // 2. Daftar pemenang Play-Ins resmi berdasarkan hasil match
-    const playInWinners = [
-      { placeholder: 'Winner Play-Ins #1', slug: 'ds-octagram' },
-      { placeholder: 'Winner Play-Ins #2', slug: 'licht-playground' },
-      { placeholder: 'Winner Play-Ins #3', slug: 'ds-xernobyl' },
-      { placeholder: 'Winner Play-Ins #4', slug: 'licht-united' },
-    ];
+    // Filter 4 match Quarter-Final (Week 9 / QF 1-4)
+    const qfMatches = schedules.filter((m) => {
+      const title = String(m.matchTitle || m.title || m.name || '').toLowerCase();
+      const id = String(m.id || '').toLowerCase();
+      return (
+        title.includes('quarter') ||
+        id.includes('qf') ||
+        Number(m.weekNumber || m.week) === 9
+      );
+    });
 
-    let updateCount = 0;
-
-    for (const target of playInWinners) {
-      // Ambil data tim lengkap langsung dari KV Hash teams:slug
-      const teamData = await kv.hgetall<any>(`teams:${target.slug}`);
-      if (!teamData) continue;
-
-      const teamName = teamData.namaTim || target.slug;
-      const teamLogo = teamData.logoTim || teamData.logoUrl || '';
-      const teamColor = teamData.warna || '#3498db';
-
-      for (const match of schedules) {
-        // Cek Tim A
-        const isTargetA =
-          String(match.teamAId || '').toLowerCase() === target.placeholder.toLowerCase() ||
-          String(match.teamAName || '').toLowerCase() === target.placeholder.toLowerCase();
-
-        if (isTargetA) {
-          match.teamAName = teamName;
-          match.teamAId = teamName;
-          match.teamASlug = target.slug;
-          match.teamALogo = teamLogo;
-          match.teamAImage = teamLogo;
-          match.teamAColor = teamColor;
-          updateCount++;
-        }
-
-        // Cek Tim B
-        const isTargetB =
-          String(match.teamBId || '').toLowerCase() === target.placeholder.toLowerCase() ||
-          String(match.teamBName || '').toLowerCase() === target.placeholder.toLowerCase();
-
-        if (isTargetB) {
-          match.teamBName = teamName;
-          match.teamBId = teamName;
-          match.teamBSlug = target.slug;
-          match.teamBLogo = teamLogo;
-          match.teamBImage = teamLogo;
-          match.teamBColor = teamColor;
-          updateCount++;
-        }
-      }
+    if (qfMatches.length === 0) {
+      return NextResponse.json({ error: 'Match Quarter-Final tidak ditemukan di twi:schedules' }, { status: 404 });
     }
 
-    // 3. Simpan kembali seluruh jadwal ke KV
+    // 4 Pilihan Tanggal Resmi (Kamis - Minggu, 1 - 4 Okt 2026, 20:00 WIB = 13:00 UTC)
+    const availableDates = [
+      '2026-10-01T13:00:00.000Z', // Kamis, 1 Okt 2026 20:00 WIB
+      '2026-10-02T13:00:00.000Z', // Jumat, 2 Okt 2026 20:00 WIB
+      '2026-10-03T13:00:00.000Z', // Sabtu, 3 Okt 2026 20:00 WIB
+      '2026-10-04T13:00:00.000Z', // Minggu, 4 Okt 2026 20:00 WIB
+    ];
+
+    // Algoritma Fisher-Yates Shuffle untuk mengacak urutan tanggal secara adil
+    for (let i = availableDates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [availableDates[i], availableDates[j]] = [availableDates[j], availableDates[i]];
+    }
+
+    // Pasangkan tanggal acak ke masing-masing match QF
+    const updatedSummary: any[] = [];
+    qfMatches.forEach((match, index) => {
+      if (availableDates[index]) {
+        match.matchDate = availableDates[index];
+        updatedSummary.push({
+          id: match.id,
+          title: match.matchTitle || match.id,
+          teamA: match.teamAName,
+          teamB: match.teamBName,
+          newDateWIB: new Date(match.matchDate).toLocaleString('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        });
+      }
+    });
+
+    // Simpan kembali seluruh jadwal ke KV
     await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil menginjeksi ${updateCount} slot Quarter-Final!`,
-      injectedWinners: playInWinners.map((w) => w.slug),
+      message: 'Jadwal tanggal tanding Quarter-Final berhasil diacak!',
+      schedule: updatedSummary,
     });
   } catch (error: any) {
-    console.error('Injeksi QF Error:', error);
+    console.error('Shuffle QF Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
