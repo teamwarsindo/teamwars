@@ -5,7 +5,11 @@ import {
   getPlayoffCoordinationMessagePayload,
   PlayoffCoordinationMatchItem,
 } from '@/lib/discord/messages/playoff-coordination';
-import { getTeamSlug, getMatchWeekNumber, getTournamentWeekNumberSafe } from '@/lib/discord/match-sync/helpers';
+import {
+  getTeamSlug,
+  getMatchWeekNumber,
+  getTournamentWeekNumberSafe,
+} from '@/lib/discord/match-sync/helpers';
 import { discordAPI } from '@/lib/discord/utils';
 
 const KV_PLAYOFF_COORD_KEY = 'twi:playoff_coordination_channel';
@@ -14,10 +18,11 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const messageId = searchParams.get('msgId') || searchParams.get('messageId');
+    const targetWeek = searchParams.get('week') || searchParams.get('targetWeek') || '9';
 
     if (!messageId) {
       return NextResponse.json(
-        { error: 'Parameter msgId wajib disertakan di URL (contoh: ?msgId=xxxx)' },
+        { error: 'Parameter msgId wajib disertakan di URL (contoh: ?msgId=xxxx&week=9)' },
         { status: 400 }
       );
     }
@@ -34,35 +39,31 @@ export async function GET(req: Request) {
     // 2. Ambil jadwal dari Redis KV
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
-    const playInsWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK;
-    const quarterWeek = playInsWeek + 1;
+    // 3. Ekstraksi pekan & filtering (adopsi 100% logika handleSyncWeekAction)
+    const weekMatch = String(targetWeek).match(/\d+/);
+    const weekNumber = weekMatch ? parseInt(weekMatch[0], 10) : getTournamentWeekNumberSafe();
+    const normTarget = String(targetWeek).toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    // Filter jadwal khusus Playoff yang aktif (Quarter Finals / Play-Ins)
-    const playoffMatches = schedules.filter((m: any) => {
+    const weekMatches = schedules.filter((m: any) => {
       const computedWeek = m.weekNumber || getMatchWeekNumber(m.matchDate);
-      if (computedWeek === quarterWeek || computedWeek === playInsWeek) return true;
+      if (computedWeek === weekNumber) return true;
 
-      const mWeekName = String(m.weekName || '').toLowerCase();
-      const mStage = String(m.stage || '').toLowerCase();
-      return (
-        mWeekName.includes('quarter') ||
-        mWeekName.includes('play-in') ||
-        mStage.includes('quarter') ||
-        mStage.includes('play-in')
-      );
+      const mWeekName = String(m.weekName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const mStage = String(m.stage || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return (mWeekName && mWeekName.includes(normTarget)) || (mStage && mStage.includes(normTarget));
     });
 
-    if (playoffMatches.length === 0) {
+    if (weekMatches.length === 0) {
       return NextResponse.json(
-        { error: 'Tidak ditemukan data match Playoff di twi:schedules' },
+        { error: `Tidak ada jadwal pertandingan untuk ${targetWeek}` },
         { status: 404 }
       );
     }
 
-    // 3. Kumpulkan match & ambil data emoji tim langsung dari Redis KV
+    // 4. Kumpulkan match & ambil data emoji tim langsung dari Redis KV
     const matchesPayload: PlayoffCoordinationMatchItem[] = [];
 
-    for (const match of playoffMatches) {
+    for (const match of weekMatches) {
       const slugA = getTeamSlug(match.teamAName);
       const slugB = getTeamSlug(match.teamBName);
 
@@ -81,20 +82,18 @@ export async function GET(req: Request) {
       });
     }
 
-    // Tentukan stage title berdasarkan pekan yang ditemukan
-    const sampleWeek =
-      playoffMatches[0]?.weekNumber ||
-      getMatchWeekNumber(playoffMatches[0]?.matchDate) ||
-      getTournamentWeekNumberSafe();
-    const stageTitle = sampleWeek === playInsWeek ? 'Play-Ins' : 'Quarter Finals';
+    // 5. Tentukan stage title persis seperti alur route sync
+    const playInsWeek = TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+    const isPlayIns = weekNumber === playInsWeek;
+    const stageTitle = isPlayIns ? 'Play-Ins' : 'Quarter Finals';
 
-    // 4. Susun payload pesan menggunakan helper pesan yang sudah ada
+    // 6. Susun payload pesan
     const payload = getPlayoffCoordinationMessagePayload({
       stageTitle,
       matches: matchesPayload,
     });
 
-    // 5. Eksekusi PATCH ke Discord API untuk memperbarui pesan
+    // 7. Eksekusi PATCH ke Discord API untuk memperbarui pesan
     const patchRes = await discordAPI(
       `/channels/${channelId}/messages/${messageId}`,
       'PATCH',
@@ -103,7 +102,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Pesan Discord ${messageId} di channel ${channelId} berhasil di-patch!`,
+      message: `Pesan Discord ${messageId} berhasil di-patch untuk babak ${stageTitle}!`,
       discordResponse: patchRes,
     });
   } catch (error: any) {
