@@ -91,6 +91,14 @@ export async function handleBtCheckMatches(body: any) {
 
       if (dateKey > sundayKey) break;
 
+      const currentDay = checkDay.getDay();
+
+      // Lewati hari di luar jadwal tanding resmi (Hanya izinkan Rabu s/d Minggu: hari 3, 4, 5, 6, 0)
+      if (currentDay === 1 || currentDay === 2) {
+        checkDay.setDate(checkDay.getDate() + 1);
+        continue;
+      }
+
       // Skip tanggal match mereka sendiri
       if (dateKey === currentMatchDateKey) {
         checkDay.setDate(checkDay.getDate() + 1);
@@ -148,7 +156,7 @@ export async function handleBtCheckMatches(body: any) {
 
     const descriptionContent =
       lines.length > 0
-        ? `Ketersediaan match per hari sebagai acuan reschedule (H+1 s/d Minggu).\n\n${lines.join('\n\n')}`
+        ? `Ketersediaan match per hari sebagai acuan reschedule (Rabu s/d Minggu).\n\n${lines.join('\n\n')}`
         : '⚠️ Tidak ada slot reschedule yang tersisa untuk pekan ini (sudah melewati batas akhir hari Minggu).';
 
     const weekTitleLabel = isPlayoffStage ? (match as any).weekName || 'Playoff' : `Week ${matchWeek}`;
@@ -160,29 +168,38 @@ export async function handleBtCheckMatches(body: any) {
       footer: { text: `Last Updated: ${updatedTime} WIB` },
     };
 
-    // Jalankan operasi kirim embed ke channel di background tanpa menahan respon Discord
+    // Sinkronisasi pesan embed recap: Patch pesan lama jika ada, atau buat baru via POST
     const recapKvKey = `twi:match_recap_msg:${match.id}`;
-    (async () => {
-      try {
-        const oldMsgId = await kv.get<string>(recapKvKey);
-        if (oldMsgId) {
-          await discordAPI(`/channels/${channelId}/messages/${oldMsgId}`, 'DELETE').catch(() => null);
-          await kv.del(recapKvKey);
-        }
+    const oldMsgId = await kv.get<string>(recapKvKey);
 
-        const sentMsg = await discordAPI(`/channels/${channelId}/messages`, 'POST', {
-          embeds: [embed],
-        }).catch(() => null);
+    let sentMsgId: string | null = null;
 
-        if (sentMsg?.id) {
-          await kv.set(recapKvKey, sentMsg.id);
-        }
-      } catch (err) {
-        console.error('Error background recap send:', err);
+    if (oldMsgId) {
+      // Coba PATCH pesan eksisting agar tidak menumpuk di chat
+      const patchRes = await discordAPI(`/channels/${channelId}/messages/${oldMsgId}`, 'PATCH', {
+        embeds: [embed],
+      }).catch(() => null);
+
+      if (patchRes?.id) {
+        sentMsgId = patchRes.id;
+      } else {
+        // Fallback jika pesan lama sudah terhapus manual oleh user
+        await kv.del(recapKvKey);
       }
-    })();
+    }
 
-    // Respon ACK type 6 (update interaksi tanpa membuka popup atau error thinking)
+    if (!sentMsgId) {
+      const postRes = await discordAPI(`/channels/${channelId}/messages`, 'POST', {
+        embeds: [embed],
+      }).catch(() => null);
+
+      if (postRes?.id) {
+        sentMsgId = postRes.id;
+        await kv.set(recapKvKey, sentMsgId);
+      }
+    }
+
+    // Respon ACK type 6 (update interaksi tombol Discord)
     return NextResponse.json({
       type: 6,
     });
