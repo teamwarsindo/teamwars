@@ -34,19 +34,27 @@ export function getPlayoffCoordinationMessagePayload({
   stageTitle,
   matches,
 }: PlayoffCoordinationMessageParams) {
-  // Susun format jadwal pertandingan dengan emoji tim dan pemisah antar-match
-  const matchScheduleContent =
+  // Setiap baris pertandingan diletakkan langsung di properti 'name'
+  const matchFields =
     matches.length > 0
-      ? matches
-          .map((m) => {
-            const emojiA = resolveTeamEmoji(m.emojiAId, m.kodeTimA, m.teamAName);
-            const emojiB = resolveTeamEmoji(m.emojiBId, m.kodeTimB, m.teamBName);
-            return `${emojiA}**${m.teamAName}** VS ${emojiB}**${m.teamBName}**`;
-          })
-          .join('\n\u200B\n')
-      : '-';
+      ? matches.map((m) => {
+          const emojiA = resolveTeamEmoji(m.emojiAId, m.kodeTimA, m.teamAName);
+          const emojiB = resolveTeamEmoji(m.emojiBId, m.kodeTimB, m.teamBName);
+          return {
+            name: `${emojiA}${m.teamAName} VS ${emojiB}${m.teamBName}`,
+            value: '\u200B',
+            inline: false,
+          };
+        })
+      : [
+          {
+            name: '-',
+            value: '\u200B',
+            inline: false,
+          },
+        ];
 
-  // Poin-poin regulasi langsung tersusun rapi tanpa karakter padding tambahan
+  // Poin-poin regulasi teknis
   const regulationValue =
     `• **Kuota Harian:** Maksimal **${TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_PLAYOFF} match per hari**.\n` +
     `• **Persetujuan Bersama:** Wajib disepakati oleh seluruh perwakilan tim dari kedua match yang bersangkutan.\n` +
@@ -58,20 +66,17 @@ export function getPlayoffCoordinationMessagePayload({
     description:
       `Room ini dibuka khusus sebagai sarana komunikasi antartim babak Playoff untuk koordinasi internal maupun kesepakatan tukar jadwal pertandingan (**swap schedule**).`,
     fields: [
-      // 1. Tepat 1 field spacer di atas jadwal
-      { name: '\u200B', value: '\u200B', inline: false },
-
-      // 2. Blok Jadwal Pertandingan
+      // 1. Header Judul Jadwal di properti name
       {
         name: '📋 Jadwal Pertandingan Pekan Ini',
-        value: matchScheduleContent,
+        value: '\u200B',
         inline: false,
       },
 
-      // 3. Tepat 1 field spacer di bawah jadwal
-      { name: '\u200B', value: '\u200B', inline: false },
+      // 2. Baris Pertandingan masing-masing di properti name tanpa spacer
+      ...matchFields,
 
-      // 4. Blok Regulasi Swap
+      // 3. Blok Regulasi Swap langsung menyusul
       {
         name: '📌 Regulasi Swap / Reschedule Playoff',
         value: regulationValue,
