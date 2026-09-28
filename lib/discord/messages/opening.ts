@@ -78,9 +78,12 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
     isTodayMatch = todayWib === matchWib;
   }
 
-  // Deteksi babak fixed (Semifinal & Grand Final tidak bisa di-reschedule)
+  // Deteksi babak fixed (Semifinal & Grand Final tidak bisa di-reschedule, kecualikan babak Quarter)
   const rawStageName = `${params.groupName || ''} ${params.weekName || ''}`.toLowerCase();
-  const isFixedStage = rawStageName.includes('semi') || rawStageName.includes('final');
+  const isQuarterFinal = rawStageName.includes('quarter');
+  const isFixedStage =
+    !isQuarterFinal &&
+    (rawStageName.includes('semi') || /\b(grand[- ]?final|final)\b/.test(rawStageName));
 
   const isScheduleLocked = isRescheduled || hasReferee || isTodayMatch || isFixedStage;
 
@@ -201,4 +204,3 @@ export async function sendOrUpdateOpeningEmbed(params: OpeningEmbedParams): Prom
   const res = await discordAPI(`/channels/${params.channelId}/messages`, 'POST', postPayload).catch(() => null);
   return res?.id || null;
 }
-  

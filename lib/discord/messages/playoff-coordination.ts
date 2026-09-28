@@ -1,5 +1,6 @@
 import { TOURNAMENT_RULES } from '@/app/tournament/_library';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { getEmbedFooterText } from '../utils';
 
 export interface PlayoffCoordinationMatchItem {
   teamAName: string;
@@ -33,7 +34,7 @@ export function getPlayoffCoordinationMessagePayload({
   stageTitle,
   matches,
 }: PlayoffCoordinationMessageParams) {
-  // Susun format matchup dengan emoji tim dan 'VS' kapital
+  // Susun format matchup dengan emoji tim, 'VS' kapital, dan spacer transparan antar-jadwal
   const matchScheduleContent =
     matches.length > 0
       ? matches
@@ -42,29 +43,39 @@ export function getPlayoffCoordinationMessagePayload({
             const emojiB = resolveTeamEmoji(m.emojiBId, m.kodeTimB, m.teamBName);
             return `${emojiA}**${m.teamAName}** VS ${emojiB}**${m.teamBName}**`;
           })
-          .join('\n\n')
+          .join('\n\u200B\n')
       : '-';
 
-  // Karakter zero-width space (\u200B) untuk padding alami agar tidak menempel pada judul field
+  // Padding awal agar konten jadwal tidak menempel ke sub-judul field
   const matchScheduleValue = `\u200B\n${matchScheduleContent}`;
 
+  // Regulasi swap mengadopsi format bullet point rapi seperti pada opening embed
   const regulationValue =
     `\u200B\n` +
-    `1. **Kuota Harian:** Maksimal **${TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_PLAYOFF} match per hari**.\n\n` +
-    `2. **Persetujuan Bersama:** Wajib disepakati oleh seluruh perwakilan tim dari kedua match yang bersangkutan.\n\n` +
-    `3. **Diskusi Langsung:** Silakan langsung tag role tim yang ingin diajak bertukar jadwal di room ini.\n\n` +
-    `4. **Pengesahan:** Setelah mencapai kata sepakat, silakan konfirmasi jadwal baru di room match masing-masing agar admin/wasit memperbarui sistem.`;
+    `• **Kuota Harian:** Maksimal **${TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_PLAYOFF} match per hari**.\n` +
+    `• **Persetujuan Bersama:** Wajib disepakati oleh seluruh perwakilan tim dari kedua match yang bersangkutan.\n` +
+    `• **Diskusi Langsung:** Silakan langsung tag role tim yang ingin diajak bertukar jadwal di room ini.\n` +
+    `• **Pengesahan:** Konfirmasi jadwal baru di room match masing-masing agar admin/wasit memperbarui sistem.`;
 
   const embed = {
     title: `🤝 Room Koordinasi Playoff — ${stageTitle}`,
     description:
       `Room ini dibuka khusus sebagai sarana komunikasi antartim babak Playoff untuk koordinasi internal maupun kesepakatan tukar jadwal pertandingan (**swap schedule**).`,
     fields: [
+      // 1. Spacer atas agar tidak menempel ke deskripsi pengantar
+      { name: '\u200B', value: '\u200B', inline: false },
+
+      // 2. Blok Jadwal Pertandingan
       {
         name: '📋 Jadwal Pertandingan Pekan Ini',
         value: matchScheduleValue,
         inline: false,
       },
+
+      // 3. Spacer pemisah antara jadwal dan regulasi
+      { name: '\u200B', value: '\u200B', inline: false },
+
+      // 4. Blok Regulasi Swap
       {
         name: '📌 Regulasi Swap / Reschedule Playoff',
         value: regulationValue,
@@ -72,8 +83,7 @@ export function getPlayoffCoordinationMessagePayload({
       },
     ],
     color: 0xf59e0b,
-    footer: { text: `Team Wars Indonesia • Playoff ${stageTitle}` },
-    timestamp: new Date().toISOString(),
+    footer: { text: getEmbedFooterText() },
   };
 
   return {
