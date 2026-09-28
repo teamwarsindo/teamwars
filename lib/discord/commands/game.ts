@@ -54,33 +54,37 @@ async function advanceBracketWinner(finishedMatch: MatchScheduleItem, winnerName
     const winnerData = await kv.hgetall<any>(`teams:${winnerSlug}`);
     const winnerLogo = winnerData?.logo || winnerData?.image || '';
 
-    // Ambil nomor match (misal: "Play-Ins #1" -> "#1")
-    const matchNumberMatch = (finishedMatch.title || (finishedMatch as any).name || finishedMatch.id)?.match(/#(\d+)/) || finishedMatch.id?.match(/(\d+)/);
+    // Ambil nomor match (misal: "Play-Ins #1" -> "#1") menggunakan type cast any yang aman
+    const matchObj = finishedMatch as any;
+    const matchLabel: string = matchObj.title || matchObj.name || matchObj.matchTitle || matchObj.id || '';
+    const matchNumberMatch = matchLabel.match(/#(\d+)/) || matchLabel.match(/(\d+)/);
     const matchNum = matchNumberMatch ? matchNumberMatch[1] : '';
     const targetPlaceholder = `winner play-ins #${matchNum}`.toLowerCase();
 
     for (const item of schedules) {
+      const matchItem = item as any;
+
       // 1. Cek slot Tim A di babak selanjutnya
       const isTeamAPlaceholder =
         (item.teamAName && item.teamAName.toLowerCase().includes(targetPlaceholder)) ||
-        (item as any).teamASourceMatchId === finishedMatch.id;
+        matchItem.teamASourceMatchId === finishedMatch.id;
 
       if (isTeamAPlaceholder) {
         item.teamAName = winnerName;
-        (item as any).teamASlug = winnerSlug;
-        if (winnerLogo) (item as any).teamALogo = winnerLogo;
+        matchItem.teamASlug = winnerSlug;
+        if (winnerLogo) matchItem.teamALogo = winnerLogo;
         isBracketUpdated = true;
       }
 
       // 2. Cek slot Tim B di babak selanjutnya
       const isTeamBPlaceholder =
         (item.teamBName && item.teamBName.toLowerCase().includes(targetPlaceholder)) ||
-        (item as any).teamBSourceMatchId === finishedMatch.id;
+        matchItem.teamBSourceMatchId === finishedMatch.id;
 
       if (isTeamBPlaceholder) {
         item.teamBName = winnerName;
-        (item as any).teamBSlug = winnerSlug;
-        if (winnerLogo) (item as any).teamBLogo = winnerLogo;
+        matchItem.teamBSlug = winnerSlug;
+        if (winnerLogo) matchItem.teamBLogo = winnerLogo;
         isBracketUpdated = true;
       }
     }
@@ -104,7 +108,7 @@ export async function syncAndBroadcastGameState({
   winnerOpt,
   isBeforeKickoff = false,
   userIsAdmin = false,
-  forceRepostCamp = true, // 👈 Default diubah ke true agar tracker selalu repost ke bawah
+  forceRepostCamp = true,
 }: {
   match: MatchScheduleItem;
   reportData: any;
@@ -168,7 +172,6 @@ export async function syncAndBroadcastGameState({
         const oldMsgIdA = matchMsgData.campA.activeMsgId;
 
         if (forceRepostCamp) {
-          // Hapus pesan tracker lama jika ada agar tidak menumpuk
           if (oldMsgIdA) {
             await discordAPI(
               `/channels/${matchMsgData.campA.channelId}/messages/${oldMsgIdA}`,
@@ -176,7 +179,6 @@ export async function syncAndBroadcastGameState({
             ).catch(() => null);
           }
 
-          // Kirim pesan baru ke paling bawah
           const postRes = await discordAPI(
             `/channels/${matchMsgData.campA.channelId}/messages`,
             'POST',
@@ -188,7 +190,6 @@ export async function syncAndBroadcastGameState({
             isMsgUpdated = true;
           }
         } else if (oldMsgIdA) {
-          // Edit di tempat jika tidak di-repost
           await discordAPI(
             `/channels/${matchMsgData.campA.channelId}/messages/${oldMsgIdA}`,
             'PATCH',
@@ -203,7 +204,6 @@ export async function syncAndBroadcastGameState({
         const oldMsgIdB = matchMsgData.campB.activeMsgId;
 
         if (forceRepostCamp) {
-          // Hapus pesan tracker lama jika ada agar tidak menumpuk
           if (oldMsgIdB) {
             await discordAPI(
               `/channels/${matchMsgData.campB.channelId}/messages/${oldMsgIdB}`,
@@ -211,7 +211,6 @@ export async function syncAndBroadcastGameState({
             ).catch(() => null);
           }
 
-          // Kirim pesan baru ke paling bawah
           const postRes = await discordAPI(
             `/channels/${matchMsgData.campB.channelId}/messages`,
             'POST',
@@ -223,7 +222,6 @@ export async function syncAndBroadcastGameState({
             isMsgUpdated = true;
           }
         } else if (oldMsgIdB) {
-          // Edit di tempat jika tidak di-repost
           await discordAPI(
             `/channels/${matchMsgData.campB.channelId}/messages/${oldMsgIdB}`,
             'PATCH',
@@ -399,4 +397,4 @@ export async function handleGameCommand(interaction: any) {
     type: 5,
     data: { flags: 64 },
   };
-}
+      }
