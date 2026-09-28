@@ -1,66 +1,75 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/app/tournament/_library';
-import { advanceBracketWinner } from '@/lib/discord/commands/game/bracket';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url);
-    const authHeader = req.headers.get('authorization');
-    const secret = searchParams.get('secret') || authHeader?.replace('Bearer ', '');
+    // 1. Ambil data master schedules
+    const schedules = (await kv.get<any[]>('twi:schedules')) || [];
 
-    if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // 2. Daftar pemenang Play-Ins resmi berdasarkan hasil match
+    const playInWinners = [
+      { placeholder: 'Winner Play-Ins #1', slug: 'ds-octagram' },
+      { placeholder: 'Winner Play-Ins #2', slug: 'licht-playground' },
+      { placeholder: 'Winner Play-Ins #3', slug: 'ds-xernobyl' },
+      { placeholder: 'Winner Play-Ins #4', slug: 'licht-united' },
+    ];
 
-    const targetMatchId = searchParams.get('matchId');
+    let updateCount = 0;
 
-    // 1. Ambil data jadwal dan match reports
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const allReports = (await kv.hgetall<Record<string, any>>('twi:match_reports')) || {};
+    for (const target of playInWinners) {
+      // Ambil data tim lengkap langsung dari KV Hash teams:slug
+      const teamData = await kv.hgetall<any>(`teams:${target.slug}`);
+      if (!teamData) continue;
 
-    const matchesToProcess = targetMatchId
-      ? schedules.filter((m) => m.id === targetMatchId)
-      : schedules;
+      const teamName = teamData.namaTim || target.slug;
+      const teamLogo = teamData.logoTim || teamData.logoUrl || '';
+      const teamColor = teamData.warna || '#3498db';
 
-    const logs: string[] = [];
+      for (const match of schedules) {
+        // Cek Tim A
+        const isTargetA =
+          String(match.teamAId || '').toLowerCase() === target.placeholder.toLowerCase() ||
+          String(match.teamAName || '').toLowerCase() === target.placeholder.toLowerCase();
 
-    // 2. Loop setiap match untuk mengecek siapa pemenangnya
-    for (const match of matchesToProcess) {
-      let reportData = allReports[match.id];
-      if (typeof reportData === 'string') {
-        try {
-          reportData = JSON.parse(reportData);
-        } catch {
-          reportData = null;
+        if (isTargetA) {
+          match.teamAName = teamName;
+          match.teamAId = teamName;
+          match.teamASlug = target.slug;
+          match.teamALogo = teamLogo;
+          match.teamAImage = teamLogo;
+          match.teamAColor = teamColor;
+          updateCount++;
+        }
+
+        // Cek Tim B
+        const isTargetB =
+          String(match.teamBId || '').toLowerCase() === target.placeholder.toLowerCase() ||
+          String(match.teamBName || '').toLowerCase() === target.placeholder.toLowerCase();
+
+        if (isTargetB) {
+          match.teamBName = teamName;
+          match.teamBId = teamName;
+          match.teamBSlug = target.slug;
+          match.teamBLogo = teamLogo;
+          match.teamBImage = teamLogo;
+          match.teamBColor = teamColor;
+          updateCount++;
         }
       }
-
-      // Ambil skor dari report atau dari schedule
-      const scoreA = reportData?.teamA?.score ?? match.scoreA ?? 0;
-      const scoreB = reportData?.teamB?.score ?? match.scoreB ?? 0;
-      const isFinished = (match as any).isFinished || reportData?.isFinished || scoreA >= 10 || scoreB >= 10;
-
-      // Hanya proses match yang sudah tuntas / mencapai skor 10
-      if (isFinished && (scoreA >= 10 || scoreB >= 10)) {
-        const winnerName = scoreA > scoreB ? match.teamAName : match.teamBName;
-
-        // 🔥 Eksekusi fitur advanceBracketWinner persis seperti yang di command /game
-        await advanceBracketWinner(match, winnerName);
-
-        logs.push(`[BRACKET UPDATED] Match ${match.id}: ${winnerName} (${scoreA}-${scoreB}) dimajukan ke jadwal berikutnya.`);
-      }
     }
+
+    // 3. Simpan kembali seluruh jadwal ke KV
+    await kv.set('twi:schedules', schedules);
 
     return NextResponse.json({
       success: true,
-      processed: logs.length,
-      logs: logs.length > 0 ? logs : ['Tidak ada match tuntas yang perlu dimajukan bracket-nya.'],
+      message: `Berhasil menginjeksi ${updateCount} slot Quarter-Final!`,
+      injectedWinners: playInWinners.map((w) => w.slug),
     });
   } catch (error: any) {
-    console.error('[SYNC BRACKET ERROR]:', error);
-    return NextResponse.json({ error: error.message || 'Internal Error' }, { status: 500 });
-  }              
+    console.error('Injeksi QF Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
