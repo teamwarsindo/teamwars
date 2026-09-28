@@ -67,17 +67,19 @@ export async function syncAndBroadcastGameState({
   const scoreB = reportData.teamB?.score || 0;
   const isFinished = scoreA >= 10 || scoreB >= 10;
 
+  // ✅ 1. SET STATUS ISFINISHED LANGSUNG KE MATCH REPORT
+  reportData.isFinished = isFinished;
+
   // A. SIMPAN MATCH REPORT KE KV
   await kv.hset('twi:match_reports', { [matchId]: reportData });
 
-  // B. UPDATE TWI:SCHEDULES
+  // B. UPDATE TWI:SCHEDULES (Hanya update skor berjalan)
   try {
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
     const idx = schedules.findIndex((m) => m.id === matchId);
     if (idx !== -1) {
       schedules[idx].scoreA = scoreA;
       schedules[idx].scoreB = scoreB;
-      schedules[idx].isFinished = isFinished;
       await kv.set('twi:schedules', schedules);
     }
   } catch (err) {
@@ -339,5 +341,5 @@ export async function handleGameCommand(interaction: any) {
   return {
     type: 5,
     data: { flags: 64 },
-  };
-    }
+  };                        
+}
