@@ -34,7 +34,7 @@ export function getPlayoffCoordinationMessagePayload({
   stageTitle,
   matches,
 }: PlayoffCoordinationMessageParams) {
-  // Susun format matchup dengan emoji tim, 'VS' kapital, dan spacer transparan antar-jadwal
+  // Susun format jadwal pertandingan dengan emoji tim dan pemisah antar-match
   const matchScheduleContent =
     matches.length > 0
       ? matches
@@ -46,12 +46,8 @@ export function getPlayoffCoordinationMessagePayload({
           .join('\n\u200B\n')
       : '-';
 
-  // Padding awal agar konten jadwal tidak menempel ke sub-judul field
-  const matchScheduleValue = `\u200B\n${matchScheduleContent}`;
-
-  // Regulasi swap mengadopsi format bullet point rapi seperti pada opening embed
+  // Poin-poin regulasi langsung tersusun rapi tanpa karakter padding tambahan
   const regulationValue =
-    `\u200B\n` +
     `• **Kuota Harian:** Maksimal **${TOURNAMENT_RULES.MAX_MATCHES_PER_DAY_PLAYOFF} match per hari**.\n` +
     `• **Persetujuan Bersama:** Wajib disepakati oleh seluruh perwakilan tim dari kedua match yang bersangkutan.\n` +
     `• **Diskusi Langsung:** Silakan langsung tag role tim yang ingin diajak bertukar jadwal di room ini.\n` +
@@ -62,17 +58,17 @@ export function getPlayoffCoordinationMessagePayload({
     description:
       `Room ini dibuka khusus sebagai sarana komunikasi antartim babak Playoff untuk koordinasi internal maupun kesepakatan tukar jadwal pertandingan (**swap schedule**).`,
     fields: [
-      // 1. Spacer atas agar tidak menempel ke deskripsi pengantar
+      // 1. Tepat 1 field spacer di atas jadwal
       { name: '\u200B', value: '\u200B', inline: false },
 
       // 2. Blok Jadwal Pertandingan
       {
         name: '📋 Jadwal Pertandingan Pekan Ini',
-        value: matchScheduleValue,
+        value: matchScheduleContent,
         inline: false,
       },
 
-      // 3. Spacer pemisah antara jadwal dan regulasi
+      // 3. Tepat 1 field spacer di bawah jadwal
       { name: '\u200B', value: '\u200B', inline: false },
 
       // 4. Blok Regulasi Swap
