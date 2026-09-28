@@ -2,7 +2,7 @@ import { waitUntil } from '@vercel/functions';
 import { kv } from '@vercel/kv';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { discordAPI } from '@/lib/discord/utils';
-import { MatchScheduleItem } from '@/app/tournament/_library';
+import { MatchScheduleItem, getTeamSlug } from '@/app/tournament/_library';
 import { sendOfficialScoreLog } from '@/lib/discord/messages/score-log';
 import { getMatchContext } from '@/lib/discord/commands/assign/helpers';
 import { resolveMatchFromChannel, getOptionMap, GameContext } from './game/types';
@@ -38,6 +38,58 @@ function isStaff(interaction: any): boolean {
     );
   } catch {
     return false;
+  }
+}
+
+/**
+ * 🏆 UPDATE OTOMATIS BRACKET & JADWAL DI TWI:SCHEDULES
+ * Menggantikan placeholder seperti 'Winner Play-Ins #1' dengan nama dan logo tim pemenang asli
+ */
+async function advanceBracketWinner(finishedMatch: MatchScheduleItem, winnerName: string) {
+  try {
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    let isBracketUpdated = false;
+
+    const winnerSlug = getTeamSlug(winnerName);
+    const winnerData = await kv.hgetall<any>(`teams:${winnerSlug}`);
+    const winnerLogo = winnerData?.logo || winnerData?.image || '';
+
+    // Ambil nomor match (misal: "Play-Ins #1" -> "#1")
+    const matchNumberMatch = (finishedMatch.title || (finishedMatch as any).name || finishedMatch.id)?.match(/#(\d+)/) || finishedMatch.id?.match(/(\d+)/);
+    const matchNum = matchNumberMatch ? matchNumberMatch[1] : '';
+    const targetPlaceholder = `winner play-ins #${matchNum}`.toLowerCase();
+
+    for (const item of schedules) {
+      // 1. Cek slot Tim A di babak selanjutnya
+      const isTeamAPlaceholder =
+        (item.teamAName && item.teamAName.toLowerCase().includes(targetPlaceholder)) ||
+        (item as any).teamASourceMatchId === finishedMatch.id;
+
+      if (isTeamAPlaceholder) {
+        item.teamAName = winnerName;
+        (item as any).teamASlug = winnerSlug;
+        if (winnerLogo) (item as any).teamALogo = winnerLogo;
+        isBracketUpdated = true;
+      }
+
+      // 2. Cek slot Tim B di babak selanjutnya
+      const isTeamBPlaceholder =
+        (item.teamBName && item.teamBName.toLowerCase().includes(targetPlaceholder)) ||
+        (item as any).teamBSourceMatchId === finishedMatch.id;
+
+      if (isTeamBPlaceholder) {
+        item.teamBName = winnerName;
+        (item as any).teamBSlug = winnerSlug;
+        if (winnerLogo) (item as any).teamBLogo = winnerLogo;
+        isBracketUpdated = true;
+      }
+    }
+
+    if (isBracketUpdated) {
+      await kv.set('twi:schedules', schedules);
+    }
+  } catch (err) {
+    console.error('[ADVANCE BRACKET ERROR]:', err);
   }
 }
 
@@ -190,6 +242,11 @@ export async function syncAndBroadcastGameState({
 
   // E. SINKRONISASI KE CHANNEL OFFICIAL REPORT JIKA MATCH SELESAI
   if (isFinished) {
+    // 🏆 1. Tentukan Nama Tim Pemenang & Update Bracket Otomatis di Schedules
+    const winnerName = scoreA >= 10 ? match.teamAName : match.teamBName;
+    await advanceBracketWinner(match, winnerName);
+
+    // 2. Sinkronisasi Official Match Report
     await syncOfficialMatchReport(match, reportData).catch((err) =>
       console.error('[SYNC OFFICIAL REPORT ERROR]:', err)
     );
@@ -341,5 +398,5 @@ export async function handleGameCommand(interaction: any) {
   return {
     type: 5,
     data: { flags: 64 },
-  };                        
+  };
 }
