@@ -118,6 +118,27 @@ export function getTeamSlug(teamName: string): string {
 }
 
 /**
+ * Standarisasi tampilan nama stage/babak turnamen agar bersih dari penomoran #1, #2, dll.
+ * Contoh: "Quarter-Final #1" -> "Quarter Final", "Play-Ins #2" -> "Play-Ins"
+ */
+export function formatStageName(stageRaw?: string): string {
+  if (!stageRaw) return "";
+
+  // Hapus nomor urut/tagar seperti #1, #2, dst.
+  const cleaned = stageRaw.replace(/\s*#\d+/g, "").trim();
+
+  // Standarisasi variasi penulisan babak Playoff umum
+  const lower = cleaned.toLowerCase();
+  if (lower.includes("quarter")) return "Quarter Final";
+  if (lower.includes("semi")) return "Semi Final";
+  if (lower.includes("grand") && lower.includes("final")) return "Grand Final";
+  if (lower.includes("bronze") || lower.includes("third") || lower.includes("3rd")) return "Bronze Match";
+  if (lower.includes("play-in") || lower.includes("playin")) return "Play-Ins";
+
+  return cleaned;
+}
+
+/**
  * Mengambil key tanggal YYYY-MM-DD berbasis zona waktu Asia/Jakarta (WIB)
  */
 export function getWibDateKey(dateObj: Date = new Date()): string {
