@@ -11,6 +11,7 @@ import {
 } from "../_library/power-ranking";
 import { calculateStandings, getTeamStatsFromStandings } from "@/app/tournament/_library/calculator";
 import { TOURNAMENT_RULES } from "@/app/tournament/_library/constants";
+import { formatStageName } from "@/app/tournament/_library/utils";
 import { StageScopeType } from "./analytics-filter";
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTeamCard } from "./power-ranking-team-card";
@@ -32,7 +33,6 @@ interface PowerRankingViewProps {
 const normalizeKey = (str?: string) =>
   (str || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 
-// Multi-tier Sorting: Prioritas Pemain Main (played > 0) -> Win -> WPM -> AGG -> Abjad Nama Pemain
 function sortPowerRankings(data: PowerRankingPlayer[]): PowerRankingPlayer[] {
   return [...data].sort((a, b) => {
     const aPlayed = a.played > 0 ? 1 : 0;
@@ -116,7 +116,7 @@ export function PowerRankingView({
     return sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
   }, [reports, targetWeek, teams, freeDuelists, filterScope, matchedTeamSlug]);
 
-  // Map logo tim & Map warna aksen tim (Diambil dari teams & schedules)
+  // Map logo tim & Map warna aksen tim
   const { teamLogoMap, teamColorMap } = useMemo(() => {
     const lMap = new Map<string, string>();
     const cMap = new Map<string, string>();
@@ -185,7 +185,7 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
-  // 4. Hitung Statistik Tim Resmi Sesuai Stage Scope Aktif
+  // 4. Hitung Statistik Tim Resmi Sesuai Stage Scope Aktif & Filter Pekan
   const selectedTeamStanding = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
       return undefined;
@@ -193,6 +193,7 @@ export function PowerRankingView({
 
     const filteredSchedules = schedules.filter((s: any) => {
       const matchWeek = Number(s.weekNumber || 1);
+      if (matchWeek > targetWeek) return false;
       if (stageScope === "GROUP_ONLY") {
         return matchWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK;
       }
@@ -207,31 +208,55 @@ export function PowerRankingView({
 
     if (!stats) return undefined;
 
-    const streakList = stats.streak || stats.form || [];
     const normTargetTeam = normalizeKey(selectedTeam);
 
-    let stageDisplay = stats.groupName;
-    if (stageScope === "PLAYOFF_ONLY") {
-      const playoffMatches = schedules.filter((s: any) => {
+    // Cari seluruh match yang melibatkan tim ini sampai dengan targetWeek untuk menyusun form dinamis
+    const teamFinishedMatches = filteredSchedules
+      .filter((s: any) => {
         const isTeamMatch =
           normalizeKey(s.teamAName) === normTargetTeam ||
           normalizeKey(s.teamBName) === normTargetTeam;
-        return isTeamMatch && Number(s.weekNumber || 1) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
-      });
+        return isTeamMatch && Boolean(s.isFinished || (s.scoreA ?? 0) >= 10 || (s.scoreB ?? 0) >= 10);
+      })
+      .sort((a: any, b: any) => Number(a.weekNumber || 1) - Number(b.weekNumber || 1));
 
-      const lastPlayoffMatch = playoffMatches[playoffMatches.length - 1];
-      stageDisplay =
-        (lastPlayoffMatch as any)?.stage ||
-        (lastPlayoffMatch as any)?.weekName ||
-        lastPlayoffMatch?.groupName ||
+    const dynamicFormList = teamFinishedMatches.map((s: any) => {
+      const isTeamA = normalizeKey(s.teamAName) === normTargetTeam;
+      const scoreMyTeam = isTeamA ? s.scoreA ?? 0 : s.scoreB ?? 0;
+      const scoreOpponent = isTeamA ? s.scoreB ?? 0 : s.scoreA ?? 0;
+      return scoreMyTeam > scoreOpponent ? "W" : "L";
+    });
+
+    // Deteksi babak playoff terakhir tim yang telah terstandarisasi penamaannya
+    const playoffMatches = schedules.filter((s: any) => {
+      const isTeamMatch =
+        normalizeKey(s.teamAName) === normTargetTeam ||
+        normalizeKey(s.teamBName) === normTargetTeam;
+      return isTeamMatch && Number(s.weekNumber || 1) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+    });
+
+    let formattedPlayoffStage: string | undefined = undefined;
+    if (playoffMatches.length > 0) {
+      const lastPlayoff = playoffMatches[playoffMatches.length - 1];
+      const rawStage =
+        (lastPlayoff as any)?.stage ||
+        (lastPlayoff as any)?.weekName ||
+        lastPlayoff?.groupName ||
         "Playoff";
+      formattedPlayoffStage = formatStageName(rawStage);
     }
+
+    const teamProfile = teams.find(
+      (t) => normalizeKey(t.name) === normTargetTeam || (t.slug && normalizeKey(t.slug) === normTargetTeam)
+    );
+    const originalGroupName = teamProfile?.groupName || stats.groupName || "Team Wars Indonesia";
 
     return {
       ...stats,
-      groupName: stageDisplay,
-      streak: streakList,
-      form: streakList,
+      groupName: originalGroupName,
+      playoffStage: formattedPlayoffStage,
+      streak: dynamicFormList,
+      form: dynamicFormList,
       rawDiff: stats.rawDiff ?? (typeof stats.roundDifference === "number" ? stats.roundDifference : 0),
     };
   }, [selectedTeam, schedules, teams, targetWeek, stageScope]);
@@ -307,5 +332,5 @@ export function PowerRankingView({
         standing={selectedTeamStanding}
       />
     </div>
-  );
+  );   
 }
