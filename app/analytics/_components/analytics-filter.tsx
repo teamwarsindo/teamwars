@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import { Search, X } from "lucide-react";
 import { DIVISION_MAP, TOURNAMENT_RULES } from "@/app/tournament/_library";
+import { formatStageName } from "@/app/tournament/_library/utils";
 import { FilterGroupToggle, StageScopeType } from "./filter-group-toggle";
 import { FilterTeamDropdown } from "./filter-team-dropdown";
 import { FilterWeekDropdown } from "./filter-week-dropdown";
@@ -44,6 +46,8 @@ export interface AnalyticsFilterProps {
   onMatchChange?: (matchId: string) => void;
   matchesInView?: AnalyticsFilterMatchItem[];
   allSchedules?: AnalyticsFilterMatchItem[];
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
   isFilterActive: boolean;
   onReset: () => void;
 }
@@ -65,6 +69,8 @@ export function AnalyticsFilter({
   onMatchChange,
   matchesInView = [],
   allSchedules = [],
+  searchQuery = "",
+  onSearchChange,
   isFilterActive,
   onReset,
 }: AnalyticsFilterProps) {
@@ -85,7 +91,6 @@ export function AnalyticsFilter({
     typeof selectedWeek === "number" &&
     selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
-  // Cek apakah tim yang dipilih memiliki jadwal/pernah main di babak playoff
   const selectedTeamHasPlayoff = useMemo(() => {
     if (!selectedTeam) return true;
     const clean = selectedTeam.toLowerCase().trim();
@@ -97,25 +102,19 @@ export function AnalyticsFilter({
     );
   }, [allSchedules, selectedTeam]);
 
-  // 1. OPSI WEEK DI DROPDOWN: DIBUKA SEMUA (ALL WEEKS)
-  // Tidak membatasi opsi pekan saat Group Only aktif, sehingga user bebas memilih week manapun
   const dynamicWeeks = useMemo(() => {
     if (mode === "power-ranking") {
-      // HANYA jika filter tim aktif DAN tim tersebut bukan tim playoff, batasi week ke babak grup
       if (selectedTeam && !selectedTeamHasPlayoff) {
         return availableWeeks.filter((w) => w < TOURNAMENT_RULES.PLAYOFF_START_WEEK);
       }
-      // HANYA jika tombol PLAYOFF_ONLY aktif, batasi opsi ke pekan playoff
       if (stageScope === "PLAYOFF_ONLY") {
         return availableWeeks.filter((w) => w >= TOURNAMENT_RULES.PLAYOFF_START_WEEK);
       }
-      // Untuk GROUP_ONLY atau ALL: TAMPILKAN SEMUA WEEK TANPA DIBATASI!
       return availableWeeks;
     }
     return availableWeeks;
   }, [mode, stageScope, availableWeeks, selectedTeam, selectedTeamHasPlayoff]);
 
-  // 2. DAFTAR TIM: HANYA DIBATASI JIKA TOMBOL AKTIF
   const filteredTeams = useMemo(() => {
     let list = [...teams];
 
@@ -143,12 +142,7 @@ export function AnalyticsFilter({
           (t) => groupTeamNames.has(t.name.toLowerCase()) || Boolean(t.groupName)
         );
       }
-      // Jika stageScope === "ALL", tampilkan semua tim lengkap tanpa terpotong
     } else {
-      // Mode Reports
-      if (!isPlayoffWeek && selectedGroup !== "ALL") {
-        list = list.filter((t) => !t.groupName || t.groupName === selectedGroup);
-      }
       if (selectedWeek !== "ALL") {
         const activeTeamNames = new Set<string>();
         allSchedules.forEach((m) => {
@@ -164,7 +158,14 @@ export function AnalyticsFilter({
     }
 
     return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  }, [teams, mode, stageScope, selectedGroup, selectedWeek, isPlayoffWeek, allSchedules]);
+  }, [teams, mode, stageScope, selectedWeek, allSchedules]);
+
+  const formattedMatchesInView = useMemo(() => {
+    return matchesInView.map((m) => ({
+      ...m,
+      groupName: m.groupName ? formatStageName(m.groupName) : m.groupName,
+    }));
+  }, [matchesInView]);
 
   const handleSelectTeam = (teamName: string) => {
     onTeamChange(!teamName || teamName === "ALL" ? "" : teamName);
@@ -196,21 +197,46 @@ export function AnalyticsFilter({
 
   return (
     <div ref={containerRef} className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2.5">
-      {/* 1. Baris Toggle */}
-      <FilterGroupToggle
-        mode={mode}
-        selectedGroup={selectedGroup}
-        stageScope={stageScope}
-        currentTournamentWeek={maxActiveWeek}
-        selectedWeek={selectedWeek}
-        isPlayoffWeek={isPlayoffWeek}
-        selectedTeam={selectedTeam}
-        selectedTeamHasPlayoff={selectedTeamHasPlayoff}
-        onToggleGroup={handleToggleGroup}
-        onToggleStageScope={handleToggleStageScope}
-      />
+      {/* 1. Baris Toggle (Hanya ditampilkan pada mode Power Ranking) */}
+      {mode === "power-ranking" && (
+        <FilterGroupToggle
+          mode={mode}
+          selectedGroup={selectedGroup}
+          stageScope={stageScope}
+          currentTournamentWeek={maxActiveWeek}
+          selectedWeek={selectedWeek}
+          isPlayoffWeek={isPlayoffWeek}
+          selectedTeam={selectedTeam}
+          selectedTeamHasPlayoff={selectedTeamHasPlayoff}
+          onToggleGroup={handleToggleGroup}
+          onToggleStageScope={handleToggleStageScope}
+        />
+      )}
 
-      {/* 2. Baris Tim & Week Dropdown + Reset */}
+      {/* 2. Universal Search Bar (Mode Reports) */}
+      {mode === "reports" && onSearchChange && (
+        <div className="relative w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Cari tim, stage (misal Play-Ins), atau ID match..."
+            className="w-full rounded-xl border border-border bg-background pl-8 pr-8 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => onSearchChange("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 3. Baris Dropdown Tim & Week + Reset */}
       <div className="grid grid-cols-2 gap-2 items-center">
         <FilterTeamDropdown
           isOpen={openDropdown === "team"}
@@ -236,12 +262,12 @@ export function AnalyticsFilter({
         />
       </div>
 
-      {/* 3. Baris Match Dropdown (Mode Reports) */}
+      {/* 4. Baris Match Dropdown (Mode Reports) */}
       {mode === "reports" && onMatchChange && (
         <FilterMatchDropdown
           isOpen={openDropdown === "match"}
           onToggle={() => setOpenDropdown(openDropdown === "match" ? null : "match")}
-          matchesInView={matchesInView}
+          matchesInView={formattedMatchesInView}
           selectedMatchId={selectedMatchId}
           onSelectMatch={(id) => {
             onMatchChange(id);
@@ -250,5 +276,5 @@ export function AnalyticsFilter({
         />
       )}
     </div>
-  );
+  );  
 }
