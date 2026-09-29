@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
-import { Shield } from "lucide-react";
 import { formatStageName } from "@/app/tournament/_library/utils";
 import { ReportScoreboard } from "./report-scoreboard";
 import { ReportLineup } from "./report-lineup";
@@ -158,22 +157,16 @@ export function MatchReportsView({
                 const stageClean = formatStageName(m.groupName || "");
                 const scoreAVal = m.scoreA ?? 0;
                 const scoreBVal = m.scoreB ?? 0;
-                const isFinishedMatch = Boolean(m.isFinished || scoreAVal >= 10 || scoreBVal >= 10);
-
-                const isWinnerA = isFinishedMatch && scoreAVal > scoreBVal;
-                const isWinnerB = isFinishedMatch && scoreBVal > scoreAVal;
-                const winningColor = isWinnerA
-                  ? m.teamAColor
-                  : isWinnerB
-                  ? m.teamBColor
-                  : undefined;
+                const aIsLeading = scoreAVal > scoreBVal;
+                const bIsLeading = scoreBVal > scoreAVal;
+                const winningColor = aIsLeading ? m.teamAColor : bIsLeading ? m.teamBColor : undefined;
 
                 return (
                   <button
                     key={m.id}
                     type="button"
                     onClick={() => onSelectMatch(m.id)}
-                    className="p-3 rounded-2xl border bg-card hover:border-primary/60 transition shadow-xs cursor-pointer flex flex-col justify-center"
+                    className="p-3 rounded-2xl border bg-card/95 backdrop-blur-md hover:border-primary/60 transition shadow-xs cursor-pointer flex flex-col justify-center"
                     style={{
                       borderColor: winningColor ? `${winningColor}88` : undefined,
                       background: winningColor
@@ -181,72 +174,75 @@ export function MatchReportsView({
                         : undefined,
                     }}
                   >
-                    {/* Baris Utama: Tim A | Skor & Info Baris Terpisah | Tim B */}
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 w-full">
-                      {/* Kubu Tim A */}
-                      <div className="flex flex-col items-center text-center gap-1 min-w-0">
-                        <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0 flex items-center justify-center border border-border/60">
+                      {/* Tim A */}
+                      <div className="flex flex-col items-center text-center min-w-0">
+                        <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-xs">
                           {m.teamALogo ? (
                             <Image
                               src={m.teamALogo}
                               alt={m.teamAName || "Team A"}
-                              width={40}
-                              height={40}
-                              className="h-full w-full object-cover"
+                              fill
+                              sizes="48px"
+                              className="object-cover rounded-full"
                               unoptimized
                             />
                           ) : (
-                            <Shield className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-black text-xs text-primary">
+                              {m.teamAName?.slice(0, 3).toUpperCase() || "TMA"}
+                            </span>
                           )}
                         </div>
-                        <span className="font-bold text-[11px] sm:text-xs text-foreground leading-tight line-clamp-2 w-full">
-                          {m.teamAName}
-                        </span>
+                        <div
+                          className="font-black text-[11px] sm:text-xs text-foreground whitespace-nowrap truncate w-full px-1"
+                          title={m.teamAName}
+                        >
+                          {m.teamAName || "Tim A"}
+                        </div>
                       </div>
 
-                      {/* Kolom Tengah: Skor & Pemisah Baris (Week & Group) */}
-                      <div className="flex flex-col items-center justify-center px-1">
-                        {/* Angka Skor */}
-                        <div className="font-mono text-base sm:text-lg tracking-tight font-black flex items-center gap-1.5">
-                          <span className={isFinishedMatch ? (isWinnerA ? "text-emerald-500" : "text-rose-500") : "text-foreground"}>
-                            {scoreAVal}
-                          </span>
-                          <span className="text-muted-foreground text-xs font-normal">-</span>
-                          <span className={isFinishedMatch ? (isWinnerB ? "text-emerald-500" : "text-rose-500") : "text-foreground"}>
-                            {scoreBVal}
-                          </span>
+                      {/* Skor & Label Week / Stage */}
+                      <div className="flex flex-col items-center justify-center px-2 shrink-0">
+                        <div className="flex items-center gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
+                          <span className={aIsLeading ? "text-primary" : "text-foreground/90"}>{scoreAVal}</span>
+                          <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl">—</span>
+                          <span className={bIsLeading ? "text-primary" : "text-foreground/90"}>{scoreBVal}</span>
                         </div>
 
-                        {/* Baris 1: Week (Menggantikan posisi REPEAT) */}
-                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5 leading-none">
-                          Week {m.weekNumber}
-                        </span>
-
-                        {/* Baris 2: Stage / Group (Menggantikan posisi WARN) */}
-                        <span className="text-[9.5px] font-extrabold text-primary truncate max-w-[120px] text-center mt-0.5 leading-none">
-                          {stageClean}
-                        </span>
+                        <div className="mt-1.5 space-y-0.5 text-[9px] w-full max-w-[124px] text-center font-sans">
+                          <div className="text-muted-foreground uppercase text-[8px] font-bold tracking-wider leading-tight">
+                            Week {m.weekNumber || 1}
+                          </div>
+                          <div className="text-primary font-bold text-[9px] truncate max-w-[124px] leading-tight" title={stageClean}>
+                            {stageClean || "Divisi Official"}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Kubu Tim B */}
-                      <div className="flex flex-col items-center text-center gap-1 min-w-0">
-                        <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0 flex items-center justify-center border border-border/60">
+                      {/* Tim B */}
+                      <div className="flex flex-col items-center text-center min-w-0">
+                        <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-xs">
                           {m.teamBLogo ? (
                             <Image
                               src={m.teamBLogo}
                               alt={m.teamBName || "Team B"}
-                              width={40}
-                              height={40}
-                              className="h-full w-full object-cover"
+                              fill
+                              sizes="48px"
+                              className="object-cover rounded-full"
                               unoptimized
                             />
                           ) : (
-                            <Shield className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-black text-xs text-rose-500">
+                              {m.teamBName?.slice(0, 3).toUpperCase() || "TMB"}
+                            </span>
                           )}
                         </div>
-                        <span className="font-bold text-[11px] sm:text-xs text-foreground leading-tight line-clamp-2 w-full">
-                          {m.teamBName}
-                        </span>
+                        <div
+                          className="font-black text-[11px] sm:text-xs text-foreground whitespace-nowrap truncate w-full px-1"
+                          title={m.teamBName}
+                        >
+                          {m.teamBName || "Tim B"}
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -309,5 +305,5 @@ export function MatchReportsView({
         </>
       )}
     </div>
-  );                          
-}
+  );
+}              
