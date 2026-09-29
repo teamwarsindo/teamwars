@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { Shield } from "lucide-react";
+import { TOURNAMENT_RULES } from "@/app/tournament/_library/constants";
 
 interface PowerRankingTeamCardProps {
   teamName: string;
@@ -58,7 +59,11 @@ export function PowerRankingTeamCard({
       ? Math.round((matchWins / totalMatches) * 100)
       : 0;
 
-  const formList = (standing?.streak || standing?.form || []).slice(0, 7);
+  // Hitung jumlah match group stage secara dinamis tanpa hardcode
+  const regularGroupMatchesCount = TOURNAMENT_RULES.TOTAL_TEAMS_PER_GROUP - 1;
+  const allFormList: string[] = standing?.streak || standing?.form || [];
+  const groupFormList = allFormList.slice(0, regularGroupMatchesCount);
+  const playoffFormList = allFormList.slice(regularGroupMatchesCount);
 
   const renderDiff = (val: number) => {
     if (isNaN(val) || val === 0) {
@@ -69,6 +74,23 @@ export function PowerRankingTeamCard({
     }
     return <span className="text-rose-500 font-bold">{val}</span>;
   };
+
+  const renderBadgeList = (list: string[], keyPrefix: string) =>
+    list.map((res: string, i: number) => {
+      const isWin = res.toUpperCase() === "W";
+      return (
+        <span
+          key={`${keyPrefix}-${i}`}
+          className={`h-3.5 w-3.5 sm:h-4 sm:w-4 flex items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black leading-none ${
+            isWin
+              ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
+              : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
+          }`}
+        >
+          {res.toUpperCase()}
+        </span>
+      );
+    });
 
   return (
     <div
@@ -118,33 +140,26 @@ export function PowerRankingTeamCard({
 
         {/* ── KANAN: MATCH FORM BOX ── */}
         <div className="shrink-0 flex flex-col items-center sm:items-end">
-          <div className="px-2.5 py-1.5 rounded-xl border border-border/80 bg-muted/30 flex flex-col items-center justify-center text-center shadow-xs">
-            <span className="text-[7.5px] font-bold uppercase tracking-wider leading-none mb-1 text-muted-foreground">
+          <div className="px-2.5 py-1.5 rounded-xl border border-border/80 bg-muted/30 flex flex-col items-center justify-center text-center shadow-xs gap-1">
+            <span className="text-[7.5px] font-bold uppercase tracking-wider leading-none text-muted-foreground">
               MATCH FORM
             </span>
+            {/* Baris 1: Group Stage Form */}
             <div className="flex items-center gap-1">
-              {formList.length > 0 ? (
-                formList.map((res: string, i: number) => {
-                  const isWin = res.toUpperCase() === "W";
-                  return (
-                    <span
-                      key={i}
-                      className={`h-3.5 w-3.5 sm:h-4 sm:w-4 flex items-center justify-center rounded text-[7.5px] sm:text-[8px] font-black leading-none ${
-                        isWin
-                          ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
-                          : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40"
-                      }`}
-                    >
-                      {res.toUpperCase()}
-                    </span>
-                  );
-                })
+              {groupFormList.length > 0 ? (
+                renderBadgeList(groupFormList, "group")
               ) : (
                 <span className="text-[9px] text-muted-foreground font-medium px-1">
                   -
                 </span>
               )}
             </div>
+            {/* Baris 2: Playoff Form (Hanya jika ada match Playoff) */}
+            {playoffFormList.length > 0 && (
+              <div className="flex items-center gap-1 border-t border-border/40 pt-1">
+                {renderBadgeList(playoffFormList, "playoff")}
+              </div>
+            )}
           </div>
         </div>
       </div>
