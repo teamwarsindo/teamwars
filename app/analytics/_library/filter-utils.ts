@@ -58,6 +58,24 @@ interface MatchFilterOptions {
   reportsMap: Map<string, any>;
 }
 
+function findReportByScheduleId(scheduleId: string, reportsMap: Map<string, any>): any {
+  if (!scheduleId) return undefined;
+  const rawId = String(scheduleId).trim();
+  
+  if (reportsMap.has(rawId)) return reportsMap.get(rawId);
+  
+  const cleanId = rawId.toLowerCase();
+  if (reportsMap.has(cleanId)) return reportsMap.get(cleanId);
+
+  const numOnly = cleanId.replace(/\D/g, "");
+  if (numOnly) {
+    if (reportsMap.has(`match-${numOnly}`)) return reportsMap.get(`match-${numOnly}`);
+    if (reportsMap.has(numOnly)) return reportsMap.get(numOnly);
+  }
+
+  return undefined;
+}
+
 export function matchScheduleFilter({
   schedule: s,
   currentTab,
@@ -103,6 +121,7 @@ export function matchScheduleFilter({
     const stageOrGroup = (s.groupName || (s as any).stage || "").toLowerCase();
     const matchId = (s.id || "").toLowerCase();
 
+    // 1. Cek nama tim, stage, dan ID match
     if (
       teamA.includes(cleanQuery) ||
       teamB.includes(cleanQuery) ||
@@ -112,25 +131,35 @@ export function matchScheduleFilter({
       return true;
     }
 
-    const rep = reportsMap.get(String(s.id));
+    // 2. Cek personel langsung pada objek schedule (wasit / streamer)
+    const directReferee = String((s as any).referee || (s as any).wasit || "").toLowerCase();
+    const directStreamer = String((s as any).streamer || (s as any).caster || "").toLowerCase();
+    if (directReferee.includes(cleanQuery) || directStreamer.includes(cleanQuery)) {
+      return true;
+    }
+
+    // 3. Cek personel dan pemain dari laporan duel (reportsMap)
+    const rep = findReportByScheduleId(s.id, reportsMap);
     if (rep) {
-      const referee = (rep.metadata?.referee || rep.referee || "").toLowerCase();
-      const streamer = (rep.metadata?.streamer || rep.streamer || "").toLowerCase();
-      if (referee.includes(cleanQuery) || streamer.includes(cleanQuery)) {
+      const repMeta = typeof rep.metadata === "object" ? rep.metadata : {};
+      const repReferee = String(repMeta?.referee || rep.referee || "").toLowerCase();
+      const repStreamer = String(repMeta?.streamer || rep.streamer || "").toLowerCase();
+
+      if (repReferee.includes(cleanQuery) || repStreamer.includes(cleanQuery)) {
         return true;
       }
 
       const lineupA: any[] = rep.teamA?.lineup || [];
       const lineupB: any[] = rep.teamB?.lineup || [];
       const hasInLineup = [...lineupA, ...lineupB].some((p: any) =>
-        (p?.ign || p?.name || "").toLowerCase().includes(cleanQuery)
+        String(p?.ign || p?.name || "").toLowerCase().includes(cleanQuery)
       );
       if (hasInLineup) return true;
 
       const games: any[] = rep.games || [];
       const hasInGames = games.some((g: any) => {
-        const pA = (g?.playerA?.ign || g?.playerA?.name || "").toLowerCase();
-        const pB = (g?.playerB?.ign || g?.playerB?.name || "").toLowerCase();
+        const pA = String(g?.playerA?.ign || g?.playerA?.name || "").toLowerCase();
+        const pB = String(g?.playerB?.ign || g?.playerB?.name || "").toLowerCase();
         return pA.includes(cleanQuery) || pB.includes(cleanQuery);
       });
       if (hasInGames) return true;
@@ -139,5 +168,5 @@ export function matchScheduleFilter({
     return false;
   }
 
-  return true; 
+  return true;
 }
