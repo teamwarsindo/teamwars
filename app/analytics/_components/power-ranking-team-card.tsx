@@ -124,7 +124,7 @@ export function PowerRankingTeamCard({
             </div>
           </div>
 
-          {/* Info Tim & Divisi Grup */}
+          {/* Info Tim & Divisi Grup / Posisi Playoff */}
           <div className="min-w-0 flex flex-col justify-center">
             {/* Baris 1: Nama Tim */}
             <span className="font-extrabold text-xs sm:text-sm text-foreground truncate leading-tight">
@@ -135,6 +135,13 @@ export function PowerRankingTeamCard({
             <span className="text-[10px] text-muted-foreground font-semibold truncate leading-tight mt-0.5">
               {standing?.groupName || "Team Wars Indonesia"}
             </span>
+
+            {/* Baris 3 (Dinamis): Posisi / Babak Playoff Bersih */}
+            {standing?.playoffStage && (
+              <span className="text-[9.5px] font-bold text-primary truncate leading-tight mt-0.5">
+                {standing.playoffStage}
+              </span>
+            )}
           </div>
         </div>
 
@@ -209,5 +216,5 @@ export function PowerRankingTeamCard({
         </div>
       </div>
     </div>
-  );
+  );                
 }
