@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { formatStageName } from "@/app/tournament/_library/utils";
 import { ReportScoreboard } from "./report-scoreboard";
 import { ReportLineup } from "./report-lineup";
 import { ReportLogs } from "./report-logs";
@@ -26,11 +27,15 @@ export interface ScheduleItem {
 interface MatchReportsViewProps {
   schedules?: ScheduleItem[];
   selectedMatchId?: string;
+  matchesInView?: ScheduleItem[];
+  onSelectMatch?: (matchId: string) => void;
 }
 
 export function MatchReportsView({
   schedules = [],
   selectedMatchId = "",
+  matchesInView = [],
+  onSelectMatch,
 }: MatchReportsViewProps) {
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -123,12 +128,48 @@ export function MatchReportsView({
     };
   }, [isFinished, games, teamA.name, teamB.name]);
 
+  const rawDivision = activeSchedule?.groupName || meta.division || "";
+  const standardizedDivision = formatStageName(rawDivision);
+
   return (
     <div className="w-full space-y-4">
       {!selectedMatchId ? (
-        <div className="p-12 text-center text-xs text-muted-foreground bg-card rounded-2xl border border-border shadow-xs">
-          Silakan pilih pertandingan pada filter di atas untuk memuat laporan duel.
-        </div>
+        matchesInView.length > 0 && onSelectMatch ? (
+          <div className="space-y-2.5">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1">
+              Hasil Pertandingan ({matchesInView.length})
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {matchesInView.map((m) => {
+                const stageClean = formatStageName(m.groupName || "");
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onSelectMatch(m.id)}
+                    className="flex flex-col p-3 rounded-xl border border-border bg-card hover:border-primary/60 transition text-left gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground font-semibold">
+                      <span>Week {m.weekNumber}</span>
+                      <span className="text-primary font-bold">{stageClean}</span>
+                    </div>
+                    <div className="flex items-center justify-between font-extrabold text-xs text-foreground">
+                      <span className="truncate flex-1">{m.teamAName}</span>
+                      <span className="px-2 font-mono text-[11px]">
+                        {m.scoreA ?? 0} - {m.scoreB ?? 0}
+                      </span>
+                      <span className="truncate flex-1 text-right">{m.teamBName}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="p-12 text-center text-xs text-muted-foreground bg-card rounded-2xl border border-border shadow-xs">
+            Silakan pilih pertandingan pada filter di atas untuk memuat laporan duel.
+          </div>
+        )
       ) : loading && !report ? (
         <div className="p-12 text-center text-xs font-bold text-primary animate-pulse bg-card rounded-2xl border border-border">
           Memuat laporan pertandingan...
@@ -144,7 +185,7 @@ export function MatchReportsView({
             teamBLogo={activeSchedule?.teamBLogo}
             metadata={{
               matchNumber: resolvedMatchNumber,
-              division: activeSchedule?.groupName || meta.division,
+              division: standardizedDivision,
               week: activeSchedule?.weekNumber || report?.week,
               day: scheduleDateInfo.day,
               date: scheduleDateInfo.date,
