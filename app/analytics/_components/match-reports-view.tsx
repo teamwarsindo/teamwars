@@ -133,7 +133,6 @@ export function MatchReportsView({
   const rawDivision = activeSchedule?.groupName || meta.division || "";
   const standardizedDivision = formatStageName(rawDivision);
 
-  // Urutkan daftar match dari yang terbaru (Week tertinggi -> terendah)
   const sortedMatchesInView = useMemo(() => {
     return [...matchesInView].sort((a, b) => {
       const weekA = Number(a.weekNumber || 1);
@@ -154,7 +153,7 @@ export function MatchReportsView({
             <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1">
               Hasil Pertandingan ({sortedMatchesInView.length})
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {sortedMatchesInView.map((m) => {
                 const stageClean = formatStageName(m.groupName || "");
                 const scoreAVal = m.scoreA ?? 0;
@@ -174,7 +173,7 @@ export function MatchReportsView({
                     key={m.id}
                     type="button"
                     onClick={() => onSelectMatch(m.id)}
-                    className="flex flex-col p-3 rounded-xl border bg-card hover:border-primary/60 transition text-left gap-2 shadow-xs cursor-pointer overflow-hidden"
+                    className="p-3 rounded-2xl border bg-card hover:border-primary/60 transition shadow-xs cursor-pointer flex flex-col justify-center"
                     style={{
                       borderColor: winningColor ? `${winningColor}88` : undefined,
                       background: winningColor
@@ -182,45 +181,72 @@ export function MatchReportsView({
                         : undefined,
                     }}
                   >
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground font-semibold">
-                      <span>Week {m.weekNumber}</span>
-                      <span className="text-primary font-bold">{stageClean}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between font-extrabold text-xs text-foreground gap-2">
-                      {/* Tim A */}
-                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <div className="h-5 w-5 rounded-full overflow-hidden bg-muted shrink-0 flex items-center justify-center border border-border/60">
+                    {/* Baris Utama: Tim A | Skor & Info Baris Terpisah | Tim B */}
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 w-full">
+                      {/* Kubu Tim A */}
+                      <div className="flex flex-col items-center text-center gap-1 min-w-0">
+                        <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0 flex items-center justify-center border border-border/60">
                           {m.teamALogo ? (
-                            <Image src={m.teamALogo} alt={m.teamAName || "Team A"} width={20} height={20} className="h-full w-full object-cover" unoptimized />
+                            <Image
+                              src={m.teamALogo}
+                              alt={m.teamAName || "Team A"}
+                              width={40}
+                              height={40}
+                              className="h-full w-full object-cover"
+                              unoptimized
+                            />
                           ) : (
-                            <Shield className="h-3 w-3 text-muted-foreground" />
+                            <Shield className="h-5 w-5 text-muted-foreground" />
                           )}
                         </div>
-                        <span className="truncate">{m.teamAName}</span>
-                      </div>
-
-                      {/* Skor */}
-                      <div className="px-2 font-mono text-[11px] shrink-0 flex items-center gap-1">
-                        <span className={isFinishedMatch ? (isWinnerA ? "text-emerald-500 font-bold" : "text-rose-500 font-bold") : "text-foreground"}>
-                          {scoreAVal}
-                        </span>
-                        <span className="text-muted-foreground font-normal">-</span>
-                        <span className={isFinishedMatch ? (isWinnerB ? "text-emerald-500 font-bold" : "text-rose-500 font-bold") : "text-foreground"}>
-                          {scoreBVal}
+                        <span className="font-bold text-[11px] sm:text-xs text-foreground leading-tight line-clamp-2 w-full">
+                          {m.teamAName}
                         </span>
                       </div>
 
-                      {/* Tim B */}
-                      <div className="flex items-center justify-end gap-1.5 flex-1 min-w-0 text-right">
-                        <span className="truncate">{m.teamBName}</span>
-                        <div className="h-5 w-5 rounded-full overflow-hidden bg-muted shrink-0 flex items-center justify-center border border-border/60">
+                      {/* Kolom Tengah: Skor & Pemisah Baris (Week & Group) */}
+                      <div className="flex flex-col items-center justify-center px-1">
+                        {/* Angka Skor */}
+                        <div className="font-mono text-base sm:text-lg tracking-tight font-black flex items-center gap-1.5">
+                          <span className={isFinishedMatch ? (isWinnerA ? "text-emerald-500" : "text-rose-500") : "text-foreground"}>
+                            {scoreAVal}
+                          </span>
+                          <span className="text-muted-foreground text-xs font-normal">-</span>
+                          <span className={isFinishedMatch ? (isWinnerB ? "text-emerald-500" : "text-rose-500") : "text-foreground"}>
+                            {scoreBVal}
+                          </span>
+                        </div>
+
+                        {/* Baris 1: Week (Menggantikan posisi REPEAT) */}
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5 leading-none">
+                          Week {m.weekNumber}
+                        </span>
+
+                        {/* Baris 2: Stage / Group (Menggantikan posisi WARN) */}
+                        <span className="text-[9.5px] font-extrabold text-primary truncate max-w-[120px] text-center mt-0.5 leading-none">
+                          {stageClean}
+                        </span>
+                      </div>
+
+                      {/* Kubu Tim B */}
+                      <div className="flex flex-col items-center text-center gap-1 min-w-0">
+                        <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0 flex items-center justify-center border border-border/60">
                           {m.teamBLogo ? (
-                            <Image src={m.teamBLogo} alt={m.teamBName || "Team B"} width={20} height={20} className="h-full w-full object-cover" unoptimized />
+                            <Image
+                              src={m.teamBLogo}
+                              alt={m.teamBName || "Team B"}
+                              width={40}
+                              height={40}
+                              className="h-full w-full object-cover"
+                              unoptimized
+                            />
                           ) : (
-                            <Shield className="h-3 w-3 text-muted-foreground" />
+                            <Shield className="h-5 w-5 text-muted-foreground" />
                           )}
                         </div>
+                        <span className="font-bold text-[11px] sm:text-xs text-foreground leading-tight line-clamp-2 w-full">
+                          {m.teamBName}
+                        </span>
                       </div>
                     </div>
                   </button>
@@ -283,5 +309,5 @@ export function MatchReportsView({
         </>
       )}
     </div>
-  ); 
-}        
+  );                          
+}
