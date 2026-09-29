@@ -114,8 +114,9 @@ export default function AnalyticsClientContent({
           selectedGroup={selectedGroup}
           selectedTeam={selectedTeam}
           selectedWeek={selectedWeek === "ALL" ? maxActiveWeek : selectedWeek}
+          stageScope={stageScope}
         />
       )}
     </div>
-  );
+  );       
 }
