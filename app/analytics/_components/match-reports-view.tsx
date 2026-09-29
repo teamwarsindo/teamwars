@@ -29,6 +29,7 @@ interface MatchReportsViewProps {
   schedules?: ScheduleItem[];
   selectedMatchId?: string;
   matchesInView?: ScheduleItem[];
+  searchQuery?: string;
   onSelectMatch?: (matchId: string) => void;
 }
 
@@ -36,6 +37,7 @@ export function MatchReportsView({
   schedules = [],
   selectedMatchId = "",
   matchesInView = [],
+  searchQuery = "",
   onSelectMatch,
 }: MatchReportsViewProps) {
   const [report, setReport] = useState<any>(null);
@@ -132,11 +134,15 @@ export function MatchReportsView({
   const rawDivision = activeSchedule?.groupName || meta.division || "";
   const standardizedDivision = formatStageName(rawDivision);
 
+  // Urutkan berdasarkan hari & jam main (matchDate) terbaru, lalu fallback ke id match terbesar
   const sortedMatchesInView = useMemo(() => {
     return [...matchesInView].sort((a, b) => {
-      const weekA = Number(a.weekNumber || 1);
-      const weekB = Number(b.weekNumber || 1);
-      if (weekB !== weekA) return weekB - weekA;
+      const timeA = a.matchDate ? new Date(a.matchDate).getTime() : 0;
+      const timeB = b.matchDate ? new Date(b.matchDate).getTime() : 0;
+
+      if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB && timeA > 0 && timeB > 0) {
+        return timeB - timeA;
+      }
 
       const numA = Number(String(a.matchNumber || a.id).replace(/\D/g, "")) || 0;
       const numB = Number(String(b.matchNumber || b.id).replace(/\D/g, "")) || 0;
@@ -144,9 +150,12 @@ export function MatchReportsView({
     });
   }, [matchesInView]);
 
+  const isUserSearching = Boolean(searchQuery && searchQuery.trim().length > 0);
+  const showMatchList = !selectedMatchId || isUserSearching;
+
   return (
     <div className="w-full space-y-4">
-      {!selectedMatchId ? (
+      {showMatchList ? (
         sortedMatchesInView.length > 0 && onSelectMatch ? (
           <div className="space-y-2.5">
             <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1">
@@ -252,7 +261,9 @@ export function MatchReportsView({
           </div>
         ) : (
           <div className="p-12 text-center text-xs text-muted-foreground bg-card rounded-2xl border border-border shadow-xs">
-            Silakan pilih pertandingan pada filter di atas untuk memuat laporan duel.
+            {isUserSearching
+              ? "Tidak ada pertandingan yang cocok dengan pencarian."
+              : "Silakan pilih pertandingan pada filter di atas untuk memuat laporan duel."}
           </div>
         )
       ) : loading && !report ? (
@@ -306,4 +317,4 @@ export function MatchReportsView({
       )}
     </div>
   );
-}              
+}
