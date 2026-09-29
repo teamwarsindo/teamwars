@@ -6,6 +6,7 @@ import { DIVISION_MAP, TOURNAMENT_RULES } from "@/app/tournament/_library";
 import { StageScopeType, AnalyticsFilterMatchItem } from "./_components/analytics-filter";
 import { MatchReportData, TeamRosterData } from "./_library/power-ranking";
 import { ScheduleItem } from "./_components/match-reports-view";
+import { buildAllTeamsList, matchScheduleFilter } from "./_library/filter-utils";
 
 interface UseAnalyticsFiltersProps {
   schedules: ScheduleItem[];
@@ -31,42 +32,10 @@ export function useAnalyticsFilters({
   const teamParam = searchParams.get("team") || "";
   const weekParam = searchParams.get("week");
 
-  // Normalisasi & Deduplikasi Daftar Tim
+  // Normalisasi & Deduplikasi Daftar Tim menggunakan helper
   const allTeamsList = useMemo(() => {
-    const map = new Map<string, { name: string; slug: string; groupName: string; logo?: string }>();
-
-    teams.forEach((t) => {
-      if (t.name) {
-        map.set(t.name.toLowerCase(), {
-          name: t.name,
-          slug: t.slug || t.name.toLowerCase().replace(/\s+/g, "-"),
-          groupName: t.groupName || "",
-          logo: t.logo,
-        });
-      }
-    });
-
-    schedules.forEach((s) => {
-      if (s.teamAName && !map.has(s.teamAName.toLowerCase())) {
-        map.set(s.teamAName.toLowerCase(), {
-          name: s.teamAName,
-          slug: s.teamAName.toLowerCase().replace(/\s+/g, "-"),
-          groupName: s.groupName || "",
-          logo: s.teamALogo,
-        });
-      }
-      if (s.teamBName && !map.has(s.teamBName.toLowerCase())) {
-        map.set(s.teamBName.toLowerCase(), {
-          name: s.teamBName,
-          slug: s.teamBName.toLowerCase().replace(/\s+/g, "-"),
-          groupName: s.groupName || "",
-          logo: s.teamBLogo,
-        });
-      }
-    });
-
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [schedules, teams]);
+    return buildAllTeamsList(teams, schedules);
+  }, [teams, schedules]);
 
   const initialTeamName = useMemo(() => {
     if (!teamParam) return "";
@@ -116,7 +85,6 @@ export function useAnalyticsFilters({
     router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
   };
 
-  // Sync state dari URL search params
   useEffect(() => {
     if (teamParam) {
       const found = allTeamsList.find(
@@ -130,7 +98,6 @@ export function useAnalyticsFilters({
     }
   }, [teamParam, allTeamsList]);
 
-  // Sync stage: HANYA kunci ke GROUP_ONLY jika week yang sedang aktif < PLAYOFF_START_WEEK
   useEffect(() => {
     if (isSelectedWeekGroup) {
       setStageScope("GROUP_ONLY");
@@ -153,6 +120,7 @@ export function useAnalyticsFilters({
 
   const handleGroupChange = (g: "ALL" | typeof DIVISION_MAP.GROUP_A | typeof DIVISION_MAP.GROUP_B) => {
     setSelectedGroup(g);
+    setSearchQuery("");
     updateUrlParams({ match: null });
   };
 
@@ -173,6 +141,7 @@ export function useAnalyticsFilters({
 
   const handleTeamChange = (teamName: string) => {
     setSelectedTeam(teamName);
+    setSearchQuery("");
     const targetTeam = allTeamsList.find((t) => t.name.toLowerCase() === teamName.toLowerCase());
     const teamSlug = targetTeam?.slug || (teamName ? teamName.toLowerCase().replace(/\s+/g, "-") : null);
 
@@ -184,6 +153,7 @@ export function useAnalyticsFilters({
 
   const handleWeekChange = (w: number | "ALL") => {
     setSelectedWeek(w);
+    setSearchQuery("");
     let updatedStageScope = stageScope;
 
     if (typeof w === "number") {
@@ -212,6 +182,7 @@ export function useAnalyticsFilters({
   const handleTabChange = (tabKey: "reports" | "power-ranking") => {
     const nextWeek = tabKey === "power-ranking" && selectedWeek === "ALL" ? maxActiveWeek : selectedWeek;
     if (nextWeek !== selectedWeek) setSelectedWeek(nextWeek);
+    setSearchQuery("");
 
     const isDefaultWeek = tabKey === "reports" ? nextWeek === "ALL" : nextWeek === maxActiveWeek;
 
@@ -229,6 +200,7 @@ export function useAnalyticsFilters({
   };
 
   const handleMatchChange = (matchId: string) => {
+    setSearchQuery("");
     updateUrlParams({
       tab: "reports",
       match: matchId,
@@ -264,39 +236,28 @@ export function useAnalyticsFilters({
     });
   };
 
-  const matchesInView: AnalyticsFilterMatchItem[] = useMemo(() => {
-    const isPlayoff =
-      typeof selectedWeek === "number" && selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
-    const cleanQuery = searchQuery.trim().toLowerCase();
-
-    return schedules.filter((s) => {
-      // Pada tab reports, filter group dilepas agar tidak membatasi match
-      if (currentTab !== "reports" && !isPlayoff && selectedGroup !== "ALL" && s.groupName !== selectedGroup) {
-        return false;
-      }
-      if (selectedWeek !== "ALL" && Number(s.weekNumber) !== Number(selectedWeek)) {
-        return false;
-      }
-      if (selectedTeam !== "" && s.teamAName !== selectedTeam && s.teamBName !== selectedTeam) {
-        return false;
-      }
-      if (cleanQuery) {
-        const teamA = (s.teamAName || "").toLowerCase();
-        const teamB = (s.teamBName || "").toLowerCase();
-        const stageOrGroup = (s.groupName || (s as any).stage || "").toLowerCase();
-        const matchId = (s.id || "").toLowerCase();
-
-        const isMatch =
-          teamA.includes(cleanQuery) ||
-          teamB.includes(cleanQuery) ||
-          stageOrGroup.includes(cleanQuery) ||
-          matchId.includes(cleanQuery);
-
-        if (!isMatch) return false;
-      }
-      return true;
+  const reportsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    reports.forEach((r: any) => {
+      const idKey = String(r.id || r.matchId || "");
+      if (idKey) map.set(idKey, r);
     });
-  }, [schedules, selectedGroup, selectedWeek, selectedTeam, currentTab, searchQuery]);
+    return map;
+  }, [reports]);
+
+  const matchesInView: AnalyticsFilterMatchItem[] = useMemo(() => {
+    return schedules.filter((schedule) =>
+      matchScheduleFilter({
+        schedule,
+        currentTab,
+        selectedGroup,
+        selectedWeek,
+        selectedTeam,
+        searchQuery,
+        reportsMap,
+      })
+    );
+  }, [schedules, currentTab, selectedGroup, selectedWeek, selectedTeam, searchQuery, reportsMap]);
 
   useEffect(() => {
     if (currentTab === "reports" && matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
@@ -335,5 +296,5 @@ export function useAnalyticsFilters({
     handleMatchChange,
     handleSearchChange,
     handleReset,
-  };                            
-}                                                                                    
+  };
+}
