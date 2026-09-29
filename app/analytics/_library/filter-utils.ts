@@ -55,25 +55,6 @@ interface MatchFilterOptions {
   selectedWeek: number | "ALL";
   selectedTeam: string;
   searchQuery: string;
-  reportsMap: Map<string, any>;
-}
-
-function findReportByScheduleId(scheduleId: string, reportsMap: Map<string, any>): any {
-  if (!scheduleId) return undefined;
-  const rawId = String(scheduleId).trim();
-  
-  if (reportsMap.has(rawId)) return reportsMap.get(rawId);
-  
-  const cleanId = rawId.toLowerCase();
-  if (reportsMap.has(cleanId)) return reportsMap.get(cleanId);
-
-  const numOnly = cleanId.replace(/\D/g, "");
-  if (numOnly) {
-    if (reportsMap.has(`match-${numOnly}`)) return reportsMap.get(`match-${numOnly}`);
-    if (reportsMap.has(numOnly)) return reportsMap.get(numOnly);
-  }
-
-  return undefined;
 }
 
 export function matchScheduleFilter({
@@ -83,8 +64,15 @@ export function matchScheduleFilter({
   selectedWeek,
   selectedTeam,
   searchQuery,
-  reportsMap,
 }: MatchFilterOptions): boolean {
+  // Eliminasi pertandingan yang belum mulai pada tab reports
+  if (currentTab === "reports") {
+    const scoreA = s.scoreA ?? 0;
+    const scoreB = s.scoreB ?? 0;
+    const isStarted = Boolean(s.isFinished || scoreA > 0 || scoreB > 0);
+    if (!isStarted) return false;
+  }
+
   const isPlayoff =
     typeof selectedWeek === "number" &&
     selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
@@ -114,58 +102,19 @@ export function matchScheduleFilter({
     return false;
   }
 
-  // Filter Pencarian Teks Universal
+  // Filter Pencarian Teks (Tim, Babak/Stage, dan ID Match)
   if (cleanQuery) {
     const teamA = (s.teamAName || "").toLowerCase();
     const teamB = (s.teamBName || "").toLowerCase();
     const stageOrGroup = (s.groupName || (s as any).stage || "").toLowerCase();
     const matchId = (s.id || "").toLowerCase();
 
-    // 1. Cek nama tim, stage, dan ID match
-    if (
+    return (
       teamA.includes(cleanQuery) ||
       teamB.includes(cleanQuery) ||
       stageOrGroup.includes(cleanQuery) ||
       matchId.includes(cleanQuery)
-    ) {
-      return true;
-    }
-
-    // 2. Cek personel langsung pada objek schedule (wasit / streamer)
-    const directReferee = String((s as any).referee || (s as any).wasit || "").toLowerCase();
-    const directStreamer = String((s as any).streamer || (s as any).caster || "").toLowerCase();
-    if (directReferee.includes(cleanQuery) || directStreamer.includes(cleanQuery)) {
-      return true;
-    }
-
-    // 3. Cek personel dan pemain dari laporan duel (reportsMap)
-    const rep = findReportByScheduleId(s.id, reportsMap);
-    if (rep) {
-      const repMeta = typeof rep.metadata === "object" ? rep.metadata : {};
-      const repReferee = String(repMeta?.referee || rep.referee || "").toLowerCase();
-      const repStreamer = String(repMeta?.streamer || rep.streamer || "").toLowerCase();
-
-      if (repReferee.includes(cleanQuery) || repStreamer.includes(cleanQuery)) {
-        return true;
-      }
-
-      const lineupA: any[] = rep.teamA?.lineup || [];
-      const lineupB: any[] = rep.teamB?.lineup || [];
-      const hasInLineup = [...lineupA, ...lineupB].some((p: any) =>
-        String(p?.ign || p?.name || "").toLowerCase().includes(cleanQuery)
-      );
-      if (hasInLineup) return true;
-
-      const games: any[] = rep.games || [];
-      const hasInGames = games.some((g: any) => {
-        const pA = String(g?.playerA?.ign || g?.playerA?.name || "").toLowerCase();
-        const pB = String(g?.playerB?.ign || g?.playerB?.name || "").toLowerCase();
-        return pA.includes(cleanQuery) || pB.includes(cleanQuery);
-      });
-      if (hasInGames) return true;
-    }
-
-    return false;
+    );
   }
 
   return true;
