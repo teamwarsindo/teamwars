@@ -236,15 +236,6 @@ export function useAnalyticsFilters({
     });
   };
 
-  const reportsMap = useMemo(() => {
-    const map = new Map<string, any>();
-    reports.forEach((r: any) => {
-      const idKey = String(r.id || r.matchId || "");
-      if (idKey) map.set(idKey, r);
-    });
-    return map;
-  }, [reports]);
-
   const matchesInView: AnalyticsFilterMatchItem[] = useMemo(() => {
     return schedules.filter((schedule) =>
       matchScheduleFilter({
@@ -254,16 +245,9 @@ export function useAnalyticsFilters({
         selectedWeek,
         selectedTeam,
         searchQuery,
-        reportsMap,
       })
     );
-  }, [schedules, currentTab, selectedGroup, selectedWeek, selectedTeam, searchQuery, reportsMap]);
-
-  useEffect(() => {
-    if (currentTab === "reports" && matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
-      handleMatchChange(matchesInView[0].id);
-    }
-  }, [matchesInView, selectedMatchId, currentTab]);
+  }, [schedules, currentTab, selectedGroup, selectedWeek, selectedTeam, searchQuery]);
 
   const filteredReportsForPowerRanking = useMemo(() => {
     if (stageScope === "GROUP_ONLY") {
