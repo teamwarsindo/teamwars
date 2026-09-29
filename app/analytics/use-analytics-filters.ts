@@ -78,24 +78,13 @@ export function useAnalyticsFilters({
     return found ? found.name : teamParam;
   }, [teamParam, allTeamsList]);
 
-  // Cek apakah tim pernah bermain di babak playoff
-  const checkTeamHasPlayoff = (teamName: string) => {
-    if (!teamName) return true;
-    const clean = teamName.toLowerCase().trim();
-    return schedules.some(
-      (m) =>
-        Number(m.weekNumber) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK &&
-        ((m.teamAName || "").toLowerCase().trim() === clean ||
-          (m.teamBName || "").toLowerCase().trim() === clean)
-    );
-  };
-
+  // Default week: di tab reports default adalah "ALL", di power-ranking default adalah maxActiveWeek
   const initialWeek: number | "ALL" = useMemo(() => {
-    if (weekParam === "ALL" && currentTab === "reports") return "ALL";
+    if (weekParam === "ALL") return "ALL";
     if (weekParam && !isNaN(Number(weekParam))) {
       return Math.min(Number(weekParam), maxActiveWeek);
     }
-    return maxActiveWeek;
+    return currentTab === "reports" ? "ALL" : maxActiveWeek;
   }, [weekParam, maxActiveWeek, currentTab]);
 
   const [selectedGroup, setSelectedGroup] = useState<
@@ -103,6 +92,7 @@ export function useAnalyticsFilters({
   >("ALL");
   const [selectedTeam, setSelectedTeam] = useState<string>(initialTeamName);
   const [selectedWeek, setSelectedWeek] = useState<number | "ALL">(initialWeek);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const isSelectedWeekGroup =
     typeof selectedWeek === "number" && selectedWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK;
@@ -140,7 +130,7 @@ export function useAnalyticsFilters({
     }
   }, [teamParam, allTeamsList]);
 
-  // Sync stage: HANYA kunci ke GROUP_ONLY jika week yang sedang aktif < 8
+  // Sync stage: HANYA kunci ke GROUP_ONLY jika week yang sedang aktif < PLAYOFF_START_WEEK
   useEffect(() => {
     if (isSelectedWeekGroup) {
       setStageScope("GROUP_ONLY");
@@ -166,9 +156,7 @@ export function useAnalyticsFilters({
     updateUrlParams({ match: null });
   };
 
-  // Toggle stage: bebas dinyalakan/dimatikan di week manapun, TIDAK MEMAKSA WEEK BERUBAH
   const handleStageScopeChange = (nextScope: StageScopeType) => {
-    // Hanya kunci tidak boleh uncheck jika week memang di pekan 1-7
     if (isSelectedWeekGroup && nextScope === "ALL") {
       return;
     }
@@ -194,8 +182,6 @@ export function useAnalyticsFilters({
     });
   };
 
-  // Saat dropdown week diganti:
-  // Jika pindah ke pekan grup (< 8), otomatis set ke GROUP_ONLY
   const handleWeekChange = (w: number | "ALL") => {
     setSelectedWeek(w);
     let updatedStageScope = stageScope;
@@ -214,8 +200,10 @@ export function useAnalyticsFilters({
         ? "group"
         : null;
 
+    const isDefaultWeek = currentTab === "reports" ? w === "ALL" : w === maxActiveWeek;
+
     updateUrlParams({
-      week: w === maxActiveWeek ? null : String(w),
+      week: isDefaultWeek ? null : String(w),
       stage: stageVal,
       match: null,
     });
@@ -225,9 +213,11 @@ export function useAnalyticsFilters({
     const nextWeek = tabKey === "power-ranking" && selectedWeek === "ALL" ? maxActiveWeek : selectedWeek;
     if (nextWeek !== selectedWeek) setSelectedWeek(nextWeek);
 
+    const isDefaultWeek = tabKey === "reports" ? nextWeek === "ALL" : nextWeek === maxActiveWeek;
+
     updateUrlParams({
       tab: tabKey,
-      week: nextWeek === maxActiveWeek ? null : String(nextWeek),
+      week: isDefaultWeek ? null : String(nextWeek),
       match: tabKey !== "reports" ? null : selectedMatchId || null,
       stage:
         tabKey === "power-ranking" && stageScope !== "ALL"
@@ -245,18 +235,24 @@ export function useAnalyticsFilters({
     });
   };
 
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+  };
+
   const isFilterActive =
-    (currentTab === "reports" && selectedGroup !== "ALL") ||
-    (currentTab === "power-ranking" && !isSelectedWeekGroup && stageScope !== "ALL") ||
+    (currentTab === "reports" && selectedWeek !== "ALL") ||
+    (currentTab === "power-ranking" && (!isSelectedWeekGroup && stageScope !== "ALL")) ||
     selectedTeam !== "" ||
-    selectedWeek !== maxActiveWeek ||
+    (currentTab === "power-ranking" && selectedWeek !== maxActiveWeek) ||
     Boolean(selectedMatchId) ||
-    Boolean(teamParam);
+    Boolean(teamParam) ||
+    Boolean(searchQuery);
 
   const handleReset = () => {
     setSelectedGroup("ALL");
     setSelectedTeam("");
-    setSelectedWeek(maxActiveWeek);
+    setSelectedWeek(currentTab === "reports" ? "ALL" : maxActiveWeek);
+    setSearchQuery("");
     const defaultScope = maxActiveWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK ? "GROUP_ONLY" : "ALL";
     setStageScope(defaultScope);
 
@@ -271,16 +267,36 @@ export function useAnalyticsFilters({
   const matchesInView: AnalyticsFilterMatchItem[] = useMemo(() => {
     const isPlayoff =
       typeof selectedWeek === "number" && selectedWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+    const cleanQuery = searchQuery.trim().toLowerCase();
 
     return schedules.filter((s) => {
-      if (!isPlayoff && selectedGroup !== "ALL" && s.groupName !== selectedGroup) return false;
-      if (selectedWeek !== "ALL" && Number(s.weekNumber) !== Number(selectedWeek)) return false;
+      // Pada tab reports, filter group dilepas agar tidak membatasi match
+      if (currentTab !== "reports" && !isPlayoff && selectedGroup !== "ALL" && s.groupName !== selectedGroup) {
+        return false;
+      }
+      if (selectedWeek !== "ALL" && Number(s.weekNumber) !== Number(selectedWeek)) {
+        return false;
+      }
       if (selectedTeam !== "" && s.teamAName !== selectedTeam && s.teamBName !== selectedTeam) {
         return false;
       }
+      if (cleanQuery) {
+        const teamA = (s.teamAName || "").toLowerCase();
+        const teamB = (s.teamBName || "").toLowerCase();
+        const stageOrGroup = (s.groupName || (s as any).stage || "").toLowerCase();
+        const matchId = (s.id || "").toLowerCase();
+
+        const isMatch =
+          teamA.includes(cleanQuery) ||
+          teamB.includes(cleanQuery) ||
+          stageOrGroup.includes(cleanQuery) ||
+          matchId.includes(cleanQuery);
+
+        if (!isMatch) return false;
+      }
       return true;
     });
-  }, [schedules, selectedGroup, selectedWeek, selectedTeam]);
+  }, [schedules, selectedGroup, selectedWeek, selectedTeam, currentTab, searchQuery]);
 
   useEffect(() => {
     if (currentTab === "reports" && matchesInView.length === 1 && matchesInView[0].id !== selectedMatchId) {
@@ -305,6 +321,7 @@ export function useAnalyticsFilters({
     selectedTeam,
     selectedWeek,
     selectedMatchId,
+    searchQuery,
     allTeamsList,
     availableWeeks,
     isFilterActive,
@@ -316,6 +333,7 @@ export function useAnalyticsFilters({
     handleTeamChange,
     handleWeekChange,
     handleMatchChange,
+    handleSearchChange,
     handleReset,
-  };
-}
+  };                            
+}                                                                                    
