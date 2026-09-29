@@ -10,6 +10,8 @@ import {
   FreeDuelistRecord,
 } from "../_library/power-ranking";
 import { calculateStandings, getTeamStatsFromStandings } from "@/app/tournament/_library/calculator";
+import { TOURNAMENT_RULES } from "@/app/tournament/_library/constants";
+import { StageScopeType } from "./analytics-filter";
 import { PowerRankingPodium } from "./power-ranking-podium";
 import { PowerRankingTeamCard } from "./power-ranking-team-card";
 import { PowerRankingTable, RankedPlayerWithDiff } from "./power-ranking-table";
@@ -24,6 +26,7 @@ interface PowerRankingViewProps {
   selectedGroup: string;
   selectedTeam: string;
   selectedWeek: number | "";
+  stageScope?: StageScopeType;
 }
 
 const normalizeKey = (str?: string) =>
@@ -54,6 +57,7 @@ export function PowerRankingView({
   selectedGroup,
   selectedTeam,
   selectedWeek,
+  stageScope = "ALL",
 }: PowerRankingViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -181,26 +185,56 @@ export function PowerRankingView({
     });
   }, [currentPlayers, prevPlayers, targetWeek]);
 
-  // 4. Hitung Statistik Tim Resmi Murni (Match, Point, Form)
+  // 4. Hitung Statistik Tim Resmi Sesuai Stage Scope Aktif
   const selectedTeamStanding = useMemo(() => {
     if (!selectedTeam || selectedTeam === "ALL" || !schedules.length || !teams.length) {
       return undefined;
     }
 
-    const standings = calculateStandings(schedules as any, teams as any, targetWeek);
-    const stats = getTeamStatsFromStandings(selectedTeam, standings, undefined, schedules as any);
+    const filteredSchedules = schedules.filter((s: any) => {
+      const matchWeek = Number(s.weekNumber || 1);
+      if (stageScope === "GROUP_ONLY") {
+        return matchWeek < TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+      }
+      if (stageScope === "PLAYOFF_ONLY") {
+        return matchWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+      }
+      return true;
+    });
+
+    const standings = calculateStandings(filteredSchedules as any, teams as any, targetWeek);
+    const stats = getTeamStatsFromStandings(selectedTeam, standings, undefined, filteredSchedules as any);
 
     if (!stats) return undefined;
 
     const streakList = stats.streak || stats.form || [];
+    const normTargetTeam = normalizeKey(selectedTeam);
+
+    let stageDisplay = stats.groupName;
+    if (stageScope === "PLAYOFF_ONLY") {
+      const playoffMatches = schedules.filter((s: any) => {
+        const isTeamMatch =
+          normalizeKey(s.teamAName) === normTargetTeam ||
+          normalizeKey(s.teamBName) === normTargetTeam;
+        return isTeamMatch && Number(s.weekNumber || 1) >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
+      });
+
+      const lastPlayoffMatch = playoffMatches[playoffMatches.length - 1];
+      stageDisplay =
+        (lastPlayoffMatch as any)?.stage ||
+        (lastPlayoffMatch as any)?.weekName ||
+        lastPlayoffMatch?.groupName ||
+        "Playoff";
+    }
 
     return {
       ...stats,
+      groupName: stageDisplay,
       streak: streakList,
       form: streakList,
       rawDiff: stats.rawDiff ?? (typeof stats.roundDifference === "number" ? stats.roundDifference : 0),
     };
-  }, [selectedTeam, schedules, teams, targetWeek]);
+  }, [selectedTeam, schedules, teams, targetWeek, stageScope]);
 
   const isTeamView = filterScope === "TEAM";
   const isSearching = searchQuery.trim().length > 0;
