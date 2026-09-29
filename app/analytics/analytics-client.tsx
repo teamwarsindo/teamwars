@@ -28,6 +28,7 @@ export default function AnalyticsClientContent({
     selectedTeam,
     selectedWeek,
     selectedMatchId,
+    searchQuery,
     allTeamsList,
     availableWeeks,
     isFilterActive,
@@ -39,6 +40,7 @@ export default function AnalyticsClientContent({
     handleTeamChange,
     handleWeekChange,
     handleMatchChange,
+    handleSearchChange,
     handleReset,
   } = useAnalyticsFilters({
     schedules,
@@ -94,6 +96,8 @@ export default function AnalyticsClientContent({
         onMatchChange={handleMatchChange}
         matchesInView={matchesInView}
         allSchedules={schedules}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
         isFilterActive={isFilterActive}
         onReset={handleReset}
       />
@@ -103,6 +107,8 @@ export default function AnalyticsClientContent({
         <MatchReportsView
           schedules={schedules}
           selectedMatchId={selectedMatchId}
+          matchesInView={matchesInView}
+          onSelectMatch={handleMatchChange}
         />
       ) : (
         <PowerRankingView
@@ -118,5 +124,5 @@ export default function AnalyticsClientContent({
         />
       )}
     </div>
-  );       
+  );
 }
