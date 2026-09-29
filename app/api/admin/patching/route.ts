@@ -1,118 +1,198 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
-import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
-import {
-  delay,
-  getTeamSlug,
-  getMatchWeekNumber,
-  getTournamentWeekNumberSafe,
-} from '@/lib/discord/match-sync/helpers';
+import { getTeamSlug, getMatchWeekNumber } from '@/lib/discord/match-sync/helpers';
+
+interface AuditMatchEntry {
+  matchId: string;
+  teams: string;
+  missingFields: string[];
+  refillSuccess: boolean;
+  changesApplied: Record<string, any>;
+}
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const targetWeek = searchParams.get('week') || searchParams.get('targetWeek') || '9';
+    const targetMatchId = searchParams.get('matchId');
 
-    // 1. Ambil data jadwal dari Redis KV
+    // 1. Ambil data schedules dan seluruh reports dari KV
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const allReports = (await kv.hgetall<Record<string, any>>('twi:match_reports')) || {};
 
-    // 2. Ekstraksi pekan & filtering presisi
-    const weekMatch = String(targetWeek).match(/\d+/);
-    const weekNumber = weekMatch ? parseInt(weekMatch[0], 10) : getTournamentWeekNumberSafe();
-    const normTarget = String(targetWeek).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const filteredSchedules = targetMatchId
+      ? schedules.filter((s) => s.id === targetMatchId)
+      : schedules;
 
-    const weekMatches = schedules.filter((m: any) => {
-      const computedWeek = m.weekNumber || getMatchWeekNumber(m.matchDate);
-      if (computedWeek === weekNumber) return true;
-
-      const mWeekName = String(m.weekName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const mStage = String(m.stage || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      return (mWeekName && mWeekName.includes(normTarget)) || (mStage && mStage.includes(normTarget));
-    });
-
-    if (weekMatches.length === 0) {
+    if (filteredSchedules.length === 0) {
       return NextResponse.json(
-        { error: `Tidak ditemukan jadwal pertandingan untuk ${targetWeek}` },
+        { error: 'Tidak ada data match yang cocok untuk diproses.' },
         { status: 404 }
       );
     }
 
-    const updatedSchedules: MatchScheduleItem[] = [...schedules];
-    const results: Array<{ matchId: string; channelId: string; newOpeningMsgId: string | null }> = [];
+    const auditLog: AuditMatchEntry[] = [];
+    const reportsToUpdate: Record<string, any> = {};
 
-    // 3. Eksekusi refresh opening pesan tanpa menge-tag role tim
-    for (const match of weekMatches) {
-      const channelId = (match as any).discordChannelId;
-      const existingOpeningMsgId = (match as any).openingMsgId;
+    for (const schedule of filteredSchedules) {
+      const matchId = schedule.id;
+      const existingReport = allReports[matchId] || null;
 
-      // Lewati jika match belum dibuatkan channel Discord
-      if (!channelId) continue;
+      const scheduleDateStr = schedule.matchDate ? schedule.matchDate.split('T')[0] : '';
+      const scheduleStreamer = schedule.streamer || '';
+      const scheduleReferee = schedule.referee || '';
+      const scheduleStreamUrl = schedule.streamLink || (schedule as any).streamUrl || '';
+      const scheduleStreamPlatform = (schedule as any).streamPlatform || 'YouTube';
 
-      const slugA = getTeamSlug(match.teamAName);
-      const slugB = getTeamSlug(match.teamBName);
+      const missingFields: string[] = [];
+      const changes: Record<string, any> = {};
 
-      const [teamA, teamB] = await Promise.all([
-        kv.hgetall<any>(`teams:${slugA}`).then((res) => res || kv.hgetall<any>(`team:${slugA}`)),
-        kv.hgetall<any>(`teams:${slugB}`).then((res) => res || kv.hgetall<any>(`team:${slugB}`)),
-      ]);
+      let reportData: any;
 
-      const roleA = teamA?.discordRoleId || teamA?.roleId;
-      const roleB = teamB?.discordRoleId || teamB?.roleId;
-      const groupOrStage = match.groupName || (match as any).stage || 'Playoff';
-      const computedWeekNum = match.weekNumber || getMatchWeekNumber(match.matchDate);
-      const weekStr = (match as any).weekName || `Week ${computedWeekNum}`;
+      if (!existingReport) {
+        missingFields.push('report_document_missing');
+        const computedWeek = schedule.weekNumber || getMatchWeekNumber(schedule.matchDate);
 
-      // Memanggil fungsi opening dengan existingMsgId agar dihapus & diposting ulang tanpa tag role
-      const newOpeningMsgId = await sendOrUpdateOpeningEmbed({
-        channelId,
-        matchId: match.id,
-        groupName: groupOrStage,
-        teamAName: match.teamAName,
-        teamBName: match.teamBName,
-        kodeTimA: teamA?.kodeTim,
-        kodeTimB: teamB?.kodeTim,
-        emojiAId: teamA?.emojiId,
-        emojiBId: teamB?.emojiId,
-        roleAId: roleA,
-        roleBId: roleB,
-        weekName: weekStr,
-        matchDateIso: match.matchDate,
-        refereeName: match.referee,
-        refereeDiscordId: match.refereeDiscordId,
-        streamerName: match.streamer,
-        streamerDiscordId: match.streamerDiscordId,
-        streamLink: match.streamLink,
-        existingMsgId: existingOpeningMsgId,
-      });
+        reportData = {
+          matchId,
+          week: computedWeek,
+          metadata: {
+            date: scheduleDateStr,
+            streamPlatform: scheduleStreamPlatform,
+            streamer: scheduleStreamer,
+            referee: scheduleReferee,
+            streamUrl: scheduleStreamUrl,
+          },
+          teamA: {
+            name: schedule.teamAName,
+            slug: getTeamSlug(schedule.teamAName),
+            score: schedule.scoreA ?? 0,
+            repeatsUsed: 0,
+            warningsUsed: 0,
+            lineup: [],
+          },
+          teamB: {
+            name: schedule.teamBName,
+            slug: getTeamSlug(schedule.teamBName),
+            score: schedule.scoreB ?? 0,
+            repeatsUsed: 0,
+            warningsUsed: 0,
+            lineup: [],
+          },
+          games: [],
+          finalScore: {
+            teamA: schedule.scoreA ?? 0,
+            teamB: schedule.scoreB ?? 0,
+          },
+          winnerTeam: null,
+          isFinished: false,
+        };
 
-      // Update referensi ID pesan opening jika berubah
-      const idx = updatedSchedules.findIndex((m) => m.id === match.id);
-      if (idx !== -1 && newOpeningMsgId) {
-        (updatedSchedules[idx] as any).openingMsgId = newOpeningMsgId;
+        changes['document_created'] = true;
+      } else {
+        // Clone dokumen report agar mutasi aman
+        reportData = JSON.parse(JSON.stringify(existingReport));
+
+        if (!reportData.metadata) {
+          reportData.metadata = {};
+          missingFields.push('metadata_object');
+        }
+
+        // Cek metadata date
+        if (!reportData.metadata.date && scheduleDateStr) {
+          missingFields.push('metadata.date');
+          reportData.metadata.date = scheduleDateStr;
+          changes['metadata.date'] = scheduleDateStr;
+        }
+
+        // Cek metadata streamer
+        if (!reportData.metadata.streamer && scheduleStreamer) {
+          missingFields.push('metadata.streamer');
+          reportData.metadata.streamer = scheduleStreamer;
+          changes['metadata.streamer'] = scheduleStreamer;
+        }
+
+        // Cek metadata referee
+        if (!reportData.metadata.referee && scheduleReferee) {
+          missingFields.push('metadata.referee');
+          reportData.metadata.referee = scheduleReferee;
+          changes['metadata.referee'] = scheduleReferee;
+        }
+
+        // Cek metadata streamUrl
+        if (!reportData.metadata.streamUrl && scheduleStreamUrl) {
+          missingFields.push('metadata.streamUrl');
+          reportData.metadata.streamUrl = scheduleStreamUrl;
+          changes['metadata.streamUrl'] = scheduleStreamUrl;
+        }
+
+        // Cek metadata streamPlatform
+        if (!reportData.metadata.streamPlatform) {
+          missingFields.push('metadata.streamPlatform');
+          reportData.metadata.streamPlatform = scheduleStreamPlatform;
+          changes['metadata.streamPlatform'] = scheduleStreamPlatform;
+        }
       }
 
-      results.push({
-        matchId: match.id,
-        channelId,
-        newOpeningMsgId,
-      });
+      // Cek dan sinkronkan pemenang jika salah satu tim telah mencapai skor 10
+      const scoreA = reportData.finalScore?.teamA ?? reportData.teamA?.score ?? schedule.scoreA ?? 0;
+      const scoreB = reportData.finalScore?.teamB ?? reportData.teamB?.score ?? schedule.scoreB ?? 0;
 
-      // Delay mencegah rate limit Discord API
-      await delay(350);
+      let determinedWinner: string | null = null;
+      if (scoreA >= 10) {
+        determinedWinner = reportData.teamA?.name || schedule.teamAName;
+      } else if (scoreB >= 10) {
+        determinedWinner = reportData.teamB?.name || schedule.teamBName;
+      }
+
+      if (determinedWinner) {
+        if (!reportData.winnerTeam) {
+          missingFields.push('winnerTeam');
+          reportData.winnerTeam = determinedWinner;
+          changes['winnerTeam'] = determinedWinner;
+        }
+        if (!reportData.isFinished) {
+          missingFields.push('isFinished');
+          reportData.isFinished = true;
+          changes['isFinished'] = true;
+        }
+      }
+
+      // Jika ditemukan field yang bolong, daftarkan untuk di-update
+      if (missingFields.length > 0) {
+        reportsToUpdate[matchId] = reportData;
+        auditLog.push({
+          matchId,
+          teams: `${schedule.teamAName} vs ${schedule.teamBName}`,
+          missingFields,
+          refillSuccess: false, // Ditandai sementara sebelum hset sukses
+          changesApplied: changes,
+        });
+      }
     }
 
-    // 4. Simpan kembali pembaruan ID pesan opening ke database KV
-    await kv.set('twi:schedules', updatedSchedules);
+    // 2. Eksekusi batch refill ke Redis Hash jika ada data yang perlu diperbaiki
+    if (Object.keys(reportsToUpdate).length > 0) {
+      await kv.hset('twi:match_reports', reportsToUpdate);
+
+      // Perbarui status kesuksesan refill pada audit log
+      for (const entry of auditLog) {
+        entry.refillSuccess = true;
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil me-refresh pesan opening untuk babak ${targetWeek}!`,
-      totalUpdated: results.length,
-      details: results,
+      message: 'Proses audit dan refill match reports selesai dieksekusi.',
+      summary: {
+        totalMatchesChecked: filteredSchedules.length,
+        totalMatchesWithMissingData: auditLog.length,
+        totalRefilled: Object.keys(reportsToUpdate).length,
+      },
+      auditLog,
     });
   } catch (error: any) {
-    console.error('Error refreshing opening messages:', error);
+    console.error('Error in refill-match-reports:', error);
     return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
   }
 }
