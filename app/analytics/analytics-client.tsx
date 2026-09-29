@@ -108,6 +108,7 @@ export default function AnalyticsClientContent({
           schedules={schedules}
           selectedMatchId={selectedMatchId}
           matchesInView={matchesInView}
+          searchQuery={searchQuery}
           onSelectMatch={handleMatchChange}
         />
       ) : (
