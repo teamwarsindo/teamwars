@@ -3,6 +3,30 @@ import { MatchScheduleItem } from '@/app/tournament/_library';
 import { StaffItem } from '@/lib/discord/commands/assign/types';
 import { filterChoices } from './types';
 
+function formatMatchDayTime(isoString?: string): string {
+  if (!isoString) return 'Jadwal Belum Ditentukan';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return 'Jadwal Tidak Valid';
+
+    const dayName = new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      timeZone: 'Asia/Jakarta',
+    }).format(d);
+
+    const timeStr = new Intl.DateTimeFormat('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Jakarta',
+    }).format(d);
+
+    return `${dayName} (${timeStr.replace(':', '.')} WIB)`;
+  } catch {
+    return 'Jadwal Belum Ditentukan';
+  }
+}
+
 export async function handleAssignAutocomplete(interaction: any) {
   try {
     // 1. Deteksi nama sub-command (unassign, remove, swap, dsb.)
@@ -53,9 +77,9 @@ export async function handleAssignAutocomplete(interaction: any) {
           choices: filterChoices(
             filtered,
             query,
-            (m) => `${m.id}: ${m.teamAName} vs ${m.teamBName}`,
+            (m) => `${formatMatchDayTime(m.matchDate)}: ${m.teamAName} vs ${m.teamBName}`,
             (m) => m.id,
-            (m) => [m.id, m.teamAName, m.teamBName]
+            (m) => [formatMatchDayTime(m.matchDate), m.teamAName, m.teamBName]
           ),
         },
       };
@@ -74,5 +98,5 @@ export async function handleAssignAutocomplete(interaction: any) {
   } catch (error) {
     console.error('Error assign autocomplete:', error);
     return { type: 8, data: { choices: [] } };
-  }
+  }                
 }
