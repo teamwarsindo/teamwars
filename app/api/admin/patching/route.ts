@@ -1,198 +1,133 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
-import { getTeamSlug, getMatchWeekNumber } from '@/lib/discord/match-sync/helpers';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { discordAPI } from '@/lib/discord/utils';
 
-interface AuditMatchEntry {
-  matchId: string;
-  teams: string;
-  missingFields: string[];
-  refillSuccess: boolean;
-  changesApplied: Record<string, any>;
+export const dynamic = 'force-dynamic';
+
+function extractMatchIdFromChannelName(channelName: string): string | null {
+  // 1. Bersihkan emoji (seperti ⚔️ atau ⚔) dan karakter non-alfanumerik di awal nama channel
+  const cleanedName = channelName
+    .replace(/^[^a-zA-Z0-9]+/, '')
+    .trim()
+    .toLowerCase();
+
+  // 2. Deteksi format Playoff (misal: mpo-5 dari ⚔-mpo-5-blr-dso)
+  const playoffMatch = cleanedName.match(/^(mpo-\d+)/i);
+  if (playoffMatch) {
+    return playoffMatch[1].toLowerCase();
+  }
+
+  // 3. Deteksi format Play-Ins (misal: mpi-1)
+  const playInsMatch = cleanedName.match(/^(mpi-\d+)/i);
+  if (playInsMatch) {
+    return playInsMatch[1].toLowerCase();
+  }
+
+  // 4. Deteksi format Regular Match dengan prefix match- (misal: match-12)
+  const fullMatch = cleanedName.match(/^(match-\d+)/i);
+  if (fullMatch) {
+    return fullMatch[1].toLowerCase();
+  }
+
+  // 5. Deteksi format Regular Match yang disingkat menjadi m{angka} (misal: m12 dari ⚔️-m12-tma-tmb)
+  const shortMatch = cleanedName.match(/^m(\d+)/i);
+  if (shortMatch) {
+    return `match-${shortMatch[1]}`.toLowerCase();
+  }
+
+  return null;
 }
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url);
-    const targetMatchId = searchParams.get('matchId');
-
-    // 1. Ambil data schedules dan seluruh reports dari KV
-    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-    const allReports = (await kv.hgetall<Record<string, any>>('twi:match_reports')) || {};
-
-    const filteredSchedules = targetMatchId
-      ? schedules.filter((s) => s.id === targetMatchId)
-      : schedules;
-
-    if (filteredSchedules.length === 0) {
-      return NextResponse.json(
-        { error: 'Tidak ada data match yang cocok untuk diproses.' },
-        { status: 404 }
-      );
+    const guildId = DISCORD_CONFIG.GUILD_ID;
+    if (!guildId) {
+      return NextResponse.json({
+        success: false,
+        message: 'DISCORD_GUILD_ID tidak dikonfigurasi di environment.',
+      }, { status: 500 });
     }
 
-    const auditLog: AuditMatchEntry[] = [];
-    const reportsToUpdate: Record<string, any> = {};
+    // Ambil seluruh daftar channel Discord pada server
+    const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
+    if (!Array.isArray(allGuildChannels)) {
+      return NextResponse.json({
+        success: false,
+        message: 'Gagal mengambil daftar channel dari Discord API.',
+      }, { status: 502 });
+    }
 
-    for (const schedule of filteredSchedules) {
-      const matchId = schedule.id;
-      const existingReport = allReports[matchId] || null;
+    // Ambil data schedules dari KV
+    const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    if (!schedules.length) {
+      return NextResponse.json({
+        success: false,
+        message: 'Tidak ada data jadwal pertandingan ditemukan di KV (twi:schedules).',
+      }, { status: 404 });
+    }
 
-      const scheduleDateStr = schedule.matchDate ? schedule.matchDate.split('T')[0] : '';
-      const scheduleStreamer = schedule.streamer || '';
-      const scheduleReferee = schedule.referee || '';
-      const scheduleStreamUrl = schedule.streamLink || (schedule as any).streamUrl || '';
-      const scheduleStreamPlatform = (schedule as any).streamPlatform || 'YouTube';
+    let updatedCount = 0;
+    const syncedList: Array<{
+      matchId: string;
+      channelId: string;
+      channelName: string;
+      matchName: string;
+    }> = [];
 
-      const missingFields: string[] = [];
-      const changes: Record<string, any> = {};
+    // Lakukan mapping channel Discord berdasarkan ID match yang diekstrak
+    for (const channel of allGuildChannels) {
+      if (channel.type !== 0) continue; // Hanya periksa Guild Text Channel
 
-      let reportData: any;
+      const extractedId = extractMatchIdFromChannelName(channel.name);
+      if (!extractedId) continue;
 
-      if (!existingReport) {
-        missingFields.push('report_document_missing');
-        const computedWeek = schedule.weekNumber || getMatchWeekNumber(schedule.matchDate);
+      const scheduleIndex = schedules.findIndex((s) => {
+        const rawId = String(s.id).toLowerCase();
+        return (
+          rawId === extractedId ||
+          rawId.replace('match-', 'm') === extractedId ||
+          rawId === extractedId.replace('match-', '')
+        );
+      });
 
-        reportData = {
-          matchId,
-          week: computedWeek,
-          metadata: {
-            date: scheduleDateStr,
-            streamPlatform: scheduleStreamPlatform,
-            streamer: scheduleStreamer,
-            referee: scheduleReferee,
-            streamUrl: scheduleStreamUrl,
-          },
-          teamA: {
-            name: schedule.teamAName,
-            slug: getTeamSlug(schedule.teamAName),
-            score: schedule.scoreA ?? 0,
-            repeatsUsed: 0,
-            warningsUsed: 0,
-            lineup: [],
-          },
-          teamB: {
-            name: schedule.teamBName,
-            slug: getTeamSlug(schedule.teamBName),
-            score: schedule.scoreB ?? 0,
-            repeatsUsed: 0,
-            warningsUsed: 0,
-            lineup: [],
-          },
-          games: [],
-          finalScore: {
-            teamA: schedule.scoreA ?? 0,
-            teamB: schedule.scoreB ?? 0,
-          },
-          winnerTeam: null,
-          isFinished: false,
-        };
+      if (scheduleIndex !== -1) {
+        const currentMatch = schedules[scheduleIndex];
+        const oldChannelId = (currentMatch as any).discordChannelId;
 
-        changes['document_created'] = true;
-      } else {
-        // Clone dokumen report agar mutasi aman
-        reportData = JSON.parse(JSON.stringify(existingReport));
-
-        if (!reportData.metadata) {
-          reportData.metadata = {};
-          missingFields.push('metadata_object');
+        if (oldChannelId !== channel.id) {
+          (currentMatch as any).discordChannelId = channel.id;
+          schedules[scheduleIndex] = currentMatch;
+          updatedCount++;
         }
 
-        // Cek metadata date
-        if (!reportData.metadata.date && scheduleDateStr) {
-          missingFields.push('metadata.date');
-          reportData.metadata.date = scheduleDateStr;
-          changes['metadata.date'] = scheduleDateStr;
-        }
-
-        // Cek metadata streamer
-        if (!reportData.metadata.streamer && scheduleStreamer) {
-          missingFields.push('metadata.streamer');
-          reportData.metadata.streamer = scheduleStreamer;
-          changes['metadata.streamer'] = scheduleStreamer;
-        }
-
-        // Cek metadata referee
-        if (!reportData.metadata.referee && scheduleReferee) {
-          missingFields.push('metadata.referee');
-          reportData.metadata.referee = scheduleReferee;
-          changes['metadata.referee'] = scheduleReferee;
-        }
-
-        // Cek metadata streamUrl
-        if (!reportData.metadata.streamUrl && scheduleStreamUrl) {
-          missingFields.push('metadata.streamUrl');
-          reportData.metadata.streamUrl = scheduleStreamUrl;
-          changes['metadata.streamUrl'] = scheduleStreamUrl;
-        }
-
-        // Cek metadata streamPlatform
-        if (!reportData.metadata.streamPlatform) {
-          missingFields.push('metadata.streamPlatform');
-          reportData.metadata.streamPlatform = scheduleStreamPlatform;
-          changes['metadata.streamPlatform'] = scheduleStreamPlatform;
-        }
-      }
-
-      // Cek dan sinkronkan pemenang jika salah satu tim telah mencapai skor 10
-      const scoreA = reportData.finalScore?.teamA ?? reportData.teamA?.score ?? schedule.scoreA ?? 0;
-      const scoreB = reportData.finalScore?.teamB ?? reportData.teamB?.score ?? schedule.scoreB ?? 0;
-
-      let determinedWinner: string | null = null;
-      if (scoreA >= 10) {
-        determinedWinner = reportData.teamA?.name || schedule.teamAName;
-      } else if (scoreB >= 10) {
-        determinedWinner = reportData.teamB?.name || schedule.teamBName;
-      }
-
-      if (determinedWinner) {
-        if (!reportData.winnerTeam) {
-          missingFields.push('winnerTeam');
-          reportData.winnerTeam = determinedWinner;
-          changes['winnerTeam'] = determinedWinner;
-        }
-        if (!reportData.isFinished) {
-          missingFields.push('isFinished');
-          reportData.isFinished = true;
-          changes['isFinished'] = true;
-        }
-      }
-
-      // Jika ditemukan field yang bolong, daftarkan untuk di-update
-      if (missingFields.length > 0) {
-        reportsToUpdate[matchId] = reportData;
-        auditLog.push({
-          matchId,
-          teams: `${schedule.teamAName} vs ${schedule.teamBName}`,
-          missingFields,
-          refillSuccess: false, // Ditandai sementara sebelum hset sukses
-          changesApplied: changes,
+        syncedList.push({
+          matchId: currentMatch.id,
+          channelId: channel.id,
+          channelName: channel.name,
+          matchName: `${currentMatch.teamAName} vs ${currentMatch.teamBName}`,
         });
       }
     }
 
-    // 2. Eksekusi batch refill ke Redis Hash jika ada data yang perlu diperbaiki
-    if (Object.keys(reportsToUpdate).length > 0) {
-      await kv.hset('twi:match_reports', reportsToUpdate);
-
-      // Perbarui status kesuksesan refill pada audit log
-      for (const entry of auditLog) {
-        entry.refillSuccess = true;
-      }
+    // Simpan data kembali ke KV jika ada pembaruan
+    if (updatedCount > 0) {
+      await kv.set('twi:schedules', schedules);
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Proses audit dan refill match reports selesai dieksekusi.',
-      summary: {
-        totalMatchesChecked: filteredSchedules.length,
-        totalMatchesWithMissingData: auditLog.length,
-        totalRefilled: Object.keys(reportsToUpdate).length,
-      },
-      auditLog,
+      message: `Sinkronisasi selesai. Sebanyak ${updatedCount} channel didaftarkan/diperbarui dari ${syncedList.length} channel aktif yang terdeteksi.`,
+      totalSynced: syncedList.length,
+      updatedCount,
+      matches: syncedList,
     });
   } catch (error: any) {
-    console.error('Error in refill-match-reports:', error);
-    return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
+    console.error('[SYNC MATCH CHANNELS ERROR]:', error);
+    return NextResponse.json({
+      success: false,
+      message: error.message || 'Terjadi kesalahan server saat sinkronisasi channel match.',
+    }, { status: 500 });
   }
 }
