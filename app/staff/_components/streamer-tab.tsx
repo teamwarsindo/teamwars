@@ -35,18 +35,18 @@ export default function StreamerTab({
   selectedWeek,
 }: StreamerTabProps) {
   const filteredStreamers = streamers.filter((strm) => {
-    const matchName = strm.discordName.toLowerCase().includes(searchQuery.toLowerCase());
-    if (!matchName) return false;
-
+    if (searchQuery && !strm.discordName.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
     if (selectedWeek === 'ALL') return true;
 
-    const hasInActive = strm.activeMatches.some(
+    const inActive = strm.activeMatches.some(
       (m) => (m.weekName || `Week ${m.weekNumber}`) === selectedWeek
     );
-    const hasInHistory = strm.historyMatches.some(
+    const inHistory = strm.historyMatches.some(
       (m) => (m.weekName || `Week ${m.weekNumber}`) === selectedWeek
     );
-    return hasInActive || hasInHistory;
+    return inActive || inHistory;
   });
 
   return (
@@ -59,7 +59,9 @@ export default function StreamerTab({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredStreamers.map((strm) => {
             const isLive = strm.activeMatches.length > 0;
-            const totalParticipation = strm.historyMatches.length + strm.activeMatches.length;
+            const weekHistory = strm.historyMatches.filter(
+              (m) => selectedWeek === 'ALL' || (m.weekName || `Week ${m.weekNumber}`) === selectedWeek
+            );
 
             return (
               <div
@@ -69,13 +71,10 @@ export default function StreamerTab({
                 <div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 text-sm font-bold text-blue-600 border border-blue-500/20">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs font-bold text-blue-600 border border-blue-500/20">
                         {strm.discordName.substring(0, 2).toUpperCase()}
                       </div>
-                      <div>
-                        <div className="text-sm font-bold text-foreground">{strm.discordName}</div>
-                        <div className="text-[10px] font-mono text-muted-foreground">{strm.discordId}</div>
-                      </div>
+                      <div className="text-sm font-bold text-foreground">{strm.discordName}</div>
                     </div>
 
                     <span
@@ -94,10 +93,10 @@ export default function StreamerTab({
                     </span>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-border/60 bg-muted/30 p-2.5 text-center">
+                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-border/60 bg-muted/20 p-2.5 text-center">
                     <div>
-                      <div className="text-[10px] uppercase text-muted-foreground">Total Siaran</div>
-                      <div className="text-sm font-bold text-foreground">{strm.totalBroadcastMatches}</div>
+                      <div className="text-[10px] uppercase text-muted-foreground">Siaran Selesai</div>
+                      <div className="text-sm font-bold text-foreground">{weekHistory.length}</div>
                     </div>
                     <div>
                       <div className="text-[10px] uppercase text-muted-foreground">Siaran Berjalan</div>
@@ -117,7 +116,6 @@ export default function StreamerTab({
                         >
                           <div className="flex items-center justify-between font-semibold">
                             <span>{m.teamAName} vs {m.teamBName}</span>
-                            <span className="font-mono text-[10px] text-blue-600">{m.id}</span>
                           </div>
                           {m.streamLink && (
                             <div className="mt-1.5">
@@ -136,7 +134,7 @@ export default function StreamerTab({
                     </div>
                   )}
 
-                  {!isLive && strm.historyMatches.length > 0 && (
+                  {!isLive && weekHistory.length > 0 && (
                     <div className="mt-3 space-y-1">
                       <div className="text-[10px] font-medium text-muted-foreground uppercase">
                         Siaran Terakhir:
@@ -144,16 +142,16 @@ export default function StreamerTab({
                       <div className="rounded-xl border border-border/60 bg-muted/20 p-2.5 text-xs text-muted-foreground">
                         <div className="flex justify-between">
                           <span className="font-medium text-foreground">
-                            {strm.historyMatches[0].teamAName} vs {strm.historyMatches[0].teamBName}
+                            {weekHistory[0].teamAName} vs {weekHistory[0].teamBName}
                           </span>
                           <span className="text-[10px]">
-                            {strm.historyMatches[0].weekName || 'Babak Match'}
+                            {weekHistory[0].weekName || 'Babak Match'}
                           </span>
                         </div>
-                        {strm.historyMatches[0].streamLink && (
+                        {weekHistory[0].streamLink && (
                           <div className="mt-1">
                             <a
-                              href={strm.historyMatches[0].streamLink}
+                              href={weekHistory[0].streamLink}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-[11px] font-medium text-blue-600 hover:underline"
@@ -169,7 +167,7 @@ export default function StreamerTab({
 
                 <div className="mt-4 border-t border-border/60 pt-3 text-right">
                   <span className="text-[10px] text-muted-foreground">
-                    Total Partisipasi: {totalParticipation} Pertandingan
+                    Partisipasi: {weekHistory.length + strm.activeMatches.length} Match
                   </span>
                 </div>
               </div>
