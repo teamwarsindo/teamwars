@@ -1,21 +1,60 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 
-interface RefereeTabProps {
-  referees: any[];
+export interface RefereeMatchDetail {
+  id: string;
+  matchDate?: string;
+  weekNumber?: number;
+  weekName?: string;
+  teamAName: string;
+  teamBName: string;
+  scoreA?: number;
+  scoreB?: number;
+  isFinished?: boolean;
+  streamLink?: string | null;
+}
+
+export interface RefereePayrollInfo {
+  feePerMatch: number;
+  totalEarned: number;
+  bankInfo?: {
+    bankName?: string;
+    accountNumber?: string;
+    accountHolder?: string;
+  } | null;
+  payrollRequests?: any[];
+  claimedMatchIds?: string[];
+  unclaimedMatchCount?: number;
+}
+
+export interface RefereeData {
+  discordId: string;
+  discordName: string;
+  avatar: string;
+  activeMatches: RefereeMatchDetail[];
+  historyMatches: RefereeMatchDetail[];
+  totalFinishedMatches: number;
+  visibleHonor: number | null;
+  payroll?: RefereePayrollInfo | null;
+  payrollRequests?: any[];
+}
+
+export interface RefereeTabProps {
+  referees: RefereeData[];
   token: string | null;
   isAdmin: boolean;
   selectedStaffId: string;
   currentVerifiedId: string | null;
   onRefresh: () => void;
+  searchQuery?: string;
+  selectedWeek?: string;
 }
 
 export function RefereeTab({
   referees,
   token,
-  isAdmin,
   selectedStaffId,
   currentVerifiedId,
   onRefresh,
@@ -27,17 +66,14 @@ export function RefereeTab({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [claimMessage, setClaimMessage] = useState<{ text: string; success: boolean } | null>(null);
 
-  // Filter daftar wasit berdasarkan selektor
   const displayedReferees =
     selectedStaffId === 'ALL'
       ? referees
       : referees.filter((ref) => ref.discordId === selectedStaffId);
 
-  // Kalkulasi untuk Diagram Rekap Jam Terbang
   const totalMatchesAll = referees.reduce((sum, r) => sum + (r.totalFinishedMatches || 0), 0);
 
-  // Handler pengajuan klaim honor in-page
-  const handleClaimSubmit = async (e: React.FormEvent, verifiedRef: any) => {
+  const handleClaimSubmit = async (e: React.FormEvent, verifiedRef: RefereeData) => {
     e.preventDefault();
     if (!token || selectedMatches.length === 0) return;
 
@@ -144,7 +180,6 @@ export function RefereeTab({
             </div>
           </div>
 
-          {/* FORMULIR KLAIM IN-PAGE */}
           {verifiedReferee.payroll && (
             <form onSubmit={(e) => handleClaimSubmit(e, verifiedReferee)} className="space-y-4">
               <div className="rounded-xl border border-border/80 bg-card/70 p-4">
@@ -155,8 +190,8 @@ export function RefereeTab({
                   <p className="text-xs text-muted-foreground">Belum ada riwayat pertandingan selesai.</p>
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {verifiedReferee.historyMatches.map((m: any) => {
-                      const isClaimed = verifiedReferee.payroll.claimedMatchIds.includes(m.id);
+                    {verifiedReferee.historyMatches.map((m) => {
+                      const isClaimed = (verifiedReferee.payroll?.claimedMatchIds || []).includes(m.id);
                       const isSelected = selectedMatches.includes(m.id);
 
                       return (
@@ -267,5 +302,7 @@ export function RefereeTab({
         ))}
       </div>
     </div>
-  );  
-}                 
+  );
+}
+
+export default RefereeTab;
