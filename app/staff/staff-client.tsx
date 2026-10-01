@@ -1,233 +1,210 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
-import RefereeTab, { RefereeData } from './_components/referee-tab';
-import StreamerTab, { StreamerData } from './_components/streamer-tab';
-import AdminApprovalTab from './_components/admin-approval-tab';
+import { RefereeTab } from './_components/referee-tab';
+import { StreamerTab } from './_components/streamer-tab';
+import { StaffClaimApprovalTab } from './_components/staff-claim-approval-tab';
 
-export interface StaffClientProps {
+interface StaffClientContentProps {
   isAdmin: boolean;
 }
 
-interface RosterResponse {
-  success: boolean;
-  currentVerifiedId: string | null;
-  availableWeeks: string[];
-  referees: RefereeData[];
-  streamers: StreamerData[];
-  message?: string;
-}
-
-export default function StaffClientContent({ isAdmin }: StaffClientProps) {
+export default function StaffClientContent({ isAdmin }: StaffClientContentProps) {
   const searchParams = useSearchParams();
-  const token = searchParams.get('token') || '';
+  const token = searchParams.get('token');
 
-  // Jika membawa token, fokus penuh ke wasit bersangkutan (mode privat wasit)
-  const isTokenMode = Boolean(token);
-  const effectiveIsAdmin = isTokenMode ? false : isAdmin;
+  const [activeTab, setActiveTab] = useState<'referee' | 'streamer' | 'claims'>('referee');
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('ALL');
 
-  const [activeTab, setActiveTab] = useState<'referee' | 'streamer' | 'approval'>('referee');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedWeek, setSelectedWeek] = useState('ALL');
+  const [rosterData, setRosterData] = useState<any>(null);
+  const [claimsData, setClaimsData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isPending, startTransition] = useTransition();
 
-  const [referees, setReferees] = useState<RefereeData[]>([]);
-  const [streamers, setStreamers] = useState<StreamerData[]>([]);
-  const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const [, startTransition] = useTransition();
-
-  const fetchRosterData = async () => {
-    setIsLoading(true);
-    setErrorMsg('');
+  const fetchRoster = async () => {
     try {
+      setIsLoading(true);
       const url = token
         ? `/api/tournament/staff/roster?token=${encodeURIComponent(token)}`
         : '/api/tournament/staff/roster';
-
       const res = await fetch(url, { cache: 'no-store' });
-      const data: RosterResponse = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Gagal memuat data staf.');
+      const json = await res.json();
+      if (json.success) {
+        setRosterData(json);
       }
-
-      startTransition(() => {
-        setReferees(data.referees || []);
-        setStreamers(data.streamers || []);
-        setAvailableWeeks(data.availableWeeks || []);
-      });
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Terjadi kesalahan sistem saat memuat data staf.');
+    } catch (err) {
+      console.error('[STAFF ROSTER CLIENT ERROR]:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchRosterData();
-  }, [token]);
+  const fetchClaims = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch('/api/tournament/staff/payroll/action', { credentials: 'include' });
+      const json = await res.json();
+      if (json.success) {
+        setClaimsData(json.requests || []);
+      }
+    } catch (err) {
+      console.error('[STAFF CLAIMS CLIENT ERROR]:', err);
+    }
+  };
 
-  const pendingApprovalsCount = referees.reduce((acc, ref) => {
-    const list = (ref as any).payrollRequests || ref.payroll?.payrollRequests || [];
-    const pendingInRef = list.filter((item: any) => item.status === 'PENDING').length;
-    return acc + pendingInRef;
-  }, 0);
+  const handleRefresh = () => {
+    startTransition(() => {
+      fetchRoster();
+      if (isAdmin) fetchClaims();
+    });
+  };
+
+  useEffect(() => {
+    fetchRoster();
+    if (isAdmin) fetchClaims();
+  }, [token, isAdmin]);
+
+  const pendingClaimsCount = claimsData.filter((r) => r.status === 'PENDING').length;
+  const isTokenMode = Boolean(token && rosterData?.currentVerifiedId);
+
+  // Opsi dropdown seleksi staf berdasarkan tab aktif
+  const staffOptions =
+    activeTab === 'referee'
+      ? (rosterData?.referees || []).map((r: any) => ({
+          id: r.discordId,
+          name: r.discordName,
+        }))
+      : (rosterData?.streamers || []).map((s: any) => ({
+          id: s.discordId,
+          name: s.discordName,
+        }));
 
   return (
     <div className="w-full space-y-6">
-      {/* Jika mode token, sembunyikan switcher dan fokus pada dashboard pribadi */}
-      {!isTokenMode && (
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('referee')}
-            className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
-              activeTab === 'referee'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
-                : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
-            }`}
-          >
-            Wasit ({referees.length})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('streamer')}
-            className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
-              activeTab === 'streamer'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
-                : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
-            }`}
-          >
-            Streamer ({streamers.length})
-          </button>
-
-          {effectiveIsAdmin && (
+      {/* 1. KONTROL UTAMA & NAVIGASI */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {!isTokenMode ? (
+          <div className="inline-flex rounded-xl bg-card/60 p-1.5 border border-border/80 backdrop-blur-md">
             <button
-              type="button"
-              onClick={() => setActiveTab('approval')}
-              className={`flex items-center gap-1.5 rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
-                activeTab === 'approval'
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
-                  : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
+              onClick={() => {
+                setActiveTab('referee');
+                setSelectedStaffId('ALL');
+              }}
+              className={`rounded-lg px-4 py-2 text-xs sm:text-sm font-bold transition-all ${
+                activeTab === 'referee'
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <span>Persetujuan Klaim</span>
-              {pendingApprovalsCount > 0 && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
-                  {pendingApprovalsCount}
-                </span>
-              )}
+              ⚖️ Wasit ({rosterData?.referees?.length || 0})
             </button>
-          )}
-        </div>
-      )}
-
-      {/* Control Bar (Search & Filter Pekan) */}
-      {activeTab !== 'approval' && (
-        <div className="rounded-2xl border border-border/80 bg-card/60 p-3 shadow-sm backdrop-blur-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            {!isTokenMode ? (
-              <div className="relative flex-1">
-                <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-muted-foreground">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                </span>
-                <input
-                  type="text"
-                  placeholder="Cari profil staf..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-xl border border-border/80 bg-background/80 py-2 pl-9 pr-8 text-xs text-foreground placeholder-muted-foreground focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            ) : (
-              <div className="text-xs font-bold text-blue-600 uppercase tracking-wider px-2">
-                Panel Wasit Privat
-              </div>
-            )}
-
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedWeek}
-                onChange={(e) => setSelectedWeek(e.target.value)}
-                className="w-full rounded-xl border border-border/80 bg-background/80 px-3 py-2 text-xs font-medium text-foreground focus:border-blue-500 focus:outline-none sm:w-auto"
+            <button
+              onClick={() => {
+                setActiveTab('streamer');
+                setSelectedStaffId('ALL');
+              }}
+              className={`rounded-lg px-4 py-2 text-xs sm:text-sm font-bold transition-all ${
+                activeTab === 'streamer'
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              🎥 Streamer ({rosterData?.streamers?.length || 0})
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('claims')}
+                className={`relative rounded-lg px-4 py-2 text-xs sm:text-sm font-bold transition-all ${
+                  activeTab === 'claims'
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                <option value="ALL">Semua Pekan</option>
-                {availableWeeks.map((wk) => (
-                  <option key={wk} value={wk}>
-                    {wk}
+                📥 Klaim Honor
+                {pendingClaimsCount > 0 && (
+                  <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white">
+                    {pendingClaimsCount}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-4 py-2 text-xs font-bold text-primary">
+            🔒 Mode Akses Staf Terverifikasi
+          </div>
+        )}
+
+        {/* 2. DROPDOWN SELEKSI STAF TUNGGAL & REFRESH */}
+        {!isTokenMode && activeTab !== 'claims' && (
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <select
+                value={selectedStaffId}
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+                className="h-10 rounded-xl bg-card border border-border/80 px-3 pr-8 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none cursor-pointer"
+              >
+                <option value="ALL">Semua {activeTab === 'referee' ? 'Wasit' : 'Streamer'}</option>
+                {staffOptions.map((st: any) => (
+                  <option key={st.id} value={st.id}>
+                    {st.name}
                   </option>
                 ))}
               </select>
-
-              <button
-                type="button"
-                onClick={fetchRosterData}
-                disabled={isLoading}
-                title="Sinkronisasi Data"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-background/80 text-muted-foreground hover:border-blue-500 hover:text-blue-500 disabled:opacity-50 transition"
-              >
-                <svg
-                  className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-              </button>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground">
+                <span className="text-[10px]">▼</span>
+              </div>
             </div>
+
+            <button
+              onClick={handleRefresh}
+              disabled={isPending || isLoading}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-card border border-border/80 text-foreground hover:bg-muted/50 active:scale-95 transition-all disabled:opacity-50"
+              title="Perbarui Data"
+            >
+              <span className={`text-sm ${isPending || isLoading ? 'animate-spin' : ''}`}>🔄</span>
+            </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {errorMsg && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
-          {errorMsg}
-        </div>
-      )}
-
+      {/* 3. KONTEN TAB UTAMA */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent mb-2" />
-          <span className="text-xs">Memuat data staf...</span>
+        <div className="p-12 text-center text-xs font-bold text-primary animate-pulse">
+          ⏳ Memuat Direktori Staf TWI...
         </div>
-      ) : activeTab === 'referee' || isTokenMode ? (
-        <RefereeTab
-          referees={referees}
-          token={token}
-          isAdmin={effectiveIsAdmin}
-          searchQuery={searchQuery}
-          selectedWeek={selectedWeek}
-          onRefresh={fetchRosterData}
-        />
-      ) : activeTab === 'streamer' ? (
-        <StreamerTab
-          streamers={streamers}
-          searchQuery={searchQuery}
-          selectedWeek={selectedWeek}
-        />
       ) : (
-        <AdminApprovalTab
-          referees={referees}
-          onRefresh={fetchRosterData}
-        />
+        <>
+          {activeTab === 'referee' && (
+            <RefereeTab
+              referees={rosterData?.referees || []}
+              token={token}
+              isAdmin={isAdmin}
+              selectedStaffId={selectedStaffId}
+              currentVerifiedId={rosterData?.currentVerifiedId}
+              onRefresh={handleRefresh}
+            />
+          )}
+
+          {activeTab === 'streamer' && (
+            <StreamerTab
+              streamers={rosterData?.streamers || []}
+              selectedStaffId={selectedStaffId}
+            />
+          )}
+
+          {activeTab === 'claims' && isAdmin && (
+            <StaffClaimApprovalTab
+              claims={claimsData}
+              onRefresh={() => {
+                fetchClaims();
+                fetchRoster();
+              }}
+            />
+          )}
+        </>
       )}
     </div>
   );
-}                      
+}
