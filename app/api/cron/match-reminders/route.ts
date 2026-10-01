@@ -7,6 +7,7 @@ import {
   getMatchWeekNumber,
 } from '@/app/tournament/_library';
 import { discordAPI } from '@/lib/discord/utils';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 import {
   formatWIBTimeOnly,
   formatTimeRemaining,
@@ -90,9 +91,14 @@ export async function GET(req: NextRequest) {
       const roleBId = teamBData?.roleId || teamBData?.discordRoleId || (match as any).roleBId;
       const roleAPing = roleAId ? `<@&${roleAId}>` : `**${match.teamAName}**`;
       const roleBPing = roleBId ? `<@&${roleBId}>` : `**${match.teamBName}**`;
-      const refPing = match.refereeDiscordId
-        ? `<@${match.refereeDiscordId}>`
-        : match.referee || 'Wasit Bertugas';
+
+      // Fallback role Referee dan Chief jika belum ada wasit ter-assign
+      const fallbackRoles = `<@&${DISCORD_CONFIG.ROLE_REFEREE}> <@&${DISCORD_CONFIG.ROLE_CHIEF}>`;
+      const refLabel = match.refereeDiscordId
+        ? `Wasit <@${match.refereeDiscordId}>`
+        : match.referee
+        ? `Wasit ${match.referee}`
+        : fallbackRoles;
 
       // Parsing state tersimpan dari discord:match_messages
       let rawMsg = matchMessages[match.id];
@@ -194,7 +200,7 @@ export async function GET(req: NextRequest) {
 
           if (!morningMsgExists) {
             const morningRes: any = await discordAPI(`/channels/${chA}/messages`, 'POST', {
-              content: `⏳ ${roleAPing} Pertandingan kalian dijadwalkan pukul **${matchTimeWib}** bersama Wasit ${refPing}.`,
+              content: `⏳ ${roleAPing} Pertandingan kalian dijadwalkan pukul **${matchTimeWib}** bersama ${refLabel}.`,
               embeds: [morningEmbed],
             }).catch(() => null);
 
@@ -233,7 +239,7 @@ export async function GET(req: NextRequest) {
 
           if (!morningMsgExists) {
             const morningRes: any = await discordAPI(`/channels/${chB}/messages`, 'POST', {
-              content: `⏳ ${roleBPing} Pertandingan kalian dijadwalkan pukul **${matchTimeWib}** bersama Wasit ${refPing}.`,
+              content: `⏳ ${roleBPing} Pertandingan kalian dijadwalkan pukul **${matchTimeWib}** bersama ${refLabel}.`,
               embeds: [morningEmbed],
             }).catch(() => null);
 
@@ -283,7 +289,7 @@ export async function GET(req: NextRequest) {
         if (!briefingExists) {
           const briefingEmbed = getMatchBriefingEmbed();
           const briefingRes: any = await discordAPI(`/channels/${matchChannelId}/messages`, 'POST', {
-            content: `📢 ${roleAPing} vs ${roleBPing} — Pertandingan segera dimulai di bawah kendali Wasit ${refPing}!`,
+            content: `📢 ${roleAPing} vs ${roleBPing} — Pertandingan segera dimulai di bawah kendali ${refLabel}!`,
             embeds: [briefingEmbed],
           }).catch(() => null);
 
@@ -317,5 +323,5 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('[CRON ERROR] Match Reminders Failed:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
-  }                     
+  }
 }
