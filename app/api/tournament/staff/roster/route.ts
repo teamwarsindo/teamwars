@@ -41,7 +41,7 @@ export async function GET(req: Request) {
             id: match.id,
             matchDate: match.matchDate,
             weekNumber: match.weekNumber,
-            weekName: match.weekName || `Week ${match.weekNumber || 1}`,
+            weekName: (match as any).weekName || (match.weekNumber ? `Week ${match.weekNumber}` : 'Week 1'),
             teamAName: match.teamAName,
             teamBName: match.teamBName,
             scoreA: match.scoreA,
@@ -106,7 +106,7 @@ export async function GET(req: Request) {
     // 5. Ekstraksi opsi Pekan/Week untuk filter UI
     const availableWeeksSet = new Set<string>();
     schedulesData.forEach((m) => {
-      const weekLabel = m.weekName?.trim() || (m.weekNumber ? `Week ${m.weekNumber}` : 'Week 1');
+      const weekLabel = (m as any).weekName?.trim() || (m.weekNumber ? `Week ${m.weekNumber}` : 'Week 1');
       availableWeeksSet.add(weekLabel);
     });
 
