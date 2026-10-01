@@ -1,217 +1,271 @@
 'use client';
 
-import React, { useState } from 'react';
-import RefereePrivatePanel from './referee-private-panel';
-
-export interface MatchDetail {
-  id: string;
-  matchDate?: string;
-  weekNumber?: number;
-  weekName?: string;
-  teamAName: string;
-  teamBName: string;
-  scoreA?: number;
-  scoreB?: number;
-  isFinished?: boolean;
-}
-
-export interface BankInfo {
-  bankName: string;
-  accountNumber: string;
-  accountHolder: string;
-}
-
-export interface PayrollRequestItem {
-  requestId: string;
-  monthKey: string;
-  matchIds: string[];
-  totalAmount: number;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  proofUrl?: string;
-  declineReason?: string;
-  createdAt: string;
-  processedAt?: string;
-}
-
-export interface RefereeData {
-  discordId: string;
-  discordName: string;
-  activeMatches: MatchDetail[];
-  historyMatches: MatchDetail[];
-  totalFinishedMatches: number;
-  payroll?: {
-    feePerMatch: number;
-    totalEarned: number;
-    bankInfo: BankInfo | null;
-    payrollRequests: PayrollRequestItem[];
-    claimedMatchIds: string[];
-    unclaimedMatchCount: number;
-  } | null;
-}
+import { useState } from 'react';
+import Image from 'next/image';
 
 interface RefereeTabProps {
-  referees: RefereeData[];
-  token?: string | null;
-  isAdmin?: boolean;
-  searchQuery: string;
-  selectedWeek: string;
+  referees: any[];
+  token: string | null;
+  isAdmin: boolean;
+  selectedStaffId: string;
+  currentVerifiedId: string | null;
   onRefresh: () => void;
 }
 
-export default function RefereeTab({
+export function RefereeTab({
   referees,
   token,
   isAdmin,
-  searchQuery,
-  selectedWeek,
+  selectedStaffId,
+  currentVerifiedId,
   onRefresh,
 }: RefereeTabProps) {
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedMatches, setSelectedMatches] = useState<string[]>([]);
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountHolder, setAccountHolder] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [claimMessage, setClaimMessage] = useState<{ text: string; success: boolean } | null>(null);
 
-  const verifiedReferee = referees.find((r) => r.payroll !== null && r.payroll !== undefined);
-  const isTokenMode = Boolean(token && verifiedReferee);
+  // Filter daftar wasit berdasarkan selektor
+  const displayedReferees =
+    selectedStaffId === 'ALL'
+      ? referees
+      : referees.filter((ref) => ref.discordId === selectedStaffId);
 
-  if (isTokenMode && verifiedReferee) {
-    return (
-      <RefereePrivatePanel
-        verifiedReferee={verifiedReferee}
-        token={token!}
-        selectedWeek={selectedWeek}
-        onRefresh={onRefresh}
-      />
-    );
-  }
+  // Kalkulasi untuk Diagram Rekap Jam Terbang
+  const totalMatchesAll = referees.reduce((sum, r) => sum + (r.totalFinishedMatches || 0), 0);
 
-  const filteredReferees = referees.filter((ref) => {
-    if (searchQuery && !ref.discordName.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
-    if (selectedWeek === 'ALL') return true;
-    const inActive = ref.activeMatches.some((m) => (m.weekName || `Week ${m.weekNumber}`) === selectedWeek);
-    const inHistory = ref.historyMatches.some((m) => (m.weekName || `Week ${m.weekNumber}`) === selectedWeek);
-    return inActive || inHistory;
-  });
+  // Handler pengajuan klaim honor in-page
+  const handleClaimSubmit = async (e: React.FormEvent, verifiedRef: any) => {
+    e.preventDefault();
+    if (!token || selectedMatches.length === 0) return;
 
-  const handleCopyLink = async (discordId: string) => {
     try {
-      const res = await fetch('/api/tournament/staff/link', {
+      setIsSubmitting(true);
+      setClaimMessage(null);
+
+      const res = await fetch('/api/tournament/staff/payroll/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discordId }),
+        body: JSON.stringify({
+          token,
+          matchIds: selectedMatches,
+          bankInfo: {
+            bankName: bankName.trim() || verifiedRef.payroll?.bankInfo?.bankName,
+            accountNumber: accountNumber.trim() || verifiedRef.payroll?.bankInfo?.accountNumber,
+            accountHolder: accountHolder.trim() || verifiedRef.payroll?.bankInfo?.accountHolder,
+          },
+        }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message);
-      await navigator.clipboard.writeText(data.url);
-      setCopiedId(discordId);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch (err: any) {
-      alert(err.message || 'Gagal menyalin link.');
+
+      const json = await res.json();
+      if (json.success) {
+        setClaimMessage({ text: 'Klaim honor berhasil diajukan!', success: true });
+        setSelectedMatches([]);
+        onRefresh();
+      } else {
+        setClaimMessage({ text: json.message || 'Gagal mengajukan klaim honor.', success: false });
+      }
+    } catch {
+      setClaimMessage({ text: 'Terjadi kendala jaringan saat mengajukan klaim.', success: false });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  const verifiedReferee = referees.find((r) => r.discordId === currentVerifiedId);
+
   return (
-    <div className="space-y-6">
-      {filteredReferees.length === 0 ? (
-        <div className="rounded-2xl border border-border/80 bg-card p-8 text-center text-xs text-muted-foreground">
-          Tidak ada data wasit yang cocok dengan filter pencarian.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredReferees.map((ref) => {
-            const isAssigned = ref.activeMatches.length > 0;
-            const filteredHistory = ref.historyMatches.filter(
-              (m) => selectedWeek === 'ALL' || (m.weekName || `Week ${m.weekNumber}`) === selectedWeek
-            );
-            const filteredActive = ref.activeMatches.filter(
-              (m) => selectedWeek === 'ALL' || (m.weekName || `Week ${m.weekNumber}`) === selectedWeek
-            );
-            const totalMatchesInWeek = filteredHistory.length;
+    <div className="w-full space-y-8">
+      {/* 1. VISUALISASI REKAP JAM TERBANG WASIT */}
+      {selectedStaffId === 'ALL' && referees.length > 0 && (
+        <div className="rounded-2xl border border-border/80 bg-card/60 p-5 shadow-sm backdrop-blur-md">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-bold tracking-tight text-foreground">
+              📊 Distribusi Jam Terbang Wasit
+            </h3>
+            <span className="text-xs font-semibold text-muted-foreground">
+              Total {totalMatchesAll} Pertandingan
+            </span>
+          </div>
 
-            return (
-              <div
-                key={ref.discordId}
-                className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card p-5 shadow-sm transition hover:border-blue-500/40"
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs font-bold text-blue-600 border border-blue-500/20">
-                        {ref.discordName.substring(0, 2).toUpperCase()}
-                      </div>
-                      <div className="text-sm font-bold text-foreground">{ref.discordName}</div>
-                    </div>
+          <div className="space-y-3">
+            {referees.map((ref) => {
+              const count = ref.totalFinishedMatches || 0;
+              const percentage = totalMatchesAll > 0 ? Math.round((count / totalMatchesAll) * 100) : 0;
 
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-                        isAssigned
-                          ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                          : 'bg-muted text-muted-foreground border border-border/80'
-                      }`}
-                    >
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          isAssigned ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'
-                        }`}
-                      />
-                      {isAssigned ? 'Bertugas' : 'Standby'}
+              return (
+                <div key={ref.discordId} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-foreground">{ref.discordName}</span>
+                    <span className="font-mono text-muted-foreground">
+                      {count} Match ({percentage}%)
                     </span>
                   </div>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
-                    <div>
-                      <div className="text-[9px] uppercase text-muted-foreground">Selesai</div>
-                      <div className="text-xs font-bold text-foreground">{totalMatchesInWeek}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] uppercase text-muted-foreground">Aktif</div>
-                      <div className="text-xs font-bold text-blue-600">{filteredActive.length}</div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] uppercase text-muted-foreground">Total Honor</div>
-                      <div className="text-xs font-bold text-emerald-600 tracking-wider">
-                        {totalMatchesInWeek === 0 ? 'Rp 0' : 'Rp ***'}
-                      </div>
-                    </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted/40">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      style={{ width: `${percentage}%` }}
+                    />
                   </div>
-
-                  {isAssigned && (
-                    <div className="mt-3 space-y-1">
-                      <div className="text-[10px] font-medium text-muted-foreground uppercase">
-                        Sedang Memimpin:
-                      </div>
-                      {ref.activeMatches.map((m) => (
-                        <div
-                          key={m.id}
-                          className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 text-[11px] text-emerald-700 dark:text-emerald-400"
-                        >
-                          <span className="font-semibold">{m.teamAName} vs {m.teamBName}</span>
-                          <span className="font-mono text-[10px] opacity-75">{m.id}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-
-                <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
-                  <span className="text-[10px] text-muted-foreground">
-                    {selectedWeek === 'ALL' ? 'Semua Pekan' : selectedWeek}: {totalMatchesInWeek} Match
-                  </span>
-
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => handleCopyLink(ref.discordId)}
-                      className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-[11px] font-semibold text-blue-600 hover:bg-blue-500/20 transition"
-                    >
-                      {copiedId === ref.discordId ? '✓ Tersalin' : '🔗 Salin Link Wasit'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
+
+      {/* 2. PANEL PRIVAT WASIT TERVERIFIKASI */}
+      {verifiedReferee && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6 shadow-sm">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative h-12 w-12 overflow-hidden rounded-full border border-primary/40 bg-card">
+                <Image
+                  src={verifiedReferee.avatar}
+                  alt={verifiedReferee.discordName}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground">{verifiedReferee.discordName}</h3>
+                <p className="text-xs text-muted-foreground">Panel Pribadi Wasit Terverifikasi</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card/80 px-4 py-2.5">
+              <div className="text-[10px] uppercase font-bold text-muted-foreground">Total Honor Diterima</div>
+              <div className="font-mono text-lg font-black text-emerald-500">
+                Rp {((verifiedReferee.visibleHonor || 0)).toLocaleString('id-ID')}
+              </div>
+            </div>
+          </div>
+
+          {/* FORMULIR KLAIM IN-PAGE */}
+          {verifiedReferee.payroll && (
+            <form onSubmit={(e) => handleClaimSubmit(e, verifiedReferee)} className="space-y-4">
+              <div className="rounded-xl border border-border/80 bg-card/70 p-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+                  Pilih Match yang Ingin Dicairkan
+                </h4>
+                {verifiedReferee.historyMatches.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Belum ada riwayat pertandingan selesai.</p>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {verifiedReferee.historyMatches.map((m: any) => {
+                      const isClaimed = verifiedReferee.payroll.claimedMatchIds.includes(m.id);
+                      const isSelected = selectedMatches.includes(m.id);
+
+                      return (
+                        <label
+                          key={m.id}
+                          className={`flex items-center justify-between rounded-lg border p-2.5 text-xs transition-colors ${
+                            isClaimed
+                              ? 'cursor-not-allowed border-border/40 bg-muted/20 opacity-50'
+                              : isSelected
+                              ? 'cursor-pointer border-primary bg-primary/10 text-foreground'
+                              : 'cursor-pointer border-border/80 hover:bg-muted/40'
+                          }`}
+                        >
+                          <div>
+                            <span className="font-bold">{m.teamAName}</span> vs <span className="font-bold">{m.teamBName}</span>
+                            <div className="text-[10px] text-muted-foreground">{m.weekName}</div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            disabled={isClaimed}
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedMatches([...selectedMatches, m.id]);
+                              else setSelectedMatches(selectedMatches.filter((id) => id !== m.id));
+                            }}
+                            className="rounded border-border accent-primary"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <input
+                  type="text"
+                  placeholder="Nama Bank / E-Wallet"
+                  defaultValue={verifiedReferee.payroll.bankInfo?.bankName || ''}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="rounded-xl border border-border/80 bg-card px-3 py-2 text-xs focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Nomor Rekening"
+                  defaultValue={verifiedReferee.payroll.bankInfo?.accountNumber || ''}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  className="rounded-xl border border-border/80 bg-card px-3 py-2 text-xs focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Atas Nama"
+                  defaultValue={verifiedReferee.payroll.bankInfo?.accountHolder || ''}
+                  onChange={(e) => setAccountHolder(e.target.value)}
+                  className="rounded-xl border border-border/80 bg-card px-3 py-2 text-xs focus:ring-2 focus:ring-primary/40 focus:outline-none"
+                />
+              </div>
+
+              {claimMessage && (
+                <div className={`p-3 rounded-lg text-xs font-semibold ${claimMessage.success ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                  {claimMessage.text}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting || selectedMatches.length === 0}
+                className="w-full sm:w-auto rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-md transition-all hover:opacity-90 disabled:opacity-50"
+              >
+                {isSubmitting ? 'Memproses Klaim...' : `Ajukan Klaim (${selectedMatches.length} Match)`}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* 3. ROSTER GRID WASIT */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {displayedReferees.map((ref) => (
+          <div key={ref.discordId} className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card/60 p-5 backdrop-blur-md transition-all hover:border-border">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="relative h-12 w-12 overflow-hidden rounded-full border border-border/80 bg-muted/40">
+                  <Image
+                    src={ref.avatar}
+                    alt={ref.discordName}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                </div>
+                <div>
+                  <h4 className="font-bold text-foreground text-sm">{ref.discordName}</h4>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-500">
+                    🟢 {ref.totalFinishedMatches} Match Selesai
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-border/40 pt-3 text-xs">
+                <span className="text-muted-foreground">Total Honor</span>
+                <span className="font-mono font-bold text-foreground">
+                  {ref.visibleHonor !== null ? `Rp ${ref.visibleHonor.toLocaleString('id-ID')}` : 'Rp ***'}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
-  );
-}
+  );  
+}                 
