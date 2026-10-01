@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import Image from 'next/image';
 
 export interface StreamerMatchDetail {
@@ -28,41 +28,54 @@ export interface StreamerData {
 interface StreamerTabProps {
   streamers: StreamerData[];
   selectedStaffId?: string;
-  searchQuery?: string;
-  selectedWeek?: string;
+  selectedWeek: string;
 }
 
 export default function StreamerTab({
   streamers,
   selectedStaffId = 'ALL',
-  searchQuery = '',
-  selectedWeek = 'ALL',
+  selectedWeek,
 }: StreamerTabProps) {
-  // Saring data berdasarkan dropdown seleksi staf tunggal atau pencarian fallback
-  const filteredStreamers = streamers.filter((strm) => {
-    if (selectedStaffId !== 'ALL' && strm.discordId !== selectedStaffId) {
-      return false;
-    }
-    if (searchQuery && !strm.discordName.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
-    if (selectedWeek === 'ALL') return true;
+  const selectedWeekNum = useMemo(() => {
+    const num = Number(String(selectedWeek).replace(/\D/g, ''));
+    return isNaN(num) || num <= 0 ? Infinity : num;
+  }, [selectedWeek]);
 
-    const inActive = strm.activeMatches.some(
-      (m) => (m.weekName || `Week ${m.weekNumber}`) === selectedWeek
-    );
-    const inHistory = strm.historyMatches.some(
-      (m) => (m.weekName || `Week ${m.weekNumber}`) === selectedWeek
-    );
-    return inActive || inHistory;
-  });
+  // Kalkulasi kumulatif siaran (<= selectedWeek)
+  const computedStreamers = useMemo(() => {
+    return streamers.map((strm) => {
+      const filteredHistory = strm.historyMatches.filter((m) => {
+        const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
+        return wNum <= selectedWeekNum;
+      });
 
-  const totalBroadcastAll = streamers.reduce((sum, s) => sum + (s.totalBroadcastMatches || 0), 0);
+      const filteredActive = strm.activeMatches.filter((m) => {
+        const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
+        return wNum <= selectedWeekNum;
+      });
+
+      return {
+        ...strm,
+        cumulativeHistory: filteredHistory,
+        cumulativeActive: filteredActive,
+        totalBroadcastMatches: filteredHistory.length,
+      };
+    });
+  }, [streamers, selectedWeekNum]);
+
+  const displayedStreamers = useMemo(() => {
+    if (selectedStaffId === 'ALL') return computedStreamers;
+    return computedStreamers.filter((s) => s.discordId === selectedStaffId);
+  }, [computedStreamers, selectedStaffId]);
+
+  const totalBroadcastAll = useMemo(() => {
+    return computedStreamers.reduce((sum, s) => sum + s.totalBroadcastMatches, 0);
+  }, [computedStreamers]);
 
   return (
     <div className="w-full space-y-6">
       {/* 1. VISUALISASI DISTRIBUSI SIARAN STREAMER */}
-      {selectedStaffId === 'ALL' && streamers.length > 0 && (
+      {selectedStaffId === 'ALL' && computedStreamers.length > 0 && (
         <div className="rounded-2xl border border-border/80 bg-card/60 p-5 shadow-sm backdrop-blur-md">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-bold tracking-tight text-foreground">
@@ -74,9 +87,10 @@ export default function StreamerTab({
           </div>
 
           <div className="space-y-3">
-            {streamers.map((strm) => {
-              const count = strm.totalBroadcastMatches || 0;
-              const percentage = totalBroadcastAll > 0 ? Math.round((count / totalBroadcastAll) * 100) : 0;
+            {computedStreamers.map((strm) => {
+              const count = strm.totalBroadcastMatches;
+              const percentage =
+                totalBroadcastAll > 0 ? Math.round((count / totalBroadcastAll) * 100) : 0;
 
               return (
                 <div key={strm.discordId} className="space-y-1">
@@ -100,14 +114,14 @@ export default function StreamerTab({
       )}
 
       {/* 2. ROSTER GRID STREAMER */}
-      {filteredStreamers.length === 0 ? (
+      {displayedStreamers.length === 0 ? (
         <div className="rounded-2xl border border-border/80 bg-card p-8 text-center text-xs text-muted-foreground">
           Tidak ada data streamer yang cocok dengan kriteria pemilihan.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredStreamers.map((strm) => {
-            const isLive = strm.activeMatches.length > 0;
+          {displayedStreamers.map((strm) => {
+            const isLive = strm.cumulativeActive.length > 0;
             const avatarUrl =
               strm.avatar ||
               `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(
@@ -137,13 +151,13 @@ export default function StreamerTab({
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         isLive
-                          ? 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
-                          : 'bg-muted text-muted-foreground border border-border/80'
+                          ? 'border border-rose-500/20 bg-rose-500/10 text-rose-600'
+                          : 'border border-border/80 bg-muted text-muted-foreground'
                       }`}
                     >
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${
-                          isLive ? 'bg-rose-500 animate-ping' : 'bg-muted-foreground'
+                          isLive ? 'animate-ping bg-rose-500' : 'bg-muted-foreground'
                         }`}
                       />
                       {isLive ? 'Live On Air' : 'Standby'}
@@ -157,22 +171,24 @@ export default function StreamerTab({
                     </div>
                     <div>
                       <div className="text-[10px] uppercase text-muted-foreground">Siaran Berjalan</div>
-                      <div className="text-sm font-bold text-blue-600">{strm.activeMatches.length}</div>
+                      <div className="text-sm font-bold text-blue-600">{strm.cumulativeActive.length}</div>
                     </div>
                   </div>
 
                   {isLive && (
                     <div className="mt-3 space-y-1.5">
-                      <div className="text-[10px] font-medium text-muted-foreground uppercase">
+                      <div className="text-[10px] font-medium uppercase text-muted-foreground">
                         Sedang Menyiarkan:
                       </div>
-                      {strm.activeMatches.map((m) => (
+                      {strm.cumulativeActive.map((m) => (
                         <div
                           key={m.id}
                           className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-2.5 text-xs text-foreground"
                         >
                           <div className="flex items-center justify-between font-semibold">
-                            <span>{m.teamAName} vs {m.teamBName}</span>
+                            <span>
+                              {m.teamAName} vs {m.teamBName}
+                            </span>
                           </div>
                           {m.streamLink && (
                             <div className="mt-1.5">
@@ -191,24 +207,24 @@ export default function StreamerTab({
                     </div>
                   )}
 
-                  {!isLive && strm.historyMatches.length > 0 && (
+                  {!isLive && strm.cumulativeHistory.length > 0 && (
                     <div className="mt-3 space-y-1">
-                      <div className="text-[10px] font-medium text-muted-foreground uppercase">
+                      <div className="text-[10px] font-medium uppercase text-muted-foreground">
                         Siaran Terakhir:
                       </div>
                       <div className="rounded-xl border border-border/60 bg-muted/20 p-2.5 text-xs text-muted-foreground">
                         <div className="flex justify-between">
                           <span className="font-medium text-foreground">
-                            {strm.historyMatches[0].teamAName} vs {strm.historyMatches[0].teamBName}
+                            {strm.cumulativeHistory[0].teamAName} vs {strm.cumulativeHistory[0].teamBName}
                           </span>
                           <span className="text-[10px]">
-                            {strm.historyMatches[0].weekName || 'Babak Match'}
+                            {strm.cumulativeHistory[0].weekName || 'Babak Match'}
                           </span>
                         </div>
-                        {strm.historyMatches[0].streamLink && (
+                        {strm.cumulativeHistory[0].streamLink && (
                           <div className="mt-1">
                             <a
-                              href={strm.historyMatches[0].streamLink}
+                              href={strm.cumulativeHistory[0].streamLink}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-[11px] font-medium text-blue-600 hover:underline"
@@ -224,7 +240,7 @@ export default function StreamerTab({
 
                 <div className="mt-4 border-t border-border/60 pt-3 text-right">
                   <span className="text-[10px] text-muted-foreground">
-                    Partisipasi: {strm.historyMatches.length + strm.activeMatches.length} Match
+                    Partisipasi: {strm.cumulativeHistory.length + strm.cumulativeActive.length} Match
                   </span>
                 </div>
               </div>
@@ -234,4 +250,4 @@ export default function StreamerTab({
       )}
     </div>
   );
-}      
+}
