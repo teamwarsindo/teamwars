@@ -31,11 +31,12 @@ export async function POST(req: Request) {
     }
 
     const token = await generateRefereeToken(discordId.trim());
-    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || '';
+    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'https://www.teamwars.web.id';
     const cleanOrigin = origin.replace(/\/+$/, '');
 
-    const directPath = `/staff-${token}`;
-    const fullUrl = cleanOrigin ? `${cleanOrigin}${directPath}` : directPath;
+    // Format URL query parameter yang langsung ditangani app/staff/page.tsx
+    const directPath = `/staff?token=${encodeURIComponent(token)}`;
+    const fullUrl = `${cleanOrigin}${directPath}`;
 
     return NextResponse.json({
       success: true,
@@ -50,4 +51,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}  
+}
