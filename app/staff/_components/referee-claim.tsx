@@ -113,41 +113,39 @@ export default function RefereeClaim({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-100 shadow-2xl">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-border/80 bg-card text-foreground shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-white">Pengajuan Pencairan Honor Wasit</h2>
-            <p className="text-xs text-zinc-400">Pilih pertandingan sah dan lengkapi detail rekening Anda</p>
+            <h2 className="text-base font-bold text-foreground">Pengajuan Pencairan Honor Wasit</h2>
+            <p className="text-xs text-muted-foreground">Pilih pertandingan sah dan lengkapi detail rekening Anda</p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800 hover:text-white transition"
+            className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition"
           >
             ✕
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
+          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
             {errorMessage && (
-              <div className="rounded-lg border border-red-500/30 bg-red-950/40 p-3 text-xs text-red-300">
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
                 {errorMessage}
               </div>
             )}
 
-            {/* Match Selection Section */}
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Daftar Pertandingan Belum Diklaim ({selectedMatches.length}/{unclaimedMatches.length})
                 </label>
                 {unclaimedMatches.length > 0 && (
                   <button
                     type="button"
                     onClick={handleSelectAll}
-                    className="text-xs text-rose-400 hover:underline"
+                    className="text-xs font-semibold text-blue-600 hover:underline"
                   >
                     {selectedMatches.length === unclaimedMatches.length ? 'Batal Pilih Semua' : 'Pilih Semua'}
                   </button>
@@ -155,21 +153,21 @@ export default function RefereeClaim({
               </div>
 
               {unclaimedMatches.length === 0 ? (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-6 text-center text-xs text-zinc-500">
+                <div className="rounded-xl border border-border/80 bg-muted/20 p-6 text-center text-xs text-muted-foreground">
                   Tidak ada pertandingan yang dapat dicairkan saat ini.
                 </div>
               ) : (
-                <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-2">
+                <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-border/80 bg-muted/10 p-2">
                   {unclaimedMatches.map((m) => {
                     const isChecked = selectedMatches.includes(m.id);
                     return (
                       <div
                         key={m.id}
                         onClick={() => toggleMatchSelection(m.id)}
-                        className={`flex cursor-pointer items-center justify-between rounded-md border p-2.5 text-xs transition ${
+                        className={`flex cursor-pointer items-center justify-between rounded-lg border p-2.5 text-xs transition ${
                           isChecked
-                            ? 'border-rose-900/80 bg-rose-950/20 text-white'
-                            : 'border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:border-zinc-700'
+                            ? 'border-blue-500/50 bg-blue-500/10 text-foreground'
+                            : 'border-border/80 bg-card text-muted-foreground hover:border-blue-500/30'
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -177,18 +175,18 @@ export default function RefereeClaim({
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => {}}
-                            className="h-4 w-4 rounded border-zinc-700 bg-zinc-800 text-rose-600 focus:ring-0"
+                            className="h-4 w-4 rounded border-border text-blue-600 focus:ring-0"
                           />
                           <div>
-                            <span className="font-semibold text-zinc-200">
+                            <span className="font-semibold text-foreground">
                               {m.teamAName} vs {m.teamBName}
                             </span>
-                            <span className="ml-2 text-[10px] text-zinc-500">
+                            <span className="ml-2 text-[10px] text-muted-foreground">
                               ({m.weekName || 'Babak Match'})
                             </span>
                           </div>
                         </div>
-                        <span className="font-mono text-[10px] text-zinc-400">
+                        <span className="font-mono text-[10px] text-muted-foreground">
                           {m.scoreA !== undefined && m.scoreB !== undefined
                             ? `${m.scoreA} - ${m.scoreB}`
                             : m.id}
@@ -200,79 +198,76 @@ export default function RefereeClaim({
               )}
             </div>
 
-            {/* Bank Information Section */}
-            <div className="space-y-3 rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+            <div className="space-y-3 rounded-xl border border-border/80 bg-muted/20 p-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Informasi Rekening Tujuan
               </h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
-                  <label className="mb-1 block text-[11px] text-zinc-400">Nama Bank / E-Wallet</label>
+                  <label className="mb-1 block text-[11px] text-muted-foreground">Nama Bank / E-Wallet</label>
                   <input
                     type="text"
                     required
                     placeholder="BCA / Mandiri / GoPay"
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
-                    className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-rose-500 focus:outline-none"
+                    className="w-full rounded-xl border border-border/80 bg-background px-3 py-1.5 text-xs text-foreground placeholder-muted-foreground focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] text-zinc-400">Nomor Rekening</label>
+                  <label className="mb-1 block text-[11px] text-muted-foreground">Nomor Rekening</label>
                   <input
                     type="text"
                     required
                     placeholder="1234567890"
                     value={accountNumber}
                     onChange={(e) => setAccountNumber(e.target.value)}
-                    className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-rose-500 focus:outline-none"
+                    className="w-full rounded-xl border border-border/80 bg-background px-3 py-1.5 text-xs text-foreground placeholder-muted-foreground focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] text-zinc-400">Atas Nama Pemilik</label>
+                  <label className="mb-1 block text-[11px] text-muted-foreground">Atas Nama Pemilik</label>
                   <input
                     type="text"
                     required
-                    placeholder="Nama Lengkap Pemilik"
+                    placeholder="Nama Lengkap"
                     value={accountHolder}
                     onChange={(e) => setAccountHolder(e.target.value)}
-                    className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:border-rose-500 focus:outline-none"
+                    className="w-full rounded-xl border border-border/80 bg-background px-3 py-1.5 text-xs text-foreground placeholder-muted-foreground focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Total Summary */}
-            <div className="flex items-center justify-between rounded-lg border border-rose-950/60 bg-rose-950/20 px-4 py-3">
+            <div className="flex items-center justify-between rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3">
               <div>
-                <div className="text-xs text-zinc-400">Estimasi Total Pencairan</div>
-                <div className="text-[11px] text-zinc-500">
+                <div className="text-xs text-muted-foreground">Estimasi Total Pencairan</div>
+                <div className="text-[11px] text-muted-foreground">
                   {selectedMatches.length} Match × Rp {feePerMatch.toLocaleString('id-ID')}
                 </div>
               </div>
-              <div className="text-lg font-bold text-rose-400">{formattedTotal}</div>
+              <div className="text-base font-black text-blue-600">{formattedTotal}</div>
             </div>
           </div>
 
-          {/* Modal Footer */}
-          <div className="flex items-center justify-end gap-3 border-t border-zinc-800 px-6 py-4">
+          <div className="flex items-center justify-end gap-3 border-t border-border/60 px-6 py-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-900 hover:text-white transition"
+              className="rounded-full px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted transition"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={isSubmitting || selectedMatches.length === 0}
-              className="rounded-lg bg-rose-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-rose-950 hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50 transition"
+              className="rounded-full bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-40 transition"
             >
-              {isSubmitting ? 'Memproses Pengajuan...' : 'Kirim Permohonan Pencairan'}
+              {isSubmitting ? 'Memproses...' : 'Kirim Permohonan Pencairan'}
             </button>
           </div>
         </form>
       </div>
     </div>
-  );
-}                                         
+  );           
+}
