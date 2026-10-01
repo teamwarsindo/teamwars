@@ -37,7 +37,7 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   const fetchRosterData = async () => {
     setIsLoading(true);
@@ -61,7 +61,6 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
         const weeks = data.availableWeeks || [];
         setAvailableWeeks(weeks);
 
-        // Default week ke pekan tertinggi secara kumulatif
         if (weeks.length > 0) {
           setSelectedWeek((prev) => (prev ? prev : weeks[weeks.length - 1]));
         }
@@ -77,13 +76,13 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
     fetchRosterData();
   }, [token]);
 
-  // Nomor pekan tertinggi sebagai acuan default
   const defaultWeek = useMemo(() => {
     if (availableWeeks.length === 0) return '';
     return availableWeeks[availableWeeks.length - 1];
   }, [availableWeeks]);
 
-  const isFilterActive = selectedStaffId !== 'ALL' || (selectedWeek !== '' && selectedWeek !== defaultWeek);
+  const isFilterActive =
+    selectedStaffId !== 'ALL' || (selectedWeek !== '' && selectedWeek !== defaultWeek);
 
   const handleResetFilter = () => {
     setSelectedStaffId('ALL');
@@ -167,7 +166,6 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
       {!isTokenMode && activeTab !== 'approval' && (
         <div className="rounded-2xl border border-border/80 bg-card/60 p-3 shadow-sm backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            {/* Dropdown 1: Seleksi Staf */}
             <div className="relative flex-1">
               <select
                 value={selectedStaffId}
@@ -186,7 +184,6 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
               </div>
             </div>
 
-            {/* Dropdown 2: Seleksi Pekan Kumulatif */}
             <div className="relative flex-1">
               <select
                 value={selectedWeek}
@@ -204,7 +201,6 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
               </div>
             </div>
 
-            {/* Tombol Reset Bulat Merah (Mengadopsi analytics-filter.tsx) */}
             <button
               type="button"
               onClick={handleResetFilter}
@@ -240,19 +236,14 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
           referees={referees}
           token={token || null}
           isAdmin={effectiveIsAdmin}
-          searchQuery=""
           selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
           onRefresh={fetchRosterData}
         />
       ) : activeTab === 'streamer' ? (
         <StreamerTab
-          streamers={
-            selectedStaffId === 'ALL'
-              ? streamers
-              : streamers.filter((s) => s.discordId === selectedStaffId)
-          }
-          searchQuery=""
+          streamers={streamers}
+          selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
         />
       ) : (
