@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
-import RefereeTab, { RefereeData } from './_components/referee-tab';
-import StreamerTab, { StreamerData } from './_components/streamer-tab';
+import { RefereeTab } from './_components/referee-tab';
+import StreamerTab from './_components/streamer-tab';
 import AdminApprovalTab from './_components/admin-approval-tab';
 
 export interface StaffClientProps {
@@ -14,8 +14,8 @@ interface RosterResponse {
   success: boolean;
   currentVerifiedId: string | null;
   availableWeeks: string[];
-  referees: RefereeData[];
-  streamers: StreamerData[];
+  referees: any[];
+  streamers: any[];
   message?: string;
 }
 
@@ -29,9 +29,8 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
   const [activeTab, setActiveTab] = useState<'referee' | 'streamer' | 'approval'>('referee');
   const [selectedStaffId, setSelectedStaffId] = useState<string>('ALL');
 
-  const [referees, setReferees] = useState<RefereeData[]>([]);
-  const [streamers, setStreamers] = useState<StreamerData[]>([]);
-  const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
+  const [referees, setReferees] = useState<any[]>([]);
+  const [streamers, setStreamers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -55,7 +54,6 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
       startTransition(() => {
         setReferees(data.referees || []);
         setStreamers(data.streamers || []);
-        setAvailableWeeks(data.availableWeeks || []);
       });
     } catch (err: any) {
       setErrorMsg(err.message || 'Terjadi kesalahan sistem saat memuat data staf.');
@@ -69,7 +67,7 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
   }, [token]);
 
   const pendingApprovalsCount = referees.reduce((acc, ref) => {
-    const list = (ref as any).payrollRequests || ref.payroll?.payrollRequests || [];
+    const list = ref.payrollRequests || ref.payroll?.payrollRequests || [];
     const pendingInRef = list.filter((item: any) => item.status === 'PENDING').length;
     return acc + pendingInRef;
   }, 0);
@@ -189,15 +187,11 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
         </div>
       ) : activeTab === 'referee' || isTokenMode ? (
         <RefereeTab
-          referees={
-            selectedStaffId === 'ALL'
-              ? referees
-              : referees.filter((r) => r.discordId === selectedStaffId)
-          }
-          token={token}
+          referees={referees}
+          token={token || null}
           isAdmin={effectiveIsAdmin}
-          searchQuery=""
-          selectedWeek="ALL"
+          selectedStaffId={selectedStaffId}
+          currentVerifiedId={token ? (referees.find((r) => r.payroll !== null)?.discordId || null) : null}
           onRefresh={fetchRosterData}
         />
       ) : activeTab === 'streamer' ? (
@@ -217,5 +211,5 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
         />
       )}
     </div>
-  );  
+  );    
 }
