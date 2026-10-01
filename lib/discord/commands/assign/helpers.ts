@@ -85,20 +85,27 @@ export async function updateStaffHistory(
   type: 'REFEREE' | 'STREAMER',
   staffId: string,
   matchId: string,
-  action: 'ADD' | 'REMOVE'
+  action: 'ADD' | 'REMOVE' | 'COMPLETE'
 ): Promise<void> {
   const kvKey = type === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
   const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
   const idx = staffList.findIndex((s) => s.discordId === staffId);
 
   if (idx !== -1) {
-    const history = new Set(staffList[idx].assignMatch || []);
+    const assignSet = new Set(staffList[idx].assignMatch || []);
+
     if (action === 'ADD') {
-      history.add(matchId);
-    } else {
-      history.delete(matchId);
+      assignSet.add(matchId);
+    } else if (action === 'REMOVE') {
+      assignSet.delete(matchId);
+    } else if (action === 'COMPLETE') {
+      assignSet.delete(matchId);
+      const historySet = new Set((staffList[idx] as any).historyMatch || []);
+      historySet.add(matchId);
+      (staffList[idx] as any).historyMatch = Array.from(historySet);
     }
-    staffList[idx].assignMatch = Array.from(history);
+
+    staffList[idx].assignMatch = Array.from(assignSet);
     await kv.set(kvKey, staffList);
   }
 }
