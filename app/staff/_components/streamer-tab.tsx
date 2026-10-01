@@ -34,7 +34,6 @@ export default function StreamerTab({
   searchQuery,
   selectedWeek,
 }: StreamerTabProps) {
-  // Filter streamer berdasarkan query nama dan pekan yang dipilih
   const filteredStreamers = streamers.filter((strm) => {
     const matchName = strm.discordName.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchName) return false;
@@ -53,8 +52,8 @@ export default function StreamerTab({
   return (
     <div className="space-y-6">
       {filteredStreamers.length === 0 ? (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-8 text-center text-sm text-zinc-500">
-          Tidak ada data streamer yang sesuai dengan filter pencarian.
+        <div className="rounded-2xl border border-border/80 bg-card p-8 text-center text-xs text-muted-foreground">
+          Tidak ada data streamer yang cocok dengan filter pencarian.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -65,99 +64,89 @@ export default function StreamerTab({
             return (
               <div
                 key={strm.discordId}
-                className="flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-950/80 p-5 shadow-lg transition hover:border-zinc-700"
+                className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card p-5 shadow-sm transition hover:border-blue-500/40"
               >
                 <div>
-                  {/* Profil Streamer */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-950 border border-indigo-800/80 text-sm font-bold text-indigo-300">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 text-sm font-bold text-blue-600 border border-blue-500/20">
                         {strm.discordName.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
-                        <div className="text-sm font-bold text-white">{strm.discordName}</div>
-                        <div className="text-[10px] font-mono text-zinc-500">{strm.discordId}</div>
+                        <div className="text-sm font-bold text-foreground">{strm.discordName}</div>
+                        <div className="text-[10px] font-mono text-muted-foreground">{strm.discordId}</div>
                       </div>
                     </div>
 
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         isLive
-                          ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                          : 'bg-zinc-900 text-zinc-400 border border-zinc-800'
+                          ? 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
+                          : 'bg-muted text-muted-foreground border border-border/80'
                       }`}
                     >
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${
-                          isLive ? 'bg-rose-500 animate-ping' : 'bg-zinc-500'
+                          isLive ? 'bg-rose-500 animate-ping' : 'bg-muted-foreground'
                         }`}
                       />
                       {isLive ? 'Live On Air' : 'Standby'}
                     </span>
                   </div>
 
-                  {/* Statistik Jam Terbang Siaran */}
-                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg border border-zinc-900 bg-zinc-900/40 p-2.5 text-center">
+                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-border/60 bg-muted/30 p-2.5 text-center">
                     <div>
-                      <div className="text-[10px] text-zinc-500 uppercase">Total Siaran Selesai</div>
-                      <div className="text-base font-bold text-zinc-200">
-                        {strm.totalBroadcastMatches}
-                      </div>
+                      <div className="text-[10px] uppercase text-muted-foreground">Total Siaran</div>
+                      <div className="text-sm font-bold text-foreground">{strm.totalBroadcastMatches}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-zinc-500 uppercase">Siaran Berjalan</div>
-                      <div className="text-base font-bold text-indigo-400">
-                        {strm.activeMatches.length}
-                      </div>
+                      <div className="text-[10px] uppercase text-muted-foreground">Siaran Berjalan</div>
+                      <div className="text-sm font-bold text-blue-600">{strm.activeMatches.length}</div>
                     </div>
                   </div>
 
-                  {/* Match Aktif yang Sedang Disiarkan */}
                   {isLive && (
                     <div className="mt-3 space-y-1.5">
-                      <div className="text-[10px] font-medium text-zinc-400 uppercase">
+                      <div className="text-[10px] font-medium text-muted-foreground uppercase">
                         Sedang Menyiarkan:
                       </div>
-                      <div className="space-y-1.5">
-                        {strm.activeMatches.map((m) => (
-                          <div
-                            key={m.id}
-                            className="rounded border border-indigo-900/50 bg-indigo-950/20 p-2 text-xs text-indigo-200"
-                          >
-                            <div className="flex items-center justify-between font-semibold">
-                              <span>{m.teamAName} vs {m.teamBName}</span>
-                              <span className="font-mono text-[10px] text-indigo-400">{m.id}</span>
-                            </div>
-                            {m.streamLink && (
-                              <div className="mt-1">
-                                <a
-                                  href={m.streamLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-[11px] text-rose-400 hover:underline"
-                                >
-                                  <span>🔴 Tonton Siaran Langsung</span>
-                                </a>
-                              </div>
-                            )}
+                      {strm.activeMatches.map((m) => (
+                        <div
+                          key={m.id}
+                          className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-2.5 text-xs text-foreground"
+                        >
+                          <div className="flex items-center justify-between font-semibold">
+                            <span>{m.teamAName} vs {m.teamBName}</span>
+                            <span className="font-mono text-[10px] text-blue-600">{m.id}</span>
                           </div>
-                        ))}
-                      </div>
+                          {m.streamLink && (
+                            <div className="mt-1.5">
+                              <a
+                                href={m.streamLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:underline"
+                              >
+                                🔴 Buka Siaran Langsung ↗
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
 
-                  {/* Riwayat Siaran Terakhir */}
                   {!isLive && strm.historyMatches.length > 0 && (
                     <div className="mt-3 space-y-1">
-                      <div className="text-[10px] font-medium text-zinc-500 uppercase">
+                      <div className="text-[10px] font-medium text-muted-foreground uppercase">
                         Siaran Terakhir:
                       </div>
-                      <div className="rounded border border-zinc-900 bg-zinc-900/30 p-2 text-xs text-zinc-400">
+                      <div className="rounded-xl border border-border/60 bg-muted/20 p-2.5 text-xs text-muted-foreground">
                         <div className="flex justify-between">
-                          <span>
+                          <span className="font-medium text-foreground">
                             {strm.historyMatches[0].teamAName} vs {strm.historyMatches[0].teamBName}
                           </span>
-                          <span className="text-[10px] text-zinc-500">
+                          <span className="text-[10px]">
                             {strm.historyMatches[0].weekName || 'Babak Match'}
                           </span>
                         </div>
@@ -167,9 +156,9 @@ export default function StreamerTab({
                               href={strm.historyMatches[0].streamLink}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-[10px] text-indigo-400 hover:underline"
+                              className="text-[11px] font-medium text-blue-600 hover:underline"
                             >
-                              Tonton Rekaman (VOD) ↗
+                              Tonton Rekaman Siaran ↗
                             </a>
                           </div>
                         )}
@@ -178,9 +167,8 @@ export default function StreamerTab({
                   )}
                 </div>
 
-                {/* Footer Kartu */}
-                <div className="mt-4 border-t border-zinc-900 pt-3 text-right">
-                  <span className="text-[10px] text-zinc-500">
+                <div className="mt-4 border-t border-border/60 pt-3 text-right">
+                  <span className="text-[10px] text-muted-foreground">
                     Total Partisipasi: {totalParticipation} Pertandingan
                   </span>
                 </div>
