@@ -1,133 +1,138 @@
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
-import { DISCORD_CONFIG } from '@/lib/discord/config';
-import { discordAPI } from '@/lib/discord/utils';
+import { StaffItem } from '@/lib/discord/commands/assign/types';
 
 export const dynamic = 'force-dynamic';
 
-function extractMatchIdFromChannelName(channelName: string): string | null {
-  // 1. Bersihkan emoji (seperti ⚔️ atau ⚔) dan karakter non-alfanumerik di awal nama channel
-  const cleanedName = channelName
-    .replace(/^[^a-zA-Z0-9]+/, '')
-    .trim()
-    .toLowerCase();
-
-  // 2. Deteksi format Playoff (misal: mpo-5 dari ⚔-mpo-5-blr-dso)
-  const playoffMatch = cleanedName.match(/^(mpo-\d+)/i);
-  if (playoffMatch) {
-    return playoffMatch[1].toLowerCase();
-  }
-
-  // 3. Deteksi format Play-Ins (misal: mpi-1)
-  const playInsMatch = cleanedName.match(/^(mpi-\d+)/i);
-  if (playInsMatch) {
-    return playInsMatch[1].toLowerCase();
-  }
-
-  // 4. Deteksi format Regular Match dengan prefix match- (misal: match-12)
-  const fullMatch = cleanedName.match(/^(match-\d+)/i);
-  if (fullMatch) {
-    return fullMatch[1].toLowerCase();
-  }
-
-  // 5. Deteksi format Regular Match yang disingkat menjadi m{angka} (misal: m12 dari ⚔️-m12-tma-tmb)
-  const shortMatch = cleanedName.match(/^m(\d+)/i);
-  if (shortMatch) {
-    return `match-${shortMatch[1]}`.toLowerCase();
-  }
-
-  return null;
-}
-
 export async function GET() {
   try {
-    const guildId = DISCORD_CONFIG.GUILD_ID;
-    if (!guildId) {
-      return NextResponse.json({
-        success: false,
-        message: 'DISCORD_GUILD_ID tidak dikonfigurasi di environment.',
-      }, { status: 500 });
-    }
-
-    // Ambil seluruh daftar channel Discord pada server
-    const allGuildChannels = await discordAPI(`/guilds/${guildId}/channels`, 'GET');
-    if (!Array.isArray(allGuildChannels)) {
-      return NextResponse.json({
-        success: false,
-        message: 'Gagal mengambil daftar channel dari Discord API.',
-      }, { status: 502 });
-    }
-
-    // Ambil data schedules dari KV
     const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
+    const referees = (await kv.get<StaffItem[]>('staff:referees')) || [];
+    const streamers = (await kv.get<StaffItem[]>('staff:streamers')) || [];
+
     if (!schedules.length) {
       return NextResponse.json({
         success: false,
-        message: 'Tidak ada data jadwal pertandingan ditemukan di KV (twi:schedules).',
+        message: 'Tidak ada data jadwal ditemukan di twi:schedules.',
       }, { status: 404 });
     }
 
-    let updatedCount = 0;
-    const syncedList: Array<{
-      matchId: string;
-      channelId: string;
-      channelName: string;
-      matchName: string;
-    }> = [];
+    // Filter seluruh match yang sudah selesai (isFinished: true)
+    const finishedMatches = schedules.filter((m) => Boolean(m.isFinished));
 
-    // Lakukan mapping channel Discord berdasarkan ID match yang diekstrak
-    for (const channel of allGuildChannels) {
-      if (channel.type !== 0) continue; // Hanya periksa Guild Text Channel
+    let updatedRefereesCount = 0;
+    let updatedStreamersCount = 0;
 
-      const extractedId = extractMatchIdFromChannelName(channel.name);
-      if (!extractedId) continue;
+    // 1. PATCHING REFEREES
+    const patchedReferees = referees.map((ref) => {
+      const currentHistory: string[] = Array.isArray((ref as any).historyMatch)
+        ? [...(ref as any).historyMatch]
+        : [];
+      let currentAssign: string[] = Array.isArray(ref.assignMatch)
+        ? [...ref.assignMatch]
+        : [];
 
-      const scheduleIndex = schedules.findIndex((s) => {
-        const rawId = String(s.id).toLowerCase();
-        return (
-          rawId === extractedId ||
-          rawId.replace('match-', 'm') === extractedId ||
-          rawId === extractedId.replace('match-', '')
-        );
+      let hasChange = !Array.isArray((ref as any).historyMatch);
+
+      finishedMatches.forEach((m) => {
+        const isMatched =
+          (m.refereeDiscordId && m.refereeDiscordId === ref.discordId) ||
+          (m.referee && m.referee.trim().toLowerCase() === ref.discordName.trim().toLowerCase());
+
+        if (isMatched) {
+          if (!currentHistory.includes(m.id)) {
+            currentHistory.push(m.id);
+            hasChange = true;
+          }
+          if (currentAssign.includes(m.id)) {
+            currentAssign = currentAssign.filter((id) => id !== m.id);
+            hasChange = true;
+          }
+        }
       });
 
-      if (scheduleIndex !== -1) {
-        const currentMatch = schedules[scheduleIndex];
-        const oldChannelId = (currentMatch as any).discordChannelId;
-
-        if (oldChannelId !== channel.id) {
-          (currentMatch as any).discordChannelId = channel.id;
-          schedules[scheduleIndex] = currentMatch;
-          updatedCount++;
-        }
-
-        syncedList.push({
-          matchId: currentMatch.id,
-          channelId: channel.id,
-          channelName: channel.name,
-          matchName: `${currentMatch.teamAName} vs ${currentMatch.teamBName}`,
-        });
+      if (hasChange) {
+        updatedRefereesCount++;
       }
-    }
 
-    // Simpan data kembali ke KV jika ada pembaruan
-    if (updatedCount > 0) {
-      await kv.set('twi:schedules', schedules);
-    }
+      return {
+        ...ref,
+        assignMatch: currentAssign,
+        historyMatch: currentHistory,
+      };
+    });
+
+    // 2. PATCHING STREAMERS
+    const patchedStreamers = streamers.map((str) => {
+      const currentHistory: string[] = Array.isArray((str as any).historyMatch)
+        ? [...(str as any).historyMatch]
+        : [];
+      let currentAssign: string[] = Array.isArray(str.assignMatch)
+        ? [...str.assignMatch]
+        : [];
+
+      let hasChange = !Array.isArray((str as any).historyMatch);
+
+      finishedMatches.forEach((m) => {
+        const streamerId = m.streamerDiscordId || (m as any).caster;
+        const isMatched =
+          (streamerId && streamerId === str.discordId) ||
+          (m.streamer && m.streamer.trim().toLowerCase() === str.discordName.trim().toLowerCase());
+
+        if (isMatched) {
+          if (!currentHistory.includes(m.id)) {
+            currentHistory.push(m.id);
+            hasChange = true;
+          }
+          if (currentAssign.includes(m.id)) {
+            currentAssign = currentAssign.filter((id) => id !== m.id);
+            hasChange = true;
+          }
+        }
+      });
+
+      if (hasChange) {
+        updatedStreamersCount++;
+      }
+
+      return {
+        ...str,
+        assignMatch: currentAssign,
+        historyMatch: currentHistory,
+      };
+    });
+
+    // Simpan pembaruan ke KV jika ada data yang dipatch
+    await kv.set('staff:referees', patchedReferees);
+    await kv.set('staff:streamers', patchedStreamers);
 
     return NextResponse.json({
       success: true,
-      message: `Sinkronisasi selesai. Sebanyak ${updatedCount} channel didaftarkan/diperbarui dari ${syncedList.length} channel aktif yang terdeteksi.`,
-      totalSynced: syncedList.length,
-      updatedCount,
-      matches: syncedList,
+      message: 'Patching riwayat match selesai berhasil dijalankan.',
+      totalFinishedMatches: finishedMatches.length,
+      refereesUpdated: updatedRefereesCount,
+      streamersUpdated: updatedStreamersCount,
+      data: {
+        referees: patchedReferees.map((r) => ({
+          name: r.discordName,
+          assignMatch: r.assignMatch,
+          historyCount: (r as any).historyMatch?.length || 0,
+          historyMatch: (r as any).historyMatch,
+        })),
+        streamers: patchedStreamers.map((s) => ({
+          name: s.discordName,
+          assignMatch: s.assignMatch,
+          historyCount: (s as any).historyMatch?.length || 0,
+          historyMatch: (s as any).historyMatch,
+        })),
+      },
     });
   } catch (error: any) {
-    console.error('[SYNC MATCH CHANNELS ERROR]:', error);
+    console.error('[PATCHING HISTORY ERROR]:', error);
     return NextResponse.json({
       success: false,
-      message: error.message || 'Terjadi kesalahan server saat sinkronisasi channel match.',
+      message: error.message || 'Terjadi kesalahan saat patching riwayat match staf.',
     }, { status: 500 });
-  }
+  }                        
 }
