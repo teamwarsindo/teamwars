@@ -15,16 +15,15 @@ export async function GET(req: Request) {
 
     // 1. Cek sesi admin dari cookie
     const cookieStore = await cookies();
-    const adminCookie = cookieStore.get('admin_session')?.value;
-    const isAdmin = Boolean(adminCookie);
+    const isAdmin = Boolean(cookieStore.get('admin_session')?.value);
 
-    // 2. Verifikasi token wasit
+    // 2. Verifikasi token wasit jika ada
     let verifiedDiscordId: string | null = null;
     if (token) {
       verifiedDiscordId = await verifyRefereeToken(token);
     }
 
-    // 3. Ambil data staf dan jadwal pertandingan
+    // 3. Ambil data staf dan jadwal dari KV
     const [refereesData, streamersData, schedulesData] = await Promise.all([
       kv.get<StaffItem[]>('staff:referees').then((res) => res || []),
       kv.get<StaffItem[]>('staff:streamers').then((res) => res || []),
@@ -45,7 +44,9 @@ export async function GET(req: Request) {
             id: match.id,
             matchDate: match.matchDate,
             weekNumber: match.weekNumber,
-            weekName: (match as any).weekName || (match.weekNumber ? `Week ${match.weekNumber}` : 'Week 1'),
+            weekName:
+              (match as any).weekName ||
+              (match.weekNumber ? `Week ${match.weekNumber}` : 'Week 1'),
             teamAName: match.teamAName,
             teamBName: match.teamBName,
             scoreA: match.scoreA,
@@ -57,17 +58,21 @@ export async function GET(req: Request) {
         .filter(Boolean);
     };
 
-    // Helper Avatar Gambar Nyata (Discord CDN jika ada avatar hash, fallback ke DiceBear Avatar)
-    const resolveAvatarUrl = (item: any) => {
-      if (item.avatar && item.discordId) {
-        return `https://cdn.discordapp.com/avatars/${item.discordId}/${item.avatar}.png?size=128`;
+    // Helper resolusi avatar Discord asli atau fallback gambar SVG
+    const resolveAvatar = (item: any) => {
+      if (item.avatarUrl && typeof item.avatarUrl === 'string') return item.avatarUrl;
+      if (item.avatar && typeof item.avatar === 'string') {
+        if (item.avatar.startsWith('http')) return item.avatar;
+        return `https://cdn.discordapp.com/avatars/${item.discordId}/${item.avatar}.png`;
       }
-      return `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.discordName || item.discordId)}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+      return `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(
+        item.discordName || item.discordId
+      )}`;
     };
 
-    const feePerMatchVal = REFEREE_PAYROLL_CONFIG.FEE_PER_MATCH * 1000;
+    // 4. Format data Wasit
+    const feePerMatch = REFEREE_PAYROLL_CONFIG.FEE_PER_MATCH * 1000;
 
-    // 4. Format Data Wasit
     const referees = refereesData.map((ref) => {
       const historyMatches = (ref as any).historyMatch || [];
       const assignedMatches = ref.assignMatch || [];
@@ -81,34 +86,33 @@ export async function GET(req: Request) {
       });
 
       const isCurrentVerified = verifiedDiscordId === ref.discordId;
-      const totalMatches = historyMatches.length;
-      const rawEarned = totalMatches * feePerMatchVal;
+      const totalEarnedAmount = historyMatches.length * feePerMatch;
 
       return {
         discordId: ref.discordId,
         discordName: ref.discordName,
-        avatar: resolveAvatarUrl(ref),
+        avatar: resolveAvatar(ref),
         activeMatches: mapMatchDetails(assignedMatches),
         historyMatches: mapMatchDetails(historyMatches),
-        totalFinishedMatches: totalMatches,
-        // Honor terbuka jika admin login atau wasit terverifikasi
-        totalHonorFormatted: isAdmin || isCurrentVerified
-          ? `Rp ${rawEarned.toLocaleString('id-ID')}`
-          : totalMatches === 0 ? 'Rp 0' : 'Rp ***',
+        totalFinishedMatches: historyMatches.length,
+        // Admin bisa melihat nominal honor semua wasit; publik mendapat nilai null jika bukan pemilik token
+        visibleHonor: isAdmin || isCurrentVerified ? totalEarnedAmount : null,
         payroll: isCurrentVerified
           ? {
-              feePerMatch: feePerMatchVal,
-              totalEarned: rawEarned,
+              feePerMatch,
+              totalEarned: totalEarnedAmount,
               bankInfo: (ref as any).bankInfo || null,
-              payrollRequests: payrollRequests,
+              payrollRequests,
               claimedMatchIds: Array.from(claimedMatchIds),
-              unclaimedMatchCount: historyMatches.filter((id: string) => !claimedMatchIds.has(id)).length,
+              unclaimedMatchCount: historyMatches.filter(
+                (id: string) => !claimedMatchIds.has(id)
+              ).length,
             }
           : null,
       };
     });
 
-    // 5. Format Data Streamer
+    // 5. Format data Streamer
     const streamers = streamersData.map((strm) => {
       const historyMatches = (strm as any).historyMatch || [];
       const assignedMatches = strm.assignMatch || [];
@@ -116,16 +120,27 @@ export async function GET(req: Request) {
       return {
         discordId: strm.discordId,
         discordName: strm.discordName,
-        avatar: resolveAvatarUrl(strm),
+        avatar: resolveAvatar(strm),
         activeMatches: mapMatchDetails(assignedMatches),
         historyMatches: mapMatchDetails(historyMatches),
         totalBroadcastMatches: historyMatches.length,
       };
     });
 
+    // 6. Ekstraksi daftar pekan
+    const availableWeeksSet = new Set<string>();
+    schedulesData.forEach((m) => {
+      const weekLabel =
+        (m as any).weekName?.trim() ||
+        (m.weekNumber ? `Week ${m.weekNumber}` : 'Week 1');
+      availableWeeksSet.add(weekLabel);
+    });
+
     return NextResponse.json({
       success: true,
+      isAdmin,
       currentVerifiedId: verifiedDiscordId,
+      availableWeeks: Array.from(availableWeeksSet),
       referees,
       streamers,
     });
@@ -135,5 +150,5 @@ export async function GET(req: Request) {
       { success: false, message: error.message || 'Gagal memuat data staf.' },
       { status: 500 }
     );
-  }
+  }          
 }
