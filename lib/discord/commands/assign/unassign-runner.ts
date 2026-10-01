@@ -62,7 +62,7 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
           refereeDiscordId: match.refereeDiscordId,
           streamerName: undefined,
           streamerDiscordId: undefined,
-          streamLink: match.streamLink,
+          streamLink: undefined,
           existingMsgId: (match as any).openingMsgId,
           isFinished: false,
         }).then((id) => {
@@ -74,8 +74,12 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
     await Promise.all(tasks);
 
     const targetStaffName = match.streamer || `<@${streamerId}>`;
+
+    // Bersihkan seluruh data streamer di jadwal (UI jadi bersih/kosong)
     match.streamer = undefined;
     match.streamerDiscordId = undefined;
+    match.streamLink = undefined;
+    (match as any).streamUrl = undefined;
     (match as any).streamerLogMsgId = undefined;
 
     schedules[idx] = match;
@@ -96,7 +100,7 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
       roleAId: ctx.roleAId,
       roleBId: ctx.roleBId,
     }),
-    updateStaffHistory('REFEREE', refId, match.id, 'REMOVE'),
+    updateStaffHistory('REFEREE', refId, match.id, 'COMPLETE'),
   ];
 
   // Mengirim log hijau COMPLETED (skor otomatis dari database)
@@ -113,11 +117,11 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
     );
   }
 
-  // Jika streamer masih ada sampai match selesai
+  // Jika streamer masih ada sampai match selesai, catat ke historyMatch
   if (strmId && isValidSnowflake(strmId)) {
     finishTasks.push(
       revokeStaffPermissions({ type: 'STREAMER', staffId: strmId, matchChannelId }),
-      updateStaffHistory('STREAMER', strmId, match.id, 'REMOVE')
+      updateStaffHistory('STREAMER', strmId, match.id, 'COMPLETE')
     );
 
     if (DISCORD_CONFIG.CH_ASSIGN && (match as any).streamerLogMsgId) {
@@ -131,17 +135,23 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
         })
       );
     }
+
+    // Lepas ID Discord kunci penugasan streamer, tapi pertahankan nama match.streamer untuk UI
     match.streamerDiscordId = undefined;
+    (match as any).streamerLogMsgId = undefined;
   }
 
   await Promise.all(finishTasks);
 
   const targetStaffName = match.referee || `<@${refId}>`;
   match.isFinished = true;
+
+  // Lepas ID Discord kunci penugasan wasit, tapi pertahankan nama match.referee untuk UI
   match.refereeDiscordId = undefined;
+  (match as any).refereeLogMsgId = undefined;
 
   schedules[idx] = match;
   await kv.set('twi:schedules', schedules);
 
-  return { match, targetStaffName };
+  return { match, targetStaffName };  
 }
