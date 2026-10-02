@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { RefereeData } from './referee-tab';
+import { BaseStaffData as RefereeData } from '../_library/staff-metrics';
 
 interface RefereePrivatePanelProps {
   verifiedReferee: RefereeData;
