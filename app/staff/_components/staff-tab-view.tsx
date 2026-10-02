@@ -49,7 +49,11 @@ export default function StaffTabView({
   const filteredFinishedSchedules = useMemo(() => {
     if (selectedDay === 'ALL') return finishedSchedules;
     return finishedSchedules.filter((schedule) => {
-      const d = getMatchDayName(schedule.matchDate);
+      // Menangani variasi nama properti tanggal (date atau matchDate) secara aman
+      const scheduleDate =
+        (schedule as unknown as { matchDate?: string }).matchDate ||
+        (schedule as unknown as { date?: string }).date;
+      const d = getMatchDayName(scheduleDate);
       return d.toLowerCase() === selectedDay.toLowerCase();
     });
   }, [finishedSchedules, selectedDay]);
@@ -76,7 +80,8 @@ export default function StaffTabView({
 
     topStaff.cumulativeHistory.forEach((m) => {
       if (selectedDay !== 'ALL') {
-        const d = getMatchDayName(m.matchDate);
+        const matchDate = m.matchDate || (m as unknown as { date?: string }).date;
+        const d = getMatchDayName(matchDate);
         if (d.toLowerCase() !== selectedDay.toLowerCase()) return;
       }
 
@@ -141,4 +146,4 @@ export default function StaffTabView({
       )}
     </div>
   );
-}
+          }
