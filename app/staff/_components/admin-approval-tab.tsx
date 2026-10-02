@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { BaseStaffData as RefereeData } from '../_library/staff-metrics';
+import { BaseStaffData } from '../_library/staff-metrics';
+import StaffAvatar from './staff-avatar';
 
 interface AdminApprovalTabProps {
-  referees: RefereeData[];
+  referees: BaseStaffData[];
   onRefresh: () => void;
 }
 
@@ -17,23 +18,25 @@ export default function AdminApprovalTab({
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Kumpulkan seluruh tiket yang berstatus PENDING dari semua wasit
+  // Kumpulkan seluruh tiket berstatus PENDING dari semua wasit
   const pendingRequests: Array<{
     refereeDiscordId: string;
     refereeDiscordName: string;
+    refereeAvatar?: string;
     bankInfo: any;
     request: any;
   }> = [];
 
   referees.forEach((ref) => {
-    const list = (ref as any).payrollRequests || ref.payroll?.payrollRequests || [];
-    const bank = (ref as any).bankInfo || ref.payroll?.bankInfo || null;
+    const list = ref.payroll?.payrollRequests || (ref as any).payrollRequests || [];
+    const bank = ref.payroll?.bankInfo || (ref as any).bankInfo || null;
 
     list.forEach((req: any) => {
       if (req.status === 'PENDING') {
         pendingRequests.push({
           refereeDiscordId: ref.discordId,
           refereeDiscordName: ref.discordName,
+          refereeAvatar: ref.avatar,
           bankInfo: bank,
           request: req,
         });
@@ -102,26 +105,29 @@ export default function AdminApprovalTab({
         </div>
       ) : (
         <div className="space-y-4">
-          {pendingRequests.map(({ refereeDiscordId, refereeDiscordName, bankInfo, request }) => {
+          {pendingRequests.map(({ refereeDiscordId, refereeDiscordName, refereeAvatar, bankInfo, request }) => {
             const isProcessing = processingId === request.requestId;
 
             return (
               <div
                 key={request.requestId}
-                className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm space-y-4"
+                className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm space-y-4"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-foreground text-sm">{refereeDiscordName}</span>
-                      <span className="text-[11px] text-muted-foreground">({refereeDiscordId})</span>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/60 pb-3">
+                  <div className="flex items-center gap-3">
+                    <StaffAvatar name={refereeDiscordName} avatarUrl={refereeAvatar} size="md" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-foreground text-sm">{refereeDiscordName}</span>
+                        <span className="text-[11px] text-muted-foreground">({refereeDiscordId})</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        Diajukan pada: {new Date(request.createdAt).toLocaleString('id-ID')}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
-                      Diajukan pada: {new Date(request.createdAt).toLocaleString('id-ID')}
-                    </span>
                   </div>
 
-                  <div className="text-right">
+                  <div className="text-left sm:text-right">
                     <span className="text-[11px] text-muted-foreground">Total Pencairan:</span>
                     <div className="text-base font-black text-blue-600">
                       Rp {(request.totalAmount || 0).toLocaleString('id-ID')}
@@ -168,7 +174,7 @@ export default function AdminApprovalTab({
                       type="button"
                       disabled={isProcessing}
                       onClick={() => handleAction(request.requestId, refereeDiscordId, 'APPROVE')}
-                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-700 disabled:opacity-50 transition"
+                      className="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-700 disabled:opacity-50 transition cursor-pointer"
                     >
                       Setujui
                     </button>
@@ -182,13 +188,13 @@ export default function AdminApprovalTab({
                       onChange={(e) =>
                         setDeclineInputs((prev) => ({ ...prev, [request.requestId]: e.target.value }))
                       }
-                      className="flex-1 rounded-xl border border-border/80 bg-background px-3 py-1.5 text-xs text-foreground placeholder-muted-foreground focus:border-red-500 focus:outline-none"
+                      className="flex-1 rounded-xl border border-border/80 bg-background px-3 py-1.5 text-xs text-foreground placeholder-muted-foreground focus:border-rose-500 focus:outline-none"
                     />
                     <button
                       type="button"
                       disabled={isProcessing}
                       onClick={() => handleAction(request.requestId, refereeDiscordId, 'DECLINE')}
-                      className="rounded-xl bg-red-600 px-4 py-1.5 text-xs font-bold text-white shadow hover:bg-red-700 disabled:opacity-50 transition"
+                      className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-bold text-white shadow hover:bg-rose-700 disabled:opacity-50 transition cursor-pointer"
                     >
                       Tolak
                     </button>
