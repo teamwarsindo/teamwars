@@ -31,6 +31,7 @@ export const TOURNAMENT_RULES = {
 
 // 4. KONFIGURASI HONOR / PAYROLL WASIT (DALAM RIBUAN RUPIAH)
 export const REFEREE_PAYROLL_CONFIG = {
-  FEE_PER_MATCH: 10,                // 10 = Rp 10.000 per match sah
+  // 15 = Rp 15.000 per match
+  FEE_PER_MATCH: 15,                
   CURRENCY: "IDR",
 } as const;

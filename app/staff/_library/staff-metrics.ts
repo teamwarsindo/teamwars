@@ -1,3 +1,5 @@
+import { REFEREE_PAYROLL_CONFIG } from '@/app/tournament/_library/constants';
+
 export interface MatchDetail {
   id: string;
   matchDate?: string;
@@ -205,6 +207,8 @@ export function calculateStaffCumulativeMetrics(
     }
   });
 
+  const defaultFeePerMatch = REFEREE_PAYROLL_CONFIG.FEE_PER_MATCH * 1000;
+
   const list: ComputedStaffItem[] = staffList.map((st) => {
     const rawMatches = st.historyMatches.filter((m) => {
       const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
@@ -236,7 +240,7 @@ export function calculateStaffCumulativeMetrics(
 
     const favDay = determineFavoriteDay(cumulativeHistory);
     const gpmNum = matchCount > 0 ? Number((totalGames / matchCount).toFixed(1)) : 0.0;
-    const feePerMatch = st.payroll?.feePerMatch ?? 25000;
+    const feePerMatch = st.payroll?.feePerMatch ?? defaultFeePerMatch;
     const calculatedFee = matchCount * feePerMatch;
 
     let primaryPlatform = 'YouTube';
