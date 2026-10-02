@@ -28,7 +28,7 @@ export default function StaffClientContent() {
 
   return (
     <div className="w-full space-y-4 sm:space-y-6">
-      {/* TAB SWITCHER */}
+      {/* 1. TAB SWITCHER */}
       <div className="flex items-center justify-center">
         <div className="inline-flex rounded-2xl border border-border/80 bg-muted/30 p-1 shadow-xs">
           <button
@@ -59,10 +59,10 @@ export default function StaffClientContent() {
         </div>
       </div>
 
-      {/* FILTER BAR (Telah diselaraskan dengan props asli tanpa properti role) */}
+      {/* 2. FILTER BAR (Memakai onSelectStaff) */}
       <StaffFilterBar
         selectedStaffId={selectedStaffId}
-        onSelectStaffId={setSelectedStaffId}
+        onSelectStaff={setSelectedStaffId}
         selectedWeek={selectedWeek}
         onSelectWeek={setSelectedWeek}
         staffOptions={sortedStaffOptions}
@@ -71,7 +71,7 @@ export default function StaffClientContent() {
         onResetFilter={handleResetFilter}
       />
 
-      {/* MAIN VIEW */}
+      {/* 3. MAIN VIEW */}
       {loading ? (
         <div className="rounded-2xl border border-border/80 bg-card p-12 text-center text-xs font-bold text-muted-foreground animate-pulse">
           ⏳ Memperbarui Data Staf...
