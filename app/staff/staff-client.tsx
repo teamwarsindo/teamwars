@@ -268,7 +268,7 @@ export default function StaffClient({ initialToken = null, isAdmin = false }: St
           finishedSchedules={finishedSchedules}
         />
       ) : (
-        <AdminApprovalTab />
+        <AdminApprovalTab referees={referees} onRefresh={fetchRoster} />
       )}
     </div>
   );
