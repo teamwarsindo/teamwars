@@ -13,18 +13,91 @@ export interface ComputedRefereeItem extends RefereeData {
   cumulativeMatches: MatchDetail[];
   matchCount: number;
   totalGames: number;
-  ratioNum: number;
+  performNum: number;
   gpmNum: number;
   favTeam: string;
+  calculatedFee: number;
 }
 
 export interface ComputedStreamerItem extends StreamerData {
   cumulativeHistory: any[];
   cumulativeActive: any[];
   matchCount: number;
-  ratioNum: number;
-  coverageNum: number;
+  totalGames: number;
+  performNum: number;
+  gpmNum: number;
   favTeam: string;
+  primaryPlatform: string;
+}
+
+interface TeamStatTracker {
+  name: string;
+  matches: number;
+  wins: number;
+  pointsConceded: number;
+}
+
+/**
+ * Tie-Breaker 4 Tingkat Tim Favorit: Match -> Menang Terbanyak -> Kalah Tersedikit -> Abjad
+ */
+function determineFavoriteTeam(matches: any[]): string {
+  const teamStats = new Map<string, TeamStatTracker>();
+
+  matches.forEach((m) => {
+    const aName = m.teamAName;
+    const bName = m.teamBName;
+    const sA = m.scoreA ?? 0;
+    const sB = m.scoreB ?? 0;
+
+    if (aName) {
+      const cur = teamStats.get(aName) || { name: aName, matches: 0, wins: 0, pointsConceded: 0 };
+      cur.matches += 1;
+      if (sA > sB) cur.wins += 1;
+      cur.pointsConceded += sB;
+      teamStats.set(aName, cur);
+    }
+
+    if (bName) {
+      const cur = teamStats.get(bName) || { name: bName, matches: 0, wins: 0, pointsConceded: 0 };
+      cur.matches += 1;
+      if (sB > sA) cur.wins += 1;
+      cur.pointsConceded += sA;
+      teamStats.set(bName, cur);
+    }
+  });
+
+  if (teamStats.size === 0) return '-';
+
+  const sortedTeams = Array.from(teamStats.values()).sort((a, b) => {
+    if (b.matches !== a.matches) return b.matches - a.matches;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    if (a.pointsConceded !== b.pointsConceded) return a.pointsConceded - b.pointsConceded;
+    return a.name.localeCompare(b.name);
+  });
+
+  const best = sortedTeams[0];
+  return `${best.name} (${best.matches}x)`;
+}
+
+/**
+ * Urutkan riwayat match dari yang terbaru: Pekan terbaru -> Tanggal/Waktu terbaru -> ID terbesar
+ */
+export function sortMatchesDescending(matches: any[]) {
+  return [...matches].sort((a, b) => {
+    const wA = Number(a.weekNumber || String(a.weekName).replace(/\D/g, '') || 1);
+    const wB = Number(b.weekNumber || String(b.weekName).replace(/\D/g, '') || 1);
+    if (wB !== wA) return wB - wA;
+
+    if (a.matchDate && b.matchDate) {
+      const tA = new Date(a.matchDate).getTime();
+      const tB = new Date(b.matchDate).getTime();
+      if (!isNaN(tA) && !isNaN(tB) && tB !== tA) return tB - tA;
+    }
+
+    const idA = Number(String(a.id).replace(/\D/g, '')) || 0;
+    const idB = Number(String(b.id).replace(/\D/g, '')) || 0;
+    return idB - idA;
+  });
 }
 
 /**
@@ -48,71 +121,65 @@ export function calculateRefereeCumulativeMetrics(
   }
 
   const list: ComputedRefereeItem[] = referees.map((ref) => {
-    const cumulativeMatches = ref.historyMatches.filter((m) => {
+    const rawMatches = ref.historyMatches.filter((m) => {
       const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
       return wNum <= selectedWeekNum;
     });
 
+    const cumulativeMatches = sortMatchesDescending(rawMatches);
     const matchCount = cumulativeMatches.length;
     let totalGames = 0;
-    const teamFrequencyMap = new Map<string, number>();
+    const uniqueWeeks = new Set<number>();
 
     cumulativeMatches.forEach((m) => {
       const gamesInMatch = (m.scoreA ?? 0) + (m.scoreB ?? 0);
       totalGames += gamesInMatch;
 
+      const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
+      uniqueWeeks.add(wNum);
+
       if (!finishedSchedules || finishedSchedules.length === 0) {
         tournamentTotalMatches += 1;
         tournamentTotalGames += gamesInMatch;
       }
-
-      if (m.teamAName) teamFrequencyMap.set(m.teamAName, (teamFrequencyMap.get(m.teamAName) || 0) + 1);
-      if (m.teamBName) teamFrequencyMap.set(m.teamBName, (teamFrequencyMap.get(m.teamBName) || 0) + 1);
     });
 
-    let favTeam = '-';
-    let maxFreq = 0;
-    teamFrequencyMap.forEach((freq, tName) => {
-      if (freq > maxFreq) {
-        maxFreq = freq;
-        favTeam = `${tName} (${freq}x)`;
-      }
-    });
-
+    const favTeam = determineFavoriteTeam(cumulativeMatches);
     const gpmNum = matchCount > 0 ? Number((totalGames / matchCount).toFixed(1)) : 0.0;
-    const ratioNum = Number((matchCount / Math.max(1, selectedWeekNum)).toFixed(1));
+    const feePerMatch = ref.payroll?.feePerMatch ?? 25000;
+    const calculatedFee = matchCount * feePerMatch;
+
+    // Attendance Rate berbasis pekan unik bertugas (Maksimal 100%)
+    const safeWeekDenominator = Math.max(1, selectedWeekNum);
+    const performNum = Math.min(100, Math.round((uniqueWeeks.size / safeWeekDenominator) * 100));
 
     return {
       ...ref,
       cumulativeMatches,
       matchCount,
       totalGames,
-      ratioNum,
+      performNum,
       gpmNum,
       favTeam,
+      calculatedFee,
     };
   });
-
-  const baselineRatio =
-    referees.length > 0
-      ? Number((tournamentTotalMatches / (Math.max(1, selectedWeekNum) * referees.length)).toFixed(1))
-      : 1.0;
 
   const baselineGpm =
     tournamentTotalMatches > 0
       ? Number((tournamentTotalGames / tournamentTotalMatches).toFixed(1))
       : 15.0;
 
-  // Urutkan: MATCH (Desc) -> RATIO (Desc) -> GAME (Desc) -> GPM (Desc)
+  // Sortir: MATCH -> PERFORM -> GPM -> NAMA ABJAD
   list.sort(
     (a, b) =>
       b.matchCount - a.matchCount ||
-      b.ratioNum - a.ratioNum ||
-      b.totalGames - a.totalGames ||
-      b.gpmNum - a.gpmNum
+      b.performNum - a.performNum ||
+      b.gpmNum - a.gpmNum ||
+      a.discordName.localeCompare(b.discordName)
   );
 
-  return { statsList: list, baselineRatio, baselineGpm };
+  return { statsList: list, baselineGpm };
 }
 
 /**
@@ -124,85 +191,98 @@ export function calculateStreamerCumulativeMetrics(
   finishedSchedules?: FinishedScheduleSummary[]
 ) {
   let totalTournamentBroadcasts = 0;
+  let totalBroadcastGames = 0;
 
   if (finishedSchedules && finishedSchedules.length > 0) {
     finishedSchedules.forEach((m) => {
       if (Number(m.weekNumber || 1) <= selectedWeekNum && m.hasStream) {
         totalTournamentBroadcasts += 1;
+        totalBroadcastGames += (m.scoreA ?? 0) + (m.scoreB ?? 0);
       }
     });
   }
 
   const list: ComputedStreamerItem[] = streamers.map((strm) => {
-    const cumulativeHistory = strm.historyMatches.filter((m) => {
+    const rawHistory = strm.historyMatches.filter((m) => {
       const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
       return wNum <= selectedWeekNum;
     });
 
+    const cumulativeHistory = sortMatchesDescending(rawHistory);
     const cumulativeActive = strm.activeMatches.filter((m) => {
       const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
       return wNum <= selectedWeekNum;
     });
 
     const matchCount = cumulativeHistory.length;
-    if (!finishedSchedules || finishedSchedules.length === 0) {
-      totalTournamentBroadcasts += matchCount;
-    }
+    let totalGames = 0;
+    const uniqueWeeks = new Set<number>();
+    const platformCounts = new Map<string, number>();
 
-    const teamFrequencyMap = new Map<string, number>();
     cumulativeHistory.forEach((m) => {
-      if (m.teamAName) teamFrequencyMap.set(m.teamAName, (teamFrequencyMap.get(m.teamAName) || 0) + 1);
-      if (m.teamBName) teamFrequencyMap.set(m.teamBName, (teamFrequencyMap.get(m.teamBName) || 0) + 1);
+      const gamesInMatch = (m.scoreA ?? 0) + (m.scoreB ?? 0);
+      totalGames += gamesInMatch;
+
+      const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
+      uniqueWeeks.add(wNum);
+
+      if (!finishedSchedules || finishedSchedules.length === 0) {
+        totalTournamentBroadcasts += 1;
+        totalBroadcastGames += gamesInMatch;
+      }
+
+      const plat =
+        m.streamPlatform ||
+        (m.streamLink?.includes('tiktok') ? 'TikTok' : 'YouTube');
+      platformCounts.set(plat, (platformCounts.get(plat) || 0) + 1);
     });
 
-    let favTeam = '-';
-    let maxFreq = 0;
-    teamFrequencyMap.forEach((freq, tName) => {
-      if (freq > maxFreq) {
-        maxFreq = freq;
-        favTeam = `${tName} (${freq}x)`;
+    const favTeam = determineFavoriteTeam(cumulativeHistory);
+    const gpmNum = matchCount > 0 ? Number((totalGames / matchCount).toFixed(1)) : 0.0;
+
+    let primaryPlatform = 'YouTube';
+    let maxPlat = 0;
+    platformCounts.forEach((count, plat) => {
+      if (count > maxPlat) {
+        maxPlat = count;
+        primaryPlatform = plat;
       }
     });
 
-    const ratioNum = Number((matchCount / Math.max(1, selectedWeekNum)).toFixed(1));
+    // Attendance Rate siaran berbasis pekan unik aktif (Maksimal 100%)
+    const safeWeekDenominator = Math.max(1, selectedWeekNum);
+    const performNum = Math.min(100, Math.round((uniqueWeeks.size / safeWeekDenominator) * 100));
 
     return {
       ...strm,
       cumulativeHistory,
       cumulativeActive,
       matchCount,
-      ratioNum,
-      coverageNum: 0,
+      totalGames,
+      performNum,
+      gpmNum,
       favTeam,
+      primaryPlatform,
     };
   });
 
-  list.forEach((item) => {
-    item.coverageNum =
-      totalTournamentBroadcasts > 0
-        ? Math.round((item.matchCount / totalTournamentBroadcasts) * 100)
-        : 0;
-  });
+  const baselineGpm =
+    totalTournamentBroadcasts > 0
+      ? Number((totalBroadcastGames / totalTournamentBroadcasts).toFixed(1))
+      : 15.0;
 
-  const baselineRatio =
-    streamers.length > 0
-      ? Number((totalTournamentBroadcasts / (Math.max(1, selectedWeekNum) * streamers.length)).toFixed(1))
-      : 1.0;
-
-  const baselineCoverage = streamers.length > 0 ? Math.round(100 / streamers.length) : 10;
-
-  // Urutkan: MATCH (Desc) -> RATIO (Desc) -> COVERAGE (Desc)
+  // Sortir: MATCH -> PERFORM -> GPM -> NAMA ABJAD
   list.sort(
     (a, b) =>
       b.matchCount - a.matchCount ||
-      b.ratioNum - a.ratioNum ||
-      b.coverageNum - a.coverageNum
+      b.performNum - a.performNum ||
+      b.gpmNum - a.gpmNum ||
+      a.discordName.localeCompare(b.discordName)
   );
 
   return {
     statsList: list,
-    baselineRatio,
-    baselineCoverage,
+    baselineGpm,
     totalTournamentBroadcasts,
   };
 }
