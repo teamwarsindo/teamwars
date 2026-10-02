@@ -225,6 +225,9 @@ export function calculateStaffCumulativeMetrics(
     const safeWeekDenom = Math.max(1, selectedWeekNum);
     const performNum = Math.min(100, Math.round((uniqueWeeks.size / safeWeekDenom) * 100));
 
+    const feePerMatch = (REFEREE_PAYROLL_CONFIG?.FEE_PER_MATCH || 10) * 1000;
+    const calculatedFee = matchCount * feePerMatch;
+
     return {
       ...st,
       cumulativeHistory,
