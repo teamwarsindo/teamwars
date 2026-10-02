@@ -4,15 +4,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, RotateCcw, Users, CalendarDays } from 'lucide-react';
 import StaffAvatar from './staff-avatar';
 import { BaseStaffData } from '../_library/staff-metrics';
-import { DAY_OPTIONS } from '../_hooks/use-staff-roster';
 
 interface StaffFilterBarProps {
   staffOptions: BaseStaffData[];
   selectedStaffId: string;
   onSelectStaff: (id: string) => void;
-  availableWeeks: (string | number)[];
+  availableWeeks: string[];
   selectedWeek: string;
   onSelectWeek: (wk: string) => void;
+  availableDays: string[];
   selectedDay: string;
   onSelectDay: (day: string) => void;
   onReset: () => void;
@@ -26,6 +26,7 @@ export default function StaffFilterBar({
   availableWeeks,
   selectedWeek,
   onSelectWeek,
+  availableDays,
   selectedDay,
   onSelectDay,
   onReset,
@@ -45,7 +46,6 @@ export default function StaffFilterBar({
   }, []);
 
   const selectedStaff = staffOptions.find((s) => s.discordId === selectedStaffId);
-  const selectedDayLabel = DAY_OPTIONS.find((d) => d.value === selectedDay)?.label || selectedDay;
 
   return (
     <div
@@ -53,7 +53,7 @@ export default function StaffFilterBar({
       className="relative rounded-2xl border border-border/80 bg-card p-3 shadow-xs"
     >
       <div className="grid grid-cols-[1fr_110px_110px_auto] sm:grid-cols-[1fr_130px_130px_auto] gap-2 items-center">
-        {/* Dropdown Staf dengan Avatar */}
+        {/* Dropdown Staf */}
         <div className="relative">
           <button
             type="button"
@@ -121,32 +121,29 @@ export default function StaffFilterBar({
             onClick={() => setOpenDropdown((prev) => (prev === 'week' ? null : 'week'))}
             className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground shadow-xs hover:border-primary/50 transition cursor-pointer"
           >
-            <span className="truncate">{selectedWeek}</span>
+            <span className="truncate">{selectedWeek || 'Pilih Week'}</span>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-1" />
           </button>
 
           {openDropdown === 'week' && (
             <div className="absolute right-0 top-full mt-1.5 z-50 w-full max-h-60 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg backdrop-blur-md">
-              {availableWeeks.map((wk) => {
-                const label = String(wk).toLowerCase().startsWith('week') ? String(wk) : `Week ${wk}`;
-                return (
-                  <button
-                    key={String(wk)}
-                    type="button"
-                    onClick={() => {
-                      onSelectWeek(label);
-                      setOpenDropdown(null);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      selectedWeek === label
-                        ? 'bg-primary/10 text-primary font-black'
-                        : 'text-foreground hover:bg-muted'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+              {availableWeeks.map((wk) => (
+                <button
+                  key={wk}
+                  type="button"
+                  onClick={() => {
+                    onSelectWeek(wk);
+                    setOpenDropdown(null);
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    selectedWeek === wk
+                      ? 'bg-primary/10 text-primary font-black'
+                      : 'text-foreground hover:bg-muted'
+                  }`}
+                >
+                  {wk}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -156,39 +153,53 @@ export default function StaffFilterBar({
           <button
             type="button"
             onClick={() => setOpenDropdown((prev) => (prev === 'day' ? null : 'day'))}
-            className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground shadow-xs hover:border-primary/50 transition cursor-pointer"
+            className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-2.5 py-2 text-xs font-bold text-foreground shadow-xs hover:border-primary/50 transition cursor-pointer"
           >
             <div className="flex items-center gap-1.5 truncate">
               <CalendarDays className="h-3 w-3 text-muted-foreground shrink-0" />
-              <span className="truncate">{selectedDayLabel}</span>
+              <span className="truncate">{selectedDay === 'ALL' ? 'Semua Hari' : selectedDay}</span>
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-1" />
           </button>
 
           {openDropdown === 'day' && (
             <div className="absolute right-0 top-full mt-1.5 z-50 w-full max-h-60 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg backdrop-blur-md">
-              {DAY_OPTIONS.map((opt) => (
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectDay('ALL');
+                  setOpenDropdown(null);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  selectedDay === 'ALL'
+                    ? 'bg-primary/10 text-primary font-black'
+                    : 'text-foreground hover:bg-muted'
+                }`}
+              >
+                Semua Hari
+              </button>
+              {availableDays.map((day) => (
                 <button
-                  key={opt.value}
+                  key={day}
                   type="button"
                   onClick={() => {
-                    onSelectDay(opt.value);
+                    onSelectDay(day);
                     setOpenDropdown(null);
                   }}
                   className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    selectedDay === opt.value
+                    selectedDay === day
                       ? 'bg-primary/10 text-primary font-black'
                       : 'text-foreground hover:bg-muted'
                   }`}
                 >
-                  {opt.label}
+                  {day}
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Tombol Reset Filter */}
+        {/* Reset Filter Button */}
         <button
           onClick={onReset}
           disabled={!isFilterActive}
