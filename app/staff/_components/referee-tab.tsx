@@ -5,6 +5,10 @@ import Image from 'next/image';
 import { Trophy, Crown } from 'lucide-react';
 import RefereePrivatePanel from './referee-private-panel';
 import RefereeHistoryCard from './referee-history-card';
+import {
+  calculateRefereeCumulativeMetrics,
+  FinishedScheduleSummary,
+} from '../_library/staff-metrics';
 
 export interface MatchDetail {
   id: string;
@@ -63,15 +67,16 @@ interface RefereeTabProps {
   isAdmin?: boolean;
   selectedStaffId?: string;
   selectedWeek: string;
+  finishedSchedules?: FinishedScheduleSummary[];
   onRefresh: () => void;
 }
 
 export default function RefereeTab({
   referees,
   token,
-  isAdmin = false,
   selectedStaffId = 'ALL',
   selectedWeek,
+  finishedSchedules = [],
   onRefresh,
 }: RefereeTabProps) {
   const verifiedReferee = referees.find((r) => r.payroll !== null && r.payroll !== undefined);
@@ -90,62 +95,17 @@ export default function RefereeTab({
 
   const selectedWeekNum = useMemo(() => {
     const num = Number(String(selectedWeek).replace(/\D/g, ''));
-    return isNaN(num) || num <= 0 ? Infinity : num;
+    return isNaN(num) || num <= 0 ? 1 : num;
   }, [selectedWeek]);
 
-  // Kalkulasi performa kumulatif (<= selectedWeek)
-  const statsList = useMemo(() => {
-    let grandTotalMatches = 0;
-
-    const list = referees.map((ref) => {
-      const cumulativeMatches = ref.historyMatches.filter((m) => {
-        const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
-        return wNum <= selectedWeekNum;
-      });
-
-      const matchCount = cumulativeMatches.length;
-      grandTotalMatches += matchCount;
-
-      let totalGames = 0;
-      const teamFrequencyMap = new Map<string, number>();
-
-      cumulativeMatches.forEach((m) => {
-        totalGames += (m.scoreA ?? 0) + (m.scoreB ?? 0);
-        if (m.teamAName) teamFrequencyMap.set(m.teamAName, (teamFrequencyMap.get(m.teamAName) || 0) + 1);
-        if (m.teamBName) teamFrequencyMap.set(m.teamBName, (teamFrequencyMap.get(m.teamBName) || 0) + 1);
-      });
-
-      let favTeam = '-';
-      let maxFreq = 0;
-      teamFrequencyMap.forEach((freq, tName) => {
-        if (freq > maxFreq) {
-          maxFreq = freq;
-          favTeam = `${tName} (${freq}x)`;
-        }
-      });
-
-      const gpm = matchCount > 0 ? (totalGames / matchCount).toFixed(1) : '0.0';
-      const feePerMatch = ref.payroll?.feePerMatch ?? 25000;
-      const calculatedFee = matchCount * feePerMatch;
-
-      return {
-        ...ref,
-        cumulativeMatches,
-        matchCount,
-        totalGames,
-        gpm,
-        favTeam,
-        calculatedFee,
-        ratio: 0,
-      };
-    });
-
-    list.forEach((item) => {
-      item.ratio = grandTotalMatches > 0 ? Math.round((item.matchCount / grandTotalMatches) * 100) : 0;
-    });
-
-    return list.sort((a, b) => b.matchCount - a.matchCount || b.totalGames - a.totalGames);
-  }, [referees, selectedWeekNum]);
+  // Kalkulasi performa kumulatif via helper terpusat
+  const { statsList, baselineRatio, baselineGpm } = useMemo(() => {
+    return calculateRefereeCumulativeMetrics(
+      referees,
+      selectedWeekNum,
+      finishedSchedules
+    );
+  }, [referees, selectedWeekNum, finishedSchedules]);
 
   const topReferee = useMemo(() => {
     if (selectedStaffId !== 'ALL') {
@@ -156,7 +116,7 @@ export default function RefereeTab({
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      {/* 1. KARTU PODIUM ATAS (ALA MVP POWER RANKING) */}
+      {/* 1. KARTU PODIUM ATAS (BEST REFEREE / OVERVIEW) */}
       {topReferee && (
         <div className="relative overflow-hidden rounded-2xl border-2 border-blue-500/60 bg-gradient-to-br from-blue-500/15 via-card to-card p-3.5 sm:p-4 shadow-xs flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2 min-w-0">
@@ -181,13 +141,13 @@ export default function RefereeTab({
                 </div>
               </div>
 
-              {/* Hierarki Vertikal: Badge di atas, Nama Referee di bawahnya */}
+              {/* Identitas: Nama Referee di atas, Sub-label di bawahnya */}
               <div className="min-w-0 flex flex-col justify-center">
-                <span className="w-fit px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 leading-none mb-1">
-                  {selectedStaffId === 'ALL' ? 'BEST REFEREE' : 'OVERVIEW'}
-                </span>
                 <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
                   {topReferee.discordName}
+                </span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mt-1 leading-none">
+                  {selectedStaffId === 'ALL' ? 'BEST REFEREE' : 'Overview'}
                 </span>
               </div>
             </div>
@@ -203,35 +163,41 @@ export default function RefereeTab({
             </div>
           </div>
 
-          {/* Baris 5 Kolom Metrik Sejajar Rata (FEE Tetap Ada di Kartu Atas) */}
-          <div className="grid grid-cols-5 gap-1 pt-2 border-t border-border/40 text-center">
+          {/* Baris 4 Kolom Metrik: MATCH | RATIO | GAME | GPM */}
+          <div className="grid grid-cols-4 gap-1 pt-2 border-t border-border/40 text-center">
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-bold uppercase text-muted-foreground">MATCH</span>
               <span className="text-xs font-bold text-foreground mt-0.5">{topReferee.matchCount}</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-bold uppercase text-emerald-600 dark:text-emerald-400">GAME</span>
-              <span className="text-xs font-bold text-emerald-500 mt-0.5">{topReferee.totalGames}</span>
+              <span className="text-[8px] font-bold uppercase text-muted-foreground">RATIO</span>
+              <span
+                className={`text-xs font-bold mt-0.5 ${
+                  topReferee.ratioNum >= baselineRatio ? 'text-emerald-500' : 'text-rose-500'
+                }`}
+              >
+                {topReferee.ratioNum}
+              </span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[8px] font-bold uppercase text-muted-foreground">GAME</span>
+              <span className="text-xs font-bold text-foreground mt-0.5">{topReferee.totalGames}</span>
             </div>
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-bold uppercase text-muted-foreground">GPM</span>
-              <span className="text-xs font-bold text-foreground mt-0.5">{topReferee.gpm}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[8px] font-bold uppercase text-muted-foreground">RATIO</span>
-              <span className="text-xs font-bold text-foreground mt-0.5">{topReferee.ratio}%</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[8px] font-bold uppercase text-muted-foreground">FEE</span>
-              <span className="text-xs font-bold text-emerald-500 mt-0.5">
-                {isAdmin ? `Rp ${topReferee.calculatedFee.toLocaleString('id-ID')}` : 'Rp ***'}
+              <span
+                className={`text-xs font-bold mt-0.5 ${
+                  topReferee.gpmNum >= baselineGpm ? 'text-emerald-500' : 'text-rose-500'
+                }`}
+              >
+                {topReferee.gpmNum.toFixed(1)}
               </span>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. KONTEN BAWAH: TABEL KLASEMEN (MULAI DARI RANK 2, TANPA KOLOM FEE) ATAU HISTORY MATCH */}
+      {/* 2. KONTEN BAWAH: TABEL KLASEMEN (MULAI DARI RANK 2) ATAU HISTORY MATCH */}
       {selectedStaffId === 'ALL' ? (
         <div className="rounded-2xl border border-border/80 bg-card shadow-xs overflow-hidden flex flex-col">
           <table className="w-full border-collapse text-left table-fixed">
@@ -240,13 +206,12 @@ export default function RefereeTab({
                 <th className="py-2.5 pl-4 pr-1 text-center w-12 sm:w-14">RANK</th>
                 <th className="py-2.5 pl-2 sm:pl-3 pr-2 text-left">REFEREE</th>
                 <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">MATCH</th>
-                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14 text-emerald-600 dark:text-emerald-400">GAME</th>
-                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">GPM</th>
-                <th className="py-2.5 pr-4 pl-0.5 text-center w-14 sm:w-16">RATIO</th>
+                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">RATIO</th>
+                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">GAME</th>
+                <th className="py-2.5 pr-4 pl-0.5 text-center w-12 sm:w-14">GPM</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40 text-[11px]">
-              {/* Mulai dari Rank 2, Rank 1 sudah berada di kartu podium Best Referee */}
               {statsList.slice(1).map((ref, idx) => (
                 <tr key={ref.discordId} className="hover:bg-muted/40 transition-colors">
                   <td className="py-2.5 pl-4 pr-1 text-center font-bold font-mono text-xs">{idx + 2}</td>
@@ -263,9 +228,21 @@ export default function RefereeTab({
                     <span className="truncate">{ref.discordName}</span>
                   </td>
                   <td className="py-2.5 px-0.5 text-center font-semibold">{ref.matchCount}</td>
-                  <td className="py-2.5 px-0.5 text-center font-bold text-emerald-500">{ref.totalGames}</td>
-                  <td className="py-2.5 px-0.5 text-center">{ref.gpm}</td>
-                  <td className="py-2.5 pr-4 pl-0.5 text-center font-medium">{ref.ratio}%</td>
+                  <td
+                    className={`py-2.5 px-0.5 text-center font-bold ${
+                      ref.ratioNum >= baselineRatio ? 'text-emerald-500' : 'text-rose-500'
+                    }`}
+                  >
+                    {ref.ratioNum}
+                  </td>
+                  <td className="py-2.5 px-0.5 text-center font-semibold text-foreground">{ref.totalGames}</td>
+                  <td
+                    className={`py-2.5 pr-4 pl-0.5 text-center font-bold ${
+                      ref.gpmNum >= baselineGpm ? 'text-emerald-500' : 'text-rose-500'
+                    }`}
+                  >
+                    {ref.gpmNum.toFixed(1)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -286,4 +263,4 @@ export default function RefereeTab({
       )}
     </div>
   );
-}
+}      
