@@ -1,6 +1,7 @@
 // 1. KONFIGURASI MUSIM & KICK-OFF BASELINE (Senin Pukul 08.00 WIB)
 export const CURRENT_SEASON = 7;
 export const TWI_START_DATETIME = "2026-08-03T08:00:00+07:00";
+export const ORDERED_DAYS = ['Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
 // 2. NAMA RESMI DIVISI GRUP
 export const DIVISION_MAP = {
