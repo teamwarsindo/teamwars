@@ -26,6 +26,37 @@ const DAY_CYCLE_PRIORITY: Record<number, { name: string; priority: number; isWee
 };
 
 /**
+ * Format tanggal pertandingan: DD MMMM YYYY (contoh: 05 Oktober 2026)
+ */
+export function formatMatchDateDisplay(dateStr?: string): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+
+  return d.toLocaleDateString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+/**
+ * Format kategori hari untuk kartu tanding: Weekend - Sabtu / Weekday - Jumat
+ */
+export function formatMatchDayCategory(dateStr?: string): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+
+  const dayIndex = d.getDay();
+  const meta = DAY_CYCLE_PRIORITY[dayIndex] || { name: 'Jumat', priority: 99, isWeekend: false };
+  const category = meta.isWeekend ? 'Weekend' : 'Weekday';
+
+  return `${category} - ${meta.name}`;
+}
+
+/**
  * Menghitung Favorite Day dengan format: Weekend - Sabtu (5x) / Weekday - Kamis (3x)
  * Tie-breaker: frekuensi terbanyak -> hari paling awal dalam siklus turnamen (Rabu s/d Selasa)
  */
