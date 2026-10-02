@@ -24,6 +24,8 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
     setSelectedStaffId,
     selectedWeek,
     setSelectedWeek,
+    selectedDay,
+    setSelectedDay,
     isFilterActive,
     handleResetFilter,
     loading,
@@ -32,7 +34,7 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      {/* BANNER STATUS SESI ADMIN (STYLE MATCH EDITOR) */}
+      {/* BANNER STATUS SESI ADMIN */}
       {isAdmin && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 sm:px-5 sm:py-3 shadow-xs">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -94,6 +96,8 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
         availableWeeks={availableWeeks}
         selectedWeek={selectedWeek}
         onSelectWeek={setSelectedWeek}
+        selectedDay={selectedDay}
+        onSelectDay={setSelectedDay}
         onReset={handleResetFilter}
         isFilterActive={isFilterActive}
       />
@@ -109,11 +113,12 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
           staffList={currentStaffList}
           selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
+          selectedDay={selectedDay}
           finishedSchedules={finishedSchedules}
           isAdmin={isAdmin}
           onRefresh={fetchRoster}
         />
       )}
     </div>
-  );        
+  );
 }
