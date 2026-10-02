@@ -100,7 +100,7 @@ export default function StaffClient({ initialToken = null, isAdmin = false }: St
     (availableWeeks.length > 0 && selectedWeek !== availableWeeks[availableWeeks.length - 1]);
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-4 px-2 sm:px-4">
+    <div className="w-full space-y-5 sm:space-y-6">
       {/* 1. NAVIGASI PILL-TAB */}
       <div className="flex items-center justify-center gap-2 pt-1">
         <button
@@ -271,5 +271,5 @@ export default function StaffClient({ initialToken = null, isAdmin = false }: St
         <AdminApprovalTab referees={referees} onRefresh={fetchRoster} />
       )}
     </div>
-  );
+  );     
 }
