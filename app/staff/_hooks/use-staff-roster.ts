@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { BaseStaffData, FinishedScheduleSummary } from '../_library/staff-metrics';
 
-const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-
 function toSlug(name: string): string {
   return name
     .toLowerCase()
@@ -22,8 +20,6 @@ export function useStaffRoster() {
   // 1. Baca initial query params dari URL
   const queryTab = searchParams.get('tab');
   const queryStaffSlug = searchParams.get('staff');
-  const queryWeek = searchParams.get('week');
-  const queryDay = searchParams.get('day');
 
   const initialTab: 'referee' | 'streamer' =
     queryTab === 'streamer' ? 'streamer' : 'referee';
@@ -35,32 +31,17 @@ export function useStaffRoster() {
   const [finishedSchedules, setFinishedSchedules] = useState<FinishedScheduleSummary[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('ALL');
   const [selectedWeek, setSelectedWeek] = useState<string>('');
-  const [selectedDay, setSelectedDay] = useState<string>(queryDay || 'ALL');
   const [loading, setLoading] = useState(true);
 
-  const getLatestWeek = useCallback((weeks: string[]): string => {
-    if (!weeks || weeks.length === 0) return 'Week 1';
-    const sorted = [...weeks].sort((a, b) => {
-      const numA = Number(a.replace(/\D/g, '')) || 0;
-      const numB = Number(b.replace(/\D/g, '')) || 0;
-      return numB - numA;
-    });
-    return sorted[0];
-  }, []);
-
-  // Sinkronisasi URL query params
+  // Helper untuk sinkronisasi URL query params
   const updateUrlParams = useCallback(
-    (
-      tab: 'referee' | 'streamer',
-      staffId: string,
-      week: string,
-      day: string,
-      currentList: BaseStaffData[]
-    ) => {
+    (tab: 'referee' | 'streamer', staffId: string, currentList: BaseStaffData[]) => {
       const params = new URLSearchParams(searchParams.toString());
 
+      // Set parameter tab
       params.set('tab', tab);
 
+      // Set parameter staff berbentuk slug nama jika bukan 'ALL'
       if (staffId !== 'ALL') {
         const found = currentList.find((s) => s.discordId === staffId);
         if (found) {
@@ -72,24 +53,22 @@ export function useStaffRoster() {
         params.delete('staff');
       }
 
-      if (week) {
-        params.set('week', week);
-      } else {
-        params.delete('week');
-      }
-
-      if (day && day !== 'ALL') {
-        params.set('day', day);
-      } else {
-        params.delete('day');
-      }
-
       const queryString = params.toString();
       const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
       router.replace(newUrl, { scroll: false });
     },
     [pathname, router, searchParams]
   );
+
+  const getLatestWeek = useCallback((weeks: string[]): string => {
+    if (!weeks || weeks.length === 0) return 'Week 1';
+    const sorted = [...weeks].sort((a, b) => {
+      const numA = Number(a.replace(/\D/g, '')) || 0;
+      const numB = Number(b.replace(/\D/g, '')) || 0;
+      return numB - numA;
+    });
+    return sorted[0];
+  }, []);
 
   const fetchRoster = useCallback(async () => {
     try {
@@ -107,10 +86,12 @@ export function useStaffRoster() {
         const weeks: string[] = json.availableWeeks || [];
         setAvailableWeeks(weeks);
 
-        const latest = getLatestWeek(weeks);
-        const resolvedWeek = queryWeek && weeks.includes(queryWeek) ? queryWeek : latest;
-        setSelectedWeek(resolvedWeek);
+        if (weeks.length > 0) {
+          const latest = getLatestWeek(weeks);
+          setSelectedWeek((prev) => (prev && weeks.includes(prev) ? prev : latest));
+        }
 
+        // Resolusi staff dari slug URL saat pertama kali data didapatkan
         const activeList = initialTab === 'referee' ? refs : strms;
         if (queryStaffSlug) {
           const matched = activeList.find((s) => toSlug(s.discordName) === queryStaffSlug.toLowerCase());
@@ -124,7 +105,7 @@ export function useStaffRoster() {
     } finally {
       setLoading(false);
     }
-  }, [getLatestWeek, initialTab, queryStaffSlug, queryWeek]);
+  }, [getLatestWeek, initialTab, queryStaffSlug]);
 
   useEffect(() => {
     fetchRoster();
@@ -132,56 +113,22 @@ export function useStaffRoster() {
 
   const currentStaffList = activeTab === 'referee' ? referees : streamers;
 
-  // Hitung daftar hari dinamis hanya yang ada jadwalnya di selectedWeek
-  const availableDays = useMemo(() => {
-    if (!selectedWeek || finishedSchedules.length === 0) return [];
-    const targetWeekNum = Number(selectedWeek.replace(/\D/g, '')) || 0;
-
-    const daysSet = new Set<string>();
-    finishedSchedules.forEach((m) => {
-      const matchWk = Number(m.weekNumber) || 0;
-      if (matchWk === targetWeekNum && m.matchDate) {
-        const dt = new Date(m.matchDate);
-        if (!isNaN(dt.getTime())) {
-          const dayName = DAY_NAMES[dt.getDay()];
-          if (dayName) daysSet.add(dayName);
-        }
-      }
-    });
-
-    return Array.from(daysSet);
-  }, [selectedWeek, finishedSchedules]);
-
   const handleTabChange = (tab: 'referee' | 'streamer') => {
     setActiveTab(tab);
     setSelectedStaffId('ALL');
-    setSelectedDay('ALL');
     const targetList = tab === 'referee' ? referees : streamers;
-    updateUrlParams(tab, 'ALL', selectedWeek, 'ALL', targetList);
+    updateUrlParams(tab, 'ALL', targetList);
   };
 
   const handleSelectStaff = (staffId: string) => {
     setSelectedStaffId(staffId);
-    updateUrlParams(activeTab, staffId, selectedWeek, selectedDay, currentStaffList);
-  };
-
-  const handleSelectWeek = (wk: string) => {
-    setSelectedWeek(wk);
-    setSelectedDay('ALL'); // Reset hari saat pekan berganti
-    updateUrlParams(activeTab, selectedStaffId, wk, 'ALL', currentStaffList);
-  };
-
-  const handleSelectDay = (day: string) => {
-    setSelectedDay(day);
-    updateUrlParams(activeTab, selectedStaffId, selectedWeek, day, currentStaffList);
+    updateUrlParams(activeTab, staffId, currentStaffList);
   };
 
   const handleResetFilter = () => {
-    const latest = getLatestWeek(availableWeeks);
     setSelectedStaffId('ALL');
-    setSelectedWeek(latest);
-    setSelectedDay('ALL');
-    updateUrlParams(activeTab, 'ALL', latest, 'ALL', currentStaffList);
+    setSelectedWeek(getLatestWeek(availableWeeks));
+    updateUrlParams(activeTab, 'ALL', currentStaffList);
   };
 
   const sortedStaffOptions = useMemo(() => {
@@ -190,9 +137,7 @@ export function useStaffRoster() {
 
   const activeWeekLatest = getLatestWeek(availableWeeks);
   const isFilterActive =
-    selectedStaffId !== 'ALL' ||
-    (Boolean(selectedWeek) && selectedWeek !== activeWeekLatest) ||
-    selectedDay !== 'ALL';
+    selectedStaffId !== 'ALL' || (Boolean(selectedWeek) && selectedWeek !== activeWeekLatest);
 
   return {
     activeTab,
@@ -202,17 +147,15 @@ export function useStaffRoster() {
     currentStaffList,
     sortedStaffOptions,
     availableWeeks,
-    availableDays,
     finishedSchedules,
     selectedStaffId,
     setSelectedStaffId: handleSelectStaff,
     selectedWeek,
-    setSelectedWeek: handleSelectWeek,
-    selectedDay,
-    setSelectedDay: handleSelectDay,
+    setSelectedWeek,
     isFilterActive,
     handleResetFilter,
     loading,
     fetchRoster,
-  };    
+  };
 }
+                           
