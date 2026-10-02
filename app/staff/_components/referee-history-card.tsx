@@ -1,9 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { Shield, ExternalLink } from 'lucide-react';
 import { MatchDetail } from './referee-tab';
+import {
+  formatMatchDateDisplay,
+  formatMatchDayCategory,
+} from '../_library/staff-metrics';
 
 interface RefereeHistoryCardProps {
   match: MatchDetail;
@@ -18,19 +22,8 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
   const aIsLeading = scoreA > scoreB;
   const bIsLeading = scoreB > scoreA;
 
-  // Format tanggal: DD MMMM YYYY (contoh: 05 Oktober 2026)
-  const formattedMatchDate = useMemo(() => {
-    if (!match.matchDate) return null;
-    const d = new Date(match.matchDate);
-    if (isNaN(d.getTime())) return null;
-
-    return d.toLocaleDateString('id-ID', {
-      timeZone: 'Asia/Jakarta',
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
-  }, [match.matchDate]);
+  const formattedMatchDate = formatMatchDateDisplay(match.matchDate);
+  const formattedDayCategory = formatMatchDayCategory(match.matchDate);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3.5 shadow-xs transition hover:border-border flex flex-col justify-between">
@@ -61,7 +54,7 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
           </span>
         </div>
 
-        {/* Tengah: Skor & Tanggal Pertandingan */}
+        {/* Tengah: Skor, Tanggal & Kategori Hari Pertandingan */}
         <div className="flex flex-col items-center justify-center px-2 shrink-0">
           <div className="flex items-center gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
             <span className={aIsLeading ? 'text-primary' : 'text-foreground/90'}>
@@ -76,9 +69,16 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
           </div>
 
           {formattedMatchDate && (
-            <span className="mt-1.5 text-[10px] font-bold text-muted-foreground whitespace-nowrap tracking-wide leading-none">
-              {formattedMatchDate}
-            </span>
+            <div className="mt-1.5 flex flex-col items-center text-center leading-tight">
+              <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap tracking-wide">
+                {formattedMatchDate}
+              </span>
+              {formattedDayCategory && (
+                <span className="text-[9.5px] font-bold text-muted-foreground/75 whitespace-nowrap tracking-wide">
+                  {formattedDayCategory}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
@@ -129,5 +129,5 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
         )}
       </div>
     </div>
-  );        
+  );
 }
