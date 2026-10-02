@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, RotateCcw, Users, CalendarDays, Shield } from 'lucide-react';
+import { ChevronDown, RotateCcw, Users, Calendar, CalendarDays, Shield } from 'lucide-react';
 import StaffAvatar from './staff-avatar';
 import StaffFilterDropdown, { DropdownItemOption } from './staff-filter-dropdown';
 import { BaseStaffData } from '../_library/staff-metrics';
@@ -115,7 +115,7 @@ export default function StaffFilterBar({
                   <Users className="h-3 w-3" />
                 </div>
               )}
-              <span className="truncate">{selectedStaff ? selectedStaff.discordName : 'Semua'}</span>
+              <span className="truncate">{selectedStaff ? selectedStaff.discordName : 'Semua Staff'}</span>
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-1" />
           </button>
@@ -137,7 +137,7 @@ export default function StaffFilterBar({
                 <div className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <Users className="h-3 w-3" />
                 </div>
-                <span>Semua</span>
+                <span>Semua Staff</span>
               </button>
               {staffOptions.map((st) => (
                 <button
@@ -186,6 +186,7 @@ export default function StaffFilterBar({
           selectedValue={selectedWeek}
           onSelect={onSelectWeek}
           disabled={isStaffSpecific}
+          icon={<Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
           align="left"
         />
 
@@ -215,5 +216,5 @@ export default function StaffFilterBar({
         </button>
       </div>
     </div>
-  );                 
-}
+  );
+}      
