@@ -4,7 +4,7 @@ import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
 import { REFEREE_PAYROLL_CONFIG } from '@/app/tournament/_library/constants';
 import { verifyRefereeToken } from '@/app/tournament/_library/referee-token';
-import { StaffItem } from '@/lib/discord/commands/assign/types';
+import { discordAPI } from '@/lib/discord/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,22 +13,68 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const token = searchParams.get('token');
 
-    // 1. Cek sesi admin dari cookie
+    // 1. Cek sesi admin
     const cookieStore = await cookies();
     const isAdmin = Boolean(cookieStore.get('admin_session')?.value);
 
-    // 2. Verifikasi token wasit jika ada
+    // 2. Verifikasi token wasit
     let verifiedDiscordId: string | null = null;
     if (token) {
       verifiedDiscordId = await verifyRefereeToken(token);
     }
 
-    // 3. Ambil data staf dan jadwal dari KV
+    // 3. Ambil data dari Redis KV
     const [refereesData, streamersData, schedulesData] = await Promise.all([
-      kv.get<StaffItem[]>('staff:referees').then((res) => res || []),
-      kv.get<StaffItem[]>('staff:streamers').then((res) => res || []),
+      kv.get<any[]>('staff:referees').then((res) => res || []),
+      kv.get<any[]>('staff:streamers').then((res) => res || []),
       kv.get<MatchScheduleItem[]>('twi:schedules').then((res) => res || []),
     ]);
+
+    // 4. Sinkronisasi Avatar Discord Asli (Fetch & Simpan ke KV jika belum ada)
+    let isRefereeUpdated = false;
+    let isStreamerUpdated = false;
+
+    const resolveAndSyncAvatar = async (staffList: any[], flagSetter: () => void) => {
+      return Promise.all(
+        staffList.map(async (item) => {
+          if (item.avatarUrl && typeof item.avatarUrl === 'string') return item.avatarUrl;
+          if (item.avatar && typeof item.avatar === 'string' && item.avatar.startsWith('http')) {
+            return item.avatar;
+          }
+
+          // Coba fetch dari REST API Discord jika ada discordId
+          if (item.discordId) {
+            try {
+              const userRes: any = await discordAPI(`/users/${item.discordId}`, 'GET').catch(() => null);
+              if (userRes && userRes.avatar) {
+                const cdnUrl = `https://cdn.discordapp.com/avatars/${item.discordId}/${userRes.avatar}.png?size=128`;
+                item.avatarUrl = cdnUrl;
+                flagSetter();
+                return cdnUrl;
+              }
+            } catch {
+              // Abaikan error jaringan
+            }
+          }
+
+          return `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(
+            item.discordName || item.discordId
+          )}`;
+        })
+      );
+    };
+
+    const refereeAvatars = await resolveAndSyncAvatar(refereesData, () => {
+      isRefereeUpdated = true;
+    });
+
+    const streamerAvatars = await resolveAndSyncAvatar(streamersData, () => {
+      isStreamerUpdated = true;
+    });
+
+    // Simpan kembali ke KV jika ada avatar baru yang ditemukan
+    if (isRefereeUpdated) await kv.set('staff:referees', refereesData);
+    if (isStreamerUpdated) await kv.set('staff:streamers', streamersData);
 
     const scheduleMap = new Map<string, MatchScheduleItem>();
     schedulesData.forEach((match) => {
@@ -56,35 +102,16 @@ export async function GET(req: Request) {
             scoreB: match.scoreB,
             isFinished: Boolean(match.isFinished),
             streamLink: (match as any).streamLink || (match as any).streamUrl || null,
+            streamPlatform: (match as any).streamPlatform || null,
           };
         })
         .filter(Boolean);
     };
 
-    // Helper resolusi avatar Discord asli atau default Discord embed avatar
-    const resolveAvatar = (item: any) => {
-      if (item.avatarUrl && typeof item.avatarUrl === 'string') return item.avatarUrl;
-      if (item.avatar && typeof item.avatar === 'string') {
-        if (item.avatar.startsWith('http')) return item.avatar;
-        return `https://cdn.discordapp.com/avatars/${item.discordId}/${item.avatar}.png?size=128`;
-      }
-      if (item.discordId && /^\d+$/.test(item.discordId)) {
-        try {
-          const defaultAvatarIndex = Number((BigInt(item.discordId) >> 22n) % 6n);
-          return `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`;
-        } catch {
-          // Fallback jika BigInt gagal
-        }
-      }
-      return `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(
-        item.discordName || item.discordId
-      )}`;
-    };
-
-    // 4. Format data Referee
+    // 5. Format Data Wasit
     const feePerMatch = REFEREE_PAYROLL_CONFIG.FEE_PER_MATCH * 1000;
 
-    const referees = refereesData.map((ref) => {
+    const referees = refereesData.map((ref, idx) => {
       const historyMatches = (ref as any).historyMatch || [];
       const assignedMatches = ref.assignMatch || [];
       const payrollRequests: any[] = (ref as any).payrollRequests || [];
@@ -102,7 +129,7 @@ export async function GET(req: Request) {
       return {
         discordId: ref.discordId,
         discordName: ref.discordName,
-        avatar: resolveAvatar(ref),
+        avatar: refereeAvatars[idx],
         activeMatches: mapMatchDetails(assignedMatches),
         historyMatches: mapMatchDetails(historyMatches),
         totalFinishedMatches: historyMatches.length,
@@ -122,22 +149,22 @@ export async function GET(req: Request) {
       };
     });
 
-    // 5. Format data Streamer
-    const streamers = streamersData.map((strm) => {
+    // 6. Format Data Streamer
+    const streamers = streamersData.map((strm, idx) => {
       const historyMatches = (strm as any).historyMatch || [];
       const assignedMatches = strm.assignMatch || [];
 
       return {
         discordId: strm.discordId,
         discordName: strm.discordName,
-        avatar: resolveAvatar(strm),
+        avatar: streamerAvatars[idx],
         activeMatches: mapMatchDetails(assignedMatches),
         historyMatches: mapMatchDetails(historyMatches),
         totalBroadcastMatches: historyMatches.length,
       };
     });
 
-    // 6. Ekstraksi daftar pekan hanya dari match yang aktif/tuntas (maksimal pekan berjalan)
+    // 7. Batas Pekan Aktif
     let maxWeekNumber = 1;
     schedulesData.forEach((m) => {
       const wNum = Number(m.weekNumber || 1);
@@ -151,6 +178,17 @@ export async function GET(req: Request) {
       availableWeeksList.push(`Week ${w}`);
     }
 
+    // 8. Jadwal tuntas turnamen untuk acuan baseline dinamis per pekan di frontend
+    const finishedSchedules = schedulesData
+      .filter((m) => m.isFinished || (m.scoreA ?? 0) > 0 || (m.scoreB ?? 0) > 0)
+      .map((m) => ({
+        id: m.id,
+        weekNumber: m.weekNumber || 1,
+        scoreA: m.scoreA ?? 0,
+        scoreB: m.scoreB ?? 0,
+        hasStream: Boolean(m.streamLink || (m as any).streamUrl || m.streamer),
+      }));
+
     return NextResponse.json({
       success: true,
       isAdmin,
@@ -158,6 +196,7 @@ export async function GET(req: Request) {
       availableWeeks: availableWeeksList,
       referees,
       streamers,
+      finishedSchedules,
     });
   } catch (error: any) {
     console.error('[STAFF ROSTER ROUTE ERROR]:', error);
