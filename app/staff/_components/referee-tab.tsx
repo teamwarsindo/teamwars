@@ -74,6 +74,7 @@ interface RefereeTabProps {
 export default function RefereeTab({
   referees,
   token,
+  isAdmin = false,
   selectedStaffId = 'ALL',
   selectedWeek,
   finishedSchedules = [],
@@ -98,13 +99,8 @@ export default function RefereeTab({
     return isNaN(num) || num <= 0 ? 1 : num;
   }, [selectedWeek]);
 
-  // Kalkulasi performa kumulatif via helper terpusat
-  const { statsList, baselineRatio, baselineGpm } = useMemo(() => {
-    return calculateRefereeCumulativeMetrics(
-      referees,
-      selectedWeekNum,
-      finishedSchedules
-    );
+  const { statsList, baselineGpm } = useMemo(() => {
+    return calculateRefereeCumulativeMetrics(referees, selectedWeekNum, finishedSchedules);
   }, [referees, selectedWeekNum, finishedSchedules]);
 
   const topReferee = useMemo(() => {
@@ -114,9 +110,30 @@ export default function RefereeTab({
     return statsList[0] || null;
   }, [statsList, selectedStaffId]);
 
+  // Pengelompokan riwayat pertandingan per pekan untuk Week Divider
+  const groupedMatches = useMemo(() => {
+    if (!topReferee) return [];
+    const groups: { weekNumber: number; matches: MatchDetail[] }[] = [];
+    const map = new Map<number, MatchDetail[]>();
+
+    topReferee.cumulativeMatches.forEach((m) => {
+      const w = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
+      const list = map.get(w) || [];
+      list.push(m);
+      map.set(w, list);
+    });
+
+    const sortedWeeks = Array.from(map.keys()).sort((a, b) => b - a);
+    sortedWeeks.forEach((w) => {
+      groups.push({ weekNumber: w, matches: map.get(w)! });
+    });
+
+    return groups;
+  }, [topReferee]);
+
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      {/* 1. KARTU PODIUM ATAS (BEST REFEREE / OVERVIEW) */}
+      {/* 1. KARTU PODIUM ATAS */}
       {topReferee && (
         <div className="relative overflow-hidden rounded-2xl border-2 border-blue-500/60 bg-gradient-to-br from-blue-500/15 via-card to-card p-3.5 sm:p-4 shadow-xs flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2 min-w-0">
@@ -141,14 +158,16 @@ export default function RefereeTab({
                 </div>
               </div>
 
-              {/* Identitas: Nama Referee di atas, Sub-label di bawahnya */}
+              {/* Identitas & Badge MVP */}
               <div className="min-w-0 flex flex-col justify-center">
                 <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
                   {topReferee.discordName}
                 </span>
-                <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mt-1 leading-none">
-                  {selectedStaffId === 'ALL' ? 'BEST REFEREE' : 'Overview'}
-                </span>
+                {selectedStaffId === 'ALL' && (
+                  <span className="mt-1 w-fit rounded border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-amber-500 leading-none">
+                    BEST REFEREE
+                  </span>
+                )}
               </div>
             </div>
 
@@ -163,25 +182,21 @@ export default function RefereeTab({
             </div>
           </div>
 
-          {/* Baris 4 Kolom Metrik: MATCH | RATIO | GAME | GPM */}
+          {/* Baris 4 Kolom: MATCH | PERFORM | GPM | FEE */}
           <div className="grid grid-cols-4 gap-1 pt-2 border-t border-border/40 text-center">
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-bold uppercase text-muted-foreground">MATCH</span>
               <span className="text-xs font-bold text-foreground mt-0.5">{topReferee.matchCount}</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-bold uppercase text-muted-foreground">RATIO</span>
+              <span className="text-[8px] font-bold uppercase text-muted-foreground">PERFORM</span>
               <span
                 className={`text-xs font-bold mt-0.5 ${
-                  topReferee.ratioNum >= baselineRatio ? 'text-emerald-500' : 'text-rose-500'
+                  topReferee.performNum >= 50 ? 'text-emerald-500' : 'text-rose-500'
                 }`}
               >
-                {topReferee.ratioNum}
+                {topReferee.performNum}%
               </span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[8px] font-bold uppercase text-muted-foreground">GAME</span>
-              <span className="text-xs font-bold text-foreground mt-0.5">{topReferee.totalGames}</span>
             </div>
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-bold uppercase text-muted-foreground">GPM</span>
@@ -193,11 +208,17 @@ export default function RefereeTab({
                 {topReferee.gpmNum.toFixed(1)}
               </span>
             </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[8px] font-bold uppercase text-muted-foreground">FEE</span>
+              <span className="text-xs font-bold text-emerald-500 mt-0.5">
+                {isAdmin ? `Rp ${topReferee.calculatedFee.toLocaleString('id-ID')}` : 'Rp ***'}
+              </span>
+            </div>
           </div>
         </div>
       )}
 
-      {/* 2. KONTEN BAWAH: TABEL KLASEMEN (MULAI DARI RANK 2) ATAU HISTORY MATCH */}
+      {/* 2. KONTEN BAWAH */}
       {selectedStaffId === 'ALL' ? (
         <div className="rounded-2xl border border-border/80 bg-card shadow-xs overflow-hidden flex flex-col">
           <table className="w-full border-collapse text-left table-fixed">
@@ -205,10 +226,9 @@ export default function RefereeTab({
               <tr>
                 <th className="py-2.5 pl-4 pr-1 text-center w-12 sm:w-14">RANK</th>
                 <th className="py-2.5 pl-2 sm:pl-3 pr-2 text-left">REFEREE</th>
-                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">MATCH</th>
-                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">RATIO</th>
-                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">GAME</th>
-                <th className="py-2.5 pr-4 pl-0.5 text-center w-12 sm:w-14">GPM</th>
+                <th className="py-2.5 px-0.5 text-center w-14 sm:w-16">MATCH</th>
+                <th className="py-2.5 px-0.5 text-center w-16 sm:w-20">PERFORM</th>
+                <th className="py-2.5 pr-4 pl-0.5 text-center w-14 sm:w-16">GPM</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40 text-[11px]">
@@ -230,12 +250,11 @@ export default function RefereeTab({
                   <td className="py-2.5 px-0.5 text-center font-semibold">{ref.matchCount}</td>
                   <td
                     className={`py-2.5 px-0.5 text-center font-bold ${
-                      ref.ratioNum >= baselineRatio ? 'text-emerald-500' : 'text-rose-500'
+                      ref.performNum >= 50 ? 'text-emerald-500' : 'text-rose-500'
                     }`}
                   >
-                    {ref.ratioNum}
+                    {ref.performNum}%
                   </td>
-                  <td className="py-2.5 px-0.5 text-center font-semibold text-foreground">{ref.totalGames}</td>
                   <td
                     className={`py-2.5 pr-4 pl-0.5 text-center font-bold ${
                       ref.gpmNum >= baselineGpm ? 'text-emerald-500' : 'text-rose-500'
@@ -249,18 +268,28 @@ export default function RefereeTab({
           </table>
         </div>
       ) : (
-        /* DAFTAR HISTORY MATCH SCOREBOARD */
-        <div className="space-y-2.5">
+        /* DAFTAR HISTORY MATCH DENGAN WEEK DIVIDER */
+        <div className="space-y-4">
           <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1">
             HISTORY MATCH ({topReferee?.cumulativeMatches.length || 0})
           </span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {(topReferee?.cumulativeMatches || []).map((m) => (
-              <RefereeHistoryCard key={m.id} match={m} />
-            ))}
-          </div>
+          {groupedMatches.map((group) => (
+            <div key={group.weekNumber} className="space-y-2.5">
+              <div className="flex items-center gap-2 px-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-primary">
+                  Week {group.weekNumber}
+                </span>
+                <div className="h-[1px] flex-1 bg-border/80" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {group.matches.map((m) => (
+                  <RefereeHistoryCard key={m.id} match={m} />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
-  );
-}      
+  ); 
+}
