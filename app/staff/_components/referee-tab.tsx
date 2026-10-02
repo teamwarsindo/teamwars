@@ -11,6 +11,7 @@ export interface MatchDetail {
   matchDate?: string;
   weekNumber?: number;
   weekName?: string;
+  groupName?: string;
   teamAName: string;
   teamBName: string;
   teamALogo?: string;
@@ -60,7 +61,6 @@ interface RefereeTabProps {
   referees: RefereeData[];
   token?: string | null;
   isAdmin?: boolean;
-  searchQuery?: string;
   selectedStaffId?: string;
   selectedWeek: string;
   onRefresh: () => void;
@@ -93,7 +93,7 @@ export default function RefereeTab({
     return isNaN(num) || num <= 0 ? Infinity : num;
   }, [selectedWeek]);
 
-  // Kalkulasi kumulatif metrik tiap wasit (<= selectedWeek)
+  // Kalkulasi performa kumulatif (<= selectedWeek)
   const statsList = useMemo(() => {
     let grandTotalMatches = 0;
 
@@ -156,7 +156,7 @@ export default function RefereeTab({
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      {/* 1. KARTU PODIUM WASIT (ALA MVP POWER RANKING) */}
+      {/* 1. KARTU PODIUM ATAS (ALA MVP POWER RANKING) */}
       {topReferee && (
         <div className="relative overflow-hidden rounded-2xl border-2 border-blue-500/60 bg-gradient-to-br from-blue-500/15 via-card to-card p-3.5 sm:p-4 shadow-xs flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2 min-w-0">
@@ -181,15 +181,14 @@ export default function RefereeTab({
                 </div>
               </div>
 
+              {/* Hierarki Vertikal: Badge di atas, Nama Referee di bawahnya */}
               <div className="min-w-0 flex flex-col justify-center">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
-                    {topReferee.discordName}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 leading-none">
-                    {selectedStaffId === 'ALL' ? 'BEST REFEREE' : 'WASIT TERPILIH'}
-                  </span>
-                </div>
+                <span className="w-fit px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 leading-none mb-1">
+                  {selectedStaffId === 'ALL' ? 'BEST REFEREE' : 'OVERVIEW'}
+                </span>
+                <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
+                  {topReferee.discordName}
+                </span>
               </div>
             </div>
 
@@ -204,7 +203,7 @@ export default function RefereeTab({
             </div>
           </div>
 
-          {/* Baris 5 Kolom Metrik Sejajar Rata */}
+          {/* Baris 5 Kolom Metrik Sejajar Rata (FEE Tetap Ada di Kartu Atas) */}
           <div className="grid grid-cols-5 gap-1 pt-2 border-t border-border/40 text-center">
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-bold uppercase text-muted-foreground">MATCH</span>
@@ -232,25 +231,25 @@ export default function RefereeTab({
         </div>
       )}
 
-      {/* 2. KONTEN BAWAH (TABEL KLASEMEN ATAU DAFTAR MATCH SCOREBOARD) */}
+      {/* 2. KONTEN BAWAH: TABEL KLASEMEN (MULAI DARI RANK 2, TANPA KOLOM FEE) ATAU HISTORY MATCH */}
       {selectedStaffId === 'ALL' ? (
         <div className="rounded-2xl border border-border/80 bg-card shadow-xs overflow-hidden flex flex-col">
           <table className="w-full border-collapse text-left table-fixed">
             <thead className="bg-muted/65 border-b border-border text-[10px] uppercase tracking-wider text-foreground/75 font-bold">
               <tr>
                 <th className="py-2.5 pl-4 pr-1 text-center w-12 sm:w-14">RANK</th>
-                <th className="py-2.5 pl-2 sm:pl-3 pr-2 text-left">WASIT</th>
-                <th className="py-2.5 px-0.5 text-center w-10 sm:w-12">MATCH</th>
-                <th className="py-2.5 px-0.5 text-center w-10 sm:w-12 text-emerald-600 dark:text-emerald-400">GAME</th>
-                <th className="py-2.5 px-0.5 text-center w-10 sm:w-12">GPM</th>
-                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">RATIO</th>
-                <th className="py-2.5 pr-4 pl-0.5 text-center w-16 sm:w-20">FEE</th>
+                <th className="py-2.5 pl-2 sm:pl-3 pr-2 text-left">REFEREE</th>
+                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">MATCH</th>
+                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14 text-emerald-600 dark:text-emerald-400">GAME</th>
+                <th className="py-2.5 px-0.5 text-center w-12 sm:w-14">GPM</th>
+                <th className="py-2.5 pr-4 pl-0.5 text-center w-14 sm:w-16">RATIO</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40 text-[11px]">
-              {statsList.map((ref, idx) => (
+              {/* Mulai dari Rank 2, Rank 1 sudah berada di kartu podium Best Referee */}
+              {statsList.slice(1).map((ref, idx) => (
                 <tr key={ref.discordId} className="hover:bg-muted/40 transition-colors">
-                  <td className="py-2.5 pl-4 pr-1 text-center font-bold font-mono text-xs">{idx + 1}</td>
+                  <td className="py-2.5 pl-4 pr-1 text-center font-bold font-mono text-xs">{idx + 2}</td>
                   <td className="py-2.5 pl-2 sm:pl-3 pr-2 font-bold truncate flex items-center gap-2">
                     <div className="relative h-5 w-5 rounded-full overflow-hidden border border-border/80 shrink-0">
                       {ref.avatar ? (
@@ -266,20 +265,17 @@ export default function RefereeTab({
                   <td className="py-2.5 px-0.5 text-center font-semibold">{ref.matchCount}</td>
                   <td className="py-2.5 px-0.5 text-center font-bold text-emerald-500">{ref.totalGames}</td>
                   <td className="py-2.5 px-0.5 text-center">{ref.gpm}</td>
-                  <td className="py-2.5 px-0.5 text-center font-medium">{ref.ratio}%</td>
-                  <td className="py-2.5 pr-4 pl-0.5 text-center font-mono font-bold text-emerald-500">
-                    {isAdmin ? `Rp ${ref.calculatedFee.toLocaleString('id-ID')}` : 'Rp ***'}
-                  </td>
+                  <td className="py-2.5 pr-4 pl-0.5 text-center font-medium">{ref.ratio}%</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        /* DAFTAR MATCH SCOREBOARD */
+        /* DAFTAR HISTORY MATCH SCOREBOARD */
         <div className="space-y-2.5">
           <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1">
-            Riwayat Pertandingan Dipimpin ({topReferee?.cumulativeMatches.length || 0})
+            HISTORY MATCH ({topReferee?.cumulativeMatches.length || 0})
           </span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {(topReferee?.cumulativeMatches || []).map((m) => (
@@ -289,5 +285,5 @@ export default function RefereeTab({
         </div>
       )}
     </div>
-  ); 
+  );
 }
