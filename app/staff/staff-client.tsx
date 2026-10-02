@@ -1,155 +1,194 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState, useTransition, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { X } from 'lucide-react';
 import RefereeTab, { RefereeData } from './_components/referee-tab';
 import StreamerTab, { StreamerData } from './_components/streamer-tab';
 import AdminApprovalTab from './_components/admin-approval-tab';
-import { FinishedScheduleSummary } from './_library/staff-metrics';
 
-interface StaffClientProps {
-  initialToken?: string | null;
-  isAdmin?: boolean;
+export interface StaffClientProps {
+  isAdmin: boolean;
 }
 
-export default function StaffClient({ initialToken = null, isAdmin = false }: StaffClientProps) {
-  const router = useRouter();
+interface RosterResponse {
+  success: boolean;
+  currentVerifiedId: string | null;
+  availableWeeks: string[];
+  referees: RefereeData[];
+  streamers: StreamerData[];
+  message?: string;
+}
+
+export default function StaffClientContent({ isAdmin }: StaffClientProps) {
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token') || '';
+
+  const isTokenMode = Boolean(token);
+  const effectiveIsAdmin = isTokenMode ? false : isAdmin;
 
   const [activeTab, setActiveTab] = useState<'referee' | 'streamer' | 'approval'>('referee');
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('ALL');
+
   const [referees, setReferees] = useState<RefereeData[]>([]);
   const [streamers, setStreamers] = useState<StreamerData[]>([]);
   const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
-  const [finishedSchedules, setFinishedSchedules] = useState<FinishedScheduleSummary[]>([]);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('ALL');
-  const [selectedWeek, setSelectedWeek] = useState<string>('Week 1');
-  const [loading, setLoading] = useState(true);
+  const [selectedWeek, setSelectedWeek] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Ambil data staf dari API roster
-  const fetchRoster = useCallback(async () => {
+  const [, startTransition] = useTransition();
+
+  const fetchRosterData = async () => {
+    setIsLoading(true);
+    setErrorMsg('');
     try {
-      setLoading(true);
-      const url = initialToken
-        ? `/api/tournament/staff/roster?token=${encodeURIComponent(initialToken)}`
+      const url = token
+        ? `/api/tournament/staff/roster?token=${encodeURIComponent(token)}`
         : '/api/tournament/staff/roster';
+
       const res = await fetch(url, { cache: 'no-store' });
-      const json = await res.json();
+      const data: RosterResponse = await res.json();
 
-      if (json.success) {
-        setReferees(json.referees || []);
-        setStreamers(json.streamers || []);
-        setFinishedSchedules(json.finishedSchedules || []);
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal memuat data staf.');
+      }
 
-        const weeks: string[] = json.availableWeeks || [];
+      startTransition(() => {
+        setReferees(data.referees || []);
+        setStreamers(data.streamers || []);
+
+        const weeks = data.availableWeeks || [];
         setAvailableWeeks(weeks);
 
         if (weeks.length > 0) {
-          setSelectedWeek((prev) => (weeks.includes(prev) ? prev : weeks[weeks.length - 1]));
+          setSelectedWeek((prev) => (prev ? prev : weeks[weeks.length - 1]));
         }
-      }
-    } catch (err) {
-      console.error('[FETCH ROSTER ERROR]:', err);
+      });
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Terjadi kesalahan sistem saat memuat data staf.');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }, [initialToken]);
+  };
 
   useEffect(() => {
-    fetchRoster();
-  }, [fetchRoster]);
+    fetchRosterData();
+  }, [token]);
 
-  // Reset filter staf ketika beralih tab
-  const handleTabChange = (tab: 'referee' | 'streamer' | 'approval') => {
-    setActiveTab(tab);
-    setSelectedStaffId('ALL');
-  };
-
-  // Reset seluruh filter
-  const handleResetFilter = () => {
-    setSelectedStaffId('ALL');
-    if (availableWeeks.length > 0) {
-      setSelectedWeek(availableWeeks[availableWeeks.length - 1]);
-    }
-  };
-
-  // Urutkan opsi dropdown staf secara alfabetis (A-Z)
-  const sortedStaffOptions = useMemo(() => {
-    const list = activeTab === 'referee' ? referees : streamers;
-    return [...list].sort((a, b) => a.discordName.localeCompare(b.discordName));
-  }, [activeTab, referees, streamers]);
+  const defaultWeek = useMemo(() => {
+    if (availableWeeks.length === 0) return '';
+    return availableWeeks[availableWeeks.length - 1];
+  }, [availableWeeks]);
 
   const isFilterActive =
-    selectedStaffId !== 'ALL' ||
-    (availableWeeks.length > 0 && selectedWeek !== availableWeeks[availableWeeks.length - 1]);
+    selectedStaffId !== 'ALL' || (selectedWeek !== '' && selectedWeek !== defaultWeek);
+
+  const handleResetFilter = () => {
+    setSelectedStaffId('ALL');
+    setSelectedWeek(defaultWeek);
+  };
+
+  const pendingApprovalsCount = referees.reduce((acc, ref) => {
+    const list = (ref as any).payrollRequests || ref.payroll?.payrollRequests || [];
+    const pendingInRef = list.filter((item: any) => item.status === 'PENDING').length;
+    return acc + pendingInRef;
+  }, 0);
+
+  const staffOptions =
+    activeTab === 'referee'
+      ? referees.map((r) => ({ id: r.discordId, name: r.discordName }))
+      : streamers.map((s) => ({ id: s.discordId, name: s.discordName }));
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-4 px-2 sm:px-4">
-      {/* 1. NAVIGASI PILL-TAB */}
-      <div className="flex items-center justify-center gap-2 pt-1">
-        <button
-          onClick={() => handleTabChange('referee')}
-          className={`rounded-full px-5 py-2 text-xs font-bold transition shadow-xs cursor-pointer ${
-            activeTab === 'referee'
-              ? 'bg-blue-600 text-white shadow-blue-500/25'
-              : 'border border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
-          }`}
-        >
-          Referee ({referees.length})
-        </button>
-
-        <button
-          onClick={() => handleTabChange('streamer')}
-          className={`rounded-full px-5 py-2 text-xs font-bold transition shadow-xs cursor-pointer ${
-            activeTab === 'streamer'
-              ? 'bg-blue-600 text-white shadow-blue-500/25'
-              : 'border border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
-          }`}
-        >
-          Streamer ({streamers.length})
-        </button>
-
-        {isAdmin && (
+    <div className="w-full space-y-6">
+      {/* 1. NAVIGASI TAB TERPUSAT (CENTER) */}
+      {!isTokenMode ? (
+        <div className="flex w-full flex-wrap items-center justify-center gap-2">
           <button
-            onClick={() => handleTabChange('approval')}
-            className={`rounded-full px-5 py-2 text-xs font-bold transition shadow-xs cursor-pointer ${
-              activeTab === 'approval'
-                ? 'bg-blue-600 text-white shadow-blue-500/25'
-                : 'border border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
+            type="button"
+            onClick={() => {
+              setActiveTab('referee');
+              setSelectedStaffId('ALL');
+            }}
+            className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
+              activeTab === 'referee'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
+                : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
             }`}
           >
-            Payroll Approval
+            Referee ({referees.length})
           </button>
-        )}
-      </div>
 
-      {/* 2. BAR KONTROL FILTER (Kecuali tab admin approval) */}
-      {activeTab !== 'approval' && (
-        <div className="rounded-2xl border border-border/80 bg-card/90 p-2.5 shadow-xs backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('streamer');
+              setSelectedStaffId('ALL');
+            }}
+            className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
+              activeTab === 'streamer'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
+                : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
+            }`}
+          >
+            Streamer ({streamers.length})
+          </button>
+
+          {effectiveIsAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('approval')}
+              className={`flex items-center gap-1.5 rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
+                activeTab === 'approval'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
+                  : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
+              }`}
+            >
+              <span>Persetujuan Klaim</span>
+              {pendingApprovalsCount > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
+                  {pendingApprovalsCount}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-xs font-bold text-blue-600">
+            🔒 Panel Referee Privat Terverifikasi
+          </div>
+        </div>
+      )}
+
+      {/* 2. DUA DROPDOWN & TOMBOL RESET FILTER BULAT MERAH */}
+      {!isTokenMode && activeTab !== 'approval' && (
+        <div className="rounded-2xl border border-border/80 bg-card/60 p-3 shadow-sm backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            {/* Dropdown Filter Staf Terurut Alfabetis */}
-            <div className="flex-1">
+            <div className="relative flex-1">
               <select
                 value={selectedStaffId}
                 onChange={(e) => setSelectedStaffId(e.target.value)}
-                className="w-full rounded-xl border border-border/80 bg-background px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs cursor-pointer"
+                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border/80 bg-background/80 px-3 pr-8 text-xs font-semibold text-foreground focus:border-blue-500 focus:outline-none"
               >
-                <option value="ALL">
-                  Semua {activeTab === 'referee' ? 'Referee' : 'Streamer'} ({sortedStaffOptions.length})
-                </option>
-                {sortedStaffOptions.map((st) => (
-                  <option key={st.discordId} value={st.discordId}>
-                    {st.discordName}
+                <option value="ALL">Semua {activeTab === 'referee' ? 'Referee' : 'Streamer'}</option>
+                {staffOptions.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.name}
                   </option>
                 ))}
               </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[10px] text-muted-foreground">
+                ▼
+              </div>
             </div>
 
-            {/* Dropdown Filter Pekan */}
-            <div className="w-32 sm:w-40">
+            <div className="relative flex-1">
               <select
                 value={selectedWeek}
                 onChange={(e) => setSelectedWeek(e.target.value)}
-                className="w-full rounded-xl border border-border/80 bg-background px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-xs cursor-pointer"
+                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border/80 bg-background/80 px-3 pr-8 text-xs font-semibold text-foreground focus:border-blue-500 focus:outline-none"
               >
                 {availableWeeks.map((wk) => (
                   <option key={wk} value={wk}>
@@ -157,47 +196,62 @@ export default function StaffClient({ initialToken = null, isAdmin = false }: St
                   </option>
                 ))}
               </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[10px] text-muted-foreground">
+                ▼
+              </div>
             </div>
 
-            {/* Tombol Reset Filter */}
-            {isFilterActive && (
-              <button
-                onClick={handleResetFilter}
-                title="Reset Filter"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white shadow-xs transition hover:bg-rose-600 active:scale-95 cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleResetFilter}
+              disabled={!isFilterActive}
+              title="Reset Filter"
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all ${
+                isFilterActive
+                  ? 'cursor-pointer border-rose-500/50 bg-rose-500 text-white shadow-md shadow-rose-500/25 hover:bg-rose-600'
+                  : 'cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground/30 opacity-50'
+              }`}
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}
 
-      {/* 3. KONTEN TAB UTAMA */}
-      {loading ? (
-        <div className="rounded-2xl border border-border/80 bg-card p-12 text-center text-xs font-bold text-primary animate-pulse shadow-xs">
-          Memuat data staf...
+      {/* 3. PESAN ERROR */}
+      {errorMsg && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
+          {errorMsg}
         </div>
-      ) : activeTab === 'referee' ? (
+      )}
+
+      {/* 4. KONTEN TAB UTAMA */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+          <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <span className="text-xs">Memuat data staf...</span>
+        </div>
+      ) : activeTab === 'referee' || isTokenMode ? (
         <RefereeTab
           referees={referees}
-          token={initialToken}
-          isAdmin={isAdmin}
+          token={token || null}
+          isAdmin={effectiveIsAdmin}
           selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
-          finishedSchedules={finishedSchedules}
-          onRefresh={fetchRoster}
+          onRefresh={fetchRosterData}
         />
       ) : activeTab === 'streamer' ? (
         <StreamerTab
           streamers={streamers}
           selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
-          finishedSchedules={finishedSchedules}
         />
       ) : (
-        <AdminApprovalTab onActionSuccess={fetchRoster} />
+        <AdminApprovalTab
+          referees={referees}
+          onRefresh={fetchRosterData}
+        />
       )}
     </div>
-  );    
-}   
+  );
+}
