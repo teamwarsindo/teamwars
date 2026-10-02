@@ -32,16 +32,9 @@ export default function StaffPodiumCard({
           </div>
 
           <div className="min-w-0 flex flex-col justify-center">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
-                {topStaff.discordName}
-              </span>
-              {isAdmin && (
-                <span className="rounded bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-rose-500 leading-none">
-                  ADMIN
-                </span>
-              )}
-            </div>
+            <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
+              {topStaff.discordName}
+            </span>
 
             {selectedStaffId === 'ALL' && (
               <span className="w-fit rounded bg-amber-400 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-slate-950 leading-none shadow-xs mt-1.5">
@@ -92,5 +85,5 @@ export default function StaffPodiumCard({
         </div>
       </div>
     </div>
-  );
+  );                          
 }
