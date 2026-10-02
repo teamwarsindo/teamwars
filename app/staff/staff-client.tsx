@@ -59,9 +59,8 @@ export default function StaffClientContent() {
         </div>
       </div>
 
-      {/* FILTER BAR */}
+      {/* FILTER BAR (Telah diselaraskan dengan props asli tanpa properti role) */}
       <StaffFilterBar
-        role={activeTab}
         selectedStaffId={selectedStaffId}
         onSelectStaffId={setSelectedStaffId}
         selectedWeek={selectedWeek}
