@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Image from 'next/image';
-import { Shield } from 'lucide-react';
+import { Shield, ExternalLink } from 'lucide-react';
 import { MatchDetail } from './referee-tab';
 
 interface RefereeHistoryCardProps {
   match: MatchDetail;
 }
+
+const INDONESIAN_DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
 export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
   const [logoErrA, setLogoErrA] = useState(false);
@@ -18,8 +20,17 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
   const aIsLeading = scoreA > scoreB;
   const bIsLeading = scoreB > scoreA;
 
+  // Ekstraksi nama hari dari matchDate
+  const matchDayName = useMemo(() => {
+    if (!match.matchDate) return null;
+    const d = new Date(match.matchDate);
+    if (isNaN(d.getTime())) return null;
+    return INDONESIAN_DAYS[d.getDay()];
+  }, [match.matchDate]);
+
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3 shadow-xs transition hover:border-border">
+    <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3 shadow-xs transition hover:border-border flex flex-col justify-between">
+      {/* 1. Baris Utama: Tim A, Skor & Hari, Tim B */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         {/* Sisi Kiri: Tim A */}
         <div className="flex flex-col items-center text-center min-w-0">
@@ -46,8 +57,8 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
           </span>
         </div>
 
-        {/* Tengah: Skor Sejajar Ketinggian Logo */}
-        <div className="flex items-center justify-center px-2 shrink-0">
+        {/* Tengah: Skor & Nama Hari Pertandingan */}
+        <div className="flex flex-col items-center justify-center px-2 shrink-0">
           <div className="flex items-center gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
             <span className={aIsLeading ? 'text-primary' : 'text-foreground/90'}>
               {scoreA}
@@ -59,6 +70,12 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
               {scoreB}
             </span>
           </div>
+
+          {matchDayName && (
+            <span className="mt-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
+              {matchDayName}
+            </span>
+          )}
         </div>
 
         {/* Sisi Kanan: Tim B */}
@@ -85,6 +102,27 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
             {match.teamBName || 'Tim B'}
           </span>
         </div>
+      </div>
+
+      {/* 2. Baris Bawah: Status Siaran / Sharescreen */}
+      <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-center text-[10.5px]">
+        {match.streamLink ? (
+          <a
+            href={match.streamLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 font-bold text-rose-500 hover:text-rose-600 transition-colors"
+          >
+            <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+            <span>Rekaman Pertandingan</span>
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 font-medium text-muted-foreground/60">
+            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+            <span>Sharescreen</span>
+          </div>
+        )}
       </div>
     </div>
   );
