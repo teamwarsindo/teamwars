@@ -22,6 +22,15 @@ interface StaffTabViewProps {
   onRefresh?: () => void;
 }
 
+const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+function getMatchDayName(matchDate?: string): string {
+  if (!matchDate) return '';
+  const dt = new Date(matchDate);
+  if (isNaN(dt.getTime())) return '';
+  return DAY_NAMES[dt.getDay()] || '';
+}
+
 export default function StaffTabView({
   role,
   staffList,
@@ -36,9 +45,23 @@ export default function StaffTabView({
     return isNaN(num) || num <= 0 ? 1 : num;
   }, [selectedWeek]);
 
+  // Saring jadwal yang diteruskan ke kalkulator metrik jika filter Day aktif
+  const filteredFinishedSchedules = useMemo(() => {
+    if (selectedDay === 'ALL') return finishedSchedules;
+    return finishedSchedules.filter((schedule) => {
+      const d = getMatchDayName(schedule.matchDate);
+      return d.toLowerCase() === selectedDay.toLowerCase();
+    });
+  }, [finishedSchedules, selectedDay]);
+
   const { statsList, baselineGpm } = useMemo(() => {
-    return calculateStaffCumulativeMetrics(staffList, selectedWeekNum, finishedSchedules, role);
-  }, [staffList, selectedWeekNum, finishedSchedules, role]);
+    return calculateStaffCumulativeMetrics(
+      staffList,
+      selectedWeekNum,
+      filteredFinishedSchedules,
+      role
+    );
+  }, [staffList, selectedWeekNum, filteredFinishedSchedules, role]);
 
   const topStaff = useMemo(() => {
     if (selectedStaffId !== 'ALL') {
@@ -50,7 +73,13 @@ export default function StaffTabView({
   const groupedMatches = useMemo(() => {
     if (!topStaff) return [];
     const map = new Map<number, MatchDetail[]>();
+
     topStaff.cumulativeHistory.forEach((m) => {
+      if (selectedDay !== 'ALL') {
+        const d = getMatchDayName(m.matchDate);
+        if (d.toLowerCase() !== selectedDay.toLowerCase()) return;
+      }
+
       const w = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
       const list = map.get(w) || [];
       list.push(m);
@@ -65,7 +94,7 @@ export default function StaffTabView({
       });
 
     return groups;
-  }, [topStaff]);
+  }, [topStaff, selectedDay]);
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
@@ -87,21 +116,27 @@ export default function StaffTabView({
         />
       ) : (
         <div className="space-y-4">
-          {groupedMatches.map((group) => (
-            <div key={group.weekNumber} className="space-y-2.5">
-              <div className="flex items-center gap-2 px-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-primary">
-                  Week {group.weekNumber}
-                </span>
-                <div className="h-[1px] flex-1 bg-border/80" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {group.matches.map((m) => (
-                  <StaffHistoryCard key={m.id} match={m} />
-                ))}
-              </div>
+          {groupedMatches.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/80 bg-card/20 p-8 text-center text-xs font-semibold text-muted-foreground">
+              Tidak ada riwayat pertandingan yang cocok dengan filter yang dipilih.
             </div>
-          ))}
+          ) : (
+            groupedMatches.map((group) => (
+              <div key={group.weekNumber} className="space-y-2.5">
+                <div className="flex items-center gap-2 px-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-primary">
+                    Week {group.weekNumber}
+                  </span>
+                  <div className="h-[1px] flex-1 bg-border/80" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {group.matches.map((m) => (
+                    <StaffHistoryCard key={m.id} match={m} />
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>
