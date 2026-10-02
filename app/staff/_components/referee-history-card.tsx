@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { formatStageName } from '@/app/tournament/_library/utils';
 import { MatchDetail } from './referee-tab';
 
 interface RefereeHistoryCardProps {
@@ -10,14 +9,27 @@ interface RefereeHistoryCardProps {
 }
 
 export function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
-  const stageClean = formatStageName(match.weekName || `Week ${match.weekNumber || 1}`);
+  const isLive = !match.isFinished;
   const scoreAVal = match.scoreA ?? 0;
   const scoreBVal = match.scoreB ?? 0;
   const aIsLeading = scoreAVal > scoreBVal;
   const bIsLeading = scoreBVal > scoreAVal;
 
+  const stageLabel =
+    match.groupName && !match.groupName.toLowerCase().includes(`week ${match.weekNumber}`)
+      ? match.groupName
+      : '';
+
   return (
-    <div className="flex flex-col justify-center rounded-2xl border border-border/80 bg-card/95 p-3 shadow-xs backdrop-blur-md transition hover:border-primary/50">
+    <div className="relative flex flex-col justify-center rounded-2xl border border-border/80 bg-card/95 p-3 shadow-xs backdrop-blur-md transition hover:border-primary/50">
+      {/* Badge LIVE di sudut kanan atas jika pertandingan sedang berlangsung */}
+      {isLive && (
+        <div className="absolute right-3 top-2.5 flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[9px] font-bold text-rose-500">
+          <span className="h-1.5 w-1.5 animate-ping rounded-full bg-rose-500" />
+          LIVE
+        </div>
+      )}
+
       <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
         {/* Tim A */}
         <div className="flex min-w-0 flex-col items-center text-center">
@@ -60,12 +72,14 @@ export function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
             <div className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
               Week {match.weekNumber || 1}
             </div>
-            <div
-              className="max-w-[120px] truncate text-[9px] font-bold text-primary"
-              title={stageClean}
-            >
-              {stageClean || 'Divisi Official'}
-            </div>
+            {stageLabel && (
+              <div
+                className="max-w-[120px] truncate text-[9px] font-bold text-primary"
+                title={stageLabel}
+              >
+                {stageLabel}
+              </div>
+            )}
           </div>
         </div>
 
