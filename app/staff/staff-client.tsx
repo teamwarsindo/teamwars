@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ShieldAlert, Radio } from 'lucide-react';
+import { ShieldAlert, Radio, ShieldCheck } from 'lucide-react';
 import { useStaffRoster } from './_hooks/use-staff-roster';
 import StaffFilterBar from './_components/staff-filter-bar';
 import StaffTabView from './_components/staff-tab-view';
@@ -31,7 +31,30 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
   } = useStaffRoster();
 
   return (
-    <div className="w-full space-y-4 sm:space-y-6">
+    <div className="w-full space-y-4 sm:space-y-5">
+      {/* BANNER STATUS SESI ADMIN (STYLE MATCH EDITOR) */}
+      {isAdmin && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 sm:px-5 sm:py-3 shadow-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+              <ShieldCheck className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex flex-col">
+              <span className="text-xs sm:text-sm font-bold text-foreground truncate leading-tight">
+                Sesi Administrator Aktif
+              </span>
+              <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                Akses penuh: visibilitas fee wasit dan pengelolaan turnamen terbuka.
+              </span>
+            </div>
+          </div>
+
+          <span className="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+            VERIFIED
+          </span>
+        </div>
+      )}
+
       {/* 1. TAB SWITCHER */}
       <div className="flex items-center justify-center">
         <div className="inline-flex rounded-2xl border border-border/80 bg-muted/30 p-1 shadow-xs">
@@ -92,5 +115,5 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
         />
       )}
     </div>
-  );
+  );        
 }
