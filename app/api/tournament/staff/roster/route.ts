@@ -47,30 +47,41 @@ export async function GET(req: Request) {
             weekName:
               (match as any).weekName ||
               (match.weekNumber ? `Week ${match.weekNumber}` : 'Week 1'),
+            groupName: match.groupName || (match as any).stage || '',
             teamAName: match.teamAName,
             teamBName: match.teamBName,
+            teamALogo: match.teamALogo || (match as any).logoA || null,
+            teamBLogo: match.teamBLogo || (match as any).logoB || null,
             scoreA: match.scoreA,
             scoreB: match.scoreB,
-            isFinished: match.isFinished,
+            isFinished: Boolean(match.isFinished),
             streamLink: (match as any).streamLink || (match as any).streamUrl || null,
           };
         })
         .filter(Boolean);
     };
 
-    // Helper resolusi avatar Discord asli atau fallback gambar SVG
+    // Helper resolusi avatar Discord asli atau default Discord embed avatar
     const resolveAvatar = (item: any) => {
       if (item.avatarUrl && typeof item.avatarUrl === 'string') return item.avatarUrl;
       if (item.avatar && typeof item.avatar === 'string') {
         if (item.avatar.startsWith('http')) return item.avatar;
-        return `https://cdn.discordapp.com/avatars/${item.discordId}/${item.avatar}.png`;
+        return `https://cdn.discordapp.com/avatars/${item.discordId}/${item.avatar}.png?size=128`;
+      }
+      if (item.discordId && /^\d+$/.test(item.discordId)) {
+        try {
+          const defaultAvatarIndex = Number((BigInt(item.discordId) >> 22n) % 6n);
+          return `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`;
+        } catch {
+          // Fallback jika BigInt gagal
+        }
       }
       return `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${encodeURIComponent(
         item.discordName || item.discordId
       )}`;
     };
 
-    // 4. Format data Wasit
+    // 4. Format data Referee
     const feePerMatch = REFEREE_PAYROLL_CONFIG.FEE_PER_MATCH * 1000;
 
     const referees = refereesData.map((ref) => {
@@ -95,7 +106,6 @@ export async function GET(req: Request) {
         activeMatches: mapMatchDetails(assignedMatches),
         historyMatches: mapMatchDetails(historyMatches),
         totalFinishedMatches: historyMatches.length,
-        // Admin bisa melihat nominal honor semua wasit; publik mendapat nilai null jika bukan pemilik token
         visibleHonor: isAdmin || isCurrentVerified ? totalEarnedAmount : null,
         payroll: isCurrentVerified
           ? {
@@ -127,20 +137,25 @@ export async function GET(req: Request) {
       };
     });
 
-    // 6. Ekstraksi daftar pekan
-    const availableWeeksSet = new Set<string>();
+    // 6. Ekstraksi daftar pekan hanya dari match yang aktif/tuntas (maksimal pekan berjalan)
+    let maxWeekNumber = 1;
     schedulesData.forEach((m) => {
-      const weekLabel =
-        (m as any).weekName?.trim() ||
-        (m.weekNumber ? `Week ${m.weekNumber}` : 'Week 1');
-      availableWeeksSet.add(weekLabel);
+      const wNum = Number(m.weekNumber || 1);
+      if ((m.isFinished || (m.scoreA ?? 0) > 0 || (m.scoreB ?? 0) > 0) && wNum > maxWeekNumber) {
+        maxWeekNumber = wNum;
+      }
     });
+
+    const availableWeeksList: string[] = [];
+    for (let w = 1; w <= maxWeekNumber; w++) {
+      availableWeeksList.push(`Week ${w}`);
+    }
 
     return NextResponse.json({
       success: true,
       isAdmin,
       currentVerifiedId: verifiedDiscordId,
-      availableWeeks: Array.from(availableWeeksSet),
+      availableWeeks: availableWeeksList,
       referees,
       streamers,
     });
@@ -150,5 +165,5 @@ export async function GET(req: Request) {
       { success: false, message: error.message || 'Gagal memuat data staf.' },
       { status: 500 }
     );
-  }          
+  }
 }
