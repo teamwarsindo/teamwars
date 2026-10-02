@@ -14,11 +14,7 @@ interface StreamerStaff {
 interface ScheduleItem {
   id: string;
   streamer?: string;
-  streamLink?: string;
-  isFinished?: boolean;
-  weekNumber?: number;
-  teamAName?: string;
-  teamBName?: string;
+  [key: string]: unknown;
 }
 
 export async function GET() {
@@ -38,89 +34,83 @@ export async function GET() {
         ? JSON.parse(rawSchedules)
         : rawSchedules || [];
 
-    const staffByName = new Map<string, StreamerStaff>();
-    const staffNameSet = new Set<string>();
+    const valdoMatches = ['match-3', 'match-6', 'match-38'];
+    const finalBossMatches = [
+      'match-9',
+      'match-16',
+      'match-17',
+      'match-21',
+      'match-28',
+      'match-34',
+      'match-54',
+    ];
 
-    staffList.forEach((s) => {
-      const normalized = (s.discordName || '').trim().toLowerCase();
-      if (normalized) {
-        staffByName.set(normalized, s);
-        staffNameSet.add(normalized);
+    // 1. Perbarui data Valdo di staff:streamers
+    let valdoFound = false;
+    staffList.forEach((st) => {
+      const name = (st.discordName || '').trim().toLowerCase();
+      if (name === 'valdomour' || name === 'valdomort' || name === 'valdo') {
+        st.discordName = 'Valdo';
+        const currentHistory = new Set(st.historyMatch || []);
+        valdoMatches.forEach((mId) => currentHistory.add(mId));
+        st.historyMatch = Array.from(currentHistory);
+        valdoFound = true;
       }
     });
 
-    const schedulesWithStreamer = scheduleList.filter((m) => Boolean(m.streamer?.trim()));
+    if (!valdoFound) {
+      staffList.push({
+        discordId: '352866958414315532',
+        discordName: 'Valdo',
+        assignMatch: [],
+        historyMatch: valdoMatches,
+        avatarUrl: '',
+      });
+    }
 
-    // 1. Nama streamer di jadwal yang tidak ada di roster staff:streamers
-    const missingInStaffMap = new Map<string, { streamerName: string; matches: string[] }>();
+    // 2. Tambahkan TheFinalBoss ke staff:streamers jika belum ada
+    const existingFinalBoss = staffList.find(
+      (st) => (st.discordName || '').trim().toLowerCase() === 'thefinalboss'
+    );
 
-    schedulesWithStreamer.forEach((m) => {
-      const rawName = (m.streamer || '').trim();
-      const normalized = rawName.toLowerCase();
+    if (existingFinalBoss) {
+      existingFinalBoss.discordId = existingFinalBoss.discordId || '';
+      const currentHistory = new Set(existingFinalBoss.historyMatch || []);
+      finalBossMatches.forEach((mId) => currentHistory.add(mId));
+      existingFinalBoss.historyMatch = Array.from(currentHistory);
+    } else {
+      staffList.push({
+        discordId: '',
+        discordName: 'TheFinalBoss',
+        assignMatch: [],
+        historyMatch: finalBossMatches,
+        avatarUrl: '',
+      });
+    }
 
-      if (!staffNameSet.has(normalized)) {
-        const existing = missingInStaffMap.get(normalized) || { streamerName: rawName, matches: [] };
-        existing.matches.push(m.id);
-        missingInStaffMap.set(normalized, existing);
+    // 3. Perbarui nama streamer Valdo di twi:schedules
+    let scheduleUpdatedCount = 0;
+    scheduleList.forEach((m) => {
+      const streamerName = (m.streamer || '').trim().toLowerCase();
+      if (streamerName === 'valdomour' || streamerName === 'valdomort') {
+        m.streamer = 'Valdo';
+        scheduleUpdatedCount += 1;
       }
     });
 
-    // 2. Ketidakcocokan antara historyMatch di staff vs jadwal
-    const historyMismatches: Array<{
-      discordName: string;
-      discordId: string;
-      missingFromHistory: string[];
-      orphanInHistory: string[];
-    }> = [];
-
-    staffList.forEach((s) => {
-      const normalized = (s.discordName || '').trim().toLowerCase();
-      const expectedMatches = schedulesWithStreamer
-        .filter((m) => (m.streamer || '').trim().toLowerCase() === normalized)
-        .map((m) => m.id);
-
-      const actualHistory = s.historyMatch || [];
-
-      const missingFromHistory = expectedMatches.filter((id) => !actualHistory.includes(id));
-      const orphanInHistory = actualHistory.filter((id) => !expectedMatches.includes(id));
-
-      if (missingFromHistory.length > 0 || orphanInHistory.length > 0) {
-        historyMismatches.push({
-          discordName: s.discordName,
-          discordId: s.discordId,
-          missingFromHistory,
-          orphanInHistory,
-        });
-      }
-    });
-
-    // 3. Streamer di roster yang sama sekali tidak punya match di jadwal
-    const streamersWithZeroMatches = staffList
-      .filter((s) => {
-        const normalized = (s.discordName || '').trim().toLowerCase();
-        return !schedulesWithStreamer.some((m) => (m.streamer || '').trim().toLowerCase() === normalized);
-      })
-      .map((s) => ({
-        discordName: s.discordName,
-        discordId: s.discordId,
-        historyCountInStaff: (s.historyMatch || []).length,
-      }));
+    // 4. Simpan pembaruan kembali ke Redis
+    await Promise.all([
+      redis.set('staff:streamers', JSON.stringify(staffList)),
+      redis.set('twi:schedules', JSON.stringify(scheduleList)),
+    ]);
 
     return NextResponse.json({
       success: true,
-      timestamp: new Date().toISOString(),
-      summary: {
-        totalStaffStreamers: staffList.length,
-        totalSchedules: scheduleList.length,
-        totalMatchesWithStreamer: schedulesWithStreamer.length,
-        totalMissingNames: missingInStaffMap.size,
-        totalStaffWithHistoryMismatch: historyMismatches.length,
-        totalStreamersWithZeroMatches: streamersWithZeroMatches.length,
-      },
-      auditDetails: {
-        missingInStaffStreamers: Array.from(missingInStaffMap.values()),
-        historyMismatches,
-        streamersWithZeroMatches,
+      message: 'Data streamer Valdo dan TheFinalBoss berhasil diperbarui.',
+      updated: {
+        valdoMatchesAdded: valdoMatches,
+        theFinalBossMatchesAdded: finalBossMatches,
+        schedulesUpdatedToValdo: scheduleUpdatedCount,
       },
     });
   } catch (error) {
@@ -132,4 +122,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+        }
