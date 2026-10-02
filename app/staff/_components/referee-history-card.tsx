@@ -109,19 +109,6 @@ export function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
           </span>
         </div>
       </div>
-
-      {match.streamLink && (
-        <div className="mt-2 border-t border-border/40 pt-1.5 text-center">
-          <a
-            href={match.streamLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 hover:underline"
-          >
-            🔴 Rekaman Pertandingan ↗
-          </a>
-        </div>
-      )}
     </div>
   );
 }
