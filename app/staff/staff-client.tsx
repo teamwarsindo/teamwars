@@ -102,63 +102,63 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
 
   return (
     <div className="w-full space-y-6">
-      {/* 1. NAVIGASI TAB */}
+      {/* 1. NAVIGASI TAB TERPUSAT (CENTER) */}
       {!isTokenMode ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('referee');
+              setSelectedStaffId('ALL');
+            }}
+            className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
+              activeTab === 'referee'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
+                : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
+            }`}
+          >
+            Referee ({referees.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('streamer');
+              setSelectedStaffId('ALL');
+            }}
+            className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
+              activeTab === 'streamer'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
+                : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
+            }`}
+          >
+            Streamer ({streamers.length})
+          </button>
+
+          {effectiveIsAdmin && (
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('referee');
-                setSelectedStaffId('ALL');
-              }}
-              className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
-                activeTab === 'referee'
+              onClick={() => setActiveTab('approval')}
+              className={`flex items-center gap-1.5 rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
+                activeTab === 'approval'
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
                   : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
               }`}
             >
-              Wasit ({referees.length})
+              <span>Persetujuan Klaim</span>
+              {pendingApprovalsCount > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
+                  {pendingApprovalsCount}
+                </span>
+              )}
             </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('streamer');
-                setSelectedStaffId('ALL');
-              }}
-              className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
-                activeTab === 'streamer'
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
-                  : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
-              }`}
-            >
-              Streamer ({streamers.length})
-            </button>
-
-            {effectiveIsAdmin && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('approval')}
-                className={`flex items-center gap-1.5 rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
-                  activeTab === 'approval'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
-                    : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
-                }`}
-              >
-                <span>Persetujuan Klaim</span>
-                {pendingApprovalsCount > 0 && (
-                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
-                    {pendingApprovalsCount}
-                  </span>
-                )}
-              </button>
-            )}
-          </div>
+          )}
         </div>
       ) : (
-        <div className="inline-flex items-center gap-2 rounded-xl bg-blue-500/10 border border-blue-500/20 px-4 py-2 text-xs font-bold text-blue-600">
-          🔒 Panel Wasit Privat Terverifikasi
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-xs font-bold text-blue-600">
+            🔒 Panel Referee Privat Terverifikasi
+          </div>
         </div>
       )}
 
@@ -170,16 +170,16 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
               <select
                 value={selectedStaffId}
                 onChange={(e) => setSelectedStaffId(e.target.value)}
-                className="w-full h-10 rounded-xl border border-border/80 bg-background/80 px-3 pr-8 text-xs font-semibold text-foreground focus:border-blue-500 focus:outline-none appearance-none cursor-pointer"
+                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border/80 bg-background/80 px-3 pr-8 text-xs font-semibold text-foreground focus:border-blue-500 focus:outline-none"
               >
-                <option value="ALL">Semua {activeTab === 'referee' ? 'Wasit' : 'Streamer'}</option>
+                <option value="ALL">Semua {activeTab === 'referee' ? 'Referee' : 'Streamer'}</option>
                 {staffOptions.map((st) => (
                   <option key={st.id} value={st.id}>
                     {st.name}
                   </option>
                 ))}
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground text-[10px]">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[10px] text-muted-foreground">
                 ▼
               </div>
             </div>
@@ -188,7 +188,7 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
               <select
                 value={selectedWeek}
                 onChange={(e) => setSelectedWeek(e.target.value)}
-                className="w-full h-10 rounded-xl border border-border/80 bg-background/80 px-3 pr-8 text-xs font-semibold text-foreground focus:border-blue-500 focus:outline-none appearance-none cursor-pointer"
+                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border/80 bg-background/80 px-3 pr-8 text-xs font-semibold text-foreground focus:border-blue-500 focus:outline-none"
               >
                 {availableWeeks.map((wk) => (
                   <option key={wk} value={wk}>
@@ -196,7 +196,7 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
                   </option>
                 ))}
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground text-[10px]">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[10px] text-muted-foreground">
                 ▼
               </div>
             </div>
@@ -208,8 +208,8 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
               title="Reset Filter"
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all ${
                 isFilterActive
-                  ? 'border-rose-500/50 bg-rose-500 text-white shadow-md shadow-rose-500/25 hover:bg-rose-600 cursor-pointer'
-                  : 'border-border/60 bg-muted/40 text-muted-foreground/30 cursor-not-allowed opacity-50'
+                  ? 'cursor-pointer border-rose-500/50 bg-rose-500 text-white shadow-md shadow-rose-500/25 hover:bg-rose-600'
+                  : 'cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground/30 opacity-50'
               }`}
             >
               <X className="h-4 w-4" />
@@ -228,7 +228,7 @@ export default function StaffClientContent({ isAdmin }: StaffClientProps) {
       {/* 4. KONTEN TAB UTAMA */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent mb-2" />
+          <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
           <span className="text-xs">Memuat data staf...</span>
         </div>
       ) : activeTab === 'referee' || isTokenMode ? (
