@@ -39,8 +39,7 @@ export default function StreamerTab({
     return isNaN(num) || num <= 0 ? 1 : num;
   }, [selectedWeek]);
 
-  // Kalkulasi performa kumulatif via helper terpusat
-  const { statsList, baselineRatio, baselineCoverage } = useMemo(() => {
+  const { statsList, baselineGpm } = useMemo(() => {
     return calculateStreamerCumulativeMetrics(
       streamers,
       selectedWeekNum,
@@ -55,9 +54,30 @@ export default function StreamerTab({
     return statsList[0] || null;
   }, [statsList, selectedStaffId]);
 
+  // Pengelompokan riwayat siaran per pekan untuk Week Divider
+  const groupedMatches = useMemo(() => {
+    if (!topStreamer) return [];
+    const groups: { weekNumber: number; matches: MatchDetail[] }[] = [];
+    const map = new Map<number, MatchDetail[]>();
+
+    topStreamer.cumulativeHistory.forEach((m: MatchDetail) => {
+      const w = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
+      const list = map.get(w) || [];
+      list.push(m);
+      map.set(w, list);
+    });
+
+    const sortedWeeks = Array.from(map.keys()).sort((a, b) => b - a);
+    sortedWeeks.forEach((w) => {
+      groups.push({ weekNumber: w, matches: map.get(w)! });
+    });
+
+    return groups;
+  }, [topStreamer]);
+
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      {/* 1. KARTU PODIUM ATAS (BEST STREAMER / OVERVIEW) */}
+      {/* 1. KARTU PODIUM ATAS */}
       {topStreamer && (
         <div className="relative overflow-hidden rounded-2xl border-2 border-blue-500/60 bg-gradient-to-br from-blue-500/15 via-card to-card p-3.5 sm:p-4 shadow-xs flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2 min-w-0">
@@ -82,14 +102,16 @@ export default function StreamerTab({
                 </div>
               </div>
 
-              {/* Identitas: Nama Streamer di atas, Sub-label di bawahnya */}
+              {/* Identitas & Badge MVP */}
               <div className="min-w-0 flex flex-col justify-center">
                 <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
                   {topStreamer.discordName}
                 </span>
-                <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mt-1 leading-none">
-                  {selectedStaffId === 'ALL' ? 'BEST STREAMER' : 'Overview'}
-                </span>
+                {selectedStaffId === 'ALL' && (
+                  <span className="mt-1 w-fit rounded border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-amber-500 leading-none">
+                    BEST STREAMER
+                  </span>
+                )}
               </div>
             </div>
 
@@ -104,37 +126,43 @@ export default function StreamerTab({
             </div>
           </div>
 
-          {/* Baris 3 Kolom Metrik: MATCH | RATIO | COVERAGE */}
-          <div className="grid grid-cols-3 gap-1 pt-2 border-t border-border/40 text-center">
+          {/* Baris 4 Kolom: MATCH | PERFORM | GPM | PLATFORM */}
+          <div className="grid grid-cols-4 gap-1 pt-2 border-t border-border/40 text-center">
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-bold uppercase text-muted-foreground">MATCH</span>
               <span className="text-xs font-bold text-foreground mt-0.5">{topStreamer.matchCount}</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-bold uppercase text-muted-foreground">RATIO</span>
+              <span className="text-[8px] font-bold uppercase text-muted-foreground">PERFORM</span>
               <span
                 className={`text-xs font-bold mt-0.5 ${
-                  topStreamer.ratioNum >= baselineRatio ? 'text-emerald-500' : 'text-rose-500'
+                  topStreamer.performNum >= 50 ? 'text-emerald-500' : 'text-rose-500'
                 }`}
               >
-                {topStreamer.ratioNum}
+                {topStreamer.performNum}%
               </span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-bold uppercase text-muted-foreground">COVERAGE</span>
+              <span className="text-[8px] font-bold uppercase text-muted-foreground">GPM</span>
               <span
                 className={`text-xs font-bold mt-0.5 ${
-                  topStreamer.coverageNum >= baselineCoverage ? 'text-emerald-500' : 'text-rose-500'
+                  topStreamer.gpmNum >= baselineGpm ? 'text-emerald-500' : 'text-rose-500'
                 }`}
               >
-                {topStreamer.coverageNum}%
+                {topStreamer.gpmNum.toFixed(1)}
+              </span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[8px] font-bold uppercase text-muted-foreground">PLATFORM</span>
+              <span className="text-xs font-bold text-blue-500 mt-0.5">
+                {topStreamer.primaryPlatform}
               </span>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. KONTEN BAWAH: TABEL KLASEMEN (MULAI DARI RANK 2) ATAU HISTORY MATCH */}
+      {/* 2. KONTEN BAWAH */}
       {selectedStaffId === 'ALL' ? (
         <div className="rounded-2xl border border-border/80 bg-card shadow-xs overflow-hidden flex flex-col">
           <table className="w-full border-collapse text-left table-fixed">
@@ -142,9 +170,9 @@ export default function StreamerTab({
               <tr>
                 <th className="py-2.5 pl-4 pr-1 text-center w-12 sm:w-14">RANK</th>
                 <th className="py-2.5 pl-2 sm:pl-3 pr-2 text-left">STREAMER</th>
-                <th className="py-2.5 px-0.5 text-center w-16 sm:w-20">MATCH</th>
-                <th className="py-2.5 px-0.5 text-center w-16 sm:w-20">RATIO</th>
-                <th className="py-2.5 pr-4 pl-0.5 text-center w-20 sm:w-24">COVERAGE</th>
+                <th className="py-2.5 px-0.5 text-center w-14 sm:w-16">MATCH</th>
+                <th className="py-2.5 px-0.5 text-center w-16 sm:w-20">PERFORM</th>
+                <th className="py-2.5 pr-4 pl-0.5 text-center w-14 sm:w-16">GPM</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40 text-[11px]">
@@ -166,17 +194,17 @@ export default function StreamerTab({
                   <td className="py-2.5 px-0.5 text-center font-semibold">{strm.matchCount}</td>
                   <td
                     className={`py-2.5 px-0.5 text-center font-bold ${
-                      strm.ratioNum >= baselineRatio ? 'text-emerald-500' : 'text-rose-500'
+                      strm.performNum >= 50 ? 'text-emerald-500' : 'text-rose-500'
                     }`}
                   >
-                    {strm.ratioNum}
+                    {strm.performNum}%
                   </td>
                   <td
                     className={`py-2.5 pr-4 pl-0.5 text-center font-bold ${
-                      strm.coverageNum >= baselineCoverage ? 'text-emerald-500' : 'text-rose-500'
+                      strm.gpmNum >= baselineGpm ? 'text-emerald-500' : 'text-rose-500'
                     }`}
                   >
-                    {strm.coverageNum}%
+                    {strm.gpmNum.toFixed(1)}
                   </td>
                 </tr>
               ))}
@@ -184,18 +212,28 @@ export default function StreamerTab({
           </table>
         </div>
       ) : (
-        /* DAFTAR HISTORY MATCH SCOREBOARD */
-        <div className="space-y-2.5">
+        /* DAFTAR HISTORY MATCH DENGAN WEEK DIVIDER */
+        <div className="space-y-4">
           <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1">
             HISTORY MATCH ({topStreamer?.cumulativeHistory.length || 0})
           </span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {(topStreamer?.cumulativeHistory || []).map((m: any) => (
-              <RefereeHistoryCard key={m.id} match={m} />
-            ))}
-          </div>
+          {groupedMatches.map((group) => (
+            <div key={group.weekNumber} className="space-y-2.5">
+              <div className="flex items-center gap-2 px-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-primary">
+                  Week {group.weekNumber}
+                </span>
+                <div className="h-[1px] flex-1 bg-border/80" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {group.matches.map((m) => (
+                  <RefereeHistoryCard key={m.id} match={m} />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
-  ); 
+  );
 }
