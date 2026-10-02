@@ -1,143 +1,149 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { BaseStaffData, FinishedScheduleSummary } from '../_library/staff-metrics';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  BaseStaffData,
+  FinishedScheduleSummary,
+} from '../_library/staff-metrics';
 
-function toSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+export const DAY_OPTIONS = [
+  { value: 'ALL', label: 'Semua Hari' },
+  { value: 'Rabu', label: 'Rabu' },
+  { value: 'Kamis', label: 'Kamis' },
+  { value: 'Jumat', label: 'Jumat' },
+  { value: 'Sabtu', label: 'Sabtu' },
+  { value: 'Minggu', label: 'Minggu' },
+  { value: 'Senin', label: 'Senin' },
+  { value: 'Selasa', label: 'Selasa' },
+];
 
 export function useStaffRoster() {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // 1. Baca initial query params dari URL
+  // 1. Baca initial state dari URL Query Params
   const queryTab = searchParams.get('tab');
-  const queryStaffSlug = searchParams.get('staff');
+  const queryStaff = searchParams.get('staff');
+  const queryWeek = searchParams.get('week');
+  const queryDay = searchParams.get('day');
 
-  const initialTab: 'referee' | 'streamer' =
-    queryTab === 'streamer' ? 'streamer' : 'referee';
+  const initialTab = queryTab === 'streamer' ? 'streamer' : 'referee';
+  const initialStaff = queryStaff || 'ALL';
+  const initialWeek = queryWeek || 'ALL';
+  const initialDay = queryDay || 'ALL';
 
   const [activeTab, setActiveTab] = useState<'referee' | 'streamer'>(initialTab);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>(initialStaff);
+  const [selectedWeek, setSelectedWeek] = useState<string>(initialWeek);
+  const [selectedDay, setSelectedDay] = useState<string>(initialDay);
+
   const [referees, setReferees] = useState<BaseStaffData[]>([]);
   const [streamers, setStreamers] = useState<BaseStaffData[]>([]);
-  const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
   const [finishedSchedules, setFinishedSchedules] = useState<FinishedScheduleSummary[]>([]);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('ALL');
-  const [selectedWeek, setSelectedWeek] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // Helper untuk sinkronisasi URL query params
-  const updateUrlParams = useCallback(
-    (tab: 'referee' | 'streamer', staffId: string, currentList: BaseStaffData[]) => {
-      const params = new URLSearchParams(searchParams.toString());
-
-      // Set parameter tab
-      params.set('tab', tab);
-
-      // Set parameter staff berbentuk slug nama jika bukan 'ALL'
-      if (staffId !== 'ALL') {
-        const found = currentList.find((s) => s.discordId === staffId);
-        if (found) {
-          params.set('staff', toSlug(found.discordName));
-        } else {
-          params.delete('staff');
-        }
-      } else {
-        params.delete('staff');
-      }
-
-      const queryString = params.toString();
-      const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
-      router.replace(newUrl, { scroll: false });
-    },
-    [pathname, router, searchParams]
-  );
-
-  const getLatestWeek = useCallback((weeks: string[]): string => {
-    if (!weeks || weeks.length === 0) return 'Week 1';
-    const sorted = [...weeks].sort((a, b) => {
-      const numA = Number(a.replace(/\D/g, '')) || 0;
-      const numB = Number(b.replace(/\D/g, '')) || 0;
-      return numB - numA;
-    });
-    return sorted[0];
-  }, []);
-
+  // 2. Fetch data dari API Roster
   const fetchRoster = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/tournament/staff/roster', { cache: 'no-store' });
-      const json = await res.json();
+      if (!res.ok) throw new Error('Gagal mengambil data staf');
+      const data = await res.json();
 
-      if (json.success) {
-        const refs: BaseStaffData[] = json.referees || [];
-        const strms: BaseStaffData[] = json.streamers || [];
-        setReferees(refs);
-        setStreamers(strms);
-        setFinishedSchedules(json.finishedSchedules || []);
-
-        const weeks: string[] = json.availableWeeks || [];
-        setAvailableWeeks(weeks);
-
-        if (weeks.length > 0) {
-          const latest = getLatestWeek(weeks);
-          setSelectedWeek((prev) => (prev && weeks.includes(prev) ? prev : latest));
-        }
-
-        // Resolusi staff dari slug URL saat pertama kali data didapatkan
-        const activeList = initialTab === 'referee' ? refs : strms;
-        if (queryStaffSlug) {
-          const matched = activeList.find((s) => toSlug(s.discordName) === queryStaffSlug.toLowerCase());
-          if (matched) {
-            setSelectedStaffId(matched.discordId);
-          }
-        }
-      }
+      setReferees(data.referees || []);
+      setStreamers(data.streamers || []);
+      setFinishedSchedules(data.finishedSchedules || []);
+      setAvailableWeeks(data.availableWeeks || []);
     } catch (err) {
-      console.error('[FETCH ROSTER ERROR]:', err);
+      console.error('Error fetching roster:', err);
     } finally {
       setLoading(false);
     }
-  }, [getLatestWeek, initialTab, queryStaffSlug]);
+  }, []);
 
   useEffect(() => {
     fetchRoster();
   }, [fetchRoster]);
 
-  const currentStaffList = activeTab === 'referee' ? referees : streamers;
+  // 3. Helper sinkronisasi URL Query Parameters
+  const updateUrlParams = useCallback(
+    (newParams: { tab?: string; staff?: string; week?: string; day?: string }) => {
+      const params = new URLSearchParams(searchParams.toString());
 
-  const handleTabChange = (tab: 'referee' | 'streamer') => {
-    setActiveTab(tab);
+      const targetTab = newParams.tab !== undefined ? newParams.tab : activeTab;
+      const targetStaff = newParams.staff !== undefined ? newParams.staff : selectedStaffId;
+      const targetWeek = newParams.week !== undefined ? newParams.week : selectedWeek;
+      const targetDay = newParams.day !== undefined ? newParams.day : selectedDay;
+
+      if (targetTab === 'streamer') params.set('tab', 'streamer');
+      else params.delete('tab');
+
+      if (targetStaff && targetStaff !== 'ALL') params.set('staff', targetStaff);
+      else params.delete('staff');
+
+      if (targetWeek && targetWeek !== 'ALL') params.set('week', targetWeek);
+      else params.delete('week');
+
+      if (targetDay && targetDay !== 'ALL') params.set('day', targetDay);
+      else params.delete('day');
+
+      const qs = params.toString();
+      router.replace(`/staff${qs ? `?${qs}` : ''}`, { scroll: false });
+    },
+    [searchParams, activeTab, selectedStaffId, selectedWeek, selectedDay, router]
+  );
+
+  const handleTabChange = useCallback(
+    (tab: 'referee' | 'streamer') => {
+      setActiveTab(tab);
+      setSelectedStaffId('ALL');
+      updateUrlParams({ tab, staff: 'ALL' });
+    },
+    [updateUrlParams]
+  );
+
+  const handleSelectStaff = useCallback(
+    (staffId: string) => {
+      setSelectedStaffId(staffId);
+      updateUrlParams({ staff: staffId });
+    },
+    [updateUrlParams]
+  );
+
+  const handleSelectWeek = useCallback(
+    (week: string) => {
+      setSelectedWeek(week);
+      updateUrlParams({ week });
+    },
+    [updateUrlParams]
+  );
+
+  const handleSelectDay = useCallback(
+    (day: string) => {
+      setSelectedDay(day);
+      updateUrlParams({ day });
+    },
+    [updateUrlParams]
+  );
+
+  const handleResetFilter = useCallback(() => {
     setSelectedStaffId('ALL');
-    const targetList = tab === 'referee' ? referees : streamers;
-    updateUrlParams(tab, 'ALL', targetList);
-  };
+    setSelectedWeek('ALL');
+    setSelectedDay('ALL');
+    updateUrlParams({ staff: 'ALL', week: 'ALL', day: 'ALL' });
+  }, [updateUrlParams]);
 
-  const handleSelectStaff = (staffId: string) => {
-    setSelectedStaffId(staffId);
-    updateUrlParams(activeTab, staffId, currentStaffList);
-  };
-
-  const handleResetFilter = () => {
-    setSelectedStaffId('ALL');
-    setSelectedWeek(getLatestWeek(availableWeeks));
-    updateUrlParams(activeTab, 'ALL', currentStaffList);
-  };
+  const currentStaffList = useMemo(() => {
+    return activeTab === 'referee' ? referees : streamers;
+  }, [activeTab, referees, streamers]);
 
   const sortedStaffOptions = useMemo(() => {
     return [...currentStaffList].sort((a, b) => a.discordName.localeCompare(b.discordName));
   }, [currentStaffList]);
 
-  const activeWeekLatest = getLatestWeek(availableWeeks);
-  const isFilterActive =
-    selectedStaffId !== 'ALL' || (Boolean(selectedWeek) && selectedWeek !== activeWeekLatest);
+  const isFilterActive = selectedStaffId !== 'ALL' || selectedWeek !== 'ALL' || selectedDay !== 'ALL';
 
   return {
     activeTab,
@@ -151,7 +157,9 @@ export function useStaffRoster() {
     selectedStaffId,
     setSelectedStaffId: handleSelectStaff,
     selectedWeek,
-    setSelectedWeek,
+    setSelectedWeek: handleSelectWeek,
+    selectedDay,
+    setSelectedDay: handleSelectDay,
     isFilterActive,
     handleResetFilter,
     loading,
