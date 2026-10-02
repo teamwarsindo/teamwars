@@ -19,14 +19,11 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
     currentStaffList,
     sortedStaffOptions,
     availableWeeks,
-    availableDays,
     finishedSchedules,
     selectedStaffId,
     setSelectedStaffId,
     selectedWeek,
     setSelectedWeek,
-    selectedDay,
-    setSelectedDay,
     isFilterActive,
     handleResetFilter,
     loading,
@@ -35,6 +32,7 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
+      {/* BANNER STATUS SESI ADMIN (STYLE MATCH EDITOR) */}
       {isAdmin && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 sm:px-5 sm:py-3 shadow-xs">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -57,7 +55,7 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
         </div>
       )}
 
-      {/* TAB SWITCHER */}
+      {/* 1. TAB SWITCHER */}
       <div className="flex items-center justify-center">
         <div className="inline-flex rounded-2xl border border-border/80 bg-muted/30 p-1 shadow-xs">
           <button
@@ -88,7 +86,7 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
         </div>
       </div>
 
-      {/* FILTER BAR */}
+      {/* 2. FILTER BAR */}
       <StaffFilterBar
         staffOptions={sortedStaffOptions}
         selectedStaffId={selectedStaffId}
@@ -96,14 +94,11 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
         availableWeeks={availableWeeks}
         selectedWeek={selectedWeek}
         onSelectWeek={setSelectedWeek}
-        availableDays={availableDays}
-        selectedDay={selectedDay}
-        onSelectDay={setSelectedDay}
         onReset={handleResetFilter}
         isFilterActive={isFilterActive}
       />
 
-      {/* MAIN VIEW */}
+      {/* 3. MAIN VIEW */}
       {loading ? (
         <div className="rounded-2xl border border-border/80 bg-card p-12 text-center text-xs font-bold text-muted-foreground animate-pulse">
           ⏳ Memperbarui Data Staf...
@@ -114,12 +109,11 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
           staffList={currentStaffList}
           selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
-          selectedDay={selectedDay}
           finishedSchedules={finishedSchedules}
           isAdmin={isAdmin}
           onRefresh={fetchRoster}
         />
       )}
     </div>
-  );
+  );        
 }
