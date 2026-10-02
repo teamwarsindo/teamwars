@@ -3,10 +3,8 @@
 import React, { useMemo } from 'react';
 import Image from 'next/image';
 import { Video, Crown } from 'lucide-react';
-import {
-  calculateStreamerCumulativeMetrics,
-  FinishedScheduleSummary,
-} from '../_library/staff-metrics';
+import { FinishedScheduleSummary } from '../_library/staff-metrics';
+import { calculateStreamerCumulativeMetrics } from '../_library/streamer-metrics';
 import RefereeHistoryCard from './referee-history-card';
 import { MatchDetail } from './referee-tab';
 
@@ -97,7 +95,7 @@ export default function StreamerTab({
                     <Video className="h-5 w-5 text-blue-500" />
                   )}
                 </div>
-                <div className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-slate-950 shadow-xs">
+                <div className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-slate-950 shadow-xs">
                   <Crown className="w-2.5 h-2.5 fill-current" />
                 </div>
               </div>
@@ -108,20 +106,20 @@ export default function StreamerTab({
                   {topStreamer.discordName}
                 </span>
                 {selectedStaffId === 'ALL' && (
-                  <span className="mt-1 w-fit rounded border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-amber-500 leading-none">
+                  <span className="mt-1 w-fit rounded bg-amber-400 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-slate-950 leading-none shadow-xs">
                     BEST STREAMER
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Favorite Team Badge */}
+            {/* Favorite Day Badge */}
             <div className="shrink-0 px-3 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/10 dark:bg-blue-950/40 flex flex-col items-center justify-center text-center shadow-xs">
               <span className="text-[7.5px] font-bold uppercase tracking-wider leading-none mb-1 text-blue-600 dark:text-blue-400">
-                FAVORITE TEAM
+                FAVORITE DAY
               </span>
               <span className="text-[10px] sm:text-[11px] font-bold whitespace-nowrap leading-none text-blue-700 dark:text-blue-300">
-                {topStreamer.favTeam}
+                {topStreamer.favDay}
               </span>
             </div>
           </div>
@@ -168,7 +166,7 @@ export default function StreamerTab({
           <table className="w-full border-collapse text-left table-fixed">
             <thead className="bg-muted/65 border-b border-border text-[10px] uppercase tracking-wider text-foreground/75 font-bold">
               <tr>
-                <th className="py-2.5 pl-4 pr-1 text-center w-12 sm:w-14">RANK</th>
+                <th className="py-2.5 pl-4 pr-1 text-center w-14 sm:w-16">RANK</th>
                 <th className="py-2.5 pl-2 sm:pl-3 pr-2 text-left">STREAMER</th>
                 <th className="py-2.5 px-0.5 text-center w-14 sm:w-16">MATCH</th>
                 <th className="py-2.5 px-0.5 text-center w-16 sm:w-20">PERFORM</th>
@@ -178,7 +176,20 @@ export default function StreamerTab({
             <tbody className="divide-y divide-border/40 text-[11px]">
               {statsList.slice(1).map((strm, idx) => (
                 <tr key={strm.discordId} className="hover:bg-muted/40 transition-colors">
-                  <td className="py-2.5 pl-4 pr-1 text-center font-bold font-mono text-xs">{idx + 2}</td>
+                  <td className="py-2.5 pl-4 pr-1 text-center font-bold font-mono text-xs">
+                    <div className="flex items-center justify-center gap-1">
+                      {strm.rankChange.direction === 'UP' && (
+                        <span className="text-[9px] text-emerald-500 font-bold leading-none">▲</span>
+                      )}
+                      {strm.rankChange.direction === 'DOWN' && (
+                        <span className="text-[9px] text-rose-500 font-bold leading-none">▼</span>
+                      )}
+                      {strm.rankChange.direction === 'SAME' && (
+                        <span className="text-[9px] text-muted-foreground/60 font-bold leading-none">-</span>
+                      )}
+                      <span>{idx + 2}</span>
+                    </div>
+                  </td>
                   <td className="py-2.5 pl-2 sm:pl-3 pr-2 font-bold truncate flex items-center gap-2">
                     <div className="relative h-5 w-5 rounded-full overflow-hidden border border-border/80 shrink-0">
                       {strm.avatar ? (
@@ -212,11 +223,8 @@ export default function StreamerTab({
           </table>
         </div>
       ) : (
-        /* DAFTAR HISTORY MATCH DENGAN WEEK DIVIDER */
+        /* DAFTAR RIWAYAT SIARAN PER PEKAN TANPA JUDUL REPEATED */
         <div className="space-y-4">
-          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1">
-            HISTORY MATCH ({topStreamer?.cumulativeHistory.length || 0})
-          </span>
           {groupedMatches.map((group) => (
             <div key={group.weekNumber} className="space-y-2.5">
               <div className="flex items-center gap-2 px-1">
