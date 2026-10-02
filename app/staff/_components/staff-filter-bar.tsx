@@ -10,7 +10,7 @@ interface StaffFilterBarProps {
   staffOptions: BaseStaffData[];
   selectedStaffId: string;
   onSelectStaff: (id: string) => void;
-  availableWeeks: string[];
+  availableWeeks: (string | number)[];
   selectedWeek: string;
   onSelectWeek: (wk: string) => void;
   selectedDay: string;
@@ -127,23 +127,26 @@ export default function StaffFilterBar({
 
           {openDropdown === 'week' && (
             <div className="absolute right-0 top-full mt-1.5 z-50 w-full max-h-60 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg backdrop-blur-md">
-              {availableWeeks.map((wk) => (
-                <button
-                  key={wk}
-                  type="button"
-                  onClick={() => {
-                    onSelectWeek(wk);
-                    setOpenDropdown(null);
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    selectedWeek === wk
-                      ? 'bg-primary/10 text-primary font-black'
-                      : 'text-foreground hover:bg-muted'
-                  }`}
-                >
-                  {wk}
-                </button>
-              ))}
+              {availableWeeks.map((wk) => {
+                const label = String(wk).toLowerCase().startsWith('week') ? String(wk) : `Week ${wk}`;
+                return (
+                  <button
+                    key={String(wk)}
+                    type="button"
+                    onClick={() => {
+                      onSelectWeek(label);
+                      setOpenDropdown(null);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      selectedWeek === label
+                        ? 'bg-primary/10 text-primary font-black'
+                        : 'text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
