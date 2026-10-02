@@ -1,116 +1,91 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
+import { Shield } from 'lucide-react';
 import { MatchDetail } from './referee-tab';
 
 interface RefereeHistoryCardProps {
   match: MatchDetail;
 }
 
-export function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
-  const isLive = !match.isFinished;
-  const scoreAVal = match.scoreA ?? 0;
-  const scoreBVal = match.scoreB ?? 0;
-  const aIsLeading = scoreAVal > scoreBVal;
-  const bIsLeading = scoreBVal > scoreAVal;
+export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
+  const [logoErrA, setLogoErrA] = useState(false);
+  const [logoErrB, setLogoErrB] = useState(false);
 
-  const stageLabel =
-    match.groupName && !match.groupName.toLowerCase().includes(`week ${match.weekNumber}`)
-      ? match.groupName
-      : '';
+  const scoreA = match.scoreA ?? 0;
+  const scoreB = match.scoreB ?? 0;
+  const aIsLeading = scoreA > scoreB;
+  const bIsLeading = scoreB > scoreA;
 
   return (
-    <div className="relative flex flex-col justify-center rounded-2xl border border-border/80 bg-card/95 p-3 shadow-xs backdrop-blur-md transition hover:border-primary/50">
-      {/* Badge LIVE di sudut kanan atas jika pertandingan sedang berlangsung */}
-      {isLive && (
-        <div className="absolute right-3 top-2.5 flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[9px] font-bold text-rose-500">
-          <span className="h-1.5 w-1.5 animate-ping rounded-full bg-rose-500" />
-          LIVE
-        </div>
-      )}
-
-      <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
-        {/* Tim A */}
-        <div className="flex min-w-0 flex-col items-center text-center">
-          <div className="relative mb-1 flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/80 bg-muted/40 shadow-xs">
-            {match.teamALogo ? (
+    <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3 shadow-xs transition hover:border-border">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        {/* Sisi Kiri: Tim A */}
+        <div className="flex flex-col items-center text-center min-w-0">
+          <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-xs">
+            {match.teamALogo && !logoErrA ? (
               <Image
                 src={match.teamALogo}
-                alt={match.teamAName}
+                alt={match.teamAName || 'Team A'}
                 fill
-                sizes="44px"
-                className="rounded-full object-cover"
+                sizes="48px"
+                className="object-cover rounded-full"
+                onError={() => setLogoErrA(true)}
                 unoptimized
               />
             ) : (
-              <span className="text-xs font-black text-primary">
-                {match.teamAName.slice(0, 3).toUpperCase()}
-              </span>
+              <Shield className="h-5 w-5 text-muted-foreground/60" />
             )}
           </div>
           <span
-            className="w-full truncate px-1 text-[11px] font-black text-foreground"
+            className="font-black text-[11px] sm:text-xs text-foreground whitespace-nowrap truncate w-full px-1"
             title={match.teamAName}
           >
-            {match.teamAName}
+            {match.teamAName || 'Tim A'}
           </span>
         </div>
 
-        {/* Skor & Pekan */}
-        <div className="flex shrink-0 flex-col items-center justify-center px-2">
-          <div className="flex items-center gap-2 font-mono text-2xl font-black leading-none sm:text-3xl">
+        {/* Tengah: Skor Sejajar Ketinggian Logo */}
+        <div className="flex items-center justify-center px-2 shrink-0">
+          <div className="flex items-center gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
             <span className={aIsLeading ? 'text-primary' : 'text-foreground/90'}>
-              {scoreAVal}
+              {scoreA}
             </span>
-            <span className="font-sans text-lg text-muted-foreground/30 sm:text-xl">—</span>
+            <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl">
+              —
+            </span>
             <span className={bIsLeading ? 'text-primary' : 'text-foreground/90'}>
-              {scoreBVal}
+              {scoreB}
             </span>
-          </div>
-          <div className="mt-1.5 space-y-0.5 text-center font-sans">
-            <div className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
-              Week {match.weekNumber || 1}
-            </div>
-            {stageLabel && (
-              <div
-                className="max-w-[120px] truncate text-[9px] font-bold text-primary"
-                title={stageLabel}
-              >
-                {stageLabel}
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Tim B */}
-        <div className="flex min-w-0 flex-col items-center text-center">
-          <div className="relative mb-1 flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/80 bg-muted/40 shadow-xs">
-            {match.teamBLogo ? (
+        {/* Sisi Kanan: Tim B */}
+        <div className="flex flex-col items-center text-center min-w-0">
+          <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-xs">
+            {match.teamBLogo && !logoErrB ? (
               <Image
                 src={match.teamBLogo}
-                alt={match.teamBName}
+                alt={match.teamBName || 'Team B'}
                 fill
-                sizes="44px"
-                className="rounded-full object-cover"
+                sizes="48px"
+                className="object-cover rounded-full"
+                onError={() => setLogoErrB(true)}
                 unoptimized
               />
             ) : (
-              <span className="text-xs font-black text-rose-500">
-                {match.teamBName.slice(0, 3).toUpperCase()}
-              </span>
+              <Shield className="h-5 w-5 text-muted-foreground/60" />
             )}
           </div>
           <span
-            className="w-full truncate px-1 text-[11px] font-black text-foreground"
+            className="font-black text-[11px] sm:text-xs text-foreground whitespace-nowrap truncate w-full px-1"
             title={match.teamBName}
           >
-            {match.teamBName}
+            {match.teamBName || 'Tim B'}
           </span>
         </div>
       </div>
     </div>
   );
 }
-
-export default RefereeHistoryCard;
