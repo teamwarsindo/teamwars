@@ -16,6 +16,7 @@ interface StaffTabViewProps {
   staffList: BaseStaffData[];
   selectedStaffId: string;
   selectedWeek: string;
+  selectedDay?: string;
   finishedSchedules?: FinishedScheduleSummary[];
   isAdmin?: boolean;
   onRefresh?: () => void;
@@ -26,6 +27,7 @@ export default function StaffTabView({
   staffList,
   selectedStaffId,
   selectedWeek,
+  selectedDay = 'ALL',
   finishedSchedules = [],
   isAdmin = false,
 }: StaffTabViewProps) {
