@@ -9,8 +9,6 @@ interface RefereeHistoryCardProps {
   match: MatchDetail;
 }
 
-const INDONESIAN_DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-
 export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
   const [logoErrA, setLogoErrA] = useState(false);
   const [logoErrB, setLogoErrB] = useState(false);
@@ -20,17 +18,23 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
   const aIsLeading = scoreA > scoreB;
   const bIsLeading = scoreB > scoreA;
 
-  // Ekstraksi nama hari dari matchDate
-  const matchDayName = useMemo(() => {
+  // Format tanggal: DD MMMM YYYY (contoh: 05 Oktober 2026)
+  const formattedMatchDate = useMemo(() => {
     if (!match.matchDate) return null;
     const d = new Date(match.matchDate);
     if (isNaN(d.getTime())) return null;
-    return INDONESIAN_DAYS[d.getDay()];
+
+    return d.toLocaleDateString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
   }, [match.matchDate]);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3 shadow-xs transition hover:border-border flex flex-col justify-between">
-      {/* 1. Baris Utama: Tim A, Skor & Hari, Tim B */}
+    <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3.5 shadow-xs transition hover:border-border flex flex-col justify-between">
+      {/* 1. Baris Utama: Tim A, Skor & Tanggal, Tim B */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         {/* Sisi Kiri: Tim A */}
         <div className="flex flex-col items-center text-center min-w-0">
@@ -57,7 +61,7 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
           </span>
         </div>
 
-        {/* Tengah: Skor & Nama Hari Pertandingan */}
+        {/* Tengah: Skor & Tanggal Pertandingan */}
         <div className="flex flex-col items-center justify-center px-2 shrink-0">
           <div className="flex items-center gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
             <span className={aIsLeading ? 'text-primary' : 'text-foreground/90'}>
@@ -71,9 +75,9 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
             </span>
           </div>
 
-          {matchDayName && (
-            <span className="mt-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
-              {matchDayName}
+          {formattedMatchDate && (
+            <span className="mt-1.5 text-[10px] font-bold text-muted-foreground whitespace-nowrap tracking-wide leading-none">
+              {formattedMatchDate}
             </span>
           )}
         </div>
@@ -125,5 +129,5 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
         )}
       </div>
     </div>
-  );
+  );        
 }
