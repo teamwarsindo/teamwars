@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { BaseStaffData, FinishedScheduleSummary } from '../_library/staff-metrics';
 
-export function useStaffRoster(initialToken: string | null = null) {
-  const [activeTab, setActiveTab] = useState<'referee' | 'streamer' | 'approval'>('referee');
+export function useStaffRoster() {
+  const [activeTab, setActiveTab] = useState<'referee' | 'streamer'>('referee');
   const [referees, setReferees] = useState<BaseStaffData[]>([]);
   const [streamers, setStreamers] = useState<BaseStaffData[]>([]);
   const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
@@ -13,7 +13,6 @@ export function useStaffRoster(initialToken: string | null = null) {
   const [selectedWeek, setSelectedWeek] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
-  // Helper mencari pekan dengan angka numerik tertinggi
   const getLatestWeek = useCallback((weeks: string[]): string => {
     if (!weeks || weeks.length === 0) return 'Week 1';
     const sorted = [...weeks].sort((a, b) => {
@@ -27,10 +26,7 @@ export function useStaffRoster(initialToken: string | null = null) {
   const fetchRoster = useCallback(async () => {
     try {
       setLoading(true);
-      const url = initialToken
-        ? `/api/tournament/staff/roster?token=${encodeURIComponent(initialToken)}`
-        : '/api/tournament/staff/roster';
-      const res = await fetch(url, { cache: 'no-store' });
+      const res = await fetch('/api/tournament/staff/roster', { cache: 'no-store' });
       const json = await res.json();
 
       if (json.success) {
@@ -41,7 +37,6 @@ export function useStaffRoster(initialToken: string | null = null) {
         const weeks: string[] = json.availableWeeks || [];
         setAvailableWeeks(weeks);
 
-        // Langsung tetapkan pekan aktif terbaru jika belum dipilih
         if (weeks.length > 0) {
           const latest = getLatestWeek(weeks);
           setSelectedWeek((prev) => (prev && weeks.includes(prev) ? prev : latest));
@@ -52,13 +47,13 @@ export function useStaffRoster(initialToken: string | null = null) {
     } finally {
       setLoading(false);
     }
-  }, [initialToken, getLatestWeek]);
+  }, [getLatestWeek]);
 
   useEffect(() => {
     fetchRoster();
   }, [fetchRoster]);
 
-  const handleTabChange = (tab: 'referee' | 'streamer' | 'approval') => {
+  const handleTabChange = (tab: 'referee' | 'streamer') => {
     setActiveTab(tab);
     setSelectedStaffId('ALL');
   };

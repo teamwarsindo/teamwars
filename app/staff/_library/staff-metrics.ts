@@ -17,24 +17,6 @@ export interface MatchDetail {
   streamPlatform?: string;
 }
 
-export interface BankInfo {
-  bankName: string;
-  accountNumber: string;
-  accountHolder: string;
-}
-
-export interface PayrollRequestItem {
-  requestId: string;
-  monthKey: string;
-  matchIds: string[];
-  totalAmount: number;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  proofUrl?: string;
-  declineReason?: string;
-  createdAt: string;
-  processedAt?: string;
-}
-
 export interface BaseStaffData {
   discordId: string;
   discordName: string;
@@ -43,14 +25,6 @@ export interface BaseStaffData {
   historyMatches: MatchDetail[];
   totalFinishedMatches?: number;
   totalBroadcastMatches?: number;
-  payroll?: {
-    feePerMatch: number;
-    totalEarned: number;
-    bankInfo: BankInfo | null;
-    payrollRequests: PayrollRequestItem[];
-    claimedMatchIds: string[];
-    unclaimedMatchCount: number;
-  } | null;
 }
 
 export interface FinishedScheduleSummary {
@@ -80,7 +54,6 @@ export interface ComputedStaffItem extends BaseStaffData {
   performNum: number;
   gpmNum: number;
   favDay: string;
-  calculatedFee: number;
   primaryPlatform: string;
   rankChange: RankChangeInfo;
 }
@@ -207,8 +180,6 @@ export function calculateStaffCumulativeMetrics(
     }
   });
 
-  const defaultFeePerMatch = REFEREE_PAYROLL_CONFIG.FEE_PER_MATCH * 1000;
-
   const list: ComputedStaffItem[] = staffList.map((st) => {
     const rawMatches = st.historyMatches.filter((m) => {
       const wNum = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
@@ -240,8 +211,6 @@ export function calculateStaffCumulativeMetrics(
 
     const favDay = determineFavoriteDay(cumulativeHistory);
     const gpmNum = matchCount > 0 ? Number((totalGames / matchCount).toFixed(1)) : 0.0;
-    const feePerMatch = st.payroll?.feePerMatch ?? defaultFeePerMatch;
-    const calculatedFee = matchCount * feePerMatch;
 
     let primaryPlatform = 'YouTube';
     let maxPlat = 0;
@@ -263,7 +232,6 @@ export function calculateStaffCumulativeMetrics(
       performNum,
       gpmNum,
       favDay,
-      calculatedFee,
       primaryPlatform,
       rankChange: { direction: 'SAME', delta: 0 },
     };

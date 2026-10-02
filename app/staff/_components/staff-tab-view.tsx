@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   BaseStaffData,
   FinishedScheduleSummary,
@@ -17,8 +17,6 @@ interface StaffTabViewProps {
   selectedStaffId: string;
   selectedWeek: string;
   finishedSchedules?: FinishedScheduleSummary[];
-  token?: string | null;
-  isAdmin?: boolean;
   onRefresh?: () => void;
 }
 
@@ -28,12 +26,7 @@ export default function StaffTabView({
   selectedStaffId,
   selectedWeek,
   finishedSchedules = [],
-  token,
-  isAdmin = false,
-  onRefresh = () => {},
 }: StaffTabViewProps) {
-  const [selectedMatches, setSelectedMatches] = useState<string[]>([]);
-
   const selectedWeekNum = useMemo(() => {
     const num = Number(String(selectedWeek).replace(/\D/g, ''));
     return isNaN(num) || num <= 0 ? 1 : num;
@@ -43,27 +36,12 @@ export default function StaffTabView({
     return calculateStaffCumulativeMetrics(staffList, selectedWeekNum, finishedSchedules, role);
   }, [staffList, selectedWeekNum, finishedSchedules, role]);
 
-  const verifiedReferee = useMemo(() => {
-    if (role !== 'referee' || !token) return null;
-    return statsList.find((r) => r.payroll !== null && r.payroll !== undefined) || null;
-  }, [role, token, statsList]);
-
   const topStaff = useMemo(() => {
-    if (verifiedReferee) return verifiedReferee;
     if (selectedStaffId !== 'ALL') {
       return statsList.find((s) => s.discordId === selectedStaffId) || statsList[0] || null;
     }
     return statsList[0] || null;
-  }, [statsList, selectedStaffId, verifiedReferee]);
-
-  const unclaimedMatches = useMemo(() => {
-    if (!verifiedReferee) return [];
-    return verifiedReferee.historyMatches.filter(
-      (m) =>
-        !verifiedReferee.payroll?.claimedMatchIds.includes(m.id) &&
-        (!selectedWeek || selectedWeek === 'ALL' || (m.weekName || `Week ${m.weekNumber}`) === selectedWeek)
-    );
-  }, [verifiedReferee, selectedWeek]);
+  }, [statsList, selectedStaffId]);
 
   const groupedMatches = useMemo(() => {
     if (!topStaff) return [];
@@ -87,31 +65,20 @@ export default function StaffTabView({
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      {/* 1. Podium Atas */}
       {topStaff && (
         <StaffPodiumCard
           topStaff={topStaff}
           role={role}
           selectedStaffId={selectedStaffId}
           baselineGpm={baselineGpm}
-          isAdmin={isAdmin}
-          token={token}
-          verifiedReferee={verifiedReferee}
-          selectedMatches={selectedMatches}
-          onClaimSuccess={() => {
-            setSelectedMatches([]);
-            onRefresh();
-          }}
         />
       )}
 
-      {/* 2. Leaderboard Publik atau Riwayat Laga */}
-      {selectedStaffId === 'ALL' && !verifiedReferee ? (
+      {selectedStaffId === 'ALL' ? (
         <StaffLeaderboardTable
           statsList={statsList}
           role={role}
           baselineGpm={baselineGpm}
-          isAdmin={isAdmin}
         />
       ) : (
         <div className="space-y-4">
@@ -124,40 +91,9 @@ export default function StaffTabView({
                 <div className="h-[1px] flex-1 bg-border/80" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {group.matches.map((m) => {
-                  const isUnclaimed = unclaimedMatches.some((um) => um.id === m.id);
-                  const isChecked = selectedMatches.includes(m.id);
-                  return (
-                    <div key={m.id} className="relative flex flex-col">
-                      {verifiedReferee && isUnclaimed && (
-                        <div
-                          onClick={() =>
-                            setSelectedMatches((prev) =>
-                              prev.includes(m.id) ? prev.filter((id) => id !== m.id) : [...prev, m.id]
-                            )
-                          }
-                          className={`mb-1 flex items-center justify-between p-2 rounded-xl border text-xs cursor-pointer transition ${
-                            isChecked
-                              ? 'border-blue-500 bg-blue-500/10 text-foreground font-bold'
-                              : 'border-border/80 bg-card hover:border-blue-500/40 text-muted-foreground'
-                          }`}
-                        >
-                          <label className="flex items-center gap-2 pointer-events-none">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {}}
-                              className="h-3.5 w-3.5 rounded text-blue-600"
-                            />
-                            <span>Pilih untuk klaim honor</span>
-                          </label>
-                          <span className="text-[10px] text-emerald-600 font-bold">Siap Dicairkan</span>
-                        </div>
-                      )}
-                      <StaffHistoryCard match={m} />
-                    </div>
-                  );
-                })}
+                {group.matches.map((m) => (
+                  <StaffHistoryCard key={m.id} match={m} />
+                ))}
               </div>
             </div>
           ))}
