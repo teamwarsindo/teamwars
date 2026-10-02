@@ -268,8 +268,8 @@ export default function StaffClient({ initialToken = null, isAdmin = false }: St
           finishedSchedules={finishedSchedules}
         />
       ) : (
-        <AdminApprovalTab onActionSuccess={fetchRoster} />
+        <AdminApprovalTab />
       )}
     </div>
-  ); 
+  );
 }
