@@ -17,6 +17,7 @@ interface StaffTabViewProps {
   selectedStaffId: string;
   selectedWeek: string;
   finishedSchedules?: FinishedScheduleSummary[];
+  isAdmin?: boolean;
   onRefresh?: () => void;
 }
 
@@ -26,6 +27,7 @@ export default function StaffTabView({
   selectedStaffId,
   selectedWeek,
   finishedSchedules = [],
+  isAdmin = false,
 }: StaffTabViewProps) {
   const selectedWeekNum = useMemo(() => {
     const num = Number(String(selectedWeek).replace(/\D/g, ''));
@@ -71,6 +73,7 @@ export default function StaffTabView({
           role={role}
           selectedStaffId={selectedStaffId}
           baselineGpm={baselineGpm}
+          isAdmin={isAdmin}
         />
       )}
 

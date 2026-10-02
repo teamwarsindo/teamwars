@@ -6,7 +6,11 @@ import { useStaffRoster } from './_hooks/use-staff-roster';
 import StaffFilterBar from './_components/staff-filter-bar';
 import StaffTabView from './_components/staff-tab-view';
 
-export default function StaffClientContent() {
+interface StaffClientContentProps {
+  isAdmin?: boolean;
+}
+
+export default function StaffClientContent({ isAdmin = false }: StaffClientContentProps) {
   const {
     activeTab,
     handleTabChange,
@@ -59,7 +63,7 @@ export default function StaffClientContent() {
         </div>
       </div>
 
-      {/* 2. FILTER BAR (Sinkron dengan interface StaffFilterBar: onSelectStaff & onReset) */}
+      {/* 2. FILTER BAR */}
       <StaffFilterBar
         staffOptions={sortedStaffOptions}
         selectedStaffId={selectedStaffId}
@@ -83,6 +87,7 @@ export default function StaffClientContent() {
           selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
           finishedSchedules={finishedSchedules}
+          isAdmin={isAdmin}
           onRefresh={fetchRoster}
         />
       )}

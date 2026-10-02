@@ -10,6 +10,7 @@ interface StaffPodiumCardProps {
   role: 'referee' | 'streamer';
   selectedStaffId: string;
   baselineGpm: number;
+  isAdmin?: boolean;
 }
 
 export default function StaffPodiumCard({
@@ -17,6 +18,7 @@ export default function StaffPodiumCard({
   role,
   selectedStaffId,
   baselineGpm,
+  isAdmin = false,
 }: StaffPodiumCardProps) {
   return (
     <div className="relative overflow-hidden rounded-2xl border-2 border-blue-500/60 bg-gradient-to-br from-blue-500/15 via-card to-card p-3.5 sm:p-4 shadow-xs flex flex-col gap-3">
@@ -30,9 +32,16 @@ export default function StaffPodiumCard({
           </div>
 
           <div className="min-w-0 flex flex-col justify-center">
-            <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
-              {topStaff.discordName}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-xs sm:text-sm text-foreground truncate leading-none">
+                {topStaff.discordName}
+              </span>
+              {isAdmin && (
+                <span className="rounded bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-rose-500 leading-none">
+                  ADMIN
+                </span>
+              )}
+            </div>
 
             {selectedStaffId === 'ALL' && (
               <span className="w-fit rounded bg-amber-400 px-1.5 py-0.5 text-[8.5px] font-black uppercase tracking-wider text-slate-950 leading-none shadow-xs mt-1.5">
@@ -74,7 +83,9 @@ export default function StaffPodiumCard({
             {role === 'referee' ? 'FEE' : 'PLATFORM'}
           </span>
           {role === 'referee' ? (
-            <span className="text-xs font-bold text-muted-foreground/80 mt-0.5">Rp ***</span>
+            <span className={`text-xs font-bold mt-0.5 ${isAdmin ? 'text-emerald-500' : 'text-muted-foreground/80'}`}>
+              {isAdmin ? `Rp ${topStaff.calculatedFee.toLocaleString('id-ID')}` : 'Rp ***'}
+            </span>
           ) : (
             <span className="text-xs font-bold text-blue-500 mt-0.5">{topStaff.primaryPlatform}</span>
           )}

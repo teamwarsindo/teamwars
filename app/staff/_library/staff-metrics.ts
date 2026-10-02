@@ -55,6 +55,7 @@ export interface ComputedStaffItem extends BaseStaffData {
   gpmNum: number;
   favDay: string;
   primaryPlatform: string;
+  calculatedFee: number;
   rankChange: RankChangeInfo;
 }
 
@@ -233,6 +234,7 @@ export function calculateStaffCumulativeMetrics(
       gpmNum,
       favDay,
       primaryPlatform,
+      calculatedFee,
       rankChange: { direction: 'SAME', delta: 0 },
     };
   });

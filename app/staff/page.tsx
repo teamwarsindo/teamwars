@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { TopBar, HeroHeader, Footer } from "@/components/layout-shared";
 import StaffClientContent from "./staff-client";
 
@@ -6,7 +7,10 @@ export const metadata = {
   title: "Official Staff — TWI Season 7",
 };
 
-export default function StaffPage() {
+export default async function StaffPage() {
+  const cookieStore = await cookies();
+  const isAdmin = Boolean(cookieStore.get("admin_session")?.value);
+
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-clip bg-background text-foreground">
       <div
@@ -29,7 +33,7 @@ export default function StaffPage() {
               </div>
             }
           >
-            <StaffClientContent />
+            <StaffClientContent isAdmin={isAdmin} />
           </Suspense>
         </section>
 
