@@ -15,6 +15,11 @@ export interface RankChangeInfo {
   delta: number;
 }
 
+export interface CompactMatchTime {
+  dateLine: string;
+  timeLine: string;
+}
+
 const DAY_CYCLE_PRIORITY: Record<number, { name: string; priority: number; isWeekend: boolean }> = {
   3: { name: 'Rabu', priority: 1, isWeekend: false },
   4: { name: 'Kamis', priority: 2, isWeekend: false },
@@ -26,34 +31,48 @@ const DAY_CYCLE_PRIORITY: Record<number, { name: string; priority: number; isWee
 };
 
 /**
- * Format tanggal pertandingan: DD MMMM YYYY (contoh: 05 Oktober 2026)
+ * Format ringkas ala Match Report TWI:
+ * dateLine: "Jumat, 25 Sep 26"
+ * timeLine: "20.00 WIB"
  */
-export function formatMatchDateDisplay(dateStr?: string): string | null {
+export function formatMatchDateTimeCompact(dateStr?: string): CompactMatchTime | null {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return null;
 
-  return d.toLocaleDateString('id-ID', {
+  const dayName = d.toLocaleDateString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    weekday: 'long',
+  });
+
+  const dayNum = d.toLocaleDateString('id-ID', {
     timeZone: 'Asia/Jakarta',
     day: '2-digit',
-    month: 'long',
-    year: 'numeric',
   });
-}
 
-/**
- * Format kategori hari untuk kartu tanding: Weekend - Sabtu / Weekday - Jumat
- */
-export function formatMatchDayCategory(dateStr?: string): string | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
+  const monthShort = d.toLocaleDateString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    month: 'short',
+  });
 
-  const dayIndex = d.getDay();
-  const meta = DAY_CYCLE_PRIORITY[dayIndex] || { name: 'Jumat', priority: 99, isWeekend: false };
-  const category = meta.isWeekend ? 'Weekend' : 'Weekday';
+  const yearShort = d.toLocaleDateString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    year: '2-digit',
+  });
 
-  return `${category} - ${meta.name}`;
+  const timeFormatted = d
+    .toLocaleTimeString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    .replace(':', '.');
+
+  return {
+    dateLine: `${dayName}, ${dayNum} ${monthShort} ${yearShort}`,
+    timeLine: `${timeFormatted} WIB`,
+  };
 }
 
 /**
