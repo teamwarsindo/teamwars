@@ -23,8 +23,8 @@ export default async function StaffPage() {
       {/* 1. TOP BAR STICKY RESMI TWI */}
       <TopBar title="Official Staff" />
 
-      {/* 2. HERO HEADER (SINKRON DENGAN HALAMAN LAIN) */}
-      <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4 pb-12 sm:px-6">
+      {/* 2. HERO HEADER DENGAN CONTAINER LEBAR YANG LEGA */}
+      <div className="relative z-10 flex w-full flex-1 flex-col items-center px-2 sm:px-6 pb-12">
         <HeroHeader showDetails={true} />
 
         {/* 3. MAIN CONTENT */}

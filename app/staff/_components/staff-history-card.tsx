@@ -21,10 +21,11 @@ export default function StaffHistoryCard({ match }: StaffHistoryCardProps) {
   const timeCompact = formatMatchDateTimeCompact(match.matchDate);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3.5 shadow-xs transition hover:border-border flex flex-col justify-between">
+    <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3 sm:p-3.5 shadow-xs transition hover:border-border flex flex-col justify-between w-full">
       {/* 1. Baris Utama: Tim A, Skor & Waktu Compact, Tim B */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-2">
-        <div className="flex flex-col items-center text-center min-w-0">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-2 w-full">
+        {/* Sisi Kiri: Tim A */}
+        <div className="flex flex-col items-center text-center min-w-0 w-full px-0.5">
           <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-xs">
             {match.teamALogo && !logoErrA ? (
               <Image
@@ -41,14 +42,15 @@ export default function StaffHistoryCard({ match }: StaffHistoryCardProps) {
             )}
           </div>
           <span
-            className="font-black text-[10.5px] sm:text-xs text-foreground line-clamp-2 leading-tight break-words w-full px-0.5"
+            className="font-black text-[10px] sm:text-xs text-foreground line-clamp-2 leading-tight break-words w-full"
             title={match.teamAName}
           >
             {match.teamAName || 'Tim A'}
           </span>
         </div>
 
-        <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0">
+        {/* Tengah: Skor & Waktu Compact */}
+        <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0 min-w-[90px] sm:min-w-[110px]">
           <div className="flex items-center gap-1.5 sm:gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
             <span className={aIsLeading ? 'text-primary' : 'text-foreground/90'}>
               {scoreA}
@@ -63,17 +65,18 @@ export default function StaffHistoryCard({ match }: StaffHistoryCardProps) {
 
           {timeCompact && (
             <div className="mt-1 flex flex-col items-center text-center leading-tight">
-              <span className="text-[9px] font-bold text-muted-foreground whitespace-nowrap">
+              <span className="text-[8.5px] sm:text-[9px] font-bold text-muted-foreground whitespace-nowrap">
                 {timeCompact.dateLine}
               </span>
-              <span className="text-[8.5px] font-bold text-muted-foreground/80 whitespace-nowrap">
+              <span className="text-[8px] sm:text-[8.5px] font-bold text-muted-foreground/80 whitespace-nowrap">
                 {timeCompact.timeLine}
               </span>
             </div>
           )}
         </div>
 
-        <div className="flex flex-col items-center text-center min-w-0">
+        {/* Sisi Kanan: Tim B */}
+        <div className="flex flex-col items-center text-center min-w-0 w-full px-0.5">
           <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-xs">
             {match.teamBLogo && !logoErrB ? (
               <Image
@@ -90,7 +93,7 @@ export default function StaffHistoryCard({ match }: StaffHistoryCardProps) {
             )}
           </div>
           <span
-            className="font-black text-[10.5px] sm:text-xs text-foreground line-clamp-2 leading-tight break-words w-full px-0.5"
+            className="font-black text-[10px] sm:text-xs text-foreground line-clamp-2 leading-tight break-words w-full"
             title={match.teamBName}
           >
             {match.teamBName || 'Tim B'}

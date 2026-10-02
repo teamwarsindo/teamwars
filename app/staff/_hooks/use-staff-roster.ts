@@ -10,9 +10,10 @@ export function useStaffRoster(initialToken: string | null = null) {
   const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
   const [finishedSchedules, setFinishedSchedules] = useState<FinishedScheduleSummary[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('ALL');
-  const [selectedWeek, setSelectedWeek] = useState<string>('Week 1');
+  const [selectedWeek, setSelectedWeek] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
+  // Helper mencari pekan dengan angka numerik tertinggi
   const getLatestWeek = useCallback((weeks: string[]): string => {
     if (!weeks || weeks.length === 0) return 'Week 1';
     const sorted = [...weeks].sort((a, b) => {
@@ -40,8 +41,11 @@ export function useStaffRoster(initialToken: string | null = null) {
         const weeks: string[] = json.availableWeeks || [];
         setAvailableWeeks(weeks);
 
-        const latest = getLatestWeek(weeks);
-        setSelectedWeek((prev) => (weeks.includes(prev) ? prev : latest));
+        // Langsung tetapkan pekan aktif terbaru jika belum dipilih
+        if (weeks.length > 0) {
+          const latest = getLatestWeek(weeks);
+          setSelectedWeek((prev) => (prev && weeks.includes(prev) ? prev : latest));
+        }
       }
     } catch (err) {
       console.error('[FETCH ROSTER ERROR]:', err);
@@ -70,7 +74,7 @@ export function useStaffRoster(initialToken: string | null = null) {
   }, [currentStaffList]);
 
   const activeWeekLatest = getLatestWeek(availableWeeks);
-  const isFilterActive = selectedStaffId !== 'ALL' || selectedWeek !== activeWeekLatest;
+  const isFilterActive = selectedStaffId !== 'ALL' || (Boolean(selectedWeek) && selectedWeek !== activeWeekLatest);
 
   return {
     activeTab,
