@@ -1,257 +1,275 @@
 'use client';
 
-import React, { useEffect, useState, useTransition, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { X } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { ChevronDown, RotateCcw } from 'lucide-react';
 import RefereeTab, { RefereeData } from './_components/referee-tab';
 import StreamerTab, { StreamerData } from './_components/streamer-tab';
 import AdminApprovalTab from './_components/admin-approval-tab';
+import { FinishedScheduleSummary } from './_library/staff-metrics';
 
-export interface StaffClientProps {
-  isAdmin: boolean;
+interface StaffClientProps {
+  initialToken?: string | null;
+  isAdmin?: boolean;
 }
 
-interface RosterResponse {
-  success: boolean;
-  currentVerifiedId: string | null;
-  availableWeeks: string[];
-  referees: RefereeData[];
-  streamers: StreamerData[];
-  message?: string;
-}
-
-export default function StaffClientContent({ isAdmin }: StaffClientProps) {
-  const searchParams = useSearchParams();
-  const token = searchParams.get('token') || '';
-
-  const isTokenMode = Boolean(token);
-  const effectiveIsAdmin = isTokenMode ? false : isAdmin;
-
+export default function StaffClient({ initialToken = null, isAdmin = false }: StaffClientProps) {
   const [activeTab, setActiveTab] = useState<'referee' | 'streamer' | 'approval'>('referee');
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('ALL');
-
   const [referees, setReferees] = useState<RefereeData[]>([]);
   const [streamers, setStreamers] = useState<StreamerData[]>([]);
   const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [finishedSchedules, setFinishedSchedules] = useState<FinishedScheduleSummary[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('ALL');
+  const [selectedWeek, setSelectedWeek] = useState<string>('Week 1');
+  const [loading, setLoading] = useState(true);
 
-  const [, startTransition] = useTransition();
+  // State untuk mengontrol dropdown kustom
+  const [openDropdown, setOpenDropdown] = useState<'staff' | 'week' | null>(null);
+  const filterContainerRef = useRef<HTMLDivElement>(null);
 
-  const fetchRosterData = async () => {
-    setIsLoading(true);
-    setErrorMsg('');
-    try {
-      const url = token
-        ? `/api/tournament/staff/roster?token=${encodeURIComponent(token)}`
-        : '/api/tournament/staff/roster';
-
-      const res = await fetch(url, { cache: 'no-store' });
-      const data: RosterResponse = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Gagal memuat data staf.');
+  // Menutup dropdown popover saat klik di luar kontainer
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (filterContainerRef.current && !filterContainerRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
       }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-      startTransition(() => {
-        setReferees(data.referees || []);
-        setStreamers(data.streamers || []);
+  const fetchRoster = useCallback(async () => {
+    try {
+      setLoading(true);
+      const url = initialToken
+        ? `/api/tournament/staff/roster?token=${encodeURIComponent(initialToken)}`
+        : '/api/tournament/staff/roster';
+      const res = await fetch(url, { cache: 'no-store' });
+      const json = await res.json();
 
-        const weeks = data.availableWeeks || [];
+      if (json.success) {
+        setReferees(json.referees || []);
+        setStreamers(json.streamers || []);
+        setFinishedSchedules(json.finishedSchedules || []);
+
+        const weeks: string[] = json.availableWeeks || [];
         setAvailableWeeks(weeks);
 
         if (weeks.length > 0) {
-          setSelectedWeek((prev) => (prev ? prev : weeks[weeks.length - 1]));
+          setSelectedWeek((prev) => (weeks.includes(prev) ? prev : weeks[weeks.length - 1]));
         }
-      });
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Terjadi kesalahan sistem saat memuat data staf.');
+      }
+    } catch (err) {
+      console.error('[FETCH ROSTER ERROR]:', err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }, [initialToken]);
 
   useEffect(() => {
-    fetchRosterData();
-  }, [token]);
+    fetchRoster();
+  }, [fetchRoster]);
 
-  const defaultWeek = useMemo(() => {
-    if (availableWeeks.length === 0) return '';
-    return availableWeeks[availableWeeks.length - 1];
-  }, [availableWeeks]);
-
-  const isFilterActive =
-    selectedStaffId !== 'ALL' || (selectedWeek !== '' && selectedWeek !== defaultWeek);
+  const handleTabChange = (tab: 'referee' | 'streamer' | 'approval') => {
+    setActiveTab(tab);
+    setSelectedStaffId('ALL');
+    setOpenDropdown(null);
+  };
 
   const handleResetFilter = () => {
     setSelectedStaffId('ALL');
-    setSelectedWeek(defaultWeek);
+    if (availableWeeks.length > 0) {
+      setSelectedWeek(availableWeeks[availableWeeks.length - 1]);
+    }
+    setOpenDropdown(null);
   };
 
-  const pendingApprovalsCount = referees.reduce((acc, ref) => {
-    const list = (ref as any).payrollRequests || ref.payroll?.payrollRequests || [];
-    const pendingInRef = list.filter((item: any) => item.status === 'PENDING').length;
-    return acc + pendingInRef;
-  }, 0);
+  // Opsi staf terurut abjad A-Z
+  const sortedStaffOptions = useMemo(() => {
+    const list = activeTab === 'referee' ? referees : streamers;
+    return [...list].sort((a, b) => a.discordName.localeCompare(b.discordName));
+  }, [activeTab, referees, streamers]);
 
-  const staffOptions =
-    activeTab === 'referee'
-      ? referees.map((r) => ({ id: r.discordId, name: r.discordName }))
-      : streamers.map((s) => ({ id: s.discordId, name: s.discordName }));
+  const selectedStaffName = useMemo(() => {
+    if (selectedStaffId === 'ALL') return 'Semua';
+    const found = sortedStaffOptions.find((s) => s.discordId === selectedStaffId);
+    return found ? found.discordName : 'Semua';
+  }, [selectedStaffId, sortedStaffOptions]);
+
+  const isFilterActive =
+    selectedStaffId !== 'ALL' ||
+    (availableWeeks.length > 0 && selectedWeek !== availableWeeks[availableWeeks.length - 1]);
 
   return (
-    <div className="w-full space-y-6">
-      {/* 1. NAVIGASI TAB TERPUSAT (CENTER) */}
-      {!isTokenMode ? (
-        <div className="flex w-full flex-wrap items-center justify-center gap-2">
+    <div className="mx-auto w-full max-w-4xl space-y-4 px-2 sm:px-4">
+      {/* 1. NAVIGASI PILL-TAB */}
+      <div className="flex items-center justify-center gap-2 pt-1">
+        <button
+          onClick={() => handleTabChange('referee')}
+          className={`rounded-full px-5 py-2 text-xs font-bold transition shadow-xs cursor-pointer ${
+            activeTab === 'referee'
+              ? 'bg-blue-600 text-white shadow-blue-500/25'
+              : 'border border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          Referee ({referees.length})
+        </button>
+
+        <button
+          onClick={() => handleTabChange('streamer')}
+          className={`rounded-full px-5 py-2 text-xs font-bold transition shadow-xs cursor-pointer ${
+            activeTab === 'streamer'
+              ? 'bg-blue-600 text-white shadow-blue-500/25'
+              : 'border border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          Streamer ({streamers.length})
+        </button>
+
+        {isAdmin && (
           <button
-            type="button"
-            onClick={() => {
-              setActiveTab('referee');
-              setSelectedStaffId('ALL');
-            }}
-            className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
-              activeTab === 'referee'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
-                : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
+            onClick={() => handleTabChange('approval')}
+            className={`rounded-full px-5 py-2 text-xs font-bold transition shadow-xs cursor-pointer ${
+              activeTab === 'approval'
+                ? 'bg-blue-600 text-white shadow-blue-500/25'
+                : 'border border-border/80 bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
             }`}
           >
-            Referee ({referees.length})
+            Payroll Approval
           </button>
+        )}
+      </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('streamer');
-              setSelectedStaffId('ALL');
-            }}
-            className={`rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
-              activeTab === 'streamer'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
-                : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
-            }`}
-          >
-            Streamer ({streamers.length})
-          </button>
+      {/* 2. BAR KONTROL FILTER (CUSTOM TAILWIND DROPDOWN) */}
+      {activeTab !== 'approval' && (
+        <div
+          ref={filterContainerRef}
+          className="relative rounded-2xl border border-border/80 bg-card p-3 shadow-xs"
+        >
+          <div className="grid grid-cols-[1fr_120px_auto] sm:grid-cols-[1fr_140px_auto] gap-2 items-center">
+            {/* Custom Dropdown Staf */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenDropdown((prev) => (prev === 'staff' ? null : 'staff'))}
+                className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground shadow-xs hover:border-primary/50 transition cursor-pointer"
+              >
+                <span className="truncate">{selectedStaffName}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-1" />
+              </button>
 
-          {effectiveIsAdmin && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('approval')}
-              className={`flex items-center gap-1.5 rounded-full px-6 py-2 text-xs font-bold tracking-wide transition-all ${
-                activeTab === 'approval'
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-500/30'
-                  : 'border border-border/80 bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
-              }`}
-            >
-              <span>Persetujuan Klaim</span>
-              {pendingApprovalsCount > 0 && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
-                  {pendingApprovalsCount}
-                </span>
+              {openDropdown === 'staff' && (
+                <div className="absolute left-0 top-full mt-1.5 z-50 w-full max-h-60 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg backdrop-blur-md">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStaffId('ALL');
+                      setOpenDropdown(null);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      selectedStaffId === 'ALL'
+                        ? 'bg-primary/10 text-primary font-black'
+                        : 'text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    Semua
+                  </button>
+                  {sortedStaffOptions.map((st) => (
+                    <button
+                      key={st.discordId}
+                      type="button"
+                      onClick={() => {
+                        setSelectedStaffId(st.discordId);
+                        setOpenDropdown(null);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition truncate cursor-pointer ${
+                        selectedStaffId === st.discordId
+                          ? 'bg-primary/10 text-primary font-black'
+                          : 'text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {st.discordName}
+                    </button>
+                  ))}
+                </div>
               )}
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="flex justify-center">
-          <div className="inline-flex items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-xs font-bold text-blue-600">
-            🔒 Panel Referee Privat Terverifikasi
-          </div>
-        </div>
-      )}
-
-      {/* 2. DUA DROPDOWN & TOMBOL RESET FILTER BULAT MERAH */}
-      {!isTokenMode && activeTab !== 'approval' && (
-        <div className="rounded-2xl border border-border/80 bg-card/60 p-3 shadow-sm backdrop-blur-sm">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <select
-                value={selectedStaffId}
-                onChange={(e) => setSelectedStaffId(e.target.value)}
-                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border/80 bg-background/80 px-3 pr-8 text-xs font-semibold text-foreground focus:border-blue-500 focus:outline-none"
-              >
-                <option value="ALL">Semua {activeTab === 'referee' ? 'Referee' : 'Streamer'}</option>
-                {staffOptions.map((st) => (
-                  <option key={st.id} value={st.id}>
-                    {st.name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[10px] text-muted-foreground">
-                ▼
-              </div>
             </div>
 
-            <div className="relative flex-1">
-              <select
-                value={selectedWeek}
-                onChange={(e) => setSelectedWeek(e.target.value)}
-                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border/80 bg-background/80 px-3 pr-8 text-xs font-semibold text-foreground focus:border-blue-500 focus:outline-none"
+            {/* Custom Dropdown Pekan */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenDropdown((prev) => (prev === 'week' ? null : 'week'))}
+                className="w-full flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground shadow-xs hover:border-primary/50 transition cursor-pointer"
               >
-                {availableWeeks.map((wk) => (
-                  <option key={wk} value={wk}>
-                    {wk}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[10px] text-muted-foreground">
-                ▼
-              </div>
+                <span className="truncate">{selectedWeek}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-1" />
+              </button>
+
+              {openDropdown === 'week' && (
+                <div className="absolute right-0 top-full mt-1.5 z-50 w-full max-h-60 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg backdrop-blur-md">
+                  {availableWeeks.map((wk) => (
+                    <button
+                      key={wk}
+                      type="button"
+                      onClick={() => {
+                        setSelectedWeek(wk);
+                        setOpenDropdown(null);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        selectedWeek === wk
+                          ? 'bg-primary/10 text-primary font-black'
+                          : 'text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {wk}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
+            {/* Tombol Reset Filter */}
             <button
-              type="button"
               onClick={handleResetFilter}
               disabled={!isFilterActive}
               title="Reset Filter"
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-all ${
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-xs transition active:scale-95 cursor-pointer ${
                 isFilterActive
-                  ? 'cursor-pointer border-rose-500/50 bg-rose-500 text-white shadow-md shadow-rose-500/25 hover:bg-rose-600'
-                  : 'cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground/30 opacity-50'
+                  ? 'bg-rose-500 hover:bg-rose-600'
+                  : 'bg-muted text-muted-foreground/40 cursor-not-allowed opacity-50'
               }`}
             >
-              <X className="h-4 w-4" />
+              <RotateCcw className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
       )}
 
-      {/* 3. PESAN ERROR */}
-      {errorMsg && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
-          {errorMsg}
+      {/* 3. KONTEN TAB UTAMA */}
+      {loading ? (
+        <div className="rounded-2xl border border-border/80 bg-card p-12 text-center text-xs font-bold text-primary animate-pulse shadow-xs">
+          Memuat data staf...
         </div>
-      )}
-
-      {/* 4. KONTEN TAB UTAMA */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-          <span className="text-xs">Memuat data staf...</span>
-        </div>
-      ) : activeTab === 'referee' || isTokenMode ? (
+      ) : activeTab === 'referee' ? (
         <RefereeTab
           referees={referees}
-          token={token || null}
-          isAdmin={effectiveIsAdmin}
+          token={initialToken}
+          isAdmin={isAdmin}
           selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
-          onRefresh={fetchRosterData}
+          finishedSchedules={finishedSchedules}
+          onRefresh={fetchRoster}
         />
       ) : activeTab === 'streamer' ? (
         <StreamerTab
           streamers={streamers}
           selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
+          finishedSchedules={finishedSchedules}
         />
       ) : (
-        <AdminApprovalTab
-          referees={referees}
-          onRefresh={fetchRosterData}
-        />
+        <AdminApprovalTab onActionSuccess={fetchRoster} />
       )}
     </div>
-  );
+  ); 
 }
