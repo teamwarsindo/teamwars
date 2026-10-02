@@ -59,16 +59,16 @@ export default function StaffClientContent() {
         </div>
       </div>
 
-      {/* 2. FILTER BAR (Memakai onSelectStaff) */}
+      {/* 2. FILTER BAR (Sinkron dengan interface StaffFilterBar: onSelectStaff & onReset) */}
       <StaffFilterBar
+        staffOptions={sortedStaffOptions}
         selectedStaffId={selectedStaffId}
         onSelectStaff={setSelectedStaffId}
+        availableWeeks={availableWeeks}
         selectedWeek={selectedWeek}
         onSelectWeek={setSelectedWeek}
-        staffOptions={sortedStaffOptions}
-        availableWeeks={availableWeeks}
+        onReset={handleResetFilter}
         isFilterActive={isFilterActive}
-        onResetFilter={handleResetFilter}
       />
 
       {/* 3. MAIN VIEW */}
