@@ -4,10 +4,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { Shield, ExternalLink } from 'lucide-react';
 import { MatchDetail } from './referee-tab';
-import {
-  formatMatchDateDisplay,
-  formatMatchDayCategory,
-} from '../_library/staff-metrics';
+import { formatMatchDateTimeCompact } from '../_library/staff-metrics';
 
 interface RefereeHistoryCardProps {
   match: MatchDetail;
@@ -22,13 +19,12 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
   const aIsLeading = scoreA > scoreB;
   const bIsLeading = scoreB > scoreA;
 
-  const formattedMatchDate = formatMatchDateDisplay(match.matchDate);
-  const formattedDayCategory = formatMatchDayCategory(match.matchDate);
+  const timeCompact = formatMatchDateTimeCompact(match.matchDate);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-3.5 shadow-xs transition hover:border-border flex flex-col justify-between">
-      {/* 1. Baris Utama: Tim A, Skor & Tanggal, Tim B */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+      {/* 1. Baris Utama: Tim A, Skor & Waktu Compact, Tim B */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-2">
         {/* Sisi Kiri: Tim A */}
         <div className="flex flex-col items-center text-center min-w-0">
           <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-muted/40 border border-border/80 overflow-hidden flex items-center justify-center shrink-0 mb-1 shadow-xs">
@@ -47,16 +43,16 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
             )}
           </div>
           <span
-            className="font-black text-[11px] sm:text-xs text-foreground whitespace-nowrap truncate w-full px-1"
+            className="font-black text-[10.5px] sm:text-xs text-foreground line-clamp-2 leading-tight break-words w-full px-0.5"
             title={match.teamAName}
           >
             {match.teamAName || 'Tim A'}
           </span>
         </div>
 
-        {/* Tengah: Skor, Tanggal & Kategori Hari Pertandingan */}
-        <div className="flex flex-col items-center justify-center px-2 shrink-0">
-          <div className="flex items-center gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
+        {/* Tengah: Skor & Waktu Pertandingan Ringkas (Jumat, 25 Sep 26 / 20.00 WIB) */}
+        <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 font-mono text-2xl sm:text-3xl font-black leading-none">
             <span className={aIsLeading ? 'text-primary' : 'text-foreground/90'}>
               {scoreA}
             </span>
@@ -68,16 +64,14 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
             </span>
           </div>
 
-          {formattedMatchDate && (
-            <div className="mt-1.5 flex flex-col items-center text-center leading-tight">
-              <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap tracking-wide">
-                {formattedMatchDate}
+          {timeCompact && (
+            <div className="mt-1 flex flex-col items-center text-center leading-tight">
+              <span className="text-[9px] font-bold text-muted-foreground whitespace-nowrap">
+                {timeCompact.dateLine}
               </span>
-              {formattedDayCategory && (
-                <span className="text-[9.5px] font-bold text-muted-foreground/75 whitespace-nowrap tracking-wide">
-                  {formattedDayCategory}
-                </span>
-              )}
+              <span className="text-[8.5px] font-bold text-muted-foreground/80 whitespace-nowrap">
+                {timeCompact.timeLine}
+              </span>
             </div>
           )}
         </div>
@@ -100,7 +94,7 @@ export default function RefereeHistoryCard({ match }: RefereeHistoryCardProps) {
             )}
           </div>
           <span
-            className="font-black text-[11px] sm:text-xs text-foreground whitespace-nowrap truncate w-full px-1"
+            className="font-black text-[10.5px] sm:text-xs text-foreground line-clamp-2 leading-tight break-words w-full px-0.5"
             title={match.teamBName}
           >
             {match.teamBName || 'Tim B'}
