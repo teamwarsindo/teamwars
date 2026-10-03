@@ -17,6 +17,7 @@ interface StaffTabViewProps {
   selectedStaffId: string;
   selectedWeek: string;
   selectedDay?: string;
+  selectedTeam?: string;
   finishedSchedules?: FinishedScheduleSummary[];
   isAdmin?: boolean;
   onRefresh?: () => void;
@@ -28,7 +29,12 @@ function getMatchDayName(matchDate?: string): string {
   if (!matchDate) return '';
   const dt = new Date(matchDate);
   if (isNaN(dt.getTime())) return '';
-  return DAY_NAMES[dt.getDay()] || '';
+  
+  // Format nama hari akurat sesuai zona waktu turnamen Asia/Jakarta
+  return new Intl.DateTimeFormat('id-ID', {
+    weekday: 'long',
+    timeZone: 'Asia/Jakarta',
+  }).format(dt);
 }
 
 export default function StaffTabView({
@@ -37,6 +43,7 @@ export default function StaffTabView({
   selectedStaffId,
   selectedWeek,
   selectedDay = 'ALL',
+  selectedTeam = 'ALL',
   finishedSchedules = [],
   isAdmin = false,
 }: StaffTabViewProps) {
@@ -45,18 +52,31 @@ export default function StaffTabView({
     return isNaN(num) || num <= 0 ? 1 : num;
   }, [selectedWeek]);
 
-  // Saring jadwal yang diteruskan ke kalkulator metrik jika filter Day aktif
+  // Saring jadwal yang diteruskan ke kalkulator metrik jika filter Day atau Team aktif
   const filteredFinishedSchedules = useMemo(() => {
-    if (selectedDay === 'ALL') return finishedSchedules;
-    return finishedSchedules.filter((schedule) => {
-      // Menangani variasi nama properti tanggal (date atau matchDate) secara aman
-      const scheduleDate =
-        (schedule as unknown as { matchDate?: string }).matchDate ||
-        (schedule as unknown as { date?: string }).date;
-      const d = getMatchDayName(scheduleDate);
-      return d.toLowerCase() === selectedDay.toLowerCase();
-    });
-  }, [finishedSchedules, selectedDay]);
+    let result = finishedSchedules;
+
+    if (selectedDay !== 'ALL') {
+      result = result.filter((schedule) => {
+        const scheduleDate =
+          (schedule as unknown as { matchDate?: string }).matchDate ||
+          (schedule as unknown as { date?: string }).date;
+        const d = getMatchDayName(scheduleDate);
+        return d.toLowerCase() === selectedDay.toLowerCase();
+      });
+    }
+
+    if (selectedTeam !== 'ALL') {
+      const cleanTeam = selectedTeam.toLowerCase().trim();
+      result = result.filter((schedule) => {
+        const tA = (schedule as unknown as { teamAName?: string }).teamAName?.toLowerCase().trim() || '';
+        const tB = (schedule as unknown as { teamBName?: string }).teamBName?.toLowerCase().trim() || '';
+        return tA === cleanTeam || tB === cleanTeam;
+      });
+    }
+
+    return result;
+  }, [finishedSchedules, selectedDay, selectedTeam]);
 
   const { statsList, baselineGpm } = useMemo(() => {
     return calculateStaffCumulativeMetrics(
@@ -79,10 +99,19 @@ export default function StaffTabView({
     const map = new Map<number, MatchDetail[]>();
 
     topStaff.cumulativeHistory.forEach((m) => {
+      // 1. Saring filter Hari
       if (selectedDay !== 'ALL') {
         const matchDate = m.matchDate || (m as unknown as { date?: string }).date;
         const d = getMatchDayName(matchDate);
         if (d.toLowerCase() !== selectedDay.toLowerCase()) return;
+      }
+
+      // 2. Saring filter Tim
+      if (selectedTeam !== 'ALL') {
+        const cleanTeam = selectedTeam.toLowerCase().trim();
+        const tA = (m.teamAName || '').toLowerCase().trim();
+        const tB = (m.teamBName || '').toLowerCase().trim();
+        if (tA !== cleanTeam && tB !== cleanTeam) return;
       }
 
       const w = Number(m.weekNumber || String(m.weekName).replace(/\D/g, '') || 1);
@@ -99,7 +128,7 @@ export default function StaffTabView({
       });
 
     return groups;
-  }, [topStaff, selectedDay]);
+  }, [topStaff, selectedDay, selectedTeam]);
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
@@ -146,4 +175,4 @@ export default function StaffTabView({
       )}
     </div>
   );
-          }
+    }
