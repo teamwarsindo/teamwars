@@ -36,7 +36,7 @@ export function StandingsSnapshot({
 
   const bracket = useMemo(() => buildPlayoffBracket(schedules), [schedules]);
 
-  // Evaluasi 1 fase berikutnya berdasarkan pekan berjalan
+  // Evaluasi 1 fase berikutnya dan tema warna berdasarkan pekan berjalan
   const playoffPhaseData = useMemo(() => {
     if (!isPlayoffStage) return null;
     const week = currentWeek || TOURNAMENT_RULES.PLAYOFF_START_WEEK;
@@ -46,6 +46,7 @@ export function StandingsSnapshot({
       return {
         title: "Next Stage: Quarter-Finals",
         matches: bracket.quarterFinals,
+        theme: "amber" as const,
       };
     }
     // Week 9 (Quarter-Finals) -> Babak berikutnya: Semi-Finals
@@ -53,12 +54,14 @@ export function StandingsSnapshot({
       return {
         title: "Next Stage: Semi-Finals",
         matches: bracket.semiFinals,
+        theme: "emerald" as const,
       };
     }
     // Week 10+ (Final) -> Grand Final
     return {
       title: "Championship Final",
       matches: bracket.grandFinal ? [bracket.grandFinal] : [],
+      theme: "purple" as const,
     };
   }, [isPlayoffStage, currentWeek, bracket]);
 
@@ -114,6 +117,7 @@ export function StandingsSnapshot({
         <PlayoffMiniBracket
           matches={playoffPhaseData?.matches || []}
           grandFinal={bracket.grandFinal}
+          theme={playoffPhaseData?.theme || "emerald"}
         />
       ) : (
         <GroupStandingsTable
