@@ -73,7 +73,7 @@ export function MatchCenter({
         </div>
 
         <Link
-          href={isPlayoffStage ? "/tournament?tab=playoff" : `/tournament?tab=schedule&week=${currentWeek}`}
+          href={`/tournament?tab=schedule&week=${currentWeek}`}
           className="inline-flex items-center gap-0.5 text-xs font-bold text-primary hover:underline"
         >
           Semua <ChevronRight className="h-3.5 w-3.5" />
