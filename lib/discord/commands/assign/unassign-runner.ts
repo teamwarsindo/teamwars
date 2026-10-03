@@ -1,5 +1,6 @@
 import { kv } from '@vercel/kv';
 import { MatchScheduleItem } from '@/app/tournament/_library';
+import { advancePlayoffWinner } from '@/app/tournament/_library/calculator/playoff';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { isValidSnowflake } from '@/lib/discord/utils';
 import { sendOrUpdateOpeningEmbed } from '@/lib/discord/messages/opening';
@@ -136,7 +137,6 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
       );
     }
 
-    // Lepas ID Discord kunci penugasan streamer, tapi pertahankan nama match.streamer untuk UI
     match.streamerDiscordId = undefined;
     (match as any).streamerLogMsgId = undefined;
   }
@@ -151,7 +151,11 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
   (match as any).refereeLogMsgId = undefined;
 
   schedules[idx] = match;
+
+  // Otomatisasi kenaikan pemenang playoff (termasuk sinkronisasi laga lampau yang belum terisi)
+  advancePlayoffWinner(schedules);
+
   await kv.set('twi:schedules', schedules);
 
-  return { match, targetStaffName };  
-}
+  return { match, targetStaffName };
+      }
