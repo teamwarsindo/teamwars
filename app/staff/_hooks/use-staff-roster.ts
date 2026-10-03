@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { BaseStaffData, FinishedScheduleSummary } from '../_library/staff-metrics';
-import { ORDERED_DAYS } from '@/app/tournament/_library/constants';
 
 export interface FilterTeamOption {
   id: string;
@@ -158,8 +157,32 @@ export function useStaffRoster() {
       .map((name) => ({ id: name, name }));
   }, [finishedSchedules]);
 
-  // Daftar 7 hari penuh mandiri (Senin s/d Minggu)
-  const availableDays = useMemo(() => [...ORDERED_DAYS], []);
+  // Ekstraksi opsi hari langsung dari tanggal jadwal tanding di KV
+  const availableDays = useMemo(() => {
+    const daysSet = new Set<string>();
+    const dayFormatter = new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      timeZone: 'Asia/Jakarta',
+    });
+
+    finishedSchedules.forEach((item: any) => {
+      if (item.matchDate) {
+        const date = new Date(item.matchDate);
+        if (!isNaN(date.getTime())) {
+          const dayName = dayFormatter.format(date);
+          const capitalized = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+          daysSet.add(capitalized);
+        }
+      }
+    });
+
+    const standardOrder = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+    return Array.from(daysSet).sort((a, b) => {
+      const idxA = standardOrder.indexOf(a);
+      const idxB = standardOrder.indexOf(b);
+      return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+    });
+  }, [finishedSchedules]);
 
   const handleTabChange = (tab: 'referee' | 'streamer') => {
     setActiveTab(tab);
@@ -170,7 +193,6 @@ export function useStaffRoster() {
 
   const handleSelectStaff = (staffId: string) => {
     setSelectedStaffId(staffId);
-    // Jika staf spesifik dipilih, bersihkan filter tim dari query URL
     const targetTeam = staffId !== 'ALL' ? 'ALL' : selectedTeam;
     if (staffId !== 'ALL') setSelectedTeam('ALL');
     updateUrlParams(activeTab, staffId, selectedWeek, selectedDay, targetTeam, currentStaffList);
@@ -235,4 +257,4 @@ export function useStaffRoster() {
     loading,
     fetchRoster,
   };
-}
+        }
