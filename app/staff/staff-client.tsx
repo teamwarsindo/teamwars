@@ -19,11 +19,17 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
     currentStaffList,
     sortedStaffOptions,
     availableWeeks,
+    availableDays,
+    teamOptions,
+    selectedTeam,
+    setSelectedTeam,
     finishedSchedules,
     selectedStaffId,
     setSelectedStaffId,
     selectedWeek,
     setSelectedWeek,
+    selectedDay,
+    setSelectedDay,
     isFilterActive,
     handleResetFilter,
     loading,
@@ -91,9 +97,15 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
         staffOptions={sortedStaffOptions}
         selectedStaffId={selectedStaffId}
         onSelectStaff={setSelectedStaffId}
+        teamOptions={teamOptions}
+        selectedTeam={selectedTeam}
+        onSelectTeam={setSelectedTeam}
         availableWeeks={availableWeeks}
         selectedWeek={selectedWeek}
         onSelectWeek={setSelectedWeek}
+        availableDays={availableDays}
+        selectedDay={selectedDay}
+        onSelectDay={setSelectedDay}
         onReset={handleResetFilter}
         isFilterActive={isFilterActive}
       />
@@ -115,5 +127,5 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
         />
       )}
     </div>
-  );        
+  );
 }
