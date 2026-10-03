@@ -162,7 +162,6 @@ export async function handleSubmitAutocomplete(interaction: any) {
         };
       }
 
-      // Kumpulkan set IGN pemain yang sudah pernah bertanding di game logs
       const playedIgns = new Set<string>();
       games.forEach((g: any) => {
         const pA = String(g.playerA?.ign || g.playerA || '').toLowerCase();
@@ -171,7 +170,6 @@ export async function handleSubmitAutocomplete(interaction: any) {
         if (pB) playedIgns.add(pB);
       });
 
-      // Saring: hanya pemain yang namanya terisi dan belum pernah bertanding
       const eligiblePlayers = existingLineup.filter(
         (p) => p.ign && p.ign.trim() && !playedIgns.has(p.ign.toLowerCase())
       );
@@ -216,12 +214,10 @@ export async function handleSubmitAutocomplete(interaction: any) {
         .map((p) => String(p.ign || '').toLowerCase())
         .filter(Boolean);
 
-      // Cek apakah ada slot kosong bertuan deck (akibat del saat game jalan)
       const hasVacantDeckSlot = existingLineup.some(
         (p) => (!p.ign || !p.ign.trim()) && (p.deck1 || p.deck2)
       );
 
-      // Kuota penuh hanya jika sudah ada 5 pemain dan tidak ada slot gantung
       if (activeIgnList.length >= 5 && !hasVacantDeckSlot) {
         return {
           type: 8,
@@ -231,7 +227,24 @@ export async function handleSubmitAutocomplete(interaction: any) {
         };
       }
 
-      const available = teamRoster.filter((p) => !activeIgnList.includes((p.ign || '').toLowerCase()));
+      // Saring input pemain lain yang sedang diisi pada perintah yang sama
+      const allSubOptions = subCommand ? subCommand.options || [] : rawOptions;
+      const currentSelectedIgns = allSubOptions
+        .filter((o: any) => o.name.startsWith('pemain_') && o.name !== fName && o.value)
+        .map((o: any) => {
+          const val = String(o.value).toLowerCase().trim();
+          const match = val.match(/^([^(]+)/);
+          return (match ? match[1] : val).trim();
+        });
+
+      // Filter: bukan pemain aktif dan bukan pemain yang sudah dipilih di slot lain
+      const available = teamRoster
+        .filter((p) => {
+          const ignLower = (p.ign || '').toLowerCase().trim();
+          return !activeIgnList.includes(ignLower) && !currentSelectedIgns.includes(ignLower);
+        })
+        .sort((a, b) => (a.ign || '').localeCompare(b.ign || '', 'id', { sensitivity: 'base' }));
+
       return {
         type: 8,
         data: {
@@ -250,5 +263,5 @@ export async function handleSubmitAutocomplete(interaction: any) {
   } catch (error) {
     console.error('Error handleSubmitAutocomplete:', error);
     return { type: 8, data: { choices: [] } };
-  } 
-}
+  }
+                                      }
