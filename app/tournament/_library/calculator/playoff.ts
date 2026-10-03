@@ -26,6 +26,89 @@ export interface PlayoffBracketStructure {
   grandFinal: PlayoffBracketMatchItem | null;
 }
 
+export interface PlayoffProgressionNode {
+  sourceMatchId: string;
+  targetMatchId: string;
+  targetSlot: 'A' | 'B';
+}
+
+export const PLAYOFF_PROGRESSION_TREE: PlayoffProgressionNode[] = [
+  // 1. Play-Ins -> Quarter-Finals (Mengisi lawan di slot B)
+  { sourceMatchId: 'match-po-1', targetMatchId: 'match-po-5', targetSlot: 'B' },
+  { sourceMatchId: 'match-po-2', targetMatchId: 'match-po-6', targetSlot: 'B' },
+  { sourceMatchId: 'match-po-3', targetMatchId: 'match-po-7', targetSlot: 'B' },
+  { sourceMatchId: 'match-po-4', targetMatchId: 'match-po-8', targetSlot: 'B' },
+
+  // 2. Quarter-Finals -> Semi-Finals
+  // Semi-Final #1: QF-3 vs QF-4
+  { sourceMatchId: 'match-po-7', targetMatchId: 'match-po-9', targetSlot: 'A' },
+  { sourceMatchId: 'match-po-8', targetMatchId: 'match-po-9', targetSlot: 'B' },
+  // Semi-Final #2: QF-1 vs QF-2
+  { sourceMatchId: 'match-po-5', targetMatchId: 'match-po-10', targetSlot: 'A' },
+  { sourceMatchId: 'match-po-6', targetMatchId: 'match-po-10', targetSlot: 'B' },
+
+  // 3. Semi-Finals -> Grand Final
+  // Grand Final: Winner SF-1 vs Winner SF-2
+  { sourceMatchId: 'match-po-9', targetMatchId: 'match-po-11', targetSlot: 'A' },
+  { sourceMatchId: 'match-po-10', targetMatchId: 'match-po-11', targetSlot: 'B' },
+];
+
+export function advancePlayoffWinner(
+  schedules: MatchScheduleItem[],
+  finishedMatchId?: string
+): boolean {
+  let anyUpdated = false;
+
+  for (const node of PLAYOFF_PROGRESSION_TREE) {
+    if (finishedMatchId && node.sourceMatchId !== finishedMatchId) {
+      continue;
+    }
+
+    const sourceMatch = schedules.find((m) => m.id === node.sourceMatchId);
+    if (!sourceMatch) continue;
+
+    const scoreA = Number(sourceMatch.scoreA) || 0;
+    const scoreB = Number(sourceMatch.scoreB) || 0;
+    const isFinished = Boolean(sourceMatch.isFinished);
+
+    if (!isFinished && scoreA === 0 && scoreB === 0) continue;
+    if (scoreA === scoreB) continue;
+
+    const isWinnerA = scoreA > scoreB;
+    const winnerName = isWinnerA ? sourceMatch.teamAName : sourceMatch.teamBName;
+    const winnerLogo = isWinnerA ? sourceMatch.teamALogo : sourceMatch.teamBLogo;
+    const winnerId = isWinnerA ? (sourceMatch as any).teamAId : (sourceMatch as any).teamBId;
+    if (!winnerName) continue;
+
+    const targetIdx = schedules.findIndex((m) => m.id === node.targetMatchId);
+    if (targetIdx === -1) continue;
+
+    const targetMatch = schedules[targetIdx];
+
+    // PROTEKSI DATA LEGACY: Jika babak target sudah selesai, lewati
+    if (targetMatch.isFinished) continue;
+
+    const currentSlotName = node.targetSlot === 'A' ? targetMatch.teamAName : targetMatch.teamBName;
+
+    // Isi jika masih placeholder atau belum terisi pemenang yang benar
+    if (isSlotPlaceholder(currentSlotName) || currentSlotName !== winnerName) {
+      if (node.targetSlot === 'A') {
+        targetMatch.teamAName = winnerName;
+        if (winnerLogo) targetMatch.teamALogo = winnerLogo;
+        if (winnerId) (targetMatch as any).teamAId = winnerId;
+      } else {
+        targetMatch.teamBName = winnerName;
+        if (winnerLogo) targetMatch.teamBLogo = winnerLogo;
+        if (winnerId) (targetMatch as any).teamBId = winnerId;
+      }
+      schedules[targetIdx] = targetMatch;
+      anyUpdated = true;
+    }
+  }
+
+  return anyUpdated;
+}
+
 function isSlotPlaceholder(name?: string): boolean {
   if (!name) return true;
   const lower = name.toLowerCase().trim();
@@ -129,4 +212,4 @@ export function buildPlayoffBracket(schedules: MatchScheduleItem[] = []): Playof
     semiFinals,
     grandFinal,
   };
-}
+        }
