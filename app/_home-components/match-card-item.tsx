@@ -20,6 +20,17 @@ export function MatchCardItem({ match, variant, currentWeek, onClick }: MatchCar
   const isWinA = isResult && scoreA > scoreB;
   const isWinB = isResult && scoreB > scoreA;
 
+  const stageLabel = match.groupName || (match as any).stage || (match as any).matchTitle || "";
+  const weekLabel = `Week ${match.weekNumber || currentWeek}`;
+
+  const handleCardClick = () => {
+    if (isLive && match.streamLink) {
+      window.open(match.streamLink, "_blank", "noopener,noreferrer");
+    } else {
+      onClick();
+    }
+  };
+
   const containerStyle = isLive
     ? "border-rose-500/40 bg-rose-500/5 hover:border-rose-500/70"
     : isToday
@@ -30,10 +41,10 @@ export function MatchCardItem({ match, variant, currentWeek, onClick }: MatchCar
 
   return (
     <div
-      onClick={onClick}
+      onClick={handleCardClick}
       className={`cursor-pointer rounded-2xl border p-3 sm:p-3.5 space-y-2.5 transition text-xs md:text-sm ${containerStyle}`}
     >
-      {/* GRID SIMETRIS 3 KOLOM: MENCEGAH NAMA TIM TERPOTONG */}
+      {/* GRID SIMETRIS 3 KOLOM */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         {/* TEAM A (KIRI) */}
         <div className="flex flex-col items-center text-center gap-1.5 min-w-0">
@@ -94,36 +105,30 @@ export function MatchCardItem({ match, variant, currentWeek, onClick }: MatchCar
         </div>
       </div>
 
-      {/* FOOTER: INFO STREAMER / LINK */}
+      {/* FOOTER: INFO STREAMER, FASE, DAN PEKAN */}
       {!isResult && (
         <div
-          className={`flex items-center justify-between border-t pt-1.5 text-[9px] sm:text-[10px] md:text-xs ${
-            isLive ? "border-rose-500/20 text-rose-500/90" : "border-border/40 text-muted-foreground"
+          className={`grid grid-cols-[1fr_auto_1fr] items-center border-t pt-1.5 text-[9px] sm:text-[10px] md:text-xs gap-1 ${
+            isLive ? "border-rose-500/20 text-rose-600 dark:text-rose-400" : "border-border/40 text-muted-foreground"
           }`}
         >
-          <span className="truncate flex items-center gap-1 font-medium">
-            {isLive ? (
-              <>
-                <Tv className="h-3 w-3 md:h-3.5 md:w-3.5" /> {match.streamer ? `Streamer: ${match.streamer}` : "Official Live"}
-              </>
-            ) : (
-              match.streamer ? `🎙️ ${match.streamer}` : "📺 Butuh Streamer"
-            )}
+          {/* KIRI: STREAMER */}
+          <span className="truncate flex items-center gap-1 font-medium min-w-0">
+            <Tv className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0" />
+            <span className="truncate">
+              {match.streamer ? `Streamer : ${match.streamer}` : "Butuh Streamer"}
+            </span>
           </span>
 
-          {isLive && match.streamLink ? (
-            <a
-              href={match.streamLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="rounded-md bg-rose-500 px-2 py-0.5 md:px-2.5 md:py-1 font-black text-white text-[8.5px] md:text-[10px] hover:bg-rose-600 transition"
-            >
-              Live ↗
-            </a>
-          ) : (
-            <span className="font-semibold">{isToday ? "Hari Ini" : `Week ${match.weekNumber || currentWeek}`}</span>
-          )}
+          {/* TENGAH: FASE */}
+          <span className="font-bold text-center px-1 truncate max-w-[130px] sm:max-w-[160px] text-foreground/90">
+            {stageLabel}
+          </span>
+
+          {/* KANAN: PEKAN */}
+          <span className="font-semibold text-right truncate">
+            {weekLabel}
+          </span>
         </div>
       )}
     </div>
