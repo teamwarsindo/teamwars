@@ -78,6 +78,7 @@ export function advancePlayoffWinner(
     const winnerName = isWinnerA ? sourceMatch.teamAName : sourceMatch.teamBName;
     const winnerLogo = isWinnerA ? sourceMatch.teamALogo : sourceMatch.teamBLogo;
     const winnerId = isWinnerA ? (sourceMatch as any).teamAId : (sourceMatch as any).teamBId;
+    const winnerColor = isWinnerA ? (sourceMatch as any).teamAColor : (sourceMatch as any).teamBColor;
     if (!winnerName) continue;
 
     const targetIdx = schedules.findIndex((m) => m.id === node.targetMatchId);
@@ -96,10 +97,12 @@ export function advancePlayoffWinner(
         targetMatch.teamAName = winnerName;
         if (winnerLogo) targetMatch.teamALogo = winnerLogo;
         if (winnerId) (targetMatch as any).teamAId = winnerId;
+        if (winnerColor) (targetMatch as any).teamAColor = winnerColor;
       } else {
         targetMatch.teamBName = winnerName;
         if (winnerLogo) targetMatch.teamBLogo = winnerLogo;
         if (winnerId) (targetMatch as any).teamBId = winnerId;
+        if (winnerColor) (targetMatch as any).teamBColor = winnerColor;
       }
       schedules[targetIdx] = targetMatch;
       anyUpdated = true;
@@ -212,4 +215,4 @@ export function buildPlayoffBracket(schedules: MatchScheduleItem[] = []): Playof
     semiFinals,
     grandFinal,
   };
-        }
+            }
