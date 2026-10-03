@@ -12,7 +12,7 @@ interface PlayoffTabProps {
   schedules?: MatchScheduleItem[];
 }
 
-function PhaseHeader({
+export function PhaseHeader({
   title,
   colorTheme,
 }: {
@@ -38,7 +38,7 @@ function PhaseHeader({
   );
 }
 
-function TeamSlotDisplay({
+export function TeamSlotDisplay({
   team,
   isFinished,
   nextStageLabel,
@@ -124,7 +124,7 @@ function TeamSlotDisplay({
   );
 }
 
-function TimelineMatchCard({
+export function TimelineMatchCard({
   match,
   colorTheme = "sky",
   isDirect = false,
