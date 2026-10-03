@@ -23,14 +23,11 @@ interface StaffTabViewProps {
   onRefresh?: () => void;
 }
 
-const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-
 function getMatchDayName(matchDate?: string): string {
   if (!matchDate) return '';
   const dt = new Date(matchDate);
   if (isNaN(dt.getTime())) return '';
-  
-  // Format nama hari akurat sesuai zona waktu turnamen Asia/Jakarta
+
   return new Intl.DateTimeFormat('id-ID', {
     weekday: 'long',
     timeZone: 'Asia/Jakarta',
@@ -52,7 +49,7 @@ export default function StaffTabView({
     return isNaN(num) || num <= 0 ? 1 : num;
   }, [selectedWeek]);
 
-  // Saring jadwal yang diteruskan ke kalkulator metrik jika filter Day atau Team aktif
+  // 1. Saring riwayat jadwal tuntas turnamen untuk acuan baseline kalkulator
   const filteredFinishedSchedules = useMemo(() => {
     let result = finishedSchedules;
 
@@ -78,14 +75,54 @@ export default function StaffTabView({
     return result;
   }, [finishedSchedules, selectedDay, selectedTeam]);
 
+  // 2. Saring riwayat match setiap staf sebelum diteruskan ke fungsi kalkulasi metrik
+  const filteredStaffList = useMemo(() => {
+    if (selectedDay === 'ALL' && selectedTeam === 'ALL') {
+      return staffList;
+    }
+
+    const cleanTeam = selectedTeam !== 'ALL' ? selectedTeam.toLowerCase().trim() : null;
+
+    return staffList.map((staff) => {
+      const filterMatches = (matches: MatchDetail[] = []) =>
+        matches.filter((m) => {
+          if (selectedDay !== 'ALL') {
+            const mDate = m.matchDate || (m as unknown as { date?: string }).date;
+            const d = getMatchDayName(mDate);
+            if (d.toLowerCase() !== selectedDay.toLowerCase()) return false;
+          }
+
+          if (cleanTeam) {
+            const tA = (m.teamAName || '').toLowerCase().trim();
+            const tB = (m.teamBName || '').toLowerCase().trim();
+            if (tA !== cleanTeam && tB !== cleanTeam) return false;
+          }
+
+          return true;
+        });
+
+      const newHistory = filterMatches(staff.historyMatches);
+      const newActive = filterMatches(staff.activeMatches);
+
+      return {
+        ...staff,
+        historyMatches: newHistory,
+        activeMatches: newActive,
+        totalFinishedMatches: newHistory.length,
+        totalBroadcastMatches: newHistory.length,
+      };
+    });
+  }, [staffList, selectedDay, selectedTeam]);
+
+  // 3. Kalkulasi metrik kumulatif berdasarkan daftar staf yang sudah terfilter
   const { statsList, baselineGpm } = useMemo(() => {
     return calculateStaffCumulativeMetrics(
-      staffList,
+      filteredStaffList,
       selectedWeekNum,
       filteredFinishedSchedules,
       role
     );
-  }, [staffList, selectedWeekNum, filteredFinishedSchedules, role]);
+  }, [filteredStaffList, selectedWeekNum, filteredFinishedSchedules, role]);
 
   const topStaff = useMemo(() => {
     if (selectedStaffId !== 'ALL') {
@@ -99,14 +136,12 @@ export default function StaffTabView({
     const map = new Map<number, MatchDetail[]>();
 
     topStaff.cumulativeHistory.forEach((m) => {
-      // 1. Saring filter Hari
       if (selectedDay !== 'ALL') {
         const matchDate = m.matchDate || (m as unknown as { date?: string }).date;
         const d = getMatchDayName(matchDate);
         if (d.toLowerCase() !== selectedDay.toLowerCase()) return;
       }
 
-      // 2. Saring filter Tim
       if (selectedTeam !== 'ALL') {
         const cleanTeam = selectedTeam.toLowerCase().trim();
         const tA = (m.teamAName || '').toLowerCase().trim();
@@ -175,4 +210,5 @@ export default function StaffTabView({
       )}
     </div>
   );
-    }
+          }
+      
