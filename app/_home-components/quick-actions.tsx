@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { MatchScheduleItem } from "@/app/tournament/_library";
+import { MatchScheduleItem, TOURNAMENT_RULES } from "@/app/tournament/_library";
 import {
   Search,
   Calendar,
@@ -31,6 +31,8 @@ export function QuickActions({
   const [selectedTeam, setSelectedTeam] = useState<any>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  const isPlayoffStage = currentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
 
   const teamMatchHistory = useMemo(() => {
     const map = new Map<string, MatchScheduleItem[]>();
@@ -82,7 +84,7 @@ export function QuickActions({
 
   return (
     <div className="space-y-3.5 md:space-y-4">
-      {/* 3 MENU NAVIGASI UTAMA (STANDARISASI LABEL STANDING & UKURAN FONT) */}
+      {/* 3 MENU NAVIGASI UTAMA (DINAMIS MENGIKUTI FASE REGULER VS PLAYOFF) */}
       <div className="grid grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
         <Link
           href="/tournament?tab=schedule"
@@ -96,14 +98,18 @@ export function QuickActions({
         </Link>
 
         <Link
-          href="/tournament?tab=standings"
+          href={isPlayoffStage ? "/tournament?tab=playoff" : "/tournament?tab=standings"}
           className="flex flex-col items-center justify-center rounded-2xl border border-border/80 bg-card p-3 sm:p-4 md:p-5 text-center shadow-xs transition hover:border-primary/50 hover:bg-muted/30 group"
         >
           <div className="flex h-9 w-9 sm:h-10 sm:w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform">
             <Trophy className="h-4.5 w-4.5 sm:h-5 sm:w-5 md:h-6 md:w-6" />
           </div>
-          <span className="mt-2 text-xs sm:text-sm md:text-base font-bold text-foreground">Standing</span>
-          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">Divisi &amp; Wildcard</span>
+          <span className="mt-2 text-xs sm:text-sm md:text-base font-bold text-foreground">
+            {isPlayoffStage ? "Bracket" : "Standing"}
+          </span>
+          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">
+            {isPlayoffStage ? "Playoff Stage" : "Divisi & Wildcard"}
+          </span>
         </Link>
 
         <Link
@@ -229,4 +235,4 @@ export function QuickActions({
       )}
     </div>
   );
-}
+          }
