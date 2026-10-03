@@ -178,12 +178,15 @@ export async function GET(req: Request) {
       availableWeeksList.push(`Week ${w}`);
     }
 
-    // 8. Jadwal tuntas turnamen untuk acuan baseline dinamis per pekan di frontend
+    // 8. Jadwal tuntas turnamen untuk acuan filter tim dan hari dinamis di frontend
     const finishedSchedules = schedulesData
       .filter((m) => m.isFinished || (m.scoreA ?? 0) > 0 || (m.scoreB ?? 0) > 0)
       .map((m) => ({
         id: m.id,
         weekNumber: m.weekNumber || 1,
+        matchDate: m.matchDate || null,
+        teamAName: m.teamAName || '',
+        teamBName: m.teamBName || '',
         scoreA: m.scoreA ?? 0,
         scoreB: m.scoreB ?? 0,
         hasStream: Boolean(m.streamLink || (m as any).streamUrl || m.streamer),
@@ -205,4 +208,4 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-}
+          }
