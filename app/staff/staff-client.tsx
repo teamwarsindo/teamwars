@@ -121,6 +121,8 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
           staffList={currentStaffList}
           selectedStaffId={selectedStaffId}
           selectedWeek={selectedWeek}
+          selectedDay={selectedDay}
+          selectedTeam={selectedTeam}
           finishedSchedules={finishedSchedules}
           isAdmin={isAdmin}
           onRefresh={fetchRoster}
@@ -128,4 +130,4 @@ export default function StaffClientContent({ isAdmin = false }: StaffClientConte
       )}
     </div>
   );
-}
+      }
