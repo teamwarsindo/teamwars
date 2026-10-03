@@ -40,12 +40,12 @@ export const PLAYOFF_PROGRESSION_TREE: PlayoffProgressionNode[] = [
   { sourceMatchId: 'match-po-4', targetMatchId: 'match-po-8', targetSlot: 'B' },
 
   // 2. Quarter-Finals -> Semi-Finals
-  // Semi-Final #1: QF-3 vs QF-4
-  { sourceMatchId: 'match-po-7', targetMatchId: 'match-po-9', targetSlot: 'A' },
-  { sourceMatchId: 'match-po-8', targetMatchId: 'match-po-9', targetSlot: 'B' },
-  // Semi-Final #2: QF-1 vs QF-2
-  { sourceMatchId: 'match-po-5', targetMatchId: 'match-po-10', targetSlot: 'A' },
-  { sourceMatchId: 'match-po-6', targetMatchId: 'match-po-10', targetSlot: 'B' },
+  // Semi-Final #1: Winner QF-1 vs Winner QF-2
+  { sourceMatchId: 'match-po-5', targetMatchId: 'match-po-9', targetSlot: 'A' },
+  { sourceMatchId: 'match-po-6', targetMatchId: 'match-po-9', targetSlot: 'B' },
+  // Semi-Final #2: Winner QF-3 vs Winner QF-4
+  { sourceMatchId: 'match-po-7', targetMatchId: 'match-po-10', targetSlot: 'A' },
+  { sourceMatchId: 'match-po-8', targetMatchId: 'match-po-10', targetSlot: 'B' },
 
   // 3. Semi-Finals -> Grand Final
   // Grand Final: Winner SF-1 vs Winner SF-2
@@ -215,4 +215,4 @@ export function buildPlayoffBracket(schedules: MatchScheduleItem[] = []): Playof
     semiFinals,
     grandFinal,
   };
-            }
+                                     }
