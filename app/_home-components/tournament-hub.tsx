@@ -158,8 +158,11 @@ export function TournamentHub() {
           topGroupA={topGroupA}
           topGroupB={topGroupB}
           topGlobal={topGlobal}
+          currentWeek={currentWeek}
+          schedules={schedules}
         />
       </div>
     </div>
   );
-}
+                                               }
+      
