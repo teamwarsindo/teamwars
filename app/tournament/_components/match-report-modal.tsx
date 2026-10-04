@@ -94,11 +94,11 @@ export function MatchReportModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/75 p-3 pt-20 pb-6 sm:p-4 sm:pt-24 sm:pb-8 backdrop-blur-sm animate-in fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3.5 pt-16 sm:p-4 backdrop-blur-sm animate-in fade-in"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[84vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
+        className="mt-10 sm:mt-0 flex max-h-[78vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
       >
         {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-border/80 px-4 py-3 bg-muted/40 shrink-0">
@@ -273,4 +273,4 @@ export function MatchReportModal({
   );
 }
 
-export default MatchReportModal;
+export default MatchReportModa
