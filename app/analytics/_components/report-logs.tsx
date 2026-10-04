@@ -1,14 +1,20 @@
-'use client';
+"use client";
 
 interface ReportLogsProps {
   games: any[];
   isFinished?: boolean;
   isMatchStarted?: boolean;
+  startIndex?: number;
 }
 
-export function ReportLogs({ games = [], isFinished, isMatchStarted }: ReportLogsProps) {
+export function ReportLogs({
+  games = [],
+  isFinished,
+  isMatchStarted,
+  startIndex = 0,
+}: ReportLogsProps) {
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
+    <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs w-full">
       <div className="py-2.5 px-3 bg-muted/30 border-b border-border text-center">
         <span className="text-xs font-black uppercase tracking-wider text-foreground">
           Match History
@@ -37,11 +43,11 @@ export function ReportLogs({ games = [], isFinished, isMatchStarted }: ReportLog
 
             const skillA = pA.skillAbbr || pA.skill || "-";
             const skillB = pB.skillAbbr || pB.skill || "-";
+            const roundNumber = startIndex + idx + 1;
 
             return (
               <div key={idx} className="py-2 px-3 hover:bg-muted/15 transition">
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
-                  
                   {/* Sisi Tim A */}
                   <div className="flex flex-col items-center text-center min-w-0">
                     <div className="font-bold text-xs text-foreground truncate w-full">
@@ -57,7 +63,7 @@ export function ReportLogs({ games = [], isFinished, isMatchStarted }: ReportLog
 
                   {/* Sisi Tengah: Simetris R di Atas, W/L di Tengah, TL di Bawah */}
                   <div className="flex flex-col items-center justify-center shrink-0 px-1">
-                    {/* Baris Atas: R & Ronde */}
+                    {/* Baris Atas: R & Ronde Dinamis */}
                     <div className="flex items-center justify-between w-full h-[14px] px-0.5">
                       <div className="w-4 flex justify-center">
                         {pA.isRepeat && (
@@ -67,7 +73,7 @@ export function ReportLogs({ games = [], isFinished, isMatchStarted }: ReportLog
                         )}
                       </div>
                       <span className="text-[8px] font-mono text-muted-foreground/60 leading-none">
-                        G{idx + 1}
+                        G{roundNumber}
                       </span>
                       <div className="w-4 flex justify-center">
                         {pB.isRepeat && (
@@ -89,7 +95,7 @@ export function ReportLogs({ games = [], isFinished, isMatchStarted }: ReportLog
                       >
                         {isAWin ? "W" : "L"}
                       </span>
-                      
+
                       <span className="text-[9px] font-sans font-bold text-muted-foreground/40">
                         vs
                       </span>
@@ -137,7 +143,6 @@ export function ReportLogs({ games = [], isFinished, isMatchStarted }: ReportLog
                       {skillB}
                     </div>
                   </div>
-
                 </div>
               </div>
             );
