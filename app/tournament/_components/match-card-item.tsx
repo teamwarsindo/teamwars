@@ -234,37 +234,48 @@ export function MatchCardItem({
         </div>
       </div>
 
-      {/* FOOTER TERPADU (STREAMER DI KIRI, STAGE DI KANAN, TANPA WEEK) */}
-      <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[9px] sm:text-[10px] md:text-xs text-muted-foreground">
-        <span className="truncate flex items-center gap-1 font-medium max-w-[60%]">
+      {/* FOOTER: STREAMER DI KIRI, LIVE / RECORD DI TENGAH, STAGE DI KANAN */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center border-t border-border/40 pt-2 text-[9px] sm:text-[10px] md:text-xs text-muted-foreground gap-2">
+        {/* KIRI: STREAMER */}
+        <span className="truncate flex items-center gap-1 font-medium text-left">
           {match.streamer ? (
             <>
               <Tv className="h-3 w-3 md:h-3.5 md:w-3.5 text-primary shrink-0" />
               <span className="truncate">Streamer : {match.streamer}</span>
             </>
           ) : (
-            <span>🎙 Official Match</span>
+            <span className="truncate">🎙 Official Match</span>
           )}
         </span>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {match.streamLink && (
+        {/* TENGAH: BADGE LIVE ATAU RECORD (JIKA MATCH SELESAI) */}
+        <div className="flex items-center justify-center shrink-0">
+          {match.streamLink ? (
             <a
               href={match.streamLink}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-0.5 font-bold text-rose-500 hover:text-rose-600 transition"
+              className={`inline-flex items-center gap-1 font-bold transition px-2 py-0.5 rounded-md ${
+                isPlayed
+                  ? "text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20"
+                  : "text-rose-500 hover:text-rose-600 bg-rose-500/10 hover:bg-rose-500/20"
+              }`}
             >
-              Live <ExternalLink className="h-3 w-3" />
+              <span>{isPlayed ? "Record" : "Live"}</span>
+              <ExternalLink className="h-3 w-3" />
             </a>
-          )}
-          <span className="font-bold text-foreground/80">{stageLabel}</span>
+          ) : null}
         </div>
+
+        {/* KANAN: NAMA STAGE / DIVISI */}
+        <span className="font-bold text-foreground/80 text-right truncate">
+          {stageLabel}
+        </span>
       </div>
     </div>
   );
 }
 
 export default MatchCardItem;
-                  
+          
