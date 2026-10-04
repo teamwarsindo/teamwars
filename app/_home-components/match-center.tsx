@@ -10,6 +10,7 @@ import {
 import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
 import { MatchCardItem } from "@/app/tournament/_components/match-card-item";
 import { MatchH2HModal } from "./match-h2h-modal";
+import { MatchReportModal } from "@/app/tournament/_components/match-report-modal";
 import { Calendar, Radio, ChevronRight, AlertCircle } from "lucide-react";
 
 interface MatchCenterProps {
@@ -35,14 +36,25 @@ export function MatchCenter({
 }: MatchCenterProps) {
   const [activeTab, setActiveTab] = useState<"JADWAL" | "HASIL">("JADWAL");
   const [selectedH2HMatch, setSelectedH2HMatch] = useState<MatchScheduleItem | null>(null);
+  const [selectedReportMatch, setSelectedReportMatch] = useState<MatchScheduleItem | null>(null);
 
   const isPlayoffStage = currentWeek >= TOURNAMENT_RULES.PLAYOFF_START_WEEK;
   const hasFinishedMatches = recentResults.length > 0;
 
-  // Filter agar laga yang sedang LIVE tidak muncul ganda di today atau upcoming
   const liveMatchIds = new Set(liveMatches.map((m) => m.id));
   const filteredTodayMatches = todayMatches.filter((m) => !liveMatchIds.has(m.id));
   const filteredUpcomingMatches = upcomingMatches.filter((m) => !liveMatchIds.has(m.id));
+
+  const handleMatchClick = (m: MatchScheduleItem) => {
+    const isLive = Boolean(m.streamLink) || (Number(m.scoreA) || 0) + (Number(m.scoreB) || 0) > 0;
+    const isFinished = Boolean(m.isFinished) || (Number(m.scoreA) || 0) >= 10 || (Number(m.scoreB) || 0) >= 10;
+
+    if (isLive || isFinished) {
+      setSelectedReportMatch(m);
+    } else {
+      setSelectedH2HMatch(m);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs">
@@ -99,7 +111,7 @@ export function MatchCenter({
                     key={m.id}
                     match={m}
                     variant="LIVE"
-                    onClick={() => setSelectedH2HMatch(m)}
+                    onClick={() => handleMatchClick(m)}
                   />
                 ))}
               </div>
@@ -118,7 +130,7 @@ export function MatchCenter({
                     key={m.id}
                     match={m}
                     variant="TODAY"
-                    onClick={() => setSelectedH2HMatch(m)}
+                    onClick={() => handleMatchClick(m)}
                   />
                 ))}
               </div>
@@ -137,7 +149,7 @@ export function MatchCenter({
                     key={m.id}
                     match={m}
                     variant="UPCOMING"
-                    onClick={() => setSelectedH2HMatch(m)}
+                    onClick={() => handleMatchClick(m)}
                   />
                 ))}
               </div>
@@ -145,14 +157,16 @@ export function MatchCenter({
           )}
 
           {/* TAMPILAN KOSONG */}
-          {liveMatches.length === 0 && filteredTodayMatches.length === 0 && filteredUpcomingMatches.length === 0 && (
-            <div className="flex flex-col items-center justify-center p-6 text-center rounded-xl bg-muted/20 border border-border/40">
-              <AlertCircle className="h-6 w-6 text-muted-foreground/80 mb-2" />
-              <p className="max-w-md text-xs font-medium text-muted-foreground leading-relaxed">
-                {getScheduleEmptyStateMessage(currentWeek, hasFinishedMatches)}
-              </p>
-            </div>
-          )}
+          {liveMatches.length === 0 &&
+            filteredTodayMatches.length === 0 &&
+            filteredUpcomingMatches.length === 0 && (
+              <div className="flex flex-col items-center justify-center p-6 text-center rounded-xl bg-muted/20 border border-border/40">
+                <AlertCircle className="h-6 w-6 text-muted-foreground/80 mb-2" />
+                <p className="max-w-md text-xs font-medium text-muted-foreground leading-relaxed">
+                  {getScheduleEmptyStateMessage(currentWeek, hasFinishedMatches)}
+                </p>
+              </div>
+            )}
         </div>
       ) : (
         /* TAB HASIL TERBARU */
@@ -163,7 +177,7 @@ export function MatchCenter({
                 key={m.id}
                 match={m}
                 variant="RESULT"
-                onClick={() => setSelectedH2HMatch(m)}
+                onClick={() => handleMatchClick(m)}
               />
             ))
           ) : (
@@ -174,7 +188,7 @@ export function MatchCenter({
         </div>
       )}
 
-      {/* MODAL H2H */}
+      {/* MODAL H2H (JIKA BELUM MULAI) */}
       {selectedH2HMatch && (
         <MatchH2HModal
           match={selectedH2HMatch}
@@ -182,6 +196,15 @@ export function MatchCenter({
           standings={standings}
           allSchedules={allSchedules}
           onClose={() => setSelectedH2HMatch(null)}
+        />
+      )}
+
+      {/* MODAL MATCH REPORT (JIKA LIVE ATAU SELESAI) */}
+      {selectedReportMatch && (
+        <MatchReportModal
+          match={selectedReportMatch}
+          weekNumber={currentWeek}
+          onClose={() => setSelectedReportMatch(null)}
         />
       )}
     </div>
