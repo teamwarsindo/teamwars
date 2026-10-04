@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { MatchScheduleItem } from "@/app/tournament/_library";
+import { ExternalLink, Crown, Shield, X, Radio } from "lucide-react";
 
 interface MatchReportModalProps {
   open?: boolean;
@@ -37,7 +40,7 @@ export function MatchReportModal({
       if (!match?.id) return;
       setLoading(true);
       try {
-        const res = await fetch(`/api/tournament/match-report?matchId=${match.id}`);
+        const res = await fetch(`/api/analytics/match-report?matchId=${match.id}`);
         const json = await res.json();
         if (json.success && json.data) {
           setReport(json.data);
@@ -45,7 +48,7 @@ export function MatchReportModal({
           setReport(null);
         }
       } catch (err) {
-        console.error("Gagal memuat report data:", err);
+        console.error("Gagal memuat report analytics:", err);
         setReport(null);
       } finally {
         setLoading(false);
@@ -55,245 +58,197 @@ export function MatchReportModal({
     fetchReport();
   }, [match?.id, open]);
 
-  if (!match || (open !== undefined && !open)) return null;
-
   const meta = report?.metadata || {};
-  const teamAName = report?.teamA?.name || match.teamAName;
-  const teamBName = report?.teamB?.name || match.teamBName;
-  const teamALogo = match.teamALogo || "/logo.webp";
-  const teamBLogo = match.teamBLogo || "/logo.webp";
-
-  const scoreA = report?.teamA?.score ?? report?.finalScore?.teamA ?? match.scoreA ?? 0;
-  const scoreB = report?.teamB?.score ?? report?.finalScore?.teamB ?? match.scoreB ?? 0;
-  const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10 || match.isFinished);
-
-  const referee = meta.referee || match.referee || "-";
-  const streamer = meta.streamer || match.streamer || "-";
-  const streamUrl = meta.streamUrl || match.streamLink;
-  const targetWeek = report?.week || weekNumber || 6;
-
-  const lineupA: any[] = report?.teamA?.lineup || [];
-  const lineupB: any[] = report?.teamB?.lineup || [];
+  const teamA = report?.teamA || {};
+  const teamB = report?.teamB || {};
   const games: any[] = report?.games || [];
 
+  const scoreA = teamA.score ?? report?.finalScore?.teamA ?? match?.scoreA ?? 0;
+  const scoreB = teamB.score ?? report?.finalScore?.teamB ?? match?.scoreB ?? 0;
+  const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10 || match?.isFinished);
+
+  const teamAName = teamA.name || match?.teamAName || "Tim A";
+  const teamBName = teamB.name || match?.teamBName || "Tim B";
+  const teamALogo = match?.teamALogo;
+  const teamBLogo = match?.teamBLogo;
+
+  const lineupA: any[] = teamA.lineup || [];
+  const lineupB: any[] = teamB.lineup || [];
+
+  const topDuelist = useMemo(() => {
+    if (!games.length) return null;
+    const playerWins = new Map<string, { ign: string; team: string; wins: number; archetype?: string }>();
+    games.forEach((g) => {
+      const isWinnerA = g.winner === "teamA";
+      const p = isWinnerA ? g.playerA : g.playerB;
+      const team = isWinnerA ? teamAName : teamBName;
+      if (p?.ign) {
+        const cur = playerWins.get(p.ign) || { ign: p.ign, team, wins: 0, archetype: p.archetype };
+        cur.wins += 1;
+        playerWins.set(p.ign, cur);
+      }
+    });
+
+    const sorted = Array.from(playerWins.values()).sort((a, b) => b.wins - a.wins);
+    return sorted[0] || null;
+  }, [games, teamAName, teamBName]);
+
+  if (!match || (open !== undefined && !open)) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl">
-        
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
+      >
         {/* HEADER MODAL */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-muted/30">
+        <div className="flex items-center justify-between border-b border-border/80 px-4 py-3 bg-muted/40">
           <div>
             <div className="text-[10px] font-black uppercase tracking-wider text-primary">
-              MATCH REPORT • WEEK {targetWeek}
+              RINGKASAN PERTANDINGAN • WEEK {match.weekNumber || weekNumber || 1}
             </div>
-            <div className="text-xs font-bold text-muted-foreground truncate">
-              {match.groupName}
+            <div className="text-xs font-bold text-muted-foreground truncate max-w-[280px] sm:max-w-md">
+              {match.groupName || "Official Stage"}
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition cursor-pointer"
           >
-            ✕
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* BODY CONTAINER */}
-        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3.5 text-xs">
-          
-          {/* PETUGAS & STREAMER */}
-          <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-muted/40 border border-border text-[11px]">
-            <div>
-              <span className="text-[9px] text-muted-foreground uppercase font-bold block">Referee</span>
-              <span className="font-semibold truncate block">{referee}</span>
-            </div>
-            <div>
-              <span className="text-[9px] text-muted-foreground uppercase font-bold block">Streamer / Live</span>
-              {streamUrl ? (
-                <a
-                  href={streamUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-bold text-primary hover:underline truncate block"
-                >
-                  {streamer} ↗
-                </a>
-              ) : (
-                <span className="font-semibold truncate block">{streamer}</span>
-              )}
-            </div>
-          </div>
-
+        {/* ISI MODAL */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
           {/* SCOREBOARD UTAMA */}
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 p-3 rounded-xl bg-muted/30 border border-border">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 p-3 rounded-2xl bg-muted/30 border border-border/70">
             {/* TIM A */}
-            <div className="flex items-center gap-2 truncate">
-              <img src={teamALogo} alt="" className="h-7 w-7 object-contain shrink-0" />
-              <span className="font-extrabold text-xs sm:text-sm truncate">{teamAName}</span>
+            <div className="flex flex-col items-center text-center min-w-0">
+              <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full overflow-hidden border border-border/80 bg-muted/40 flex items-center justify-center mb-1 shrink-0">
+                {teamALogo ? (
+                  <Image src={teamALogo} alt={teamAName} fill sizes="48px" className="object-cover rounded-full" unoptimized />
+                ) : (
+                  <Shield className="h-5 w-5 text-muted-foreground" />
+                )}
+              </div>
+              <span className="font-bold text-[11px] sm:text-xs truncate w-full">{teamAName}</span>
             </div>
 
             {/* SKOR */}
-            <div className="text-center px-3 shrink-0">
-              <div className="text-xl sm:text-2xl font-black tracking-tight leading-none">
-                <span className={scoreA > scoreB ? "text-primary font-black" : "text-muted-foreground"}>{scoreA}</span>
-                <span className="text-muted-foreground/50 mx-1.5">-</span>
-                <span className={scoreB > scoreA ? "text-primary font-black" : "text-muted-foreground"}>{scoreB}</span>
+            <div className="flex flex-col items-center justify-center px-2 shrink-0">
+              <div className="flex items-center gap-1.5 font-mono text-2xl sm:text-3xl font-black leading-none">
+                <span className={scoreA > scoreB ? "text-primary" : "text-foreground/90"}>{scoreA}</span>
+                <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl">—</span>
+                <span className={scoreB > scoreA ? "text-primary" : "text-foreground/90"}>{scoreB}</span>
               </div>
-              <span className={`inline-block px-1.5 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider mt-1 border ${
-                isFinished 
-                  ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
-                  : "bg-amber-500/10 text-amber-500 border-amber-500/20"
-              }`}>
+              <span
+                className={`mt-1.5 px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider border ${
+                  isFinished
+                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                    : "bg-rose-500/10 text-rose-500 border-rose-500/20 flex items-center gap-1"
+                }`}
+              >
+                {!isFinished && <Radio className="h-2.5 w-2.5 animate-pulse" />}
                 {isFinished ? "FINISHED" : "IN PROGRESS"}
               </span>
             </div>
 
             {/* TIM B */}
-            <div className="flex items-center justify-end gap-2 truncate text-right">
-              <span className="font-extrabold text-xs sm:text-sm truncate">{teamBName}</span>
-              <img src={teamBLogo} alt="" className="h-7 w-7 object-contain shrink-0" />
+            <div className="flex flex-col items-center text-center min-w-0">
+              <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full overflow-hidden border border-border/80 bg-muted/40 flex items-center justify-center mb-1 shrink-0">
+                {teamBLogo ? (
+                  <Image src={teamBLogo} alt={teamBName} fill sizes="48px" className="object-cover rounded-full" unoptimized />
+                ) : (
+                  <Shield className="h-5 w-5 text-muted-foreground" />
+                )}
+              </div>
+              <span className="font-bold text-[11px] sm:text-xs truncate w-full">{teamBName}</span>
             </div>
           </div>
 
-          {/* ACTIVE LINEUP (HANYA NAMA PEMAIN) */}
-          {(lineupA.length > 0 || lineupB.length > 0) && (
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                Lineup Bertanding
-              </span>
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
-                {/* LINEUP TIM A */}
-                <div className="p-2.5 rounded-xl bg-muted/20 border border-border space-y-1">
-                  <div className="font-bold text-primary truncate text-[11px] pb-1 border-b border-border/50">
-                    {teamAName}
-                  </div>
-                  <div className="space-y-0.5">
-                    {lineupA.map((p: any, i: number) => (
-                      <div key={i} className="truncate text-foreground/90 flex items-center gap-1.5">
-                        <span className="text-muted-foreground/60 text-[10px] w-3">{i + 1}.</span>
-                        <span className="font-medium truncate">{p.ign || p.playerName}</span>
-                      </div>
-                    ))}
-                  </div>
+          {/* TOP DUELIST */}
+          {topDuelist && (
+            <div className="flex items-center justify-between p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-slate-950 shrink-0">
+                  <Crown className="h-4 w-4 fill-current" />
                 </div>
-
-                {/* LINEUP TIM B */}
-                <div className="p-2.5 rounded-xl bg-muted/20 border border-border space-y-1">
-                  <div className="font-bold text-rose-500 truncate text-[11px] pb-1 border-b border-border/50">
-                    {teamBName}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-xs truncate">{topDuelist.ign}</span>
+                    <span className="text-[9px] font-bold text-muted-foreground">({topDuelist.team})</span>
                   </div>
-                  <div className="space-y-0.5">
-                    {lineupB.map((p: any, i: number) => (
-                      <div key={i} className="truncate text-foreground/90 flex items-center gap-1.5">
-                        <span className="text-muted-foreground/60 text-[10px] w-3">{i + 1}.</span>
-                        <span className="font-medium truncate">{p.ign || p.playerName}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <span className="text-[9.5px] text-muted-foreground block truncate">
+                    {topDuelist.archetype || "Top Performer"}
+                  </span>
                 </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <span className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-400 block">Menang</span>
+                <span className="text-xs font-black font-mono">{topDuelist.wins} Game</span>
               </div>
             </div>
           )}
 
-          {/* RINCIAN LOG GAME RINGKAS */}
-          <div className="space-y-2">
+          {/* LINEUP RINGKAS */}
+          <div className="space-y-1.5">
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-              Log Duel ({games.length} Game)
+              Lineup Pemain
             </span>
-
-            {loading ? (
-              <div className="p-6 text-center text-xs text-muted-foreground bg-muted/20 border border-border rounded-xl">
-                Memuat riwayat duel...
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="p-2.5 rounded-xl bg-muted/20 border border-border/70 space-y-1">
+                <div className="font-bold text-primary truncate text-[11px] pb-1 border-b border-border/50">
+                  {teamAName}
+                </div>
+                {lineupA.map((p: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between gap-1 text-[10.5px]">
+                    <span className="truncate">{p.ign || p.playerName}</span>
+                    <span className="font-mono text-[9.5px] text-muted-foreground font-semibold">
+                      {p.winCount ?? 0}W - {p.loseCount ?? 0}L
+                    </span>
+                  </div>
+                ))}
               </div>
-            ) : games.length === 0 ? (
-              <div className="p-6 text-center text-xs italic text-muted-foreground bg-muted/20 border border-border rounded-xl">
-                Belum ada log game yang dipublikasikan.
+
+              <div className="p-2.5 rounded-xl bg-muted/20 border border-border/70 space-y-1">
+                <div className="font-bold text-rose-500 truncate text-[11px] pb-1 border-b border-border/50">
+                  {teamBName}
+                </div>
+                {lineupB.map((p: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between gap-1 text-[10.5px]">
+                    <span className="truncate">{p.ign || p.playerName}</span>
+                    <span className="font-mono text-[9.5px] text-muted-foreground font-semibold">
+                      {p.winCount ?? 0}W - {p.loseCount ?? 0}L
+                    </span>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div className="space-y-1.5">
-                {games.map((g: any, idx: number) => {
-                  const isAWin = g.winner === "teamA";
-                  const pA = g.playerA || {};
-                  const pB = g.playerB || {};
-
-                  return (
-                    <div
-                      key={idx}
-                      className="p-2 sm:p-2.5 rounded-lg bg-muted/20 hover:bg-muted/40 border border-border/60 transition flex flex-col gap-1"
-                    >
-                      {/* HEADER GAME ROW */}
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-bold font-mono text-muted-foreground">
-                          #{g.gameNumber || idx + 1}
-                        </span>
-                        
-                        <div className="flex items-center gap-1">
-                          {g.isDeckloss && (
-                            <span className="px-1 py-0.2 rounded text-[8px] font-black bg-rose-500/10 text-rose-500 border border-rose-500/20">
-                              DECKLOSS
-                            </span>
-                          )}
-                          <span
-                            className={`px-1.5 py-0.2 rounded text-[9px] font-black border ${
-                              isAWin
-                                ? "bg-primary/10 text-primary border-primary/20"
-                                : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                            }`}
-                          >
-                            WIN: {isAWin ? teamAName : teamBName}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* DUEL INFO: 1 BARIS COMPACT */}
-                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 text-[11px] pt-1 border-t border-border/40">
-                        {/* PEMAIN A */}
-                        <div className={`truncate ${isAWin ? "font-bold text-foreground" : "text-muted-foreground"}`}>
-                          <div className="truncate flex items-center gap-1">
-                            <span className="truncate">{pA.ign || "-"}</span>
-                            {pA.isRepeat && (
-                              <span className="text-[8px] font-black bg-amber-500/20 text-amber-500 px-1 rounded border border-amber-500/30">R</span>
-                            )}
-                          </div>
-                          <div className="text-[9px] text-muted-foreground/80 truncate">
-                            {pA.archetype || "-"}
-                          </div>
-                        </div>
-
-                        {/* VS BADGE */}
-                        <div className="text-[8px] font-bold text-muted-foreground px-1">
-                          vs
-                        </div>
-
-                        {/* PEMAIN B */}
-                        <div className={`text-right truncate ${!isAWin ? "font-bold text-foreground" : "text-muted-foreground"}`}>
-                          <div className="truncate flex items-center justify-end gap-1">
-                            {pB.isRepeat && (
-                              <span className="text-[8px] font-black bg-amber-500/20 text-amber-500 px-1 rounded border border-amber-500/30">R</span>
-                            )}
-                            <span className="truncate">{pB.ign || "-"}</span>
-                          </div>
-                          <div className="text-[9px] text-muted-foreground/80 truncate">
-                            {pB.archetype || "-"}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* CATATAN RINGKAS (JIKA ADA) */}
-                      {g.notes && (
-                        <div className="text-[9px] text-amber-500/90 italic bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10 mt-0.5">
-                          {g.notes}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            </div>
           </div>
+        </div>
 
+        {/* FOOTER TOMBOL KE HALAMAN ANALYTICS */}
+        <div className="p-3 border-t border-border/80 bg-muted/30 flex items-center justify-between gap-2">
+          <span className="text-[10px] text-muted-foreground truncate">
+            {meta.referee ? `Wasit: ${meta.referee}` : "Official Match"}
+          </span>
+          <Link
+            href={`/analytics?tab=reports&match=${match.id}`}
+            onClick={onClose}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:opacity-90 transition shadow-xs cursor-pointer shrink-0"
+          >
+            <span>Lihat Match History Lengkap</span>
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
         </div>
       </div>
     </div>
   );
 }
+
+export default MatchReportModal;
+          
