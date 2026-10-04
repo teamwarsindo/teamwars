@@ -35,12 +35,16 @@ function formatMatchTimeOnly(dateStr?: string) {
   if (!dateStr) return "TBD";
   try {
     const d = new Date(dateStr);
-    return d.toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Jakarta",
-    }).replace(":", ".") + " WIB";
+    return (
+      d
+        .toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+          timeZone: "Asia/Jakarta",
+        })
+        .replace(":", ".") + " WIB"
+    );
   } catch {
     return dateStr;
   }
@@ -61,7 +65,6 @@ export function MatchCardItem({
   const cleanA = groupAName.toLowerCase().trim();
   const cleanB = groupBName.toLowerCase().trim();
 
-  // 1. Deteksi Laga Playoff
   const isPlayoff =
     match.id.startsWith("match-po-") ||
     (Boolean(match.stage) && match.stage !== "GROUP_STAGE") ||
@@ -71,7 +74,6 @@ export function MatchCardItem({
     gName.includes("grand") ||
     gName.includes("final");
 
-  // 2. Deteksi Babak Reguler
   const isGroupA =
     !isPlayoff &&
     (gName === "group a" || gName === "divisi a" || gName === cleanA || gName.includes(cleanA));
@@ -80,7 +82,6 @@ export function MatchCardItem({
     !isPlayoff &&
     (gName === "group b" || gName === "divisi b" || gName === cleanB || gName.includes(cleanB));
 
-  // 3. Nama Label Stage / Divisi
   let stageLabel = match.groupName || "PLAYOFF";
   if (isGroupA) {
     stageLabel = groupAName.replace(/^Div(isi|\.)\s*/i, "").trim();
@@ -93,9 +94,9 @@ export function MatchCardItem({
   const scoreA = Number(match.scoreA) || 0;
   const scoreB = Number(match.scoreB) || 0;
 
-  // Status Pertandingan Selesai
   const isFinishedMatch = Boolean(match.isFinished) || scoreA >= 10 || scoreB >= 10;
-  const isLive = variant === "LIVE" || (!isFinishedMatch && (scoreA > 0 || scoreB > 0 || Boolean(match.streamLink)));
+  const isLive =
+    variant === "LIVE" || (!isFinishedMatch && (scoreA > 0 || scoreB > 0 || Boolean(match.streamLink)));
   const isPlayed = variant === "RESULT" || isFinishedMatch || scoreA + scoreB > 0;
 
   const isWinA = isFinishedMatch && scoreA > scoreB;
@@ -122,7 +123,7 @@ export function MatchCardItem({
     >
       {/* GRID SIMETRIS 3 KOLOM */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-2 pt-1">
-        {/* TEAM A (KIRI) */}
+        {/* TEAM A */}
         <div className="flex flex-col items-center justify-center text-center min-w-0">
           <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full overflow-hidden border border-border/80 bg-muted/40 flex items-center justify-center mb-1.5 shrink-0 shadow-xs">
             {match.teamALogo && !logoErrA ? (
@@ -153,30 +154,21 @@ export function MatchCardItem({
           </span>
         </div>
 
-        {/* MIDDLE SECTION (SKOR / VS & TANGGAL DUA BARIS) */}
+        {/* MIDDLE SECTION */}
         <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0 min-w-[84px] sm:min-w-[104px] text-center">
           {isLive ? (
             <div className="flex flex-col items-center gap-1">
-              <span className="flex items-center gap-1 rounded-md bg-rose-500 px-2 py-0.5 text-[8.5px] sm:text-[9.5px] font-black text-white uppercase tracking-wider animate-pulse shadow-xs">
-                <Radio className="h-2.5 w-2.5" /> LIVE
-              </span>
-              <div className="flex items-center justify-center gap-1 font-mono text-xl sm:text-2xl font-black leading-none">
+              <div className="flex items-center justify-center gap-1 font-mono text-2xl sm:text-3xl font-black leading-none text-rose-600 dark:text-rose-500">
                 <span>{scoreA}</span>
-                <span className="text-muted-foreground/30 font-sans text-base sm:text-lg">—</span>
+                <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl font-normal">—</span>
                 <span>{scoreB}</span>
               </div>
             </div>
           ) : isPlayed ? (
             <div className="flex items-center justify-center gap-1 sm:gap-1.5 font-mono text-2xl sm:text-3xl font-black leading-none">
-              <span className={isWinA ? "text-primary" : "text-foreground/90"}>
-                {scoreA}
-              </span>
-              <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl font-normal">
-                —
-              </span>
-              <span className={isWinB ? "text-primary" : "text-foreground/90"}>
-                {scoreB}
-              </span>
+              <span className={isWinA ? "text-primary" : "text-foreground/90"}>{scoreA}</span>
+              <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl font-normal">—</span>
+              <span className={isWinB ? "text-primary" : "text-foreground/90"}>{scoreB}</span>
             </div>
           ) : (
             <span className="rounded bg-muted px-2.5 py-0.5 text-[10px] font-black text-muted-foreground tracking-wider">
@@ -184,7 +176,6 @@ export function MatchCardItem({
             </span>
           )}
 
-          {/* DUA BARIS DI BAWAH SKOR / VS */}
           <div className="mt-1.5 flex flex-col items-center text-center space-y-0.5">
             <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground leading-tight whitespace-nowrap">
               {formatMatchDayDate(match.matchDate)}
@@ -195,7 +186,7 @@ export function MatchCardItem({
           </div>
         </div>
 
-        {/* TEAM B (KANAN) */}
+        {/* TEAM B */}
         <div className="flex flex-col items-center justify-center text-center min-w-0">
           <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full overflow-hidden border border-border/80 bg-muted/40 flex items-center justify-center mb-1.5 shrink-0 shadow-xs">
             {match.teamBLogo && !logoErrB ? (
@@ -229,7 +220,6 @@ export function MatchCardItem({
 
       {/* FOOTER */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center border-t border-border/40 pt-2 text-[9px] sm:text-[10px] md:text-xs text-muted-foreground gap-2">
-        {/* KIRI: STREAMER */}
         <span className="truncate flex items-center gap-1 font-medium text-left">
           {match.streamer ? (
             <>
@@ -241,7 +231,7 @@ export function MatchCardItem({
           )}
         </span>
 
-        {/* TENGAH: BADGE LIVE ATAU RECORD (HANYA RECORD JIKA MATCH BENAR-BENAR SELESAI) */}
+        {/* TOMBOL MERAH SOLID LIVE vs TOMBOL BIRU RECORD */}
         <div className="flex items-center justify-center shrink-0">
           {match.streamLink ? (
             <a
@@ -249,19 +239,28 @@ export function MatchCardItem({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className={`inline-flex items-center gap-1 font-bold transition px-2 py-0.5 rounded-md ${
+              className={`inline-flex items-center gap-1.5 font-black transition px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] uppercase tracking-wider ${
                 isFinishedMatch
-                  ? "text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20"
-                  : "text-rose-500 hover:text-rose-600 bg-rose-500/10 hover:bg-rose-500/20 animate-pulse"
+                  ? "text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30"
+                  : "bg-rose-600 text-white hover:bg-rose-700 animate-pulse border border-rose-500 shadow-xs"
               }`}
             >
-              <span>{isFinishedMatch ? "Record" : "Live"}</span>
-              <ExternalLink className="h-3 w-3" />
+              {isFinishedMatch ? (
+                <>
+                  <span>Record</span>
+                  <ExternalLink className="h-3 w-3" />
+                </>
+              ) : (
+                <>
+                  <Radio className="h-3 w-3 animate-spin" />
+                  <span>Live</span>
+                  <ExternalLink className="h-3 w-3" />
+                </>
+              )}
             </a>
           ) : null}
         </div>
 
-        {/* KANAN: NAMA STAGE / DIVISI */}
         <span className="font-bold text-foreground/80 text-right truncate">
           {stageLabel}
         </span>
