@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { MatchScheduleItem } from "@/app/tournament/_library";
 import { ReportSummary } from "@/app/analytics/_components/report-summary";
-import { ExternalLink, X, Shield } from "lucide-react";
+import { ExternalLink, X, Shield, Swords } from "lucide-react";
 
 interface MatchReportModalProps {
   open?: boolean;
@@ -61,7 +61,7 @@ export function MatchReportModal({
     fetchReport();
   }, [match?.id, open]);
 
-  // Penanganan data murni identik dengan Match Report Analytics dari KV
+  // Data 100% murni dibaca dari data KV Analytics
   const teamA = report?.teamA || {};
   const teamB = report?.teamB || {};
   const games: any[] = report?.games || [];
@@ -75,7 +75,22 @@ export function MatchReportModal({
   const teamALogo = teamA.logo || match?.teamALogo;
   const teamBLogo = teamB.logo || match?.teamBLogo;
 
-  const liveInstruction = null;
+  // 3 riwayat ronde terakhir saat laga masih berjalan
+  const recentGames = useMemo(() => {
+    if (isFinished || !games.length) return [];
+    return games.slice(-3);
+  }, [isFinished, games]);
+
+  const liveInstruction = useMemo(() => {
+    if (isFinished || !games.length) return null;
+    const last = games[games.length - 1];
+    const isWinnerA = last.winner === "teamA";
+    return {
+      nextGameNumber: games.length + 1,
+      stayTable: (isWinnerA ? last.playerA?.ign : last.playerB?.ign) || "Pemenang Ronde Sebelumnya",
+      nextActionTeam: (isWinnerA ? teamB.name : teamA.name) || "Kubu Lawan",
+    };
+  }, [isFinished, games, teamA.name, teamB.name]);
 
   const handleNavigateToAnalytics = () => {
     onClose();
@@ -87,7 +102,7 @@ export function MatchReportModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3 pt-12 sm:p-4 backdrop-blur-sm animate-in fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 pt-12 sm:p-4 backdrop-blur-sm animate-in fade-in"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -122,9 +137,9 @@ export function MatchReportModal({
             <div className="flex flex-col space-y-3 w-full">
               {/* PAPAN SKOR INTI DARI KV */}
               <div className="rounded-2xl border border-border bg-card p-3 shadow-xs w-full">
-                <div className="flex items-center justify-between gap-2">
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                   {/* Tim A */}
-                  <div className="flex-1 flex flex-col items-center text-center min-w-0">
+                  <div className="flex flex-col items-center justify-center text-center min-w-0">
                     <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full overflow-hidden border border-border bg-muted/40 flex items-center justify-center mb-1 shrink-0 shadow-xs">
                       {teamALogo ? (
                         <Image
@@ -139,7 +154,7 @@ export function MatchReportModal({
                         <Shield className="h-5 w-5 text-muted-foreground/60" />
                       )}
                     </div>
-                    <span className="text-[11px] font-bold text-foreground truncate w-full px-1">
+                    <span className="text-[11px] font-bold text-foreground line-clamp-2 break-words leading-tight text-center w-full px-1">
                       {teamAName}
                     </span>
                   </div>
@@ -171,7 +186,7 @@ export function MatchReportModal({
                   </div>
 
                   {/* Tim B */}
-                  <div className="flex-1 flex flex-col items-center text-center min-w-0">
+                  <div className="flex flex-col items-center justify-center text-center min-w-0">
                     <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full overflow-hidden border border-border bg-muted/40 flex items-center justify-center mb-1 shrink-0 shadow-xs">
                       {teamBLogo ? (
                         <Image
@@ -186,14 +201,48 @@ export function MatchReportModal({
                         <Shield className="h-5 w-5 text-muted-foreground/60" />
                       )}
                     </div>
-                    <span className="text-[11px] font-bold text-foreground truncate w-full px-1">
+                    <span className="text-[11px] font-bold text-foreground line-clamp-2 break-words leading-tight text-center w-full px-1">
                       {teamBName}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* SWITCH TAB RINGKASAN */}
+              {/* KONDISI 1: JIKA LAGA BERJALAN & ADA RONDE, TAMPILKAN 3 GAME TERAKHIR */}
+              {!isFinished && recentGames.length > 0 && (
+                <div className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2 w-full">
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/60 pb-1.5">
+                    <span className="flex items-center gap-1 text-primary">
+                      <Swords className="h-3.5 w-3.5" /> 3 Game Terakhir
+                    </span>
+                    <span>Total {games.length} Game</span>
+                  </div>
+                  <div className="space-y-1.5 pt-0.5">
+                    {recentGames.map((g, idx) => {
+                      const isWinA = g.winner === "teamA";
+                      const roundNum = games.length - recentGames.length + idx + 1;
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-2 rounded-xl bg-muted/40 border border-border/50 text-[11px]"
+                        >
+                          <div className={`truncate max-w-[40%] font-semibold ${isWinA ? "text-primary font-bold" : "text-muted-foreground"}`}>
+                            {g.playerA?.ign || "-"}
+                          </div>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-card border border-border/70 text-foreground font-black shrink-0">
+                            G{roundNum}
+                          </span>
+                          <div className={`truncate max-w-[40%] text-right font-semibold ${!isWinA ? "text-primary font-bold" : "text-muted-foreground"}`}>
+                            {g.playerB?.ign || "-"}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* KONDISI 2: SWITCH TAB JIKA MATCH SELESAI */}
               {isFinished && (
                 <div className="flex items-center rounded-xl bg-muted/60 p-1 border border-border/60 w-full">
                   <button
@@ -236,15 +285,15 @@ export function MatchReportModal({
           )}
         </div>
 
-        {/* FOOTER NAVIGASI */}
-        <div className="p-3 border-t border-border/80 bg-muted/30 flex items-center justify-end gap-2 shrink-0">
+        {/* FOOTER: TOMBOL KOTAK EKSKLUSIF FULL-WIDTH */}
+        <div className="p-3 border-t border-border/80 bg-muted/30 shrink-0">
           <button
             type="button"
             onClick={handleNavigateToAnalytics}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:opacity-90 transition shadow-xs cursor-pointer shrink-0"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-primary text-primary-foreground font-extrabold text-xs tracking-wide shadow-md hover:opacity-95 active:scale-[0.99] transition cursor-pointer border border-primary/20"
           >
             <span>Lihat Match History Lengkap</span>
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="h-4 w-4 shrink-0" />
           </button>
         </div>
       </div>
