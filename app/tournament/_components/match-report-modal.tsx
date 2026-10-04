@@ -87,13 +87,13 @@ export function MatchReportModal({
   }, [match?.matchDate]);
 
   const resolvedMatchNumber = useMemo(() => {
-    if (match?.matchNumber) return match.matchNumber;
+    if (report?.metadata?.matchNumber) return report.metadata.matchNumber;
     if (match?.id) {
       const extracted = match.id.replace(/\D/g, "");
       if (extracted) return extracted;
     }
     return 1;
-  }, [match?.matchNumber, match?.id]);
+  }, [report?.metadata?.matchNumber, match?.id]);
 
   const liveInstruction = useMemo(() => {
     if (isFinished || !games.length) return null;
@@ -209,4 +209,4 @@ export function MatchReportModal({
   );
 }
 
-export default MatchReportModal;
+export default MatchReportModal;                                             
