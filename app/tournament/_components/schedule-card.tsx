@@ -17,7 +17,12 @@ function formatMatchDayDate(dateStr?: string) {
   try {
     const d = new Date(dateStr);
     const dayName = d.toLocaleDateString("id-ID", { weekday: "short", timeZone: "Asia/Jakarta" });
-    const dayDate = d.toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
+    const dayDate = d.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Jakarta",
+    });
     return `${dayName}, ${dayDate}`;
   } catch {
     return dateStr;
@@ -255,4 +260,5 @@ export function ScheduleCard({
       </div>
     </div>
   );
-}
+              }
+            
