@@ -24,6 +24,7 @@ export function MatchReportModal({
   const router = useRouter();
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [summaryTab, setSummaryTab] = useState<"duelist" | "archetype">("duelist");
 
   useEffect(() => {
     if (match || open) document.body.style.overflow = "hidden";
@@ -169,12 +170,41 @@ export function MatchReportModal({
                 }}
               />
 
+              {/* SWITCH TAB RINGKASAN */}
+              {isFinished && (
+                <div className="flex items-center rounded-xl bg-muted/60 p-1 border border-border/60">
+                  <button
+                    type="button"
+                    onClick={() => setSummaryTab("duelist")}
+                    className={`flex-1 py-1.5 rounded-lg text-center font-bold text-xs transition cursor-pointer ${
+                      summaryTab === "duelist"
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    ⭐ Duelist Highlight
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSummaryTab("archetype")}
+                    className={`flex-1 py-1.5 rounded-lg text-center font-bold text-xs transition cursor-pointer ${
+                      summaryTab === "archetype"
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    🃏 Archetype Highlight
+                  </button>
+                </div>
+              )}
+
               <ReportSummary
                 games={games}
                 isFinished={isFinished}
                 scoreA={scoreA}
                 scoreB={scoreB}
                 liveInstruction={liveInstruction}
+                activeTab={summaryTab}
               />
             </>
           )}
@@ -199,4 +229,4 @@ export function MatchReportModal({
   );
 }
 
-export default MatchReportModal;          
+export default MatchReportModal;
