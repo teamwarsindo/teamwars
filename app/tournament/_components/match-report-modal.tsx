@@ -62,7 +62,7 @@ export function MatchReportModal({
     fetchReport();
   }, [match?.id, open]);
 
-  // Data 100% bersumber dari KV Analytics
+  // Data 100% murni dibaca dari data KV Analytics
   const teamA = report?.teamA || {};
   const teamB = report?.teamB || {};
   const games: any[] = report?.games || [];
@@ -76,22 +76,13 @@ export function MatchReportModal({
   const teamALogo = teamA.logo || match?.teamALogo;
   const teamBLogo = teamB.logo || match?.teamBLogo;
 
-  // Mengambil 3 ronde duel terakhir saat pertandingan sedang berjalan
+  // 3 riwayat ronde duel terakhir saat pertandingan sedang berjalan
   const recentGames = useMemo(() => {
     if (isFinished || !games.length) return [];
     return games.slice(-3);
   }, [isFinished, games]);
 
-  const liveInstruction = useMemo(() => {
-    if (isFinished || !games.length) return null;
-    const last = games[games.length - 1];
-    const isWinnerA = last.winner === "teamA";
-    return {
-      nextGameNumber: games.length + 1,
-      stayTable: (isWinnerA ? last.playerA?.ign : last.playerB?.ign) || "Pemenang Ronde Sebelumnya",
-      nextActionTeam: (isWinnerA ? teamB.name : teamA.name) || "Kubu Lawan",
-    };
-  }, [isFinished, games, teamA.name, teamB.name]);
+  const recentStartIndex = games.length - recentGames.length;
 
   const handleNavigateToAnalytics = () => {
     onClose();
@@ -103,11 +94,11 @@ export function MatchReportModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-3 pt-12 sm:p-4 backdrop-blur-sm animate-in fade-in"
+      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/75 p-3 pt-20 pb-6 sm:p-4 sm:pt-24 sm:pb-8 backdrop-blur-sm animate-in fade-in"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
+        className="flex max-h-[84vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
       >
         {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-border/80 px-4 py-3 bg-muted/40 shrink-0">
@@ -209,13 +200,14 @@ export function MatchReportModal({
                 </div>
               </div>
 
-              {/* KONDISI 1: JIKA LAGA BERJALAN & ADA RONDE, IMPORT LANGSUNG REPORTLOGS ASLI */}
+              {/* KONDISI 1: JIKA LAGA BERJALAN & ADA RONDE, TAMPILKAN 3 GAME TERAKHIR DENGAN NOMOR ASLI */}
               {!isFinished && recentGames.length > 0 && (
                 <div className="w-full">
                   <ReportLogs
                     games={recentGames}
                     isFinished={false}
                     isMatchStarted={true}
+                    startIndex={recentStartIndex}
                   />
                 </div>
               )}
@@ -248,17 +240,19 @@ export function MatchReportModal({
                 </div>
               )}
 
-              {/* SUMMARY HIGHLIGHT DARI ANALYTICS */}
-              <div className="w-full">
-                <ReportSummary
-                  games={games}
-                  isFinished={isFinished}
-                  scoreA={scoreA}
-                  scoreB={scoreB}
-                  liveInstruction={liveInstruction}
-                  activeTab={summaryTab}
-                />
-              </div>
+              {/* SUMMARY HIGHLIGHT DARI ANALYTICS (INSTRUKSI LIVE DITIADAKAN) */}
+              {isFinished && (
+                <div className="w-full">
+                  <ReportSummary
+                    games={games}
+                    isFinished={isFinished}
+                    scoreA={scoreA}
+                    scoreB={scoreB}
+                    liveInstruction={null}
+                    activeTab={summaryTab}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
