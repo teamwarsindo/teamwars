@@ -156,19 +156,15 @@ export function MatchCardItem({
 
         {/* MIDDLE SECTION */}
         <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0 min-w-[84px] sm:min-w-[104px] text-center">
-          {isLive ? (
-            <div className="flex flex-col items-center gap-1">
-              <div className="flex items-center justify-center gap-1 font-mono text-2xl sm:text-3xl font-black leading-none text-rose-600 dark:text-rose-500">
-                <span>{scoreA}</span>
-                <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl font-normal">—</span>
-                <span>{scoreB}</span>
-              </div>
-            </div>
-          ) : isPlayed ? (
+          {isLive || isPlayed ? (
             <div className="flex items-center justify-center gap-1 sm:gap-1.5 font-mono text-2xl sm:text-3xl font-black leading-none">
-              <span className={isWinA ? "text-primary" : "text-foreground/90"}>{scoreA}</span>
+              <span className={isWinA || (isLive && scoreA > scoreB) ? "text-primary" : "text-foreground"}>
+                {scoreA}
+              </span>
               <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl font-normal">—</span>
-              <span className={isWinB ? "text-primary" : "text-foreground/90"}>{scoreB}</span>
+              <span className={isWinB || (isLive && scoreB > scoreA) ? "text-primary" : "text-foreground"}>
+                {scoreB}
+              </span>
             </div>
           ) : (
             <span className="rounded bg-muted px-2.5 py-0.5 text-[10px] font-black text-muted-foreground tracking-wider">
