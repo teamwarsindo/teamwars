@@ -7,12 +7,14 @@ interface ReportSummaryProps {
   scoreA: number;
   scoreB: number;
   liveInstruction: { nextGameNumber: number; stayTable: string; nextActionTeam: string } | null;
+  activeTab?: "duelist" | "archetype";
 }
 
 export function ReportSummary({
   games,
   isFinished,
   liveInstruction,
+  activeTab,
 }: ReportSummaryProps) {
   const statA = useMemo(() => computeTeamSummary(games, true), [games]);
   const statB = useMemo(() => computeTeamSummary(games, false), [games]);
@@ -95,179 +97,186 @@ export function ReportSummary({
     );
   };
 
+  const showDuelist = !activeTab || activeTab === "duelist";
+  const showArchetype = !activeTab || activeTab === "archetype";
+
   return (
     <div className="space-y-3">
       {/* ── KOTAK 1: DUELIST HIGHLIGHT ── */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-        <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
-          <span className="text-xs font-black uppercase tracking-wider text-foreground">
-            Duelist Highlight
-          </span>
-        </div>
+      {showDuelist && (
+        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
+          <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
+            <span className="text-xs font-black uppercase tracking-wider text-foreground">
+              Duelist Highlight
+            </span>
+          </div>
 
-        <div className="p-2.5 space-y-2.5">
-          {/* Top Player */}
-          <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
-            <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
-              <span>⭐</span> Top Player
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
-              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
-                <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
-                  {statA.topPlayer.ign}
-                </div>
-                {renderRecord(statA.topPlayer.wins, statA.topPlayer.losses)}
-                {renderAgg(statA.topPlayer.agregat)}
-                {renderWpm(statA.topPlayer.wpmVal)}
+          <div className="p-2.5 space-y-2.5">
+            {/* Top Player */}
+            <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+              <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
+                <span>⭐</span> Top Player
               </div>
-              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
-                <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
-                  {statB.topPlayer.ign}
+              <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
+                <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
+                  <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
+                    {statA.topPlayer.ign}
+                  </div>
+                  {renderRecord(statA.topPlayer.wins, statA.topPlayer.losses)}
+                  {renderAgg(statA.topPlayer.agregat)}
+                  {renderWpm(statA.topPlayer.wpmVal)}
                 </div>
-                {renderRecord(statB.topPlayer.wins, statB.topPlayer.losses)}
-                {renderAgg(statB.topPlayer.agregat)}
-                {renderWpm(statB.topPlayer.wpmVal)}
+                <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
+                  <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
+                    {statB.topPlayer.ign}
+                  </div>
+                  {renderRecord(statB.topPlayer.wins, statB.topPlayer.losses)}
+                  {renderAgg(statB.topPlayer.agregat)}
+                  {renderWpm(statB.topPlayer.wpmVal)}
+                </div>
+              </div>
+            </div>
+
+            {/* Top Streak */}
+            <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+              <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
+                <span>🔥</span> Top Streak
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
+                {/* Sisi Tim A */}
+                <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
+                  <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
+                    {statA.maxStreak.player}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statA.maxStreak.deck}>
+                    {statA.maxStreak.deck}
+                  </div>
+                  <div className="text-[10.5px]">
+                    {statA.maxStreak.hasStreak ? (
+                      <span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                          {statA.maxStreak.count} Win
+                        </span>{" "}
+                        <span className="text-muted-foreground font-medium">Streak</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {statA.maxStreak.rangeStr}
+                  </div>
+                </div>
+
+                {/* Sisi Tim B */}
+                <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
+                  <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
+                    {statB.maxStreak.player}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statB.maxStreak.deck}>
+                    {statB.maxStreak.deck}
+                  </div>
+                  <div className="text-[10.5px]">
+                    {statB.maxStreak.hasStreak ? (
+                      <span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                          {statB.maxStreak.count} Win
+                        </span>{" "}
+                        <span className="text-muted-foreground font-medium">Streak</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {statB.maxStreak.rangeStr}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Top Streak: Player -> Deck -> [X Win] Streak -> Range Game */}
-          <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
-            <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
-              <span>🔥</span> Top Streak
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
-              {/* Sisi Tim A */}
-              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
-                <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
-                  {statA.maxStreak.player}
-                </div>
-                <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statA.maxStreak.deck}>
-                  {statA.maxStreak.deck}
-                </div>
-                <div className="text-[10.5px]">
-                  {statA.maxStreak.hasStreak ? (
-                    <span>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                        {statA.maxStreak.count} Win
-                      </span>{" "}
-                      <span className="text-muted-foreground font-medium">Streak</span>
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {statA.maxStreak.rangeStr}
-                </div>
-              </div>
-
-              {/* Sisi Tim B */}
-              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
-                <div className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center">
-                  {statB.maxStreak.player}
-                </div>
-                <div className="text-[10px] text-muted-foreground truncate max-w-full" title={statB.maxStreak.deck}>
-                  {statB.maxStreak.deck}
-                </div>
-                <div className="text-[10.5px]">
-                  {statB.maxStreak.hasStreak ? (
-                    <span>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                        {statB.maxStreak.count} Win
-                      </span>{" "}
-                      <span className="text-muted-foreground font-medium">Streak</span>
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {statB.maxStreak.rangeStr}
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
+      )}
 
       {/* ── KOTAK 2: ARCHETYPE HIGHLIGHT ── */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-        <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
-          <span className="text-xs font-black uppercase tracking-wider text-foreground">
-            Archetype Highlight
-          </span>
-        </div>
+      {showArchetype && (
+        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
+          <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
+            <span className="text-xs font-black uppercase tracking-wider text-foreground">
+              Archetype Highlight
+            </span>
+          </div>
 
-        <div className="p-2.5 space-y-2.5">
-          {/* Best Archetype */}
-          <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
-            <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
-              <span>🏆</span> Best Archetype
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
-              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
-                <div
-                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
-                  title={statA.bestDeck.name}
-                >
-                  {statA.bestDeck.name}
-                </div>
-                {renderRecord(statA.bestDeck.wins, statA.bestDeck.losses)}
-                {renderAgg(statA.bestDeck.agregat)}
-                {renderWpm(statA.bestDeck.wpmVal)}
+          <div className="p-2.5 space-y-2.5">
+            {/* Best Archetype */}
+            <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+              <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
+                <span>🏆</span> Best Archetype
               </div>
-              <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
-                <div
-                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
-                  title={statB.bestDeck.name}
-                >
-                  {statB.bestDeck.name}
+              <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center">
+                <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
+                  <div
+                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                    title={statA.bestDeck.name}
+                  >
+                    {statA.bestDeck.name}
+                  </div>
+                  {renderRecord(statA.bestDeck.wins, statA.bestDeck.losses)}
+                  {renderAgg(statA.bestDeck.agregat)}
+                  {renderWpm(statA.bestDeck.wpmVal)}
                 </div>
-                {renderRecord(statB.bestDeck.wins, statB.bestDeck.losses)}
-                {renderAgg(statB.bestDeck.agregat)}
-                {renderWpm(statB.bestDeck.wpmVal)}
+                <div className="flex flex-col items-center justify-start px-1 space-y-0.5">
+                  <div
+                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                    title={statB.bestDeck.name}
+                  >
+                    {statB.bestDeck.name}
+                  </div>
+                  {renderRecord(statB.bestDeck.wins, statB.bestDeck.losses)}
+                  {renderAgg(statB.bestDeck.agregat)}
+                  {renderWpm(statB.bestDeck.wpmVal)}
+                </div>
+              </div>
+            </div>
+
+            {/* Most Played Archetype */}
+            <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+              <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
+                <span>🃏</span> Most Played Archetype
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center items-start">
+                <div className="flex flex-col items-center justify-start px-1 space-y-0.5 w-full">
+                  <div
+                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                    title={statA.mostDeck.name}
+                  >
+                    {statA.mostDeck.name}
+                  </div>
+                  {renderRecord(statA.mostDeck.wins, statA.mostDeck.losses)}
+                  {renderWpm(statA.mostDeck.wpmVal)}
+                  <div className="pt-0.5 w-full">
+                    {renderUserList(statA.mostDeck.users)}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center justify-start px-1 space-y-0.5 w-full">
+                  <div
+                    className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
+                    title={statB.mostDeck.name}
+                  >
+                    {statB.mostDeck.name}
+                  </div>
+                  {renderRecord(statB.mostDeck.wins, statB.mostDeck.losses)}
+                  {renderWpm(statB.mostDeck.wpmVal)}
+                  <div className="pt-0.5 w-full">
+                    {renderUserList(statB.mostDeck.users)}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Most Played Archetype */}
-          <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
-            <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
-              <span>🃏</span> Most Played Archetype
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-border/60 p-2 text-center items-start">
-              <div className="flex flex-col items-center justify-start px-1 space-y-0.5 w-full">
-                <div
-                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
-                  title={statA.mostDeck.name}
-                >
-                  {statA.mostDeck.name}
-                </div>
-                {renderRecord(statA.mostDeck.wins, statA.mostDeck.losses)}
-                {renderWpm(statA.mostDeck.wpmVal)}
-                <div className="pt-0.5 w-full">
-                  {renderUserList(statA.mostDeck.users)}
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center justify-start px-1 space-y-0.5 w-full">
-                <div
-                  className="font-bold text-xs text-foreground truncate max-w-full min-h-[18px] flex items-center"
-                  title={statB.mostDeck.name}
-                >
-                  {statB.mostDeck.name}
-                </div>
-                {renderRecord(statB.mostDeck.wins, statB.mostDeck.losses)}
-                {renderWpm(statB.mostDeck.wpmVal)}
-                <div className="pt-0.5 w-full">
-                  {renderUserList(statB.mostDeck.users)}
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
