@@ -110,16 +110,18 @@ export function MatchCardItem({
     }
   };
 
-  const cardBorderClass = isPlayoff
-    ? "border-emerald-500/30 hover:border-emerald-500/60"
+  const cardContainerClass = isLive
+    ? "bg-rose-500/5 dark:bg-rose-950/25 border-rose-300 dark:border-rose-900/60 shadow-xs"
+    : isPlayoff
+    ? "bg-card border-emerald-500/30 hover:border-emerald-500/60"
     : isGroupA
-    ? "border-sky-500/30 hover:border-sky-500/60"
-    : "border-amber-500/30 hover:border-amber-500/60";
+    ? "bg-card border-sky-500/30 hover:border-sky-500/60"
+    : "bg-card border-amber-500/30 hover:border-amber-500/60";
 
   return (
     <div
       onClick={handleCardClick}
-      className={`cursor-pointer rounded-2xl border bg-card p-3 sm:p-3.5 space-y-2.5 transition text-xs md:text-sm hover:shadow-md active:scale-[0.99] ${cardBorderClass}`}
+      className={`cursor-pointer rounded-2xl border p-3 sm:p-3.5 space-y-2.5 transition text-xs md:text-sm hover:shadow-md active:scale-[0.99] ${cardContainerClass}`}
     >
       {/* GRID SIMETRIS 3 KOLOM */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-2 pt-1">
@@ -156,15 +158,22 @@ export function MatchCardItem({
 
         {/* MIDDLE SECTION */}
         <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0 min-w-[84px] sm:min-w-[104px] text-center">
-          {isLive || isPlayed ? (
+          {isLive ? (
+            <div className="flex flex-col items-center gap-1">
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 border border-rose-500/30 px-2 py-0.5 text-[8.5px] sm:text-[9px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider animate-pulse">
+                <Radio className="h-2.5 w-2.5" /> LIVE
+              </span>
+              <div className="flex items-center justify-center gap-1 sm:gap-1.5 font-mono text-2xl sm:text-3xl font-black leading-none mt-0.5">
+                <span className={scoreA > scoreB ? "text-primary" : "text-foreground"}>{scoreA}</span>
+                <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl font-normal">—</span>
+                <span className={scoreB > scoreA ? "text-primary" : "text-foreground"}>{scoreB}</span>
+              </div>
+            </div>
+          ) : isPlayed ? (
             <div className="flex items-center justify-center gap-1 sm:gap-1.5 font-mono text-2xl sm:text-3xl font-black leading-none">
-              <span className={isWinA || (isLive && scoreA > scoreB) ? "text-primary" : "text-foreground"}>
-                {scoreA}
-              </span>
+              <span className={isWinA ? "text-primary" : "text-foreground/90"}>{scoreA}</span>
               <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl font-normal">—</span>
-              <span className={isWinB || (isLive && scoreB > scoreA) ? "text-primary" : "text-foreground"}>
-                {scoreB}
-              </span>
+              <span className={isWinB ? "text-primary" : "text-foreground/90"}>{scoreB}</span>
             </div>
           ) : (
             <span className="rounded bg-muted px-2.5 py-0.5 text-[10px] font-black text-muted-foreground tracking-wider">
@@ -215,19 +224,23 @@ export function MatchCardItem({
       </div>
 
       {/* FOOTER */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center border-t border-border/40 pt-2 text-[9px] sm:text-[10px] md:text-xs text-muted-foreground gap-2">
-        <span className="truncate flex items-center gap-1 font-medium text-left">
+      <div className={`grid grid-cols-[1fr_auto_1fr] items-center border-t pt-2 text-[9px] sm:text-[10px] md:text-xs gap-2 ${
+        isLive ? "border-rose-300/40 dark:border-rose-900/40" : "border-border/40 text-muted-foreground"
+      }`}>
+        <span className={`truncate flex items-center gap-1 font-medium text-left ${
+          isLive ? "text-rose-500/90 font-semibold" : "text-muted-foreground"
+        }`}>
           {match.streamer ? (
             <>
-              <Tv className="h-3 w-3 md:h-3.5 md:w-3.5 text-primary shrink-0" />
-              <span className="truncate">Streamer : {match.streamer}</span>
+              <Tv className={`h-3 w-3 md:h-3.5 md:w-3.5 shrink-0 ${isLive ? "text-rose-500" : "text-primary"}`} />
+              <span className="truncate">Streamer: {match.streamer}</span>
             </>
           ) : (
             <span className="truncate">🎙 Official Match</span>
           )}
         </span>
 
-        {/* TOMBOL MERAH SOLID LIVE vs TOMBOL BIRU RECORD */}
+        {/* TOMBOL MERAH PILL LIVE vs TOMBOL BIRU RECORD */}
         <div className="flex items-center justify-center shrink-0">
           {match.streamLink ? (
             <a
@@ -235,21 +248,20 @@ export function MatchCardItem({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className={`inline-flex items-center gap-1.5 font-black transition px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] uppercase tracking-wider ${
-                isFinishedMatch
-                  ? "text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30"
-                  : "bg-rose-600 text-white hover:bg-rose-700 animate-pulse border border-rose-500 shadow-xs"
+              className={`inline-flex items-center gap-1 font-black transition px-3 py-1 text-[9px] sm:text-[10px] uppercase tracking-wider ${
+                isLive
+                  ? "rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-xs border border-rose-500 animate-pulse"
+                  : "rounded-lg text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30"
               }`}
             >
-              {isFinishedMatch ? (
+              {isLive ? (
                 <>
-                  <span>Record</span>
+                  <span>Live</span>
                   <ExternalLink className="h-3 w-3" />
                 </>
               ) : (
                 <>
-                  <Radio className="h-3 w-3 animate-spin" />
-                  <span>Live</span>
+                  <span>Record</span>
                   <ExternalLink className="h-3 w-3" />
                 </>
               )}
@@ -257,7 +269,9 @@ export function MatchCardItem({
           ) : null}
         </div>
 
-        <span className="font-bold text-foreground/80 text-right truncate">
+        <span className={`font-bold text-right truncate ${
+          isLive ? "text-rose-500/90" : "text-foreground/80"
+        }`}>
           {stageLabel}
         </span>
       </div>
