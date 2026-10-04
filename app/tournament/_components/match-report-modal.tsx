@@ -273,4 +273,4 @@ export function MatchReportModal({
   );
 }
 
-export default MatchReportModa
+export default MatchReportModal;
