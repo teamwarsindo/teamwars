@@ -9,10 +9,10 @@ export interface ScheduleCardProps {
   match: MatchScheduleItem;
   groupAName?: string;
   groupBName?: string;
-  onSelect: (match: MatchScheduleItem) => void;
+  onSelect?: (match: MatchScheduleItem) => void;
 }
 
-function formatMatchDayDate(dateStr?: string) {
+function formatMatchDateTime(dateStr?: string) {
   if (!dateStr) return "TBD";
   try {
     const d = new Date(dateStr);
@@ -23,17 +23,13 @@ function formatMatchDayDate(dateStr?: string) {
       year: "numeric",
       timeZone: "Asia/Jakarta",
     });
-    return `${dayName}, ${dayDate}`;
-  } catch {
-    return dateStr;
-  }
-}
-
-function formatMatchTimeOnly(dateStr?: string) {
-  if (!dateStr) return "TBD";
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" }).replace(".", ":") + " WIB";
+    const time = d.toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Jakarta",
+    }).replace(".", ":");
+    return `${dayName}, ${dayDate} • ${time} WIB`;
   } catch {
     return dateStr;
   }
@@ -71,14 +67,14 @@ export function ScheduleCard({
     !isPlayoff &&
     (gName === "group b" || gName === "divisi b" || gName === cleanB || gName.includes(cleanB));
 
-  // 3. Tentukan nama label badge
+  // 3. Tentukan nama label badge stage / grup
   let groupDisplayName = match.groupName || "PLAYOFF";
   if (isGroupA) {
-    groupDisplayName = groupAName.replace(/^Div(isi|\.)\s*/i, "").toUpperCase();
+    groupDisplayName = groupAName.replace(/^Div(isi|\.)\s*/i, "").trim();
   } else if (isGroupB) {
-    groupDisplayName = groupBName.replace(/^Div(isi|\.)\s*/i, "").toUpperCase();
+    groupDisplayName = groupBName.replace(/^Div(isi|\.)\s*/i, "").trim();
   } else {
-    groupDisplayName = (match.groupName || "PLAYOFF ROUND").toUpperCase();
+    groupDisplayName = match.groupName || "Playoff Stage";
   }
 
   const isLive = Boolean(match.streamLink) && !match.isFinished;
@@ -94,40 +90,24 @@ export function ScheduleCard({
   const handleCardClick = () => {
     if (reportUrl) {
       window.open(reportUrl, "_blank", "noopener,noreferrer");
-    } else {
+    } else if (onSelect) {
       onSelect(match);
     }
   };
 
-  // Skema warna kartu dan badge
   const cardBorderClass = isPlayoff
     ? "border-emerald-500/30 hover:border-emerald-500/60"
     : isGroupA
     ? "border-sky-500/30 hover:border-sky-500/60"
     : "border-amber-500/30 hover:border-amber-500/60";
 
-  const badgeThemeClass = isPlayoff
-    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-    : isGroupA
-    ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/20"
-    : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20";
-
   return (
     <div
       onClick={handleCardClick}
-      className={`rounded-2xl border bg-card p-3 sm:p-4 shadow-xs transition duration-200 hover:shadow-md cursor-pointer space-y-3 relative active:scale-[0.99] ${cardBorderClass}`}
+      className={`rounded-2xl border bg-card p-3 sm:p-4 shadow-xs transition duration-200 hover:shadow-md cursor-pointer space-y-2.5 relative active:scale-[0.99] ${cardBorderClass}`}
     >
-      {/* 1. HEADER (BADGE KATEGORI BERSIH) */}
-      <div className="flex items-center justify-between text-[10px] md:text-xs">
-        <span
-          className={`font-black uppercase tracking-wider text-[9px] md:text-[10px] px-2 py-0.5 rounded-md truncate max-w-full border ${badgeThemeClass}`}
-        >
-          {groupDisplayName}
-        </span>
-      </div>
-
-      {/* 2. MATCH & SCOREBOARD (GRID 3 KOLOM DENGAN TANGGAL DI BAWAH SKOR) */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-2 py-1">
+      {/* 1. MATCH & SCOREBOARD (GRID 3 KOLOM RESMI TWI) */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-2 pt-1">
         {/* TEAM A */}
         <div className="flex flex-col items-center justify-center text-center min-w-0">
           <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full overflow-hidden border border-border/80 bg-muted/40 flex items-center justify-center mb-1.5 shrink-0 shadow-xs">
@@ -159,8 +139,8 @@ export function ScheduleCard({
           </span>
         </div>
 
-        {/* CENTER COLUMN (SKOR & TANGGAL WAKTU DI BAWAHNYA) */}
-        <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0 min-w-[80px] sm:min-w-[96px] text-center">
+        {/* CENTER COLUMN (SKOR / LIVE / VS & TANGGAL DI BAWAHNYA) */}
+        <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0 min-w-[84px] sm:min-w-[104px] text-center">
           {isLive ? (
             <div className="flex flex-col items-center gap-1">
               <span className="flex items-center gap-1 rounded-md bg-rose-500 px-2 py-0.5 text-[8.5px] sm:text-[9.5px] font-black text-white uppercase tracking-wider animate-pulse shadow-xs">
@@ -190,15 +170,10 @@ export function ScheduleCard({
             </span>
           )}
 
-          {/* INFORMASI TANGGAL & WAKTU DI BAWAH SKOR */}
-          <div className="mt-1.5 flex flex-col items-center text-center space-y-0.5">
-            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground leading-tight">
-              {formatMatchDayDate(match.matchDate)}
-            </span>
-            <span className="text-[8.5px] sm:text-[9.5px] font-semibold text-muted-foreground/80 leading-tight">
-              {formatMatchTimeOnly(match.matchDate)}
-            </span>
-          </div>
+          {/* INFORMASI TANGGAL, TAHUN 4 DIGIT, & JAM */}
+          <span className="text-[8.5px] sm:text-[9.5px] font-semibold text-muted-foreground leading-tight mt-1.5 whitespace-nowrap">
+            {formatMatchDateTime(match.matchDate)}
+          </span>
         </div>
 
         {/* TEAM B */}
@@ -233,32 +208,36 @@ export function ScheduleCard({
         </div>
       </div>
 
-      {/* 3. FOOTER */}
+      {/* 2. FOOTER TERPADU (STREAMER DI KIRI, STAGE DI KANAN, TANPA WEEK) */}
       <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[9px] sm:text-[10px] md:text-xs text-muted-foreground">
-        <span className="truncate flex items-center gap-1 font-medium">
+        <span className="truncate flex items-center gap-1 font-medium max-w-[60%]">
           {match.streamer ? (
             <>
               <Tv className="h-3 w-3 md:h-3.5 md:w-3.5 text-primary shrink-0" />
-              <span className="truncate">Streamer: {match.streamer}</span>
+              <span className="truncate">Streamer : {match.streamer}</span>
             </>
           ) : (
-            <span>🎙 Official Match</span>
+            <span>🎙️️ Official Match</span>
           )}
         </span>
 
-        {match.streamLink && (
-          <a
-            href={match.streamLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-0.5 font-bold text-rose-500 hover:text-rose-600 transition"
-          >
-            Live <ExternalLink className="h-3 w-3" />
-          </a>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {match.streamLink && (
+            <a
+              href={match.streamLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-0.5 font-bold text-rose-500 hover:text-rose-600 transition"
+            >
+              Live <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          <span className="font-bold text-foreground/80">{groupDisplayName}</span>
+        </div>
       </div>
     </div>
   );
-              }
-            
+}
+
+export default ScheduleCard;
