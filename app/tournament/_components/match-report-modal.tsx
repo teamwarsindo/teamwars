@@ -117,11 +117,11 @@ export function MatchReportModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3 pt-14 sm:p-4 backdrop-blur-sm animate-in fade-in"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
+        className="flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
       >
         {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-border/80 px-4 py-3 bg-muted/40 shrink-0">
@@ -143,36 +143,38 @@ export function MatchReportModal({
         </div>
 
         {/* BODY CONTAINER */}
-        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3.5 text-xs">
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 text-xs w-full">
           {loading && !report ? (
-            <div className="p-12 text-center text-xs font-bold text-primary animate-pulse bg-muted/20 rounded-2xl border border-border">
+            <div className="p-12 text-center text-xs font-bold text-primary animate-pulse bg-muted/20 rounded-2xl border border-border w-full">
               Memuat data laporan duel...
             </div>
           ) : (
-            <>
-              <ReportScoreboard
-                teamA={teamA.name ? teamA : { name: match.teamAName }}
-                teamB={teamB.name ? teamB : { name: match.teamBName }}
-                scoreA={scoreA}
-                scoreB={scoreB}
-                teamALogo={match.teamALogo}
-                teamBLogo={match.teamBLogo}
-                metadata={{
-                  matchNumber: resolvedMatchNumber,
-                  division: standardizedDivision,
-                  week: match.weekNumber || report?.week || weekNumber,
-                  day: scheduleDateInfo.day,
-                  date: scheduleDateInfo.date,
-                  time: scheduleDateInfo.time,
-                  referee: meta.referee || match.referee,
-                  streamer: meta.streamer || match.streamer,
-                  streamUrl: meta.streamUrl || match.streamLink,
-                }}
-              />
+            <div className="flex flex-col space-y-3 w-full">
+              <div className="w-full">
+                <ReportScoreboard
+                  teamA={teamA.name ? teamA : { name: match.teamAName }}
+                  teamB={teamB.name ? teamB : { name: match.teamBName }}
+                  scoreA={scoreA}
+                  scoreB={scoreB}
+                  teamALogo={match.teamALogo}
+                  teamBLogo={match.teamBLogo}
+                  metadata={{
+                    matchNumber: resolvedMatchNumber,
+                    division: standardizedDivision,
+                    week: match.weekNumber || report?.week || weekNumber,
+                    day: scheduleDateInfo.day,
+                    date: scheduleDateInfo.date,
+                    time: scheduleDateInfo.time,
+                    referee: meta.referee || match.referee,
+                    streamer: meta.streamer || match.streamer,
+                    streamUrl: meta.streamUrl || match.streamLink,
+                  }}
+                />
+              </div>
 
               {/* SWITCH TAB RINGKASAN */}
               {isFinished && (
-                <div className="flex items-center rounded-xl bg-muted/60 p-1 border border-border/60">
+                <div className="flex items-center rounded-xl bg-muted/60 p-1 border border-border/60 w-full">
                   <button
                     type="button"
                     onClick={() => setSummaryTab("duelist")}
@@ -198,22 +200,24 @@ export function MatchReportModal({
                 </div>
               )}
 
-              <ReportSummary
-                games={games}
-                isFinished={isFinished}
-                scoreA={scoreA}
-                scoreB={scoreB}
-                liveInstruction={liveInstruction}
-                activeTab={summaryTab}
-              />
-            </>
+              <div className="w-full">
+                <ReportSummary
+                  games={games}
+                  isFinished={isFinished}
+                  scoreA={scoreA}
+                  scoreB={scoreB}
+                  liveInstruction={liveInstruction}
+                  activeTab={summaryTab}
+                />
+              </div>
+            </div>
           )}
         </div>
 
-        {/* FOOTER NAVIGASI ONCLICK KE HALAMAN ANALYTICS */}
+        {/* FOOTER NAVIGASI */}
         <div className="p-3 border-t border-border/80 bg-muted/30 flex items-center justify-between gap-2 shrink-0">
           <span className="text-[10px] text-muted-foreground truncate">
-            {meta.referee || match.referee ? `Wasit: ${meta.referee || match.referee}` : "Official Match"}
+            {standardizedDivision}
           </span>
           <button
             type="button"
@@ -229,4 +233,4 @@ export function MatchReportModal({
   );
 }
 
-export default MatchReportModal;
+export default MatchReportModal;          
