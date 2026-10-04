@@ -90,17 +90,16 @@ export function MatchCardItem({
     stageLabel = match.groupName || "Playoff Stage";
   }
 
-  // 4. Status Pertandingan
-  const isLive = variant === "LIVE" || (Boolean(match.streamLink) && !match.isFinished);
-  const isPlayed =
-    variant === "RESULT" ||
-    Boolean(match.isFinished) ||
-    (Number(match.scoreA) || 0) + (Number(match.scoreB) || 0) > 0;
-
   const scoreA = Number(match.scoreA) || 0;
   const scoreB = Number(match.scoreB) || 0;
-  const isWinA = match.isFinished && scoreA > scoreB;
-  const isWinB = match.isFinished && scoreB > scoreA;
+
+  // Status Pertandingan Selesai
+  const isFinishedMatch = Boolean(match.isFinished) || scoreA >= 10 || scoreB >= 10;
+  const isLive = variant === "LIVE" || (!isFinishedMatch && (scoreA > 0 || scoreB > 0 || Boolean(match.streamLink)));
+  const isPlayed = variant === "RESULT" || isFinishedMatch || scoreA + scoreB > 0;
+
+  const isWinA = isFinishedMatch && scoreA > scoreB;
+  const isWinB = isFinishedMatch && scoreB > scoreA;
 
   const handleCardClick = () => {
     if (onClick) {
@@ -185,7 +184,7 @@ export function MatchCardItem({
             </span>
           )}
 
-          {/* DUA BARIS KONSISTEN DI BAWAH SKOR / VS */}
+          {/* DUA BARIS DI BAWAH SKOR / VS */}
           <div className="mt-1.5 flex flex-col items-center text-center space-y-0.5">
             <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground leading-tight whitespace-nowrap">
               {formatMatchDayDate(match.matchDate)}
@@ -228,7 +227,7 @@ export function MatchCardItem({
         </div>
       </div>
 
-      {/* FOOTER: STREAMER DI KIRI, LIVE / RECORD DI TENGAH, STAGE DI KANAN */}
+      {/* FOOTER */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center border-t border-border/40 pt-2 text-[9px] sm:text-[10px] md:text-xs text-muted-foreground gap-2">
         {/* KIRI: STREAMER */}
         <span className="truncate flex items-center gap-1 font-medium text-left">
@@ -242,7 +241,7 @@ export function MatchCardItem({
           )}
         </span>
 
-        {/* TENGAH: BADGE LIVE ATAU RECORD (JIKA MATCH SELESAI) */}
+        {/* TENGAH: BADGE LIVE ATAU RECORD (HANYA RECORD JIKA MATCH BENAR-BENAR SELESAI) */}
         <div className="flex items-center justify-center shrink-0">
           {match.streamLink ? (
             <a
@@ -251,12 +250,12 @@ export function MatchCardItem({
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className={`inline-flex items-center gap-1 font-bold transition px-2 py-0.5 rounded-md ${
-                isPlayed
+                isFinishedMatch
                   ? "text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20"
-                  : "text-rose-500 hover:text-rose-600 bg-rose-500/10 hover:bg-rose-500/20"
+                  : "text-rose-500 hover:text-rose-600 bg-rose-500/10 hover:bg-rose-500/20 animate-pulse"
               }`}
             >
-              <span>{isPlayed ? "Record" : "Live"}</span>
+              <span>{isFinishedMatch ? "Record" : "Live"}</span>
               <ExternalLink className="h-3 w-3" />
             </a>
           ) : null}
