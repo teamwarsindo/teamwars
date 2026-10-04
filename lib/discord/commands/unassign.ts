@@ -53,8 +53,6 @@ export async function handleUnassignCommand(body: any) {
                 (schedules[targetIdx] as any).streamUrl = undefined;
                 await kv.set('twi:schedules', schedules);
               }
-            } else {
-              reportData.metadata.referee = '';
             }
             await kv.hset('twi:match_reports', { [matchId]: reportData });
           }
