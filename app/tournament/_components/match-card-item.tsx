@@ -102,14 +102,8 @@ export function MatchCardItem({
   const isWinA = match.isFinished && scoreA > scoreB;
   const isWinB = match.isFinished && scoreB > scoreA;
 
-  const reportUrl = match.maskedImageUrl || match.reportImageUrl;
-
   const handleCardClick = () => {
-    if (isLive && match.streamLink) {
-      window.open(match.streamLink, "_blank", "noopener,noreferrer");
-    } else if (reportUrl) {
-      window.open(reportUrl, "_blank", "noopener,noreferrer");
-    } else if (onClick) {
+    if (onClick) {
       onClick();
     } else if (onSelect) {
       onSelect(match);
@@ -278,4 +272,3 @@ export function MatchCardItem({
 }
 
 export default MatchCardItem;
-          
