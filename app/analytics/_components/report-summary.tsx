@@ -21,7 +21,7 @@ export function ReportSummary({
 
   if (!isFinished) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-1.5 text-xs">
+      <div className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-1.5 text-xs w-full">
         {liveInstruction ? (
           <>
             <div className="font-black text-amber-500 uppercase tracking-wide flex items-center justify-between text-[11px]">
@@ -101,19 +101,21 @@ export function ReportSummary({
   const showArchetype = !activeTab || activeTab === "archetype";
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 w-full">
       {/* ── KOTAK 1: DUELIST HIGHLIGHT ── */}
       {showDuelist && (
-        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-          <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
-            <span className="text-xs font-black uppercase tracking-wider text-foreground">
-              Duelist Highlight
-            </span>
-          </div>
+        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs w-full">
+          {!activeTab && (
+            <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
+              <span className="text-xs font-black uppercase tracking-wider text-foreground">
+                Duelist Highlight
+              </span>
+            </div>
+          )}
 
-          <div className="p-2.5 space-y-2.5">
+          <div className="p-2.5 space-y-2.5 w-full">
             {/* Top Player */}
-            <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+            <div className="rounded-xl border border-border/70 overflow-hidden bg-card w-full">
               <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
                 <span>⭐</span> Top Player
               </div>
@@ -138,7 +140,7 @@ export function ReportSummary({
             </div>
 
             {/* Top Streak */}
-            <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+            <div className="rounded-xl border border-border/70 overflow-hidden bg-card w-full">
               <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
                 <span>🔥</span> Top Streak
               </div>
@@ -200,16 +202,18 @@ export function ReportSummary({
 
       {/* ── KOTAK 2: ARCHETYPE HIGHLIGHT ── */}
       {showArchetype && (
-        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-          <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
-            <span className="text-xs font-black uppercase tracking-wider text-foreground">
-              Archetype Highlight
-            </span>
-          </div>
+        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs w-full">
+          {!activeTab && (
+            <div className="py-2 px-3 bg-muted/30 border-b border-border text-center">
+              <span className="text-xs font-black uppercase tracking-wider text-foreground">
+                Archetype Highlight
+              </span>
+            </div>
+          )}
 
-          <div className="p-2.5 space-y-2.5">
+          <div className="p-2.5 space-y-2.5 w-full">
             {/* Best Archetype */}
-            <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+            <div className="rounded-xl border border-border/70 overflow-hidden bg-card w-full">
               <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
                 <span>🏆</span> Best Archetype
               </div>
@@ -240,7 +244,7 @@ export function ReportSummary({
             </div>
 
             {/* Most Played Archetype */}
-            <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
+            <div className="rounded-xl border border-border/70 overflow-hidden bg-card w-full">
               <div className="py-1 px-2 bg-muted/30 border-b border-border/60 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground flex items-center justify-center gap-1">
                 <span>🃏</span> Most Played Archetype
               </div>
@@ -278,5 +282,5 @@ export function ReportSummary({
         </div>
       )}
     </div>
-  );
+  );                   
 }
