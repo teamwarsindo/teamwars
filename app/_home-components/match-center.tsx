@@ -8,7 +8,7 @@ import {
   getScheduleEmptyStateMessage,
 } from "@/app/tournament/_library";
 import { ExtendedStandingItem } from "@/app/tournament/_library/calculator";
-import { MatchCardItem } from "./match-card-item";
+import { MatchCardItem } from "@/app/tournament/_components/match-card-item";
 import { MatchH2HModal } from "./match-h2h-modal";
 import { Calendar, Radio, ChevronRight, AlertCircle } from "lucide-react";
 
@@ -99,7 +99,6 @@ export function MatchCenter({
                     key={m.id}
                     match={m}
                     variant="LIVE"
-                    currentWeek={currentWeek}
                     onClick={() => setSelectedH2HMatch(m)}
                   />
                 ))}
@@ -119,7 +118,6 @@ export function MatchCenter({
                     key={m.id}
                     match={m}
                     variant="TODAY"
-                    currentWeek={currentWeek}
                     onClick={() => setSelectedH2HMatch(m)}
                   />
                 ))}
@@ -139,7 +137,6 @@ export function MatchCenter({
                     key={m.id}
                     match={m}
                     variant="UPCOMING"
-                    currentWeek={currentWeek}
                     onClick={() => setSelectedH2HMatch(m)}
                   />
                 ))}
@@ -166,7 +163,6 @@ export function MatchCenter({
                 key={m.id}
                 match={m}
                 variant="RESULT"
-                currentWeek={currentWeek}
                 onClick={() => setSelectedH2HMatch(m)}
               />
             ))
