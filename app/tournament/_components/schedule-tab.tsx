@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
 import { TournamentFilter, DivisionFilterType } from "./tournament-filter";
-import { ScheduleCard } from "./schedule-card";
+import { MatchCardItem } from "./match-card-item";
 
 export interface ScheduleTabProps {
   schedules: MatchScheduleItem[];
@@ -197,7 +197,7 @@ export function ScheduleTab({
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
               {matches.map((m) => (
-                <ScheduleCard
+                <MatchCardItem
                   key={m.id}
                   match={m}
                   groupAName={DIVISION_MAP.GROUP_A}
@@ -211,4 +211,4 @@ export function ScheduleTab({
       )}
     </div>
   );
-    }
+      }
