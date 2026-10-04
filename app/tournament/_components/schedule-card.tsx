@@ -12,14 +12,13 @@ export interface ScheduleCardProps {
   onSelect: (match: MatchScheduleItem) => void;
 }
 
-function formatMatchDate(dateStr?: string) {
+function formatMatchDayDate(dateStr?: string) {
   if (!dateStr) return "TBD";
   try {
     const d = new Date(dateStr);
     const dayName = d.toLocaleDateString("id-ID", { weekday: "short", timeZone: "Asia/Jakarta" });
     const dayDate = d.toLocaleDateString("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" });
-    const time = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" }).replace(".", ":");
-    return `${dayName}, ${dayDate} • ${time} WIB`;
+    return `${dayName}, ${dayDate}`;
   } catch {
     return dateStr;
   }
@@ -113,19 +112,16 @@ export function ScheduleCard({
       onClick={handleCardClick}
       className={`rounded-2xl border bg-card p-3 sm:p-4 shadow-xs transition duration-200 hover:shadow-md cursor-pointer space-y-3 relative active:scale-[0.99] ${cardBorderClass}`}
     >
-      {/* 1. HEADER (BADGE KATEGORI & JADWAL) */}
+      {/* 1. HEADER (BADGE KATEGORI BERSIH) */}
       <div className="flex items-center justify-between text-[10px] md:text-xs">
         <span
-          className={`font-black uppercase tracking-wider text-[9px] md:text-[10px] px-2 py-0.5 rounded-md truncate max-w-[170px] sm:max-w-[220px] border ${badgeThemeClass}`}
+          className={`font-black uppercase tracking-wider text-[9px] md:text-[10px] px-2 py-0.5 rounded-md truncate max-w-full border ${badgeThemeClass}`}
         >
           {groupDisplayName}
         </span>
-        <span className="text-muted-foreground font-semibold text-[9.5px] md:text-xs shrink-0">
-          {formatMatchDate(match.matchDate)}
-        </span>
       </div>
 
-      {/* 2. MATCH & SCOREBOARD (GRID 3 KOLOM RESMI TWI) */}
+      {/* 2. MATCH & SCOREBOARD (GRID 3 KOLOM DENGAN TANGGAL DI BAWAH SKOR) */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-2 py-1">
         {/* TEAM A */}
         <div className="flex flex-col items-center justify-center text-center min-w-0">
@@ -158,8 +154,8 @@ export function ScheduleCard({
           </span>
         </div>
 
-        {/* CENTER COLUMN (SKOR / VS) */}
-        <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0 min-w-[70px] sm:min-w-[84px] text-center">
+        {/* CENTER COLUMN (SKOR & TANGGAL WAKTU DI BAWAHNYA) */}
+        <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0 min-w-[80px] sm:min-w-[96px] text-center">
           {isLive ? (
             <div className="flex flex-col items-center gap-1">
               <span className="flex items-center gap-1 rounded-md bg-rose-500 px-2 py-0.5 text-[8.5px] sm:text-[9.5px] font-black text-white uppercase tracking-wider animate-pulse shadow-xs">
@@ -184,15 +180,20 @@ export function ScheduleCard({
               </span>
             </div>
           ) : (
-            <div className="flex flex-col items-center">
-              <span className="rounded bg-muted px-2.5 py-0.5 text-[10px] font-black text-muted-foreground tracking-wider">
-                VS
-              </span>
-              <span className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground mt-1">
-                {formatMatchTimeOnly(match.matchDate)}
-              </span>
-            </div>
+            <span className="rounded bg-muted px-2.5 py-0.5 text-[10px] font-black text-muted-foreground tracking-wider">
+              VS
+            </span>
           )}
+
+          {/* INFORMASI TANGGAL & WAKTU DI BAWAH SKOR */}
+          <div className="mt-1.5 flex flex-col items-center text-center space-y-0.5">
+            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground leading-tight">
+              {formatMatchDayDate(match.matchDate)}
+            </span>
+            <span className="text-[8.5px] sm:text-[9.5px] font-semibold text-muted-foreground/80 leading-tight">
+              {formatMatchTimeOnly(match.matchDate)}
+            </span>
+          </div>
         </div>
 
         {/* TEAM B */}
@@ -236,7 +237,7 @@ export function ScheduleCard({
               <span className="truncate">Streamer: {match.streamer}</span>
             </>
           ) : (
-            <span>🎙️️ Official Match</span>
+            <span>🎙 Official Match</span>
           )}
         </span>
 
