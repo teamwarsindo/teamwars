@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import Image from "next/image";
 import { MatchScheduleItem, DIVISION_MAP } from "@/app/tournament/_library";
-import { Radio, Tv, ExternalLink } from "lucide-react";
+import { Radio, Tv, ExternalLink, Shield } from "lucide-react";
 
 export interface ScheduleCardProps {
   match: MatchScheduleItem;
@@ -39,6 +41,9 @@ export function ScheduleCard({
   groupBName = DIVISION_MAP.GROUP_B,
   onSelect,
 }: ScheduleCardProps) {
+  const [logoErrA, setLogoErrA] = useState(false);
+  const [logoErrB, setLogoErrB] = useState(false);
+
   const gName = (match.groupName || "").toLowerCase().trim();
   const cleanA = groupAName.toLowerCase().trim();
   const cleanB = groupBName.toLowerCase().trim();
@@ -106,7 +111,7 @@ export function ScheduleCard({
   return (
     <div
       onClick={handleCardClick}
-      className={`rounded-2xl border bg-card p-3 sm:p-4 shadow-xs transition duration-200 hover:shadow-md cursor-pointer space-y-2 relative active:scale-[0.99] ${cardBorderClass}`}
+      className={`rounded-2xl border bg-card p-3 sm:p-4 shadow-xs transition duration-200 hover:shadow-md cursor-pointer space-y-3 relative active:scale-[0.99] ${cardBorderClass}`}
     >
       {/* 1. HEADER (BADGE KATEGORI & JADWAL) */}
       <div className="flex items-center justify-between text-[10px] md:text-xs">
@@ -120,50 +125,70 @@ export function ScheduleCard({
         </span>
       </div>
 
-      {/* 2. MATCH & SCORE */}
-      <div className="flex items-center justify-between py-1 md:py-2">
+      {/* 2. MATCH & SCOREBOARD (GRID 3 KOLOM RESMI TWI) */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-2 py-1">
         {/* TEAM A */}
-        <div className="flex items-center gap-2 md:gap-2.5 min-w-0 flex-1">
-          <img
-            src={match.teamALogo || "/logo.webp"}
-            alt=""
-            className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 shrink-0 object-contain"
-          />
+        <div className="flex flex-col items-center justify-center text-center min-w-0">
+          <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full overflow-hidden border border-border/80 bg-muted/40 flex items-center justify-center mb-1.5 shrink-0 shadow-xs">
+            {match.teamALogo && !logoErrA ? (
+              <Image
+                src={match.teamALogo}
+                alt={match.teamAName || "Team A"}
+                fill
+                sizes="48px"
+                className="object-cover rounded-full"
+                onError={() => setLogoErrA(true)}
+                unoptimized
+              />
+            ) : (
+              <Shield className="h-5 w-5 text-muted-foreground/60" />
+            )}
+          </div>
           <span
-            className={`truncate text-xs sm:text-sm md:text-base ${
+            className={`line-clamp-2 leading-tight break-words text-[10.5px] sm:text-xs font-black text-center w-full px-1 ${
               isPlayed
                 ? isWinA
-                  ? "font-black text-foreground"
-                  : "font-normal text-muted-foreground"
-                : "font-bold text-foreground"
+                  ? "text-primary"
+                  : "text-foreground/80 font-semibold"
+                : "text-foreground"
             }`}
+            title={match.teamAName}
           >
             {match.teamAName}
           </span>
         </div>
 
-        {/* SCORE CENTER */}
-        <div className="flex flex-col items-center px-3 md:px-4 shrink-0">
+        {/* CENTER COLUMN (SKOR / VS) */}
+        <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0 min-w-[70px] sm:min-w-[84px] text-center">
           {isLive ? (
-            <span className="flex items-center gap-1 rounded-md bg-rose-500 px-2 py-0.5 md:px-2.5 md:py-1 text-[8.5px] md:text-[10px] font-black text-white uppercase tracking-wider animate-pulse shadow-xs">
-              <Radio className="h-2.5 w-2.5 md:h-3 md:w-3" /> LIVE
-            </span>
+            <div className="flex flex-col items-center gap-1">
+              <span className="flex items-center gap-1 rounded-md bg-rose-500 px-2 py-0.5 text-[8.5px] sm:text-[9.5px] font-black text-white uppercase tracking-wider animate-pulse shadow-xs">
+                <Radio className="h-2.5 w-2.5" /> LIVE
+              </span>
+              <div className="flex items-center justify-center gap-1 font-mono text-xl sm:text-2xl font-black leading-none">
+                <span>{scoreA}</span>
+                <span className="text-muted-foreground/30 font-sans text-base sm:text-lg">—</span>
+                <span>{scoreB}</span>
+              </div>
+            </div>
           ) : isPlayed ? (
-            <div className="flex items-center gap-1.5 font-black text-xs sm:text-sm md:text-base">
-              <span className={isWinA ? "text-emerald-500 font-black" : "text-muted-foreground"}>
+            <div className="flex items-center justify-center gap-1 sm:gap-1.5 font-mono text-2xl sm:text-3xl font-black leading-none">
+              <span className={isWinA ? "text-primary" : "text-foreground/90"}>
                 {scoreA}
               </span>
-              <span className="text-muted-foreground/40">-</span>
-              <span className={isWinB ? "text-emerald-500 font-black" : "text-muted-foreground"}>
+              <span className="text-muted-foreground/30 font-sans text-lg sm:text-xl font-normal">
+                —
+              </span>
+              <span className={isWinB ? "text-primary" : "text-foreground/90"}>
                 {scoreB}
               </span>
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              <span className="rounded bg-muted px-2 py-0.5 text-[9px] md:text-xs font-black text-muted-foreground">
+              <span className="rounded bg-muted px-2.5 py-0.5 text-[10px] font-black text-muted-foreground tracking-wider">
                 VS
               </span>
-              <span className="text-[8.5px] md:text-[10.5px] font-semibold text-muted-foreground mt-0.5">
+              <span className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground mt-1">
                 {formatMatchTimeOnly(match.matchDate)}
               </span>
             </div>
@@ -171,28 +196,39 @@ export function ScheduleCard({
         </div>
 
         {/* TEAM B */}
-        <div className="flex items-center justify-end gap-2 md:gap-2.5 min-w-0 flex-1 text-right">
+        <div className="flex flex-col items-center justify-center text-center min-w-0">
+          <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-full overflow-hidden border border-border/80 bg-muted/40 flex items-center justify-center mb-1.5 shrink-0 shadow-xs">
+            {match.teamBLogo && !logoErrB ? (
+              <Image
+                src={match.teamBLogo}
+                alt={match.teamBName || "Team B"}
+                fill
+                sizes="48px"
+                className="object-cover rounded-full"
+                onError={() => setLogoErrB(true)}
+                unoptimized
+              />
+            ) : (
+              <Shield className="h-5 w-5 text-muted-foreground/60" />
+            )}
+          </div>
           <span
-            className={`truncate text-xs sm:text-sm md:text-base ${
+            className={`line-clamp-2 leading-tight break-words text-[10.5px] sm:text-xs font-black text-center w-full px-1 ${
               isPlayed
                 ? isWinB
-                  ? "font-black text-foreground"
-                  : "font-normal text-muted-foreground"
-                : "font-bold text-foreground"
+                  ? "text-primary"
+                  : "text-foreground/80 font-semibold"
+                : "text-foreground"
             }`}
+            title={match.teamBName}
           >
             {match.teamBName}
           </span>
-          <img
-            src={match.teamBLogo || "/logo.webp"}
-            alt=""
-            className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 shrink-0 object-contain"
-          />
         </div>
       </div>
 
       {/* 3. FOOTER */}
-      <div className="flex items-center justify-between border-t border-border/40 pt-1.5 md:pt-2 text-[9px] sm:text-[10px] md:text-xs text-muted-foreground">
+      <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[9px] sm:text-[10px] md:text-xs text-muted-foreground">
         <span className="truncate flex items-center gap-1 font-medium">
           {match.streamer ? (
             <>
@@ -200,7 +236,7 @@ export function ScheduleCard({
               <span className="truncate">Streamer: {match.streamer}</span>
             </>
           ) : (
-            <span>🎙️ Official Match</span>
+            <span>🎙️️ Official Match</span>
           )}
         </span>
 
@@ -218,4 +254,4 @@ export function ScheduleCard({
       </div>
     </div>
   );
-              }
+}
