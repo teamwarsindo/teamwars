@@ -5,7 +5,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { MatchScheduleItem } from "@/app/tournament/_library";
 import { ReportSummary } from "@/app/analytics/_components/report-summary";
-import { ExternalLink, X, Shield, Swords } from "lucide-react";
+import { ReportLogs } from "@/app/analytics/_components/report-logs";
+import { ExternalLink, X, Shield } from "lucide-react";
 
 interface MatchReportModalProps {
   open?: boolean;
@@ -61,7 +62,7 @@ export function MatchReportModal({
     fetchReport();
   }, [match?.id, open]);
 
-  // Data 100% murni dibaca dari data KV Analytics
+  // Data 100% bersumber dari KV Analytics
   const teamA = report?.teamA || {};
   const teamB = report?.teamB || {};
   const games: any[] = report?.games || [];
@@ -75,7 +76,7 @@ export function MatchReportModal({
   const teamALogo = teamA.logo || match?.teamALogo;
   const teamBLogo = teamB.logo || match?.teamBLogo;
 
-  // 3 riwayat ronde terakhir saat laga masih berjalan
+  // Mengambil 3 ronde duel terakhir saat pertandingan sedang berjalan
   const recentGames = useMemo(() => {
     if (isFinished || !games.length) return [];
     return games.slice(-3);
@@ -208,37 +209,14 @@ export function MatchReportModal({
                 </div>
               </div>
 
-              {/* KONDISI 1: JIKA LAGA BERJALAN & ADA RONDE, TAMPILKAN 3 GAME TERAKHIR */}
+              {/* KONDISI 1: JIKA LAGA BERJALAN & ADA RONDE, IMPORT LANGSUNG REPORTLOGS ASLI */}
               {!isFinished && recentGames.length > 0 && (
-                <div className="rounded-2xl border border-border bg-card p-3 shadow-xs space-y-2 w-full">
-                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/60 pb-1.5">
-                    <span className="flex items-center gap-1 text-primary">
-                      <Swords className="h-3.5 w-3.5" /> 3 Game Terakhir
-                    </span>
-                    <span>Total {games.length} Game</span>
-                  </div>
-                  <div className="space-y-1.5 pt-0.5">
-                    {recentGames.map((g, idx) => {
-                      const isWinA = g.winner === "teamA";
-                      const roundNum = games.length - recentGames.length + idx + 1;
-                      return (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-2 rounded-xl bg-muted/40 border border-border/50 text-[11px]"
-                        >
-                          <div className={`truncate max-w-[40%] font-semibold ${isWinA ? "text-primary font-bold" : "text-muted-foreground"}`}>
-                            {g.playerA?.ign || "-"}
-                          </div>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-card border border-border/70 text-foreground font-black shrink-0">
-                            G{roundNum}
-                          </span>
-                          <div className={`truncate max-w-[40%] text-right font-semibold ${!isWinA ? "text-primary font-bold" : "text-muted-foreground"}`}>
-                            {g.playerB?.ign || "-"}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="w-full">
+                  <ReportLogs
+                    games={recentGames}
+                    isFinished={false}
+                    isMatchStarted={true}
+                  />
                 </div>
               )}
 
