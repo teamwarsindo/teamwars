@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { MatchScheduleItem } from "@/app/tournament/_library";
 import { formatStageName } from "@/app/tournament/_library/utils";
 import { ReportScoreboard } from "@/app/analytics/_components/report-scoreboard";
-import { ReportLineup } from "@/app/analytics/_components/report-lineup";
 import { ReportSummary } from "@/app/analytics/_components/report-summary";
 import { ExternalLink, X } from "lucide-react";
 
@@ -70,7 +69,6 @@ export function MatchReportModal({
   const scoreA = teamA.score ?? report?.finalScore?.teamA ?? match?.scoreA ?? 0;
   const scoreB = teamB.score ?? report?.finalScore?.teamB ?? match?.scoreB ?? 0;
   const isFinished = report?.isFinished ?? (scoreA >= 10 || scoreB >= 10 || match?.isFinished);
-  const isMatchStarted = games.length > 0 || scoreA > 0 || scoreB > 0;
 
   const scheduleDateInfo = useMemo(() => {
     const raw = match?.matchDate;
@@ -122,7 +120,7 @@ export function MatchReportModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
+        className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
       >
         {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-border/80 px-4 py-3 bg-muted/40 shrink-0">
@@ -171,14 +169,6 @@ export function MatchReportModal({
                 }}
               />
 
-              <ReportLineup
-                lineupA={teamA.lineup || []}
-                lineupB={teamB.lineup || []}
-                games={games}
-                isFinished={isFinished}
-                isMatchStarted={isMatchStarted}
-              />
-
               <ReportSummary
                 games={games}
                 isFinished={isFinished}
@@ -209,4 +199,4 @@ export function MatchReportModal({
   );
 }
 
-export default MatchReportModal;                                             
+export default MatchReportModal;          
