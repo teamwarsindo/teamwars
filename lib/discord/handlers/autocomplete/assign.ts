@@ -42,7 +42,7 @@ export async function handleAssignAutocomplete(interaction: any) {
     const typeOption = optionsList.find((opt: any) => opt.name === 'type')?.value;
     const query = String(focused.value || '');
 
-    // 🟢 Filter Pilihan Match
+    // 🟢 1. Filter Pilihan Match
     if (focused.name === 'match' || focused.name === 'match_a' || focused.name === 'match_b') {
       if (isUnassign && !typeOption) {
         return {
@@ -121,15 +121,29 @@ export async function handleAssignAutocomplete(interaction: any) {
       };
     }
 
-    if (focused.name === 'user') {
-      const staffList =
-        (await kv.get<StaffItem[]>(typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees')) || [];
-      const sorted = [...staffList].sort((a, b) =>
+    // 🟢 2. Filter Pilihan Staf (untuk /assign user: dan /staff target_staff:)
+    if (focused.name === 'user' || focused.name === 'target_staff') {
+      const staffKey = typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
+      const staffList = (await kv.get<StaffItem[]>(staffKey)) || [];
+
+      // Filter ketat: HANYA staf yang memiliki discordId aktif (belum dikeluarkan)
+      const activeStaff = staffList.filter((s) => Boolean(s.discordId && s.discordId.trim() !== ''));
+
+      const sorted = [...activeStaff].sort((a, b) =>
         a.discordName.localeCompare(b.discordName, 'id', { sensitivity: 'base' })
       );
+
       return {
         type: 8,
-        data: { choices: filterChoices(sorted, query, (s) => s.discordName, (s) => s.discordId) },
+        data: {
+          choices: filterChoices(
+            sorted,
+            query,
+            (s) => s.discordName,
+            (s) => s.discordId,
+            (s) => [s.discordName, s.discordId]
+          ),
+        },
       };
     }
 
