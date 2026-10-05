@@ -35,13 +35,6 @@ export const staffCommands = [
     options: [
       {
         type: 3,
-        name: 'match',
-        description: 'Pilih pertandingan terkait',
-        required: true,
-        autocomplete: true,
-      },
-      {
-        type: 3,
         name: 'type',
         description: 'Pilih peran staf yang akan dicabut penugasannya',
         required: true,
@@ -49,6 +42,13 @@ export const staffCommands = [
           { name: '⚖️ Referee (Wasit Pertandingan)', value: 'REFEREE' },
           { name: '🎥 Streamer (Kreator / Siaran)', value: 'STREAMER' },
         ],
+      },
+      {
+        type: 3,
+        name: 'match',
+        description: 'Pilih pertandingan terkait',
+        required: true,
+        autocomplete: true,
       },
     ],
   },
