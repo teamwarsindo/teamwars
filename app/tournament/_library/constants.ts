@@ -12,15 +12,25 @@ export const DIVISION_MAP = {
 export type DivisionGroupType = (typeof DIVISION_MAP)[keyof typeof DIVISION_MAP];
 
 // 3. REGULASI, KUOTA KUALIFIKASI & SISTEM POIN
+const PLAYOFF_START_WEEK = 8; // Week 8 ke atas masuk fase Playoff
+
 export const TOURNAMENT_RULES = {
   TOTAL_GROUP: 2,
   TOP_DIV_QUOTA_PER_GROUP: 2,       // Top 1 & 2 Divisi otomatis lolos Playoff
   GLOBAL_PLAYOFF_QUOTA: 8,          // Rank 1 s/d 8 Global (Wildcard Playoff)
-  PLAYOFF_START_WEEK: 8,            // Week 8 ke atas masuk fase Playoff
+  PLAYOFF_START_WEEK,
   TOTAL_TEAMS_PER_GROUP: 8,         // 8 tim per divisi
   MAX_MATCHES_PER_DAY_REGULAR: 3,   // Maksimal match per hari di Regular Season
   MAX_MATCHES_PER_DAY_PLAYOFF: 1,   // Maksimal match per hari di Playoff
   
+  // Pemetaan Pekan Babak Playoff Berbasis PLAYOFF_START_WEEK
+  PLAYOFF_WEEKS: {
+    PLAY_INS: PLAYOFF_START_WEEK,
+    QUARTER_FINAL: PLAYOFF_START_WEEK + 1,
+    SEMI_FINAL: PLAYOFF_START_WEEK + 2,
+    GRAND_FINAL: PLAYOFF_START_WEEK + 3,
+  },
+
   // Format Match & Lineup Game
   TOTAL_DECKS_PER_TEAM: 10,         // Kuota total nyawa deck per tim (5 pemain x 2 deck)
   MAX_REPEATS: 2,                   // Kuota maksimal repeat deck per tim
@@ -36,3 +46,4 @@ export const REFEREE_PAYROLL_CONFIG = {
   FEE_PER_MATCH: 15,                
   CURRENCY: "IDR",
 } as const;
+  
