@@ -40,7 +40,7 @@ export async function handleAssignAutocomplete(interaction: any) {
     if (!focused) return { type: 8, data: { choices: [] } };
 
     const typeOption = optionsList.find((opt: any) => opt.name === 'type')?.value;
-    const query = String(focused.value || '');
+    const query = String(focused.value || '').toLowerCase().trim();
 
     // 🟢 1. Filter Pilihan Match
     if (focused.name === 'match' || focused.name === 'match_a' || focused.name === 'match_b') {
@@ -75,39 +75,44 @@ export async function handleAssignAutocomplete(interaction: any) {
         const isMatchDone = Boolean(m.isFinished) || scoreA >= 10 || scoreB >= 10;
 
         if (isUnassign) {
-          if (typeOption === 'REFEREE') {
-            return isMatchDone;
-          }
-          if (typeOption === 'STREAMER') {
-            return true;
-          }
+          // Referee hanya match yang sudah selesai, Streamer bisa sebelum/sesudah selesai
+          if (typeOption === 'REFEREE') return isMatchDone;
           return true;
         }
 
+        // Assign & Swap: Hanya match yang belum selesai
         return !isMatchDone;
       });
 
+      // Urutkan murni berdasarkan KRONOLOGI WAKTU (Ascending: Dari hari & jam paling awal ke akhir)
       filtered.sort((a, b) => {
-        const timeA = new Date(a.matchDate).getTime();
-        const timeB = new Date(b.matchDate).getTime();
-        return isUnassign ? timeB - timeA : timeA - timeB;
+        const timeA = new Date(a.matchDate).getTime() || 0;
+        const timeB = new Date(b.matchDate).getTime() || 0;
+        return timeA - timeB;
       });
+
+      // Petakan ke format pilihan Discord
+      const mappedChoices = filtered.map((m) => {
+        const isMatchDone =
+          Boolean(m.isFinished) || (Number(m.scoreA) || 0) >= 10 || (Number(m.scoreB) || 0) >= 10;
+        const statusTag = isMatchDone ? ' [Selesai]' : '';
+        const dayTimeLabel = formatMatchDayTime(m.matchDate);
+        return {
+          name: `${dayTimeLabel}: ${m.teamAName} vs ${m.teamBName}${statusTag}`,
+          value: m.id,
+          rawSearch: `${dayTimeLabel} ${m.teamAName} ${m.teamBName}`.toLowerCase(),
+        };
+      });
+
+      // Filter berdasarkan query pencarian pengguna tanpa merusak urutan waktu
+      const finalChoices = query
+        ? mappedChoices.filter((c) => c.rawSearch.includes(query) || c.value.toLowerCase().includes(query))
+        : mappedChoices;
 
       return {
         type: 8,
         data: {
-          choices: filterChoices(
-            filtered,
-            query,
-            (m) => {
-              const isMatchDone =
-                Boolean(m.isFinished) || (Number(m.scoreA) || 0) >= 10 || (Number(m.scoreB) || 0) >= 10;
-              const statusTag = isMatchDone ? ' [Selesai]' : '';
-              return `${formatMatchDayTime(m.matchDate)}: ${m.teamAName} vs ${m.teamBName}${statusTag}`;
-            },
-            (m) => m.id,
-            (m) => [formatMatchDayTime(m.matchDate), m.teamAName, m.teamBName]
-          ),
+          choices: finalChoices.slice(0, 25).map((c) => ({ name: c.name, value: c.value })),
         },
       };
     }
