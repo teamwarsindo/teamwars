@@ -1,6 +1,7 @@
 import { kv } from '@vercel/kv';
 import { isValidSnowflake, discordAPI } from '@/lib/discord/utils';
 import { DISCORD_CONFIG } from '@/lib/discord/config';
+import { MatchScheduleItem } from '@/app/tournament/_library';
 import { StaffItem } from '../assign/types';
 
 export interface ExecuteManageStaffParams {
@@ -29,9 +30,16 @@ export async function executeManageStaff(
   const roleLabel = staffType === 'REFEREE' ? 'Referee' : 'Streamer';
   const targetRoleId =
     staffType === 'REFEREE' ? DISCORD_CONFIG.ROLE_REFEREE : DISCORD_CONFIG.ROLE_STREAMER;
+  const targetChannelId =
+    staffType === 'REFEREE'
+      ? (DISCORD_CONFIG as any).CH_REFEREE || (DISCORD_CONFIG as any).CH_REFEREES
+      : (DISCORD_CONFIG as any).CH_STREAMER || (DISCORD_CONFIG as any).CH_STREAMERS;
   const guildId = DISCORD_CONFIG.GUILD_ID;
 
-  const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
+  const [staffList, schedules] = await Promise.all([
+    kv.get<StaffItem[]>(kvKey).then((res) => res || []),
+    kv.get<MatchScheduleItem[]>('twi:schedules').then((res) => res || []),
+  ]);
 
   if (action === 'ADD') {
     const finalName = discordName?.trim() || targetDiscordId;
@@ -51,10 +59,9 @@ export async function executeManageStaff(
       });
     }
 
-    // 1. Simpan perubahan ke Vercel KV
     await kv.set(kvKey, staffList);
 
-    // 2. Berikan Role Discord ke User
+    // 1. Berikan Role Discord ke User
     if (guildId && targetRoleId) {
       try {
         await discordAPI(
@@ -66,10 +73,26 @@ export async function executeManageStaff(
       }
     }
 
+    // 2. Kirim pesan pengumuman ke Channel Divisi Staf masing-masing
+    if (targetChannelId) {
+      try {
+        const welcomeMessage =
+          staffType === 'REFEREE'
+            ? `⚖️ <@${targetDiscordId}> telah resmi bergabung sebagai **Referee (Wasit)** turnamen! Selamat bertugas.`
+            : `🎥 <@${targetDiscordId}> telah resmi bergabung sebagai **Streamer** turnamen! Selamat bertugas.`;
+
+        await discordAPI(`/channels/${targetChannelId}/messages`, 'POST', {
+          content: welcomeMessage,
+        });
+      } catch (msgErr) {
+        console.warn(`Gagal mengirim pengumuman staf ke channel ${roleLabel}:`, msgErr);
+      }
+    }
+
     return {
       success: true,
       staffName: finalName,
-      message: `✅ Berhasil mendaftarkan **${finalName}** (<@${targetDiscordId}>) sebagai **${roleLabel}** aktif & role Discord telah diberikan!`,
+      message: `✅ Berhasil mendaftarkan **${finalName}** (<@${targetDiscordId}>) sebagai **${roleLabel}** aktif!\nRole telah diberikan dan pengumuman telah dikirim ke channel ${roleLabel}.`,
     };
   }
 
@@ -79,13 +102,50 @@ export async function executeManageStaff(
       throw new Error(`Staf aktif dengan ID tersebut tidak ditemukan di daftar ${roleLabel}.`);
     }
 
-    const removedName = staffList[targetIdx].discordName;
+    const targetStaff = staffList[targetIdx];
+    const isRef = staffType === 'REFEREE';
 
-    // 1. Kosongkan discordId di KV agar tidak muncul di autocomplete
-    staffList[targetIdx].discordId = '';
+    // 1. Validasi: Cek apakah staf sedang aktif bertugas pada match yang belum tuntas
+    const activeDuty = schedules.find((m) => {
+      const assignedId = isRef ? m.refereeDiscordId : m.streamerDiscordId;
+      if (assignedId !== targetDiscordId) return false;
+
+      const scoreA = Number(m.scoreA) || 0;
+      const scoreB = Number(m.scoreB) || 0;
+      const isFinished = Boolean(m.isFinished) || scoreA >= 10 || scoreB >= 10;
+      return !isFinished;
+    });
+
+    if (activeDuty) {
+      throw new Error(
+        `⛔ Ditolak! **${targetStaff.discordName}** sedang aktif bertugas di match **${activeDuty.id}** (${activeDuty.teamAName} vs ${activeDuty.teamBName}). Harap lakukan /unassign atau /swap-assign terlebih dahulu.`
+      );
+    }
+
+    // 2. Validasi: Cek histori tugas di match sebelumnya
+    const hasHistory = schedules.some((m) => {
+      const assignedId = isRef ? m.refereeDiscordId : m.streamerDiscordId;
+      const assignedName = isRef ? m.referee : m.streamer;
+      return (
+        assignedId === targetDiscordId ||
+        (assignedName && assignedName.toLowerCase() === targetStaff.discordName.toLowerCase())
+      );
+    });
+
+    let resultMessage = '';
+    if (hasHistory) {
+      // Ada histori: pertahankan entri nama, hanya buang discordId
+      staffList[targetIdx].discordId = '';
+      resultMessage = `✅ Staf **${targetStaff.discordName}** dinonaktifkan dari **${roleLabel}**.\n\`discordId\` dan role telah dicabut, histori laporan laga tetap aman.`;
+    } else {
+      // Belum pernah bertugas: hapus permanen dari KV
+      staffList.splice(targetIdx, 1);
+      resultMessage = `🗑️ Staf **${targetStaff.discordName}** dihapus permanen dari daftar **${roleLabel}** karena belum pernah memiliki histori tugas.`;
+    }
+
     await kv.set(kvKey, staffList);
 
-    // 2. Cabut Role Discord dari User
+    // 3. Cabut role Discord (berlaku untuk yang punya histori maupun yang dihapus total)
     if (guildId && targetRoleId) {
       try {
         await discordAPI(
@@ -99,10 +159,10 @@ export async function executeManageStaff(
 
     return {
       success: true,
-      staffName: removedName,
-      message: `✅ Staf **${removedName}** telah dikeluarkan dari **${roleLabel}** aktif.\nRole Discord telah dicabut, \`discordId\` dibersihkan dari autocomplete, dan arsip riwayat laga tetap aman.`,
+      staffName: targetStaff.discordName,
+      message: resultMessage,
     };
   }
 
   throw new Error('Aksi tidak dikenali.');
-}
+  }
