@@ -1,5 +1,6 @@
 import { kv } from '@vercel/kv';
-import { isValidSnowflake } from '@/lib/discord/utils';
+import { isValidSnowflake, discordAPI } from '@/lib/discord/utils';
+import { DISCORD_CONFIG } from '@/lib/discord/config';
 import { StaffItem } from '../assign/types';
 
 export interface ExecuteManageStaffParams {
@@ -26,6 +27,10 @@ export async function executeManageStaff(
 
   const kvKey = staffType === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
   const roleLabel = staffType === 'REFEREE' ? 'Referee' : 'Streamer';
+  const targetRoleId =
+    staffType === 'REFEREE' ? DISCORD_CONFIG.ROLE_REFEREE : DISCORD_CONFIG.ROLE_STREAMER;
+  const guildId = DISCORD_CONFIG.GUILD_ID;
+
   const staffList = (await kv.get<StaffItem[]>(kvKey)) || [];
 
   if (action === 'ADD') {
@@ -46,12 +51,25 @@ export async function executeManageStaff(
       });
     }
 
+    // 1. Simpan perubahan ke Vercel KV
     await kv.set(kvKey, staffList);
+
+    // 2. Berikan Role Discord ke User
+    if (guildId && targetRoleId) {
+      try {
+        await discordAPI(
+          `/guilds/${guildId}/members/${targetDiscordId}/roles/${targetRoleId}`,
+          'PUT'
+        );
+      } catch (roleErr) {
+        console.warn(`Gagal memberikan role Discord ${roleLabel}:`, roleErr);
+      }
+    }
 
     return {
       success: true,
       staffName: finalName,
-      message: `✅ Berhasil mendaftarkan **${finalName}** (<@${targetDiscordId}>) sebagai **${roleLabel}** aktif!`,
+      message: `✅ Berhasil mendaftarkan **${finalName}** (<@${targetDiscordId}>) sebagai **${roleLabel}** aktif & role Discord telah diberikan!`,
     };
   }
 
@@ -63,17 +81,28 @@ export async function executeManageStaff(
 
     const removedName = staffList[targetIdx].discordName;
 
-    // Kosongkan discordId agar tidak muncul lagi di autocomplete penugasan,
-    // namun data nama dipertahankan agar tidak merusak relasi riwayat report
+    // 1. Kosongkan discordId di KV agar tidak muncul di autocomplete
     staffList[targetIdx].discordId = '';
     await kv.set(kvKey, staffList);
+
+    // 2. Cabut Role Discord dari User
+    if (guildId && targetRoleId) {
+      try {
+        await discordAPI(
+          `/guilds/${guildId}/members/${targetDiscordId}/roles/${targetRoleId}`,
+          'DELETE'
+        );
+      } catch (roleErr) {
+        console.warn(`Gagal mencabut role Discord ${roleLabel}:`, roleErr);
+      }
+    }
 
     return {
       success: true,
       staffName: removedName,
-      message: `✅ Staf **${removedName}** telah dikeluarkan dari jajaran **${roleLabel}** aktif.\n\`discordId\` telah dibuang sehingga tidak akan muncul lagi di autocomplete, dan arsip riwayat pertandingan tetap terjaga.`,
+      message: `✅ Staf **${removedName}** telah dikeluarkan dari **${roleLabel}** aktif.\nRole Discord telah dicabut, \`discordId\` dibersihkan dari autocomplete, dan arsip riwayat laga tetap aman.`,
     };
   }
 
   throw new Error('Aksi tidak dikenali.');
-      }
+}
