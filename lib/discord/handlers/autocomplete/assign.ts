@@ -29,7 +29,6 @@ function formatMatchDayTime(isoString?: string): string {
 
 export async function handleAssignAutocomplete(interaction: any) {
   try {
-    // 1. Deteksi nama sub-command (unassign, remove, swap, dsb.)
     const subCommandObj = interaction.data?.options?.find(
       (opt: any) => opt.type === 1 || opt.type === 2
     );
@@ -43,28 +42,44 @@ export async function handleAssignAutocomplete(interaction: any) {
     const typeOption = optionsList.find((opt: any) => opt.name === 'type')?.value;
     const query = String(focused.value || '');
 
-    // 🟢 Filter Match: isFinished Wajib FALSE + Cek Tanggal
+    // 🟢 Filter Pilihan Match
     if (focused.name === 'match' || focused.name === 'match_a' || focused.name === 'match_b') {
       const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
       const now = Date.now();
+      const threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000;
 
       const filtered = schedules.filter((m) => {
-        // Wajib: punya channel discord, ada tanggalnya, dan BELUM SELESAI (isFinished: false)
-        if (!m.discordChannelId || !m.matchDate || m.isFinished) return false;
+        if (!m.id || !m.discordChannelId || !m.matchDate) return false;
 
         const matchTime = new Date(m.matchDate).getTime();
         if (isNaN(matchTime)) return false;
 
+        const scoreA = Number(m.scoreA) || 0;
+        const scoreB = Number(m.scoreB) || 0;
+        const isMatchDone = Boolean(m.isFinished) || scoreA >= 10 || scoreB >= 10;
+
         if (isUnassign) {
-          // Unassign: Tanggal sudah lewat dari hari ini & isFinished false
-          return matchTime < now;
+          // Aturan Unassign:
+          // 1. STREAMER: Boleh sebelum tanding (batal siaran) ATAU setelah selesai (cabut role)
+          if (typeOption === 'STREAMER') {
+            return matchTime >= threeDaysAgo;
+          }
+
+          // 2. REFEREE: Hanya boleh jika match SUDAH SELESAI (cabut role tanpa hapus data)
+          if (typeOption === 'REFEREE') {
+            return isMatchDone && matchTime >= threeDaysAgo;
+          }
+
+          // 3. Jika belum memilih type: munculkan match baru selesai atau match masa kini
+          return matchTime >= threeDaysAgo;
         }
 
-        // Assign & Swap: Tanggal belum lewat (hari ini ke depan) & isFinished false
-        return matchTime >= now;
+        // ASSIGN & SWAP: Khusus match yang BELUM SELESAI
+        if (isMatchDone) return false;
+        return matchTime >= now - 12 * 60 * 60 * 1000;
       });
 
-      // Urutkan jadwal
+      // Urutkan jadwal: Unassign mendahulukan match paling baru/dekat
       filtered.sort((a, b) => {
         const timeA = new Date(a.matchDate).getTime();
         const timeB = new Date(b.matchDate).getTime();
@@ -77,7 +92,12 @@ export async function handleAssignAutocomplete(interaction: any) {
           choices: filterChoices(
             filtered,
             query,
-            (m) => `${formatMatchDayTime(m.matchDate)}: ${m.teamAName} vs ${m.teamBName}`,
+            (m) => {
+              const isMatchDone =
+                Boolean(m.isFinished) || (Number(m.scoreA) || 0) >= 10 || (Number(m.scoreB) || 0) >= 10;
+              const statusTag = isMatchDone ? ' [Selesai]' : '';
+              return `${formatMatchDayTime(m.matchDate)}: ${m.teamAName} vs ${m.teamBName}${statusTag}`;
+            },
             (m) => m.id,
             (m) => [formatMatchDayTime(m.matchDate), m.teamAName, m.teamBName]
           ),
@@ -86,8 +106,11 @@ export async function handleAssignAutocomplete(interaction: any) {
     }
 
     if (focused.name === 'user') {
-      const staffList = (await kv.get<StaffItem[]>(typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees')) || [];
-      const sorted = [...staffList].sort((a, b) => a.discordName.localeCompare(b.discordName, 'id', { sensitivity: 'base' }));
+      const staffList =
+        (await kv.get<StaffItem[]>(typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees')) || [];
+      const sorted = [...staffList].sort((a, b) =>
+        a.discordName.localeCompare(b.discordName, 'id', { sensitivity: 'base' })
+      );
       return {
         type: 8,
         data: { choices: filterChoices(sorted, query, (s) => s.discordName, (s) => s.discordId) },
@@ -98,5 +121,5 @@ export async function handleAssignAutocomplete(interaction: any) {
   } catch (error) {
     console.error('Error assign autocomplete:', error);
     return { type: 8, data: { choices: [] } };
-  }                
-}
+  }
+                  }
