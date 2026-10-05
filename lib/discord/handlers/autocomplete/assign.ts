@@ -44,42 +44,58 @@ export async function handleAssignAutocomplete(interaction: any) {
 
     // 🟢 Filter Pilihan Match
     if (focused.name === 'match' || focused.name === 'match_a' || focused.name === 'match_b') {
-      const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
-      const now = Date.now();
-      const threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000;
+      if (isUnassign && !typeOption) {
+        return {
+          type: 8,
+          data: {
+            choices: [
+              {
+                name: "⚠️ Harap pilih opsi 'type' terlebih dahulu!",
+                value: 'EMPTY_TYPE',
+              },
+            ],
+          },
+        };
+      }
 
-      const filtered = schedules.filter((m) => {
+      // Ambil pekan aktif dan daftar jadwal dari KV
+      const [schedules, activeWeek] = await Promise.all([
+        kv.get<MatchScheduleItem[]>('twi:schedules'),
+        kv.get<number>('twi:current_week'),
+      ]);
+
+      const currentWeek = activeWeek || 10;
+      const matchScheduleList = schedules || [];
+
+      const filtered = matchScheduleList.filter((m) => {
         if (!m.id || !m.discordChannelId || !m.matchDate) return false;
 
-        const matchTime = new Date(m.matchDate).getTime();
-        if (isNaN(matchTime)) return false;
+        // Kunci hanya pada pekan saat ini
+        if (m.weekNumber && m.weekNumber !== currentWeek) return false;
 
         const scoreA = Number(m.scoreA) || 0;
         const scoreB = Number(m.scoreB) || 0;
         const isMatchDone = Boolean(m.isFinished) || scoreA >= 10 || scoreB >= 10;
 
         if (isUnassign) {
-          // Aturan Unassign:
-          // 1. STREAMER: Boleh sebelum tanding (batal siaran) ATAU setelah selesai (cabut role)
-          if (typeOption === 'STREAMER') {
-            return matchTime >= threeDaysAgo;
-          }
-
-          // 2. REFEREE: Hanya boleh jika match SUDAH SELESAI (cabut role tanpa hapus data)
+          // 1. REFEREE: Hanya match di pekan aktif yang SUDAH SELESAI
           if (typeOption === 'REFEREE') {
-            return isMatchDone && matchTime >= threeDaysAgo;
+            return isMatchDone;
           }
 
-          // 3. Jika belum memilih type: munculkan match baru selesai atau match masa kini
-          return matchTime >= threeDaysAgo;
+          // 2. STREAMER: Match di pekan aktif (baik sebelum mulai atau selesai)
+          if (typeOption === 'STREAMER') {
+            return true;
+          }
+
+          return true;
         }
 
-        // ASSIGN & SWAP: Khusus match yang BELUM SELESAI
-        if (isMatchDone) return false;
-        return matchTime >= now - 12 * 60 * 60 * 1000;
+        // ASSIGN & SWAP: Hanya match pekan aktif yang BELUM SELESAI
+        return !isMatchDone;
       });
 
-      // Urutkan jadwal: Unassign mendahulukan match paling baru/dekat
+      // Urutkan jadwal sesuai waktu tanding
       filtered.sort((a, b) => {
         const timeA = new Date(a.matchDate).getTime();
         const timeB = new Date(b.matchDate).getTime();
@@ -122,4 +138,4 @@ export async function handleAssignAutocomplete(interaction: any) {
     console.error('Error assign autocomplete:', error);
     return { type: 8, data: { choices: [] } };
   }
-                  }
+}
