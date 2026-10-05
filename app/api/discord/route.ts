@@ -15,6 +15,7 @@ import { handleTransferCommand } from '@/lib/discord/commands/transfer';
 import { handleAssignCommand } from '@/lib/discord/commands/assign';
 import { handleUnassignCommand } from '@/lib/discord/commands/unassign';
 import { handleSwapAssignCommand } from '@/lib/discord/commands/swap-assign';
+import { handleStaffCommand } from '@/lib/discord/commands/staff';
 import { handleSubmitCommand } from '@/lib/discord/commands/submit';
 import { handleGameCommand } from '@/lib/discord/commands/game';
 import { handleStreamCommand } from '@/lib/discord/commands/stream';
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Verifikasi Signature Discord
     if (!verifySignature(rawBody, signature, timestamp)) {
-      console.warn('⚠️ Request Discord ditolak: Signature Invalid!');
+      console.warn('⚠️ Request Discord ditolak: Signature Invalid! Pastikan DISCORD_PUBLIC_KEY valid di environment variables.');
       return new NextResponse('Akses Ditolak', { status: 401 });
     }
 
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
       if (commandName === 'assign') return await handleAssignCommand(body);
       if (commandName === 'unassign') return await handleUnassignCommand(body);
       if (commandName === 'swap-assign') return await handleSwapAssignCommand(body);
+      if (commandName === 'staff') return await handleStaffCommand(body);
       if (commandName === 'reschedule') return await handleRescheduleCommand(body);
       if (commandName === 'transfer') return NextResponse.json(await handleTransferCommand(body));
       if (commandName === 'match-report') return NextResponse.json(await handleMatchReportCommand(body));
@@ -96,16 +98,8 @@ export async function POST(req: NextRequest) {
       const userRoles: string[] = body.member?.roles || [];
       const isAdmin = userRoles.includes(DISCORD_CONFIG.ROLE_ADMIN);
 
-      // 📊 Tombol Cek Sisa Match Harian
-      if (customId.startsWith('check_matches_')) {
-        return await handleBtCheckMatches(body);
-      }
-
-      // ⚖️ String Select Menu Sanksi Deckloss
-      if (customId.startsWith('deckloss_claim_')) {
-        return await handleDecklossClaimSelect(body);
-      }
-
+      if (customId.startsWith('check_matches_')) return await handleBtCheckMatches(body);
+      if (customId.startsWith('deckloss_claim_')) return await handleDecklossClaimSelect(body);
       if (customId === 'bt_verified') return await handleBtVerified(body);
       if (customId === 'bt_role') return await handleBtRole(body);
       if (customId === 'select_forward_match_report') return await handleMatchReportSelect(body);
@@ -121,13 +115,10 @@ export async function POST(req: NextRequest) {
 
         const groupTarget = customId.replace('btn_bid_', '');
         const data = (await kv.get<BidStore>(KV_BID_KEY)) || { groupA: null, groupB: null };
-
         const currentA = data.groupA?.amount || 0;
         const currentB = data.groupB?.amount || 0;
-
         const minAmountA = currentA === 0 ? 110000 : currentA + 10000;
         const minAmountB = currentB === 0 ? 110000 : currentB + 10000;
-
         const minAmount = groupTarget === 'A' ? minAmountA : minAmountB;
 
         return NextResponse.json(getBidModal(groupTarget, minAmount));
@@ -233,7 +224,12 @@ export async function POST(req: NextRequest) {
       if (body.data?.name === 'submit') return NextResponse.json(await handleSubmitAutocomplete(body));
       if (body.data?.name === 'game') return NextResponse.json(await handleGameAutocomplete(body));
       
-      if (body.data?.name === 'assign' || body.data?.name === 'unassign' || body.data?.name === 'swap-assign') {
+      if (
+        body.data?.name === 'assign' ||
+        body.data?.name === 'unassign' ||
+        body.data?.name === 'swap-assign' ||
+        body.data?.name === 'staff'
+      ) {
         return NextResponse.json(await handleAssignAutocomplete(body));
       }
 
@@ -254,3 +250,4 @@ export async function POST(req: NextRequest) {
     return new NextResponse('Internal Error', { status: 500 });
   }
         }
+  
