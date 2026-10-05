@@ -58,7 +58,6 @@ export async function handleAssignAutocomplete(interaction: any) {
         };
       }
 
-      // Ambil pekan aktif dan daftar jadwal dari KV
       const [schedules, activeWeek] = await Promise.all([
         kv.get<MatchScheduleItem[]>('twi:schedules'),
         kv.get<number>('twi:current_week'),
@@ -69,8 +68,6 @@ export async function handleAssignAutocomplete(interaction: any) {
 
       const filtered = matchScheduleList.filter((m) => {
         if (!m.id || !m.discordChannelId || !m.matchDate) return false;
-
-        // Kunci hanya pada pekan saat ini
         if (m.weekNumber && m.weekNumber !== currentWeek) return false;
 
         const scoreA = Number(m.scoreA) || 0;
@@ -78,24 +75,18 @@ export async function handleAssignAutocomplete(interaction: any) {
         const isMatchDone = Boolean(m.isFinished) || scoreA >= 10 || scoreB >= 10;
 
         if (isUnassign) {
-          // 1. REFEREE: Hanya match di pekan aktif yang SUDAH SELESAI
           if (typeOption === 'REFEREE') {
             return isMatchDone;
           }
-
-          // 2. STREAMER: Match di pekan aktif (baik sebelum mulai atau selesai)
           if (typeOption === 'STREAMER') {
             return true;
           }
-
           return true;
         }
 
-        // ASSIGN & SWAP: Hanya match pekan aktif yang BELUM SELESAI
         return !isMatchDone;
       });
 
-      // Urutkan jadwal sesuai waktu tanding
       filtered.sort((a, b) => {
         const timeA = new Date(a.matchDate).getTime();
         const timeB = new Date(b.matchDate).getTime();
@@ -126,7 +117,7 @@ export async function handleAssignAutocomplete(interaction: any) {
       const staffKey = typeOption === 'STREAMER' ? 'staff:streamers' : 'staff:referees';
       const staffList = (await kv.get<StaffItem[]>(staffKey)) || [];
 
-      // Filter ketat: HANYA staf yang memiliki discordId aktif (belum dikeluarkan)
+      // Filter ketat: HANYA staf yang memiliki discordId aktif
       const activeStaff = staffList.filter((s) => Boolean(s.discordId && s.discordId.trim() !== ''));
 
       const sorted = [...activeStaff].sort((a, b) =>
