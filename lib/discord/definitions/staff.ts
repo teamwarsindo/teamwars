@@ -82,4 +82,49 @@ export const staffCommands = [
       },
     ],
   },
+  {
+    name: 'staff',
+    description: 'Kelola penambahan staf baru atau keluarkan staf aktif',
+    options: [
+      {
+        type: 3,
+        name: 'action',
+        description: 'Pilih aksi yang diinginkan',
+        required: true,
+        choices: [
+          { name: '➕ Tambah / Aktifkan Staf', value: 'ADD' },
+          { name: '⛔ Keluarkan Staf (Hapus Akses)', value: 'REMOVE' },
+        ],
+      },
+      {
+        type: 3,
+        name: 'type',
+        description: 'Pilih divisi peran staf',
+        required: true,
+        choices: [
+          { name: '⚖️ Referee (Wasit)', value: 'REFEREE' },
+          { name: '🎥 Streamer (Penyiar)', value: 'STREAMER' },
+        ],
+      },
+      {
+        type: 6,
+        name: 'user',
+        description: 'Pilih akun Discord staf (Wajib saat Tambah Staf)',
+        required: false,
+      },
+      {
+        type: 3,
+        name: 'target_staff',
+        description: 'Pilih staf yang akan dikeluarkan (Wajib saat Keluarkan Staf)',
+        required: false,
+        autocomplete: true,
+      },
+      {
+        type: 3,
+        name: 'name',
+        description: 'Nama / Alias tampilan turnamen (Opsional untuk Tambah Staf)',
+        required: false,
+      },
+    ],
+  },
 ];
