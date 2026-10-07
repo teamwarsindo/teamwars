@@ -40,7 +40,7 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
             <span className="truncate">{title}</span>
           </Link>
 
-          {/* TOGGLE MOBILE */}
+          {/* TOGGLE MOBILE: OPSI A IKON DISCORD + THEME TOGGLE */}
           <div className="flex md:hidden items-center gap-2">
             {showTrash && onClearStorage && (
               <button
@@ -51,6 +51,21 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
                 <TrashIcon className="h-4 w-4" />
               </button>
             )}
+            <a
+              href="https://discord.gg/NtBBdqUrxe"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Discord Server"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/50 bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <svg
+                className="h-4 w-4 fill-current text-[#5865F2]"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+              </svg>
+            </a>
             <ThemeToggle />
           </div>
         </div>
@@ -77,7 +92,7 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
           })}
         </nav>
 
-        {/* KANAN: TOGGLES DESKTOP (Flex-1 penyeimbang simetri) */}
+        {/* KANAN: TOGGLES DESKTOP: OPSI A IKON DISCORD + THEME TOGGLE */}
         <div className="hidden md:flex items-center justify-end gap-3 md:flex-1 shrink-0">
           {showTrash && onClearStorage && (
             <button
@@ -89,6 +104,22 @@ export function TopBar({ title, showTrash = false, onClearStorage }: TopBarProps
               <TrashIcon className="h-4 w-4" />
             </button>
           )}
+          <a
+            href="https://discord.gg/NtBBdqUrxe"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Discord Server"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-muted/30 border border-border/40 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer shadow-sm"
+            title="Kunjungi Discord Resmi"
+          >
+            <svg
+              className="h-4 w-4 fill-current text-[#5865F2]"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+            </svg>
+          </a>
           <div className="scale-110">
             <ThemeToggle />
           </div>
@@ -122,12 +153,29 @@ export function HeroHeader({ showDetails = true }: HeroHeaderProps) {
       </h1>
 
       {showDetails && (
-        <>
-          <div className="mt-3 md:mt-5 inline-flex items-center gap-2 md:gap-3 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1 md:px-5 md:py-1.5 text-[11px] md:text-sm font-black uppercase tracking-[0.15em] text-primary shadow-sm">
+        <div className="mt-3 md:mt-5 flex flex-wrap items-center justify-center gap-2 md:gap-3">
+          <div className="inline-flex items-center gap-2 md:gap-3 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1 md:px-5 md:py-1.5 text-[11px] md:text-sm font-black uppercase tracking-[0.15em] text-primary shadow-sm">
             <span className="h-2 w-2 md:h-2.5 md:w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             Season 7 — Duel Links
-          </div>          
-        </>
+          </div>
+
+          {/* OPSI B: PILL DISCORD SEPERTI SEASON 7 */}
+          <a
+            href="https://discord.gg/NtBBdqUrxe"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full border border-[#5865F2]/40 bg-[#5865F2]/10 px-3.5 py-1 md:px-5 md:py-1.5 text-[11px] md:text-sm font-black uppercase tracking-[0.15em] text-[#5865F2] shadow-sm transition hover:bg-[#5865F2]/20 hover:scale-105 active:scale-95"
+          >
+            <svg
+              className="h-3.5 w-3.5 md:h-4 md:w-4 fill-current text-[#5865F2] shrink-0"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+            </svg>
+            <span>Discord</span>
+          </a>
+        </div>
       )}
     </header>
   );
