@@ -153,13 +153,14 @@ export function HeroHeader({ showDetails = true }: HeroHeaderProps) {
       </h1>
 
       {showDetails && (
-        <div className="mt-3 md:mt-5 flex flex-wrap items-center justify-center gap-2 md:gap-3">
+        <div className="mt-3 md:mt-5 flex flex-col items-center justify-center gap-2 md:gap-2.5">
+          {/* BADGE SEASON 7 */}
           <div className="inline-flex items-center gap-2 md:gap-3 rounded-full border border-primary/40 bg-primary/10 px-3.5 py-1 md:px-5 md:py-1.5 text-[11px] md:text-sm font-black uppercase tracking-[0.15em] text-primary shadow-sm">
             <span className="h-2 w-2 md:h-2.5 md:w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             Season 7 — Duel Links
           </div>
 
-          {/* OPSI B: PILL DISCORD SEPERTI SEASON 7 */}
+          {/* OPSI B: PILL DISCORD TEPAT DI BAWAH BADGE SEASON 7 */}
           <a
             href="https://discord.gg/NtBBdqUrxe"
             target="_blank"
@@ -206,4 +207,4 @@ export function Footer() {
       </a>
     </footer>
   );
-      }
+}
