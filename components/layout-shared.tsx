@@ -138,17 +138,17 @@ export function HeroHeader({ showDetails = true }: HeroHeaderProps) {
 // ==========================================
 export function Footer() {
   return (
-    <footer className="mt-auto pt-8 pb-6 flex items-center justify-center gap-2 text-center text-[10px] text-muted-foreground sm:pt-12 sm:text-xs md:text-sm font-medium">
+    <footer className="mt-auto pt-8 pb-6 flex items-center justify-center gap-2.5 text-center text-[10px] text-muted-foreground sm:pt-12 sm:text-xs md:text-sm font-medium">
       <span>© {new Date().getFullYear()} Team Wars Indonesia</span>
-      <span className="opacity-60">•</span>
+      <span className="opacity-40">•</span>
       <a
         href="https://discord.gg/NtBBdqUrxe"
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 font-semibold text-muted-foreground hover:text-foreground transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold text-foreground/90 shadow-2xs transition hover:bg-muted hover:text-foreground active:scale-95"
       >
         <svg
-          className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-current text-[#5865F2]"
+          className="h-3.5 w-3.5 fill-current text-[#5865F2] shrink-0"
           viewBox="0 0 24 24"
           aria-hidden="true"
         >
@@ -158,4 +158,4 @@ export function Footer() {
       </a>
     </footer>
   );
-}
+      }
