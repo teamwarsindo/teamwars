@@ -152,10 +152,55 @@ export async function executeUnassignStaff(params: ExecuteUnassignParams): Promi
 
   schedules[idx] = match;
 
-  // Otomatisasi kenaikan pemenang playoff (termasuk sinkronisasi laga lampau yang belum terisi)
+  // Otomatisasi kenaikan pemenang playoff ke ronde berikutnya
   advancePlayoffWinner(schedules);
 
-  await kv.set('twi:schedules', schedules);
+  // Perbarui twi:match_reports agar status selesai dan nama tim tersinkronisasi
+  const reportData = await kv.hget<any>('twi:match_reports', match.id);
+  const reportsToUpdate: Record<string, any> = {};
+
+  if (reportData) {
+    reportData.isFinished = true;
+    if (match.teamAName && !/^winner\b|^loser\b|^tbd\b/i.test(match.teamAName)) {
+      if (!reportData.teamA) reportData.teamA = {};
+      reportData.teamA.name = match.teamAName;
+    }
+    if (match.teamBName && !/^winner\b|^loser\b|^tbd\b/i.test(match.teamBName)) {
+      if (!reportData.teamB) reportData.teamB = {};
+      reportData.teamB.name = match.teamBName;
+    }
+    reportsToUpdate[match.id] = reportData;
+  }
+
+  // Sinkronkan nama tim pemenang ke laporan laga playoff berikutnya (jika sudah ada draft report-nya)
+  for (const s of schedules) {
+    if (s.id && s.id !== match.id) {
+      const nextReport = await kv.hget<any>('twi:match_reports', s.id);
+      if (nextReport) {
+        let changed = false;
+        if (s.teamAName && !/^winner\b|^loser\b|^tbd\b/i.test(s.teamAName) && nextReport.teamA?.name !== s.teamAName) {
+          if (!nextReport.teamA) nextReport.teamA = {};
+          nextReport.teamA.name = s.teamAName;
+          changed = true;
+        }
+        if (s.teamBName && !/^winner\b|^loser\b|^tbd\b/i.test(s.teamBName) && nextReport.teamB?.name !== s.teamBName) {
+          if (!nextReport.teamB) nextReport.teamB = {};
+          nextReport.teamB.name = s.teamBName;
+          changed = true;
+        }
+        if (changed) {
+          reportsToUpdate[s.id] = nextReport;
+        }
+      }
+    }
+  }
+
+  const kvTasks: Promise<any>[] = [kv.set('twi:schedules', schedules)];
+  if (Object.keys(reportsToUpdate).length > 0) {
+    kvTasks.push(kv.hset('twi:match_reports', reportsToUpdate));
+  }
+
+  await Promise.all(kvTasks);
 
   return { match, targetStaffName };
-      }
+          }
