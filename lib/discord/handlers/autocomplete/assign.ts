@@ -75,9 +75,16 @@ export async function handleAssignAutocomplete(interaction: any) {
         const isMatchDone = Boolean(m.isFinished) || scoreA >= 10 || scoreB >= 10;
 
         if (isUnassign) {
-          // Referee hanya match yang sudah selesai, Streamer bisa sebelum/sesudah selesai
-          if (typeOption === 'REFEREE') return isMatchDone;
-          return true;
+          // Hanya tampilkan match jika staf terkait masih bertugas aktif (ID Discord belum dicabut)
+          if (typeOption === 'REFEREE') {
+            const hasActiveReferee = Boolean(m.refereeDiscordId && m.refereeDiscordId.trim() !== '');
+            return hasActiveReferee && isMatchDone;
+          }
+          if (typeOption === 'STREAMER') {
+            const hasActiveStreamer = Boolean(m.streamerDiscordId && m.streamerDiscordId.trim() !== '');
+            return hasActiveStreamer;
+          }
+          return false;
         }
 
         // Assign & Swap: Hanya match yang belum selesai
