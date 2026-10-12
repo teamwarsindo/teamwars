@@ -246,10 +246,23 @@ export function PowerRankingView({
       formattedPlayoffStage = formatStageName(rawStage);
     }
 
+    // Resolusi divisi asli tim dari riwayat jadwal Regular Season
+    const regularSeasonMatch = schedules.find((s: any) => {
+      const isMatchOfTeam =
+        normalizeKey(s.teamAName) === normTargetTeam ||
+        normalizeKey(s.teamBName) === normTargetTeam;
+      return isMatchOfTeam && Number(s.weekNumber || 1) < TOURNAMENT_RULES.PLAYOFF_START_WEEK && Boolean(s.groupName);
+    });
+
     const teamProfile = teams.find(
       (t) => normalizeKey(t.name) === normTargetTeam || (t.slug && normalizeKey(t.slug) === normTargetTeam)
     );
-    const originalGroupName = teamProfile?.groupName || stats.groupName || "Team Wars Indonesia";
+
+    const originalGroupName =
+      regularSeasonMatch?.groupName ||
+      teamProfile?.groupName ||
+      stats.groupName ||
+      "Team Wars Indonesia";
 
     return {
       ...stats,
@@ -332,5 +345,5 @@ export function PowerRankingView({
         standing={selectedTeamStanding}
       />
     </div>
-  );   
-}
+  );
+      }
