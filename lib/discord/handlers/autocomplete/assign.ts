@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import { MatchScheduleItem } from '@/app/tournament/_library';
+import { MatchScheduleItem, getCurrentServerWeek } from '@/app/tournament/_library';
 import { StaffItem } from '@/lib/discord/commands/assign/types';
 import { filterChoices } from './types';
 
@@ -58,15 +58,11 @@ export async function handleAssignAutocomplete(interaction: any) {
         };
       }
 
-      const [schedules, activeWeek] = await Promise.all([
-        kv.get<MatchScheduleItem[]>('twi:schedules'),
-        kv.get<number>('twi:current_week'),
-      ]);
+      // Hitung pekan aktif secara dinamis persis seperti logika web (tanpa fallback angka)
+      const currentWeek = getCurrentServerWeek();
+      const schedules = (await kv.get<MatchScheduleItem[]>('twi:schedules')) || [];
 
-      const currentWeek = activeWeek || 10;
-      const matchScheduleList = schedules || [];
-
-      const filtered = matchScheduleList.filter((m) => {
+      const filtered = schedules.filter((m) => {
         if (!m.id || !m.discordChannelId || !m.matchDate) return false;
         if (m.weekNumber && m.weekNumber !== currentWeek) return false;
 
